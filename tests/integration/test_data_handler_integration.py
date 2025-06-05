@@ -1,3 +1,8 @@
+"""Integration tests for DataHandler component.
+
+Tests the DataHandler's interaction with exchange APIs, data caching,
+and real-time data management functionality in integration scenarios.
+"""
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -22,7 +27,7 @@ def mock_symbol_mapper() -> MagicMock:
     mapper_mock = MagicMock(spec=SymbolMapper)
 
     def identity_symbol_map(exchange_id: str, symbol: str) -> str:
-        """Helper function for identity symbol map."""
+        """Return the symbol unchanged for identity mapping."""
         return symbol
 
     # Configure map_to_engine_symbol to return the input symbol itself
@@ -47,7 +52,7 @@ class TestDataHandlerIntegration:
         if not hasattr(mock_config, "get") or not isinstance(mock_config.get, MagicMock):
             # Default setup for 'get' if not provided by a more specific fixture
             def default_get_side_effect(key: str, default: object = None) -> object:
-                """Helper function for default get side effect."""
+                """Return default configuration values for DataHandler testing."""
                 # Provide minimal config for DataHandler initialization to pass
                 if key == "exchanges":
                     return {

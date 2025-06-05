@@ -1,3 +1,15 @@
+"""Funding rate data model for perpetual futures markets.
+
+This module provides models for representing funding rate information across
+different exchanges. Funding rates are periodic payments between long and short
+position holders in perpetual futures contracts.
+
+The models follow the "Core + Typed Extension Slots" pattern, providing:
+- Core fields common across all exchanges (funding rate, mark price, etc.)
+- Exchange-specific extension slots for additional data
+- Immutable design with strict validation using Decimal for financial precision
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -59,6 +71,7 @@ class BackpackFundingDetails(BaseModel):
 
 class FundingRate(BaseModel):
     """Core internal model for funding rate information across all supported exchanges.
+
     Contains only essential, universal fields with exchange-specific details in extension slots.
     Immutable (frozen=True) to ensure funding data is not altered after retrieval.
 

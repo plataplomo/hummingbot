@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper Fill and Order Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Fill and Order Tests.
+
 -------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper fill and order methods.
@@ -50,7 +51,7 @@ def create_raw_fill(
     trade_id: int = 123456,
     client_id: str | None = None,
 ) -> BackpackRawFill:
-    """Helper function to create BackpackRawFill instances for testing."""
+    """Create BackpackRawFill instances for testing fills and orders."""
     return BackpackRawFill(
         fee=fee,
         feeSymbol=fee_symbol,
@@ -81,7 +82,7 @@ def create_raw_order(
     trigger_price: str | None = None,
     trigger_by: str | None = None,
 ) -> BackpackRawOrder:
-    """Helper function to create BackpackRawOrder instances for testing."""
+    """Create BackpackRawOrder instances for testing order transformations."""
     return BackpackRawOrder(
         clientId=None,
         id=id,
@@ -118,7 +119,7 @@ def create_raw_trade(
     order_id: str = "order123",
     is_buyer: bool = True,
 ) -> BackpackRawTrade:
-    """Helper function to create BackpackRawTrade instances for testing."""
+    """Create BackpackRawTrade instances for testing trade transformations."""
     return BackpackRawTrade(
         id=id,
         symbol=symbol,
@@ -497,7 +498,7 @@ class TestTradeTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return Decimal conversion for testing order parsing edge cases."""
                 if field_name == "price":
                     return None
                 # For other fields, call the real function
@@ -532,7 +533,7 @@ class TestTradeTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return Decimal conversion for testing order quantity validation."""
                 if field_name == "quantity":
                     return None
                 # For other fields, call the real function

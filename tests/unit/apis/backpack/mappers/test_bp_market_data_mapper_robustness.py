@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Market Data Mapper Robustness Tests.
+
 --------------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper edge cases and robustness.
@@ -43,7 +44,7 @@ def create_raw_ticker(
     volume: str | None = "1000.0",
     time: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawTicker:
-    """Helper function to create BackpackRawTicker instances for testing."""
+    """Create BackpackRawTicker instances for robustness testing."""
     return BackpackRawTicker(
         symbol=symbol,
         price=price,
@@ -59,7 +60,7 @@ def create_raw_order_book(
     asks: list[tuple[str, str]] | None = None,
     timestamp: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawOrderBook:
-    """Helper function to create BackpackRawOrderBook instances for testing."""
+    """Create BackpackRawOrderBook instances for robustness testing."""
     if bids is None:
         bids = [("100.25", "10.0"), ("100.00", "5.0")]
     if asks is None:
@@ -81,7 +82,7 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
 ) -> BackpackRawTrade:
-    """Helper function to create BackpackRawTrade instances for testing."""
+    """Create BackpackRawTrade instances for robustness testing."""
     return BackpackRawTrade(
         id=id,
         symbol=symbol,

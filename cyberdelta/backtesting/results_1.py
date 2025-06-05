@@ -326,5 +326,18 @@ class BacktestResultsHandler:
         return formatted
 
     def plot_results(self, filename: str | None = None) -> str | None:
+        """Plot backtest results including equity curve and performance metrics.
+
+        Creates visualization plots for the backtest results including equity curve,
+        drawdown chart, and other performance visualizations. Saves plots to file
+        if filename is provided.
+
+        Args:
+            filename: Optional filename for saving the plot. If None, plot is not saved.
+
+        Returns:
+            Path to saved plot file if filename provided, None otherwise.
+
+        """
         # Implementation of plot_results method
         pass

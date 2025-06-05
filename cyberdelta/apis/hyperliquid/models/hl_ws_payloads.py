@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid WebSocket Subscription Request Payload Models
+"""CyberDeltaEngine: Hyperliquid WebSocket Subscription Request Payload Models.
+
 ---------------------------------------------------------------------------
 
 This module defines Pydantic models for WebSocket subscription/unsubscription

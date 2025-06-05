@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Exchange Action Response)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Exchange Action Response).
+
 ----------------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of responses from

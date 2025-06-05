@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Transfer & Withdrawal Action Payloads)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Transfer & Withdrawal Action Payloads).
+
 -----------------------------------------------------------------------------------
 
 This module defines Pydantic models for constructing parts of the raw
@@ -24,6 +25,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 class HyperliquidRawL2UsdTransferPayload(BaseModel):
     """Payload for an L2 USDC transfer action.
+
     Corresponds to action type "usdTransfer" with chain "L2".
     """
 
@@ -42,6 +44,7 @@ class HyperliquidRawL2UsdTransferPayload(BaseModel):
 
 class HyperliquidRawWithdrawalToL1ActionPayload(BaseModel):
     """Payload for withdrawing funds to L1.
+
     Corresponds to action type "withdraw".
     """
 

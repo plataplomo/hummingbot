@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture
 def mock_arbitrage_opportunity() -> ArbitrageOpportunity:
-    """Provides a basic mock ArbitrageOpportunity."""
+    """Provide a basic mock ArbitrageOpportunity for testing execution scenarios."""
     return ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="hyperliquid",
@@ -110,7 +110,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_config_dict(self) -> dict[str, Any]:
-        """Provides a dictionary for simple config mocking."""
+        """Provide a dictionary for simple config mocking in execution tests."""
         return {
             "execution.max_retries": 3,
             "execution.retry_delay_base_sec": 0.01,
@@ -126,7 +126,7 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_config(self, mock_config_dict: dict[str, Any]) -> MagicMock:
-        """Provides a mock Config object using the dictionary."""
+        """Provide a mock Config object using the test configuration dictionary."""
         cfg = MagicMock(spec=AppSettings)
 
         # Mock the execution attribute structure
@@ -163,7 +163,7 @@ class TestExecutionHandler:
         process_trade_call_tracker: list[tuple[str, Trade]] = []  # Explicitly typed
 
         def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
-            """Helper function for process trade side effect."""
+            """Process trade and log the call for testing portfolio tracker integration."""
             logger.debug(
                 f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}",
             )
@@ -248,7 +248,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> ExecutionHandler:
-        """Helper function for execution handler."""
+        """Create execution handler instance with mocked dependencies for testing."""
         handler = ExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
@@ -285,7 +285,7 @@ class TestExecutionHandler:
         self,
         mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
-        """Helper function for sized opportunity."""
+        """Create sized opportunity instance for testing order execution scenarios."""
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
             long_size=Decimal("1.0"),
@@ -311,6 +311,7 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
         mock_circuit_breaker_system: MagicMock,
     ) -> None:
+        """Test that execution handler rejects opportunities when circuit breaker is open."""
         mock_circuit_breaker_system.can_execute.return_value = (False, "CB open")
         execution = await execution_handler.execute_opportunity(sized_opportunity)
         mock_circuit_breaker_system.can_execute.assert_called_once_with("hyperliquid")
@@ -326,6 +327,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> None:
+        """Test execution handler behavior when symbol mapping fails for one exchange."""
         def get_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
             """Get symbol side effect for testing."""
             return "BTC-PERP" if ex_id == "hyperliquid" else None
@@ -352,6 +354,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
+        """Test successful order placement with retry mechanism."""
         mock_order = Order(
             client_order_id="HL-Success",
             exchange_order_id="EX123",
@@ -401,6 +404,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
+        """Test order placement failure handling with retry exhaustion."""
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
@@ -423,6 +427,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
+        """Test successful order status retrieval."""
         mock_order = Order(
             client_order_id="HL-Status",
             exchange_order_id="EX124",
@@ -473,6 +478,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
+        """Test order status retrieval failure handling."""
         mock_hl_api.get_order_status.side_effect = APIError(
             "Not Found",
             APIErrorCode.ORDER_NOT_FOUND.value,
@@ -952,7 +958,7 @@ class TestExecutionHandler:
             key: str,
             default: object | None = None,
         ) -> object | None:
-            """Helper function for config get side effect comp failed leg."""
+            """Return configuration values for compensation failure testing."""
             values = {
                 "execution.order_placement_type": "concurrent",
                 "execution.compensation.use_limit_orders": True,

@@ -1,4 +1,5 @@
-"""cyberdelta.apis.hyperliquid.hl_request_weighter
+"""cyberdelta.apis.hyperliquid.hl_request_weighter.
+
 ----------------------------------------------
 Utility class for calculating IP weights and address action counts for Hyperliquid requests.
 
@@ -71,7 +72,8 @@ class HyperliquidRequestWeighter:
             ip_weight = base_weight + (batch_length // 40)
 
             logger.debug(
-                f"Hyperliquid /exchange request: batch_length={batch_length}, ip_weight={ip_weight}",
+                f"Hyperliquid /exchange request: batch_length={batch_length}, "
+                f"ip_weight={ip_weight}",
             )
             return ip_weight
 

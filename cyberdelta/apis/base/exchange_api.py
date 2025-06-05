@@ -84,6 +84,7 @@ MessageHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, 
 
 class ExchangeAPI(ABC):
     """Abstract base class defining the interface for all exchange API implementations.
+
     Provides common functionality for API request handling, rate limiting, and error management.
     """
 
@@ -304,8 +305,9 @@ class ExchangeAPI(ABC):
         request_weight: int = 1,
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """Execute an API request, delegating to HttpClient and handling exchange-specific
-        error mapping.
+        """Execute an API request with exchange-specific error mapping.
+        
+        Delegates to HttpClient and handles exchange-specific error responses.
 
         Args:
             method: HTTP method ('GET', 'POST', etc.')
@@ -455,6 +457,7 @@ class ExchangeAPI(ABC):
         path: str,
     ) -> None:
         """Update rate limit information based on response headers.
+
         This allows dynamic adaptation to exchange-reported limits.
 
         Args:
@@ -497,6 +500,10 @@ class ExchangeAPI(ABC):
         )
 
     async def close(self) -> None:
+        """Close the exchange API and clean up resources.
+        
+        Properly closes the HTTP client session and logs the shutdown process.
+        """
         logger.info(f"Closing ExchangeAPI for {self.exchange_name}")
         if self._http_client:
             await self._http_client.close_session()
@@ -511,7 +518,8 @@ class ExchangeAPI(ABC):
             logger.info(f"WebSocket manager for {self.exchange_name} closed.")
         else:
             logger.info(
-                f"WebSocket manager for {self.exchange_name} was not initialized or already closed.",
+                f"WebSocket manager for {self.exchange_name} was not initialized "
+                f"or already closed.",
             )
 
         logger.info(f"ExchangeAPI for {self.exchange_name} closed successfully.")
@@ -582,7 +590,8 @@ class ExchangeAPI(ABC):
                     success = await self._ws_manager.send_json(subscription_payload)
                     if success:
                         logger.info(
-                            f"[{self.exchange_name}] Successfully re-sent subscription for {topic}.",
+                            f"[{self.exchange_name}] Successfully re-sent subscription "
+                            f"for {topic}.",
                         )
                     else:
                         logger.warning(

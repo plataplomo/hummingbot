@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack Market Data Mapper Core Tests
+"""CyberDeltaEngine: Backpack Market Data Mapper Core Tests.
+
 --------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper core transformation methods.
@@ -59,7 +60,7 @@ def create_raw_ticker(
     volume: str | None = "1000.0",
     time: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawTicker:
-    """Helper function to create BackpackRawTicker instances for testing."""
+    """Create BackpackRawTicker instances for testing ticker transformations."""
     return BackpackRawTicker(
         symbol=symbol,
         price=price,
@@ -75,7 +76,7 @@ def create_raw_order_book(
     asks: list[tuple[str, str]] | None = None,
     timestamp: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawOrderBook:
-    """Helper function to create BackpackRawOrderBook instances for testing."""
+    """Create BackpackRawOrderBook instances for testing order book transformations."""
     if bids is None:
         bids = [("100.25", "10.0"), ("100.00", "5.0")]
     if asks is None:
@@ -97,7 +98,7 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
 ) -> BackpackRawTrade:
-    """Helper function to create BackpackRawTrade instances for testing."""
+    """Create BackpackRawTrade instances for testing trade transformations."""
     return BackpackRawTrade(
         id=id,
         symbol=symbol,
@@ -115,7 +116,7 @@ def create_raw_funding_rate(
     index_price: str = "100.25",
     time: int = 1705314600000,
 ) -> BackpackRawFundingRate:
-    """Helper function to create BackpackRawFundingRate instances for testing."""
+    """Create BackpackRawFundingRate instances for testing funding rate transformations."""
     return BackpackRawFundingRate(
         symbol=symbol,
         rate=rate,
@@ -130,7 +131,7 @@ def create_raw_funding_interval_rate(
     rate: str = "0.0001",
     time: int = 1705314600000,
 ) -> BackpackRawFundingIntervalRate:
-    """Helper function to create BackpackRawFundingIntervalRate instances for testing."""
+    """Create BackpackRawFundingIntervalRate instances for testing interval rate transformations."""
     return BackpackRawFundingIntervalRate(
         symbol=symbol,
         rate=rate,
@@ -147,7 +148,7 @@ def create_raw_kline(
     close_price: str = "100.50",
     volume: str = "1000.0",
 ) -> BackpackRawKline:
-    """Helper function to create BackpackRawKline instances for testing."""
+    """Create BackpackRawKline instances for testing kline transformations."""
     # BackpackRawKline expects a list/tuple of 12 elements in this order:
     # [start_time_ms, open_price, high_price, low_price, close_price, volume,
     #  end_time_ms, quote_volume, trade_count, taker_buy_base_volume,

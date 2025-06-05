@@ -1,3 +1,9 @@
+"""CyberDeltaEngine derivative position models.
+
+Provides the DerivativePosition model for tracking leveraged positions across exchanges,
+following the "Core + Typed Extension Slots" pattern for exchange-specific details.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -28,8 +34,7 @@ from cyberdelta.utils.parsing import (
 
 
 class DerivativePosition(BaseModel):
-    """Represents the mutable state of a single derivative (margin/futures/perp) position
-    on a specific exchange.
+    """Represents the mutable state of a single derivative position on a specific exchange.
 
     This model tracks the core aspects of a leveraged position, allowing for updates
     as trades occur or market data changes. It follows the "Core + Typed Extension Slots"
@@ -220,7 +225,8 @@ class DerivativePosition(BaseModel):
         if self.exchange not in known_exchanges_with_details:
             if self.hl_details is not None or self.bp_details is not None:
                 raise ValueError(
-                    f"Exchange-specific details provided for unrecognized exchange: {self.exchange}",
+                    f"Exchange-specific details provided for unrecognized exchange: "
+                    f"{self.exchange}",
                 )
 
         return self

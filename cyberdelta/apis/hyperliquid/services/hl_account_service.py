@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Account Service
+"""CyberDeltaEngine: Hyperliquid Account Service.
+
 ----------------------------------------------
 
 This service encapsulates the logic for fetching and managing account-specific
@@ -82,6 +83,7 @@ HttpClientRequesterSig = Callable[
 
 class HyperliquidAccountService:
     """Service class for Hyperliquid account management operations.
+
     Returns Internal Domain Models.
     """
 
@@ -106,6 +108,19 @@ class HyperliquidAccountService:
         account_mapper: HyperliquidAccountDataMapper,
         trading_mapper: HyperliquidTradingDataMapper,
     ) -> None:
+        """Initialize the Hyperliquid account service with required dependencies.
+
+        Args:
+            http_client_requester: HTTP client function for making API requests
+            request_builder: Builder for constructing Hyperliquid API requests
+            response_handler: Handler for processing Hyperliquid API responses
+            authenticator: Authentication interface for signing requests (optional)
+            exchange_name: Name identifier for this exchange instance
+            wallet_address: Wallet address for authenticated operations (optional)
+            account_mapper: Mapper for converting raw account data to internal models
+            trading_mapper: Mapper for converting raw trading data to internal models
+
+        """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
@@ -117,10 +132,11 @@ class HyperliquidAccountService:
         self._trading_mapper = trading_mapper
 
     async def _get_raw_clearinghouse_state(self) -> HyperliquidRawClearinghouseState:
-        """Helper to fetch and validate the raw HyperliquidClearinghouseState."""
+        """Fetch and validate the raw HyperliquidClearinghouseState."""
         if not self._wallet_address:
             logger.error(
-                f"[{self._exchange_name}] Wallet address not set. Cannot fetch clearinghouse state.",
+                f"[{self._exchange_name}] Wallet address not set. "
+                f"Cannot fetch clearinghouse state.",
             )
             raise APIError(
                 message="Wallet address is required to fetch clearinghouse state for Hyperliquid.",
@@ -219,7 +235,7 @@ class HyperliquidAccountService:
             ) from e_unhandled
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Retrieves all account balances (spot balances derived from user state)."""
+        """Retrieve all account balances (spot balances derived from user state)."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_balances"
@@ -296,7 +312,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Retrieves derivative positions, optionally filtered by symbol."""
+        """Retrieve derivative positions, optionally filtered by symbol."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_positions"
@@ -395,7 +411,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
-        """Retrieves general account information or summary from the clearinghouse state."""
+        """Retrieve general account information or summary from the clearinghouse state."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_account_summary"
@@ -474,7 +490,8 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Retrieves historical order data using the 'queryOrderHistory' endpoint.
+        """Retrieve historical order data using the 'queryOrderHistory' endpoint.
+
         Requires start_time and end_time.
         Filtering by symbol (if provided) is done client-side.
         """
@@ -652,7 +669,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
-        """Retrieves user trade history (fills).
+        """Retrieve user trade history (fills).
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
@@ -823,7 +840,7 @@ class HyperliquidAccountService:
         self,
         args: TransferArgs,
     ) -> Transfer:
-        """Performs an internal transfer. Details depend on HL capabilities."""
+        """Perform an internal transfer. Details depend on HL capabilities."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "transfer"
@@ -908,7 +925,7 @@ class HyperliquidAccountService:
         self,
         args: WithdrawArgs,
     ) -> Withdrawal:
-        """Initiates a withdrawal of funds. Details depend on HL (L1 interaction)."""
+        """Initiate a withdrawal of funds. Details depend on HL (L1 interaction)."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "withdraw"
@@ -989,7 +1006,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_open_orders(self) -> list[Order]:
-        """Retrieves all open orders for the account."""
+        """Retrieve all open orders for the account."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_open_orders"

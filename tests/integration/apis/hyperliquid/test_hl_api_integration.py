@@ -1,4 +1,5 @@
 """Integration tests for the HyperliquidAPI client implementation.
+
 Tests use environment-aware fixtures and test complete workflows through public interfaces.
 """
 
@@ -609,8 +610,9 @@ class TestHyperliquidAPIMarketDataOperations:
 
 
 class TestHyperliquidAPIComprehensiveErrorHandling:
-    """Comprehensive error handling tests covering various failure scenarios
-    and edge cases across all API operations.
+    """Comprehensive error handling tests covering various failure scenarios.
+    
+    Tests edge cases across all API operations to ensure robust error handling.
     """
 
     @pytest.mark.asyncio

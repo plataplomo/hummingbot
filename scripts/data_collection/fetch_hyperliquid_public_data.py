@@ -52,6 +52,10 @@ class HyperliquidRateLimiter:
     """
 
     def __init__(self) -> None:
+        """Initialize the rate limiter with Hyperliquid's IP weight limits.
+        
+        Sets up tracking for a 1200 weight per minute limit with cleanup of old requests.
+        """
         self.total_weight_limit = 1200  # per minute
         self.window_seconds = 60
         self.requests: list[tuple[float, int]] = []  # (timestamp, weight) pairs
@@ -125,6 +129,12 @@ class HyperliquidDataCollector:
     """Collects raw JSON data from Hyperliquid public API endpoints."""
 
     def __init__(self, output_dir: Path, session: aiohttp.ClientSession) -> None:
+        """Initialize the Hyperliquid public data collector with rate limiting.
+        
+        Args:
+            output_dir: Directory where collected JSON data files will be saved
+            session: aiohttp session for making public API requests
+        """
         self.output_dir = output_dir
         self.session = session
         self.rate_limiter = HyperliquidRateLimiter()
@@ -139,7 +149,7 @@ class HyperliquidDataCollector:
             if not hyperliquid_config.enabled:
                 raise ValueError("Hyperliquid exchange is disabled in configuration")
 
-            self.api_base_url = str(hyperliquid_config.api_base_url).rstrip("/")
+            self.api_base_url = str(hyperliquid_config.api_base_url_mainnet).rstrip("/")
             self.configured_symbols = hyperliquid_config.symbols
             logger.info(f"Using Hyperliquid API base URL: {self.api_base_url}")
             logger.info(f"Configured symbols: {self.configured_symbols}")
@@ -633,7 +643,12 @@ class HyperliquidDataCollector:
 
 
 async def main() -> None:
-    """Main function to run the data collection."""
+    """Execute comprehensive Hyperliquid public API data collection process.
+    
+    Parses command-line arguments, sets up configuration and rate-limited HTTP session,
+    and runs the complete public data collection across all Hyperliquid info endpoints.
+    Respects API rate limits and saves collected market data as JSON fixtures for testing.
+    """
     parser = argparse.ArgumentParser(description="Fetch Hyperliquid public API data")
     parser.add_argument(
         "--coins",

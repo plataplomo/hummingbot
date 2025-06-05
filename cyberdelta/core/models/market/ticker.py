@@ -1,3 +1,16 @@
+"""Ticker data model for real-time market price information.
+
+This module provides the Ticker model for representing immutable snapshots
+of real-time market data including last price, bid/ask prices, and volume.
+
+The Ticker model ensures data integrity through:
+- Strict validation of all price and volume fields
+- Decimal precision for financial calculations
+- Immutable design to prevent accidental modification
+- Optional fields with non-negative constraints
+- Computed mid-price property for spread analysis
+"""
+
 from __future__ import annotations
 
 import logging
@@ -65,7 +78,7 @@ class Ticker(BaseModel):
         v: str | int | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Validate, parse, and check finiteness for optional Decimal fields (price, bid, ask, volume).
+        """Validate, parse, and check finiteness for optional Decimal fields.
 
         Uses `parse_decimal_value` which handles None input gracefully (returns None).
         Adds an explicit check to ensure that any non-None parsed Decimal is finite.

@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Market Data Mapper WebSocket Tests.
+
 ------------------------------------------------------------
 
 Comprehensive test suite for BackpackMarketDataMapper WebSocket event transformations.
@@ -50,7 +51,7 @@ def create_raw_ticker_event(
     price_change_percent: str = "0.5",
     event_time: int = 1705314600000,
 ) -> BackpackRawTickerEvent:
-    """Helper function to create BackpackRawTickerEvent instances for testing."""
+    """Create BackpackRawTickerEvent instances for WebSocket testing."""
     return BackpackRawTickerEvent(
         s=s,
         lastPrice=last_price,
@@ -71,7 +72,7 @@ def create_raw_depth_event(
     asks: list[tuple[str, str]] | None = None,
     event_time: int = 1705314600000,
 ) -> BackpackRawDepthUpdateEvent:
-    """Helper function to create BackpackRawDepthUpdateEvent instances for testing."""
+    """Create BackpackRawDepthUpdateEvent instances for WebSocket testing."""
     if bids is None:
         bids = [("100.25", "10.0")]
     if asks is None:
@@ -97,7 +98,7 @@ def create_raw_trade_event(
     seller_id: str = "seller123",
     trade_time: int = 1705314600000,
 ) -> BackpackRawTradeEvent:
-    """Helper function to create BackpackRawTradeEvent instances for testing."""
+    """Create BackpackRawTradeEvent instances for WebSocket testing."""
     return BackpackRawTradeEvent(
         s=s,
         p=p,

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Vault Details)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Vault Details).
+
 -----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'vaultDetails' info endpoint.
@@ -66,7 +67,10 @@ class HyperliquidRawVaultRelationship(BaseModel):
 
 class HyperliquidRawVaultDetailsResponse(BaseModel):
     """Strict boundary model for the Hyperliquid 'vaultDetails' info endpoint response.
-    Validates the raw structure only.
+
+    Validates the complete vault details structure including metadata, financial data,
+    performance history, user equities, and relationship information from Hyperliquid's
+    vault details API endpoint. Enforces strict type and format validation.
     """
 
     name: RawDefaultString = Field(..., alias="name", max_length=1024)
@@ -98,6 +102,23 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
         v: object,
         info: ValidationInfo,
     ) -> list[dict[str, object]]:
+        """Validate that list fields contain properly structured dictionary items.
+
+        Ensures that performance_history and user_equities fields are lists containing
+        dictionary objects that can be properly validated by their respective Pydantic
+        models. Provides detailed error messages for malformed data structures.
+
+        Args:
+            v: Raw value from external API (expected to be a list of dicts)
+            info: Pydantic validation context containing field name
+
+        Returns:
+            Validated list of dictionary objects ready for model parsing
+
+        Raises:
+            ValueError: If structure is not a list or contains non-dict items
+
+        """
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
             raise ValueError(f"{field_name}: Expected list, got {type(v).__name__}")

@@ -84,7 +84,7 @@ def hyperliquid_account_service(
     mock_hl_account_mapper: MagicMock,
     mock_hl_trading_mapper: MagicMock,
 ) -> HyperliquidAccountService:
-    """Helper function for hyperliquid account service."""
+    """Create HyperliquidAccountService instance with mocked dependencies for testing."""
     service = HyperliquidAccountService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,

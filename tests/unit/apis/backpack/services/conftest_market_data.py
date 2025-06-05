@@ -17,19 +17,19 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Provides a mock HTTP client requester."""
+    """Return a mock HTTP client requester for testing."""
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Provides a mock BackpackRequestBuilder."""
+    """Return a mock BackpackRequestBuilder for testing."""
     return MagicMock(spec=BackpackRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Provides a mock BackpackResponseHandler."""
+    """Return a mock BackpackResponseHandler for testing."""
     return MagicMock(spec=BackpackResponseHandler)
 
 
@@ -46,7 +46,7 @@ def mock_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Provides a mock BackpackMarketDataMapper."""
+    """Return a mock BackpackMarketDataMapper for testing market data operations."""
     return MagicMock(spec=BackpackMarketDataMapper)
 
 
@@ -56,7 +56,7 @@ def backpack_market_data_service(
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
 ) -> BackpackMarketDataService:
-    """Provides an instance of BackpackMarketDataService with mocked dependencies."""
+    """Return a BackpackMarketDataService instance configured with mocked dependencies."""
     return BackpackMarketDataService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,

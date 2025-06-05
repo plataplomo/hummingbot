@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Service
+"""CyberDeltaEngine: Hyperliquid Market Data Service.
+
 -------------------------------------------------
 
 This service encapsulates the logic for fetching and processing market data
@@ -107,7 +108,8 @@ class HyperliquidMarketDataService:
         self._exchange_name = exchange_name
 
     async def get_all_asset_contexts_raw(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
-        """Retrieves the metadata for all listed assets and their current context
+        """Retrieve the metadata for all listed assets and their current context.
+
         (mark price, funding rate, etc.) by calling the /info endpoint.
         Hyperliquid's /info endpoint often returns multiple data types; the handler
         is responsible for extracting and validating the metaAndAssetCtxs part.
@@ -239,6 +241,7 @@ class HyperliquidMarketDataService:
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
         """Retrieve the latest ticker/context information for a specific symbol.
+
         This involves fetching all asset contexts and then finding the specific one.
 
         Args:
@@ -334,7 +337,8 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
-        """Retrieves the order book for a specific symbol using a POST request to /info
+        """Retrieve the order book for a specific symbol using a POST request to /info.
+
         with a payload: {"type": "l2Book", "coin": "SYMBOL"}.
 
         Args:
@@ -478,8 +482,9 @@ class HyperliquidMarketDataService:
         symbol: str,
         # limit: int = 100, # Limit is not part of HL /info request for recentTrades
     ) -> list[Trade]:
-        """Retrieves recent public trades for a specific symbol using a POST request to /info
-        with a payload: {"type": "recentTrades", "coin": "SYMBOL"}.
+        """Retrieve recent public trades for a specific symbol using a POST request to /info.
+
+        Uses a payload: {"type": "recentTrades", "coin": "SYMBOL"}.
 
         Args:
             symbol: The trading symbol (e.g., "ETH").
@@ -627,7 +632,8 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """Retrieves the current funding rate information for a specific perpetual contract symbol.
+        """Retrieve the current funding rate information for a specific perpetual contract symbol.
+
         This is typically part of the broader asset context. It calls get_all_asset_contexts
         and extracts the relevant context.
 
@@ -722,7 +728,7 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Retrieves current funding rates for specified symbols, or all if None.
+        """Retrieve current funding rates for specified symbols, or all if None.
 
         Args:
             args: GetFundingRatesArgs containing symbols list or None for all.
@@ -853,7 +859,7 @@ class HyperliquidMarketDataService:
         self,
         args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
-        """Retrieves historical funding rates for a specific symbol and time range."""
+        """Retrieve historical funding rates for a specific symbol and time range."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = (
@@ -1006,7 +1012,8 @@ class HyperliquidMarketDataService:
             ) from e_unexpected
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Retrieves historical kline/candlestick data for a symbol and timeframe.
+        """Retrieve historical kline/candlestick data for a symbol and timeframe.
+
         Uses a POST request to /info with payload:
         {"type": "candleSnapshot",
          "req": {"coin": SYMBOL, "interval": INTERVAL,

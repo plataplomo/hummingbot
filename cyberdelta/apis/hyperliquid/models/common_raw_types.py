@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Common Raw Pydantic Types
+"""CyberDeltaEngine: Hyperliquid API Common Raw Pydantic Types.
+
 -----------------------------------------------------------
 
 This module provides reusable Pydantic `Annotated` types for common raw data patterns
@@ -74,6 +75,7 @@ def _wrap_validate_lax_eth_address_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating Ethereum-like address strings (0x-prefixed, <=42 chars).
+
     NOTE: Relaxed validation based on test data mandate. Does NOT enforce hex or exact length 42.
     Used for addresses received from API responses.
     Now includes a min_length check to catch overly short invalid addresses.
@@ -104,6 +106,7 @@ def _wrap_validate_strict_eth_address_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating STRICT Ethereum address strings.
+
     Must be 0x-prefixed, exactly 42 characters, and valid hexadecimal.
     Used for addresses provided as user input (e.g., in request payloads).
     """
@@ -202,6 +205,7 @@ def _wrap_validate_strict_bool(
     info: ValidationInfo,
 ) -> bool:
     """Wrapper for validating booleans. Must be actual booleans.
+
     Adheres to RULE-ARCH-MODEL-DESIGN-V2 (Raw Models: Booleans: Check isinstance(v, bool).
     Reject string coercion).
     """
@@ -812,5 +816,10 @@ class RawHlCoinName(str):
         source_type: type[str],
         handler: GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
+        """Define Pydantic validation schema for currency coin names.
+        
+        Returns a core schema that validates string inputs as proper coin names
+        with length and character restrictions for financial data security.
+        """
         # Use with_info_plain_validator_function as recommended by linter
         return core_schema.with_info_plain_validator_function(cls._validate)

@@ -1,4 +1,5 @@
 """Backpack API Error Models.
+
 ------------------------
 
 Defines strict Pydantic models for validating error responses from the Backpack Exchange API.

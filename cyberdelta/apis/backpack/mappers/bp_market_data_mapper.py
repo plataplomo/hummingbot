@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Market Data Mapper.
+
 ---------------------------------------------
 
 This module provides the BackpackMarketDataMapper class for transforming
@@ -59,7 +60,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Maps a Backpack order side string to internal OrderSide enum.
+        """Map a Backpack order side string to internal OrderSide enum.
 
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
@@ -84,7 +85,7 @@ class BackpackMarketDataMapper:
         raw_ticker: BackpackRawTicker,
         symbol_override: str | None = None,
     ) -> Ticker:
-        """Transforms a BackpackRawTicker to an Internal Ticker model.
+        """Transform a BackpackRawTicker to an Internal Ticker model.
 
         Args:
             raw_ticker: Validated raw ticker data from Backpack
@@ -135,7 +136,7 @@ class BackpackMarketDataMapper:
         symbol: str,
         raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
-        """Transforms a BackpackRawOrderBook to an Internal OrderBook model.
+        """Transform a BackpackRawOrderBook to an Internal OrderBook model.
 
         Args:
             symbol: Symbol for the order book
@@ -186,7 +187,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_trade_to_internal(raw_trade: BackpackRawTrade) -> Trade:
-        """Transforms a BackpackRawTrade to an Internal Trade model.
+        """Transform a BackpackRawTrade to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade data from Backpack
@@ -237,7 +238,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
-        """Transforms a BackpackRawFundingRate to an Internal FundingRate model.
+        """Transform a BackpackRawFundingRate to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding rate data from Backpack
@@ -298,7 +299,7 @@ class BackpackMarketDataMapper:
         raw_funding: BackpackRawFundingIntervalRate,
         symbol: str,
     ) -> FundingRate:
-        """Transforms a BackpackRawFundingIntervalRate to an Internal FundingRate model.
+        """Transform a BackpackRawFundingIntervalRate to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding interval rate data from Backpack
@@ -345,7 +346,7 @@ class BackpackMarketDataMapper:
         interval: str,
         raw_kline: BackpackRawKline,
     ) -> Candle:
-        """Transforms a BackpackRawKline to an Internal Candle model.
+        """Transform a BackpackRawKline to an Internal Candle model.
 
         Args:
             symbol: Symbol for the candle
@@ -412,7 +413,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_ws_ticker_event_to_internal(raw_ticker: BackpackRawTickerEvent) -> Ticker:
-        """Transforms a BackpackRawTickerEvent to an Internal Ticker model.
+        """Transform a BackpackRawTickerEvent to an Internal Ticker model.
 
         Args:
             raw_ticker: Validated raw ticker event data from Backpack WebSocket
@@ -461,7 +462,7 @@ class BackpackMarketDataMapper:
         symbol: str,
         raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
-        """Transforms a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
+        """Transform a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
 
         Args:
             symbol: Symbol for the order book
@@ -512,7 +513,7 @@ class BackpackMarketDataMapper:
 
     @staticmethod
     def transform_ws_trade_event_to_internal(raw_trade: BackpackRawTradeEvent) -> Trade:
-        """Transforms a BackpackRawTradeEvent to an Internal Trade model.
+        """Transform a BackpackRawTradeEvent to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade event data from Backpack WebSocket

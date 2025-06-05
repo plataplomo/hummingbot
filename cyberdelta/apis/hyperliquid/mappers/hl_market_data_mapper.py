@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper
+"""CyberDeltaEngine: Hyperliquid Market Data Mapper.
+
 ------------------------------------------------
 
 This module provides the HyperliquidMarketDataMapper class for transforming

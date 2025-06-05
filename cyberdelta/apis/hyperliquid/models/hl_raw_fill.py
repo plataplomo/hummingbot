@@ -1,4 +1,9 @@
-"""Hyperliquid Raw User Fill Model"""
+"""Hyperliquid Raw User Fill Model.
+
+This module defines Pydantic models for validating raw user fill data from
+Hyperliquid's userFills endpoint, ensuring strict type validation and format
+constraints for all fill-related fields.
+"""
 
 import logging
 

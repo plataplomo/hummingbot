@@ -99,9 +99,24 @@ class APIErrorResponse(BaseModel):
         metadata: dict[str, Any] | None = None,
         original_exception: Exception | None = None,
     ) -> APIErrorResponse:
-        """Construct an APIErrorResponse from raw exchange error data, performing validation and
-        normalization.
+        """Construct an APIErrorResponse from raw exchange error data.
+
+        Performs validation and normalization of the error data.
         This is the preferred way to create error responses from mapping logic.
+
+        Args:
+            message: Human-readable error message
+            code: Canonical error code (int or str)
+            http_status: HTTP status code, if available
+            exchange_code: Raw error code from the exchange, if present
+            exchange_message: Raw error message from the exchange, if present
+            retry_after: Seconds to wait before retrying, if applicable
+            metadata: Additional context or diagnostics
+            original_exception: Original exception, if chained
+
+        Returns:
+            APIErrorResponse: Validated and normalized error response model
+
         """
         return cls(
             message=message,

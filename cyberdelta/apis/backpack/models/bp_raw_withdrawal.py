@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack API Raw Models (Withdrawal)
+"""CyberDeltaEngine: Backpack API Raw Models (Withdrawal).
+
 -----------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of
@@ -202,6 +203,7 @@ WithdrawalStatus = Literal["confirmed", "pending"]
 
 class BackpackRawWithdrawalRequest(BaseModel):
     """Pydantic model for the raw withdrawal request payload to Backpack.
+
     Corresponds to `AccountWithdrawalPayload` in OpenAPI.
     """
 
@@ -222,6 +224,7 @@ class BackpackRawWithdrawalRequest(BaseModel):
 
 class BackpackRawWithdrawalResponse(BaseModel):
     """Pydantic model for the raw withdrawal response from Backpack.
+
     Corresponds to `Withdrawal` schema in OpenAPI.
     """
 

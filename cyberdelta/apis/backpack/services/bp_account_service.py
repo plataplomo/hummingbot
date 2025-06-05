@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Account Service.
+
 ------------------------------------------
 
 This service encapsulates the logic for fetching and managing account-specific
@@ -57,6 +58,7 @@ HttpClientRequesterSig = Callable[
 
 class BackpackAccountService:
     """Service class for Backpack account management operations.
+
     Returns Internal Domain Models.
     """
 

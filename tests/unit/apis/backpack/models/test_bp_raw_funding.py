@@ -1,3 +1,8 @@
+"""Unit tests for Backpack raw funding models.
+
+Tests validation and processing of funding rate data from the Backpack exchange API
+including current rates, historical rates, and funding interval structures.
+"""
 # (Test suite will be written here for BackpackRawFunding and related models)
 
 import json
@@ -237,6 +242,7 @@ def test_BackpackRawMarkPrice_corruption_cases() -> None:
 
 def test_BackpackRawMarkPrice_real_json_example() -> None:
     """Validate BackpackRawMarkPrice using a real JSON payload from the Backpack OpenAPI spec.
+    
     Includes edge values.
     """
     payload = {

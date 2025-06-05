@@ -1,4 +1,5 @@
-"""cyberdelta.apis.base.rate_limit_strategy_interface
+"""Rate limiting strategy interface for exchange API rate management.
+
 -----------------------------------------------
 Interface definition for rate limiting strategies used by ExchangeAPI implementations.
 
@@ -23,6 +24,7 @@ class RateLimitStrategy(ABC):
     @abstractmethod
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> dict[str, Any] | None:
         """Prepares for and acquires necessary rate limit tokens/permissions.
+
         Can optionally modify and return the request data payload if needed
         (e.g., to inject a rate-limit specific nonce, though not used by HL/BP REST).
         Should raise APIError(code=RATE_LIMITED) if acquisition times out or fails.
@@ -47,8 +49,9 @@ class RateLimitStrategy(ABC):
         duration_seconds: float,
         request_context: dict[str, Any],
     ) -> None:
-        """Optional method for strategies to react to an explicit 'retry_after'
-        directive received from the exchange after a request has failed with
+        """Optional method for strategies to react to retry_after directives from exchanges.
+
+        This method allows strategies to react after a request has failed with
         a rate limit error.
 
         The base implementation does nothing (`pass`). Subclasses should override

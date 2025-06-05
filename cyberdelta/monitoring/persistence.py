@@ -117,7 +117,7 @@ class PerformanceDataPersistence:
         """
         if isinstance(data, dict):
             return self._make_dict_serializable(data)
-        elif isinstance(data, list):
+        else:  # data is list[Any]
             serializable_list: list[Any] = []
             for item in data:
                 if isinstance(item, dict):
@@ -127,8 +127,6 @@ class PerformanceDataPersistence:
                 else:
                     serializable_list.append(item)
             return serializable_list
-        else:
-            return data
 
     def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
         """Make a dictionary JSON serializable.
@@ -281,7 +279,7 @@ class PerformanceDataPersistence:
                         if isinstance(strategy_data, dict):
                             # DEFENSIVE CHECK: Type conversion for loaded data.
                             # Pyright=[reportArgumentType]
-                            all_returns[strategy_name] = strategy_data  # type: ignore[assignment]
+                            all_returns[strategy_name] = strategy_data
                     else:
                         # If the file contains the strategy data directly
                         # DEFENSIVE CHECK: Type conversion for loaded data.

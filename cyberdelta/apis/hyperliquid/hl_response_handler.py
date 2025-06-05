@@ -384,7 +384,8 @@ class HyperliquidResponseHandler:
         for i, item in enumerate(raw_response_content):
             if not isinstance(item, dict):
                 logger.warning(
-                    f"Skipping non-dict item at index {i} in {context} for {symbol}. Item: {item!r}",
+                    f"Skipping non-dict item at index {i} in {context} for {symbol}. "
+                    f"Item: {item!r}",
                 )
                 continue  # Skip non-dict items
 

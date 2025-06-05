@@ -385,9 +385,10 @@ class TestMarketDataEdgeCases:
     """Tests for additional edge cases in market data response handling."""
 
     def test_funding_rate_response_extra_fields(self, symbol: str) -> None:
-        """Test that funding rate response with extra fields causes ValidationError due to extra='forbid'.
+        """Test that funding rate response with extra fields causes ValidationError.
 
-        This test verifies that the model validation properly rejects responses with unexpected fields.
+        This test verifies that the model validation properly rejects responses with
+        unexpected fields due to the extra='forbid' configuration.
         """
         raw_data = {
             "name": "ETH-PERP",

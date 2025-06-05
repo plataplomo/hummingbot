@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Account Data Mapper Account Operations Tests.
+
 -----------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper account operations methods.
@@ -48,7 +49,7 @@ def create_raw_transfer_response(
     message: str | None = None,
     timestamp: str | None = "1678886400000",
 ) -> RawJsonResponse:
-    """Helper function to create raw transfer response dictionaries for testing."""
+    """Create raw transfer response dictionaries for testing account operations."""
     response: dict[str, str | int | float | bool | None] = {
         "id": transfer_id,
         "status": status,
@@ -83,7 +84,7 @@ def create_raw_withdrawal_response(
     bank_identifier: str | None = None,
     account_identifier: str | None = None,
 ) -> BackpackRawWithdrawalResponse:
-    """Helper function to create BackpackRawWithdrawalResponse instances for testing."""
+    """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations."""
     # Create data dict that matches what the model expects from API
     raw_data = {
         "id": withdrawal_id,
@@ -137,7 +138,7 @@ def create_raw_fill(
     order_id: str = "order123",
     client_id: str | None = "client123",
 ) -> BackpackRawFill:
-    """Helper function to create BackpackRawFill instances for testing."""
+    """Create BackpackRawFill instances for testing fill data mapping."""
     return BackpackRawFill(
         tradeId=trade_id,
         symbol=symbol,
@@ -167,7 +168,7 @@ def create_raw_position_update(
     Q: str | None = "10.0",  # netExposureQuantity
     n: str | None = "1000.0",  # netExposureNotional
 ) -> BackpackRawPositionUpdate:
-    """Helper function to create BackpackRawPositionUpdate instances for testing."""
+    """Create BackpackRawPositionUpdate instances for testing."""
     return BackpackRawPositionUpdate(
         e=event_type,
         E=event_time,
@@ -550,7 +551,7 @@ class TestWithdrawalTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return appropriate Decimal conversion based on field name."""
                 if field_name == "fee":
                     return None
                 # For other parsing calls, return a valid decimal

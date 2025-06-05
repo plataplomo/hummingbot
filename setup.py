@@ -1,3 +1,10 @@
+"""CyberDeltaEngine package setup configuration.
+
+This module defines the package setup configuration for CyberDeltaEngine,
+including dependencies, metadata, and package structure for installation
+and distribution.
+"""
+
 from setuptools import find_packages, setup
 
 setup(

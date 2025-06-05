@@ -26,25 +26,25 @@ HttpClientRequesterSig = Callable[
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Provides a mock HTTP client requester."""
+    """Return a mock HTTP client requester for trading API testing."""
     return AsyncMock(spec=HttpClientRequesterSig)
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Provides a mock BackpackRequestBuilder."""
+    """Return a mock BackpackRequestBuilder for trading request testing."""
     return MagicMock(spec=BackpackRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Provides a mock BackpackResponseHandler."""
+    """Return a mock BackpackResponseHandler for trading response testing."""
     return MagicMock(spec=BackpackResponseHandler)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Provides a mock IAuthenticator."""
+    """Return a mock IAuthenticator for trading authentication testing."""
     return MagicMock(spec=IAuthenticator)
 
 
@@ -56,7 +56,7 @@ def mock_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_order_mapper() -> MagicMock:
-    """Provides a mock BackpackTradingDataMapper."""
+    """Return a mock BackpackTradingDataMapper for order data mapping testing."""
     return MagicMock(spec=BackpackTradingDataMapper)
 
 
@@ -67,7 +67,7 @@ def bp_trading_service(
     mock_response_handler: MagicMock,
     mock_authenticator: MagicMock,
 ) -> BackpackTradingService:
-    """Provides an instance of BackpackTradingService with mocked dependencies."""
+    """Return a BackpackTradingService instance configured with mocked dependencies for testing."""
     service = BackpackTradingService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,

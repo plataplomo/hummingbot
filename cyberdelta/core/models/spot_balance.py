@@ -1,4 +1,4 @@
-"""Portfolio Models for CyberDeltaEngine
+"""Portfolio Models for CyberDeltaEngine.
 
 This module contains models representing the user's portfolio state, including balances,
 derivative positions, and margin account summaries. These are used for risk management,
@@ -71,6 +71,7 @@ class BackpackSpotBalanceDetails(BaseModel):
 
 class SpotBalance(BaseModel):
     """Represents an immutable snapshot of a spot asset balance.
+
     Follows the "Core + Typed Extension Slots" pattern (Idea 5).
 
     Core Fields:

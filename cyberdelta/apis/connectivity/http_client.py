@@ -49,6 +49,16 @@ class HttpRequestFailedError(APIError):
         metadata: dict[str, Any] | None = None,
         original_exception: Exception | None = None,
     ) -> None:
+        """Initialize HttpRequestFailedError with HTTP-specific details.
+        
+        Args:
+            message: Descriptive error message
+            http_status_code: HTTP status code from the failed request
+            response_body: Optional response body content
+            api_error_code: API error classification code
+            metadata: Optional additional error metadata
+            original_exception: Original exception that caused this error
+        """
         super().__init__(
             message=message,
             code=api_error_code.value,
@@ -59,6 +69,7 @@ class HttpRequestFailedError(APIError):
         )
 
     def __str__(self) -> str:
+        """Return a human-readable string representation of the HTTP error."""
         status_str = (
             f"HTTP {self.http_status}" if self.http_status is not None else "HTTP UnknownStatus"
         )
@@ -69,6 +80,7 @@ class HttpRequestFailedError(APIError):
 
 class HttpClient:
     """Generic HTTP client for making requests to exchange APIs.
+
     Handles session management, request signing, and retries.
     """
 
@@ -253,7 +265,7 @@ class HttpClient:
                 # Ensure response_text is a string for json.loads
                 # The check `if not response_text:` above handles None or empty string.
                 # So here, response_text should be a non-empty string.
-                print(f"Raw JSON response_text in HttpClient: {response_text}")
+                logger.debug(f"Raw JSON response_text in HttpClient: {response_text}")
                 parsed_json: ParsedJsonResponse = json.loads(response_text)
                 return parsed_json, response.status, processed_headers, raw_response_headers
             except json.JSONDecodeError as je:
@@ -300,9 +312,19 @@ class HttpClient:
         Now returns content, status_code, processed_headers, and raw_headers.
 
         Args:
+            method: HTTP method ('GET', 'POST', 'PUT', 'DELETE', etc.)
+            endpoint_path: The API endpoint path or full URL
+            authenticator: Optional authenticator for signing requests
+            params: Optional query parameters for the request
+            data: Optional request body data (for POST/PUT requests)
+            headers: Optional additional headers to include
+            is_signed: Whether the request requires authentication/signing
+            request_timeout: Optional timeout for the request in seconds
             serialize_none_as_null: If True, apply special Hyperliquid order type cleaning
                                   to remove None values from order type fields.
 
+        Returns:
+            Tuple of (parsed_response, status_code, processed_headers, raw_headers)
         """
         request_params = (params or {}).copy()
         request_data = data  # This is dict[str, Any] | None (BaseModel handling in ExchangeAPI)
@@ -544,6 +566,7 @@ class HttpClient:
         raise APIError(final_error_message, code=APIErrorCode.UNKNOWN.value)
 
     async def __aenter__(self) -> HttpClient:
+        """Enter the async context manager and ensure session is ready."""
         await self._get_session()  # Ensure session is created if used in "async with"
         return self
 
@@ -553,4 +576,5 @@ class HttpClient:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
+        """Exit the async context manager and clean up the session."""
         await self.close_session()

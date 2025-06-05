@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid EIP-712 Pydantic Models
+"""CyberDeltaEngine: Hyperliquid EIP-712 Pydantic Models.
+
 ----------------------------------------------------
 
 This module defines Pydantic models for EIP-712 type definitions and domain structures

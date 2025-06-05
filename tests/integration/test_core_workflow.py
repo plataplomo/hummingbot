@@ -158,8 +158,10 @@ def populate_data_handler(
     order_book: OrderBook | None,
     timestamp: datetime,
 ) -> None:
-    """Populates the DataHandler with mock data using the correct nested structure
-    and updates last update times.
+    """Populate the DataHandler with mock data using the correct nested structure.
+    
+    Updates last update times for exchange data and provides mock ticker, 
+    funding rate, and order book data for testing.
 
     Args:
         dh: The DataHandler instance.
@@ -204,7 +206,7 @@ def populate_data_handler(
 
 @pytest.fixture(scope="module")
 def mock_config_dict() -> dict[str, Any]:
-    """Provides a base configuration dictionary for integration tests."""
+    """Return a base configuration dictionary for integration tests."""
     return {
         "general": {
             "log_level": "DEBUG",
@@ -339,14 +341,14 @@ def mock_config_dict() -> dict[str, Any]:
 
 @pytest.fixture
 def mock_config(mock_config_dict: dict[str, Any], mocker: MockerFixture) -> AppSettings:
-    """Provides a mock AppSettings instance for integration tests."""
+    """Return a mock AppSettings instance for integration tests."""
     # Create AppSettings from the integration test config dict
     return AppSettings.model_validate(mock_config_dict)
 
 
 @pytest.fixture
 def mock_secrets() -> dict[str, dict[str, str | None]]:
-    """Provides mock secrets for integration tests."""
+    """Return mock secrets for integration tests."""
     return {
         "mock_hl": {"api_key": "test_hl_key", "api_secret": "test_hl_secret"},
         "mock_bp": {"api_key": "test_bp_key", "api_secret": "test_bp_secret"},
@@ -408,7 +410,7 @@ def data_handler(
     symbol_mapper: SymbolMapper,
     mocker: MockerFixture,
 ) -> DataHandler:
-    """Data Handler instance with mock APIs registered."""
+    """Return a DataHandler instance with mock APIs registered for testing."""
     api_clients = cast(
         "dict[str, Any]",
         {
@@ -430,7 +432,7 @@ def data_handler(
 
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
-    """Provides a SymbolMapper instance initialized with the mock config."""
+    """Return a SymbolMapper instance initialized with the mock config."""
     # For AppSettings, provide empty dict for exchanges config since SymbolMapper expects dict
     config_data_for_mapper: dict[str, Any] = {}
     return SymbolMapper(config_data_for_mapper)
@@ -461,7 +463,7 @@ def execution_handler(
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> ExecutionHandler:
-    """Execution Handler instance with mock APIs registered."""
+    """Return an ExecutionHandler instance with mock APIs registered for testing."""
     eh = ExecutionHandler(mock_config, portfolio_tracker, symbol_mapper)
     eh.register_api_client("mock_hl", mock_hl_api)
     eh.register_api_client("mock_bp", mock_bp_api)
@@ -485,8 +487,10 @@ async def test_happy_path_full_cycle(
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
-    """Tests the full arbitrage cycle: data -> signal -> validation -> execution ->
-    portfolio update.
+    """Test the full arbitrage cycle: data -> signal -> validation -> execution.
+    
+    Covers the complete workflow from market data ingestion through signal generation,
+    validation, execution, and portfolio updates in an integrated test scenario.
     """
     # --- Force DEBUG logging for this test ---
     caplog.set_level(logging.DEBUG)

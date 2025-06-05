@@ -26,6 +26,7 @@ class TestCircuitBreakerBase:
         """Simple implementation for testing."""
 
         def __init__(self, name: str, cooldown_seconds: int = 300) -> None:
+            """Initialize SimpleBreaker with recovery check configuration."""
             super().__init__(name, cooldown_seconds)
             self.recovery_check_result = True
 
@@ -33,7 +34,7 @@ class TestCircuitBreakerBase:
             return self.recovery_check_result
 
         def check(self, *args: object, **kwargs: object) -> None:
-            """Helper function for check."""
+            """Perform circuit breaker check logic (no-op for testing)."""
             pass
 
     def test_init(self) -> None:
@@ -488,12 +489,12 @@ ConfigValue = str | int | float | bool | dict[str, Any] | list[Any] | None
 
 @pytest.fixture
 def mock_config() -> AppSettings:
-    """Provides a generic mock Config for circuit breaker tests."""
+    """Create a generic mock Config for circuit breaker tests."""
     cfg = MagicMock(spec=AppSettings)
 
     # Default side effect (can be overridden in tests)
     def config_side_effect(key: str, default: object | None = None) -> object:
-        """Helper function for config side effect."""
+        """Return configuration values for testing circuit breaker behavior."""
         # Provide some basic defaults if needed, otherwise return the default argument
         base_configs = {
             "validation.circuit_breaker.global.api_errors.enabled": True,

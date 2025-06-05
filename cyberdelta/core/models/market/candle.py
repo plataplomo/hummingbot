@@ -1,3 +1,16 @@
+"""Candlestick (OHLCV) data model for market data representation.
+
+This module provides the Candle model for representing immutable OHLCV
+(Open, High, Low, Close, Volume) candlestick data with strict validation
+and financial precision using Decimal types.
+
+The Candle model ensures data integrity through:
+- Strict validation of all price and volume fields
+- Logical consistency checks (high >= low, etc.)
+- UTC timezone enforcement for timestamps
+- Immutable design to prevent accidental modification
+"""
+
 from __future__ import annotations
 
 from datetime import datetime

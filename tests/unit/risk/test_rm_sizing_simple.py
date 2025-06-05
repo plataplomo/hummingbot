@@ -100,7 +100,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
 @pytest.fixture
 def sample_opportunity() -> ArbitrageOpportunity:
-    """Helper function for sample opportunity."""
+    """Create sample arbitrage opportunity for testing."""
     # Ensure all necessary fields for SizedOpportunity creation are present
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
@@ -428,7 +428,7 @@ class TestRiskManagerSizingSimple:
         risk_config_to_update_safety.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
-            """Helper function for config get side effect."""
+            """Return config value for mock side effect."""
             keys = key.split(".")
             value: Any = current_test_config_dict
             for k_part in keys:
@@ -498,7 +498,7 @@ class TestRiskManagerSizingSimple:
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
-            """Helper function for config get side effect."""
+            """Return config value for mock side effect."""
             keys = key.split(".")
             value: Any = current_test_config_dict
             for k_part in keys:
@@ -566,7 +566,7 @@ class TestRiskManagerSizingSimple:
         risk_config_to_update.update(test_risk_overrides)
 
         def config_get_side_effect(key: str, default: object | None = None) -> object:
-            """Helper function for config get side effect."""
+            """Return config value for mock side effect."""
             keys = key.split(".")
             value: Any = current_test_config_dict
             for k_part in keys:
@@ -867,13 +867,16 @@ class TestRiskManagerSizingSimple:
 
     @pytest.mark.asyncio
     async def test_sizing_with_args_kwargs(self, *args: Decimal, **kwargs: Decimal) -> None:
+        """Test sizing functionality with variable arguments and keyword arguments."""
         # This method is not provided in the original file or the new code block
         # It's assumed to exist as it's called in the
         #               test_size_opportunity_config_change_enforcement method
         pass
 
     async def some_method(self, exchange: str, symbol: str) -> None:
+        """Perform some operation with exchange and symbol for testing."""
         pass
 
     async def another_method(self, exchange: str, symbol: str) -> None:
+        """Perform another operation with exchange and symbol for testing."""
         pass

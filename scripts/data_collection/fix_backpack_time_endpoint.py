@@ -36,7 +36,7 @@ async def fetch_backpack_time() -> None:
         if not backpack_config.enabled:
             raise ValueError("Backpack exchange is disabled in configuration")
 
-        api_base_url = str(backpack_config.api_base_url).rstrip("/")
+        api_base_url = str(backpack_config.api_base_url_mainnet).rstrip("/")
         logger.info(f"Using Backpack API base URL from config: {api_base_url}")
 
     except Exception as e:

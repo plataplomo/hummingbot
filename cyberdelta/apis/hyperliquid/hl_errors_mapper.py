@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Error Mapper
+"""CyberDeltaEngine: Hyperliquid API Error Mapper.
+
 ---------------------------------------------
 
 This module centralizes the logic for mapping Hyperliquid's unstructured error messages
@@ -30,12 +31,14 @@ logger = logging.getLogger(__name__)
 
 class HyperliquidErrorMapper(IErrorMapper):
     """Provides methods for mapping and normalizing Hyperliquid API errors.
+
     Implements the IErrorMapper interface.
     """
 
     @staticmethod
     def _regex_match(msg: str, patterns: str | list[str]) -> bool:
         """Helper for regex-based error message matching.
+
         Accepts a single pattern or a list of patterns.
         """
         if isinstance(patterns, str):
@@ -45,6 +48,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _categorize_hyperliquid_error(error_message: str) -> HyperliquidAPIErrorCategory:
         """Map a Hyperliquid error message to a known error category, ERROR, or UNKNOWN.
+
         Uses canonical error substrings from hl_api_error.py for initial matching,
         then regex for variants.
         """
@@ -117,6 +121,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         category_or_message: HyperliquidAPIErrorCategory | str,
     ) -> APIErrorCode:
         """Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
+
         If a string is provided, it is first categorized using regex logic.
         """
         if isinstance(category_or_message, str):
@@ -190,6 +195,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None = None,
     ) -> APIError:
         """Transform a raw Hyperliquid error response into a standardized APIError.
+
         This is the single entry point for mapping/categorizing/normalizing Hyperliquid errors.
 
         Args:

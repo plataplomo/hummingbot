@@ -16,7 +16,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture(scope="module")
 def simple_hl_config() -> ExchangeSpecificConfig:
-    """Provide simple Hyperliquid configuration fixture that doesn't depend on complex test configurations.
+    """Provide simple Hyperliquid configuration fixture for test configurations.
 
     Uses environment variable or defaults to testnet.
     """

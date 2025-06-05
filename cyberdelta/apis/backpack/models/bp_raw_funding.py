@@ -1,4 +1,5 @@
 """Backpack API Funding Rate and Mark Price Models.
+
 ------------------------------------------
 
 This module defines strict Pydantic models for validating funding rate and mark
@@ -51,9 +52,9 @@ class BackpackRawFundingRate(BaseModel):
 
 
 class BackpackRawMarkPrice(BaseModel):
-    """Pydantic model for a raw mark price and funding info object
-    from `/api/v1/markPrice` (Backpack REST API).
-
+    """Pydantic model for a raw mark price and funding info object from Backpack API.
+    
+    Validates responses from `/api/v1/markPrice` (Backpack REST API).
     This model mirrors the Backpack OpenAPI schema, using common raw types for validation.
 
     Attributes:
@@ -74,8 +75,9 @@ class BackpackRawMarkPrice(BaseModel):
 
 
 class BackpackRawFundingIntervalRate(BaseModel):
-    """Pydantic model for a single raw funding interval rate object from the list returned
-    by `/api/v1/fundingRates` (Backpack REST API).
+    """Pydantic model for a single raw funding interval rate object from Backpack API.
+    
+    Validates objects from the list returned by `/api/v1/fundingRates` (Backpack REST API).
 
     Attributes:
         symbol (str): The trading symbol (e.g., 'SOL_USDC').

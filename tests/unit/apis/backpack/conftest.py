@@ -17,13 +17,13 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture
 def symbol_spot() -> str:
-    """Standard spot trading symbol."""
+    """Return standard spot trading symbol."""
     return "SOL_USDC"
 
 
 @pytest.fixture
 def symbol_perp() -> str:
-    """Standard perpetual trading symbol."""
+    """Return standard perpetual trading symbol."""
     return "SOL-PERP"
 
 
@@ -41,13 +41,13 @@ def symbol_eth_spot() -> str:
 
 @pytest.fixture
 def order_id() -> str:
-    """Standard order ID."""
+    """Return a standard order ID for testing."""
     return "987654321"
 
 
 @pytest.fixture
 def client_order_id() -> str:
-    """Standard client order ID."""
+    """Return a standard client order ID for testing."""
     return "myOrder1"
 
 
@@ -101,31 +101,31 @@ def ioc_time_in_force() -> TimeInForce:
 
 @pytest.fixture
 def standard_quantity() -> Decimal:
-    """Standard order quantity."""
+    """Return a standard order quantity for testing."""
     return Decimal("10.5")
 
 
 @pytest.fixture
 def standard_price() -> Decimal:
-    """Standard order price."""
+    """Return standard order price for testing."""
     return Decimal("140.00")
 
 
 @pytest.fixture
 def trigger_price() -> Decimal:
-    """Standard trigger price for stop orders."""
+    """Return standard trigger price for stop orders."""
     return Decimal("28.00")
 
 
 @pytest.fixture
 def withdrawal_amount() -> Decimal:
-    """Standard withdrawal amount."""
+    """Return standard withdrawal amount for testing."""
     return Decimal("100.0")
 
 
 @pytest.fixture
 def withdrawal_address() -> str:
-    """Standard withdrawal address."""
+    """Return standard withdrawal address for testing."""
     return "xyzAddress"
 
 
@@ -143,7 +143,7 @@ def ethereum_network() -> str:
 
 @pytest.fixture
 def current_timestamp_ms() -> int:
-    """Current timestamp in milliseconds."""
+    """Return current timestamp in milliseconds."""
     return int(datetime.now(UTC).timestamp() * 1000)
 
 
@@ -174,6 +174,7 @@ def eth_asset() -> str:
 @pytest.fixture
 def active_bp_config() -> ExchangeSpecificConfig:
     """Active Backpack exchange configuration for unit tests.
+    
     Backpack only has mainnet, no testnet.
     """
     return ExchangeSpecificConfig.model_validate(
@@ -202,7 +203,8 @@ def active_bp_config() -> ExchangeSpecificConfig:
 def bp_api_with_di(
     active_bp_config: ExchangeSpecificConfig,
 ) -> Callable[..., BackpackAPI]:
-    """Factory fixture to create BackpackAPI instances with all dependencies mocked.
+    """Create BackpackAPI instances with all dependencies mocked.
+    
     This enables unit testing without accessing protected members.
     """
 

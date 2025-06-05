@@ -26,8 +26,9 @@ class TestBackpackAccountServiceAccountInfo:
         bp_account_service: BackpackAccountService,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test get_account_info successfully fetches and processes account info
-        by mocking its internal helper methods that perform raw data fetching.
+        """Test get_account_info successfully fetches and processes account info.
+        
+        Test by mocking its internal helper methods that perform raw data fetching.
         """
         mock_raw_account_data = {
             "autoBorrowSettlements": True,

@@ -1,4 +1,5 @@
 """Backpack API Market, Ticker, and Open Interest Models.
+
 ----------------------------------------------------
 
 This module defines strict Pydantic models for validating market metadata, ticker, and open
@@ -55,6 +56,7 @@ logger = logging.getLogger(__name__)
 
 class BackpackRawMarket(BaseModel):
     """Pydantic model for a raw market metadata object from `/api/v1/markets` (Backpack REST API).
+
     Uses common raw types for field validation.
 
     Attributes:
@@ -129,7 +131,8 @@ class BackpackRawTicker(BaseModel):
 
 
 class BackpackRawOpenInterest(BaseModel):
-    """Pydantic model for a raw open interest object from `/api/v1/openInterest` (Backpack REST API).
+    """Pydantic model for a raw open interest object from Backpack's openInterest endpoint.
+
     Uses common raw types for field validation.
 
     Attributes:

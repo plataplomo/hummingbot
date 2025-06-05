@@ -99,7 +99,7 @@ def create_mock_signal(
 
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
-    """Helper function for strategy."""
+    """Create a FundingRateArbitrageStrategy instance for testing."""
     data_handler = AsyncMock()
     portfolio_tracker = MagicMock(spec=PortfolioTracker)
     risk_manager_mock = MagicMock(spec=RiskManager)
@@ -122,7 +122,7 @@ def strategy() -> FundingRateArbitrageStrategy:
 
 
 def fake_get_position(ex: str, sym: str) -> PositionType:
-    """Helper function for fake get position."""
+    """Return fake position data based on exchange and symbol combination."""
     positions = {
         ("hyperliquid", "BTC-PERP"): DerivativePosition(
             exchange="hyperliquid",
@@ -151,6 +151,7 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
 
 
 async def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
+    """Return fake ticker data for testing different exchange and symbol combinations."""
     now = datetime.now(UTC)
     if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
         return Ticker(
@@ -174,6 +175,7 @@ async def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
 
 
 async def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | None:
+    """Return fake funding rate data for testing different exchange and symbol combinations."""
     now = datetime.now(UTC)
     if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
         return FundingRate(
@@ -192,6 +194,7 @@ async def test_process_data_scheduling(
     mock_create_task: MagicMock,
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
+    """Test that process_data schedules opportunity evaluation when conditions are met."""
     mock_create_task.return_value.set_result(None)
     mock_data: Candle = create_mock_candle()
     strategy.last_opportunity_check = None
@@ -212,6 +215,7 @@ async def test_process_data_no_scheduling_if_recent_check(
     mock_create_task: MagicMock,
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
+    """Test that process_data skips opportunity evaluation when recent check was performed."""
     mock_create_task.return_value.set_result(None)
     strategy.last_opportunity_check = datetime.now(UTC) - timedelta(
         seconds=strategy.check_interval - 10,
@@ -234,6 +238,7 @@ async def test_process_data_rebalance_signal_generation(
     mock_create_task: MagicMock,
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
+    """Test that process_data generates rebalance signals when prices have moved significantly."""
     mock_create_task.return_value.set_result(None)
     strategy.active_opportunities = [create_mock_opportunity(symbol="BTC-PERP")]
 
@@ -306,6 +311,7 @@ async def test_evaluate_entry_opportunity_found(
     mock_logger: MagicMock,
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
+    """Test that evaluate_entry_opportunities identifies and logs profitable opportunities."""
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
         "AsyncMock",
@@ -362,6 +368,7 @@ async def test_evaluate_entry_opportunity_no_opportunity(
     mock_logger: MagicMock,
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
+    """Test that evaluate_entry_opportunities handles cases with no arbitrage opportunities."""
     cast("AsyncMock", strategy.data_handler).get_latest_ticker.side_effect = fake_get_ticker
     cast(
         "AsyncMock",
@@ -390,6 +397,8 @@ async def test_evaluate_entry_opportunity_no_opportunity(
 
 # Helper functions
 class CandleKwargs(TypedDict, total=False):
+    """TypedDict for Candle keyword arguments used in test data creation."""
+
     symbol: str
     interval: str
     open_time: datetime
@@ -426,6 +435,8 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
 
 
 class TickerKwargs(TypedDict, total=False):
+    """TypedDict for Ticker keyword arguments used in test data creation."""
+
     symbol: str
     timestamp: datetime
     price: Decimal | None
@@ -458,6 +469,8 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
 
 
 class FundingRateKwargs(TypedDict, total=False):
+    """TypedDict for FundingRate keyword arguments used in test data creation."""
+
     symbol: str
     timestamp: datetime
     funding_rate: Decimal | None

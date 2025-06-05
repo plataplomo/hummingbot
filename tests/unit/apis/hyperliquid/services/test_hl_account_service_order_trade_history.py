@@ -136,7 +136,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             raw_historical_order: MagicMock,
             trigger: MagicMock | None = None,
         ) -> MagicMock:
-            """Helper function for map side effect."""
+            """Map raw historical orders to internal order objects for testing."""
             return mapped_order1 if raw_historical_order is mock_raw_order1 else mapped_order2
 
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.side_effect = (
@@ -170,8 +170,10 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_hl_account_mapper: MagicMock,
         mock_hl_trading_mapper: MagicMock,
     ) -> None:
-        """Test get_order_history error handling for missing wallet, missing times, and APIError
-        from requester.
+        """Test get_order_history error handling for missing wallet, missing times, and APIError.
+        
+        Tests error handling when wallet address is missing, time parameters are invalid,
+        and when the underlying HTTP requester raises APIError exceptions.
         """
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
@@ -358,7 +360,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mapped_trade2 = MagicMock(symbol="ETH")
 
         def map_side_effect_func(raw_fill_arg: MagicMock) -> MagicMock:
-            """Helper function for map side effect func."""
+            """Map raw fill objects to internal trade objects for testing."""
             if raw_fill_arg is mock_raw_fill1:
                 return mapped_trade1
             if raw_fill_arg is mock_raw_fill2:
@@ -606,7 +608,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Configure mapper to succeed for some, fail for others
         def mapper_side_effect(fill: MagicMock) -> MagicMock:
-            """Helper function for mapper side effect."""
+            """Handle selective mapping success/failure for testing error scenarios."""
             if fill.hash == "fill_1":
                 raise ValueError("Invalid fill data")
             return MagicMock(symbol="BTC", id=fill.hash)

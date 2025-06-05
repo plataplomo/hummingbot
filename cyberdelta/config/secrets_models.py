@@ -1,10 +1,15 @@
-"""cyberdelta.config.secrets_models
--------------------------------
-Pydantic models for secrets.yaml configuration validation.
+"""Pydantic models for secrets.yaml configuration validation.
 
 This module defines the schema for sensitive configuration data including
-API keys, tokens, and other credentials. All sensitive fields use SecretStr
-to prevent accidental exposure in logs or tracebacks.
+API keys, tokens, and other credentials used by the CyberDeltaEngine.
+All sensitive fields use SecretStr to prevent accidental exposure in logs
+or tracebacks, ensuring secure handling of authentication credentials.
+
+The module supports multiple authentication types:
+- API key/secret pairs (for exchanges like Backpack)
+- Private key authentication (for exchanges like Hyperliquid)
+- Notification service tokens (Telegram)
+- Logging service credentials (Logfire)
 """
 
 from typing import Annotated, Literal, Self

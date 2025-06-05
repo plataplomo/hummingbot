@@ -1,3 +1,10 @@
+"""Core trade models for CyberDeltaEngine.
+
+This module defines the internal Trade model and exchange-specific enrichment details
+for representing executed trades across all supported exchanges. The Trade model follows
+the "Core + Typed Extension Slots" pattern for exchange-specific data.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -20,6 +27,7 @@ from ..enums import OrderSide
 
 class Trade(BaseModel):
     """Lean core internal model for a single execution event (fill) across all supported exchanges.
+
     Contains only essential, universal fields. Immutable, robust, and validated.
 
     Fields:
@@ -59,6 +67,7 @@ class Trade(BaseModel):
     @field_validator("id", "order_id", mode="before")
     @classmethod
     def validate_id_fields(cls, v: str, info: object) -> str:
+        """Validate trade and order ID fields with appropriate length limits."""
         field_name = getattr(info, "field_name", "id")
         # max_length=128 is a generous default; revisit if stricter limits are found in
         # exchange specs
@@ -67,6 +76,7 @@ class Trade(BaseModel):
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
     def validate_symbol_exchange(cls, v: str, info: object) -> str:
+        """Validate symbol and exchange fields with shorter length limits."""
         field_name = getattr(info, "field_name", None)
         return validate_str_field(v, field_name=str(field_name), max_length=64)
 
@@ -77,6 +87,22 @@ class Trade(BaseModel):
         raw_value: str | int | float | datetime | None,
         info: object,
     ) -> datetime:
+        """Parse and validate the execution timestamp field.
+
+        Converts various timestamp formats to a UTC datetime object for consistent
+        internal representation. Ensures the timestamp is not None.
+
+        Args:
+            raw_value: Raw timestamp value from external source
+            info: Pydantic field validation context
+
+        Returns:
+            Validated UTC datetime object
+
+        Raises:
+            ValueError: If timestamp cannot be parsed or is None
+
+        """
         dt = parse_datetime_utc(raw_value, field_name="executed_at")
         if dt is None:
             raise ValueError("executed_at cannot be None")
@@ -89,6 +115,22 @@ class Trade(BaseModel):
         raw_value: str | int | float | Decimal | None,
         info: object,
     ) -> Decimal:
+        """Parse and validate decimal fields for financial precision.
+
+        Converts various numeric formats to finite Decimal objects for precise
+        financial calculations. Ensures all values are finite and valid.
+
+        Args:
+            raw_value: Raw numeric value from external source
+            info: Pydantic field validation context
+
+        Returns:
+            Validated finite Decimal object
+
+        Raises:
+            ValueError: If value cannot be parsed to finite Decimal
+
+        """
         field_name = getattr(info, "field_name", None)
         d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
         if d is None or not d.is_finite():
@@ -98,6 +140,22 @@ class Trade(BaseModel):
     @field_validator("client_order_id", "fee_asset", mode="before")
     @classmethod
     def validate_optional_str(cls, v: str | None, info: object) -> str | None:
+        """Validate optional string fields with length limits.
+
+        Ensures optional string fields are properly validated when present,
+        with appropriate length constraints for database and API compatibility.
+
+        Args:
+            v: Raw string value or None
+            info: Pydantic field validation context
+
+        Returns:
+            Validated string or None if not provided
+
+        Raises:
+            ValueError: If string is invalid or exceeds length limits
+
+        """
         field_name = getattr(info, "field_name", None)
         if v is None:
             return None
@@ -105,6 +163,18 @@ class Trade(BaseModel):
 
     @model_validator(mode="after")
     def check_fee_logic(self) -> Self:
+        """Validate fee-related business logic constraints.
+
+        Ensures that when a fee is charged (non-zero), the fee asset is specified.
+        This maintains data integrity for fee tracking and accounting.
+
+        Returns:
+            Self for method chaining
+
+        Raises:
+            ValueError: If fee is non-zero but fee_asset is not provided
+
+        """
         if self.fee != Decimal("0") and not self.fee_asset:
             raise ValueError("fee_asset must be provided if fee is nonzero.")
         return self
@@ -150,11 +220,43 @@ class HyperliquidTradeDetails(BaseModel):
     @field_validator("trade_hash", mode="before")
     @classmethod
     def validate_trade_hash(cls, v: str, info: object) -> str:
+        """Validate and sanitize the Hyperliquid trade hash field.
+
+        Ensures the trade hash is a non-empty string with reasonable length limits
+        to prevent malformed or excessively long hash values from external APIs.
+
+        Args:
+            v: Raw trade hash value from external source
+            info: Pydantic field validation context
+
+        Returns:
+            Validated trade hash string
+
+        Raises:
+            ValueError: If trade hash is invalid, empty, or exceeds length limits
+
+        """
         return validate_str_field(v, field_name="trade_hash", max_length=128)
 
     @field_validator("dir", mode="before")
     @classmethod
     def validate_dir(cls, v: str | None, info: object) -> str | None:
+        """Validate and sanitize the Hyperliquid direction field.
+
+        Validates the optional direction field from Hyperliquid's ApiUserFill.dir.
+        This field indicates the direction of the fill relative to the position.
+
+        Args:
+            v: Raw direction value from external source (can be None)
+            info: Pydantic field validation context
+
+        Returns:
+            Validated direction string or None if not provided
+
+        Raises:
+            ValueError: If direction string is invalid or exceeds length limits
+
+        """
         if v is None:
             return None
         # TODO: Replace with enum validation if/when values are known
@@ -167,6 +269,23 @@ class HyperliquidTradeDetails(BaseModel):
         v: str | int | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
+        """Validate and parse Hyperliquid decimal fields to ensure financial precision.
+
+        Converts raw numeric values from external APIs to validated Decimal objects
+        for precise financial calculations. Handles liquidation mark price and
+        starting position size fields from Hyperliquid's ApiUserFill structure.
+
+        Args:
+            v: Raw numeric value from external source (can be None)
+            info: Pydantic field validation context containing field name
+
+        Returns:
+            Validated finite Decimal or None if not provided
+
+        Raises:
+            ValueError: If value cannot be parsed to finite Decimal
+
+        """
         if v is None:
             return None
         field_name = getattr(info, "field_name", "unknown")
@@ -191,6 +310,23 @@ class BackpackTradeDetails(BaseModel):
     @field_validator("system_order_type", mode="before")
     @classmethod
     def validate_system_order_type(cls, v: str | None, info: object) -> str | None:
+        """Validate and sanitize the Backpack system order type field.
+
+        Validates the optional system order type from Backpack's OrderFill.systemOrderType.
+        This field indicates the type of system order that triggered the fill
+        (e.g., stop-loss, take-profit, liquidation).
+
+        Args:
+            v: Raw system order type value from external source (can be None)
+            info: Pydantic field validation context
+
+        Returns:
+            Validated system order type string or None if not provided
+
+        Raises:
+            ValueError: If system order type is invalid or exceeds length limits
+
+        """
         if v is None:
             return None
         # TODO: Replace with enum validation if/when values are known

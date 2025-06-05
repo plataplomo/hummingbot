@@ -45,7 +45,7 @@ class TestRiskManagerControls:
             key: str,
             default: object | None = None,
         ) -> object | None:
-            """Helper function for config get side effect for test."""
+            """Return config value for mock side effect in testing."""
             return combined_config.get(key, default)
 
         # Mock one of the exchange breakers to be in HALF_OPEN state

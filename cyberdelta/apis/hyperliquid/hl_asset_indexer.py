@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Asset Index Resolver
+"""CyberDeltaEngine: Hyperliquid Asset Index Resolver.
+
 --------------------------------------------------
 
 Utility class responsible for fetching Hyperliquid's asset metadata and resolving
@@ -30,8 +31,9 @@ from cyberdelta.config.logging_config import get_logger
 
 
 class HyperliquidAssetIndexResolver:
-    """Utility class responsible for fetching Hyperliquid's asset metadata and resolving
-    string symbols to their integer asset indices. Implements caching for efficiency.
+    """Utility class for fetching Hyperliquid asset metadata and resolving symbols to asset indices.
+
+    Implements caching for efficiency.
 
     This resolver handles the complex logic of fetching metaAndAssetCtxs from the /info
     endpoint, parsing the response, and maintaining a cache of symbol-to-index mappings.
@@ -97,7 +99,8 @@ class HyperliquidAssetIndexResolver:
 
         # Cache miss - fetch data
         self.logger.debug(
-            f"[{self._exchange_name_for_log}] Asset index for {symbol} not cached, fetching meta...",
+            f"[{self._exchange_name_for_log}] Asset index for {symbol} not cached, "
+            f"fetching meta...",
         )
 
         # Build request

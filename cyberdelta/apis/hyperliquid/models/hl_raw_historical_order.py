@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Historical Order Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Historical Order Group).
+
 --------------------------------------------------------------------
 
 This module defines Pydantic models for validating the *raw* structure of
@@ -30,8 +31,11 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 
 class HyperliquidRawHistoricalOrder(BaseModel):
-    """Core historical order details. Similar to HyperliquidRawOrder but uses
-    RawHistoricalOrderStatusHL for broader status compatibility.
+    """Core historical order details with extended status support.
+
+    Similar to HyperliquidRawOrder but uses RawHistoricalOrderStatusHL for broader
+    status compatibility, allowing validation of orders in any state including
+    filled, canceled, and other historical statuses.
     """
 
     oid: RawNonNegativeInt = Field(..., alias="oid")
@@ -53,8 +57,11 @@ class HyperliquidRawHistoricalOrder(BaseModel):
 
 
 class HyperliquidRawHistoricalOrderResponse(BaseModel):
-    """Response structure for an endpoint returning a single historical order's details.
-    Embeds HyperliquidRawHistoricalOrder.
+    """Response structure for historical order query endpoints.
+
+    This model wraps a single historical order's details and is used for endpoints
+    that return individual order information. It embeds HyperliquidRawHistoricalOrder
+    to provide complete order data with extended status support.
     """
 
     order: HyperliquidRawHistoricalOrder = Field(

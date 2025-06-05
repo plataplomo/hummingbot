@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack WebSocket Message Router.
+
 --------------------------------------------------
 
 This module implements the `BackpackWsMessageRouter` class, responsible for:

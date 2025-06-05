@@ -29,8 +29,9 @@ class TestBackpackAccountServiceBalances:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test _get_raw_balances_dict successfully fetches and processes balance data,
-        tested via public get_balances.
+        """Test _get_raw_balances_dict successfully fetches and processes balance data.
+        
+        Tested via public get_balances.
         """
         mock_raw_response_data_dict: RawJsonResponse = {
             "USDC": {"available": "1000.0", "locked": "0", "debt": "0", "total": "1000.0"},
@@ -162,7 +163,7 @@ class TestBackpackAccountServiceBalances:
             asset_symbol: str,
             raw_balance_model: BackpackRawBalance,
         ) -> SpotBalance:
-            """Helper function for mapper side effect."""
+            """Map asset symbols and raw balance models to SpotBalance objects for testing."""
             if asset_symbol == "USDC" and raw_balance_model == mock_raw_balances_payload["USDC"]:
                 return usdc_spot_balance
             if asset_symbol == "SOL" and raw_balance_model == mock_raw_balances_payload["SOL"]:

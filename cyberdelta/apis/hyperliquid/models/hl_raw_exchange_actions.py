@@ -24,7 +24,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 # Model for ETH specific withdrawal action (part of the signed payload)
 class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
     """Represents the specific action payload for withdrawing ETH to L1.
-    This forms part of the signed message for the /exchange endpoint.
+
+    This forms part of the signed message for the /exchange endpoint and contains
+    the amount and destination address for ETH withdrawals to Layer 1.
     """
 
     amount: RawFiniteDecimalStr
@@ -35,9 +37,11 @@ class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
 
 # Model for individual order specifications within a bulk order placement
 class HyperliquidRawOrderItemSpec(BaseModel):
-    """Represents the detailed specification for a single order
-    within the 'orders' list of a batch order placement action.
-    This forms part of the signed message for the /exchange endpoint.
+    """Represents the detailed specification for a single order within batch operations.
+
+    This model defines the structure for individual orders within the 'orders' list
+    of a batch order placement action. It forms part of the signed message for the
+    /exchange endpoint and ensures proper validation of order parameters.
 
     Corresponds to the 'OrderRequest' structure in Hyperliquid's documentation.
     struct OrderRequest {
@@ -65,7 +69,9 @@ class HyperliquidRawOrderItemSpec(BaseModel):
 # Model for the overall BATCH order placement action (signed payload)
 class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
     """Represents the action payload for placing one or more orders in a batch.
-    This forms part of the signed message for the /exchange endpoint.
+
+    This forms part of the signed message for the /exchange endpoint and contains
+    the order specifications for batch order placement operations.
 
     Corresponds to the 'action' field when 'type' is 'order' for batch operations.
     """

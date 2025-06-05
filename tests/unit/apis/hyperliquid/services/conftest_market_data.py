@@ -41,7 +41,7 @@ def hyperliquid_market_data_service(
     mock_hl_response_handler: MagicMock,
     mock_hl_mapper: MagicMock,
 ) -> HyperliquidMarketDataService:
-    """Helper function for hyperliquid market data service."""
+    """Create HyperliquidMarketDataService instance with mocked dependencies for testing."""
     return HyperliquidMarketDataService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_hl_request_builder,

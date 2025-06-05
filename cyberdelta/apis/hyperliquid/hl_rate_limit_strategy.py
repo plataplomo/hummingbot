@@ -1,4 +1,5 @@
-"""cyberdelta.apis.hyperliquid.hl_rate_limit_strategy
+"""cyberdelta.apis.hyperliquid.hl_rate_limit_strategy.
+
 ------------------------------------------------
 Hyperliquid-specific rate limiting strategy implementation.
 

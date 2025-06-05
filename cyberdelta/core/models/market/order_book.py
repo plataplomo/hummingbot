@@ -1,3 +1,15 @@
+"""Order book data model for Level 2 market depth representation.
+
+This module provides the OrderBook model for representing immutable snapshots
+of Level 2 order book data with strict validation and financial precision.
+
+The OrderBook model ensures data integrity through:
+- Strict validation of bid/ask price and quantity tuples
+- Decimal precision for all financial values
+- Immutable design to prevent accidental modification
+- Comprehensive type checking and parsing from various input formats
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -10,8 +22,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, va
 
 
 class OrderBook(BaseModel):
-    """Represents an immutable, validated snapshot
-    of the L2 order book for a specific symbol at a point in time.
+    """Represents an immutable, validated snapshot of the L2 order book for a specific symbol.
 
     This model enforces strict validation for structure and data types during initialization,
     ensuring consistency and safety for internal use within the CyberDeltaEngine. It uses

@@ -1,3 +1,19 @@
+"""Order management models for trading operations.
+
+This module provides comprehensive models for representing and managing trading orders
+across different exchanges. The models follow the "Core + Typed Extension Slots" pattern,
+allowing for common order fields while providing exchange-specific enrichment.
+
+Key models:
+- Order: Core mutable order model with lifecycle management
+- HyperliquidOrderDetails: Hyperliquid-specific order enrichment
+- BackpackOrderDetails: Backpack-specific order enrichment
+- CancelOrderResult: Result model for order cancellation operations
+
+The Order model is mutable by design to support order lifecycle updates (fills, status changes)
+while maintaining strict validation and type safety throughout the trading process.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +44,7 @@ logger = logging.getLogger(__name__)
 # --- Core Order Model (Mutable) ---
 class Order(BaseModel):
     """Core internal model for a single order across all supported exchanges.
+
     Contains essential, universal fields. Mutable, robust, and validated.
     Follows the "Core + Typed Extension Slots" pattern (Idea 5).
     """
@@ -124,6 +141,7 @@ class Order(BaseModel):
     )
     @classmethod
     def validate_optional_str_id(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate optional string ID fields with appropriate length limits."""
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -139,6 +157,7 @@ class Order(BaseModel):
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
     def validate_required_str_short(cls, v: str, info: ValidationInfo) -> str:
+        """Validate required string fields with shorter length limits."""
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")

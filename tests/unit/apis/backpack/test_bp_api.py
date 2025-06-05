@@ -1,4 +1,5 @@
 """Unit tests for the BackpackAPI client implementation.
+
 Tests use dependency injection patterns to mock collaborators and focus on public interface testing.
 """
 
@@ -49,6 +50,7 @@ def create_test_exchange_config(
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """Create ExchangeSpecificConfig for testing by parsing from dict.
+    
     This works with the validator that expects string inputs.
     """
     config_dict = {
@@ -176,7 +178,8 @@ def bp_api_with_di(
     mock_bp_trading_service: MagicMock,
     mock_bp_market_data_service: MagicMock,
 ) -> Callable[..., BackpackAPI]:
-    """Factory fixture to create BackpackAPI instances with all dependencies injected.
+    """Create BackpackAPI instances with all dependencies injected for testing.
+    
     This enables black-box testing without accessing private members.
     """
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -743,8 +746,9 @@ class TestBackpackAPIErrorHandling:
         mock_bp_account_service: MagicMock,
         mock_bp_market_data_service: MagicMock,
     ) -> None:
-        """Test that different services can raise different error types and all are
-        propagated correctly.
+        """Test that different services can raise different error types.
+        
+        All errors should be propagated correctly.
         """
         api = bp_api_with_di()
 

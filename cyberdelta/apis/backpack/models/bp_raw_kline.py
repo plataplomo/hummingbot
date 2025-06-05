@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack API Raw Models (Kline/Candle).
+
 ----------------------------------------------------------
 
 Strict Pydantic model for validating the *raw* structure of Backpack Exchange API responses
@@ -28,6 +29,7 @@ from .bp_common_raw_types import (
 
 class BackpackRawKline(BaseModel):
     """Strict boundary Pydantic model for a kline (candlestick) object from Backpack API.
+
     Expects input as a list/tuple of 12 elements. Uses common raw types for validation after
     an initial `@model_validator` transforms the list to a dictionary.
 
@@ -72,6 +74,7 @@ class BackpackRawKline(BaseModel):
     @classmethod
     def structure_to_dict(cls, data: list[Any] | tuple[Any, ...]) -> dict[str, Any]:
         """Validates input is list/tuple of 12 elements, maps to dict for field validation.
+
         Ensures that `data` is a sequence type before checking its length.
         """
         if len(data) != 12:

@@ -1,5 +1,7 @@
-"""cyberdelta.config.config_models
+"""cyberdelta.config.config_models.
+
 ------------------------------
+
 Pydantic models for CyberDeltaEngine configuration validation.
 
 These models define the structure, types, defaults, and validation rules for config.yaml,
@@ -517,7 +519,15 @@ class SafetySystemsSettings(BaseModel):
 
 
 def _default_alert_methods() -> list[Literal["log", "telegram"]]:
-    """Default factory for alert_methods field."""
+    """Create default factory for alert_methods field.
+
+    Returns the default list of alert methods for monitoring configuration.
+    Used as a factory function to avoid mutable default arguments.
+
+    Returns:
+        List containing default alert methods (currently just "log").
+
+    """
     return ["log"]
 
 

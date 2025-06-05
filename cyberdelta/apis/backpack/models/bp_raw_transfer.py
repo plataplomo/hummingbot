@@ -1,4 +1,5 @@
-"""Backpack API Transfer (Deposit/Withdrawal) Models
+"""Backpack API Transfer (Deposit/Withdrawal) Models.
+
 ------------------------------------------------
 
 Defines strict Pydantic models for validating deposit and withdrawal responses from

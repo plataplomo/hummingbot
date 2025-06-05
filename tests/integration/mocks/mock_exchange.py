@@ -65,11 +65,15 @@ logger = logging.getLogger(__name__)
 
 # Define a custom exception for mock API errors
 class MockAPIError(Exception):
+    """Custom exception for mock API errors in integration testing."""
+
     pass
 
 
 # Minimal placeholder ErrorMapper to resolve import issues for this mock file
 class MockErrorMapper(IErrorMapper):
+    """Minimal placeholder ErrorMapper to resolve import issues for mock testing."""
+
     def map_exchange_error(
         self,
         status_code: int,
@@ -78,7 +82,7 @@ class MockErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """Helper function for map exchange error."""
+        """Map exchange error details to APIError instance."""
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         return APIError(
             message=error_body or "Mock API Error",
@@ -87,7 +91,7 @@ class MockErrorMapper(IErrorMapper):
         )
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
-        """Helper function for map string error."""
+        """Map string error message to APIError instance."""
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         api_error_code_val = APIErrorCode.EXCHANGE_SPECIFIC.value  # Default
         if http_status == 404:  # MODIFIED: Simplified condition
@@ -105,6 +109,7 @@ class MockErrorMapper(IErrorMapper):
 
 class MockExchangeAPI(ExchangeAPI):
     """Mock implementation of the ExchangeAPI for integration testing.
+    
     Simulates basic exchange behavior, including order management, data fetching,
     and WebSocket interactions. Allows simulating errors and latency.
     """
@@ -116,6 +121,7 @@ class MockExchangeAPI(ExchangeAPI):
         secrets: dict[str, str | None],
         config_obj: AppSettings | None = None,
     ) -> None:
+        """Initialize MockExchangeAPI with exchange configuration and secrets."""
         # Ensure api_base_url is valid for HttpClientConfig, regardless of what's in config dict
         config_copy = config.copy()  # Modify a copy
         # Check if api_base_url is missing, not a string, or not a plausible URL format
@@ -210,7 +216,7 @@ class MockExchangeAPI(ExchangeAPI):
 
     # --- Test Control Methods ADDED ---
     def reset(self) -> None:
-        """Resets the mock exchange to a clean state for a new test."""
+        """Reset the mock exchange to a clean state for a new test."""
         self._order_id_counter = 1
         self._orders.clear()
         self._positions.clear()
@@ -227,7 +233,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"MockExchangeAPI for {self.exchange_name} has been reset.")
 
     def set_mock_balance(self, balance: SpotBalance) -> None:
-        """Sets a mock balance for a specific asset."""
+        """Set a mock balance for a specific asset."""
         if balance.exchange != self.exchange_name:
             logger.warning(
                 f"Attempted to set balance for {balance.exchange} on "
@@ -238,12 +244,12 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"Mock balance set for {self.exchange_name} - {balance.asset}: {balance}")
 
     def set_mock_ticker(self, ticker: Ticker) -> None:
-        """Sets a mock ticker for a specific symbol."""
+        """Set a mock ticker for a specific symbol."""
         self._mock_tickers[ticker.symbol] = ticker
         logger.debug(f"Mock ticker set for {self.exchange_name} - {ticker.symbol}: {ticker}")
 
     def set_mock_funding_rate(self, funding_rate: FundingRate) -> None:
-        """Sets a mock funding rate for a specific symbol."""
+        """Set a mock funding rate for a specific symbol."""
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         logger.debug(
             f"Mock funding rate set for {self.exchange_name} - "
@@ -251,7 +257,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
     def set_mock_position(self, position: DerivativePosition) -> None:
-        """Sets a mock derivative position for a specific symbol."""
+        """Set a mock derivative position for a specific symbol."""
         if position.exchange != self.exchange_name:
             logger.warning(
                 f"Attempted to set position for {position.exchange} on "
@@ -264,7 +270,7 @@ class MockExchangeAPI(ExchangeAPI):
         logger.debug(f"Mock position set for {self.exchange_name} - {position.symbol}: {position}")
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
-        """Returns a mock account summary."""
+        """Return a mock account summary."""
         # Simulate potential API error for this method if configured
         self._check_error("get_account_summary")
         await self._simulate_latency()
@@ -398,7 +404,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
-        """Helper to split a symbol like 'BTC-USDC' into base and quote."""
+        """Split a symbol like 'BTC-USDC' into base and quote."""
         parts = symbol.split("-")
         if len(parts) == 2:
             return parts[0], parts[1]
@@ -848,7 +854,7 @@ class MockExchangeAPI(ExchangeAPI):
 
     # --- Placeholder for balance and position update --- #
     def _update_balance_and_position(self, trade: Trade) -> None:
-        """Placeholder to simulate updating balances and positions after a trade."""
+        """Simulate updating balances and positions after a trade."""
         logger.info(
             f"Mock {self.exchange_name}: Simulating balance/position update for trade: {trade.id} "
             f"({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})",
@@ -1049,7 +1055,7 @@ class MockExchangeAPI(ExchangeAPI):
     # --- END OF ADDED PLACEHOLDERS ---
 
     async def close(self) -> None:
-        """Closes any resources held by the mock API (e.g., WebSocket connection)."""
+        """Close any resources held by the mock API (e.g., WebSocket connection)."""
         logger.info(f"MockExchangeAPI for {self.exchange_name} is being closed.")
         # In a real scenario, you might close mock WebSocket connections or clean up resources.
         # For this mock, we primarily log. If specific mock resources were created (e.g.,
@@ -1071,5 +1077,5 @@ class MockExchangeAPI(ExchangeAPI):
         behavior: str,
         data: dict[str, str | int | float] | None = None,
     ) -> None:
-        """Configures the behavior of get_order_book."""
+        """Configure the behavior of get_order_book."""
         # ... existing code ...

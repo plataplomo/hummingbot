@@ -675,7 +675,8 @@ class DataHandler:
             self.default_staleness_threshold,
         ):
             logger.warning(
-                f"Funding rate data for {exchange_id} - {symbol} is stale. Last update: {timestamp}",
+                f"Funding rate data for {exchange_id} - {symbol} is stale. "
+                f"Last update: {timestamp}",
             )
             return None
 

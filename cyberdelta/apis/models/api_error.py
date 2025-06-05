@@ -6,8 +6,9 @@ from .api_error_response import APIErrorResponse
 
 
 class APIError(Exception):
-    """Custom exception for API-related errors with enhanced context information
-    to enable better error handling and recovery mechanisms. Now Pydantic-compatible.
+    """Custom exception for API-related errors with enhanced context information.
+
+    Enables better error handling and recovery mechanisms. Now Pydantic-compatible.
     Stores an APIErrorResponse as its model.
     """
 
@@ -22,6 +23,19 @@ class APIError(Exception):
         metadata: dict[str, Any] | None = None,
         original_exception: Exception | None = None,
     ) -> None:
+        """Initialize an APIError with comprehensive error context.
+
+        Args:
+            message: Human-readable error description
+            code: Error code (internal or exchange-specific)
+            http_status: HTTP status code from the API response (optional)
+            exchange_code: Exchange-specific error code (optional)
+            exchange_message: Exchange-specific error message (optional)
+            retry_after: Suggested retry delay in seconds (optional)
+            metadata: Additional error context data (optional)
+            original_exception: The underlying exception that caused this error (optional)
+
+        """
         self.model = APIErrorResponse(
             message=message,
             code=code,
@@ -36,34 +50,42 @@ class APIError(Exception):
 
     @property
     def message(self) -> str:
+        """Get the human-readable error message."""
         return self.model.message
 
     @property
     def code(self) -> int | str:
+        """Get the error code (internal or exchange-specific)."""
         return self.model.code
 
     @property
     def http_status(self) -> int | None:
+        """Get the HTTP status code from the API response, if available."""
         return self.model.http_status
 
     @property
     def exchange_code(self) -> str | int | None:
+        """Get the exchange-specific error code, if provided."""
         return self.model.exchange_code
 
     @property
     def exchange_message(self) -> str | None:
+        """Get the exchange-specific error message, if provided."""
         return self.model.exchange_message
 
     @property
     def retry_after(self) -> float | None:
+        """Get the suggested retry delay in seconds, if provided."""
         return self.model.retry_after
 
     @property
     def metadata(self) -> dict[str, Any] | None:
+        """Get additional error context metadata, if available."""
         return self.model.metadata
 
     @property
     def original_exception(self) -> Exception | None:
+        """Get the underlying exception that caused this error, if available."""
         return self.model.original_exception
 
     @property

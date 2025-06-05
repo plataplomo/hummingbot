@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack Market Data Service
+"""CyberDeltaEngine: Backpack Market Data Service.
+
 ---------------------------------------------
 
 This service encapsulates the logic for fetching and processing market data
@@ -75,6 +76,7 @@ HttpClientRequesterSig = Callable[
 
 class BackpackMarketDataService:
     """Service class for Backpack market data operations.
+
     Returns Internal Domain Models.
     """
 
@@ -631,7 +633,8 @@ class BackpackMarketDataService:
                 raw_funding_rate_model,  # Removed symbol_override=symbol as mapper does not take it
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}",
+                f"[{self._exchange_name}] Mapped funding_rate for {symbol}: "
+                f"{internal_funding_rate}",
             )
             return internal_funding_rate
 
@@ -693,6 +696,7 @@ class BackpackMarketDataService:
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Retrieves current funding rates for one or more symbols.
+
         If Backpack API doesn't support a bulk endpoint, this method iterates
         and calls the single-symbol funding rate endpoint.
         """

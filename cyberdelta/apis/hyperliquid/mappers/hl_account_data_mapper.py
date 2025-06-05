@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Account Data Mapper
+"""CyberDeltaEngine: Hyperliquid Account Data Mapper.
+
 ------------------------------------------------
 
 This module provides the HyperliquidAccountDataMapper class for transforming
@@ -415,7 +416,8 @@ class HyperliquidAccountDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to MarginAccountSummary: {e}",
+                f"Failed to transform HyperliquidRawClearinghouseState "
+                f"to MarginAccountSummary: {e}",
             ) from e
 
     @staticmethod
@@ -738,8 +740,7 @@ class HyperliquidAccountDataMapper:
     def transform_ws_position_update_to_internal_position(
         raw_position_update: HyperliquidRawWsPositionUpdateEvent,
     ) -> DerivativePosition:
-        """Transforms a HyperliquidRawWsPositionUpdateEvent (WebSocket position update event) to an
-        Internal DerivativePosition model.
+        """Transforms a HyperliquidRawWsPositionUpdateEvent to an Internal DerivativePosition model.
 
         Args:
             raw_position_update: Validated raw position update event data from Hyperliquid WebSocket

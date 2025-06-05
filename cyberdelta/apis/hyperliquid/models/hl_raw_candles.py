@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Candles Group).
+
 -----------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -53,8 +54,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
-    """Strict boundary model for a candle snapshot response from Hyperliquid's
-    'candleSnapshot' info endpoint.
+    """Strict boundary model for candle snapshot response from Hyperliquid candleSnapshot endpoint.
 
     This model validates the raw API response which consists of parallel lists for
     timestamp, open, high, low, close, volume data, and a status string.
@@ -122,7 +122,10 @@ class HyperliquidRawCandleRequestDetails(BaseModel):
 
 class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     """Strict boundary model for the request payload for the 'candleSnapshot' info type.
-    Uses a nested 'req' object.
+
+    Uses a nested 'req' object to encapsulate the specific parameters required for
+    requesting candlestick data from Hyperliquid's info endpoint. This model ensures
+    proper validation of the request structure before sending to the API.
     """
 
     type: Annotated[

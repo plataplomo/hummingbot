@@ -456,6 +456,7 @@ async def test_process_market_data_duplicate_signals(
     mock_signal_queue: MagicMock,
 ) -> None:
     """Test passing duplicate signals from strategy.
+    
     Note: StrategyManager itself doesn't deduplicate; this is likely handled
     downstream (e.g., SignalQueue, ExecutionHandler).
     """

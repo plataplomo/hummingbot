@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-"""Integration tests for the Backtesting Framework
+"""Integration tests for the Backtesting Framework.
+
 Tests the integration of the backtesting framework with actual strategies.
 """
 
@@ -43,6 +44,8 @@ TEST_DATA_DIR = Path("test_data")
 # Test Class for Backtesting Integration
 # Use a class-level fixture for setup/teardown
 class TestBacktestingIntegration:
+    """Integration test suite for the backtesting framework with strategy execution."""
+
     test_data_dir: Path | None = None
     test_results_dir: Path | None = None
     data_file_path: Path | None = None  # Changed from pd.DataFrame to Path
@@ -236,7 +239,7 @@ class TestBacktestingIntegration:
                 self.initialized = False
 
             def initialize(self, data: pd.DataFrame) -> bool:
-                """Helper function for initialize."""
+                """Initialize strategy with price data from DataFrame."""
                 if not self.initialized:  # Check if already initialized
                     # Try to find the price column for TEST_SYMBOL
                     price_column_key = ("close", TEST_SYMBOL)
@@ -267,7 +270,7 @@ class TestBacktestingIntegration:
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[dict[str, Any]]]:
-                """Helper function for update."""
+                """Update strategy and generate trading signals based on current market data."""
                 signals: list[dict[str, Any]] = []
 
                 # Determine the price for TEST_SYMBOL from current_data
@@ -367,14 +370,14 @@ class TestBacktestingIntegration:
                 super().__init__("SimpleStrategy")
 
             def initialize(self, data: pd.DataFrame) -> bool:
-                """Helper function for initialize."""
+                """Initialize empty strategy that always returns True."""
                 return True
 
             def update(
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
-                """Helper function for update."""
+                """Update strategy and return empty signals list."""
                 return {"signals": []}
 
         strategy = SimpleStrategy()
@@ -425,14 +428,14 @@ class TestBacktestingIntegration:
                 super().__init__("MinimalStrategy")
 
             def initialize(self, data: pd.DataFrame) -> bool:
-                """Helper function for initialize."""
+                """Initialize minimal strategy that always returns True."""
                 return True
 
             def update(
                 self,
                 current_data: pd.Series[Any] | pd.DataFrame,
             ) -> dict[str, list[Any]]:  # Add Any
-                """Helper function for update."""
+                """Update strategy and return empty signals list."""
                 return {"signals": []}  # Return no signals
 
         strategy = MinimalStrategy()

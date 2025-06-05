@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Order Book Group).
+
 --------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -52,24 +53,23 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 def is_list(obj: object) -> TypeGuard[list[object]]:
-    """TypeGuard to check if an object is a list"""
+    """Check if an object is a list using TypeGuard pattern."""
     return isinstance(obj, list)
 
 
 def has_exact_length(lst: list[object], length: int) -> bool:
-    """Check if a list has exactly the specified length"""
+    """Check if a list has exactly the specified length."""
     return len(lst) == length
 
 
 def all_are_lists(items: list[object]) -> bool:
-    """Check if all items in a list are themselves lists"""
+    """Check if all items in a list are themselves lists."""
     return all(isinstance(sub, list) for sub in items)
 
 
 # --- Price Level Submodel ---
 class HyperliquidRawBookLevel(BaseModel):
-    """Strict boundary model for a single price level in the order book as returned in L2 book
-    endpoints.
+    """Strict boundary model for a single price level in the order book from L2 book endpoints.
 
     This model validates the structure and content of each price level entry, enforcing
     strict type and format constraints for all fields. Never use for internal business logic.
@@ -88,8 +88,7 @@ class HyperliquidRawBookLevel(BaseModel):
 
 # --- L2 Order Book Model ---
 class HyperliquidRawL2Book(BaseModel):
-    """Strict boundary model for a full L2 order book snapshot as returned in order book
-    endpoints.
+    """Strict boundary model for a full L2 order book snapshot as returned in order book endpoints.
 
     This model validates the structure and content of the L2 book response, enforcing strict
     type and format constraints for all fields. Never use for internal business logic.
@@ -108,7 +107,8 @@ class HyperliquidRawL2Book(BaseModel):
     @field_validator("levels", mode="before")
     @classmethod
     def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
-        """Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        """Validate that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
 
         Args:

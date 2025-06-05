@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (WebSocket Events Group).
+
 --------------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -67,11 +68,11 @@ U = TypeVar("U")
 
 
 class HyperliquidRawWsFillEvent(BaseModel):
-    """Strict boundary model for a WebSocket fill event (user fill/execution) as received from the
-    Hyperliquid user channel.
+    """Strict boundary model for a WebSocket fill event (user fill/execution).
 
-    This model validates the structure and content of fill events, enforcing strict type and format
-    constraints for all fields. Never use for internal business logic.
+    Received from the Hyperliquid user channel. This model validates the structure and
+    content of fill events, enforcing strict type and format constraints for all fields.
+    Never use for internal business logic.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -98,27 +99,28 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
 
 def is_list(obj: object) -> TypeGuard[list[object]]:
-    """TypeGuard to check if an object is a list"""
+    """TypeGuard to check if an object is a list."""
     return isinstance(obj, list)
 
 
 def has_exact_length(lst: list[object], length: int) -> bool:
-    """Check if a list has exactly the specified length"""
+    """Check if a list has exactly the specified length."""
     return len(lst) == length
 
 
 def is_dict(obj: object) -> TypeGuard[dict[str, object]]:
-    """TypeGuard to check if an object is a dictionary with string keys"""
+    """TypeGuard to check if an object is a dictionary with string keys."""
     return isinstance(obj, dict)
 
 
 def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, object]]:
-    """TypeGuard to check if an object is a non-empty dictionary with string keys"""
+    """TypeGuard to check if an object is a non-empty dictionary with string keys."""
     return is_dict(obj) and bool(obj)
 
 
 def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, object]]]]:
     """Type guard to check if an object is a list of two lists of dict[str, object].
+
     Enables static type narrowing for both Mypy and Pyright.
     """
     # Check if it's a list
@@ -164,9 +166,21 @@ class HyperliquidRawWsBookUpdate(BaseModel):
     @field_validator("levels", mode="before")
     @classmethod
     def validate_levels_structure(cls, v: object, info: ValidationInfo) -> list[list[object]]:
-        """Validates that 'levels' is a list of length 2 (bids, asks), and each element is a list.
+        """Validate that 'levels' is a list of length 2 (bids, asks), each element a list.
+
         The inner elements will be parsed by Pydantic against HyperliquidRawBookLevel.
         Returns the raw validated structure for Pydantic to process further.
+
+        Args:
+            v: Raw levels data from WebSocket event
+            info: Pydantic validation context
+
+        Returns:
+            Validated list structure ready for further Pydantic processing
+
+        Raises:
+            ValueError: If structure is invalid or has wrong length
+
         """
         if not is_list(v):
             raise ValueError("levels: Must be a list.")
@@ -181,11 +195,10 @@ class HyperliquidRawWsBookUpdate(BaseModel):
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
-    """Represents a WebSocket trade event (trades channel) as received from the Hyperliquid public
-    stream.
+    """Represents a WebSocket trade event (trades channel).
 
-    This model is used to validate the structure of public trade events, which provide real-time
-    trade data for an asset.
+    Received from the Hyperliquid public stream. This model is used to validate the
+    structure of public trade events, which provide real-time trade data for an asset.
 
     Fields:
         coin (str): Asset symbol (e.g., 'ETH', 'BTC').
@@ -206,8 +219,7 @@ class HyperliquidRawWsTradeEvent(BaseModel):
 
 
 class HyperliquidRawWsOrderUpdate(BaseModel):
-    """Represents a WebSocket order update event (user channel) as received from the Hyperliquid
-    private stream.
+    """Represents a WebSocket order update event (user channel) from the Hyperliquid private stream.
 
     This model is used to validate the structure of order update events, which notify the user of
     changes to their orders (e.g., open, filled, canceled).
@@ -233,8 +245,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):
-    """Represents a WebSocket position update event (user position change) as received from the
-    Hyperliquid private stream.
+    """Represents a WebSocket position update event from the Hyperliquid private stream.
 
     This model is used to validate the structure of position update events, which notify the user
     of changes to their open positions.

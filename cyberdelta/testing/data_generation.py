@@ -139,12 +139,7 @@ def generate_synthetic_data(
                     str,
                 ):
                     combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
-                else:
-                    # DEFENSIVE CHECK: Single level columns, create tuples.
-                    # Mypy=[unreachable] Ruff=[]
-                    combined_df.columns = pd.MultiIndex.from_tuples(
-                        [(col, "") for col in combined_df.columns],
-                    )
+                # Note: Removed unreachable else clause as type checker can't reach it
             combined_df = combined_df.sort_index(axis=1, level=[1, 0])
         except (TypeError, ValueError) as e:
             logger.error(f"Error processing DataFrame columns: {e}. Columns: {combined_df.columns}")

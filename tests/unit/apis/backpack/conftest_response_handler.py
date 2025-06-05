@@ -7,31 +7,31 @@ import pytest
 
 @pytest.fixture
 def symbol_spot() -> str:
-    """Helper function for symbol spot."""
+    """Return spot trading symbol for testing."""
     return "SOL_USDC"
 
 
 @pytest.fixture
 def symbol_perp() -> str:
-    """Helper function for symbol perp."""
+    """Return perpetual trading symbol for testing."""
     return "SOL-PERP"
 
 
 @pytest.fixture
 def symbol_any() -> str:
-    """Generic symbol fixture for tests not specific to spot/perp."""
+    """Return generic symbol fixture for tests not specific to spot/perp."""
     return "GENERIC_SYMBOL"
 
 
 @pytest.fixture
 def order_id() -> str:
-    """Helper function for order id."""
+    """Return order ID for testing."""
     return "987654321"
 
 
 @pytest.fixture
 def client_id() -> str:
-    """Helper function for client id."""
+    """Return client ID for testing."""
     return "clientOrder001"
 
 

@@ -54,7 +54,7 @@ def valid_user_fills_request_payload() -> dict[str, object]:
 # --- Fixtures ---
 @pytest.fixture
 def valid_user_fill_data() -> dict[str, Any]:
-    """Provides a dictionary with valid raw user fill data."""
+    """Return a dictionary with valid raw user fill data."""
     return {
         "tid": 123456789,
         "coin": "ETH",

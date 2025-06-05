@@ -1,4 +1,5 @@
-"""Backpack API Trade Models
+"""Backpack API Trade Models.
+
 ------------------------
 
 This module defines strict Pydantic models for validating trade and trade event responses from the
@@ -116,7 +117,8 @@ class BackpackRawTradeEvent(BaseModel):
 
 
 class BackpackRawFill(BaseModel):
-    """Raw Pydantic model for a single fill record from the Backpack /wapi/v1/history/fills endpoint.
+    """Raw Pydantic model for a single fill record from Backpack /wapi/v1/history/fills.
+
     Corresponds to the OpenAPI schema OrderFill.
     Performs basic type validation and parsing for numeric/boolean fields.
     """

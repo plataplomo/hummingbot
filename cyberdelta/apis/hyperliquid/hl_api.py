@@ -411,6 +411,7 @@ class HyperliquidAPI(ExchangeAPI):
         path: str,
     ) -> None:
         """Update rate limit information based on response headers.
+
         Hyperliquid does not typically provide rate limit info in standard headers.
         This is a placeholder implementation.
         """
@@ -439,6 +440,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Handle raw WebSocket message from WebSocketManager, then route it.
+
         This method is called by the WebSocketManager.
         """
         # Following the pattern from BackpackAPI, directly route to _route_ws_message.
@@ -544,6 +546,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Prepare subscription to order book updates for a symbol.
+
         Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "l2Book:SYMBOL"
@@ -555,6 +558,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Prepare subscription to ticker updates for a symbol.
+
         Hyperliquid does not have a direct per-symbol ticker stream like 'ticker.SYMBOL'.
         It uses 'allMids' for all symbols or relies on order book/trades for ticker-like data.
         This method will log a warning. Consider subscribing to 'allMids' or 'l2Book' instead.
@@ -570,6 +574,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Prepare subscription to public trade updates for a symbol.
+
         Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "trades:SYMBOL"
@@ -581,6 +586,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def subscribe_to_account_updates(self) -> None:
         """Prepare subscription to private account updates (fills, orders, positions).
+
         Actual subscription with a handler is done via self.subscribe().
         Hyperliquid uses a single 'userEvents' stream for this.
         """
@@ -596,7 +602,8 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
         logger.info(
-            f"[{self.exchange_name}] Subscribing to topic: {topic}. Delegating to base ExchangeAPI.",
+            f"[{self.exchange_name}] Subscribing to topic: {topic}. "
+            f"Delegating to base ExchangeAPI.",
         )
         await super().subscribe(topic, handler)
 

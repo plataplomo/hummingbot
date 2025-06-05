@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Staking Info)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Staking Info).
+
 ----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid staking-related info endpoints:
@@ -52,6 +53,21 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
     @field_validator("root", mode="before")
     @classmethod
     def validate_delegations_list(cls, v: object) -> list[dict[str, object]]:
+        """Validate that the root input is a list of delegation dictionaries.
+
+        Ensures each delegation item is a dictionary with the expected structure
+        for Pydantic to parse into HyperliquidRawDelegationItem objects.
+
+        Args:
+            v: Raw input value that should be a list of delegation objects.
+
+        Returns:
+            Validated list of delegation dictionaries.
+
+        Raises:
+            ValueError: If input is not a list or contains invalid delegation items.
+
+        """
         if not isinstance(v, list):
             raise ValueError("Expected a list of delegations")
 
@@ -124,6 +140,21 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
     @field_validator("root", mode="before")
     @classmethod
     def validate_history_list(cls, v: object) -> list[dict[str, object]]:
+        """Validate that the root input is a list of delegator history dictionaries.
+
+        Ensures each history item is a dictionary with the expected structure
+        for Pydantic to parse into HyperliquidRawDelegatorHistoryItem objects.
+
+        Args:
+            v: Raw input value that should be a list of history objects.
+
+        Returns:
+            Validated list of history dictionaries.
+
+        Raises:
+            ValueError: If input is not a list or contains invalid history items.
+
+        """
         if not isinstance(v, list):
             raise ValueError("Expected a list of history items")
 
@@ -165,6 +196,21 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
     @field_validator("root", mode="before")
     @classmethod
     def validate_rewards_list(cls, v: object) -> list[dict[str, object]]:
+        """Validate that the root input is a list of delegator reward dictionaries.
+
+        Ensures each reward item is a dictionary with the expected structure
+        for Pydantic to parse into HyperliquidRawDelegatorRewardItem objects.
+
+        Args:
+            v: Raw input value that should be a list of reward objects.
+
+        Returns:
+            Validated list of reward dictionaries.
+
+        Raises:
+            ValueError: If input is not a list or contains invalid reward items.
+
+        """
         if not isinstance(v, list):
             raise ValueError("Expected a list of reward items")
 

@@ -1,4 +1,5 @@
-"""Pydantic Models for Hyperliquid Raw Info Endpoint Responses
+"""Pydantic Models for Hyperliquid Raw Info Endpoint Responses.
+
 ---------------------------------------------------------
 
 This module defines Pydantic models that represent the raw structure of
@@ -19,8 +20,12 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawFundingHistoryItem(BaseModel):
-    """Represents a single item in the historical funding rates response array
-    from Hyperliquid's `/info` endpoint (type: "fundingHistory").
+    """Represents a single item in the historical funding rates response array.
+
+    This model validates individual funding history entries from Hyperliquid's `/info`
+    endpoint (type: "fundingHistory"). Each item contains funding rate, premium, and
+    timestamp information for a specific coin.
+
     Example: {"coin": "ETH", "fundingRate": "-0.00022196", "premium": "-0.00052196",
               "time": 1683849600076}
     """

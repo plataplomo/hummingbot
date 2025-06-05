@@ -32,6 +32,12 @@ class BackpackDataCollector:
     """Collects raw JSON data from Backpack public API endpoints."""
 
     def __init__(self, output_dir: Path, session: aiohttp.ClientSession) -> None:
+        """Initialize the Backpack public data collector with configuration.
+        
+        Args:
+            output_dir: Directory where collected JSON data files will be saved
+            session: aiohttp session for making public API requests
+        """
         self.output_dir = output_dir
         self.session = session
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +51,7 @@ class BackpackDataCollector:
             if not backpack_config.enabled:
                 raise ValueError("Backpack exchange is disabled in configuration")
 
-            self.api_base_url = str(backpack_config.api_base_url).rstrip("/")
+            self.api_base_url = str(backpack_config.api_base_url_mainnet).rstrip("/")
             self.configured_symbols = backpack_config.symbols
             logger.info(f"Using Backpack API base URL: {self.api_base_url}")
             logger.info(f"Configured symbols: {self.configured_symbols}")
@@ -408,7 +414,12 @@ class BackpackDataCollector:
 
 
 async def main() -> None:
-    """Main function to run the data collection."""
+    """Execute comprehensive Backpack public API data collection process.
+    
+    Parses command-line arguments, sets up configuration and HTTP session,
+    and runs the complete public data collection across all Backpack public
+    REST API endpoints. Saves collected market data as JSON fixtures for testing.
+    """
     parser = argparse.ArgumentParser(description="Fetch Backpack public API data")
     parser.add_argument(
         "--symbols",

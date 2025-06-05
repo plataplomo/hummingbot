@@ -1,4 +1,5 @@
-"""cyberdelta.apis.base.simple_rate_limit_strategy
+"""Simple token bucket rate limiting strategy for exchanges with basic rate limiting.
+
 ---------------------------------------------
 Simple token bucket strategy implementation for exchanges with basic rate limiting.
 
@@ -59,6 +60,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         request_context: dict[str, Any],
     ) -> None:
         """Reacts to an exchange-advised retry_after directive.
+        
         For this simple strategy, it means temporarily pausing its limiter.
 
         Args:

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Frontend Open Orders)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Frontend Open Orders).
+
 ------------------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'frontendOpenOrders' info endpoint.

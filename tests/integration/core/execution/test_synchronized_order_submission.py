@@ -44,7 +44,7 @@ class MockOpportunity(NamedTuple):
     expected_profit: Decimal = Decimal("1.0")
 
     def to_dict(self) -> dict[str, Any]:
-        """Helper function for to dict."""
+        """Convert mock opportunity to dictionary representation for testing."""
         return {
             "symbol": self.symbol,
             "long_exchange": self.long_exchange,
@@ -58,9 +58,11 @@ class MockOpportunity(NamedTuple):
         }
 
     def __str__(self) -> str:
+        """Return string representation of the mock opportunity for debugging."""
         return f"MockOpportunity({self.symbol}, {self.long_exchange}, {self.short_exchange})"
 
     def __hash__(self) -> int:
+        """Return hash of the mock opportunity for dictionary and set operations."""
         return hash((self.symbol, self.long_exchange, self.short_exchange))
 
 

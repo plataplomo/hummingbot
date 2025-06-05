@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class TokenBucketRateLimiterRuntime:
     """Runtime/business logic for a token bucket rate limiter.
+
     This is NOT a Pydantic model. It manages async state and provides the acquire() method.
     Use from_pydantic() and to_pydantic() to bridge with the config/state model.
     """
@@ -22,6 +23,15 @@ class TokenBucketRateLimiterRuntime:
         tokens: float | None = None,
         last_refill: float | None = None,
     ) -> None:
+        """Initialize the token bucket rate limiter.
+
+        Args:
+            rate: Token refill rate (tokens per second)
+            bucket_size: Maximum number of tokens the bucket can hold
+            tokens: Initial number of tokens (defaults to bucket_size)
+            last_refill: Last refill timestamp (defaults to current time)
+
+        """
         self.rate = rate
         self.bucket_size = bucket_size
         self.tokens = float(tokens) if tokens is not None else float(bucket_size)

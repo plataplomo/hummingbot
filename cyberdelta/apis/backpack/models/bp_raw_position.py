@@ -1,4 +1,5 @@
-"""Backpack API Position Models (RAW)
+"""Backpack API Position Models (RAW).
+
 ----------------------------------
 
 This module defines strict Pydantic models for validating position responses from the Backpack
@@ -37,8 +38,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 
 
 class BackpackRawPosition(BaseModel):
-    """Pydantic model for a raw position object from `/api/v1/position` or WebSocket position
-    update events.
+    """Pydantic model for a raw position object from `/api/v1/position` or WebSocket events.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position payloads received from the exchange.
@@ -101,8 +101,7 @@ class BackpackRawPosition(BaseModel):
 
 
 class BackpackRawPositionUpdate(BaseModel):
-    """Pydantic model for a raw position update event from the Backpack WebSocket stream
-    (`positionUpdate`).
+    """Pydantic model for a raw position update event from Backpack WebSocket positionUpdate stream.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse position update events received from the exchange.

@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack WebSocket Raw Message Handler.
+
 -------------------------------------------------------
 
 This module defines the `BackpackWsRawMessageHandler` class. This class is

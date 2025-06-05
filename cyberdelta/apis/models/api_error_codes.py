@@ -5,6 +5,7 @@ from enum import Enum
 
 class APIErrorCode(Enum):
     """Standardized error codes for API failures to allow consistent handling across exchanges.
+
     These codes abstract the exchange-specific error codes into a common format and are used
     throughout CyberDeltaEngine for robust, cross-exchange error handling.
 

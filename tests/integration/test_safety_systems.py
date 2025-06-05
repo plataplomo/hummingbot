@@ -1,3 +1,9 @@
+"""Integration tests for safety systems and circuit breakers.
+
+Tests the integration of safety systems including circuit breakers,
+position reconciliation, and emergency stop mechanisms to ensure
+the trading system can handle failure scenarios safely.
+"""
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -576,6 +582,7 @@ async def test_kelly_size_exactly_at_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that Kelly calculated size exactly at max position size is accepted."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Set up so Kelly size = max_position_size = 1000
@@ -609,6 +616,7 @@ async def test_kelly_size_just_below_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that Kelly calculated size just below max position size is accepted."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Kelly size just below max (e.g., 999)
@@ -642,6 +650,7 @@ async def test_kelly_size_just_above_max_position_size(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that Kelly calculated size above max position size is clamped and accepted."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Kelly size just above max (e.g., 1001), should be clamped to 1000 and accepted
@@ -675,6 +684,7 @@ async def test_kelly_size_near_zero(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that Kelly calculated size near zero is rejected due to high volatility."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Kelly size near zero (very high volatility)
@@ -708,6 +718,7 @@ async def test_kelly_negative_expected_return(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities with negative expected return are rejected."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Negative expected return
@@ -741,6 +752,7 @@ async def test_kelly_zero_or_negative_volatility(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities with zero or negative volatility are rejected."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Test with zero volatility
@@ -792,6 +804,7 @@ async def test_kelly_insufficient_balance(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities requiring more capital than available are rejected."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Kelly size valid, but balance is too low
@@ -846,6 +859,7 @@ async def test_kelly_zero_total_capital(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities are rejected when total capital is zero."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Set all balances to zero
@@ -900,6 +914,7 @@ async def test_kelly_max_position_size_zero(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities are rejected when max position size is zero."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Override max_position_size to zero
@@ -934,6 +949,7 @@ async def test_kelly_max_position_size_very_large(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that opportunities are accepted when max position size is very large."""
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Override max_position_size to a very large value
@@ -968,6 +984,7 @@ async def test_max_drawdown_halts_execution(
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
 ) -> None:
+    """Test that max drawdown limit halts execution when exceeded."""
     # Implementation of test_max_drawdown_halts_execution
     pass
 

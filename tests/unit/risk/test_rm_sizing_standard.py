@@ -36,7 +36,7 @@ class TestRiskManagerSizingStandard:
         def portfolio_level_controls_side_effect(
             sized_opp: SizedOpportunity,
         ) -> SizedOpportunity | None:
-            """Helper function for portfolio level controls side effect."""
+            """Apply portfolio level controls and return adjusted opportunity."""
             adjustment_factor = Decimal("0.95")
             return SizedOpportunity(
                 opportunity=sized_opp.opportunity,

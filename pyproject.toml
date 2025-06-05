@@ -124,8 +124,18 @@ select = [  # Linting rules to apply
     "Q",   # quality
     "COM", 
 ]
-# ignore = ["E501", "E402", "ANN401"]  # Ignored linting rules
+
+# Ignore rules that conflict with current codebase formatting
+ignore = [
+    "D203",  # 1 blank line required before class docstring (conflicts with D211)
+    "D213",  # Multi-line docstring summary should start at the second line (conflicts with D212)
+]
+
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy variable names
+
+# Configure pydocstyle to match current docstring conventions
+[tool.ruff.lint.pydocstyle]
+convention = "google"  # Use Google-style docstring conventions
 
 # MyPy configuration for strict type checking
 [tool.mypy]

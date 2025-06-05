@@ -1,3 +1,14 @@
+"""Signal Generator for CyberDeltaEngine.
+
+This module contains the SignalGenerator class, which is responsible for identifying
+funding rate arbitrage opportunities between exchanges. It monitors funding rates,
+calculates net funding differentials, computes expected profit metrics including costs,
+and generates ranked arbitrage opportunities for the trading strategy.
+
+The SignalGenerator serves as the core component for opportunity detection in the
+delta-neutral arbitrage strategy implementation.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 from collections import deque
@@ -41,7 +52,7 @@ class SignalGenerator:
         """Initialize the signal generator.
 
         Args:
-            config: Application configuration object (provides .get method).
+            app_settings: Application configuration object containing strategy parameters.
             data_handler: DataHandler for market data.
             symbol_mapper: SymbolMapper for translating symbols.
 
@@ -146,6 +157,7 @@ class SignalGenerator:
 
     def update_historical_data(self) -> None:
         """Update historical funding rate and basis data with latest information.
+
         Should be called regularly to maintain up-to-date volatility calculations.
         Uses SymbolMapper for translation.
         """
@@ -293,7 +305,8 @@ class SignalGenerator:
                         # REMOVE Manual trimming logic for basis as deque maxlen handles it
                     else:
                         logger.warning(
-                            f"Historical basis deque not found for {internal_symbol} during update.",
+                            f"Historical basis deque not found for {internal_symbol} "
+                            f"during update.",
                         )
                 # else: logger.debug(
                 #    f"Skipping basis calc for {internal_symbol}: Not enough valid tickers."
@@ -415,8 +428,9 @@ class SignalGenerator:
                 return Decimal("0.01")  # Default on calculation error
 
     def estimate_slippage(self, exchange: str, symbol: str, size: Decimal | None = None) -> Decimal:
-        """Estimate the slippage cost for trading on a given exchange and symbol,
-        potentially considering the trade size.
+        """Estimate the slippage cost for trading on a given exchange and symbol.
+
+        Potentially considers the trade size to provide more accurate slippage estimates.
 
         Args:
             exchange: Exchange name
@@ -455,7 +469,7 @@ class SignalGenerator:
         self,
         funding_data: dict[str, dict[str, FundingRate | None]],
     ) -> list[ArbitrageOpportunity]:
-        """Checks for arbitrage opportunities based on the latest funding rates and market data.
+        """Check for arbitrage opportunities based on the latest funding rates and market data.
 
         Args:
             funding_data: A dictionary where keys are internal symbols, and values are

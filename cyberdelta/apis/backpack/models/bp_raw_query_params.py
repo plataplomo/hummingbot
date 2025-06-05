@@ -1,4 +1,4 @@
-"""CyberDeltaEngine: Backpack API Raw Query Parameter Models
+"""CyberDeltaEngine: Backpack API Raw Query Parameter Models.
 
 This module defines Pydantic models for validating query parameters in Backpack API requests.
 These models represent the exact structure and raw data types expected by Backpack endpoints.

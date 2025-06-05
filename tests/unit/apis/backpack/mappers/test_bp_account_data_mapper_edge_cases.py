@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper Edge Cases Tests
+"""CyberDeltaEngine: Backpack Account Data Mapper Edge Cases Tests.
+
 ---------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper edge cases and robustness.
@@ -45,7 +46,7 @@ def create_raw_fill(
     trade_id: int = 123456,
     client_id: str | None = None,
 ) -> BackpackRawFill:
-    """Helper function to create BackpackRawFill instances for testing."""
+    """Create BackpackRawFill instances for testing edge cases."""
     return BackpackRawFill(
         fee=fee,
         feeSymbol=fee_symbol,
@@ -275,7 +276,7 @@ class TestEdgeCasesAndRobustness:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return Decimal conversion for testing edge case parsing behavior."""
                 try:
                     return Decimal(str(value)) if value else None
                 except Exception:

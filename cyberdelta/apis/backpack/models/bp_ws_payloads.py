@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack WebSocket Subscription Request Payload Models
+"""CyberDeltaEngine: Backpack WebSocket Subscription Request Payload Models.
+
 ------------------------------------------------------------------------
 
 This module defines Pydantic models for WebSocket subscription/unsubscription

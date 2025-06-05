@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack API Raw Models (User Fills).
+
 -------------------------------------------------------
 
 Strict Pydantic models for validating the *raw* structure of Backpack Exchange API responses
@@ -80,6 +81,7 @@ class BackpackRawFill(BaseModel):
 # the BackpackRawFill model being refactored.
 class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     """Pydantic model for a list of raw fill objects from the Backpack API.
+    
     This typically represents the direct JSON response which is a list of fills.
     """
 
@@ -97,7 +99,9 @@ class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     def __getitem__(self, item: slice) -> list[BackpackRawFill]: ...
 
     def __getitem__(self, item: int | slice) -> BackpackRawFill | list[BackpackRawFill]:
+        """Return a fill by index or a slice of fills for list-like access."""
         return self.root[item]
 
     def __len__(self) -> int:
+        """Return the number of fills in the list."""
         return len(self.root)

@@ -32,6 +32,7 @@ def create_test_exchange_config(
     **kwargs: object,
 ) -> ExchangeSpecificConfig:
     """Create ExchangeSpecificConfig for testing by parsing from dict.
+    
     Defaults to testnet for integration tests.
     """
     config_dict = {

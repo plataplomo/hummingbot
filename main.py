@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""CyberDeltaEngine main entry point module.
+
+This module serves as the primary entry point for the CyberDeltaEngine trading system.
+It provides command-line interface for running trading strategies, data collection,
+backtesting, and other engine operations with proper configuration management.
+"""
 # cyberdelta/main.py - Application Entry Point
 
 import argparse
@@ -464,14 +471,8 @@ if __name__ == "__main__":
             is_direct_run = True
 
     if is_direct_run:
-        print(
-            "Warning: Running main.py directly might cause import issues.",
-            file=sys.stderr,
-        )
-        print(
-            "Consider running using 'python -m cyberdelta.main' from the project root.",
-            file=sys.stderr,
-        )
+        logger.warning("Running main.py directly might cause import issues.")
+        logger.warning("Consider running using 'python -m cyberdelta.main' from the project root.")
 
     try:
         asyncio.run(main())

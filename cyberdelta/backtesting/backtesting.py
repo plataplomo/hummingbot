@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Backtesting Framework for CyberDeltaEngine
+"""Backtesting Framework for CyberDeltaEngine.
 
 This module provides a unified backtesting framework for trading strategies,
 supporting various types including funding rate arbitrage and statistical arbitrage.
@@ -31,16 +31,16 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class BacktestStrategy(ABC):
-    """Abstract base class for trading strategies in backtesting"""
+    """Abstract base class for trading strategies in backtesting."""
 
     def __init__(self, name: str) -> None:
-        """Initialize the strategy with a name"""
+        """Initialize the strategy with a name."""
         self._name = name
         self.initialized = False  # Track initialization status
 
     @abstractmethod
     def initialize(self, data: pd.DataFrame) -> bool:
-        """Initialize the strategy with historical data
+        """Initialize the strategy with historical data.
 
         Args:
             data: Historical data for training the strategy
@@ -55,7 +55,7 @@ class BacktestStrategy(ABC):
 
     @abstractmethod
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
-        """Process the current data point (row) and return signals.
+        r"""Process the current data point (row) and return signals.
 
         Args:
             current_data: A pandas Series or DataFrame row representing the current time step.
@@ -71,7 +71,7 @@ class BacktestStrategy(ABC):
 
     @property
     def name(self) -> str:
-        """Return the name of the strategy"""
+        """Return the name of the strategy."""
         return self._name
 
 
@@ -92,7 +92,7 @@ class BacktestEngine:
         slippage: Decimal = Decimal("0.001"),  # 0.1% slippage
         results_dir: str = "backtest_results",
     ) -> None:
-        """Initialize the backtest engine
+        """Initialize the backtest engine.
 
         Args:
             strategy: Strategy instance
@@ -210,7 +210,7 @@ class BacktestEngine:
         self.results_handler: BacktestResultsHandler | None = None  # Initialize as None
 
     def run(self, training_portion: Decimal = Decimal("0.3")) -> dict[str, Any]:
-        """Run the backtest
+        """Run the backtest.
 
         Args:
             training_portion: Portion of data to use for training (Decimal between 0 and 1)
@@ -455,8 +455,10 @@ class BacktestEngine:
 
 
 class StrategyAdapter(BacktestStrategy):
-    """Adapts a core Strategy (designed for live trading with MarketData)
-    to work within the BacktestEngine (which uses pandas DataFrames/Series).
+    """Adapts a core Strategy designed for live trading to work with the BacktestEngine.
+
+    The BacktestEngine uses pandas DataFrames/Series for data representation.
+    This adapter bridges the gap between live trading strategies and backtesting infrastructure.
     """
 
     # Use the concrete Strategy type for annotation
@@ -477,11 +479,12 @@ class StrategyAdapter(BacktestStrategy):
         self.initialized = True  # Mark adapter as initialized
 
     def initialize(self, data: pd.DataFrame) -> bool:
-        """Initialize the core strategy. Currently, this adapter does not use
-        bulk historical data for core strategy initialization in the same way
-        a BacktestStrategy might. Core strategies are expected to manage their own
-        historical data needs if any, often via a DataHandler in live trading.
-        For backtesting, historical data is fed tick-by-tick via 'update'.
+        """Initialize the core strategy.
+
+        Currently, this adapter does not use bulk historical data for core strategy
+        initialization in the same way a BacktestStrategy might. Core strategies are
+        expected to manage their own historical data needs if any, often via a DataHandler
+        in live trading. For backtesting, historical data is fed tick-by-tick via 'update'.
         """
         self._logger.info(
             f"StrategyAdapter: Initializing '{self.name}'. Core strategy assumed ready.",
@@ -491,11 +494,12 @@ class StrategyAdapter(BacktestStrategy):
         return True
 
     def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
-        """Processes the current market data (a single time step as a pandas Series or
-        DataFrame row) using the adapted strategy. Converts pandas data to Candle(s) and
-        calls strategy.process_data. Converts resulting TradeSignal(s) back to the
-        backtester's dict format. Handles both synchronous and asynchronous process_data
-        methods.
+        """Process the current market data using the adapted strategy.
+
+        Takes a single time step as a pandas Series or DataFrame row and uses the adapted
+        strategy. Converts pandas data to Candle(s) and calls strategy.process_data.
+        Converts resulting TradeSignal(s) back to the backtester's dict format. Handles
+        both synchronous and asynchronous process_data methods.
         """
         timestamp_info = (
             current_data.name.isoformat()
@@ -539,8 +543,9 @@ class StrategyAdapter(BacktestStrategy):
                         continue  # Skip this candle on async error
 
                 # DEFENSIVE CHECK: Handle synchronous results. Mypy=[unreachable] Ruff=[]
+                # Note: This branch may be unreachable but kept for defensive programming
                 if not asyncio.iscoroutine(signal_or_coro):
-                    processed_signal = signal_or_coro
+                    processed_signal = signal_or_coro  # type: ignore[unreachable]
 
                 # Process the result - only if we didn't continue from exception
                 if processed_signal is None:
@@ -554,7 +559,7 @@ class StrategyAdapter(BacktestStrategy):
                     trade_signals.append(processed_signal)
                 else:
                     # DEFENSIVE CHECK: Unexpected type handling. Mypy=[unreachable] Ruff=[]
-                    self._logger.warning(
+                    self._logger.warning(  # type: ignore[unreachable]
                         f"process_data returned unexpected type: {type(processed_signal)}",
                     )
 
@@ -574,7 +579,8 @@ class StrategyAdapter(BacktestStrategy):
             return {"signals": []}  # Return empty signals on error
 
     def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
-        """Converts a pandas Series or DataFrame row into a list of Candle objects.
+        """Convert a pandas Series or DataFrame row into a list of Candle objects.
+
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         candle_list: list[Candle] = []
@@ -635,9 +641,14 @@ class StrategyAdapter(BacktestStrategy):
                         )
                         candle_list.append(candle)
                     except Exception:
+                        data_str = (
+                            symbol_specific_data.to_dict()
+                            if isinstance(symbol_specific_data, pd.Series)
+                            else "Error converting to dict"
+                        )
                         self._logger.error(
                             f"Error creating candle for symbol {symbol} at {timestamp}. "
-                            f"Data: {symbol_specific_data.to_dict() if isinstance(symbol_specific_data, pd.Series) else 'Error converting to dict'}",
+                            f"Data: {data_str}",
                         )
             else:
                 # Assuming single index represents symbol or just one instrument
@@ -684,7 +695,7 @@ class StrategyAdapter(BacktestStrategy):
         signals: list[TradeSignal],
         current_data: pd.Series | pd.DataFrame,
     ) -> list[dict[str, Any]]:
-        """Converts TradeSignal objects to dictionary format for backtesting trades."""
+        """Convert TradeSignal objects to dictionary format for backtesting trades."""
         signals_out: list[dict[str, Any]] = []
         timestamp = (
             current_data.name
@@ -699,7 +710,7 @@ class StrategyAdapter(BacktestStrategy):
             timestamp = timestamp.replace(tzinfo=UTC)
 
         def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
-            """Helper to get current price (close) for a symbol."""
+            """Get current price (close) for a symbol."""
             price_val = None
             self._logger.debug(
                 f"[get_current_price] Attempting to get price for symbol: '{symbol}'",
@@ -766,7 +777,7 @@ class StrategyAdapter(BacktestStrategy):
             # row timestamp
             signal_timestamp = signal.timestamp
             # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
-            if not isinstance(signal_timestamp, datetime):
+            if not isinstance(signal_timestamp, datetime):  # type: ignore[unreachable]
                 signal_timestamp = timestamp  # Fallback to row timestamp
             elif signal_timestamp.tzinfo is None:
                 signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
@@ -795,7 +806,7 @@ class StrategyAdapter(BacktestStrategy):
             else:
                 # Handle cases where signal_type might be a string already
                 # (should not happen with Pydantic)
-                signal_dict["action"] = str(signal.signal_type).upper()
+                signal_dict["action"] = str(signal.signal_type).upper()  # type: ignore[unreachable]
 
             self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
 

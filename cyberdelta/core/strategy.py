@@ -1,3 +1,14 @@
+"""Strategy Base Classes for CyberDeltaEngine.
+
+This module contains the abstract base class for all trading strategies in the
+CyberDeltaEngine. Strategies receive market data and generate trade signals
+based on their specific algorithms and parameters.
+
+The Strategy class provides a common interface and lifecycle management for
+all strategy implementations, ensuring consistent behavior across different
+trading approaches.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging
@@ -17,11 +28,13 @@ _T = TypeVar("_T")  # Define a TypeVar for generic parameter types
 
 class Strategy(ABC):
     """Abstract base class for all trading strategies.
-    Strategies receive market data and generate trade signals.
+
+    Strategies receive market data and generate trade signals based on their
+    specific algorithms and parameters.
     """
 
     def __init__(self, name: str, symbol: str, params: dict[str, Any] | None = None) -> None:
-        """Initialize a strategy
+        """Initialize a strategy.
 
         Args:
             name: Unique name for the strategy
@@ -41,7 +54,7 @@ class Strategy(ABC):
 
     @abstractmethod
     async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
-        """Asynchronously process new market data and optionally generate one or more trading signals.
+        """Asynchronously process new market data and optionally generate trading signals.
 
         Args:
             data: Candle object containing market information.

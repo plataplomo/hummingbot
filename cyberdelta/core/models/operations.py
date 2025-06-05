@@ -1,3 +1,14 @@
+"""Operations Models for CyberDeltaEngine.
+
+This module contains models representing financial operations such as transfers
+and withdrawals. These models follow the "Core + Typed Extension Slots" pattern
+to support exchange-specific enrichment while maintaining a unified interface
+for the core application logic.
+
+The models are immutable (frozen=True) to ensure data integrity and represent
+completed or in-progress operations with their current status and metadata.
+"""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -46,6 +57,7 @@ class BackpackTransferDetails(BaseModel):
 
 class Transfer(BaseModel):
     """Core internal model for a funds transfer operation. Immutable.
+
     Represents the state or result of a transfer.
     """
 
@@ -144,6 +156,7 @@ class BackpackWithdrawalDetails(BaseModel):
 
 class Withdrawal(BaseModel):
     """Core internal model for a withdrawal operation. Immutable.
+
     Represents the state or result of a withdrawal.
     """
 

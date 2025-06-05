@@ -894,8 +894,8 @@ def vcr_config() -> dict[str, Any]:
     timestamps, and personal information.
     """
 
-    def filter_request_body(request: Any) -> Any:
-        """Filter and sanitize request body content."""
+    def filter_request_body(request: object) -> object:
+        """Filter and sanitize request body content for VCR cassette recording."""
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
             request_body = request.body
@@ -928,8 +928,8 @@ def vcr_config() -> dict[str, Any]:
             request.body = body_str.encode("utf-8") if isinstance(request_body, bytes) else body_str
         return request
 
-    def filter_response_body(response: Any) -> Any:
-        """Filter and sanitize response body content."""
+    def filter_response_body(response: object) -> object:
+        """Filter and sanitize response body content for VCR cassette recording."""
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
             # user credentials, but this hook is available for future use

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Backpack Trading Service
+"""CyberDeltaEngine: Backpack Trading Service.
+
 -------------------------------------------
 
 This service encapsulates the logic for trading operations on the Backpack Exchange.
@@ -79,6 +80,21 @@ class BackpackTradingService:
         )  # Instantiate or use static methods
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
+        """Place a new order on the Backpack exchange.
+        
+        Validates the order parameters, submits the order via the API, and returns
+        the created order with its assigned ID and current status.
+        
+        Args:
+            args: PlaceOrderArgs containing order details (symbol, side, type, etc.)
+            
+        Returns:
+            Order: The created order object with exchange-assigned ID and status
+            
+        Raises:
+            APIError: If order placement fails due to API errors
+            ValueError: If order parameters are invalid for Backpack exchange
+        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_order"
@@ -99,9 +115,10 @@ class BackpackTradingService:
         if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
             supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
             if args.time_in_force not in supported_tif:
+                supported_values = [tif.value for tif in supported_tif]
                 raise ValueError(
                     f"[{current_method}] Unsupported time in force for limit orders: "
-                    f"{args.time_in_force.value}. Supported: {[tif.value for tif in supported_tif]}",
+                    f"{args.time_in_force.value}. Supported: {supported_values}",
                 )
 
         # Validate client_order_id can be converted to int if provided
@@ -234,6 +251,21 @@ class BackpackTradingService:
             ) from e_unexpected
 
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
+        """Cancel an existing order on the Backpack exchange.
+        
+        Attempts to cancel the specified order by its ID. The order must be
+        in a cancellable state (not already filled or cancelled).
+        
+        Args:
+            args: CancelOrderArgs containing the order ID and optional symbol
+            
+        Returns:
+            bool: True if the order was successfully cancelled
+            
+        Raises:
+            APIError: If cancellation fails due to API errors or order not found
+            ValueError: If the order ID is invalid
+        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_order"

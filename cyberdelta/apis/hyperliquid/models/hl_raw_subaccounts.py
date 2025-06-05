@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Subaccounts)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Subaccounts).
+
 ----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'subAccounts' info endpoint.
@@ -20,6 +21,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import RawLaxEthereumAd
 
 class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrHL]]):
     """Raw boundary model for the subaccounts list response.
+
     The root object is expected to be a list of strings (validated Ethereum addresses).
     """
 
@@ -29,7 +31,7 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrH
     @field_validator("root", mode="before")
     @classmethod
     def validate_address_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
-        """Ensures the root input is a list. Pydantic handles address validation."""
+        """Ensure the root input is a list. Pydantic handles address validation."""
         field_name = info.field_name or "subaccounts_list"
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")

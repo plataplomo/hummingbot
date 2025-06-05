@@ -375,9 +375,10 @@ async def test_clean_expired_signals_direct_patch(
     mock_config: MagicMock,
     mock_circuit_breaker: MagicMock,
 ) -> None:  # Needs to be async
-    """Test cleaning expired signals using patched datetime (decorators replaced by context managers).
+    """Test cleaning expired signals using patched datetime with context managers.
 
     This test verifies that expired signals are properly removed from the queue.
+    Decorators were replaced by context managers for better test isolation.
     """
     real_start_time = datetime.now(UTC)
     future_time_for_expirations = real_start_time + timedelta(seconds=100)

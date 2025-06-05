@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Portfolio History)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Portfolio History).
+
 ----------------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'portfolio' info endpoint.
@@ -27,6 +28,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 
 class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, RawFiniteDecimalStr]]):
     """Raw boundary model for a single point in account value or PnL history.
+
     Represents the [timestamp, value_str] tuple structure, validated by Annotated types.
     """
 
@@ -40,7 +42,8 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         v: object,
         info: ValidationInfo,
     ) -> list[int | str]:  # Return list for Pydantic to map to tuple elements
-        """Ensures input is a 2-element list/tuple or a dict {0: ts, 1: val}.
+        """Ensure input is a 2-element list/tuple or a dict {0: ts, 1: val}.
+
         Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
         """
         field_name = info.field_name or "history_entry_tuple"
@@ -116,7 +119,10 @@ class HyperliquidRawPortfolioTupleItem(
         v: object,
         info: ValidationInfo,
     ) -> tuple[object, dict[str, object]] | list[object]:
-        """Ensures input is a 2-element list/tuple. Pydantic handles element validation."""
+        """Ensure input is a 2-element list/tuple.
+
+        Pydantic handles element validation.
+        """
         field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, list | tuple):
             raise ValueError(
@@ -149,6 +155,7 @@ class HyperliquidRawPortfolioTupleItem(
 
 class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupleItem]]):
     """Raw boundary model for the portfolio history response.
+
     The root object is a list of [timeframe_str, data_obj] tuples.
     """
 
@@ -157,7 +164,10 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
     @field_validator("root", mode="before")
     @classmethod
     def validate_portfolio_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
-        """Ensures the root input is a list. Pydantic will handle item validation."""
+        """Ensure the root input is a list.
+
+        Pydantic will handle item validation.
+        """
         field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")

@@ -1,3 +1,8 @@
+"""Unit tests for Backpack raw account models.
+
+Tests validation, serialization, and error handling for Backpack account-related
+data models including balance and account summary structures.
+"""
 from typing import Any
 
 import pytest
@@ -212,8 +217,8 @@ def test_BackpackRawBalance_extra_field() -> None:
 
 
 def test_BackpackRawBalance_corruption_cases() -> None:
-    """Test BackpackRawBalance with a variety of creative corruption cases to ensure
-    robust validation.
+    """Test BackpackRawBalance with creative corruption cases to ensure robust validation.
+    
     Each case simulates a different form of data corruption or hostile input.
     """
     base = valid_balance()

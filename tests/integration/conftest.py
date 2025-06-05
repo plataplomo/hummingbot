@@ -93,7 +93,7 @@ async def real_portfolio_tracker(
     mock_config: AppSettings,
     mock_pt_config: PortfolioTrackerConfig,
 ) -> AsyncGenerator[PortfolioTracker]:
-    """Provides a real PortfolioTracker instance initialized with mock config."""
+    """Provide a real PortfolioTracker instance initialized with mock config."""
     tracker = PortfolioTracker(mock_config, mock_pt_config)
     # DO NOT call await tracker.initialize() here.
     # Initialization should happen in the test or a more specific fixture
@@ -109,7 +109,7 @@ async def real_portfolio_tracker(
 # Define needed secrets locally for integration tests
 @pytest.fixture
 def mock_secrets() -> dict[str, dict[str, str | None]]:
-    """Provides dummy secrets needed by integration mock APIs."""
+    """Provide dummy secrets needed by integration mock APIs."""
     return {
         "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
         "mock_bp": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
@@ -192,7 +192,7 @@ def data_handler(
     symbol_mapper: SymbolMapper,
     real_portfolio_tracker: PortfolioTracker,
 ) -> DataHandler:
-    """Data Handler instance with mock APIs registered."""
+    """Create Data Handler instance with mock APIs registered."""
     from typing import cast
 
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
@@ -216,7 +216,7 @@ def data_handler(
 # Define symbol_mapper fixture
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
-    """Provides a SymbolMapper instance initialized with mock config."""
+    """Provide a SymbolMapper instance initialized with mock config."""
     # For AppSettings, provide empty dict for exchanges config
     config_data_for_mapper: dict[str, Any] = {}
     return SymbolMapper(config_data_for_mapper)
@@ -236,8 +236,9 @@ def signal_generator(
 def risk_manager(
     mock_config: AppSettings,
 ) -> object:  # Keep as object to avoid circular dependency if RiskManager imports protocols
-    """Risk Manager instance using protocol-compliant mocks for portfolio tracker and
-    funding rate validator.
+    """Create Risk Manager instance using protocol-compliant mocks.
+    
+    Uses mocks for portfolio tracker and funding rate validator.
     """
     from cyberdelta.core.risk_manager import RiskManager  # Local import
 
@@ -270,7 +271,7 @@ def execution_handler(
     mock_bp_api: MockExchangeAPI,
     circuit_breaker_system: CircuitBreakerSystem,
 ) -> ExecutionHandler:
-    """Execution Handler instance with real tracker, mock APIs, CB system, and SymbolMapper."""
+    """Create Execution Handler instance with real tracker, mock APIs, and CB system."""
     from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
     # For AppSettings, provide empty dict for exchanges config
@@ -292,7 +293,7 @@ def execution_handler(
 
 @pytest.fixture
 def funding_rate_validator() -> FundingRateValidatorProtocol:
-    """Provides a protocol-compliant mock for the FundingRateValidator."""
+    """Provide a protocol-compliant mock for the FundingRateValidator."""
     from typing import cast
     from unittest.mock import create_autospec  # Local import
 
@@ -309,7 +310,7 @@ async def position_reconciler(
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> AsyncGenerator[PositionReconciliationSystem]:  # Changed return type
-    """Provides a PositionReconciliationSystem instance with mock APIs."""
+    """Provide a PositionReconciliationSystem instance with mock APIs."""
     # Create a fresh PortfolioTracker for this fixture
     portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
     await portfolio_tracker.initialize()  # Initialize it
@@ -329,7 +330,7 @@ async def position_reconciler(
 
 @pytest.fixture
 def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-    """Provides a CircuitBreakerSystem instance initialized with mock config."""
+    """Provide a CircuitBreakerSystem instance initialized with mock config."""
     # Create a mock config structure for circuit breaker
     from unittest.mock import MagicMock
 

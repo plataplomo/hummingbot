@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Trading Service
+"""CyberDeltaEngine: Hyperliquid Trading Service.
+
 ----------------------------------------------
 
 This service encapsulates the logic for trading operations on the Hyperliquid Exchange.
@@ -88,6 +89,20 @@ class HyperliquidTradingService:
         trading_mapper: HyperliquidTradingDataMapper,
         error_mapper: HyperliquidErrorMapper,
     ) -> None:
+        """Initialize the Hyperliquid trading service with required dependencies.
+
+        Args:
+            http_client_requester: HTTP client function for making API requests
+            request_builder: Builder for constructing Hyperliquid API requests
+            response_handler: Handler for processing Hyperliquid API responses
+            authenticator: Authentication interface for signing requests (optional)
+            exchange_name: Name identifier for this exchange instance
+            wallet_address: Wallet address for authenticated operations (optional)
+            get_asset_index_callable: Function to retrieve asset index for symbols
+            trading_mapper: Mapper for converting raw data to internal domain models
+            error_mapper: Mapper for handling and transforming API errors
+
+        """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
         self._response_handler = response_handler
@@ -105,6 +120,7 @@ class HyperliquidTradingService:
         place_order_payload: HyperliquidApiPlaceOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Private method to place an order, using the API request payload model.
+
         The payload is already built by the request builder with the correct format.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
@@ -154,6 +170,7 @@ class HyperliquidTradingService:
         cancel_action: HyperliquidRawCancelOrderAction,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Private method to cancel an order, using the raw action model.
+
         The builder wraps this in HyperliquidApiCancelOrderRequest.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
@@ -202,6 +219,7 @@ class HyperliquidTradingService:
 
     async def _get_open_orders_raw(self) -> list[HyperliquidRawOpenOrder]:
         """Private method to fetch raw open orders.
+
         Returns a list of HyperliquidRawOpenOrder Pydantic models.
         """
         _error_msg_wallet_addr = "Wallet address is required to fetch open orders."
@@ -245,6 +263,7 @@ class HyperliquidTradingService:
         order_id: int,
     ) -> HyperliquidRawHistoricalOrder | None:
         """Private method to fetch raw order status.
+
         Returns a HyperliquidRawHistoricalOrder Pydantic model or None if not found.
         The actual response from HL for orderStatus is a HyperliquidRawHistoricalOrderResponse,
         which contains the HyperliquidRawHistoricalOrder.
@@ -305,7 +324,19 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Retrieves a specific order by ID for a given symbol."""
+        """Retrieve a specific order by ID for a given symbol.
+
+        Args:
+            args: Arguments containing order_id and symbol for order retrieval
+
+        Returns:
+            Order object if found, None otherwise
+
+        Raises:
+            APIError: If API request fails or data transformation fails
+            ValueError: If order_id is not a valid integer
+
+        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order"
@@ -551,8 +582,20 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Retrieves all open orders, optionally filtered by symbol, and maps them
-        to a list of internal Order models.
+        """Retrieve all open orders, optionally filtered by symbol.
+
+        Maps the raw orders to a list of internal Order models.
+
+        Args:
+            symbol: Optional symbol filter for orders (case-insensitive)
+
+        Returns:
+            List of Order objects representing open orders
+
+        Raises:
+            APIError: If API request fails or data transformation fails
+            ValueError: If symbol is provided but empty
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -651,7 +694,19 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
-        """Cancels a specific order and returns True if successful."""
+        """Cancel a specific order and return True if successful.
+
+        Args:
+            args: Arguments containing order_id and symbol for order cancellation
+
+        Returns:
+            True if order was successfully cancelled
+
+        Raises:
+            APIError: If API request fails or order cancellation fails
+            ValueError: If order_id is not a valid positive integer or symbol is missing
+
+        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_order"
@@ -777,8 +832,19 @@ class HyperliquidTradingService:
             ) from e_unexpected
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancels all open orders, optionally filtered by symbol.
+        """Cancel all open orders, optionally filtered by symbol.
+
         Returns a list of CancelOrderResult for each attempted cancellation.
+
+        Args:
+            symbol: Optional symbol filter for orders to cancel (case-insensitive)
+
+        Returns:
+            List of CancelOrderResult objects with cancellation status for each order
+
+        Raises:
+            APIError: If API request fails or authentication is missing
+
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()

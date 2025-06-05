@@ -1,7 +1,9 @@
-"""Internal Core Model: Margin Account Summary
-------------------------------------------
+"""Internal Core Model: Margin Account Summary.
 
 Represents an immutable snapshot of the overall margin account state for a specific exchange.
+This module provides models for tracking margin account information across different exchanges,
+including core fields common to all exchanges and exchange-specific extension slots for
+detailed margin calculations and risk metrics.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from cyberdelta.utils.parsing import (
 
 class MarginAccountSummary(BaseModel):
     """Represents an immutable snapshot of the overall margin account state.
+
     Follows the "Core + Typed Extension Slots" pattern (Idea 5).
 
     Core Fields:

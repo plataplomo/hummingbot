@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (User State Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (User State Group).
+
 --------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -53,7 +54,9 @@ from cyberdelta.utils.parsing import validate_str_field
 # --- Leverage Submodel ---
 class HyperliquidRawLeverage(BaseModel):
     """Strict boundary model for leverage settings as returned in user state endpoints.
-    Validation handled by Annotated types.
+
+    Validates leverage configuration data from Hyperliquid's user state API responses.
+    Validation handled by Annotated types for type safety and format compliance.
     """
 
     type: RawLeverageTypeString = Field(..., alias="type")
@@ -64,7 +67,10 @@ class HyperliquidRawLeverage(BaseModel):
 # --- Position Info Submodel ---
 class HyperliquidRawPositionInfo(BaseModel):
     """Strict boundary model for detailed user position information.
-    Validation handled by Annotated types.
+
+    Validates comprehensive position data including entry price, leverage settings,
+    liquidation price, margin usage, and unrealized PnL from Hyperliquid API responses.
+    Validation handled by Annotated types for financial precision and data integrity.
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")
@@ -83,7 +89,9 @@ class HyperliquidRawPositionInfo(BaseModel):
 # --- Asset Position Submodel ---
 class HyperliquidRawAssetPosition(BaseModel):
     """Strict boundary model for a user's position details for a specific asset.
-    Validation handled by Annotated types and nested models.
+
+    Combines asset identifier with detailed position information for comprehensive
+    position tracking. Validation handled by Annotated types and nested models.
     """
 
     asset: RawAssetString64HL = Field(..., alias="asset")
@@ -94,7 +102,10 @@ class HyperliquidRawAssetPosition(BaseModel):
 # --- Margin Summary Submodel ---
 class HyperliquidRawMarginSummary(BaseModel):
     """Strict boundary model for a margin summary as returned in user state endpoints.
-    Validation handled by Annotated types.
+
+    Validates margin-related financial data including account value, margin usage,
+    and position values from Hyperliquid's margin calculation endpoints.
+    Validation handled by Annotated types for financial precision.
     """
 
     account_value: RawFiniteDecimalStr = Field(..., alias="accountValue")
@@ -107,7 +118,10 @@ class HyperliquidRawMarginSummary(BaseModel):
 # --- Clearinghouse State Model ---
 class HyperliquidRawClearinghouseState(BaseModel):
     """Represents the user's clearinghouse state.
-    Validation handled by Annotated types and nested models.
+
+    Comprehensive model for the complete user state including all asset positions,
+    margin summaries for both cross and isolated margin modes, and withdrawable funds.
+    Validation handled by Annotated types and nested models for data integrity.
     """
 
     asset_positions: list[HyperliquidRawAssetPosition] = Field(..., alias="assetPositions")

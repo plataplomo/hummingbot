@@ -51,13 +51,19 @@ class BackpackPrivateDataCollector:
     """Collects raw JSON data from Backpack private API endpoints."""
 
     def __init__(self, output_dir: Path, session: aiohttp.ClientSession) -> None:
+        """Initialize the Backpack private data collector with authentication setup.
+
+        Args:
+            output_dir: Directory where collected JSON data files will be saved
+            session: Authenticated aiohttp session for making API requests
+        """
         self.output_dir = output_dir
         self.session = session
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Lazy import to avoid circular dependencies
         get_app_settings, get_secrets_config, _ = lazy_import_config()
-        BackpackEd25519Authenticator = lazy_import_authenticator()
+        authenticator_class = lazy_import_authenticator()
 
         # Initialize configuration and authenticator
         try:
@@ -84,7 +90,7 @@ class BackpackPrivateDataCollector:
                 raise ValueError("Backpack authentication must be 'api_key' type")
 
             # Initialize authenticator
-            self.authenticator = BackpackEd25519Authenticator(
+            self.authenticator = authenticator_class(
                 api_key_b64_secret=backpack_secrets.api_key,
                 private_key_b64_secret=backpack_secrets.api_secret,
             )
@@ -120,8 +126,11 @@ class BackpackPrivateDataCollector:
             logger.info(f"Fetching: {method} {url} with params: {params}")
             
             # Make the request with authentication headers
-            # For POST/PUT methods, always send JSON data (even if empty) to ensure proper content-type
-            json_data = auth_components.data if method.upper() in ["POST", "PUT"] else (auth_components.data if auth_components.data else None)
+            # For POST/PUT methods, always send JSON data (even if empty) for proper content-type
+            json_data = (
+                auth_components.data if method.upper() in ["POST", "PUT"] 
+                else (auth_components.data if auth_components.data else None)
+            )
             
             # Add timeout to prevent signature expiration (Backpack has 5 second window)
             timeout = aiohttp.ClientTimeout(total=30)  # 30 second total timeout
@@ -167,7 +176,9 @@ class BackpackPrivateDataCollector:
         # This endpoint requires a symbol parameter specifying which asset's dust to convert
         # Using SOL as default as it's commonly held and likely to have dust
         payload = {"symbol": symbol}
-        data = await self._fetch_authenticated_json("POST", "/api/v1/account/convertDust", data=payload)
+        data = await self._fetch_authenticated_json(
+            "POST", "/api/v1/account/convertDust", data=payload,
+        )
         if data:
             filename = f"bp_private_convert_dust_{symbol.lower()}.json"
             self._save_json(data, filename)
@@ -311,7 +322,10 @@ class BackpackPrivateDataCollector:
         # Note: Backpack /api/v1/position endpoint does not support symbol filtering
         # It returns all positions regardless of symbol parameter
         if symbol:
-            logger.warning(f"Position endpoint does not support symbol filtering. Fetching all positions instead of {symbol}")
+            logger.warning(
+                f"Position endpoint doesn't support symbol filtering. "
+                f"Fetching all positions instead of {symbol}",
+            )
         
         data = await self._fetch_authenticated_json("GET", "/api/v1/position", params=None)
         if data:
@@ -671,7 +685,12 @@ class BackpackPrivateDataCollector:
 
 
 async def main() -> None:
-    """Main function to run the private data collection."""
+    """Execute comprehensive Backpack private API data collection with authentication.
+    
+    Parses command-line arguments, sets up configuration and authentication,
+    and runs the complete private data collection process across all authenticated
+    Backpack API endpoints. Saves collected data as JSON fixtures for testing.
+    """
     parser = argparse.ArgumentParser(description="Fetch Backpack private API data")
     parser.add_argument(
         "--symbols",

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid WebSocket Message Router
+"""CyberDeltaEngine: Hyperliquid WebSocket Message Router.
+
 -----------------------------------------------------
 
 This module implements the `HyperliquidWsMessageRouter` class, responsible for:
@@ -377,7 +378,9 @@ class HyperliquidWsMessageRouter:
                             validated_order_details = _handle_order_event(order_update_wrapper.data)
                             try:
                                 # Transform raw validated model to internal domain model
-                                order_transform_method = self._trading_data_mapper.transform_ws_order_update_to_internal_order
+                                order_transform_method = (
+                                    self._trading_data_mapper.transform_ws_order_update_to_internal_order
+                                )
                                 internal_order = order_transform_method(validated_order_details)
                                 # Convert internal model to dict for handler compatibility
                                 order_dict = internal_order.model_dump(mode="json")
@@ -395,7 +398,9 @@ class HyperliquidWsMessageRouter:
                             validated_position_update = _handle_pos_update(event_item_dict)
                             try:
                                 # Transform raw validated model to internal domain model
-                                position_transform_method = self._account_data_mapper.transform_ws_position_update_to_internal_position
+                                position_transform_method = (
+                                    self._account_data_mapper.transform_ws_position_update_to_internal_position
+                                )
                                 internal_position = position_transform_method(
                                     validated_position_update,
                                 )

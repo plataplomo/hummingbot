@@ -20,7 +20,8 @@ logger = structlog.get_logger(__name__)
 
 
 class Engine:
-    """Core trading engine responsible for:
+    """Core trading engine responsible for strategy management and signal routing.
+
     - Managing strategies and their states (enabled/disabled).
     - Routing incoming market data to relevant, enabled strategies.
     - Receiving trade signals from strategies and forwarding them to a configured
@@ -29,6 +30,12 @@ class Engine:
     """
 
     def __init__(self, name: str = "CyberDeltaEngine") -> None:
+        """Initialize the trading engine with a given name.
+
+        Args:
+            name: Name identifier for this engine instance.
+
+        """
         self.name = name
         self.strategies: dict[str, Strategy] = {}
         self.enabled_strategies: set[str] = set()  # Track enabled strategy names
@@ -44,6 +51,7 @@ class Engine:
 
     def add_strategy(self, strategy: Strategy) -> None:
         """Add a strategy instance to the engine. Replaces existing strategy with the same name.
+
         The strategy is disabled by default upon adding.
 
         Args:
@@ -116,6 +124,7 @@ class Engine:
 
     def set_signal_handler(self, handler: Callable[[TradeSignal], Awaitable[None]]) -> None:
         """Set the single async handler responsible for processing generated TradeSignals.
+
         This should typically be the entry point for the RiskManager or a SignalQueue.
 
         Args:
@@ -129,6 +138,7 @@ class Engine:
 
     async def process_market_data(self, data: Candle) -> None:
         """Process incoming market data.
+
         Routes the data to relevant, enabled strategies based on symbol.
         Forwards any generated TradeSignals (list or None) to the configured signal_handler.
 
@@ -193,6 +203,7 @@ class Engine:
 
     async def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """Process a pandas DataFrame of historical/batch market data.
+
         Expects columns: timestamp (int/str), open/high/low/close/volume (float/str/Decimal).
         Converts rows to MarketData objects and feeds them to process_market_data.
 
@@ -314,8 +325,9 @@ class Engine:
         logger.info(f"Engine '{self.name}' started with {enabled_count} enabled strategies.")
 
     def stop(self) -> None:
-        """Stop the trading engine. Calls on_stop() for all enabled strategies
-        and ensures all strategies are marked as disabled.
+        """Stop the trading engine. Calls on_stop() for all enabled strategies.
+
+        Ensures all strategies are marked as disabled after stopping.
         """
         if not self.is_running:
             logger.warning("Engine is not running.")
@@ -360,6 +372,7 @@ class Engine:
 
     def get_engine_info(self) -> dict[str, Any]:
         """Get basic information about the engine's operational state.
+
         Does NOT include position or P&L information.
 
         Returns:

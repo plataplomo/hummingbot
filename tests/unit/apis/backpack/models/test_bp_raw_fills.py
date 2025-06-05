@@ -45,7 +45,7 @@ from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 # --- Fixtures ---
 @pytest.fixture
 def valid_fill_data() -> dict[str, Any]:
-    """Provides a dictionary with valid raw fill data from Backpack API.
+    """Return a dictionary with valid raw fill data from Backpack API.
 
     This fixture creates a complete, valid fill record that matches the expected
     structure and data types from the Backpack exchange API. It serves as the

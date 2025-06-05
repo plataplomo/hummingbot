@@ -1,3 +1,14 @@
+"""Portfolio Tracker for CyberDeltaEngine.
+
+This module contains the PortfolioTracker class, which is responsible for tracking
+and managing the current state of the trading portfolio across multiple exchanges.
+It handles balance tracking, position monitoring, order management, P&L calculations,
+and portfolio reconciliation with exchange data.
+
+The PortfolioTracker serves as the central state management component for the
+trading engine, providing real-time portfolio information to other system components.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
@@ -413,7 +424,8 @@ class PortfolioTracker:
             )
             self.last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
-                f"Successfully updated positions for {exchange_id}. Count: {len(updated_positions)}",
+                f"Successfully updated positions for {exchange_id}. "
+                f"Count: {len(updated_positions)}",
             )
             return True
         except Exception as e:
@@ -566,9 +578,9 @@ class PortfolioTracker:
 
     async def process_trade(self, exchange_id: str, trade: Trade) -> None:
         """Process a trade execution and update relevant portfolio state.
-        - Updates positions.
-        - Updates balances (placeholder, needs full implementation).
-        - Updates realized P&L.
+
+        Updates positions, balances (placeholder, needs full implementation),
+        and realized P&L based on the executed trade.
 
         Args:
             exchange_id: The exchange where the trade occurred.
@@ -794,8 +806,13 @@ class PortfolioTracker:
 
     def get_all_positions(self) -> Sequence[tuple[str, DerivativePosition]]:
         """Retrieve all derivative positions across all exchanges.
-        Conforms to PortfolioTrackerProtocol
-        (DerivativePosition implements Position protocol implicitly).
+
+        Conforms to PortfolioTrackerProtocol where DerivativePosition implements
+        Position protocol implicitly.
+
+        Returns:
+            Sequence of tuples containing (exchange_id, position) pairs.
+
         """
         all_positions_list: list[tuple[str, DerivativePosition]] = []
         for exchange_id, symbol_positions_map in self.positions.items():
@@ -814,7 +831,15 @@ class PortfolioTracker:
         return [pos for pos in self.positions[exchange_id].values() if pos.size != Decimal(0)]
 
     async def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
-        """Calculates the total portfolio capital in the specified base currency."""
+        """Calculate the total portfolio capital in the specified base currency.
+
+        Args:
+            base_currency: Currency to calculate total capital in (default: USDC).
+
+        Returns:
+            Total portfolio value as a Decimal.
+
+        """
         logger.debug(f"Calculating total capital in {base_currency}...")
         total_value = Decimal("0.0")
 
@@ -1079,7 +1104,15 @@ class PortfolioTracker:
         return finite_realized, finite_unrealized
 
     async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal | None:
-        """Calculates the current drawdown from the high watermark."""
+        """Calculate the current drawdown from the high watermark.
+
+        Args:
+            base_currency: Currency to calculate drawdown in (default: USDC).
+
+        Returns:
+            Current drawdown as a Decimal, or None if no high watermark exists.
+
+        """
         current_capital = await self.get_total_capital()
 
         if self.high_watermark <= Decimal("0.0"):
@@ -1315,7 +1348,8 @@ class PortfolioTracker:
                                 tracker.last_update_time[ex_id_str_lut] = parsed_ts
                         else:
                             logger.warning(
-                                f"Received None for last_update_time for {ex_id_str_lut}, skipping.",
+                                f"Received None for last_update_time for {ex_id_str_lut}, "
+                                f"skipping.",
                             )
                 except Exception as e:
                     logger.error(f"Error deserializing last_update_time for {ex_id_str_lut}: {e}")
@@ -1569,10 +1603,22 @@ class PortfolioTracker:
         logger.info("PortfolioTracker state has been reset.")
 
     async def load_state(self) -> None:
+        """Load portfolio state from persistent storage.
+
+        This method loads previously saved portfolio state including positions,
+        balances, and order history from persistent storage to restore the
+        portfolio tracker to its previous state.
+        """
         # ... (Implementation as before) ...
         pass  # Placeholder
 
     async def initialize_portfolio(self) -> None:
+        """Initialize portfolio state from exchange APIs.
+
+        This method performs the initial setup of the portfolio tracker by
+        fetching current balances, positions, and orders from all configured
+        exchanges to establish the starting state.
+        """
         # ... (Implementation as before) ...
         pass  # Placeholder
 
@@ -1585,7 +1631,21 @@ class PortfolioTracker:
         price_override: Decimal
         | None = None,  # Allow overriding for specific cases like entry price conversion
     ) -> Decimal | None:
-        """Helper to get the price of an asset in the base currency."""
+        """Get the price of an asset in the base currency.
+
+        Helper method to retrieve or calculate the current price of a given asset
+        in terms of the specified base currency, with optional price override.
+
+        Args:
+            exchange_id: Exchange identifier.
+            asset: Asset symbol to get price for.
+            base_currency: Target currency for price conversion.
+            price_override: Optional price override for specific cases.
+
+        Returns:
+            Asset price in base currency, or None if unavailable.
+
+        """
         # TODO: Revisit price override logic - assumes override is already in base_currency
         if price_override is not None:
             logger.debug(
@@ -1691,8 +1751,18 @@ class PortfolioTracker:
         return None
 
     def get_exchange_balance(self, exchange: str, asset: str) -> SpotBalance | None:
-        """Retrieves the balance for a specific asset on a specific exchange.
-        Conforms to PortfolioTrackerProtocol.
+        """Retrieve the balance for a specific asset on a specific exchange.
+
+        Conforms to PortfolioTrackerProtocol by providing access to asset balances
+        for a given exchange.
+
+        Args:
+            exchange: Exchange identifier.
+            asset: Asset symbol to retrieve balance for.
+
+        Returns:
+            SpotBalance object if found, None otherwise.
+
         """
         # Internally, self.balances uses exchange_id which is equivalent to 'exchange' here.
         if exchange in self.balances and asset in self.balances[exchange]:
@@ -1753,7 +1823,15 @@ class PortfolioTracker:
         self,
         exchange_id: str,
     ) -> dict[Symbol, DerivativePosition] | None:
-        """Returns all derivative positions for a given exchange."""
+        """Return all derivative positions for a given exchange.
+
+        Args:
+            exchange_id: Exchange identifier to get positions for.
+
+        Returns:
+            Dictionary mapping symbols to positions, or None if exchange not found.
+
+        """
         normalized_exchange_id = exchange_id.lower()
 
         # ADDED DETAILED LOGGING (NOW AS WARNING)

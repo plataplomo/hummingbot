@@ -1,7 +1,9 @@
 """CyberDeltaEngine: Hyperliquid Account Data Mapper Positions & Trades Tests.
+
 --------------------------------------------------------------------------
 
 Comprehensive test suite for HyperliquidAccountDataMapper position and trade transformations.
+
 Tests complex scenarios and advanced business logic including:
 - Derivative position transformations with various leverage types
 - Fill/trade transformations with detailed trade data
@@ -117,7 +119,7 @@ def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
 
 @pytest.fixture
 def hyperliquid_raw_fill_buy_fixture() -> HyperliquidRawFill:
-    """Provides a valid HyperliquidRawFill for a BUY trade."""
+    """Return a valid HyperliquidRawFill for a BUY trade."""
     return HyperliquidRawFill(
         tid=12345,
         coin="ETH-PERP",
@@ -138,7 +140,7 @@ def hyperliquid_raw_fill_buy_fixture() -> HyperliquidRawFill:
 
 @pytest.fixture
 def hyperliquid_raw_fill_sell_maker_fixture() -> HyperliquidRawFill:
-    """Provides a valid HyperliquidRawFill for a SELL MAKER trade."""
+    """Return a valid HyperliquidRawFill for a SELL MAKER trade."""
     return HyperliquidRawFill(
         tid=54321,
         coin="BTC-PERP",

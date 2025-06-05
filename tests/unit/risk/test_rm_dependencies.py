@@ -52,8 +52,9 @@ class TestRiskManagerDependencyFailures:
         sample_opportunity: ArbitrageOpportunity,
         bad_capital: object,
     ) -> None:
-        """Test size_opportunity returns None or raises when total capital is zero,
-        negative, or invalid.
+        """Test size_opportunity returns None or raises with invalid capital.
+        
+        Tests when total capital is zero, negative, or invalid.
         """
         mock_portfolio_tracker.get_total_capital.return_value = bad_capital
         original_defaults = mock_config_dict
@@ -195,7 +196,7 @@ class TestRiskManagerDependencyFailures:
                         scope: str,
                         symbol: str | None = None,
                     ) -> tuple[bool, str | None]:
-                        """Helper function for can execute side effect."""
+                        """Return execution status based on circuit breaker scope."""
                         if scope_to_trip == "global":
                             if (
                                 scope == sample_opportunity.long_exchange

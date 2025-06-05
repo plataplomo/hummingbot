@@ -1,3 +1,15 @@
+"""Market data models for the CyberDeltaEngine trading system.
+
+This package contains all market-related data models including orders, trades,
+funding rates, order books, tickers, and candlestick data. These models provide
+a unified interface for market data across different exchanges while maintaining
+exchange-specific details through extension slots.
+
+The models follow the "Core + Typed Extension Slots" pattern, allowing for
+common fields shared across exchanges while providing flexibility for
+exchange-specific enrichment data.
+"""
+
 from .candle import Candle
 from .funding_rate import FundingRate
 from .order import Order

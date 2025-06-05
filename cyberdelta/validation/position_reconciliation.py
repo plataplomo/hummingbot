@@ -41,7 +41,9 @@ type ParsedPosition = dict[
 
 
 class PositionReconciliationSystem:
-    """Validates and reconciles positions between different sources:
+    """Validates and reconciles positions between different sources.
+
+    This system compares positions from:
     1. Exchange API-reported positions
     2. Fill history-derived positions
     3. Local state tracking
@@ -113,8 +115,16 @@ class PositionReconciliationSystem:
         self._portfolio_tracker = portfolio_tracker
 
     async def check_positions(self, force: bool = False) -> dict[str, dict[str, Any]]:
-        """Checks positions if interval has passed or force=True.
+        """Check positions if interval has passed or force=True.
+
         Returns a dictionary mapping exchange ID to reconciliation results.
+
+        Args:
+            force: Whether to force reconciliation regardless of interval.
+
+        Returns:
+            Dictionary mapping exchange IDs to reconciliation results.
+
         """
         now = datetime.now(UTC)
 
@@ -202,7 +212,22 @@ class PositionReconciliationSystem:
         local_val: Decimal | OrderSide | str | None,
         details: str | None = None,
     ) -> HistoricalDiscrepancyRecord:
-        """Helper to create and log a DiscrepancyDetail, then record it historically."""
+        """Create and log a DiscrepancyDetail, then record it historically.
+
+        Helper method to create a discrepancy record and add it to the historical log.
+
+        Args:
+            exchange_id: Exchange identifier where discrepancy occurred.
+            symbol: Trading symbol with the discrepancy.
+            discrepancy_type: Type of discrepancy detected.
+            api_val: Value from the exchange API.
+            local_val: Value from local tracking.
+            details: Additional details about the discrepancy.
+
+        Returns:
+            The created HistoricalDiscrepancyRecord.
+
+        """
         # Ensure values are stringified for DiscrepancyDetail storage
         exchange_value_str = str(api_val) if api_val is not None else "None"
         local_value_str = str(local_val) if local_val is not None else "None"
@@ -437,6 +462,7 @@ class PositionReconciliationSystem:
 
     def get_discrepancy_history(self, days: int = 7) -> list[HistoricalDiscrepancyRecord]:
         """Get the history of position discrepancies.
+
         Returns a list of HistoricalDiscrepancyRecord objects, filtered by days.
 
         Args:

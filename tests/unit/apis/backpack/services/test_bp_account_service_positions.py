@@ -33,8 +33,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test _get_raw_positions_list successfully fetches and processes position data,
-        tested via public get_positions.
+        """Test _get_raw_positions_list successfully fetches and processes position data.
+        
+        Tested via public get_positions.
         """
         symbol_arg = "SOL-PERP"
         mock_raw_positions_data_item_dict = {
@@ -81,7 +82,7 @@ class TestBackpackAccountServicePositions:
         def build_get_positions_params_side_effect(
             symbol: str | None = None,
         ) -> dict[str, str] | None:
-            """Helper function for build get positions params side effect."""
+            """Build request parameters for get positions API calls based on symbol filter."""
             if symbol is None:
                 return None
             return {"symbol": symbol}
@@ -316,8 +317,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test get_positions with comprehensive scenarios including
-        proper DerivativePosition construction.
+        """Test get_positions with comprehensive scenarios including proper construction.
+        
+        Tests proper DerivativePosition construction.
         """
         mock_raw_position_data = {
             "symbol": "SOL_USDC",

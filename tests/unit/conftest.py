@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from pydantic import AnyUrl, HttpUrl
 from web3.auto import w3  # Import w3
 
 from cyberdelta.config import AppSettings
@@ -35,15 +36,13 @@ from cyberdelta.enums.exchange_names import ExchangeName
 logger = logging.getLogger(__name__)
 
 
-def create_test_url(url_str: str) -> Any:
-    """Create a URL for tests that satisfies both runtime and type checking.
+def create_test_http_url(url_str: str) -> HttpUrl:
+    """Create an HTTP URL for tests."""
+    return HttpUrl(url_str)
 
-    This function returns a string that will be properly converted by Pydantic's
-    validators, while also satisfying static type checkers that expect URL types.
-    """
-    # For runtime: return string (Pydantic will convert with mode=before)
-    # For type checkers: cast to Any to avoid type errors
-    return url_str
+def create_test_any_url(url_str: str) -> AnyUrl:
+    """Create an Any URL for tests."""
+    return AnyUrl(url_str)
 
 
 # Mock aiohttp ClientSession and Response for API testing
@@ -241,8 +240,8 @@ def mock_config() -> Callable[..., AppSettings]:
                 "hyperliquid": ExchangeSpecificConfig(
                     exchange_name=ExchangeName.HYPERLIQUID,
                     enabled=True,
-                    api_base_url_mainnet=create_test_url("https://api.hyperliquid.xyz"),
-                    ws_url_mainnet=create_test_url("wss://api.hyperliquid.xyz/ws"),
+                    api_base_url_mainnet=create_test_http_url("https://api.hyperliquid.xyz"),
+                    ws_url_mainnet=create_test_any_url("wss://api.hyperliquid.xyz/ws"),
                     rate_limit_per_minute=120,
                     symbols={"BTC": "BTC", "ETH": "ETH"},
                     chain_id=1337,
@@ -257,8 +256,8 @@ def mock_config() -> Callable[..., AppSettings]:
                 "backpack": ExchangeSpecificConfig(
                     exchange_name=ExchangeName.BACKPACK,
                     enabled=True,
-                    api_base_url_mainnet=create_test_url("https://api.backpack.exchange"),
-                    ws_url_mainnet=create_test_url("wss://api.backpack.exchange/ws"),
+                    api_base_url_mainnet=create_test_http_url("https://api.backpack.exchange"),
+                    ws_url_mainnet=create_test_any_url("wss://api.backpack.exchange/ws"),
                     rate_limit_per_minute=100,
                     symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
                     request_timeout_seconds=15.0,
@@ -372,8 +371,8 @@ def test_app_settings() -> AppSettings:
             "hyperliquid": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.HYPERLIQUID,
                 enabled=True,
-                api_base_url_mainnet=create_test_url("https://api.hyperliquid.xyz"),
-                ws_url_mainnet=create_test_url("wss://api.hyperliquid.xyz/ws"),
+                api_base_url_mainnet=create_test_http_url("https://api.hyperliquid.xyz"),
+                ws_url_mainnet=create_test_any_url("wss://api.hyperliquid.xyz/ws"),
                 symbols={"BTC": "BTC", "ETH": "ETH"},
                 chain_id=1337,
                 ip_weight_limit_per_minute=1200,
@@ -385,8 +384,8 @@ def test_app_settings() -> AppSettings:
             "backpack": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.BACKPACK,
                 enabled=True,
-                api_base_url_mainnet=create_test_url("https://api.backpack.exchange"),
-                ws_url_mainnet=create_test_url("wss://api.backpack.exchange/ws"),
+                api_base_url_mainnet=create_test_http_url("https://api.backpack.exchange"),
+                ws_url_mainnet=create_test_any_url("wss://api.backpack.exchange/ws"),
                 rate_limit_per_minute=100,
                 symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
             ),

@@ -1,3 +1,17 @@
+"""Core enumeration types for the CyberDeltaEngine trading system.
+
+This module defines all enumeration types used throughout the trading engine,
+including order-related enums, market data types, signal types, and status
+indicators. These enums provide type safety and standardization across
+different exchange APIs and internal components.
+
+The enums are organized into logical groups:
+- Order-related enums (OrderSide, OrderType, OrderStatus, etc.)
+- Market data enums (MarketType, Blockchain)
+- Trading signal enums (SignalType)
+- Operation status enums (transfer and withdrawal statuses)
+"""
+
 from enum import Enum
 
 # --------------------
@@ -7,6 +21,7 @@ from enum import Enum
 
 class OrderSide(Enum):
     """Enum representing the side of an order.
+
     Used throughout CyberDeltaEngine for both REST and WebSocket APIs.
     - BUY: Represents intent to buy (often the Bid side of the book).
     - SELL: Represents intent to sell (often the Ask side of the book).
@@ -18,6 +33,7 @@ class OrderSide(Enum):
 
 class OrderType(Enum):
     """Enum representing the type of an order, merged from common types and exchange specifics.
+
     Used for both REST and WebSocket order placement and status.
     - MARKET: Market order
     - LIMIT: Limit order
@@ -40,6 +56,7 @@ class OrderType(Enum):
 
 class OrderStatus(Enum):
     """Enum representing the status of an order, merged from common states and exchange specifics.
+
     Used for tracking order lifecycle and state transitions.
     - NEW: Order received by system, not yet acknowledged by exchange.
     - OPEN: Order acknowledged and resting on the book (or waiting trigger).
@@ -102,6 +119,7 @@ class OrderStatus(Enum):
 
 class TimeInForce(Enum):
     """Enum representing the time in force for an order.
+
     Used for both REST and WebSocket order placement.
     - GTC: Good 'Til Canceled
     - IOC: Immediate Or Cancel
@@ -117,6 +135,7 @@ class TimeInForce(Enum):
 
 class SelfTradePrevention(Enum):
     """Enum for self-trade prevention actions (from Backpack spec).
+
     - REJECT_TAKER: Reject the taker side of a self-trade.
     - REJECT_MAKER: Reject the maker side of a self-trade.
     - REJECT_BOTH: Reject both sides of a self-trade.
@@ -131,6 +150,7 @@ class SelfTradePrevention(Enum):
 
 class TriggerType(Enum):
     """Enum for reference price used for triggering conditional orders.
+
     - LAST_PRICE: Trigger based on the last traded price.
     - MARK_PRICE: Trigger based on the mark price.
     - INDEX_PRICE: Trigger based on the index price.
@@ -143,6 +163,7 @@ class TriggerType(Enum):
 
 class OrderUpdateOrigin(Enum):
     """Enum for the origin of an order update event (from Backpack WS spec).
+
     - USER: User-initiated update.
     - LIQUIDATION_AUTOCLOSE: Liquidation event.
     - ADL_AUTOCLOSE: Auto-deleveraging event.
@@ -163,6 +184,7 @@ class OrderUpdateOrigin(Enum):
 
 class OrderExpiryReason(Enum):
     """Enum for reason for order expiry or cancellation (merged from Backpack spec).
+
     - ACCOUNT_TRADING_SUSPENDED: Trading suspended on account.
     - FILL_OR_KILL: Order expired due to FOK policy.
     - INSUFFICIENT_BORROWABLE_QUANTITY: Not enough borrowable quantity.
@@ -211,6 +233,7 @@ class OrderExpiryReason(Enum):
 
 class SignalType(Enum):
     """Enum representing the type of a trading signal.
+
     Used for strategy logic and event handling.
     - ENTER_LONG: Signal to enter a long position.
     - EXIT_LONG: Signal to exit a long position.
@@ -235,6 +258,7 @@ class SignalType(Enum):
 
 class MarketType(Enum):
     """Enum for type of market (from Backpack spec).
+
     - SPOT: Spot market.
     - PERP: Perpetual futures market.
     - IPERP: Inverse perpetual market.
@@ -253,6 +277,7 @@ class MarketType(Enum):
 
 class Blockchain(Enum):
     """Enum for supported blockchains (expand as needed).
+
     - SOLANA: Solana blockchain.
     - ETHEREUM: Ethereum blockchain.
     - ARBITRUM: Arbitrum blockchain.

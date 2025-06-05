@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (AllMids Group).
+
 -----------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -71,8 +72,7 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
 
 
 class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalStr]]):
-    """Strict boundary model for the response from the 'allMids' endpoint, mapping asset
-    symbols to mid prices.
+    """Strict boundary model for the 'allMids' endpoint response, mapping symbols to mid prices.
 
     This model validates the structure and content of the 'allMids' endpoint response,
     enforcing strict type and format constraints for all fields. Never use for internal
@@ -89,8 +89,9 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
     @field_validator("root", mode="before")
     @classmethod
     def ensure_root_is_dict(cls, v: object, info: ValidationInfo) -> dict[str, object]:
-        """Validates that the root input is a dictionary. Pydantic will handle
-        key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
+        """Validates that the root input is a dictionary.
+
+        Pydantic handles key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
         """
         if not isinstance(v, dict):
             field_name = info.field_name if info.field_name else "all_mids_response"

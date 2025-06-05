@@ -32,6 +32,11 @@ class VisualizationConfig:
     show_legend: bool = True
 
     def __post_init__(self) -> None:
+        """Initialize default color palette and theme settings after dataclass creation.
+        
+        Sets up default Plotly color palette if none provided and applies dark theme
+        template when dark theme is selected.
+        """
         if self.color_palette is None:
             self.color_palette = px.colors.qualitative.Plotly
 

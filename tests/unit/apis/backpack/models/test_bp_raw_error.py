@@ -1,3 +1,8 @@
+"""Unit tests for Backpack raw error models.
+
+Tests validation and parsing of error responses from the Backpack exchange API
+to ensure proper error handling and meaningful error messages.
+"""
 import json
 from typing import Any
 

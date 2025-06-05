@@ -79,8 +79,8 @@ class MultiTierFundingProvider:
             logger.warning("Invalid 'funding_data.weights' format in config, using defaults.")
             weights = {}
 
-        # Cast to proper type for validation methods
-        weights_typed: dict[str, Any] = weights
+        # Ensure weights is a proper dict for validation methods
+        weights_typed: dict[str, Any] = dict(weights) if weights else {}
 
         self.historical_accuracy_weight = self._validate_float_config(
             weights_typed,
@@ -482,8 +482,7 @@ class MultiTierFundingProvider:
         secondary: FundingData | None,
         tertiary: FundingData | None,
     ) -> IntegratedFundingData:
-        """Integrate funding data from different sources using predefined weights
-        and reliability factors.
+        """Integrate funding data from different sources using predefined weights and reliability.
 
         Args:
             exchange: Exchange identifier
@@ -744,4 +743,10 @@ class MultiTierFundingProvider:
         return default
 
     async def add_funding_rate(self, source_name: str, funding_rate_data: FundingData) -> None:
-        """Adds new funding rate data from a specific source."""
+        """Add new funding rate data from a specific source.
+
+        Args:
+            source_name: Name of the funding rate source.
+            funding_rate_data: The funding rate data to add.
+
+        """

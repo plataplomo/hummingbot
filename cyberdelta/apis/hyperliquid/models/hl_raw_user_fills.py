@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (User Fills Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (User Fills Group).
+
 --------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -64,6 +65,7 @@ from cyberdelta.utils.parsing import validate_str_field
 # --- Core User Fill Model ---
 class HyperliquidRawUserFill(BaseModel):
     """Strict boundary model for a user fill/trade object as returned in user fills endpoints.
+
     Validation handled by Annotated types from common_raw_types.
     """
 
@@ -94,7 +96,7 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
     @field_validator("root", mode="before")
     @classmethod
     def validate_user_fills_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensures the root input is a list of dictionaries for user fills."""
+        """Ensure the root input is a list of dictionaries for user fills."""
         field_name = info.field_name or "user_fills_list"
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")

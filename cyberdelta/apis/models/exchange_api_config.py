@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class ExchangeAPIConfig(BaseModel):
     """Pydantic model for configuration of an ExchangeAPI instance.
+
     This model is for config/validation only, not for runtime logic or state.
 
     Attributes:

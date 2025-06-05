@@ -1,4 +1,5 @@
 """Backpack API Account and Balance Models.
+
 --------------------------------------
 
 This module defines strict Pydantic models for validating account and balance responses from the
@@ -46,6 +47,7 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_id_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the id is a non-empty UTF-8 string of max 128 chars.
+        
         Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "id"
@@ -55,6 +57,7 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_email_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the email is a non-empty UTF-8 string of max 254 chars.
+        
         Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "email"
@@ -63,8 +66,9 @@ class BackpackRawAccount(BaseModel):
     @field_validator("status", mode="before", check_fields=False)
     @classmethod
     def validate_status_string_and_enum(cls, v: object, info: ValidationInfo) -> str:
-        """Validates that the status is a string, non-empty, max 32 chars, valid UTF-8, and in allowed
-        enum values.
+        """Validates status as a string with proper format and allowed enum values.
+        
+        Checks non-empty, max 32 chars, valid UTF-8, and in allowed enum values.
         Raises ValueError if not a string, is empty, exceeds max length, not valid UTF-8, or not in
         allowed set.
         """
@@ -98,6 +102,7 @@ class BackpackRawBalance(BaseModel):
     @classmethod
     def validate_asset_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the asset is a non-empty UTF-8 string of max 32 chars.
+        
         Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "asset"
@@ -106,7 +111,9 @@ class BackpackRawBalance(BaseModel):
     @field_validator("available", "total", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
-        """Validates that the value is a non-empty string representing a finite decimal (max 64 chars).
+        """Validates that the value is a non-empty string representing a finite decimal.
+        
+        Validates max 64 chars and ensures it's parseable as a finite decimal.
         Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max
         length.
         """

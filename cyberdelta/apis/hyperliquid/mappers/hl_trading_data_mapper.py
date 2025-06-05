@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid Trading Data Mapper
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper.
+
 ------------------------------------------------
 
 This module provides the HyperliquidTradingDataMapper class for transforming
@@ -488,8 +489,7 @@ class HyperliquidTradingDataMapper:
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
-        """Transforms a HyperliquidRawOrder (from WebSocket order update event) to an
-        Internal Order model.
+        """Transforms a HyperliquidRawOrder from WebSocket order update event to Internal Order.
 
         This is an alias for transform_raw_order_to_internal for consistency with
         WebSocket naming.

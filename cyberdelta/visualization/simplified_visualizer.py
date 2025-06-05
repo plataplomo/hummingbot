@@ -111,6 +111,7 @@ def generate_example_data(
 # Add a utility method for safe decimal to float conversion
 def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
     """Safely convert a value to float for visualization purposes.
+
     Handles Decimal, int, float, string representations, and None.
     Returns NaN for invalid or None inputs.
     """
@@ -133,7 +134,7 @@ def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
         except ValueError:
             return float("nan")  # Invalid string format
     # DEFENSIVE CHECK: Fallback for other unexpected types. Mypy=[unreachable] Ruff=[]
-    return float("nan")
+    return float("nan")  # type: ignore[unreachable]
 
 
 class SimpleVisualizer:

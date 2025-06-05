@@ -1,3 +1,10 @@
+"""Priority Signal Queue for trade signals.
+
+This module implements a priority queue for trade signals with expiration
+handling, supporting the efficient management of trading opportunities based
+on their utility scores and other attributes.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
@@ -13,14 +20,6 @@ from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.models.enums import SignalType
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
-
-"""
-Priority Signal Queue for trade signals.
-
-This module implements a priority queue for trade signals with expiration
-handling, supporting the efficient management of trading opportunities based
-on their utility scores and other attributes.
-"""
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
@@ -108,7 +107,8 @@ class PrioritySignalQueue:
         except (ValueError, TypeError, KeyError):  # Added KeyError
             score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
             self.logger.warning(
-                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. Using default 0.0",
+                f"Invalid utility_score '{score_val}' for signal {signal.symbol}. "
+                f"Using default 0.0",
             )
             utility_score = 0.0
             signal.metadata["utility_score"] = utility_score  # Store default back
@@ -720,7 +720,11 @@ class PrioritySignalQueue:
         return len(self.signal_queue)
 
     def _process_priority_levels(self) -> None:
-        """Internal method to process signals based on priority levels."""
+        """Process signals based on priority levels.
+
+        Internal method that handles signal processing according to their
+        calculated priority scores and queue ordering.
+        """
         processed_signals: list[TradeSignal] = []
         while self.signal_queue:
             _score, _count, signal = heapq.heappop(self.signal_queue)
@@ -731,7 +735,16 @@ class PrioritySignalQueue:
             # The `if True:` block was likely placeholder/dead code.
 
     def _add_signal(self, signal: TradeSignal, priority_score: float) -> None:
-        """Internal method to add a signal with a calculated priority score."""
+        """Add a signal with a calculated priority score.
+
+        Internal method that adds a signal to the queue using the provided
+        priority score for ordering.
+
+        Args:
+            signal: Trade signal to add to the queue.
+            priority_score: Calculated priority score for queue ordering.
+
+        """
         # Assume lock is already held if called internally from an async method
         # If called synchronously, it would need its own lock acquisition
         # (using _sync_lock if that was kept, or potentially blocking async lock)
@@ -779,8 +792,9 @@ class PrioritySignalQueue:
         timeout: float | None = None,
         max_signals: int = 1,
     ) -> list[TradeSignal]:
-        """Waits for signals to become available and returns up to max_signals highest
-        priority signals.
+        """Wait for signals to become available.
+
+        Returns up to max_signals highest priority signals.
 
         Args:
             timeout: Maximum time to wait in seconds (None = wait indefinitely)
@@ -1019,5 +1033,14 @@ class PrioritySignalQueue:
             self.logger.info("PrioritySignalQueue run loop stopped.")
 
     async def process_signal(self) -> TradeSignal | None:
+        """Process the next available signal from the queue.
+
+        Retrieves and processes the highest priority signal from the queue,
+        performing any necessary validation and circuit breaker checks.
+
+        Returns:
+            The processed TradeSignal if available, None otherwise.
+
+        """
         # Implementation of process_signal method
         pass

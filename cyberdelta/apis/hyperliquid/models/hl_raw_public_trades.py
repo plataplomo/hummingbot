@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Public Trades Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Public Trades Group).
+
 -----------------------------------------------------------------
 
 This module provides strict Pydantic models for validating the *raw* structure of all major
@@ -82,8 +83,7 @@ class HyperliquidRawPublicTrade(BaseModel):
 
 # --- Batch/Array Response ---
 class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrade]]):
-    """Strict boundary model for an array of public trades as returned in the 'recentTrades'
-    endpoint response.
+    """Strict boundary model for array of public trades from the recentTrades endpoint response.
 
     This model validates the structure and content of the batch response, enforcing strict
     type and format constraints for all fields. Never use for internal business logic.
@@ -96,7 +96,8 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
 
     @property
     def items(self) -> list[HyperliquidRawPublicTrade]:
-        """Returns the validated list of public trades with full type safety.
+        """Return the validated list of public trades with full type safety.
+
         This is the preferred way to access the root data in Pydantic v2.
 
         Returns:
@@ -110,7 +111,7 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
     @field_validator("root", mode="before")
     @classmethod
     def validate_trades_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensures the root input is a list of dictionaries for public trades."""
+        """Ensure the root input is a list of dictionaries for public trades."""
         field_name = info.field_name or "public_trades_list"
 
         if not isinstance(v, list):

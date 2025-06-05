@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Top-Level Request Payloads)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Top-Level Request Payloads).
+
 -------------------------------------------------------------------------
 
 This module defines Pydantic models for the *entire* request payload structure

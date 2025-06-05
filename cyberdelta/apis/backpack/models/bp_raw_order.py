@@ -1,4 +1,5 @@
-"""Backpack API Order, Order Book, and Order Update Models
+"""Backpack API Order, Order Book, and Order Update Models.
+
 ------------------------------------------------------
 
 This module defines strict Pydantic models for validating order, order book, and order update
@@ -44,8 +45,7 @@ from .bp_common_raw_types import (
 
 
 class BackpackRawOrder(BaseModel):
-    """Pydantic model for a raw order object from `/api/v1/order`, `/api/v1/orders`,
-    or WebSocket order update events.
+    """Pydantic model for a raw order object from Backpack API endpoints and WebSocket events.
 
     This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse order payloads received from the exchange.
@@ -200,6 +200,7 @@ class BackpackRawOrder(BaseModel):
     @classmethod
     def support_all_aliases(cls, values: dict[str, object]) -> dict[str, object]:
         """Normalizes all supported field aliases to canonical field names before validation.
+
         Ensures compatibility with both REST and WebSocket payloads.
         """
         alias_map: dict[str, list[str]] = {
@@ -269,7 +270,7 @@ class BackpackRawOrderBook(BaseModel):
 
 
 class BackpackRawOrderUpdate(BaseModel):
-    """Pydantic model for a raw order update event from the Backpack WebSocket stream (`orderUpdate`).
+    """Pydantic model for a raw order update event from Backpack WebSocket orderUpdate stream.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse order update events received from the exchange.

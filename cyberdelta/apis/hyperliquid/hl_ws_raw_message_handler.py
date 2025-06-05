@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid WebSocket Raw Message Handler
+"""CyberDeltaEngine: Hyperliquid WebSocket Raw Message Handler.
+
 ---------------------------------------------------------
 
 This module defines the `HyperliquidWsRawMessageHandler` class. This class is
@@ -176,7 +177,7 @@ class HyperliquidWsRawMessageHandler:
 
     @staticmethod
     def handle_user_order_event_payload(payload: dict[str, Any]) -> HyperliquidRawOrder:
-        """Validate the inner 'order' part of a user order event from Hyperliquid's userEvents stream.
+        """Validate the inner 'order' part of a user order event from Hyperliquid userEvents stream.
 
         User order events in Hyperliquid's WebSocket stream are often wrapped.
         This method specifically validates the nested dictionary that contains the actual
@@ -229,8 +230,7 @@ class HyperliquidWsRawMessageHandler:
     def handle_user_position_update_event_payload(
         payload: dict[str, Any],
     ) -> HyperliquidRawWsPositionUpdateEvent:
-        """Validate a raw WebSocket user position update event payload from Hyperliquid's
-        userEvents stream.
+        """Validate a raw WebSocket user position update event payload from Hyperliquid userEvents.
 
         This method checks if the payload, detailing a change in a user's position,
         conforms to the `HyperliquidRawWsPositionUpdateEvent` Pydantic model.

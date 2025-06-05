@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Trading Data Mapper.
+
 ---------------------------------------------
 
 This module provides the BackpackTradingDataMapper class for transforming
@@ -45,7 +46,7 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Maps a Backpack order side string to internal OrderSide enum.
+        """Map a Backpack order side string to internal OrderSide enum.
 
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
@@ -67,7 +68,7 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
-        """Maps a Backpack order status string to internal OrderStatus enum.
+        """Map a Backpack order status string to internal OrderStatus enum.
 
         Args:
             bp_status: Raw status string from Backpack
@@ -89,7 +90,7 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _map_type_to_internal(bp_type: str) -> OrderType:
-        """Maps a Backpack order type string to internal OrderType enum.
+        """Map a Backpack order type string to internal OrderType enum.
 
         Args:
             bp_type: Raw order type string from Backpack
@@ -110,7 +111,7 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _map_time_in_force(bp_tif: str) -> TimeInForce:
-        """Maps a Backpack time in force string to internal TimeInForce enum.
+        """Map a Backpack time in force string to internal TimeInForce enum.
 
         Args:
             bp_tif: Raw time in force string from Backpack
@@ -140,7 +141,7 @@ class BackpackTradingDataMapper:
         created_at: str | None = None,
         updated_at: str | None = None,
     ) -> Order:
-        """Transforms Backpack order data to an Internal Order model.
+        """Transform Backpack order data to an Internal Order model.
 
         Args:
             order_id: Order ID
@@ -221,7 +222,7 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def transform_raw_order_to_internal(raw_order: BackpackRawOrder) -> Order:
-        """Transforms a BackpackRawOrder to an Internal Order model.
+        """Transform a BackpackRawOrder to an Internal Order model.
 
         Args:
             raw_order: Validated raw order data from Backpack
@@ -336,8 +337,10 @@ class BackpackTradingDataMapper:
     def transform_ws_order_update_to_internal_order(
         raw_order_update: BackpackRawOrderUpdate,
     ) -> Order:
-        """Transforms a BackpackRawOrderUpdate (WebSocket order update event) to an
-        Internal Order model.
+        """Transform a BackpackRawOrderUpdate (WebSocket order update event) to an Internal Order.
+
+        This method converts WebSocket order update events from Backpack into internal
+        Order models, handling all necessary field mappings and type conversions.
 
         Args:
             raw_order_update: Validated raw order update event data from Backpack WebSocket

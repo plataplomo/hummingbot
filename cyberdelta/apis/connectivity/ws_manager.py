@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Generic WebSocket Manager
+"""CyberDeltaEngine: Generic WebSocket Manager.
+
 --------------------------------------------
 
 This module defines the `WebSocketManager` class, a reusable component for managing
@@ -118,8 +119,7 @@ class WebSocketManager:
         )
 
     def connect(self) -> asyncio.Task[None] | None:
-        """Initiates the WebSocket connection process by creating and returning a task
-        for _establish_connection.
+        """Initiates the WebSocket connection process by creating a task for _establish_connection.
 
         Does not await the task itself.
         This method is idempotent based on task status.
@@ -341,12 +341,14 @@ class WebSocketManager:
                     if current_task_listen_loop
                     else "UnknownTask"
                 )
+                cancelled_state = (
+                    current_task_listen_loop.cancelled() if current_task_listen_loop else "N/A"
+                )
                 self._logger.info(
                     f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
                     f"Iteration {loop_iteration_count}. "
                     f"Msg type: {msg.type if msg else 'None'}. "
-                    f"Cancelled state: "
-                    f"{current_task_listen_loop.cancelled() if current_task_listen_loop else 'N/A'}",
+                    f"Cancelled state: {cancelled_state}",
                 )
 
                 if self._ws_connection is not original_connection or self._ws_connection.closed:
@@ -668,7 +670,8 @@ class WebSocketManager:
                 )
         elif ws_conn_at_close_start and ws_conn_at_close_start.closed:
             self._logger.debug(
-                f"WS connection {id(ws_conn_at_close_start)} for {self._ws_url} was already closed.",
+                f"WS connection {id(ws_conn_at_close_start)} for {self._ws_url} "
+                f"was already closed.",
             )
             closed_ws_successfully = True
         else:

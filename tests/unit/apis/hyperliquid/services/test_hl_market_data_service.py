@@ -1,4 +1,5 @@
 """Unit tests for the HyperliquidMarketDataService.
+
 Tests complete workflows through public interfaces with mocked HTTP responses.
 """
 
@@ -84,7 +85,7 @@ def hyperliquid_market_data_service(
     mock_hl_response_handler: MagicMock,
     mock_hl_mapper: MagicMock,
 ) -> HyperliquidMarketDataService:
-    """Helper function for hyperliquid market data service."""
+    """Create HyperliquidMarketDataService instance for local testing scenarios."""
     return HyperliquidMarketDataService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_hl_request_builder,
@@ -1875,7 +1876,7 @@ class TestHyperliquidMarketDataService:
 
         # Configure mapper to succeed for first, fail for second
         def mapper_side_effect(item: HyperliquidRawFundingHistoryItem) -> FundingRate:
-            """Helper function for mapper side effect."""
+            """Map funding history item to FundingRate, with selective failures for testing."""
             if item.time == 1672531200076:
                 return FundingRate(
                     symbol=symbol,

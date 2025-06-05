@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (API Error Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (API Error Group).
+
 -------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*

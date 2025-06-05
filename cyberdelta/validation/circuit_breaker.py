@@ -163,8 +163,8 @@ class CircuitBreaker(ABC):
     @abstractmethod
     def check(
         self,
-        *args: Any,
-        **kwargs: Any,  # Any required for flexible circuit breaker implementations
+        *args: object,
+        **kwargs: object,  # object required for flexible circuit breaker implementations
     ) -> None:
         """Check if the circuit breaker should trip.
 
@@ -228,13 +228,21 @@ class VolatilityBreaker(CircuitBreaker):
         while len(self.price_history) > self.lookback_periods:
             self.price_history.pop(0)
 
-    def check(self, current_price: float | None = None) -> None:
+    def check(self, *args: object, **kwargs: object) -> None:
         """Check if volatility exceeds the threshold.
 
         Args:
-            current_price: Current price to add to history before checking
+            *args: Positional arguments (expects current_price as first arg if provided)
+            **kwargs: Keyword arguments (supports current_price keyword)
 
         """
+        # Extract current_price from args or kwargs
+        current_price: float | None = None
+        if args:
+            current_price = args[0] if isinstance(args[0], int | float) else None
+        elif "current_price" in kwargs:
+            price_val = kwargs["current_price"]
+            current_price = price_val if isinstance(price_val, int | float) else None
         # Only check if we have enough data and are not already tripped
         if self.state == BreakerState.OPEN:
             return
@@ -304,13 +312,24 @@ class DrawdownBreaker(CircuitBreaker):
         self.peak_value: float | None = None
         self.current_value: float | None = None
 
-    def check(self, current_value: float) -> None:
+    def check(self, *args: object, **kwargs: object) -> None:
         """Check if drawdown exceeds the threshold.
 
         Args:
-            current_value: Current portfolio/asset value to check
+            *args: Positional arguments (expects current_value as first arg)
+            **kwargs: Keyword arguments (supports current_value keyword)
 
         """
+        # Extract current_value from args or kwargs
+        current_value: float | None = None
+        if args:
+            current_value = args[0] if isinstance(args[0], int | float) else None
+        elif "current_value" in kwargs:
+            val = kwargs["current_value"]
+            current_value = val if isinstance(val, int | float) else None
+
+        if current_value is None:
+            return
         # Update current value
         self.current_value = current_value
 
@@ -413,13 +432,19 @@ class APIErrorBreaker(CircuitBreaker):
                 f"successful API calls while in half-open state",
             )
 
-    def check(self, error_message: str | None = None) -> None:
+    def check(self, *args: object, **kwargs: object) -> None:
         """Check if the breaker should trip based on recent errors.
 
         Args:
-            error_message: Optional error message to record during the check
+            args: Positional arguments - first arg should be error_message (str | None)
+            kwargs: Keyword arguments
 
         """
+        # Extract error_message from args
+        error_message: str | None = None
+        if args:
+            error_message = args[0] if isinstance(args[0], (str, type(None))) else None
+            
         # Record the error if provided
         if error_message is not None:
             self.record_error(error_message)
@@ -501,13 +526,20 @@ class LiquidityBreaker(CircuitBreaker):
         self.min_liquidity = min_liquidity
         self.current_liquidity: float | None = None
 
-    def check(self, current_liquidity: float) -> None:
+    def check(self, *args: object, **kwargs: object) -> None:
         """Check if liquidity is below the threshold.
 
         Args:
-            current_liquidity: Current market liquidity
+            args: Positional arguments - first arg should be current_liquidity (float)
+            kwargs: Keyword arguments
 
         """
+        # Extract current_liquidity from args
+        if not args or not isinstance(args[0], (int, float)):
+            logger.error(f"LiquidityBreaker {self.name}: check() requires current_liquidity as first argument")
+            return
+            
+        current_liquidity = float(args[0])
         self.current_liquidity = current_liquidity
 
         if current_liquidity < self.min_liquidity:

@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Referral Info)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Referral Info).
+
 -----------------------------------------------------------
 
 Strict boundary validation models for the Hyperliquid 'referral' info endpoint.
@@ -67,6 +68,23 @@ class HyperliquidRawReferrerData(BaseModel):
     @field_validator("referral_states", mode="before")
     @classmethod
     def validate_referral_states_list(cls, v: object, info: ValidationInfo) -> list[object]:
+        """Validate that referral_states field is a list structure.
+
+        Ensures the input is a list before Pydantic validates each item against
+        HyperliquidRawReferralState. This provides early validation of the container
+        structure while delegating item validation to Pydantic's parsing.
+
+        Args:
+            v: The raw input value to validate
+            info: Pydantic validation context information
+
+        Returns:
+            list[object]: The validated list for further Pydantic processing
+
+        Raises:
+            ValueError: If the input is not a list structure
+
+        """
         if not isinstance(v, list):
             raise ValueError("referral_states: Expected list")
         # Pydantic will validate each item in the list against HyperliquidRawReferralState.
@@ -104,6 +122,26 @@ class HyperliquidRawReferralResponse(BaseModel):
     @field_validator("reward_history", mode="before")
     @classmethod
     def validate_reward_history_list(cls, v: object, info: ValidationInfo) -> list[object]:
+        """Validate that reward_history field is a list structure.
+
+        Performs basic list validation for the reward_history field. The exact structure
+        of reward history items is currently unknown from API documentation, so this
+        validator only ensures the container is a list.
+
+        Args:
+            v: The raw input value to validate
+            info: Pydantic validation context information
+
+        Returns:
+            list[object]: The validated list for further processing
+
+        Raises:
+            ValueError: If the input is not a list structure
+
+        Note:
+            Item validation could be added if the reward history structure becomes known.
+
+        """
         # Example shows empty list, structure unknown. Basic list validation.
         if not isinstance(v, list):
             raise ValueError("reward_history: Expected list")

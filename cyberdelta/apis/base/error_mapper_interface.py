@@ -18,8 +18,10 @@ class IErrorMapper(ABC):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """Maps a raw exchange error (from HTTP status, body, or parsed data) to a
-        standardized APIError.
+        """Maps a raw exchange error to a standardized APIError.
+        
+        Converts HTTP status, body, or parsed data from exchange responses.
+
         Implementations should handle specifics of their exchange's error reporting.
         This can also be used to map errors derived from other exceptions.
         """
@@ -28,6 +30,7 @@ class IErrorMapper(ABC):
     @abstractmethod
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
         """Maps a raw error string from an exchange to a standardized APIError.
+
         Useful when the error is not from a typical HTTP error response but embedded in data.
         """
         pass

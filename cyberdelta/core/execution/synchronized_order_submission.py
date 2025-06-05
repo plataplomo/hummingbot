@@ -482,6 +482,16 @@ class OrderVerifier:
         }
 
     async def verify_order_fill(self, exchange: str, order_id: str) -> dict[str, Any]:
+        """Verify that an order has been filled correctly.
+
+        Args:
+            exchange: Exchange identifier
+            order_id: Order ID to verify
+
+        Returns:
+            Verification result dictionary
+
+        """
         # Placeholder implementation to satisfy linter and type hint
         return {
             "timestamp": int(time.time() * 1000),
@@ -654,6 +664,7 @@ class ExecutionCoordinator:
 
 class SynchronizedOrderSubmissionService:
     """Service for synchronized order submission across exchanges with verification.
+
     Extends the AtomicExecutionEngine with enhanced verification capabilities.
     """
 

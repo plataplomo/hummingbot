@@ -1,4 +1,5 @@
-"""CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group)
+"""CyberDeltaEngine: Hyperliquid API Raw Models (Meta & Asset Context Group).
+
 -----------------------------------------------------------------------
 
 This module provides strict, security-focused Pydantic models for validating the *raw*
@@ -50,7 +51,7 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
-    """Strict boundary model for a single asset/market definition from the Hyperliquid 'meta' endpoint.
+    """Strict boundary model for a single asset/market definition from Hyperliquid.
 
     This model is used exclusively for validating the raw structure of asset entries in the upstream
     API response. It enforces strict type and format constraints to prevent malformed or ambiguous
@@ -71,11 +72,11 @@ class HyperliquidRawAssetDefinition(BaseModel):
 
 
 class HyperliquidRawAssetCtx(BaseModel):
-    """Strict boundary model for contextual information about a single asset from the
-    'metaAndAssetCtxs' endpoint.
+    """Strict boundary model for contextual information about a single asset.
 
-    Used only for validating the raw structure of asset context entries (funding, mark price, etc.)
-    as received from the upstream API. Enforces strict type and format constraints for all fields.
+    This model validates raw asset context entries from the 'metaAndAssetCtxs' endpoint,
+    including funding rates, mark prices, and volume data. It enforces strict type and
+    format constraints for all fields as received from the upstream API.
     Never use for internal business logic.
 
     Fields:
@@ -111,11 +112,12 @@ class HyperliquidRawMetaResponse(BaseModel):
 
 
 class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
-    """Strict boundary model for the [meta, assetCtxs] tuple response from the 'metaAndAssetCtxs'
-    endpoint.
+    """Strict boundary model for the [meta, assetCtxs] tuple response.
 
-    Used only for validating the raw structure of the 2-tuple response: meta info and
-    asset contexts. Never use for internal business logic.
+    This model validates the raw structure of the 2-tuple response from the 'metaAndAssetCtxs'
+    endpoint, containing both meta information and asset contexts. It provides custom validation
+    logic to handle the tuple format returned by the API.
+    Never use for internal business logic.
 
     Fields:
         meta (HyperliquidRawMetaResponse): Meta/universe information.
@@ -139,10 +141,11 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_alias: bool | None = None,
         by_name: bool | None = None,
     ) -> Self:
-        """Custom validator for the [meta, assetCtxs] tuple response. Ensures the input is a
-        list of length 2, with the first element a dict (meta) and the second a list of
-        dicts (asset contexts). Raises ValueError if the structure is not as expected. This
-        is essential for robust boundary validation of upstream API data.
+        """Validate the [meta, assetCtxs] tuple response structure.
+
+        Ensure the input is a list of length 2, with the first element a dict (meta) and
+        the second a list of dicts (asset contexts). Raise ValueError if the structure is
+        not as expected. This is essential for robust boundary validation of upstream API data.
         """
         if not isinstance(obj, list):
             raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
@@ -266,11 +269,11 @@ class HyperliquidRawAllMetaRequestPayload(BaseModel):
 
 
 class HyperliquidRawUpdateLeverageRequest(BaseModel):
-    """Strict boundary model for the request payload for updating leverage settings for a
-    specific asset.
+    """Strict boundary model for updating leverage settings for a specific asset.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when
-    updating leverage for an asset. Never use for internal business logic.
+    updating leverage for an asset. This model ensures proper validation of leverage
+    parameters before sending to the API. Never use for internal business logic.
 
     Fields:
         asset (int): Asset index (API-defined).
@@ -285,7 +288,7 @@ class HyperliquidRawUpdateLeverageRequest(BaseModel):
 
 
 class HyperliquidRawUpdateIsolatedMarginRequest(BaseModel):
-    """Strict boundary model for the request payload for updating isolated margin for a specific asset.
+    """Strict boundary model for updating isolated margin for a specific asset.
 
     Used only for constructing and validating the payload sent to the Hyperliquid API when updating
     isolated margin for an asset. Never use for internal business logic.

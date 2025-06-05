@@ -62,6 +62,16 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         is_mainnet_environment: bool = True,
         logger_param: logging.Logger | None = None,
     ) -> None:
+        """Initialize the Hyperliquid authenticator with wallet credentials.
+        
+        Args:
+            wallet_private_key_secret: Private key for wallet (if not using account_object)
+            chain_id: Ethereum chain ID for EIP-712 signing
+            account_object: Pre-configured LocalAccount (alternative to private key)
+            passphrase_secret: Optional passphrase for enhanced security
+            is_mainnet_environment: Whether connecting to mainnet (True) or testnet (False)
+            logger_param: Optional logger instance for authentication events
+        """
         self.logger = logger_param or get_logger(__name__)  # Use provided or get new one
         self._is_mainnet_env = is_mainnet_environment
 
@@ -318,7 +328,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 f"Only /exchange endpoint is currently supported.",
             )
             raise NotImplementedError(
-                f"Signing for path {path} is not implemented. Only /exchange endpoint is supported.",
+                f"Signing for path {path} is not implemented. "
+                f"Only /exchange endpoint is supported.",
             )
 
     async def _prepare_exchange_request(

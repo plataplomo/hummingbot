@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Account Data Mapper.
+
 ---------------------------------------------
 
 This module provides the BackpackAccountDataMapper class for transforming
@@ -177,7 +178,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_transfer_status_to_internal(raw_status: str | None) -> InternalTransferStatus:
-        """Maps a Backpack transfer status string to internal InternalTransferStatus enum."""
+        """Map a Backpack transfer status string to internal InternalTransferStatus enum."""
         if raw_status is None:
             return InternalTransferStatus.UNKNOWN
         status_lower = raw_status.lower()
@@ -195,7 +196,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
-        """Transforms a BackpackRawFill to an Internal Trade model.
+        """Transform a BackpackRawFill to an Internal Trade model.
 
         Args:
             raw_fill: Validated raw fill from Backpack
@@ -271,7 +272,7 @@ class BackpackAccountDataMapper:
         total_balance: str,
         available_balance: str,
     ) -> SpotBalance:
-        """Transforms balance data to an Internal SpotBalance model.
+        """Transform balance data to an Internal SpotBalance model.
 
         Args:
             asset: Asset symbol
@@ -319,8 +320,9 @@ class BackpackAccountDataMapper:
         asset_symbol: str,
         raw: BackpackRawBalance,
     ) -> SpotBalance:
-        """Transforms a validated `BackpackRawBalance` object for a specific asset into an
-        internal `SpotBalance` domain model.
+        """Transform a validated BackpackRawBalance object for a specific asset.
+
+        Converts the raw balance data into an internal SpotBalance domain model.
 
         Args:
             asset_symbol: The symbol of the asset (e.g., 'USDC', 'SOL').
@@ -370,8 +372,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
-        """Transforms a validated `BackpackRawPosition` object into an internal
-        `DerivativePosition` domain model.
+        """Transform a validated `BackpackRawPosition` object into an internal model.
 
         Args:
             raw: The validated raw position data from Backpack.
@@ -446,8 +447,7 @@ class BackpackAccountDataMapper:
         spot_balances_raw: dict[str, BackpackRawBalance],
         derivative_positions_raw: list[BackpackRawPosition],
     ) -> MarginAccountSummary:
-        """Transforms raw Backpack account settings, along with separately fetched raw balances
-        and positions, into an internal `MarginAccountSummary` model.
+        """Transform raw Backpack account data into an internal `MarginAccountSummary`.
 
         Args:
             raw_settings: The validated `BackpackRawAccountSummary` Pydantic model.
@@ -535,7 +535,7 @@ class BackpackAccountDataMapper:
         to_account_type_raw: str,
         client_transfer_id: str | None,
     ) -> Transfer:
-        """Transforms a raw Backpack transfer JSON response into an internal `Transfer` model.
+        """Transform a raw Backpack transfer JSON response into an internal `Transfer` model.
 
         Args:
             raw_response: The raw JSON dictionary from the transfer API call.
@@ -630,7 +630,7 @@ class BackpackAccountDataMapper:
         client_withdrawal_id: str | None,
         tag: str | None,
     ) -> Withdrawal:
-        """Transforms a raw Backpack withdrawal response into an internal `Withdrawal` model.
+        """Transform a raw Backpack withdrawal response into an internal `Withdrawal` model.
 
         Args:
             raw_response: The validated `BackpackRawWithdrawalResponse` Pydantic model.
@@ -724,7 +724,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
-        """Transforms a validated `BackpackRawOrder` object into an internal `Order` domain model.
+        """Transform a validated `BackpackRawOrder` object into an internal `Order` domain model.
 
         Args:
             raw: The validated raw order data from Backpack.
@@ -851,7 +851,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_trade_to_internal(raw: BackpackRawTrade) -> Trade | None:
-        """Transforms a validated `BackpackRawTrade` object into an internal `Trade` domain model.
+        """Transform a validated `BackpackRawTrade` object into an internal `Trade` domain model.
 
         Note: Backpack REST API for trades typically lacks side information.
         Returns None if essential information cannot be determined.
@@ -893,7 +893,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:
-        """Transforms a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
+        """Transform a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
 
         This is an alias for transform_raw_fill_to_internal for consistency with WebSocket naming.
 
@@ -914,8 +914,7 @@ class BackpackAccountDataMapper:
     def transform_ws_position_update_to_internal_position(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> DerivativePosition:
-        """Transforms a BackpackRawPositionUpdate (WebSocket position update event) to an
-        Internal DerivativePosition model.
+        """Transform a BackpackRawPositionUpdate to an Internal DerivativePosition.
 
         Args:
             raw_position_update: Validated raw position update event data from Backpack WebSocket

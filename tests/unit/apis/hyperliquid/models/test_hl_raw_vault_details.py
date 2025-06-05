@@ -1,4 +1,4 @@
-"""Unit Tests for Hyperliquid Raw Vault Details Models"""
+"""Unit Tests for Hyperliquid Raw Vault Details Models."""
 
 from typing import Any
 

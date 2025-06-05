@@ -1,4 +1,5 @@
 """CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests.
+
 --------------------------------------------------------------------------
 
 Comprehensive test suite for BackpackAccountDataMapper balance and position methods.
@@ -40,7 +41,7 @@ def create_raw_balance(
     available: str = "1000.0",
     total: str = "1100.0",
 ) -> BackpackRawBalance:
-    """Helper function to create BackpackRawBalance instances for testing."""
+    """Create BackpackRawBalance instances for testing."""
     return BackpackRawBalance(
         asset=asset,
         available=available,
@@ -67,7 +68,7 @@ def create_raw_position(
     position_id: str = "pos123",
     cumulative_interest: str = "0.0",
 ) -> BackpackRawPosition:
-    """Helper function to create BackpackRawPosition instances for testing."""
+    """Create BackpackRawPosition instances for testing."""
     # Create minimal IMF and MMF function objects with correct parameters
     imf_function = BackpackRawImfFunction(
         base="0.1",
@@ -117,7 +118,7 @@ def create_raw_account_summary(
     spot_taker_fee: str = "0.001",
     trigger_orders: int = 50,
 ) -> BackpackRawAccountSummary:
-    """Helper function to create BackpackRawAccountSummary instances for testing."""
+    """Create BackpackRawAccountSummary instances for testing."""
     return BackpackRawAccountSummary.model_validate(
         {
             "autoBorrowSettlements": auto_borrow_settlements,
@@ -241,7 +242,7 @@ class TestBalanceTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return appropriate Decimal conversion for testing balance validation."""
                 if field_name.endswith("_total"):
                     return None
                 # For other fields, return a valid decimal
@@ -272,7 +273,7 @@ class TestBalanceTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return Decimal conversion for testing available balance validation."""
                 if field_name.endswith("_available"):
                     return None
                 # For other fields, return a valid decimal
@@ -404,7 +405,7 @@ class TestPositionTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return Decimal conversion for testing position quantity validation."""
                 if field_name == "net_quantity":
                     return None
                 # For other fields, return a valid decimal if possible
@@ -512,7 +513,7 @@ class TestPositionTransformation:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return appropriate Decimal conversion for testing position data validation."""
                 # Return valid values for required fields
                 if field_name == "net_quantity":
                     return Decimal("10.0")
@@ -739,7 +740,7 @@ class TestErrorHandling:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return appropriate Decimal conversion for testing account summary validation."""
                 if field_name == "total_balance":
                     return None
                 return Decimal("900.0")  # Available balance
@@ -771,7 +772,7 @@ class TestErrorHandling:
                 allow_none: bool = False,
                 field_name: str = "",
             ) -> Decimal | None:
-                """Helper function for side effect."""
+                """Return appropriate Decimal conversion for testing balance parsing edge cases."""
                 if field_name == "available_balance":
                     return None
                 return Decimal("1000.0")  # Total balance

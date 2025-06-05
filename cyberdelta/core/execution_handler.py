@@ -1,3 +1,9 @@
+"""CyberDeltaEngine execution handler module.
+
+Provides the ExecutionHandler class for reliable trade execution across multiple exchanges,
+including order placement, monitoring, retry logic, and circuit breaker integration.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
@@ -143,7 +149,7 @@ class ExecutionHandler:
         """Initialize the execution handler.
 
         Args:
-            config: Application configuration (Config object)
+            app_settings: Application configuration settings
             portfolio_tracker: Portfolio tracker for position updates
             symbol_mapper: SymbolMapper for translating symbols
             circuit_breaker_system: The main circuit breaker system (optional)
@@ -680,9 +686,9 @@ class ExecutionHandler:
             order_type: MARKET, LIMIT, etc.
             price: Limit price (for LIMIT orders).
             time_in_force: Order time in force.
-            is_long_leg: True if this is the long leg of the arbitrage.
-            is_compensation: True if this is a compensating order.
             reduce_only: True if this is a reduce_only order
+            post_only: True if this is a post-only order
+            is_long_leg: True if this is the long leg of the arbitrage.
 
         Returns:
             Order object if successful, None otherwise.
@@ -837,7 +843,8 @@ class ExecutionHandler:
                 else:
                     # Handle case where get_order_status returns None without exception
                     logger.warning(
-                        f"Execution {execution.id}: _get_order_status returned None for {order_id}.",
+                        f"Execution {execution.id}: _get_order_status returned None for "
+                        f"{order_id}.",
                     )
                     # Decide if retryable or assume failed/cancelled
                     if attempt == self.max_retries - 1:
@@ -1161,7 +1168,8 @@ class ExecutionHandler:
         expected_long_price: Decimal | None = None,
         expected_short_price: Decimal | None = None,
     ) -> None:
-        """Handles a filled order, updating execution details and portfolio.
+        """Handle a filled order, updating execution details and portfolio.
+
         Centralized logic for processing fills for both initial and compensation orders.
         """
         logger.info(
@@ -1347,6 +1355,7 @@ class ExecutionHandler:
         poll_interval_sec: float = 2.0,
     ) -> OrderStatus | None:
         """Monitor the status of a single order until it reaches a terminal state or times out.
+
         Basic polling implementation - should be replaced by WebSocket updates where possible.
 
         Args:
@@ -1425,6 +1434,7 @@ class ExecutionHandler:
 
     def _add_to_history(self, execution: TradeExecution) -> None:
         """Add a completed or failed execution to the history, maintaining max size.
+
         Removes the execution from the active dictionary.
         """
         if execution.id in self.active_executions:

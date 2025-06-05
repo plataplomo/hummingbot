@@ -559,7 +559,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Configure mapper to succeed for first, fail for second
         def mapper_side_effect(item: HyperliquidRawFundingHistoryItem) -> FundingRate:
-            """Helper function for mapper side effect."""
+            """Map funding history item to FundingRate, with conditional test failures."""
             if item.time == 1672531200000:
                 return FundingRate(
                     symbol=symbol,
