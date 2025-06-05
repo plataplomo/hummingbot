@@ -443,7 +443,7 @@ class APIErrorBreaker(CircuitBreaker):
         # Extract error_message from args
         error_message: str | None = None
         if args:
-            error_message = args[0] if isinstance(args[0], (str, type(None))) else None
+            error_message = args[0] if isinstance(args[0], str | type(None)) else None
             
         # Record the error if provided
         if error_message is not None:
@@ -535,8 +535,11 @@ class LiquidityBreaker(CircuitBreaker):
 
         """
         # Extract current_liquidity from args
-        if not args or not isinstance(args[0], (int, float)):
-            logger.error(f"LiquidityBreaker {self.name}: check() requires current_liquidity as first argument")
+        if not args or not isinstance(args[0], int | float):
+            logger.error(
+                f"LiquidityBreaker {self.name}: check() requires current_liquidity "
+                f"as first argument",
+            )
             return
             
         current_liquidity = float(args[0])

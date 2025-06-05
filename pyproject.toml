@@ -136,7 +136,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy 
 
 # Per-path ignores
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S105", "S106"]  # Allow assert statements in tests
+"tests/**/*.py" = ["S101", "S105", "S106"]  # Allow assert statements and subprocess calls in tests
+"tests/integration/test_config_example.py" = ["S603"]  # Allow subprocess calls for testing config script
 
 # Configure pydocstyle to match current docstring conventions
 [tool.ruff.lint.pydocstyle]

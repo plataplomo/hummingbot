@@ -7,7 +7,7 @@ without dependencies on complex web frameworks.
 import logging
 import math
 import os
-import random
+import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -45,11 +45,12 @@ def generate_example_data(
     # Generate trade signals and completed trades
     for i in range(num_trades):
         trade_time = base_time - timedelta(days=num_trades - i)
-        exit_time = trade_time + timedelta(hours=random.randint(1, 24))
-        symbol = random.choice(["BTC-USDT", "ETH-USDT"])
-        side = random.choice([OrderSide.BUY, OrderSide.SELL])
-        entry_price = Decimal(random.uniform(40000, 60000)).quantize(Decimal("0.01"))
-        pnl_factor = random.uniform(-0.05, 0.05)
+        exit_time = trade_time + timedelta(hours=secrets.randbelow(24) + 1)
+        symbol = secrets.choice(["BTC-USDT", "ETH-USDT"])
+        side = secrets.choice([OrderSide.BUY, OrderSide.SELL])
+        random_price = secrets.SystemRandom().uniform(40000, 60000)
+        entry_price = Decimal(random_price).quantize(Decimal("0.01"))
+        pnl_factor = secrets.SystemRandom().uniform(-0.05, 0.05)
         exit_price = entry_price * (1 + Decimal(pnl_factor))
         quantity = Decimal("1.0")
         fee_decimal = entry_price * quantity * Decimal("0.001")
@@ -68,7 +69,7 @@ def generate_example_data(
             quantity=quantity,
             timestamp=trade_time,
             source_strategy=strategy_name,
-            confidence=random.uniform(0.5, 1.0),
+            confidence=secrets.SystemRandom().uniform(0.5, 1.0),
             metadata={},
         )
         tracker.track_signal(signal)

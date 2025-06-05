@@ -286,7 +286,8 @@ class HttpClient:
         else:  # Not JSON, return raw text
             if response_text is None:
                 raise ValueError(
-                    f"DEFENSIVE: response_text is None for {full_url} with non-JSON 2xx non-204 status"
+                    f"DEFENSIVE: response_text is None for {full_url} with "
+                    f"non-JSON 2xx non-204 status",
                 )
             return response_text, response.status, processed_headers, raw_response_headers
 
@@ -496,7 +497,7 @@ class HttpClient:
                     raise last_exception
                 if last_exception is None:
                     raise ValueError(
-                        "DEFENSIVE: last_exception is None after all retries failed"
+                        "DEFENSIVE: last_exception is None after all retries failed",
                     )
                 # Wrap other client-side exceptions specifically
                 if isinstance(last_exception, TimeoutError):

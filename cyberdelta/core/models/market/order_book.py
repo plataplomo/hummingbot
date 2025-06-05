@@ -197,12 +197,12 @@ class OrderBook(BaseModel):
                 ) from e
 
             # DEFENSIVE CHECK: Runtime check post-parsing.
-            assert price is not None, (
-                f"Price unexpectedly None after parsing at {field_name}[{index}]"
-            )
-            assert quantity is not None, (
-                f"Quantity unexpectedly None after parsing at {field_name}[{index}]"
-            )
+            if price is None:
+                raise ValueError(f"Price unexpectedly None after parsing at {field_name}[{index}]")
+            if quantity is None:
+                raise ValueError(
+                    f"Quantity unexpectedly None after parsing at {field_name}[{index}]",
+                )
 
             # 4. Post-parse Validation (Finite, Non-negative Quantity)
             if not price.is_finite():

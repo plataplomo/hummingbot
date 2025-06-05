@@ -7,7 +7,7 @@ including order placement, monitoring, retry logic, and circuit breaker integrat
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
-import random
+import secrets
 import time
 import uuid
 from datetime import UTC, datetime
@@ -748,7 +748,8 @@ class ExecutionHandler:
                     logger.error(f"Execution {execution.id}: {execution.error_message}")
                     raise  # Re-raise current exception (e)
                 # Exponential backoff
-                delay = self.retry_delay_base * (2**attempt) * (1 + random.uniform(-0.2, 0.2))
+                jitter = secrets.SystemRandom().uniform(-0.2, 0.2)
+                delay = self.retry_delay_base * (2**attempt) * (1 + jitter)
                 logger.info(f"Execution {execution.id}: Retrying {context} in {delay:.2f}s...")
                 await asyncio.sleep(delay)
             except Exception as e:
@@ -909,7 +910,8 @@ class ExecutionHandler:
                     )
 
                 # Exponential backoff for retryable errors
-                delay = self.retry_delay_base * (2**attempt) * (1 + random.uniform(-0.2, 0.2))
+                jitter = secrets.SystemRandom().uniform(-0.2, 0.2)
+                delay = self.retry_delay_base * (2**attempt) * (1 + jitter)
                 logger.info(f"Execution {execution.id}: Retrying {context} in {delay:.2f}s...")
                 await asyncio.sleep(delay)
 

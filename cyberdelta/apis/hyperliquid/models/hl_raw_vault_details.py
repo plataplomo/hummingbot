@@ -124,7 +124,8 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
             raise ValueError(f"{field_name}: Expected list, got {type(v).__name__}")
 
         list_of_objects = cast(list[object], v)
-        assert isinstance(list_of_objects, list)
+        if not isinstance(list_of_objects, list):
+            raise ValueError("Defensive check: list_of_objects is not a list after cast")
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -133,6 +134,9 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
                     f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}",
                 )
             item_dict = cast(dict[str, object], item_obj)
-            assert isinstance(item_dict, dict)
+            if not isinstance(item_dict, dict):
+                raise ValueError(
+                    f"Defensive check: item_dict at index {item_idx} is not a dict after cast",
+                )
             validated_items.append(item_dict)
         return validated_items

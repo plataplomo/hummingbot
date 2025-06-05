@@ -53,7 +53,7 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
         script_dir = os.path.dirname(example_script)
 
         result = subprocess.run(
-            ["python", os.path.basename(example_script), "--create-example"],
+            [sys.executable, os.path.basename(example_script), "--create-example"],
             cwd=script_dir,
             capture_output=True,
             text=True,
@@ -136,7 +136,7 @@ exchanges:
     script_dir = os.path.dirname(example_script)
     result = subprocess.run(
         [
-            "python",
+            sys.executable,
             os.path.basename(example_script),
             "--benchmark",
             "--config",
@@ -202,7 +202,7 @@ exchanges:
     script_dir = os.path.dirname(example_script)
     result = subprocess.run(
         [
-            "python",
+            sys.executable,
             os.path.basename(example_script),
             "--config",
             str(config_path),

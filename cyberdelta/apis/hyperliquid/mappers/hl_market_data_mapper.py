@@ -448,12 +448,17 @@ class HyperliquidMarketDataMapper:
                 # Parse timestamp (convert from milliseconds)
                 timestamp = datetime.fromtimestamp(raw_snapshot.t[i] / 1000, tz=UTC)
 
-                # Type assertions since we already checked for None values above
-                assert open_price is not None
-                assert high_price is not None
-                assert low_price is not None
-                assert close_price is not None
-                assert volume is not None
+                # Defensive checks since we already validated for None values above
+                if open_price is None:
+                    raise ValueError("Open price unexpectedly None after validation")
+                if high_price is None:
+                    raise ValueError("High price unexpectedly None after validation")
+                if low_price is None:
+                    raise ValueError("Low price unexpectedly None after validation")
+                if close_price is None:
+                    raise ValueError("Close price unexpectedly None after validation")
+                if volume is None:
+                    raise ValueError("Volume unexpectedly None after validation")
 
                 candle = Candle(
                     symbol=symbol,

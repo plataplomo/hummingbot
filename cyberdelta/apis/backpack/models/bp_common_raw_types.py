@@ -239,7 +239,7 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
                 if dt_object is None:
                     raise ValueError(
                         f"Field {field_name}: parse_datetime_utc returned None for "
-                        f"'{numeric_value}'"
+                        f"'{numeric_value}'",
                     )
                 if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
                     raise ValueError(
@@ -326,7 +326,7 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
                 if dt_object is None:
                     raise ValueError(
                         f"Field {field_name}: parse_datetime_utc returned None for "
-                        f"'{numeric_value}'"
+                        f"'{numeric_value}'",
                     )
                 # Reverted to wider year range 1970-2300
                 if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300

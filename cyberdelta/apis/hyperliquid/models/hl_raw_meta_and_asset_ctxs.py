@@ -151,7 +151,8 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
 
         list_obj = cast(list[object], obj)
-        assert isinstance(list_obj, list)
+        if not isinstance(list_obj, list):
+            raise ValueError("Defensive check: list_obj is not a list after cast")
 
         if len(list_obj) != 2:
             raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
@@ -167,10 +168,12 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             )
 
         meta_dict = cast(dict[str, Any], meta_obj_raw)
-        assert isinstance(meta_dict, dict)
+        if not isinstance(meta_dict, dict):
+            raise ValueError("Defensive check: meta_dict is not a dict after cast")
 
         asset_ctxs_list_of_objects = cast(list[object], asset_ctxs_list_raw)
-        assert isinstance(asset_ctxs_list_of_objects, list)
+        if not isinstance(asset_ctxs_list_of_objects, list):
+            raise ValueError("Defensive check: asset_ctxs_list_of_objects is not a list after cast")
 
         meta = HyperliquidRawMetaResponse.model_validate(
             meta_dict,
@@ -193,7 +196,10 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             if not isinstance(item_obj, dict):
                 raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
             item_dict_original = cast(dict[str, Any], item_obj)
-            assert isinstance(item_dict_original, dict)
+            if not isinstance(item_dict_original, dict):
+                raise ValueError(
+                    f"Defensive check: item_dict_original at index {i} is not a dict after cast",
+                )
 
             # Filter item_dict_original to keep only keys that are valid for HyperliquidRawAssetCtx
             item_dict_filtered = {

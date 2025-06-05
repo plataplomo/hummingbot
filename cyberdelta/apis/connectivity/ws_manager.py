@@ -13,7 +13,7 @@ implementations.
 import asyncio
 import json
 import logging
-import random
+import secrets
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
@@ -198,7 +198,7 @@ class WebSocketManager:
                 )
                 if current_attempt > 0:
                     backoff_base = self._reconnect_delay * (2 ** (current_attempt - 1))
-                    jitter = backoff_base * 0.2 * (random.random() - 0.5)
+                    jitter = backoff_base * 0.2 * (secrets.SystemRandom().random() - 0.5)
                     actual_delay = max(1.0, backoff_base + jitter)
                     self._logger.info(
                         f"Reconnection attempt {current_attempt + 1}/"

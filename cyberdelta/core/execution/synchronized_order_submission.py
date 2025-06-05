@@ -1006,10 +1006,10 @@ class SynchronizedOrderSubmissionService:
                     # TODO: Handle post_only, reduce_only if needed via config/adapter
                 )
                 placed_order: Order = await first_api.place_order(first_place_order_args)
-                assert hasattr(placed_order, "client_order_id") and hasattr(
-                    placed_order,
-                    "to_dict",
-                ), "placed_order missing required attributes"
+                if not (
+                    hasattr(placed_order, "client_order_id") and hasattr(placed_order, "to_dict")
+                ):
+                    raise ValueError("placed_order missing required attributes")
                 result.first_order_id = placed_order.client_order_id  # Use client_order_id
 
                 # Checkpoint: first order placed
@@ -1094,10 +1094,11 @@ class SynchronizedOrderSubmissionService:
                     second_placed_order: Order = await second_api.place_order(
                         second_place_order_args,
                     )
-                    assert hasattr(second_placed_order, "client_order_id") and hasattr(
-                        second_placed_order,
-                        "to_dict",
-                    ), "second_placed_order missing required attributes"
+                    if not (
+                        hasattr(second_placed_order, "client_order_id") 
+                        and hasattr(second_placed_order, "to_dict")
+                    ):
+                        raise ValueError("second_placed_order missing required attributes")
                     result.second_order_id = (
                         second_placed_order.client_order_id
                     )  # Use client_order_id

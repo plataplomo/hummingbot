@@ -100,7 +100,8 @@ class PerformanceVisualizer:
         fig = go.Figure()
 
         # Add strategy returns
-        assert self.config.color_palette is not None, "color_palette must not be None"
+        if self.config.color_palette is None:
+            raise ValueError("color_palette must not be None")
         for i, strategy in enumerate(names):
             color_palette = self.config.color_palette
             color = color_palette[i % len(color_palette)]
@@ -206,7 +207,8 @@ class PerformanceVisualizer:
         fig = go.Figure()
 
         # Add drawdown traces
-        assert self.config.color_palette is not None, "color_palette must not be None"
+        if self.config.color_palette is None:
+            raise ValueError("color_palette must not be None")
         for i, strategy in enumerate(names):
             color_palette = self.config.color_palette
             color = color_palette[i % len(color_palette)]
@@ -471,7 +473,8 @@ class PerformanceVisualizer:
         # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         cum_returns = (1 + returns_data[names]).cumprod() - 1
 
-        assert self.config.color_palette is not None, "color_palette must not be None"
+        if self.config.color_palette is None:
+            raise ValueError("color_palette must not be None")
         color_palette = self.config.color_palette
         for i, strategy in enumerate(names):
             color = color_palette[i % len(color_palette)]
