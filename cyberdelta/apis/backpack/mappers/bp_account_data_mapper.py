@@ -23,6 +23,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -723,6 +724,87 @@ class BackpackAccountDataMapper:
             raise TransformationError(f"Failed to transform raw withdrawal to internal: {e}") from e
 
     @staticmethod
+    def _map_self_trade_prevention(raw_stp: str | None) -> SelfTradePrevention | None:
+        """Map self trade prevention string to enum."""
+        if not raw_stp:
+            return None
+
+        stp_str = raw_stp.upper()
+        stp_mapping = {
+            "REJECT_TAKER": SelfTradePrevention.REJECT_TAKER,
+            "REJECTTAKER": SelfTradePrevention.REJECT_TAKER,
+            "REJECT_MAKER": SelfTradePrevention.REJECT_MAKER,
+            "REJECTMAKER": SelfTradePrevention.REJECT_MAKER,
+            "REJECT_BOTH": SelfTradePrevention.REJECT_BOTH,
+            "REJECTBOTH": SelfTradePrevention.REJECT_BOTH,
+            "NONE": SelfTradePrevention.NONE,
+        }
+        return stp_mapping.get(stp_str)
+
+    @staticmethod
+    def _map_expiry_reason(raw_expiry: str | None) -> OrderExpiryReason | None:
+        """Map expiry reason string to enum."""
+        if not raw_expiry:
+            return None
+
+        expiry_str = raw_expiry.upper()
+        expiry_mapping = {
+            "USER_CANCELLED": OrderExpiryReason.USER_CANCELLED,
+            "CANCELLED": OrderExpiryReason.USER_CANCELLED,
+            "LIQUIDATION": OrderExpiryReason.LIQUIDATION,
+            "INSUFFICIENT_FUNDS": OrderExpiryReason.INSUFFICIENT_FUNDS,
+            "SELF_TRADE_PREVENTION": OrderExpiryReason.SELF_TRADE_PREVENTION,
+            "POST_ONLY_TAKER": OrderExpiryReason.POST_ONLY_TAKER,
+            "FILL_OR_KILL": OrderExpiryReason.FILL_OR_KILL,
+            "IMMEDIATE_OR_CANCEL": OrderExpiryReason.IMMEDIATE_OR_CANCEL,
+        }
+        return expiry_mapping.get(expiry_str, OrderExpiryReason.UNKNOWN)
+
+    @staticmethod
+    def _map_order_origin(raw_origin: str | None) -> OrderUpdateOrigin | None:
+        """Map origin string to enum."""
+        if not raw_origin:
+            return None
+
+        origin_str = raw_origin.upper()
+        origin_mapping = {
+            "USER": OrderUpdateOrigin.USER,
+            "LIQUIDATION_AUTOCLOSE": OrderUpdateOrigin.LIQUIDATION_AUTOCLOSE,
+            "ADL_AUTOCLOSE": OrderUpdateOrigin.ADL_AUTOCLOSE,
+            "COLLATERAL_CONVERSION": OrderUpdateOrigin.COLLATERAL_CONVERSION,
+            "SETTLEMENT_AUTOCLOSE": OrderUpdateOrigin.SETTLEMENT_AUTOCLOSE,
+            "BACKSTOP_LIQUIDITY_PROVIDER": OrderUpdateOrigin.BACKSTOP_LIQUIDITY_PROVIDER,
+        }
+        return origin_mapping.get(origin_str, OrderUpdateOrigin.UNKNOWN)
+
+    @staticmethod
+    def _parse_required_order_fields(raw: BackpackRawOrder) -> tuple[Decimal, datetime]:
+        """Parse and validate required order fields."""
+        parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
+        if parsed_quantity is None:
+            raise TransformationError("quantity missing/invalid in BackpackRawOrder")
+
+        parsed_created_at = parse_datetime_utc(raw.createdAt)
+        if parsed_created_at is None:
+            raise TransformationError("createdAt missing/invalid in BackpackRawOrder")
+
+        return parsed_quantity, parsed_created_at
+
+    @staticmethod
+    def _parse_optional_order_fields(raw: BackpackRawOrder) -> dict[str, Any]:
+        """Parse optional order fields."""
+        return {
+            "quantity_filled": parse_decimal_value(raw.executedQuantity) or Decimal("0.0"),
+            "price": parse_decimal_value(raw.price),
+            "stop_price": parse_decimal_value(raw.triggerPrice),
+            "avg_fill_price": parse_decimal_value(raw.avgFillPrice),
+            "executed_quote_quantity": parse_decimal_value(
+                raw.executedQuoteQuantity,
+                allow_none=True,
+            ),
+        }
+
+    @staticmethod
     def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
         """Transform a validated `BackpackRawOrder` object into an internal `Order` domain model.
 
@@ -734,90 +816,24 @@ class BackpackAccountDataMapper:
 
         Raises:
             TransformationError: If essential fields are missing or cannot be parsed.
-
         """
         try:
-            # Defensive: ensure required fields are present and valid
-            parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
-            if parsed_quantity is None:
-                raise TransformationError("quantity missing/invalid in BackpackRawOrder")
-            parsed_created_at = parse_datetime_utc(raw.createdAt)
-            if parsed_created_at is None:
-                raise TransformationError("createdAt missing/invalid in BackpackRawOrder")
-
-            # Optional fields
-            parsed_quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
-            parsed_price = parse_decimal_value(raw.price)
-            parsed_stop_price = parse_decimal_value(raw.triggerPrice)
-            parsed_avg_fill_price = parse_decimal_value(raw.avgFillPrice)
-
-            # Create BackpackOrderDetails with available data
-            executed_quote_quantity = parse_decimal_value(
-                raw.executedQuoteQuantity,
-                allow_none=True,
+            # Parse required fields
+            parsed_quantity, parsed_created_at = (
+                BackpackAccountDataMapper._parse_required_order_fields(raw)
             )
 
-            # Map self trade prevention string to enum if available
-            stp_enum = None
-            if raw.selfTradePrevention:
-                stp_str = raw.selfTradePrevention.upper()
-                if stp_str == "REJECT_TAKER" or stp_str == "REJECTTAKER":
-                    stp_enum = SelfTradePrevention.REJECT_TAKER
-                elif stp_str == "REJECT_MAKER" or stp_str == "REJECTMAKER":
-                    stp_enum = SelfTradePrevention.REJECT_MAKER
-                elif stp_str == "REJECT_BOTH" or stp_str == "REJECTBOTH":
-                    stp_enum = SelfTradePrevention.REJECT_BOTH
-                elif stp_str == "NONE":
-                    stp_enum = SelfTradePrevention.NONE
+            # Parse optional fields
+            optional_fields = BackpackAccountDataMapper._parse_optional_order_fields(raw)
 
-            # Map expiry reason string to enum if available
-            expiry_enum = None
-            if raw.expiryReason:
-                expiry_str = raw.expiryReason.upper()
-                if expiry_str == "USER_CANCELLED" or expiry_str == "CANCELLED":
-                    expiry_enum = OrderExpiryReason.USER_CANCELLED
-                elif expiry_str == "LIQUIDATION":
-                    expiry_enum = OrderExpiryReason.LIQUIDATION
-                elif expiry_str == "INSUFFICIENT_FUNDS":
-                    expiry_enum = OrderExpiryReason.INSUFFICIENT_FUNDS
-                elif expiry_str == "SELF_TRADE_PREVENTION":
-                    expiry_enum = OrderExpiryReason.SELF_TRADE_PREVENTION
-                elif expiry_str == "POST_ONLY_TAKER":
-                    expiry_enum = OrderExpiryReason.POST_ONLY_TAKER
-                elif expiry_str == "FILL_OR_KILL":
-                    expiry_enum = OrderExpiryReason.FILL_OR_KILL
-                elif expiry_str == "IMMEDIATE_OR_CANCEL":
-                    expiry_enum = OrderExpiryReason.IMMEDIATE_OR_CANCEL
-                else:
-                    expiry_enum = OrderExpiryReason.UNKNOWN
-
-            # Map origin string to enum if available
-            origin_enum = None
-            if raw.origin:
-                origin_str = raw.origin.upper()
-                if origin_str == "USER":
-                    origin_enum = OrderUpdateOrigin.USER
-                elif origin_str == "LIQUIDATION_AUTOCLOSE":
-                    origin_enum = OrderUpdateOrigin.LIQUIDATION_AUTOCLOSE
-                elif origin_str == "ADL_AUTOCLOSE":
-                    origin_enum = OrderUpdateOrigin.ADL_AUTOCLOSE
-                elif origin_str == "COLLATERAL_CONVERSION":
-                    origin_enum = OrderUpdateOrigin.COLLATERAL_CONVERSION
-                elif origin_str == "SETTLEMENT_AUTOCLOSE":
-                    origin_enum = OrderUpdateOrigin.SETTLEMENT_AUTOCLOSE
-                elif origin_str == "BACKSTOP_LIQUIDITY_PROVIDER":
-                    origin_enum = OrderUpdateOrigin.BACKSTOP_LIQUIDITY_PROVIDER
-                else:
-                    origin_enum = OrderUpdateOrigin.UNKNOWN
-
+            # Create BackpackOrderDetails with mapped enums
             bp_details = BackpackOrderDetails(
-                executed_quote_quantity=executed_quote_quantity,
-                self_trade_prevention=stp_enum,
-                expiry_reason=expiry_enum,
-                origin=origin_enum,
-                # Note: Other fields like sl_trigger_price, tp_trigger_price etc. are not
-                # available in the basic BackpackRawOrder model and would need to come from
-                # other API endpoints
+                executed_quote_quantity=optional_fields["executed_quote_quantity"],
+                self_trade_prevention=BackpackAccountDataMapper._map_self_trade_prevention(
+                    raw.selfTradePrevention,
+                ),
+                expiry_reason=BackpackAccountDataMapper._map_expiry_reason(raw.expiryReason),
+                origin=BackpackAccountDataMapper._map_order_origin(raw.origin),
             )
 
             return Order(
@@ -830,10 +846,10 @@ class BackpackAccountDataMapper:
                 order_type=BackpackAccountDataMapper._map_type_to_internal(raw.orderType),
                 status=BackpackAccountDataMapper._map_status_to_internal(raw.status),
                 quantity_requested=parsed_quantity,
-                quantity_filled=parsed_quantity_filled,
-                price=parsed_price,
-                stop_price=parsed_stop_price,
-                average_fill_price=parsed_avg_fill_price,
+                quantity_filled=optional_fields["quantity_filled"],
+                price=optional_fields["price"],
+                stop_price=optional_fields["stop_price"],
+                average_fill_price=optional_fields["avg_fill_price"],
                 trigger_by=BackpackAccountDataMapper._map_trigger_by_to_internal(raw.triggerBy),
                 time_in_force=BackpackAccountDataMapper._map_tif_to_internal(raw.timeInForce),
                 reduce_only=raw.reduceOnly or False,
@@ -911,6 +927,88 @@ class BackpackAccountDataMapper:
         return BackpackAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
 
     @staticmethod
+    def _parse_position_update_size(raw_position_update: BackpackRawPositionUpdate) -> Decimal:
+        """Parse and validate size from position update."""
+        if raw_position_update.net_quantity:
+            size_dec = parse_decimal_value(
+                raw_position_update.net_quantity,
+                allow_none=False,
+                field_name="net_quantity",
+            )
+            # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
+            # Mypy=[unreachable] Ruff=[unreachable]
+            if size_dec is None:
+                size_dec = Decimal("0")
+        else:
+            size_dec = Decimal("0")
+        return size_dec
+
+    @staticmethod
+    def _parse_position_update_prices(
+        raw_position_update: BackpackRawPositionUpdate,
+    ) -> dict[str, Decimal | None]:
+        """Parse optional price fields from position update."""
+        entry_price_dec = None
+        if raw_position_update.entry_price:
+            entry_price_dec = parse_decimal_value(raw_position_update.entry_price)
+
+        mark_price_dec = None
+        if raw_position_update.mark_price:
+            mark_price_dec = parse_decimal_value(raw_position_update.mark_price)
+
+        liq_price_dec = None
+        if raw_position_update.liquidation_price:
+            liq_price_dec = parse_decimal_value(raw_position_update.liquidation_price)
+
+        return {
+            "entry_price": entry_price_dec,
+            "mark_price": mark_price_dec,
+            "liquidation_price": liq_price_dec,
+        }
+
+    @staticmethod
+    def _parse_position_update_timestamp(
+        raw_position_update: BackpackRawPositionUpdate,
+    ) -> datetime:
+        """Parse timestamp from position update event."""
+        timestamp = datetime.now(UTC)
+        if raw_position_update.event_time:
+            event_timestamp = parse_datetime_utc(
+                raw_position_update.event_time,
+                field_name="event_time",
+            )
+            if event_timestamp is not None:
+                timestamp = event_timestamp
+        return timestamp
+
+    @staticmethod
+    def _parse_position_update_margin_details(
+        raw_position_update: BackpackRawPositionUpdate,
+    ) -> BackpackPositionDetails:
+        """Parse margin details from position update."""
+        imf_dec = None
+        if raw_position_update.initial_margin_fraction:
+            imf_dec = parse_decimal_value(
+                raw_position_update.initial_margin_fraction,
+                allow_none=True,
+            )
+
+        mmf_dec = None
+        if raw_position_update.maintenance_margin_fraction:
+            mmf_dec = parse_decimal_value(
+                raw_position_update.maintenance_margin_fraction,
+                allow_none=True,
+            )
+
+        return BackpackPositionDetails(
+            imf_base=imf_dec,
+            imf_factor=None,  # Not available in position update
+            mmf_base=mmf_dec,
+            mmf_factor=None,  # Not available in position update
+            cumulative_funding=None,  # Not available in position update
+        )
+
+    @staticmethod
     def transform_ws_position_update_to_internal_position(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> DerivativePosition:
@@ -927,70 +1025,21 @@ class BackpackAccountDataMapper:
 
         """
         try:
-            # Parse core numeric fields defensively
-            if raw_position_update.net_quantity:
-                size_dec = parse_decimal_value(
-                    raw_position_update.net_quantity,
-                    allow_none=False,
-                    field_name="net_quantity",
-                )
-                # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
-                # Mypy=[unreachable] Ruff=[unreachable]
-                if size_dec is None:
-                    size_dec = Decimal("0")
-            else:
-                size_dec = Decimal("0")
-
-            # Parse optional fields
-            entry_price_dec = None
-            if raw_position_update.entry_price:
-                entry_price_dec = parse_decimal_value(raw_position_update.entry_price)
-
-            mark_price_dec = None
-            if raw_position_update.mark_price:
-                mark_price_dec = parse_decimal_value(raw_position_update.mark_price)
-
-            liq_price_dec = None
-            if raw_position_update.liquidation_price:
-                liq_price_dec = parse_decimal_value(raw_position_update.liquidation_price)
+            # Parse core fields using helper methods
+            size_dec = BackpackAccountDataMapper._parse_position_update_size(raw_position_update)
+            prices = BackpackAccountDataMapper._parse_position_update_prices(raw_position_update)
+            timestamp = BackpackAccountDataMapper._parse_position_update_timestamp(
+                raw_position_update,
+            )
+            bp_details = BackpackAccountDataMapper._parse_position_update_margin_details(
+                raw_position_update,
+            )
 
             # Determine side
             side = OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL
+            entry_price_dec = prices["entry_price"]
             if size_dec == Decimal("0"):
                 entry_price_dec = None
-
-            # Parse timestamp from event_time
-            timestamp = datetime.now(UTC)
-            if raw_position_update.event_time:
-                event_timestamp = parse_datetime_utc(
-                    raw_position_update.event_time,
-                    field_name="event_time",
-                )
-                if event_timestamp is not None:
-                    timestamp = event_timestamp
-
-            # Create BackpackPositionDetails with available data
-            imf_dec = None
-            if raw_position_update.initial_margin_fraction:
-                imf_dec = parse_decimal_value(
-                    raw_position_update.initial_margin_fraction,
-                    allow_none=True,
-                )
-
-            mmf_dec = None
-            if raw_position_update.maintenance_margin_fraction:
-                mmf_dec = parse_decimal_value(
-                    raw_position_update.maintenance_margin_fraction,
-                    allow_none=True,
-                )
-
-            bp_details = BackpackPositionDetails(
-                imf_base=imf_dec,
-                imf_factor=None,  # Not available in position update
-                mmf_base=mmf_dec,
-                mmf_factor=None,  # Not available in position update
-                cumulative_funding=None,  # Not available in position update
-            )
 
             return DerivativePosition(
                 exchange=ExchangeName.BACKPACK,
@@ -999,8 +1048,8 @@ class BackpackAccountDataMapper:
                 side=side,
                 size=size_dec,
                 entry_price=entry_price_dec,
-                mark_price=mark_price_dec,
-                liquidation_price=liq_price_dec,
+                mark_price=prices["mark_price"],
+                liquidation_price=prices["liquidation_price"],
                 unrealized_pnl=None,  # Not available in position update
                 realized_pnl=None,  # Not available in position update
                 bp_details=bp_details,

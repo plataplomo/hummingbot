@@ -168,6 +168,104 @@ class BackpackRequestBuilder:
         return BackpackRawGetPositionsParams()
 
     @staticmethod
+    def _map_order_enums_to_api_strings(
+        side: OrderSide,
+        order_type: OrderType,
+        time_in_force: TimeInForce,
+        self_trade_prevention: str | None,
+    ) -> tuple[str, str, str | None, str | None]:
+        """Map internal enums to API string values."""
+        api_side = "Bid" if side == OrderSide.BUY else "Ask"
+
+        api_order_type = {
+            OrderType.LIMIT: "Limit",
+            OrderType.MARKET: "Market",
+            OrderType.STOP_MARKET: "Market",  # With triggerPrice it becomes a stop
+            OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
+        }.get(order_type)
+
+        # Map time in force (only for limit orders, service validates this)
+        api_time_in_force = None
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            api_time_in_force = {
+                TimeInForce.GTC: "GTC",
+                TimeInForce.IOC: "IOC",
+                TimeInForce.FOK: "FOK",
+            }.get(time_in_force)
+
+        # Map self trade prevention
+        api_self_trade_prevention = None
+        if self_trade_prevention:
+            api_self_trade_prevention = {
+                "RejectTaker": "RejectTaker",
+                "RejectMaker": "RejectMaker",
+                "RejectBoth": "RejectBoth",
+            }.get(self_trade_prevention)
+
+        return api_side, api_order_type, api_time_in_force, api_self_trade_prevention
+
+    @staticmethod
+    def _add_basic_order_fields(
+        request_data: dict[str, Any],
+        symbol: str,
+        quantity: Decimal,
+        price: Decimal | None,
+        client_order_id: str | None,
+        post_only: bool,
+        order_type: OrderType,
+        reduce_only: bool,
+        api_time_in_force: str | None,
+        api_self_trade_prevention: str | None,
+    ) -> None:
+        """Add basic order fields to request data."""
+        request_data["quantity"] = str(quantity)
+        if price is not None:
+            request_data["price"] = str(price)
+
+        # Convert client_order_id string to int if provided (service validates convertibility)
+        if client_order_id:
+            request_data["clientId"] = int(client_order_id)
+
+        if post_only and order_type == OrderType.LIMIT:
+            request_data["postOnly"] = post_only
+        if api_time_in_force is not None:
+            request_data["timeInForce"] = api_time_in_force
+        if reduce_only:
+            request_data["reduceOnly"] = reduce_only
+        if api_self_trade_prevention is not None:
+            request_data["selfTradePrevention"] = api_self_trade_prevention
+
+    @staticmethod
+    def _add_stop_loss_fields(
+        request_data: dict[str, Any],
+        stop_loss_trigger_price: Decimal | None,
+        stop_loss_trigger_by: str | None,
+        stop_loss_limit_price: Decimal | None,
+    ) -> None:
+        """Add stop loss fields to request data."""
+        if stop_loss_trigger_price is not None:
+            request_data["stopLossTriggerPrice"] = str(stop_loss_trigger_price)
+        if stop_loss_trigger_by is not None:
+            request_data["stopLossTriggerBy"] = stop_loss_trigger_by
+        if stop_loss_limit_price is not None:
+            request_data["stopLossLimitPrice"] = str(stop_loss_limit_price)
+
+    @staticmethod
+    def _add_take_profit_fields(
+        request_data: dict[str, Any],
+        take_profit_trigger_price: Decimal | None,
+        take_profit_trigger_by: str | None,
+        take_profit_limit_price: Decimal | None,
+    ) -> None:
+        """Add take profit fields to request data."""
+        if take_profit_trigger_price is not None:
+            request_data["takeProfitTriggerPrice"] = str(take_profit_trigger_price)
+        if take_profit_trigger_by is not None:
+            request_data["takeProfitTriggerBy"] = take_profit_trigger_by
+        if take_profit_limit_price is not None:
+            request_data["takeProfitLimitPrice"] = str(take_profit_limit_price)
+
+    @staticmethod
     def build_place_order_payload(
         symbol: str,
         side: OrderSide,
@@ -216,76 +314,50 @@ class BackpackRequestBuilder:
             This method only performs mapping/translation to raw API values.
 
         """
-        # Map internal enums to API strings (no business logic validation)
-        api_side = "Bid" if side == OrderSide.BUY else "Ask"
+        # Map internal enums to API strings using helper method
+        api_side, api_order_type, api_time_in_force, api_self_trade_prevention = (
+            BackpackRequestBuilder._map_order_enums_to_api_strings(
+                side,
+                order_type,
+                time_in_force,
+                self_trade_prevention,
+            )
+        )
 
-        api_order_type = {
-            OrderType.LIMIT: "Limit",
-            OrderType.MARKET: "Market",
-            OrderType.STOP_MARKET: "Market",  # With triggerPrice it becomes a stop
-            OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
-        }.get(order_type)
-
-        # Map time in force (only for limit orders, service validates this)
-        api_time_in_force = None
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
-            api_time_in_force = {
-                TimeInForce.GTC: "GTC",
-                TimeInForce.IOC: "IOC",
-                TimeInForce.FOK: "FOK",
-            }.get(time_in_force)
-
-        # Convert client_order_id string to int if provided (service validates convertibility)
-        client_id = None
-        if client_order_id:
-            client_id = int(client_order_id)
-
-        # Map self trade prevention
-        api_self_trade_prevention = None
-        if self_trade_prevention:
-            api_self_trade_prevention = {
-                "RejectTaker": "RejectTaker",
-                "RejectMaker": "RejectMaker",
-                "RejectBoth": "RejectBoth",
-            }.get(self_trade_prevention)
-
-        # Build the raw request model
+        # Build the raw request model with core fields
         request_data: dict[str, Any] = {
             "orderType": api_order_type,
             "side": api_side,
             "symbol": BackpackRequestBuilder.format_symbol(symbol),
         }
 
-        # Add required quantity field
-        request_data["quantity"] = str(quantity)
-        if price is not None:
-            request_data["price"] = str(price)
-        if client_id is not None:
-            request_data["clientId"] = client_id
-        if post_only and order_type == OrderType.LIMIT:
-            request_data["postOnly"] = post_only
-        if api_time_in_force is not None:
-            request_data["timeInForce"] = api_time_in_force
-        if reduce_only:
-            request_data["reduceOnly"] = reduce_only
-        if api_self_trade_prevention is not None:
-            request_data["selfTradePrevention"] = api_self_trade_prevention
+        # Add basic order fields using helper method
+        BackpackRequestBuilder._add_basic_order_fields(
+            request_data,
+            symbol,
+            quantity,
+            price,
+            client_order_id,
+            post_only,
+            order_type,
+            reduce_only,
+            api_time_in_force,
+            api_self_trade_prevention,
+        )
 
-        # Add stop loss fields if provided
-        if stop_loss_trigger_price is not None:
-            request_data["stopLossTriggerPrice"] = str(stop_loss_trigger_price)
-        if stop_loss_trigger_by is not None:
-            request_data["stopLossTriggerBy"] = stop_loss_trigger_by
-        if stop_loss_limit_price is not None:
-            request_data["stopLossLimitPrice"] = str(stop_loss_limit_price)
-
-        # Add take profit fields if provided
-        if take_profit_trigger_price is not None:
-            request_data["takeProfitTriggerPrice"] = str(take_profit_trigger_price)
-        if take_profit_trigger_by is not None:
-            request_data["takeProfitTriggerBy"] = take_profit_trigger_by
-        if take_profit_limit_price is not None:
-            request_data["takeProfitLimitPrice"] = str(take_profit_limit_price)
+        # Add stop loss and take profit fields using helper methods
+        BackpackRequestBuilder._add_stop_loss_fields(
+            request_data,
+            stop_loss_trigger_price,
+            stop_loss_trigger_by,
+            stop_loss_limit_price,
+        )
+        BackpackRequestBuilder._add_take_profit_fields(
+            request_data,
+            take_profit_trigger_price,
+            take_profit_trigger_by,
+            take_profit_limit_price,
+        )
 
         # Create and return the Pydantic model
         return BackpackRawOrderExecuteRequest(**request_data)

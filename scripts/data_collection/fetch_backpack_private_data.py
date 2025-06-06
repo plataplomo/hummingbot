@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 def lazy_import_authenticator() -> type:
     """Lazily import the authenticator to avoid circular imports."""
     from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+
     return BackpackEd25519Authenticator
 
 
@@ -44,6 +45,7 @@ def lazy_import_config() -> tuple[Any, Any, Any]:
     """Lazily import config functions to avoid circular imports."""
     from cyberdelta.config import get_app_settings, get_secrets_config
     from cyberdelta.config.logging_config import setup_logging
+
     return get_app_settings, get_secrets_config, setup_logging
 
 
@@ -81,11 +83,11 @@ class BackpackPrivateDataCollector:
             secrets = get_secrets_config()
             if not secrets or not secrets.exchanges:
                 raise ValueError("Exchange secrets configuration not found")
-            
+
             backpack_secrets = secrets.exchanges.get("backpack")
             if not backpack_secrets:
                 raise ValueError("Backpack exchange secrets not found")
-            
+
             if backpack_secrets.auth_type != "api_key":
                 raise ValueError("Backpack authentication must be 'api_key' type")
 
@@ -122,16 +124,17 @@ class BackpackPrivateDataCollector:
             )
 
             url = f"{self.api_base_url}{path}"
-            
+
             logger.info(f"Fetching: {method} {url} with params: {params}")
-            
+
             # Make the request with authentication headers
             # For POST/PUT methods, always send JSON data (even if empty) for proper content-type
             json_data = (
-                auth_components.data if method.upper() in ["POST", "PUT"] 
+                auth_components.data
+                if method.upper() in ["POST", "PUT"]
                 else (auth_components.data if auth_components.data else None)
             )
-            
+
             # Add timeout to prevent signature expiration (Backpack has 5 second window)
             timeout = aiohttp.ClientTimeout(total=30)  # 30 second total timeout
             async with self.session.request(
@@ -177,7 +180,9 @@ class BackpackPrivateDataCollector:
         # Using SOL as default as it's commonly held and likely to have dust
         payload = {"symbol": symbol}
         data = await self._fetch_authenticated_json(
-            "POST", "/api/v1/account/convertDust", data=payload,
+            "POST",
+            "/api/v1/account/convertDust",
+            data=payload,
         )
         if data:
             filename = f"bp_private_convert_dust_{symbol.lower()}.json"
@@ -189,14 +194,19 @@ class BackpackPrivateDataCollector:
         # Extract asset symbol from trading pair (e.g., BTC from BTC_USDC)
         asset = symbol.split("_")[0] if "_" in symbol else symbol
         data = await self._fetch_authenticated_json(
-            "GET", "/api/v1/account/limits/borrow", params={"symbol": asset},
+            "GET",
+            "/api/v1/account/limits/borrow",
+            params={"symbol": asset},
         )
         if data:
             filename = f"bp_private_max_borrow_{asset.lower()}.json"
             self._save_json(data, filename)
 
     async def fetch_max_order_quantity(
-        self, symbol: str, side: str, price: str | None = None,
+        self,
+        symbol: str,
+        side: str,
+        price: str | None = None,
     ) -> None:
         """Get max order quantity based on balances."""
         # Convert to proper Backpack enum values
@@ -204,9 +214,11 @@ class BackpackPrivateDataCollector:
         params = {"symbol": symbol, "side": side_enum}
         if price:
             params["price"] = price
-        
+
         data = await self._fetch_authenticated_json(
-            "GET", "/api/v1/account/limits/order", params=params,
+            "GET",
+            "/api/v1/account/limits/order",
+            params=params,
         )
         if data:
             filename = f"bp_private_max_order_{symbol.lower()}_{side.lower()}.json"
@@ -217,7 +229,9 @@ class BackpackPrivateDataCollector:
         # Extract asset symbol from trading pair
         asset = symbol.split("_")[0] if "_" in symbol else symbol
         data = await self._fetch_authenticated_json(
-            "GET", "/api/v1/account/limits/withdrawal", params={"symbol": asset},
+            "GET",
+            "/api/v1/account/limits/withdrawal",
+            params={"symbol": asset},
         )
         if data:
             filename = f"bp_private_max_withdrawal_{asset.lower()}.json"
@@ -244,10 +258,10 @@ class BackpackPrivateDataCollector:
 
     # Deposit Endpoints
     async def fetch_deposit_history(
-        self, 
-        limit: int = 100, 
-        offset: int = 0, 
-        from_ts: int | None = None, 
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        from_ts: int | None = None,
         to_ts: int | None = None,
     ) -> None:
         """Get deposit history."""
@@ -256,9 +270,11 @@ class BackpackPrivateDataCollector:
             params["from"] = str(from_ts)
         if to_ts:
             params["to"] = str(to_ts)
-        
+
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/capital/deposits", params=params,
+            "GET",
+            "/wapi/v1/capital/deposits",
+            params=params,
         )
         if data:
             filename = f"bp_private_deposits_limit{limit}_offset{offset}.json"
@@ -267,7 +283,9 @@ class BackpackPrivateDataCollector:
     async def fetch_deposit_address(self, blockchain: str) -> None:
         """Get deposit address for blockchain."""
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/capital/deposit/address", params={"blockchain": blockchain},
+            "GET",
+            "/wapi/v1/capital/deposit/address",
+            params={"blockchain": blockchain},
         )
         if data:
             filename = f"bp_private_deposit_address_{blockchain.lower()}.json"
@@ -275,10 +293,10 @@ class BackpackPrivateDataCollector:
 
     # Withdrawal Endpoints
     async def fetch_withdrawal_history(
-        self, 
-        limit: int = 100, 
-        offset: int = 0, 
-        from_ts: int | None = None, 
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        from_ts: int | None = None,
         to_ts: int | None = None,
     ) -> None:
         """Get withdrawal history."""
@@ -287,9 +305,11 @@ class BackpackPrivateDataCollector:
             params["from"] = str(from_ts)
         if to_ts:
             params["to"] = str(to_ts)
-        
+
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/capital/withdrawals", params=params,
+            "GET",
+            "/wapi/v1/capital/withdrawals",
+            params=params,
         )
         if data:
             filename = f"bp_private_withdrawals_limit{limit}_offset{offset}.json"
@@ -310,7 +330,9 @@ class BackpackPrivateDataCollector:
     async def fetch_specific_order(self, symbol: str, order_id: str) -> None:
         """Get specific open order."""
         data = await self._fetch_authenticated_json(
-            "GET", "/api/v1/order", params={"symbol": symbol, "orderId": order_id},
+            "GET",
+            "/api/v1/order",
+            params={"symbol": symbol, "orderId": order_id},
         )
         if data:
             filename = f"bp_private_order_{symbol.lower()}_{order_id}.json"
@@ -326,7 +348,7 @@ class BackpackPrivateDataCollector:
                 f"Position endpoint doesn't support symbol filtering. "
                 f"Fetching all positions instead of {symbol}",
             )
-        
+
         data = await self._fetch_authenticated_json("GET", "/api/v1/position", params=None)
         if data:
             if symbol:
@@ -343,9 +365,9 @@ class BackpackPrivateDataCollector:
 
     # History Endpoints
     async def fetch_order_history(
-        self, 
-        symbol: str | None = None, 
-        limit: int = 100, 
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
         offset: int = 0,
         order_id: str | None = None,
         from_ts: int | None = None,
@@ -361,7 +383,7 @@ class BackpackPrivateDataCollector:
             params["from"] = str(from_ts)
         if to_ts:
             params["to"] = str(to_ts)
-        
+
         data = await self._fetch_authenticated_json("GET", "/wapi/v1/history/orders", params=params)
         if data:
             symbol_part = symbol.lower() if symbol else "all"
@@ -369,9 +391,9 @@ class BackpackPrivateDataCollector:
             self._save_json(data, filename)
 
     async def fetch_fill_history(
-        self, 
-        symbol: str | None = None, 
-        limit: int = 100, 
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
         offset: int = 0,
         from_ts: int | None = None,
         to_ts: int | None = None,
@@ -387,7 +409,7 @@ class BackpackPrivateDataCollector:
             params["to"] = str(to_ts)
         if fill_type:
             params["fillType"] = fill_type
-        
+
         data = await self._fetch_authenticated_json("GET", "/wapi/v1/history/fills", params=params)
         if data:
             symbol_part = symbol.lower() if symbol else "all"
@@ -403,18 +425,20 @@ class BackpackPrivateDataCollector:
             self._save_json(data, filename)
 
     async def fetch_funding_history(
-        self, 
-        symbol: str | None = None, 
-        limit: int = 100, 
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get funding payment history."""
         params = {"limit": str(limit), "offset": str(offset)}
         if symbol:
             params["symbol"] = symbol
-        
+
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/history/funding", params=params,
+            "GET",
+            "/wapi/v1/history/funding",
+            params=params,
         )
         if data:
             symbol_part = symbol.lower() if symbol else "all"
@@ -422,16 +446,16 @@ class BackpackPrivateDataCollector:
             self._save_json(data, filename)
 
     async def fetch_pnl_history(
-        self, 
-        symbol: str | None = None, 
-        limit: int = 100, 
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get profit/loss history."""
         params = {"limit": str(limit), "offset": str(offset)}
         if symbol:
             params["symbol"] = symbol
-        
+
         data = await self._fetch_authenticated_json("GET", "/wapi/v1/history/pnl", params=params)
         if data:
             symbol_part = symbol.lower() if symbol else "all"
@@ -439,18 +463,20 @@ class BackpackPrivateDataCollector:
             self._save_json(data, filename)
 
     async def fetch_settlement_history(
-        self, 
-        symbol: str | None = None, 
-        limit: int = 100, 
+        self,
+        symbol: str | None = None,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get settlement history."""
         params = {"limit": str(limit), "offset": str(offset)}
         if symbol:
             params["symbol"] = symbol
-        
+
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/history/settlement", params=params,
+            "GET",
+            "/wapi/v1/history/settlement",
+            params=params,
         )
         if data:
             symbol_part = symbol.lower() if symbol else "all"
@@ -461,42 +487,48 @@ class BackpackPrivateDataCollector:
 
     # Borrow/Lend History Endpoints
     async def fetch_borrow_lend_history(
-        self, 
-        limit: int = 100, 
+        self,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get borrow/lend operation history."""
         params = {"limit": str(limit), "offset": str(offset)}
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/history/borrowLend", params=params,
+            "GET",
+            "/wapi/v1/history/borrowLend",
+            params=params,
         )
         if data:
             filename = f"bp_private_borrow_lend_history_limit{limit}_offset{offset}.json"
             self._save_json(data, filename)
 
     async def fetch_borrow_lend_position_history(
-        self, 
-        limit: int = 100, 
+        self,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get borrow/lend position history."""
         params = {"limit": str(limit), "offset": str(offset)}
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/history/borrowLend/positions", params=params,
+            "GET",
+            "/wapi/v1/history/borrowLend/positions",
+            params=params,
         )
         if data:
             filename = f"bp_private_borrow_lend_position_history_limit{limit}_offset{offset}.json"
             self._save_json(data, filename)
 
     async def fetch_interest_history(
-        self, 
-        limit: int = 100, 
+        self,
+        limit: int = 100,
         offset: int = 0,
     ) -> None:
         """Get interest payment history."""
         params = {"limit": str(limit), "offset": str(offset)}
         data = await self._fetch_authenticated_json(
-            "GET", "/wapi/v1/history/interest", params=params,
+            "GET",
+            "/wapi/v1/history/interest",
+            params=params,
         )
         if data:
             filename = f"bp_private_interest_history_limit{limit}_offset{offset}.json"
@@ -506,7 +538,9 @@ class BackpackPrivateDataCollector:
         """Get borrow/lend market history."""
         params = {"symbol": symbol, "interval": interval}
         data = await self._fetch_authenticated_json(
-            "GET", "/api/v1/borrowLend/markets/history", params=params,
+            "GET",
+            "/api/v1/borrowLend/markets/history",
+            params=params,
         )
         if data:
             filename = f"bp_private_borrow_lend_market_history_{symbol.lower()}_{interval}.json"
@@ -552,7 +586,7 @@ class BackpackPrivateDataCollector:
     def get_borrow_lend_intervals(self) -> list[str]:
         """Get valid intervals for borrow/lend history."""
         return ["1d", "1w", "1month", "1year"]
-    
+
     def get_dust_conversion_assets(self) -> list[str]:
         """Get common assets that might have dust to convert."""
         # Test dust conversion for common assets that users might hold
@@ -565,7 +599,7 @@ class BackpackPrivateDataCollector:
         # Account Management
         logger.info("Fetching account management data...")
         await self.fetch_account_info()
-        
+
         # Test dust conversion for multiple assets
         dust_assets = self.get_dust_conversion_assets()
         for asset in dust_assets:
@@ -624,7 +658,7 @@ class BackpackPrivateDataCollector:
 
         # Historical Data Collection
         logger.info("Fetching historical trading data...")
-        
+
         # Order history
         await self.fetch_order_history(limit=100)
         for symbol in symbols:
@@ -686,7 +720,7 @@ class BackpackPrivateDataCollector:
 
 async def main() -> None:
     """Execute comprehensive Backpack private API data collection with authentication.
-    
+
     Parses command-line arguments, sets up configuration and authentication,
     and runs the complete private data collection process across all authenticated
     Backpack API endpoints. Saves collected data as JSON fixtures for testing.

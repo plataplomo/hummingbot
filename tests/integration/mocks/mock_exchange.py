@@ -109,7 +109,7 @@ class MockErrorMapper(IErrorMapper):
 
 class MockExchangeAPI(ExchangeAPI):
     """Mock implementation of the ExchangeAPI for integration testing.
-    
+
     Simulates basic exchange behavior, including order management, data fetching,
     and WebSocket interactions. Allows simulating errors and latency.
     """
@@ -580,11 +580,8 @@ class MockExchangeAPI(ExchangeAPI):
 
     # --- Order Management ---
 
-    async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place an order. Mock implementation."""
-        self._check_error("place_order")
-        await self._simulate_latency()
-
+    def _validate_order_params(self, args: PlaceOrderArgs) -> None:
+        """Validate order parameters."""
         if args.order_type == OrderType.LIMIT and args.price is None:
             raise APIError(
                 "Price must be specified for LIMIT orders",
@@ -593,32 +590,18 @@ class MockExchangeAPI(ExchangeAPI):
         if args.order_type == OrderType.MARKET and args.price is not None:
             logger.warning("Price is ignored for MARKET orders")
 
-        order_id: str = str(args.client_order_id) if args.client_order_id else str(uuid.uuid4())
-        self._order_id_counter += 1
+    def _check_balance_for_order(self, args: PlaceOrderArgs, order_id: str) -> None:
+        """Check if sufficient balance exists for the order."""
         now = datetime.now(UTC)
-
-        # Simulate order status based on behavior config
-        order_status = OrderStatus.NEW  # Default
-        qty_filled = Decimal("0.0")
-        avg_fill_price = None
-
-        # Basic balance check (improve this based on actual needs)
         base_asset, quote_asset = self._split_symbol(args.symbol)
-        required_balance = Decimal("0")  # Initialize
-        asset_to_check = ""
 
         if args.side == OrderSide.BUY:
             asset_to_check = quote_asset
-            # Approximate quote needed (can be refined)
-            required_balance = args.quantity * (
-                args.price
-                if args.price
-                else self._mock_tickers.get(
-                    args.symbol,
-                    Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
-                ).price
-                or Decimal("0")
-            )
+            ticker_price = self._mock_tickers.get(
+                args.symbol,
+                Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
+            ).price or Decimal("0")
+            required_balance = args.quantity * (args.price if args.price else ticker_price)
         else:  # SELL
             asset_to_check = base_asset
             required_balance = args.quantity
@@ -630,51 +613,62 @@ class MockExchangeAPI(ExchangeAPI):
                 total_quantity=Decimal("0"),
                 available_quantity=Decimal("0"),
                 exchange=self.exchange_name,
-                timestamp=now,  # Add missing timestamp
+                timestamp=now,
             ),
         ).available_quantity
 
         if current_balance < required_balance:
             logger.warning(f"Mock {self.exchange_name}: Insufficient balance for order {order_id}")
-            # Raise error or return rejected order
             raise APIError("Insufficient balance", code=APIErrorCode.INSUFFICIENT_FUNDS.value)
-            # Or create a REJECTED order:
-            # order = self._create_internal_mock_order(... status=OrderStatus.REJECTED ...)
-            # self._orders[order_id] = order
-            # return order
+
+    def _determine_order_fill_params(
+        self,
+        args: PlaceOrderArgs,
+    ) -> tuple[OrderStatus, Decimal, Decimal | None]:
+        """Determine order status, fill quantity, and average fill price based on behavior."""
+        now = datetime.now(UTC)
 
         if self._open_orders_behavior == "fill_immediately":
             order_status = OrderStatus.FILLED
             qty_filled = args.quantity
-            # Use provided price for LIMIT, or mock ticker price for MARKET
-            avg_fill_price = (
-                args.price
-                if args.order_type == OrderType.LIMIT
-                else (
-                    self._mock_tickers.get(
-                        args.symbol,
-                        Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
-                    ).price
-                    or Decimal("0")
-                )
-            )
+            avg_fill_price = self._get_fill_price(args, now)
         elif self._open_orders_behavior == "partial_fill":
             order_status = OrderStatus.PARTIALLY_FILLED
-            qty_filled = args.quantity / 2  # Example partial fill
-            avg_fill_price = (
-                args.price
-                if args.order_type == OrderType.LIMIT
-                else (
-                    self._mock_tickers.get(
-                        args.symbol,
-                        Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
-                    ).price
-                    or Decimal("0")
-                )
-            )
+            qty_filled = args.quantity / 2
+            avg_fill_price = self._get_fill_price(args, now)
         else:  # default or keep_open
-            order_status = OrderStatus.OPEN  # Or NEW?
+            order_status = OrderStatus.OPEN
+            qty_filled = Decimal("0.0")
+            avg_fill_price = None
 
+        return order_status, qty_filled, avg_fill_price
+
+    def _get_fill_price(self, args: PlaceOrderArgs, timestamp: datetime) -> Decimal:
+        """Get fill price for an order."""
+        if args.order_type == OrderType.LIMIT:
+            return args.price or Decimal("0")
+
+        ticker = self._mock_tickers.get(
+            args.symbol,
+            Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=timestamp),
+        )
+        return ticker.price or Decimal("0")
+
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
+        """Place an order. Mock implementation."""
+        self._check_error("place_order")
+        await self._simulate_latency()
+
+        self._validate_order_params(args)
+
+        order_id: str = str(args.client_order_id) if args.client_order_id else str(uuid.uuid4())
+        self._order_id_counter += 1
+
+        self._check_balance_for_order(args, order_id)
+
+        order_status, qty_filled, avg_fill_price = self._determine_order_fill_params(args)
+
+        now = datetime.now(UTC)
         # Create the order using the helper method
         order = self._create_internal_mock_order(
             client_order_id=order_id,  # Use the generated/provided ID

@@ -19,7 +19,7 @@ class IErrorMapper(ABC):
         original_exception: Exception | None = None,
     ) -> APIError:
         """Maps a raw exchange error to a standardized APIError.
-        
+
         Converts HTTP status, body, or parsed data from exchange responses.
 
         Implementations should handle specifics of their exchange's error reporting.

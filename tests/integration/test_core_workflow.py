@@ -159,8 +159,8 @@ def populate_data_handler(
     timestamp: datetime,
 ) -> None:
     """Populate the DataHandler with mock data using the correct nested structure.
-    
-    Updates last update times for exchange data and provides mock ticker, 
+
+    Updates last update times for exchange data and provides mock ticker,
     funding rate, and order book data for testing.
 
     Args:
@@ -488,7 +488,7 @@ async def test_happy_path_full_cycle(
     mocker: MockerFixture,
 ) -> None:
     """Test the full arbitrage cycle: data -> signal -> validation -> execution.
-    
+
     Covers the complete workflow from market data ingestion through signal generation,
     validation, execution, and portfolio updates in an integrated test scenario.
     """
@@ -896,6 +896,207 @@ async def test_insufficient_balance(
     # Placeholder for actual test logic
 
 
+def _setup_partial_fill_test_data(
+    now: datetime,
+) -> tuple[str, str, str, Ticker, Ticker, FundingRate, FundingRate, OrderBook, OrderBook]:
+    """Setup test data for partial fill test."""
+    symbol_key = "BTC"
+    hl_symbol = "BTC-PERP"
+    bp_symbol = "BTC_USDC"
+
+    # Tickers with better spread
+    mock_hl_ticker = create_mock_ticker(hl_symbol, "40005.0", "40007.0", "40006.0", now)
+    mock_bp_ticker = create_mock_ticker(bp_symbol, "40000.0", "40002.0", "40001.0", now)
+
+    # Funding Rates
+    next_funding_dt = now + timedelta(hours=1)
+    mock_hl_funding = create_mock_funding_rate(hl_symbol, "-0.0001", next_funding_dt)
+    mock_bp_funding = create_mock_funding_rate(bp_symbol, "0.0002", next_funding_dt)
+
+    # Order Books
+    mock_hl_ob = create_mock_orderbook(hl_symbol, [(40000.0, 1.0)], [(40002.0, 1.5)], now)
+    mock_bp_ob = create_mock_orderbook(bp_symbol, [(40004.0, 0.5)], [(40006.0, 2.0)], now)
+
+    return (
+        symbol_key,
+        hl_symbol,
+        bp_symbol,
+        mock_hl_ticker,
+        mock_bp_ticker,
+        mock_hl_funding,
+        mock_bp_funding,
+        mock_hl_ob,
+        mock_bp_ob,
+    )
+
+
+def _setup_bp_partial_fill_orders(
+    exchange_name: str,
+    symbol: str,
+    target_qty: Decimal,
+    partial_fill_qty: Decimal,
+    long_order_id: str,
+    comp_order_id: str,
+    ticker: Ticker,
+    now: datetime,
+) -> dict[str, Order]:
+    """Setup BP orders for partial fill test."""
+    initial_partial_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=long_order_id,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.PARTIALLY_FILLED,
+        qty_req=target_qty,
+        qty_fill=partial_fill_qty,
+        avg_price=Decimal("40006.0"),
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    compensation_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=comp_order_id,
+        symbol=symbol,
+        side=OrderSide.SELL,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=partial_fill_qty,
+        qty_fill=partial_fill_qty,
+        avg_price=ticker.bid,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    return {
+        "initial": initial_partial_order,
+        "compensation": compensation_order,
+    }
+
+
+def _setup_bp_mock_behaviors(
+    mocker: MockerFixture,
+    mock_api: MockExchangeAPI,
+    orders: dict[str, Order],
+    order_ids: dict[str, str],
+    call_counts: dict[str, int],
+    partial_fill_qty: Decimal,
+) -> None:
+    """Setup BP mock API behaviors for partial fill test."""
+
+    async def place_order_side_effect(*args: object, **kwargs: object) -> Order:
+        call_counts["place"] += 1
+        side = kwargs.get("side")
+        logger.debug(f"MOCK BP place_order call {call_counts['place']}, side={side}")
+
+        if call_counts["place"] == 1 and side == OrderSide.BUY:
+            return orders["initial"]
+        elif call_counts["place"] == 2 and side == OrderSide.SELL:
+            return orders["compensation"]
+        else:
+            raise MockAPIError(f"Unexpected BP place_order call {call_counts['place']}")
+
+    async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
+        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
+        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
+
+        if order_id == order_ids["bp_long"]:
+            return orders["initial"]
+        elif order_id == order_ids["bp_comp"]:
+            return orders["compensation"]
+        else:
+            logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+            return None
+
+    mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
+    mocker.patch.object(mock_api, "get_order_status", side_effect=get_order_status_side_effect)
+
+
+def _setup_hl_partial_fill_orders(
+    exchange_name: str,
+    symbol: str,
+    target_qty: Decimal,
+    short_order_id: str,
+    comp_order_id: str,
+    ticker: Ticker,
+    now: datetime,
+) -> dict[str, Order]:
+    """Setup HL orders for partial fill test."""
+    short_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=short_order_id,
+        symbol=symbol,
+        side=OrderSide.SELL,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=ticker.bid,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    compensation_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=comp_order_id,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=ticker.ask,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    return {
+        "initial": short_order,
+        "compensation": compensation_order,
+    }
+
+
+def _setup_hl_partial_fill_behaviors(
+    mocker: MockerFixture,
+    mock_hl_api: MockExchangeAPI,
+    hl_orders: dict[str, Order],
+    order_ids: dict[str, str],
+    hl_call_counts: dict[str, int],
+    target_qty: Decimal,
+) -> None:
+    """Setup HL mock API behaviors for partial fill test."""
+
+    async def place_order_side_effect(*args: object, **kwargs: object) -> Order:
+        hl_call_counts["place"] += 1
+        side = kwargs.get("side")
+        logger.debug(f"MOCK HL place_order call {hl_call_counts['place']}, side={side}")
+
+        if hl_call_counts["place"] == 1 and side == OrderSide.SELL:
+            return hl_orders["initial"]
+        else:
+            raise MockAPIError(f"Unexpected HL place_order call {hl_call_counts['place']}")
+
+    async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
+        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
+        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
+
+        if order_id == order_ids["hl_short"]:
+            return hl_orders["initial"]
+        elif order_id == order_ids["hl_comp"]:
+            return hl_orders["compensation"]
+        else:
+            logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+            return None
+
+    mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect)
+    mocker.patch.object(mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect)
+
+
 @pytest.mark.asyncio
 async def test_partial_fill(
     mock_config: AppSettings,
@@ -912,69 +1113,31 @@ async def test_partial_fill(
 ) -> None:
     """Tests the scenario where one leg fills partially and the other fully."""
     caplog.set_level(logging.DEBUG)
-
-    # --- Setup Mock Data ---
     now = datetime.now(UTC)
-    symbol_key = "BTC"
-    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
-    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
+
+    # Setup test data
+    (
+        symbol_key,
+        hl_symbol,
+        bp_symbol,
+        mock_hl_ticker,
+        mock_bp_ticker,
+        mock_hl_funding,
+        mock_bp_funding,
+        mock_hl_ob,
+        mock_bp_ob,
+    ) = _setup_partial_fill_test_data(now)
+
+    # Reset APIs and tracker
     mock_hl_api.reset()
     mock_bp_api.reset()
-    # Re-initialize portfolio tracker state for this test
     portfolio_tracker.reset()
 
-    # Tickers
-    # Original: mock_hl_ticker = create_mock_ticker(hl_symbol, 40000.0, 40002.0, 40001.0, now)
-    # Original: mock_bp_ticker = create_mock_ticker(bp_symbol, 40004.0, 40006.0, 40005.0, now)
-    # New prices for better spread: Short HL (sell at HL bid), Long BP (buy at BP ask)
-    # We want HL_bid >= BP_ask for positive price component of profit
-    mock_hl_ticker = create_mock_ticker(
-        hl_symbol,
-        "40005.0",
-        "40007.0",
-        "40006.0",
-        now,
-    )  # bid, ask, price
-    mock_bp_ticker = create_mock_ticker(
-        bp_symbol,
-        "40000.0",
-        "40002.0",
-        "40001.0",
-        now,
-    )  # bid, ask, price
-
+    # Setup mock API behaviors
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
-
-    # Funding Rates (Flipped to make BP long)
-    next_funding_dt = now + timedelta(hours=1)
-    mock_hl_funding = create_mock_funding_rate(
-        hl_symbol,
-        "-0.0001",
-        next_funding_dt,  # HL is now lower
-    )
-    mock_bp_funding = create_mock_funding_rate(
-        bp_symbol,
-        "0.0002",
-        next_funding_dt,  # BP is now higher
-    )
     mock_hl_api.set_mock_funding_rate(mock_hl_funding)
     mock_bp_api.set_mock_funding_rate(mock_bp_funding)
-
-    # Order Books
-    mock_hl_ob = create_mock_orderbook(hl_symbol, [(40000.0, 1.0)], [(40002.0, 1.5)], now)
-    mock_bp_ob = create_mock_orderbook(bp_symbol, [(40004.0, 0.5)], [(40006.0, 2.0)], now)
-    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Incorrect
-    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Incorrect
-    # Assuming mocker is not available or needed here if not using patch.object
-    # If MockExchangeAPI methods are already AsyncMocks, direct assignment is okay.
-    # However, if they are normal methods, patch.object is required.
-    # For consistency with other tests, let's assume we need mocker if we were to patch.
-    # This test currently uses direct assignment to .side_effect for place_order, so
-    # get_order_book might need to be patched if it's not an AsyncMock itself.
-    # Re-checking MockExchangeAPI: get_order_book is a normal async def.
-    # So, it MUST be patched if its return value is to be controlled.
-    # This test is missing mocker fixture in its signature. Adding it.
     mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
     mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
     # The lines above were commented out, but `mock_hl_api.get_order_book.return_value` was present.
@@ -1014,170 +1177,57 @@ async def test_partial_fill(
     #     original_handler_levels[handler] = handler.level
     #     handler.setLevel(logging.DEBUG)
 
-    # --- Configure Mock Behavior for Partial Fill ---
+    # Configure Mock Behavior for Partial Fill
     target_qty = Decimal("0.1")
     partial_fill_qty = target_qty / 2
-    long_order_id_bp = "bp_long_partial"
-    short_order_id_hl = "hl_short_full"
-    compensation_order_id_bp = "bp_compensate_sell_partial"  # New ID for BP compensation
-    compensation_order_id_hl = "hl_compensate_buy_partial"  # New ID for HL compensation
+    order_ids = {
+        "bp_long": "bp_long_partial",
+        "hl_short": "hl_short_full",
+        "bp_comp": "bp_compensate_sell_partial",
+        "hl_comp": "hl_compensate_buy_partial",
+    }
 
-    # BP (Long) - Simulate partial fill then full fill
-    bp_place_call_count = 0
-    # Initial BP Order (Partial Fill)
-    bp_initial_partial_order = _create_internal_mock_order(
-        exchange_name=mock_bp_api.exchange_name,
-        client_order_id=long_order_id_bp,
-        symbol=bp_symbol,
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.PARTIALLY_FILLED,
-        qty_req=target_qty,
-        qty_fill=partial_fill_qty,
-        avg_price=Decimal("40006.0"),
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
-    )
-    # Compensation BP Order (Sell) - Use helper
-    bp_compensation_order = _create_internal_mock_order(
-        exchange_name=mock_bp_api.exchange_name,
-        client_order_id=compensation_order_id_bp,
-        symbol=bp_symbol,
-        side=OrderSide.SELL,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=partial_fill_qty,  # Compensate only the filled amount
-        qty_fill=partial_fill_qty,
-        avg_price=mock_bp_ticker.bid,  # Use current bid for compensation sell
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
+    # Setup BP mock orders and behaviors
+    bp_orders = _setup_bp_partial_fill_orders(
+        mock_bp_api.exchange_name,
+        bp_symbol,
+        target_qty,
+        partial_fill_qty,
+        order_ids["bp_long"],
+        order_ids["bp_comp"],
+        mock_bp_ticker,
+        now,
     )
 
-    async def place_order_side_effect_bp(*args: object, **kwargs: object) -> Order:
-        nonlocal bp_place_call_count
-        bp_place_call_count += 1
-        side = kwargs.get("side")
-        logger.debug(
-            f"MOCK BP place_order call {bp_place_call_count}, side={side}, qty={partial_fill_qty}",
-        )
-        if bp_place_call_count == 1 and side == OrderSide.BUY:
-            logger.debug("MOCK BP place_order: Returning initial partial fill BUY order.")
-            return bp_initial_partial_order
-        if bp_place_call_count == 2 and side == OrderSide.SELL:
-            logger.debug("MOCK BP place_order: Returning compensation SELL order.")
-            assert partial_fill_qty == partial_fill_qty, "Compensation sell qty mismatch"
-            return bp_compensation_order
-        logger.error(f"MOCK BP place_order: Unexpected call {bp_place_call_count} side={side}")
-        raise MockAPIError(f"place_order on BP called unexpectedly {bp_place_call_count} times")
-
-    # mock_bp_api.place_order.side_effect = place_order_side_effect_bp # Replaced by mocker.patch
-    mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_side_effect_bp)
-
-    bp_status_call_count = 0
-
-    async def get_order_status_side_effect_bp(*args: object, **kwargs: object) -> Order | None:
-        nonlocal bp_status_call_count
-        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
-
-        if order_id == long_order_id_bp:
-            # Simulate it stays partially filled until compensation is triggered
-            logger.debug(f"MOCK BP get_order_status: Returning PARTIALLY_FILLED for {order_id}")
-            return bp_initial_partial_order  # Keep returning partial status
-        if order_id == compensation_order_id_bp:
-            logger.debug(
-                f"MOCK BP get_order_status: Returning FILLED for compensation order {order_id}",
-            )
-            return bp_compensation_order
-        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
-        return None
-
-    # mock_bp_api.get_order_status.side_effect = get_order_status_side_effect_bp
-    # Replaced by mocker.patch
-    mocker.patch.object(
+    bp_call_counts = {"place": 0, "status": 0}
+    _setup_bp_mock_behaviors(
+        mocker,
         mock_bp_api,
-        "get_order_status",
-        side_effect=get_order_status_side_effect_bp,
+        bp_orders,
+        order_ids,
+        bp_call_counts,
+        partial_fill_qty,
     )
 
-    # HL (Short) - Fills completely initially, then needs compensation
-    hl_place_call_count = 0
-    # Initial HL Order (Full Fill)
-    hl_initial_full_order = _create_internal_mock_order(
-        exchange_name=mock_hl_api.exchange_name,
-        client_order_id=short_order_id_hl,
-        symbol=hl_symbol,
-        side=OrderSide.SELL,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,
-        qty_fill=target_qty,
-        avg_price=Decimal("40000.0"),
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
-    )
-    # Compensation HL Order (Buy) - Use helper
-    hl_compensation_order = _create_internal_mock_order(
-        exchange_name=mock_hl_api.exchange_name,
-        client_order_id=compensation_order_id_hl,
-        symbol=hl_symbol,
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,  # Compensate the full initial amount
-        qty_fill=target_qty,
-        avg_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
+    # Setup HL mock orders and behaviors
+    hl_orders = _setup_hl_partial_fill_orders(
+        mock_hl_api.exchange_name,
+        hl_symbol,
+        target_qty,
+        order_ids["hl_short"],
+        order_ids["hl_comp"],
+        mock_hl_ticker,
+        now,
     )
 
-    async def place_order_side_effect_hl(
-        *args: object,
-        **kwargs: object,
-    ) -> Order:  # Corrected return type to Order
-        nonlocal hl_place_call_count
-        hl_place_call_count += 1
-        side = kwargs.get("side")
-        logger.debug(
-            f"MOCK HL place_order call {hl_place_call_count}, side={side}, qty={target_qty}",
-        )
-        if hl_place_call_count == 1 and side == OrderSide.SELL:
-            logger.debug("MOCK HL place_order: Returning initial full fill SELL order.")
-            return hl_initial_full_order
-        if hl_place_call_count == 2 and side == OrderSide.BUY:
-            logger.debug("MOCK HL place_order: Returning compensation BUY order.")
-            assert target_qty == target_qty, "Compensation buy qty mismatch"
-            return hl_compensation_order
-        logger.error(f"MOCK HL place_order: Unexpected call {hl_place_call_count} side={side}")
-        raise MockAPIError(f"place_order on HL called unexpectedly {hl_place_call_count} times")
-
-    # mock_hl_api.place_order.side_effect = place_order_side_effect_hl # Replaced by mocker.patch
-    mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
-
-    async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
-        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
-        if order_id == short_order_id_hl:
-            logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
-            return hl_initial_full_order
-        if order_id == compensation_order_id_hl:
-            logger.debug(
-                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}",
-            )
-            return hl_compensation_order
-        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
-        return None
-
-    # mock_hl_api.get_order_status.side_effect = get_order_status_side_effect_hl
-    # Replaced by mocker.patch
-    mocker.patch.object(
+    hl_call_counts = {"place": 0}
+    _setup_hl_partial_fill_behaviors(
+        mocker,
         mock_hl_api,
-        "get_order_status",
-        side_effect=get_order_status_side_effect_hl,
+        hl_orders,
+        order_ids,
+        hl_call_counts,
+        target_qty,
     )
 
     # --- Execute Test ---
@@ -1317,6 +1367,365 @@ async def test_partial_fill(
 
 
 @pytest.mark.asyncio
+def _setup_compensation_test_data(
+    now: datetime,
+) -> tuple[
+    str,
+    str,
+    str,
+    Ticker,
+    Ticker,
+    Ticker,
+    Ticker,
+    FundingRate,
+    FundingRate,
+    OrderBook,
+    OrderBook,
+]:
+    """Setup test data for execution failure compensation test."""
+    symbol_key = "ETH"
+    hl_symbol = "BTC-PERP"
+    bp_symbol = "BTC_USDC"
+
+    # Tickers
+    mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
+    mock_bp_ticker = create_mock_ticker(bp_symbol, 2001.0, 2001.5, 2001.25, now)
+    mock_usd_usdc_hl_ticker = create_mock_ticker("USD-USDC", "0.999", "1.001", "1.0", now)
+    mock_usdc_usd_bp_ticker = create_mock_ticker("USDC-USD", "0.999", "1.001", "1.0", now)
+
+    # Funding Rates
+    next_funding_dt = now + timedelta(hours=1)
+    mock_hl_funding = create_mock_funding_rate(hl_symbol, "-0.0001", next_funding_dt)
+    mock_bp_funding = create_mock_funding_rate(bp_symbol, "0.0002", next_funding_dt)
+
+    # Order Books
+    mock_hl_ob = create_mock_orderbook(hl_symbol, [(2000.0, 1.0)], [(2001.0, 1.5)], now)
+    mock_bp_ob = create_mock_orderbook(bp_symbol, [(1998.0, 0.5)], [(1999.0, 2.0)], now)
+
+    return (
+        symbol_key,
+        hl_symbol,
+        bp_symbol,
+        mock_hl_ticker,
+        mock_bp_ticker,
+        mock_usd_usdc_hl_ticker,
+        mock_usdc_usd_bp_ticker,
+        mock_hl_funding,
+        mock_bp_funding,
+        mock_hl_ob,
+        mock_bp_ob,
+    )
+
+
+def _setup_compensation_mock_apis(
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+    mock_hl_ticker: Ticker,
+    mock_bp_ticker: Ticker,
+    mock_usd_usdc_hl_ticker: Ticker,
+    mock_usdc_usd_bp_ticker: Ticker,
+    mock_hl_funding: FundingRate,
+    mock_bp_funding: FundingRate,
+    mocker: MockerFixture,
+    mock_hl_ob: OrderBook,
+    mock_bp_ob: OrderBook,
+) -> None:
+    """Setup mock API behaviors."""
+    mock_hl_api.reset()
+    mock_bp_api.reset()
+
+    mock_hl_api.set_mock_ticker(mock_hl_ticker)
+    mock_hl_api.set_mock_ticker(mock_usd_usdc_hl_ticker)
+    mock_bp_api.set_mock_ticker(mock_bp_ticker)
+    mock_bp_api.set_mock_ticker(mock_usdc_usd_bp_ticker)
+
+    mock_hl_api.set_mock_funding_rate(mock_hl_funding)
+    mock_bp_api.set_mock_funding_rate(mock_bp_funding)
+
+    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
+    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
+
+
+def _setup_compensation_order_ids() -> dict[str, str]:
+    """Setup order IDs for compensation test."""
+    return {
+        "bp_long": "bp_long_success",
+        "hl_short": "hl_short_fails",
+        "bp_comp": "bp_compensate_sell",
+        "hl_comp": "hl_compensate_buy",
+    }
+
+
+def _create_compensation_bp_orders(
+    exchange_name: str,
+    symbol: str,
+    target_qty: Decimal,
+    long_order_id: str,
+    comp_order_id: str,
+    ticker: Ticker,
+    now: datetime,
+) -> dict[str, Order]:
+    """Create BP orders for compensation test."""
+    long_fill_price = ticker.ask
+    bp_initial_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=long_order_id,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=long_fill_price,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    compensation_fill_price = ticker.bid
+    bp_compensation_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=comp_order_id,
+        symbol=symbol,
+        side=OrderSide.SELL,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=compensation_fill_price,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    return {
+        "initial": bp_initial_order,
+        "compensation": bp_compensation_order,
+    }
+
+
+def _setup_bp_compensation_mock_behaviors(
+    mocker: MockerFixture,
+    mock_api: MockExchangeAPI,
+    initial_order: Order,
+    compensation_order: Order,
+    long_order_id: str,
+    comp_order_id: str,
+    call_counts: dict[str, int],
+) -> None:
+    """Setup BP mock API behaviors for compensation test."""
+
+    async def place_order_side_effect(*args: object, **kwargs: object) -> Order:
+        call_counts["place"] += 1
+        side = kwargs.get("side")
+        logger.debug(f"MOCK BP place_order (call {call_counts['place']}, side={side}) called")
+
+        if call_counts["place"] == 1 and side == OrderSide.BUY:
+            logger.debug("MOCK BP place_order: Returning successful initial long order.")
+            return initial_order
+        elif call_counts["place"] == 2 and side == OrderSide.SELL:
+            logger.debug("MOCK BP place_order: Returning successful compensation sell order.")
+            return compensation_order
+        else:
+            logger.error(
+                f"MOCK BP place_order: Unexpected call {call_counts['place']} with side {side}",
+            )
+            raise MockAPIError(
+                f"Unexpected BP place_order call {call_counts['place']} with side {side}",
+            )
+
+    async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
+        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
+        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
+
+        if order_id == long_order_id:
+            logger.debug("MOCK BP get_order_status: Returning status for initial long order.")
+            return initial_order
+        elif order_id == comp_order_id:
+            logger.debug("MOCK BP get_order_status: Returning status for compensation order.")
+            return compensation_order
+        else:
+            logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+            return None
+
+    if not hasattr(mock_api.place_order, "call_args_list"):
+        mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
+
+    if not hasattr(mock_api.get_order_status, "call_args_list"):
+        mocker.patch.object(mock_api, "get_order_status", side_effect=get_order_status_side_effect)
+
+
+def _create_compensation_hl_orders(
+    exchange_name: str,
+    symbol: str,
+    target_qty: Decimal,
+    short_order_id: str,
+    comp_order_id: str,
+    ticker: Ticker,
+    now: datetime,
+) -> dict[str, Order]:
+    """Create HL orders for compensation test."""
+    initial_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=short_order_id,
+        symbol=symbol,
+        side=OrderSide.SELL,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=Decimal("40000.0"),
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    compensation_order = _create_internal_mock_order(
+        exchange_name=exchange_name,
+        client_order_id=comp_order_id,
+        symbol=symbol,
+        side=OrderSide.BUY,
+        order_type=OrderType.MARKET,
+        status=OrderStatus.FILLED,
+        qty_req=target_qty,
+        qty_fill=target_qty,
+        avg_price=ticker.ask,
+        price=None,
+        time_in_force=TimeInForce.IOC,
+        ts=now,
+    )
+
+    return {
+        "initial": initial_order,
+        "compensation": compensation_order,
+    }
+
+
+def _setup_hl_compensation_mock_behaviors(
+    mocker: MockerFixture,
+    mock_api: MockExchangeAPI,
+    orders: dict[str, Order],
+    order_ids: dict[str, str],
+    api_error: MockAPIError,
+    call_counts: dict[str, int],
+    target_qty: Decimal,
+) -> None:
+    """Setup HL mock API behaviors for compensation test."""
+
+    async def place_order_side_effect(*args: object, **kwargs: object) -> Order:
+        call_counts["place"] += 1
+        side = kwargs.get("side")
+        logger.debug(
+            f"MOCK HL place_order call {call_counts['place']}, side={side}, qty={target_qty}",
+        )
+
+        if call_counts["place"] == 1 and side == OrderSide.SELL:
+            logger.debug("MOCK HL place_order: Raising simulated API error.")
+            raise api_error
+        else:
+            logger.error(
+                f"MOCK HL place_order: Unexpected call {call_counts['place']} with side {side}",
+            )
+            raise MockAPIError(
+                f"Unexpected HL place_order call {call_counts['place']} with side {side}",
+            )
+
+    async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
+        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
+        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
+
+        if order_id == order_ids["hl_short"]:
+            logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
+            return orders["initial"]
+        elif order_id == order_ids["hl_comp"]:
+            logger.debug(
+                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}",
+            )
+            return orders["compensation"]
+        else:
+            logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+            return None
+
+    if not hasattr(mock_api.place_order, "call_args_list"):
+        mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
+
+    if not hasattr(mock_api.get_order_status, "call_args_list"):
+        mocker.patch.object(mock_api, "get_order_status", side_effect=get_order_status_side_effect)
+
+
+def _prepare_funding_data(
+    data_handler: DataHandler,
+    symbol_mapper: SymbolMapper,
+) -> dict[str, dict[str, FundingRate | None]]:
+    """Prepare funding data structure for signal generation."""
+    sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
+    for ex_id_key, sym_data_map in data_handler.funding_rates.items():
+        for ex_specific_sym, rate_data_obj in sym_data_map.items():
+            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            if internal_sym is None:
+                logger.warning(
+                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
+                    f"to internal symbol. Skipping.",
+                )
+                continue
+            sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
+    return sg_funding_data
+
+
+async def _generate_test_opportunities(
+    signal_generator: SignalGenerator,
+    funding_data: dict[str, dict[str, FundingRate | None]],
+    mocker: MockerFixture,
+    now: datetime,
+) -> list[ArbitrageOpportunity]:
+    """Generate arbitrage opportunities for testing."""
+    with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
+        mock_dt_real_now.return_value = now
+        return await signal_generator.generate_arbitrage_opportunities(funding_data=funding_data)
+
+
+def _validate_opportunities(
+    opportunities: list[ArbitrageOpportunity],
+    symbol_key: str,
+    mock_bp_funding: FundingRate,
+    mock_hl_funding: FundingRate,
+) -> ArbitrageOpportunity:
+    """Validate and return the first opportunity."""
+    logger.info(f"Generated {len(opportunities)} opportunities.")
+    if not opportunities:
+        logger.warning("No opportunities generated. This is unexpected.")
+        raise ValueError("No opportunities generated")
+
+    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
+    sg_logger.setLevel(logging.DEBUG)
+
+    assert len(opportunities) >= 1
+    opportunity = opportunities[0]
+    assert opportunity.symbol == symbol_key
+    assert opportunity.long_exchange == "mock_bp"
+    assert opportunity.short_exchange == "mock_hl"
+    assert opportunity.long_funding_rate == mock_bp_funding.funding_rate
+    assert opportunity.short_funding_rate == mock_hl_funding.funding_rate
+
+    # Validate funding differential
+    bp_rate = mock_bp_funding.funding_rate
+    hl_rate = mock_hl_funding.funding_rate
+    assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
+    assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
+    expected_nfd = bp_rate - hl_rate
+    tolerance = Decimal("1e-10")
+    assert abs(opportunity.net_funding_differential - expected_nfd) <= tolerance
+
+    return opportunity
+
+
+async def _log_debug_info(portfolio_tracker: PortfolioTracker) -> None:
+    """Log debug information about portfolio tracker state."""
+    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
+    total_cap_debug = await portfolio_tracker.get_total_capital()
+    logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
+
+
 async def test_execution_failure_compensation(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
@@ -1332,69 +1741,39 @@ async def test_execution_failure_compensation(
 ) -> None:
     """Tests that compensation logic is triggered if one leg fails execution."""
     caplog.set_level(logging.DEBUG)
-
-    # --- Setup Mock Data ---
     now = datetime.now(UTC)
-    symbol_key = "ETH"
-    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
-    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
-    # short_order_id_hl = ( # REMOVE - Unused variable
-    #     "hl_short_for_comp_test"  # Define short_order_id_hl for
-    #     # test_execution_failure_compensation
-    # )
-    mock_hl_api.reset()
-    mock_bp_api.reset()
-    # Re-initialize portfolio tracker state for this test
-    portfolio_tracker.reset()
 
-    # Tickers
-    mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
-    mock_bp_ticker = create_mock_ticker(bp_symbol, 2001.0, 2001.5, 2001.25, now)
-    mock_usd_usdc_hl_ticker = create_mock_ticker(
-        "USD-USDC",
-        "0.999",
-        "1.001",
-        "1.0",
-        now,
-    )  # For HL USD to USDC
-    mock_usdc_usd_bp_ticker = create_mock_ticker(
-        "USDC-USD",
-        "0.999",
-        "1.001",
-        "1.0",
-        now,
-    )  # For BP USDC to USD
-
-    mock_hl_api.set_mock_ticker(mock_hl_ticker)
-    mock_hl_api.set_mock_ticker(mock_usd_usdc_hl_ticker)  # Add to Hyperliquid mock API
-
-    mock_bp_api.set_mock_ticker(mock_bp_ticker)
-    # mock_bp_api.set_mock_ticker(mock_usdc_usd_ticker)
-    # Old name, renamed to mock_usdc_usd_bp_ticker
-    mock_bp_api.set_mock_ticker(mock_usdc_usd_bp_ticker)  # Add to Backpack mock API
-
-    # Funding Rates (Flipped to make BP long)
-    next_funding_dt = now + timedelta(hours=1)
-    mock_hl_funding = create_mock_funding_rate(
+    # Setup test data
+    (
+        symbol_key,
         hl_symbol,
-        "-0.0001",
-        next_funding_dt,  # HL is now lower
-    )
-    mock_bp_funding = create_mock_funding_rate(
         bp_symbol,
-        "0.0002",
-        next_funding_dt,  # BP is now higher
-    )
-    mock_hl_api.set_mock_funding_rate(mock_hl_funding)
-    mock_bp_api.set_mock_funding_rate(mock_bp_funding)
+        mock_hl_ticker,
+        mock_bp_ticker,
+        mock_usd_usdc_hl_ticker,
+        mock_usdc_usd_bp_ticker,
+        mock_hl_funding,
+        mock_bp_funding,
+        mock_hl_ob,
+        mock_bp_ob,
+    ) = _setup_compensation_test_data(now)
 
-    # Order Books
-    mock_hl_ob = create_mock_orderbook(hl_symbol, [(2000.0, 1.0)], [(2001.0, 1.5)], now)
-    mock_bp_ob = create_mock_orderbook(bp_symbol, [(1998.0, 0.5)], [(1999.0, 2.0)], now)
-    # mock_hl_api.get_order_book.return_value = mock_hl_ob # Incorrect
-    # mock_bp_api.get_order_book.return_value = mock_bp_ob # Incorrect
-    mocker.patch.object(mock_hl_api, "get_order_book", return_value=mock_hl_ob)
-    mocker.patch.object(mock_bp_api, "get_order_book", return_value=mock_bp_ob)
+    # Setup mock APIs
+    _setup_compensation_mock_apis(
+        mock_hl_api,
+        mock_bp_api,
+        mock_hl_ticker,
+        mock_bp_ticker,
+        mock_usd_usdc_hl_ticker,
+        mock_usdc_usd_bp_ticker,
+        mock_hl_funding,
+        mock_bp_funding,
+        mocker,
+        mock_hl_ob,
+        mock_bp_ob,
+    )
+
+    portfolio_tracker.reset()
 
     # Configure initial balances
     initial_hl_balance = SpotBalance(
@@ -1437,248 +1816,79 @@ async def test_execution_failure_compensation(
     )
     # -------------------------------------------------
 
-    # --- Configure Mock Behavior for Execution Failure ---
+    # Configure Mock Behavior for Execution Failure
     target_qty = Decimal("1.0")
-    long_order_id_bp = "bp_long_success"
-    short_order_id_hl = "hl_short_fails"  # Define short_order_id_hl
-    compensating_order_id_bp = "bp_compensate_sell"
+    order_ids = _setup_compensation_order_ids()
 
-    # BP (Long) - Succeeds initially - Use helper
-    long_fill_price = mock_bp_ticker.ask
-    bp_initial_order = _create_internal_mock_order(
-        exchange_name=mock_bp_api.exchange_name,
-        client_order_id=long_order_id_bp,
-        symbol=bp_symbol,
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,
-        qty_fill=target_qty,
-        avg_price=long_fill_price,
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
+    # Create mock orders
+    bp_orders = _create_compensation_bp_orders(
+        mock_bp_api.exchange_name,
+        bp_symbol,
+        target_qty,
+        order_ids["bp_long"],
+        order_ids["bp_comp"],
+        mock_bp_ticker,
+        now,
     )
 
-    # HL (Short) - Fails
     hl_api_error = MockAPIError("Simulated HL execution failure", APIErrorCode.EXCHANGE_SPECIFIC)
 
-    # BP Compensation order (Sell) - Should succeed - Use helper
-    compensation_fill_price = mock_bp_ticker.bid
-    bp_compensation_order = _create_internal_mock_order(
-        exchange_name=mock_bp_api.exchange_name,
-        client_order_id=compensating_order_id_bp,
-        symbol=bp_symbol,
-        side=OrderSide.SELL,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,
-        qty_fill=target_qty,
-        avg_price=compensation_fill_price,
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
+    # Setup BP mock behaviors
+    bp_call_counts = {"place": 0, "status": 0}
+    _setup_bp_compensation_mock_behaviors(
+        mocker,
+        mock_bp_api,
+        bp_orders["initial"],
+        bp_orders["compensation"],
+        order_ids["bp_long"],
+        order_ids["bp_comp"],
+        bp_call_counts,
     )
 
-    # --- Setup Mock `place_order` Side Effects ---
-    bp_place_call_num = 0
-
-    async def place_order_bp_side_effect(*args: object, **kwargs: object) -> Order:
-        nonlocal bp_place_call_num
-        bp_place_call_num += 1
-        side = kwargs.get("side")
-        logger.debug(f"MOCK BP place_order (call {bp_place_call_num}, side={side}) called")
-        if bp_place_call_num == 1 and side == OrderSide.BUY:
-            logger.debug("MOCK BP place_order: Returning successful initial long order.")
-            return bp_initial_order
-        if bp_place_call_num == 2 and side == OrderSide.SELL:
-            logger.debug("MOCK BP place_order: Returning successful compensation sell order.")
-            return bp_compensation_order
-        logger.error(
-            f"MOCK BP place_order: Unexpected call {bp_place_call_num} with side {side}",
-        )
-        raise MockAPIError(
-            f"Unexpected BP place_order call {bp_place_call_num} with side {side}",
-        )
-
-    # mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_bp_side_effect)
-    # Ensure this is applied correctly if it wasn't (it seems it was in the previous diff)
-    if not hasattr(mock_bp_api.place_order, "call_args_list"):  # Check if already patched by mocker
-        mocker.patch.object(mock_bp_api, "place_order", side_effect=place_order_bp_side_effect)
-
-    bp_status_call_count = 0
-
-    async def get_order_status_side_effect_bp(*args: object, **kwargs: object) -> Order | None:
-        nonlocal bp_status_call_count
-        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
-        if order_id == long_order_id_bp:
-            logger.debug("MOCK BP get_order_status: Returning status for initial long order.")
-            return bp_initial_order
-        if order_id == compensating_order_id_bp:
-            logger.debug("MOCK BP get_order_status: Returning status for compensation order.")
-            return bp_compensation_order
-        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
-        return None
-
-    # mocker.patch.object(mock_bp_api, "get_order_status",
-    # side_effect=get_order_status_side_effect_bp)
-    if not hasattr(mock_bp_api.get_order_status, "call_args_list"):
-        mocker.patch.object(
-            mock_bp_api,
-            "get_order_status",
-            side_effect=get_order_status_side_effect_bp,
-        )
-
-    # HL (Short) - Fills completely initially, then needs compensation
-    hl_place_call_count = 0
-    # Initial HL Order (Full Fill)
-    hl_initial_full_order = _create_internal_mock_order(
-        exchange_name=mock_hl_api.exchange_name,
-        client_order_id=short_order_id_hl,
-        symbol=hl_symbol,
-        side=OrderSide.SELL,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,
-        qty_fill=target_qty,
-        avg_price=Decimal("40000.0"),
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
-    )
-    # Compensation HL Order (Buy) - Use helper
-    hl_compensation_order = _create_internal_mock_order(
-        exchange_name=mock_hl_api.exchange_name,
-        client_order_id=compensating_order_id_bp,
-        symbol=hl_symbol,
-        side=OrderSide.BUY,
-        order_type=OrderType.MARKET,
-        status=OrderStatus.FILLED,
-        qty_req=target_qty,  # Compensate the full initial amount
-        qty_fill=target_qty,
-        avg_price=mock_hl_ticker.ask,  # Use current ask for compensation buy
-        price=None,  # Market order
-        time_in_force=TimeInForce.IOC,  # Example TIF
-        ts=now,
+    # Setup HL mock behaviors
+    hl_orders = _create_compensation_hl_orders(
+        mock_hl_api.exchange_name,
+        hl_symbol,
+        target_qty,
+        order_ids["hl_short"],
+        order_ids["hl_comp"],
+        mock_hl_ticker,
+        now,
     )
 
-    async def place_order_side_effect_hl(
-        *args: object,
-        **kwargs: object,
-    ) -> Order:  # Corrected return type to Order
-        nonlocal hl_place_call_count
-        hl_place_call_count += 1
-        side = kwargs.get("side")
-        logger.debug(
-            f"MOCK HL place_order call {hl_place_call_count}, side={side}, qty={target_qty}",
+    hl_call_counts = {"place": 0}
+    _setup_hl_compensation_mock_behaviors(
+        mocker,
+        mock_hl_api,
+        hl_orders,
+        order_ids,
+        hl_api_error,
+        hl_call_counts,
+        target_qty,
+    )
+
+    # Execute Test
+    sg_funding_data = _prepare_funding_data(data_handler, symbol_mapper)
+
+    opportunities = await _generate_test_opportunities(
+        signal_generator,
+        sg_funding_data,
+        mocker,
+        now,
+    )
+
+    try:
+        opportunity = _validate_opportunities(
+            opportunities,
+            symbol_key,
+            mock_bp_funding,
+            mock_hl_funding,
         )
-        if hl_place_call_count == 1 and side == OrderSide.SELL:
-            logger.debug("MOCK HL place_order: Raising simulated API error.")
-            raise hl_api_error
-        logger.error(
-            f"MOCK HL place_order: Unexpected call {hl_place_call_count} with side {side}",
-        )
-        raise MockAPIError(
-            f"Unexpected HL place_order call {hl_place_call_count} with side {side}",
-        )
-
-    # Use mocker to patch the method on the instance
-    # mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
-    if not hasattr(mock_hl_api.place_order, "call_args_list"):
-        mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect_hl)
-
-    async def get_order_status_side_effect_hl(*args: object, **kwargs: object) -> Order | None:
-        order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
-        if order_id == short_order_id_hl:
-            logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
-            return hl_initial_full_order
-        if order_id == compensating_order_id_bp:
-            logger.debug(
-                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}",
-            )
-            return hl_compensation_order
-        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
-        return None
-
-    # mocker.patch.object(mock_hl_api, "get_order_status",
-    # side_effect=get_order_status_side_effect_hl)
-    if not hasattr(mock_hl_api.get_order_status, "call_args_list"):
-        mocker.patch.object(
-            mock_hl_api,
-            "get_order_status",
-            side_effect=get_order_status_side_effect_hl,
-        )
-
-    # --- Execute Test ---
-    # 1. Generate Signal
-    # Construct FundingRate data structure (symbol -> exchange -> FundingRate | None)
-    sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
-    for ex_id_key, sym_data_map in data_handler.funding_rates.items():
-        # ex_id_key is exchange_id (e.g., 'mock_hl')
-        # sym_data_map is dict[exchange_specific_symbol, FundingRate]
-        for ex_specific_sym, rate_data_obj in sym_data_map.items():
-            # We need to map ex_specific_sym back to internal_sym for sg_funding_data
-            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
-            if internal_sym is None:
-                logger.warning(
-                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
-                    f"to internal symbol. Skipping.",
-                )
-                continue
-
-            # The rate_data_obj is already a FundingRate instance, so no need to reconstruct it.
-            # Ensure the structure is: internal_symbol -> exchange_id -> FundingRate
-            sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
-
-    # Remove the old market_data_obj creation
-    # market_data_obj = data_handler.tickers[first_exchange][first_symbol]
-
-    # Mock datetime.now by patching the 'dt_real' alias in data_handler.py
-    # used by self.datetime_alias
-    with mocker.patch("cyberdelta.core.data_handler.dt_real.now") as mock_dt_real_now:
-        mock_dt_real_now.return_value = now  # Use now for this test
-
-        opportunities = await signal_generator.generate_arbitrage_opportunities(
-            funding_data=sg_funding_data,
-        )
-
-    # --- Logging and Assertions for Opportunities ---
-    logger.info(f"Generated {len(opportunities)} opportunities.")
-    if not opportunities:
-        logger.warning("No opportunities generated. This is unexpected.")
+    except ValueError:
         return
 
-    # --- Restore original logger level for signal_generator ---
-    sg_logger = logging.getLogger("cyberdelta.core.signal_generator")
-    sg_logger.setLevel(logging.DEBUG)
-    # for handler, level in original_handler_levels.items():
-    # handler.setLevel(level)
-
-    assert len(opportunities) >= 1
-    opportunity = opportunities[0]
-    assert opportunity.symbol == symbol_key  # Use internal symbol key for comparison
-    assert opportunity.long_exchange == "mock_bp"
-    assert opportunity.short_exchange == "mock_hl"
-    assert opportunity.long_funding_rate == mock_bp_funding.funding_rate
-    assert opportunity.short_funding_rate == mock_hl_funding.funding_rate
-    # Ensure funding rates are not None before calculating differential (Runtime Safety)
-    bp_rate = mock_bp_funding.funding_rate
-    hl_rate = mock_hl_funding.funding_rate
-    assert bp_rate is not None, "Mock BP funding rate is None, cannot calculate NFD"
-    assert hl_rate is not None, "Mock HL funding rate is None, cannot calculate NFD"
-    expected_nfd = bp_rate - hl_rate
-    # Manual tolerance check instead of pytest.approx for type safety
-    tolerance = Decimal("1e-10")
-    assert abs(opportunity.net_funding_differential - expected_nfd) <= tolerance
-
-    # --- Add Debug Logging ---
-    # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
-    total_cap_debug = await portfolio_tracker.get_total_capital()  # Added await
-    logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
-    # --- End Debug Logging ---
+    # Debug logging
+    await _log_debug_info(portfolio_tracker)
 
     # 2. Validate & Size
     sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])

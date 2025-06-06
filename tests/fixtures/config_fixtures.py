@@ -486,4 +486,3 @@ def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     """Create a CircuitBreakerSystem instance using mock config."""
     system = CircuitBreakerSystem(mock_config)
     return system
-

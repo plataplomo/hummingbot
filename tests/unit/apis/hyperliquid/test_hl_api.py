@@ -245,7 +245,7 @@ class TestHyperliquidAPIInitialization:
         # Use the active configuration from test config
         api = hl_api_with_di(config=active_hl_config)
         assert api is not None
-        # Verify that the API uses the active configuration  
+        # Verify that the API uses the active configuration
         assert api.exchange_name == "hyperliquid"
 
     def test_api_has_required_services(self, hl_api_with_di: Callable[..., HyperliquidAPI]) -> None:
@@ -330,7 +330,7 @@ class TestHyperliquidAPIConfigurationIntegration:
         assert active_hl_config.api_base_url_mainnet is not None
         assert active_hl_config.ws_url_mainnet is not None
         assert active_hl_config.exchange_name.value == "hyperliquid"
-        
+
         # Test computed properties work
         assert active_hl_config.active_api_base_url is not None
         assert active_hl_config.active_ws_url is not None

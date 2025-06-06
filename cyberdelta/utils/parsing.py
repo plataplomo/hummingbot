@@ -192,7 +192,7 @@ def validate_enum_field(
 
     prefix = f"{field_name}: " if field_name else ""
     if s not in allowed:
-        allowed_sorted_list = sorted(list(allowed))
+        allowed_sorted_list = sorted(allowed)
         raise ValueError(f"{prefix}Invalid value '{s}'. Expected one of {allowed_sorted_list}")
     return s
 

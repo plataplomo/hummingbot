@@ -399,7 +399,7 @@ class TestSecretsManager:
 
             # Check that info log was called for successful loading
             mock_logger.info.assert_called()
-            info_calls = [call for call in mock_logger.info.call_args_list]
+            info_calls = list(mock_logger.info.call_args_list)
             assert any("loaded and validated successfully" in str(call) for call in info_calls)
 
     @patch("cyberdelta.config.secrets_manager.logger")
@@ -412,7 +412,7 @@ class TestSecretsManager:
 
         # Check that critical log was called
         mock_logger.critical.assert_called()
-        critical_calls = [call for call in mock_logger.critical.call_args_list]
+        critical_calls = list(mock_logger.critical.call_args_list)
         assert any("Secrets file not found" in str(call) for call in critical_calls)
 
     @patch("cyberdelta.config.secrets_manager.logger")
@@ -430,7 +430,7 @@ class TestSecretsManager:
 
             # Check that critical log was called for validation failure
             mock_logger.critical.assert_called()
-            critical_calls = [call for call in mock_logger.critical.call_args_list]
+            critical_calls = list(mock_logger.critical.call_args_list)
             assert any("Secrets validation failed" in str(call) for call in critical_calls)
 
     def test_secrets_data_access(self) -> None:

@@ -33,7 +33,7 @@ class VisualizationConfig:
 
     def __post_init__(self) -> None:
         """Initialize default color palette and theme settings after dataclass creation.
-        
+
         Sets up default Plotly color palette if none provided and applies dark theme
         template when dark theme is selected.
         """
@@ -111,7 +111,7 @@ class PerformanceVisualizer:
                     y=cum_returns[strategy] * 100,  # Convert to percentage
                     mode="lines",
                     name=strategy,
-                    line=dict(color=color, width=2),
+                    line={"color": color, "width": 2},
                 ),
             )
 
@@ -125,7 +125,7 @@ class PerformanceVisualizer:
                     y=cum_benchmark.iloc[:, 0] * 100,  # Convert to percentage
                     mode="lines",
                     name="Benchmark",
-                    line=dict(color="gray", width=2, dash="dot"),
+                    line={"color": "gray", "width": 2, "dash": "dot"},
                 ),
             )
 
@@ -138,15 +138,15 @@ class PerformanceVisualizer:
             template=self.config.template,
             height=height,
             width=width,
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01,
-                bgcolor="rgba(255, 255, 255, 0.5)"
+            legend={
+                "yanchor": "top",
+                "y": 0.99,
+                "xanchor": "left",
+                "x": 0.01,
+                "bgcolor": "rgba(255, 255, 255, 0.5)"
                 if self.config.theme == "light"
                 else "rgba(0, 0, 0, 0.5)",
-            ),
+            },
             hovermode="x unified",
         )
 
@@ -154,17 +154,15 @@ class PerformanceVisualizer:
         # NOTE: Type checker limitation: plotly stubs are incomplete for update_xaxes
         fig.update_xaxes(
             rangeslider_visible=True,
-            rangeselector=dict(
-                buttons=list(
-                    [
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all"),
-                    ],
-                ),
-            ),
+            rangeselector={
+                "buttons": [
+                    {"count": 1, "label": "1m", "step": "month", "stepmode": "backward"},
+                    {"count": 6, "label": "6m", "step": "month", "stepmode": "backward"},
+                    {"count": 1, "label": "YTD", "step": "year", "stepmode": "todate"},
+                    {"count": 1, "label": "1y", "step": "year", "stepmode": "backward"},
+                    {"step": "all"},
+                ],
+            },
         )
 
         return fig
@@ -218,7 +216,7 @@ class PerformanceVisualizer:
                     y=drawdowns[strategy],
                     mode="lines",
                     name=strategy,
-                    line=dict(color=color, width=2),
+                    line={"color": color, "width": 2},
                     fill="tozeroy",
                 ),
             )
@@ -232,30 +230,28 @@ class PerformanceVisualizer:
             template=self.config.template,
             height=height,
             width=width,
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01,
-                bgcolor="rgba(255, 255, 255, 0.5)"
+            legend={
+                "yanchor": "top",
+                "y": 0.99,
+                "xanchor": "left",
+                "x": 0.01,
+                "bgcolor": "rgba(255, 255, 255, 0.5)"
                 if self.config.theme == "light"
                 else "rgba(0, 0, 0, 0.5)",
-            ),
+            },
             hovermode="x unified",
         )
         fig.update_xaxes(
             rangeslider_visible=True,
-            rangeselector=dict(
-                buttons=list(
-                    [
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="YTD", step="year", stepmode="todate"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all"),
-                    ],
-                ),
-            ),
+            rangeselector={
+                "buttons": [
+                    {"count": 1, "label": "1m", "step": "month", "stepmode": "backward"},
+                    {"count": 6, "label": "6m", "step": "month", "stepmode": "backward"},
+                    {"count": 1, "label": "YTD", "step": "year", "stepmode": "todate"},
+                    {"count": 1, "label": "1y", "step": "year", "stepmode": "backward"},
+                    {"step": "all"},
+                ],
+            },
         )
 
         return fig
@@ -299,12 +295,12 @@ class PerformanceVisualizer:
                     y=profitable["pnl"],
                     mode="markers",
                     name="Profitable Trades",
-                    marker=dict(
-                        color="green",
-                        size=size,
-                        opacity=0.7,
-                        line=dict(width=1, color="darkgreen"),
-                    ),
+                    marker={
+                        "color": "green",
+                        "size": size,
+                        "opacity": 0.7,
+                        "line": {"width": 1, "color": "darkgreen"},
+                    },
                     hovertext=profitable.apply(
                         lambda row: f"Time: {row['exit_time']}<br>PnL: ${row['pnl']:.2f}<br>"
                         f"Duration: {row['duration']} min",
@@ -323,12 +319,12 @@ class PerformanceVisualizer:
                     y=losing["pnl"],
                     mode="markers",
                     name="Losing Trades",
-                    marker=dict(
-                        color="red",
-                        size=size,
-                        opacity=0.7,
-                        line=dict(width=1, color="darkred"),
-                    ),
+                    marker={
+                        "color": "red",
+                        "size": size,
+                        "opacity": 0.7,
+                        "line": {"width": 1, "color": "darkred"},
+                    },
                     hovertext=losing.apply(
                         lambda row: f"Time: {row['exit_time']}<br>PnL: ${row['pnl']:.2f}<br>"
                         f"Duration: {row['duration']} min",
@@ -346,11 +342,11 @@ class PerformanceVisualizer:
             x1=1,
             y1=0,
             xref="paper",
-            line=dict(
-                color="gray",
-                width=1,
-                dash="dash",
-            ),
+            line={
+                "color": "gray",
+                "width": 1,
+                "dash": "dash",
+            },
         )
 
         # Update layout
@@ -403,7 +399,7 @@ class PerformanceVisualizer:
                 y=pivot_data.columns,
                 colorscale="RdBu",
                 zmid=0,  # Center colorscale at zero
-                colorbar=dict(title=dict(text="Funding Rate (%)", side="right")),
+                colorbar={"title": {"text": "Funding Rate (%)", "side": "right"}},
             ),
         )
 
@@ -484,7 +480,7 @@ class PerformanceVisualizer:
                     y=cum_returns[strategy] * 100,
                     mode="lines",
                     name=f"{strategy} Returns",
-                    line=dict(color=color, width=2),
+                    line={"color": color, "width": 2},
                 ),
                 row=1,
                 col=1,
@@ -500,7 +496,7 @@ class PerformanceVisualizer:
                     y=cum_benchmark.iloc[:, 0] * 100,
                     mode="lines",
                     name="Benchmark",
-                    line=dict(color="gray", width=2, dash="dot"),
+                    line={"color": "gray", "width": 2, "dash": "dot"},
                 ),
                 row=1,
                 col=1,
@@ -519,7 +515,7 @@ class PerformanceVisualizer:
                     y=drawdowns[strategy],
                     mode="lines",
                     name=f"{strategy} Drawdown",
-                    line=dict(color=color, width=2),
+                    line={"color": color, "width": 2},
                     fill="tozeroy",
                     showlegend=False,
                 ),
@@ -542,12 +538,12 @@ class PerformanceVisualizer:
                         y=profitable["pnl"],
                         mode="markers",
                         name="Profitable Trades",
-                        marker=dict(
-                            color="green",
-                            size=size,
-                            opacity=0.7,
-                            line=dict(width=1, color="darkgreen"),
-                        ),
+                        marker={
+                            "color": "green",
+                            "size": size,
+                            "opacity": 0.7,
+                            "line": {"width": 1, "color": "darkgreen"},
+                        },
                         hoverinfo="text",
                         hovertext=profitable.apply(
                             lambda row: f"PnL: ${row['pnl']:.2f}<br>"
@@ -568,12 +564,12 @@ class PerformanceVisualizer:
                         y=losing["pnl"],
                         mode="markers",
                         name="Losing Trades",
-                        marker=dict(
-                            color="red",
-                            size=size,
-                            opacity=0.7,
-                            line=dict(width=1, color="darkred"),
-                        ),
+                        marker={
+                            "color": "red",
+                            "size": size,
+                            "opacity": 0.7,
+                            "line": {"width": 1, "color": "darkred"},
+                        },
                         hoverinfo="text",
                         hovertext=losing.apply(
                             lambda row: f"PnL: ${row['pnl']:.2f}<br>"
@@ -613,7 +609,7 @@ class PerformanceVisualizer:
             template=self.config.template,
             height=height,
             width=width,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1},
         )
 
         # Update axes titles

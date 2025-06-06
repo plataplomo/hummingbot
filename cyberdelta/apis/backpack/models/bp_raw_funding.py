@@ -53,7 +53,7 @@ class BackpackRawFundingRate(BaseModel):
 
 class BackpackRawMarkPrice(BaseModel):
     """Pydantic model for a raw mark price and funding info object from Backpack API.
-    
+
     Validates responses from `/api/v1/markPrice` (Backpack REST API).
     This model mirrors the Backpack OpenAPI schema, using common raw types for validation.
 
@@ -76,7 +76,7 @@ class BackpackRawMarkPrice(BaseModel):
 
 class BackpackRawFundingIntervalRate(BaseModel):
     """Pydantic model for a single raw funding interval rate object from Backpack API.
-    
+
     Validates objects from the list returned by `/api/v1/fundingRates` (Backpack REST API).
 
     Attributes:

@@ -171,7 +171,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test get_order_history error handling for missing wallet, missing times, and APIError.
-        
+
         Tests error handling when wallet address is missing, time parameters are invalid,
         and when the underlying HTTP requester raises APIError exceptions.
         """

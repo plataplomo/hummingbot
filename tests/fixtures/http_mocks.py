@@ -244,4 +244,3 @@ async def mock_request(
             headers=cast("Any", actual_headers),
         )
     return mock_resp
-

@@ -188,58 +188,13 @@ class HyperliquidWsMessageRouter:
             self.logger.debug(f"[{self._exchange_name}] Control message on '{channel}': {message}")
             return
 
-        # Construct topic key for handler lookup
-        topic_key_for_handler = channel
-        if channel == "l2Book":
-            if isinstance(raw_data_any, dict):
-                raw_data_dict = cast(dict[str, Any], raw_data_any)
-                coin_from_data_any: Any = raw_data_dict.get("coin")
-                if isinstance(coin_from_data_any, str):
-                    topic_key_for_handler = f"{channel}:{coin_from_data_any}"
-            else:
-                self.logger.warning(
-                    f"[{self._exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
-                    f"received other type. Msg: {message}",
-                )
-        elif channel == "trades":
-            coin_for_topic_str: str | None = None
-            if isinstance(raw_data_any, list):
-                # Explicitly type the list after check, elements are still Any
-                checked_list_for_topic_derivation: list[dict[str, Any]] = []
-                # After isinstance check, we know it's a list
-                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-                # Mypy=[redundant-cast]
-                raw_list: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
-                for item in raw_list:
-                    if isinstance(item, dict):
-                        checked_list_for_topic_derivation.append(cast(dict[str, Any], item))
-
-                if checked_list_for_topic_derivation:
-                    first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
-                    if isinstance(first_item_for_topic_any, dict):
-                        first_item_dict = cast(dict[str, Any], first_item_for_topic_any)
-                        coin_from_item_any: Any = first_item_dict.get("coin")
-                        if isinstance(coin_from_item_any, str):
-                            coin_for_topic_str = coin_from_item_any
-
-            if coin_for_topic_str:
-                topic_key_for_handler = f"{channel}:{coin_for_topic_str}"
-        elif channel == "userEvents":
-            topic_key_for_handler = "userEvents"
+        # Determine topic key for handler lookup
+        topic_key_for_handler = self._determine_topic_key(channel, raw_data_any, message)
 
         # Find application handler
-        app_handler = ws_handlers.get(topic_key_for_handler)
+        app_handler = self._find_app_handler(ws_handlers, topic_key_for_handler, channel, message)
         if not app_handler:
-            generic_app_handler = ws_handlers.get(channel)
-            if generic_app_handler:
-                app_handler = generic_app_handler
-            else:
-                log_parts = [f"[{self._exchange_name}] No WS handler for '{topic_key_for_handler}'"]
-                if topic_key_for_handler != channel:
-                    log_parts.append(f" (or base '{channel}')")
-                log_parts.append(f". Msg: {message}")
-                self.logger.debug("".join(log_parts))
-                return
+            return
 
         if raw_data_any is None:
             self.logger.warning(
@@ -248,228 +203,7 @@ class HyperliquidWsMessageRouter:
             return
 
         try:
-            payload_for_handler: dict[str, Any] | None = None
-
-            if channel == "l2Book":
-                if not isinstance(raw_data_any, dict):
-                    raise APIError(
-                        "l2Book data not dict",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-                validated_book_model = self._raw_ws_handler.handle_l2book_payload(
-                    cast(dict[str, Any], raw_data_any),
-                )
-
-                try:
-                    # Transform raw validated model to internal domain model
-                    internal_orderbook = (
-                        self._market_data_mapper.transform_ws_book_update_to_internal(
-                            validated_book_model,
-                        )
-                    )
-                    # Convert internal model to dict for handler compatibility
-                    orderbook_dict = internal_orderbook.model_dump(mode="json")
-                    await app_handler(orderbook_dict, message)
-                except TransformationError as e_transform:
-                    self.logger.error(
-                        f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}",
-                    )
-                return
-
-            elif channel == "trades":
-                if not isinstance(raw_data_any, list):
-                    raise APIError(
-                        "trades data not list",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-
-                # Convert list items to dict format for validation
-                trade_payloads: list[dict[str, Any]] = []
-                # Explicitly type the list after check, elements are still Any
-                checked_list_of_trades: list[dict[str, Any]] = []
-                # After isinstance check, we know it's a list
-                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-                # Mypy=[redundant-cast]
-                raw_list_trades: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
-                for item in raw_list_trades:
-                    if isinstance(item, dict):
-                        item_dict = cast(dict[str, Any], item)
-                        checked_list_of_trades.append(item_dict)
-                        trade_payloads.append(item_dict)
-
-                if trade_payloads:
-                    validated_trade_models = self._raw_ws_handler.handle_public_trades_payload(
-                        trade_payloads,
-                    )
-                    for validated_trade_model in validated_trade_models:
-                        try:
-                            # Transform raw validated model to internal domain model
-                            internal_trade = (
-                                self._market_data_mapper.transform_ws_trade_event_to_internal(
-                                    validated_trade_model,
-                                )
-                            )
-                            # Convert internal model to dict for handler compatibility
-                            trade_dict = internal_trade.model_dump(mode="json")
-                            await app_handler(trade_dict, message)
-                        except TransformationError as e_transform:
-                            self.logger.error(
-                                f"[{self._exchange_name}] Failed to transform trade "
-                                f"data: {e_transform}",
-                            )
-                return
-
-            elif channel == "userEvents":
-                if not isinstance(raw_data_any, list):
-                    raise APIError(
-                        "userEvents data not list",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-                # Explicitly type the list after check, elements are still Any
-                checked_list_of_any_events: list[dict[str, Any]] = []
-                # After isinstance check, we know it's a list
-                # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-                # Mypy=[redundant-cast]
-                raw_list_events: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
-                for event_loop_var_any in raw_list_events:
-                    if isinstance(event_loop_var_any, dict):
-                        checked_list_of_any_events.append(cast(dict[str, Any], event_loop_var_any))
-
-                for event_item_dict in checked_list_of_any_events:
-                    event_type_any = event_item_dict.get("type")
-
-                    if not isinstance(event_type_any, str):
-                        self.logger.warning(
-                            f"[{self._exchange_name}] userEvent item has no 'type' string: "
-                            f"{event_item_dict}, skipping.",
-                        )
-                        continue
-
-                    event_type_str: str = event_type_any
-
-                    try:
-                        if event_type_str == "fill":
-                            validated_fill = self._raw_ws_handler.handle_user_fill_event_payload(
-                                event_item_dict,
-                            )
-                            try:
-                                # Transform raw validated model to internal domain model
-                                transform_method = (
-                                    self._account_data_mapper.transform_ws_fill_event_to_internal
-                                )
-                                internal_trade = transform_method(validated_fill)
-                                # Convert internal model to dict for handler compatibility
-                                trade_dict = internal_trade.model_dump(mode="json")
-                                await app_handler(trade_dict, message)
-                            except TransformationError as e_transform:
-                                self.logger.error(
-                                    f"[{self._exchange_name}] Failed to transform fill "
-                                    f"event: {e_transform}",
-                                )
-
-                        elif event_type_str == "order":
-                            _handle_order_wrapper = (
-                                self._raw_ws_handler.handle_user_order_update_wrapper_payload
-                            )
-                            order_update_wrapper = _handle_order_wrapper(event_item_dict)
-                            _handle_order_event = (
-                                self._raw_ws_handler.handle_user_order_event_payload
-                            )
-                            validated_order_details = _handle_order_event(order_update_wrapper.data)
-                            try:
-                                # Transform raw validated model to internal domain model
-                                order_transform_method = (
-                                    self._trading_data_mapper.transform_ws_order_update_to_internal_order
-                                )
-                                internal_order = order_transform_method(validated_order_details)
-                                # Convert internal model to dict for handler compatibility
-                                order_dict = internal_order.model_dump(mode="json")
-                                await app_handler(order_dict, message)
-                            except TransformationError as e_transform:
-                                self.logger.error(
-                                    f"[{self._exchange_name}] Failed to transform order "
-                                    f"event: {e_transform}",
-                                )
-
-                        elif event_type_str == "positionUpdate":
-                            _handle_pos_update = (
-                                self._raw_ws_handler.handle_user_position_update_event_payload
-                            )
-                            validated_position_update = _handle_pos_update(event_item_dict)
-                            try:
-                                # Transform raw validated model to internal domain model
-                                position_transform_method = (
-                                    self._account_data_mapper.transform_ws_position_update_to_internal_position
-                                )
-                                internal_position = position_transform_method(
-                                    validated_position_update,
-                                )
-                                # Convert internal model to dict for handler compatibility
-                                position_dict = internal_position.model_dump(mode="json")
-                                await app_handler(position_dict, message)
-                            except TransformationError as e_transform:
-                                self.logger.error(
-                                    f"[{self._exchange_name}] Failed to transform position "
-                                    f"event: {e_transform}",
-                                )
-
-                        else:
-                            self.logger.debug(
-                                f"[{self._exchange_name}] Unhandled userEvent type: "
-                                f"{event_type_str}. Passing raw item: {event_item_dict}",
-                            )
-                            await app_handler(event_item_dict, message)
-
-                    except (APIError, ValidationError) as e_user_event_item:
-                        self.logger.error(
-                            f"[{self._exchange_name}] Error processing userEvent item "
-                            f"(type: {event_type_str}): {e_user_event_item}. "
-                            f"Item: {event_item_dict}. Skipping item.",
-                        )
-                        continue
-                return  # All user events handled, exit
-
-            elif channel == "allMids":
-                if not isinstance(raw_data_any, dict):
-                    self.logger.warning(
-                        f"[{self._exchange_name}] 'allMids' channel data is not a dict or is None. "
-                        f"Data: {raw_data_any!r}. Skipping.",
-                    )
-                    raise APIError(
-                        "allMids data not dict or is None",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-
-                raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
-
-                validated_all_mids = self._raw_ws_handler.handle_all_mids_payload(
-                    raw_data_dict_all_mids,
-                )
-                payload_for_handler = validated_all_mids.model_dump(mode="json")
-
-            elif channel == "pong" or channel == "subscriptionResponse":
-                self.logger.debug(
-                    f"[{self._exchange_name}] Control message on '{channel}': {message}",
-                )
-                payload_for_handler = (
-                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
-                )
-            else:
-                self.logger.debug(
-                    f"[{self._exchange_name}] Unhandled channel '{channel}' by specific "
-                    f"validation, passing raw data if dict. Msg: {message}",
-                )
-                payload_for_handler = (
-                    cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
-                )
-
-            # Final handler call for channels that set payload_for_handler and don't return early
-            if payload_for_handler is not None:
-                await app_handler(payload_for_handler, message)
-            # If payload_for_handler is None here, it means a path was taken that didn't set it
-            # and didn't explicitly return (e.g. trades/userEvents handle their own calls to
-            # app_handler) or an empty list for trades was encountered and returned early.
-
+            await self._process_channel_data(channel, raw_data_any, app_handler, message)
         except APIError as e:
             self.logger.error(
                 f"[{self._exchange_name}] APIError in WS routing for {channel}: {e.message}",
@@ -485,3 +219,371 @@ class HyperliquidWsMessageRouter:
                 f"[{self._exchange_name}] Error in app_handler for {channel}: {e_app}",
                 exc_info=True,
             )
+
+    def _determine_topic_key(
+        self, channel: str, raw_data_any: object, message: dict[str, Any]
+    ) -> str:
+        """Determine the topic key for handler lookup based on channel and data."""
+        topic_key_for_handler = channel
+
+        if channel == "l2Book":
+            topic_key_for_handler = self._get_l2book_topic_key(channel, raw_data_any, message)
+        elif channel == "trades":
+            topic_key_for_handler = self._get_trades_topic_key(channel, raw_data_any)
+        elif channel == "userEvents":
+            topic_key_for_handler = "userEvents"
+
+        return topic_key_for_handler
+
+    def _get_l2book_topic_key(
+        self, channel: str, raw_data_any: object, message: dict[str, Any]
+    ) -> str:
+        """Get topic key for l2Book channel."""
+        if isinstance(raw_data_any, dict):
+            raw_data_dict = cast(dict[str, Any], raw_data_any)
+            coin_from_data_any: Any = raw_data_dict.get("coin")
+            if isinstance(coin_from_data_any, str):
+                return f"{channel}:{coin_from_data_any}"
+        else:
+            self.logger.warning(
+                f"[{self._exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
+                f"received other type. Msg: {message}",
+            )
+        return channel
+
+    def _get_trades_topic_key(self, channel: str, raw_data_any: object) -> str:
+        """Get topic key for trades channel."""
+        coin_for_topic_str: str | None = None
+        if isinstance(raw_data_any, list):
+            # Explicitly type the list after check, elements are still Any
+            checked_list_for_topic_derivation: list[dict[str, Any]] = []
+            # After isinstance check, we know it's a list
+            # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+            # Mypy=[redundant-cast]
+            raw_list: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+            for item in raw_list:
+                if isinstance(item, dict):
+                    checked_list_for_topic_derivation.append(cast(dict[str, Any], item))
+
+            if checked_list_for_topic_derivation:
+                first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
+                if isinstance(first_item_for_topic_any, dict):
+                    first_item_dict = cast(dict[str, Any], first_item_for_topic_any)
+                    coin_from_item_any: Any = first_item_dict.get("coin")
+                    if isinstance(coin_from_item_any, str):
+                        coin_for_topic_str = coin_from_item_any
+
+        if coin_for_topic_str:
+            return f"{channel}:{coin_for_topic_str}"
+        return channel
+
+    def _find_app_handler(
+        self,
+        ws_handlers: dict[str, MessageHandler],
+        topic_key_for_handler: str,
+        channel: str,
+        message: dict[str, Any],
+    ) -> MessageHandler | None:
+        """Find the appropriate application handler for the message."""
+        app_handler = ws_handlers.get(topic_key_for_handler)
+        if not app_handler:
+            generic_app_handler = ws_handlers.get(channel)
+            if generic_app_handler:
+                app_handler = generic_app_handler
+            else:
+                log_parts = [f"[{self._exchange_name}] No WS handler for '{topic_key_for_handler}'"]
+                if topic_key_for_handler != channel:
+                    log_parts.append(f" (or base '{channel}')")
+                log_parts.append(f". Msg: {message}")
+                self.logger.debug("".join(log_parts))
+                return None
+        return app_handler
+
+    async def _process_channel_data(
+        self,
+        channel: str,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process data for different channel types."""
+        if channel == "l2Book":
+            await self._process_l2book_data(raw_data_any, app_handler, message)
+        elif channel == "trades":
+            await self._process_trades_data(raw_data_any, app_handler, message)
+        elif channel == "userEvents":
+            await self._process_user_events_data(raw_data_any, app_handler, message)
+        elif channel == "allMids":
+            await self._process_allmids_data(raw_data_any, app_handler, message)
+        elif channel in ["pong", "subscriptionResponse"]:
+            await self._process_control_message_data(raw_data_any, app_handler, message, channel)
+        else:
+            await self._process_unhandled_channel_data(raw_data_any, app_handler, message, channel)
+
+    async def _process_l2book_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process l2Book channel data."""
+        if not isinstance(raw_data_any, dict):
+            raise APIError(
+                "l2Book data not dict",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        validated_book_model = self._raw_ws_handler.handle_l2book_payload(
+            cast(dict[str, Any], raw_data_any),
+        )
+
+        try:
+            # Transform raw validated model to internal domain model
+            internal_orderbook = self._market_data_mapper.transform_ws_book_update_to_internal(
+                validated_book_model,
+            )
+            # Convert internal model to dict for handler compatibility
+            orderbook_dict = internal_orderbook.model_dump(mode="json")
+            await app_handler(orderbook_dict, message)
+        except TransformationError as e_transform:
+            self.logger.error(
+                f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}",
+            )
+
+    async def _process_trades_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process trades channel data."""
+        if not isinstance(raw_data_any, list):
+            raise APIError(
+                "trades data not list",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        # Convert list items to dict format for validation
+        trade_payloads: list[dict[str, Any]] = []
+        # Explicitly type the list after check, elements are still Any
+        checked_list_of_trades: list[dict[str, Any]] = []
+        # After isinstance check, we know it's a list
+        # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+        # Mypy=[redundant-cast]
+        raw_list_trades: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+        for item in raw_list_trades:
+            if isinstance(item, dict):
+                item_dict = cast(dict[str, Any], item)
+                checked_list_of_trades.append(item_dict)
+                trade_payloads.append(item_dict)
+
+        if trade_payloads:
+            validated_trade_models = self._raw_ws_handler.handle_public_trades_payload(
+                trade_payloads,
+            )
+            for validated_trade_model in validated_trade_models:
+                try:
+                    # Transform raw validated model to internal domain model
+                    internal_trade = self._market_data_mapper.transform_ws_trade_event_to_internal(
+                        validated_trade_model,
+                    )
+                    # Convert internal model to dict for handler compatibility
+                    trade_dict = internal_trade.model_dump(mode="json")
+                    await app_handler(trade_dict, message)
+                except TransformationError as e_transform:
+                    self.logger.error(
+                        f"[{self._exchange_name}] Failed to transform trade data: {e_transform}",
+                    )
+
+    async def _process_user_events_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process userEvents channel data."""
+        if not isinstance(raw_data_any, list):
+            raise APIError(
+                "userEvents data not list",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        # Explicitly type the list after check, elements are still Any
+        checked_list_of_any_events: list[dict[str, Any]] = []
+        # After isinstance check, we know it's a list
+        # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
+        # Mypy=[redundant-cast]
+        raw_list_events: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+        for event_loop_var_any in raw_list_events:
+            if isinstance(event_loop_var_any, dict):
+                checked_list_of_any_events.append(cast(dict[str, Any], event_loop_var_any))
+
+        for event_item_dict in checked_list_of_any_events:
+            await self._process_single_user_event(event_item_dict, app_handler, message)
+
+    async def _process_single_user_event(
+        self,
+        event_item_dict: dict[str, Any],
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process a single user event item."""
+        event_type_any = event_item_dict.get("type")
+
+        if not isinstance(event_type_any, str):
+            self.logger.warning(
+                f"[{self._exchange_name}] userEvent item has no 'type' string: "
+                f"{event_item_dict}, skipping.",
+            )
+            return
+
+        event_type_str: str = event_type_any
+
+        try:
+            if event_type_str == "fill":
+                await self._process_fill_event(event_item_dict, app_handler, message)
+            elif event_type_str == "order":
+                await self._process_order_event(event_item_dict, app_handler, message)
+            elif event_type_str == "positionUpdate":
+                await self._process_position_update_event(event_item_dict, app_handler, message)
+            else:
+                self.logger.debug(
+                    f"[{self._exchange_name}] Unhandled userEvent type: "
+                    f"{event_type_str}. Passing raw item: {event_item_dict}",
+                )
+                await app_handler(event_item_dict, message)
+
+        except (APIError, ValidationError) as e_user_event_item:
+            self.logger.error(
+                f"[{self._exchange_name}] Error processing userEvent item "
+                f"(type: {event_type_str}): {e_user_event_item}. "
+                f"Item: {event_item_dict}. Skipping item.",
+            )
+
+    async def _process_fill_event(
+        self,
+        event_item_dict: dict[str, Any],
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process a fill event."""
+        validated_fill = self._raw_ws_handler.handle_user_fill_event_payload(
+            event_item_dict,
+        )
+        try:
+            # Transform raw validated model to internal domain model
+            transform_method = self._account_data_mapper.transform_ws_fill_event_to_internal
+            internal_trade = transform_method(validated_fill)
+            # Convert internal model to dict for handler compatibility
+            trade_dict = internal_trade.model_dump(mode="json")
+            await app_handler(trade_dict, message)
+        except TransformationError as e_transform:
+            self.logger.error(
+                f"[{self._exchange_name}] Failed to transform fill event: {e_transform}",
+            )
+
+    async def _process_order_event(
+        self,
+        event_item_dict: dict[str, Any],
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process an order event."""
+        _handle_order_wrapper = self._raw_ws_handler.handle_user_order_update_wrapper_payload
+        order_update_wrapper = _handle_order_wrapper(event_item_dict)
+        _handle_order_event = self._raw_ws_handler.handle_user_order_event_payload
+        validated_order_details = _handle_order_event(order_update_wrapper.data)
+        try:
+            # Transform raw validated model to internal domain model
+            order_transform_method = (
+                self._trading_data_mapper.transform_ws_order_update_to_internal_order
+            )
+            internal_order = order_transform_method(validated_order_details)
+            # Convert internal model to dict for handler compatibility
+            order_dict = internal_order.model_dump(mode="json")
+            await app_handler(order_dict, message)
+        except TransformationError as e_transform:
+            self.logger.error(
+                f"[{self._exchange_name}] Failed to transform order event: {e_transform}",
+            )
+
+    async def _process_position_update_event(
+        self,
+        event_item_dict: dict[str, Any],
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process a position update event."""
+        _handle_pos_update = self._raw_ws_handler.handle_user_position_update_event_payload
+        validated_position_update = _handle_pos_update(event_item_dict)
+        try:
+            # Transform raw validated model to internal domain model
+            position_transform_method = (
+                self._account_data_mapper.transform_ws_position_update_to_internal_position
+            )
+            internal_position = position_transform_method(
+                validated_position_update,
+            )
+            # Convert internal model to dict for handler compatibility
+            position_dict = internal_position.model_dump(mode="json")
+            await app_handler(position_dict, message)
+        except TransformationError as e_transform:
+            self.logger.error(
+                f"[{self._exchange_name}] Failed to transform position event: {e_transform}",
+            )
+
+    async def _process_allmids_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+    ) -> None:
+        """Process allMids channel data."""
+        if not isinstance(raw_data_any, dict):
+            self.logger.warning(
+                f"[{self._exchange_name}] 'allMids' channel data is not a dict or is None. "
+                f"Data: {raw_data_any!r}. Skipping.",
+            )
+            raise APIError(
+                "allMids data not dict or is None",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
+
+        validated_all_mids = self._raw_ws_handler.handle_all_mids_payload(
+            raw_data_dict_all_mids,
+        )
+        payload_for_handler = validated_all_mids.model_dump(mode="json")
+        await app_handler(payload_for_handler, message)
+
+    async def _process_control_message_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+        channel: str,
+    ) -> None:
+        """Process control message data (pong, subscriptionResponse)."""
+        self.logger.debug(
+            f"[{self._exchange_name}] Control message on '{channel}': {message}",
+        )
+        payload_for_handler = (
+            cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
+        )
+        await app_handler(payload_for_handler, message)
+
+    async def _process_unhandled_channel_data(
+        self,
+        raw_data_any: object,
+        app_handler: MessageHandler,
+        message: dict[str, Any],
+        channel: str,
+    ) -> None:
+        """Process data for unhandled channel types."""
+        self.logger.debug(
+            f"[{self._exchange_name}] Unhandled channel '{channel}' by specific "
+            f"validation, passing raw data if dict. Msg: {message}",
+        )
+        payload_for_handler = (
+            cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
+        )
+        await app_handler(payload_for_handler, message)

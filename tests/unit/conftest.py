@@ -40,6 +40,7 @@ def create_test_http_url(url_str: str) -> HttpUrl:
     """Create an HTTP URL for tests."""
     return HttpUrl(url_str)
 
+
 def create_test_any_url(url_str: str) -> AnyUrl:
     """Create an Any URL for tests."""
     return AnyUrl(url_str)

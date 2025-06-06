@@ -60,12 +60,12 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
                     # Handles cases like {0: val0, 1: val1, 2: val2}
                     raise ValueError(
                         f"Field '{field_name}': Dictionary input must contain "
-                        f"exactly keys 0 and 1, got keys {sorted(list(v_dict.keys()))}.",
+                        f"exactly keys 0 and 1, got keys {sorted(v_dict.keys())}.",
                     )
             else:
                 raise ValueError(
                     f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
-                    f"got keys {sorted(list(v_dict.keys()))}.",
+                    f"got keys {sorted(v_dict.keys())}.",
                 )
         elif isinstance(v, list | tuple):
             v_sequence = cast(list[object] | tuple[object, ...], v)

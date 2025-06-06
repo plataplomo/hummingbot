@@ -101,7 +101,7 @@ def raw_clearinghouse_state_base_fixture(
 @pytest.fixture
 def raw_user_state_empty_positions_no_balances() -> HyperliquidRawClearinghouseState:
     """Provide a HyperliquidRawClearinghouseState with no asset positions.
-    
+
     Includes basic margin summary.
     """
     empty_margin_summary = HyperliquidRawMarginSummary(

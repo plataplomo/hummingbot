@@ -3,6 +3,7 @@
 Tests validation and processing of WebSocket events from the Hyperliquid exchange API
 including real-time order book updates, trade events, and user state changes.
 """
+
 import pytest
 from pydantic import ValidationError
 

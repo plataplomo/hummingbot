@@ -53,7 +53,7 @@ class TestRiskManagerDependencyFailures:
         bad_capital: object,
     ) -> None:
         """Test size_opportunity returns None or raises with invalid capital.
-        
+
         Tests when total capital is zero, negative, or invalid.
         """
         mock_portfolio_tracker.get_total_capital.return_value = bad_capital

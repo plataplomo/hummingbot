@@ -7,6 +7,7 @@ Covers both successful and failure scenarios for trade execution.
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -328,6 +329,7 @@ class TestExecutionHandler:
         mock_bp_api: AsyncMock,
     ) -> None:
         """Test execution handler behavior when symbol mapping fails for one exchange."""
+
         def get_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
             """Get symbol side effect for testing."""
             return "BTC-PERP" if ex_id == "hyperliquid" else None
@@ -940,40 +942,20 @@ class TestExecutionHandler:
         assert mock_circuit_breaker_system.record_api_success.call_count >= 2  # Relaxed to >=2
 
     @pytest.mark.asyncio
-    async def test_execute_opportunity_failed_long_order(
-        self,
-        testable_execution_handler: TestableExecutionHandler,
-        sized_opportunity: SizedOpportunity,
-        mock_hl_api: AsyncMock,
-        mock_bp_api: AsyncMock,
-        mock_portfolio_tracker: MagicMock,
-        mock_circuit_breaker_system: MagicMock,
-        mock_symbol_mapper: MagicMock,
-        mock_config: MagicMock,
-    ) -> None:
-        """Test execution flow when one leg fails and compensation is triggered."""
+    def _setup_failed_order_config(self) -> dict[str, object]:
+        """Setup configuration for failed order test."""
+        return {
+            "execution.order_placement_type": "concurrent",
+            "execution.compensation.use_limit_orders": True,
+            "execution.compensation.limit_price_offset_pct": "0.05",
+            "execution.max_retries": 3,
+            "execution.retry_delay_base_sec": 0.01,
+            "execution.settlement_delay": 0.01,
+            "execution.use_market_orders": True,
+        }
 
-        # Ensure the mock_config for this test uses specific values, including string for pct
-        def config_get_side_effect_comp_failed_leg(
-            key: str,
-            default: object | None = None,
-        ) -> object | None:
-            """Return configuration values for compensation failure testing."""
-            values = {
-                "execution.order_placement_type": "concurrent",
-                "execution.compensation.use_limit_orders": True,
-                "execution.compensation.limit_price_offset_pct": "0.05",  # Ensure string "0.05"
-                "execution.max_retries": 3,
-                "execution.retry_delay_base_sec": 0.01,
-                "execution.settlement_delay": 0.01,
-                "execution.use_market_orders": True,
-            }
-            return values.get(key, default)
-
-        mock_config.get.side_effect = config_get_side_effect_comp_failed_leg
-
-        mock_portfolio_tracker.get_position.return_value = None
-
+    def _setup_test_tickers(self) -> tuple[Ticker, Ticker]:
+        """Setup test tickers for HL and BP."""
         hl_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -986,9 +968,15 @@ class TestExecutionHandler:
             bid=Decimal("41100"),
             ask=Decimal("41150"),
         )
-        mock_hl_api.get_ticker.return_value = hl_ticker
-        mock_bp_api.get_ticker.return_value = bp_ticker
+        return hl_ticker, bp_ticker
 
+    def _setup_test_orders(
+        self,
+        sized_opportunity: SizedOpportunity,
+        mock_config: MagicMock,
+        hl_ticker: Ticker,
+    ) -> tuple[Order, Order, APIError, OrderType, Decimal | None]:
+        """Setup test orders and related objects for compensation testing."""
         long_order = Order(
             client_order_id="HL-COMP-L",
             exchange_order_id="EX128",
@@ -1059,6 +1047,18 @@ class TestExecutionHandler:
             bp_details=None,
         )
 
+        return long_order, comp_order, short_order_failure, comp_order_type, comp_price
+
+    def _create_place_retry_side_effect(
+        self,
+        long_order: Order,
+        comp_order: Order,
+        short_order_failure: APIError,
+        sized_opportunity: SizedOpportunity,
+        hl_ticker: Ticker,
+    ) -> Callable[..., Awaitable[Order]]:
+        """Create the place_retry_side_effect function for testing."""
+
         async def place_retry_side_effect(
             execution: TradeExecution,
             exchange_id: str,
@@ -1115,33 +1115,17 @@ class TestExecutionHandler:
             if (
                 exchange_id == "hyperliquid" and side == OrderSide.SELL and reduce_only is True
             ):  # Compensation leg
-                # --- DEBUG --- Log mock arguments for compensation leg
-                logger.debug(
-                    f"MOCK place_retry_side_effect COMP LEG RECEIVED:"
-                    f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
-                    f" order_type={order_type!r} (type: {type(order_type)}), "
-                    f" quantity={quantity!r} (type: {type(quantity)}), "
-                    f" price={price!r}, time_in_force={time_in_force!r}, "
-                    f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
-                    f" post_only={post_only!r}, is_long_leg={is_long_leg!r}",
-                )
-
                 # Use the parameters passed by the SUT for the compensation order
-                # The `comp_order` fixture can serve as a base for any non-overridden fields
-                # but critical parameters must come from the SUT's call.
                 compensation_details = comp_order.model_dump()  # Start with base defaults
                 compensation_details.update(
                     {
-                        "client_order_id": client_order_id
-                        or comp_order.client_order_id,  # SUT might provide one
+                        "client_order_id": client_order_id or comp_order.client_order_id,
                         "order_type": order_type,  # From SUT
                         "price": price,  # From SUT (could be None for MARKET)
-                        "time_in_force": time_in_force,  # From SUT (should be IOC via default)
+                        "time_in_force": time_in_force,  # From SUT
                         "quantity_requested": quantity,  # From SUT
                         "reduce_only": reduce_only,  # Should be True from SUT
                         "post_only": post_only,  # Should be False from SUT
-                        # Ensure other fields like symbol, exchange, side are consistent
-                        # or also from SUT if necessary
                         "symbol": symbol,  # From SUT
                         "exchange": exchange_id,  # From SUT
                         "side": side,  # From SUT (SELL)
@@ -1154,18 +1138,56 @@ class TestExecutionHandler:
                 )
                 return Order(**compensation_details)
 
-            # --- DEBUG --- Log received arguments before raising ValueError
-            logger.debug(
-                f"place_retry_side_effect UNEXPECTED CALL. ARGS:"
-                f" exchange_id={exchange_id!r}, symbol={symbol!r}, side={side!r}, "
-                f"order_type={order_type!r}, "
-                f" quantity={quantity!r}, price={price!r}, time_in_force={time_in_force!r}, "
-                f" client_order_id={client_order_id!r}, reduce_only={reduce_only!r}, "
-                f" post_only={post_only!r}, is_long_leg={is_long_leg!r}",
-            )
             raise ValueError(
                 f"Unexpected place call: {exchange_id=} {side=} {reduce_only=} {is_long_leg=}",
             )
+
+        return place_retry_side_effect
+
+    async def test_execute_opportunity_failed_long_order(
+        self,
+        testable_execution_handler: TestableExecutionHandler,
+        sized_opportunity: SizedOpportunity,
+        mock_hl_api: AsyncMock,
+        mock_bp_api: AsyncMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker_system: MagicMock,
+        mock_symbol_mapper: MagicMock,
+        mock_config: MagicMock,
+    ) -> None:
+        """Test execution flow when one leg fails and compensation is triggered."""
+        # Setup configuration
+        config_values = self._setup_failed_order_config()
+        mock_config.get.side_effect = lambda key, default=None: config_values.get(key, default)
+
+        mock_portfolio_tracker.get_position.return_value = None
+
+        # Setup tickers
+        hl_ticker, bp_ticker = self._setup_test_tickers()
+        mock_hl_api.get_ticker.return_value = hl_ticker
+        mock_bp_api.get_ticker.return_value = bp_ticker
+
+        # Setup test orders
+        (
+            long_order,
+            comp_order,
+            short_order_failure,
+            comp_order_type,
+            comp_price,
+        ) = self._setup_test_orders(
+            sized_opportunity,
+            mock_config,
+            hl_ticker,
+        )
+
+        # Setup mock side effects
+        place_retry_side_effect = self._create_place_retry_side_effect(
+            long_order,
+            comp_order,
+            short_order_failure,
+            sized_opportunity,
+            hl_ticker,
+        )
 
         # Re-added: This mock is essential for testing the monitoring of orders, esp. compensation
         async def get_status_side_effect(

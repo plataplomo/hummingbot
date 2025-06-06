@@ -153,7 +153,7 @@ def bp_api_with_di(
     mock_bp_market_data_service: MagicMock,
 ) -> Callable[..., BackpackAPI]:
     """Create BackpackAPI instances with all dependencies injected for testing.
-    
+
     This enables black-box testing without accessing private members.
     Uses active configuration and secrets from test fixtures.
     """
@@ -207,7 +207,7 @@ class TestBackpackAPIInitialization:
         # Use the active configuration from test config
         api = bp_api_with_di(config=active_bp_config)
         assert api is not None
-        # Verify that the API uses the active configuration  
+        # Verify that the API uses the active configuration
         assert api.exchange_name == "backpack"
 
 
@@ -713,7 +713,7 @@ class TestBackpackAPIErrorHandling:
         mock_bp_market_data_service: MagicMock,
     ) -> None:
         """Test that different services can raise different error types.
-        
+
         All errors should be propagated correctly.
         """
         api = bp_api_with_di()

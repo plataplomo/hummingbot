@@ -178,7 +178,7 @@ def bp_api_with_di(
     active_bp_secrets: ApiKeyAuthSecrets,
 ) -> Callable[..., BackpackAPI]:
     """Create BackpackAPI instances with all dependencies mocked.
-    
+
     This enables unit testing without accessing protected members.
     """
 

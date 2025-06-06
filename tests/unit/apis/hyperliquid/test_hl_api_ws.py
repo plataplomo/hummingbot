@@ -144,7 +144,8 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
             api = HyperliquidAPI(
-                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+                exchange_config=active_hl_config,
+                exchange_secrets=active_hl_secrets,
             )
             assert api is not None
             assert api.exchange_name == "hyperliquid"
@@ -158,7 +159,7 @@ class TestHyperliquidAPIWebSocketConfiguration:
         # Test that active configuration works properly
         assert active_hl_config.exchange_name.value == "hyperliquid"
         assert active_hl_secrets.private_key is not None
-        
+
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidErrorMapper"),
@@ -175,7 +176,8 @@ class TestHyperliquidAPIWebSocketConfiguration:
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
             api = HyperliquidAPI(
-                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+                exchange_config=active_hl_config,
+                exchange_secrets=active_hl_secrets,
             )
             assert api is not None
             assert api.exchange_name == "hyperliquid"

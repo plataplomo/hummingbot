@@ -60,7 +60,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         request_context: dict[str, Any],
     ) -> None:
         """Reacts to an exchange-advised retry_after directive.
-        
+
         For this simple strategy, it means temporarily pausing its limiter.
 
         Args:

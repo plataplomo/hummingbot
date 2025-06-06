@@ -179,7 +179,7 @@ class SymbolMapper:
             A list of internal symbol strings.
 
         """
-        return sorted(list(self._all_internal_symbols))
+        return sorted(self._all_internal_symbols)
 
     def get_exchange_symbols_for_internal(self, internal_symbol: str) -> dict[str, str]:
         """Get a dictionary of all exchange-specific symbols for a given internal symbol.

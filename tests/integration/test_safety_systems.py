@@ -4,6 +4,7 @@ Tests the integration of safety systems including circuit breakers,
 position reconciliation, and emergency stop mechanisms to ensure
 the trading system can handle failure scenarios safely.
 """
+
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -415,81 +416,81 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
 
 
 @pytest.mark.asyncio
-async def test_position_reconciler_detects_discrepancy(
-    mock_config: AppSettings,  # Added type
-    mock_hl_api: MockExchangeAPI,
-    mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
-    position_reconciler: PositionReconciliationSystem,  # Added type
-) -> None:  # Added return type
-    """Tests that the PositionReconciliationSystem identifies discrepancies."""
-    # The mock_config fixture in tests/conftest.py should now be configured
-    # with 'mock_hl' and 'mock_bp' as the exchange IDs, making the local
-    # override below unnecessary.
-
-    # 1. Setup - Place a known position via mock API update, tracker should be empty initially
-    mock_bp_api.reset()
-    # real_portfolio_tracker.reset() # Method does not exist
-
-    exchange_id = "mock_bp"
-    symbol = "BTC-PERP"
-    # position_id = f"{exchange_id}_{symbol}_testpos" # Not used directly in model
-    mock_position = DerivativePosition(
-        exchange=exchange_id,  # Added required exchange
+def _setup_test_position(exchange_id: str, symbol: str) -> DerivativePosition:
+    """Create a test position."""
+    return DerivativePosition(
+        exchange=exchange_id,
         symbol=symbol,
         side=OrderSide.BUY,
         size=Decimal("0.1"),
         entry_price=Decimal("30000"),
         mark_price=Decimal("30100"),
-        timestamp=datetime.now(UTC),  # Added required timestamp
-        # Removed: id, status, leverage (not direct fields of DerivativePosition)
+        timestamp=datetime.now(UTC),
     )
 
-    # Accessing protected member _positions for test setup is intentional and safe in this context.
+
+def _register_mock_apis(
+    tracker: PortfolioTracker,
+    hl_api: MockExchangeAPI,
+    bp_api: MockExchangeAPI,
+) -> None:
+    """Register mock APIs with portfolio tracker."""
+    if "mock_bp" not in tracker.api_clients:
+        tracker.register_api_client("mock_bp", bp_api)
+    if "mock_hl" not in tracker.api_clients:
+        tracker.register_api_client("mock_hl", hl_api)
+
+
+def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
+    """Check discrepancies for Hyperliquid exchange."""
+    assert len(discrepancies) > 0, "Expected discrepancies for mock_hl"
+    found_btc_discrepancy = False
+    for disc in discrepancies:
+        assert isinstance(disc, HistoricalDiscrepancyRecord)
+        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
+            found_btc_discrepancy = True
+            break
+    assert found_btc_discrepancy, "BTC-PERP size discrepancy not found for mock_hl"
+
+
+def _check_bp_discrepancies(discrepancies: list[Any]) -> None:
+    """Check discrepancies for Backpack exchange."""
+    for disc in discrepancies:
+        assert isinstance(disc, HistoricalDiscrepancyRecord)
+        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
+            logger.error(f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}")
+            raise AssertionError(
+                f"Found unexpected BTC-PERP size discrepancy for mock_bp. Details: {discrepancies}",
+            )
+
+
+async def test_position_reconciler_detects_discrepancy(
+    mock_config: AppSettings,
+    mock_hl_api: MockExchangeAPI,
+    mock_bp_api: MockExchangeAPI,
+    real_portfolio_tracker: PortfolioTracker,
+    position_reconciler: PositionReconciliationSystem,
+) -> None:
+    """Tests that the PositionReconciliationSystem identifies discrepancies."""
+    # 1. Setup - Place a known position via mock API
+    mock_bp_api.reset()
+    exchange_id = "mock_bp"
+    symbol = "BTC-PERP"
+    mock_position = _setup_test_position(exchange_id, symbol)
+
+    # Accessing protected member _positions for test setup is intentional
     mock_bp_api._positions[symbol] = mock_position
 
     # 2. Run Reconciliation
-    # Assume reconciler uses portfolio_tracker.api_clients
-    # Register *both* mock APIs to ensure reconciler checks them
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-
-    # Correct method name: check_positions()
-    # Force the check to bypass interval caching
+    _register_mock_apis(real_portfolio_tracker, mock_hl_api, mock_bp_api)
     results = await position_reconciler.check_positions(force=True)
 
     # 3. Verify Discrepancy Detection
-    # Check discrepancies for Hyperliquid (mock_hl)
     discrepancies_hl = results.get("mock_hl", {}).get("discrepancies", [])
-    assert len(discrepancies_hl) > 0, "Expected discrepancies for mock_hl"
-    found_btc_discrepancy_hl = False
-    for disc in discrepancies_hl:
-        assert isinstance(disc, HistoricalDiscrepancyRecord)
-        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
-            found_btc_discrepancy_hl = True
-            # Example: check values if needed for more detailed test
-            # assert disc.detail.exchange_value == "1.1" # API value in this test's mock data
-            # assert disc.detail.local_value == "1.0"  # Local value in this test's mock data
-            break
-    assert found_btc_discrepancy_hl, "BTC-PERP size discrepancy not found for mock_hl"
+    _check_hl_discrepancies(discrepancies_hl)
 
-    # Check discrepancies for Backpack (mock_bp)
     discrepancies_bp = results.get("mock_bp", {}).get("discrepancies", [])
-    found_unexpected_btc_discrepancy_bp = False
-    for disc in discrepancies_bp:
-        assert isinstance(disc, HistoricalDiscrepancyRecord)
-        # Based on conftest, mock_bp has BTC-PERP size -2.0 and API also -2.0,
-        # so no size discrepancy expected.
-        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
-            found_unexpected_btc_discrepancy_bp = True
-            logger.error(
-                f"Found unexpected BTC-PERP size discrepancy on mock_bp: {disc.detail}",
-            )  # Only logs on unexpected finding (test failure path)
-    assert not found_unexpected_btc_discrepancy_bp, (
-        f"Found unexpected BTC-PERP size discrepancy for mock_bp. Details: {discrepancies_bp}"
-    )
+    _check_bp_discrepancies(discrepancies_bp)
 
     # Log all found discrepancies for debugging if tests fail
     logger.info(f"Full initial reconciliation results: {results}")

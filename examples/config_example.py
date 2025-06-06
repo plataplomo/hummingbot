@@ -250,7 +250,7 @@ def main() -> None:
                         logger.info("    API Key: Set (complex structure)")
                 else:
                     logger.info("    API Key: Not Set")
-                    
+
                 if hasattr(exchange_secrets, "api_secret") and exchange_secrets.api_secret:
                     logger.info("    API Secret: Set")
                 else:

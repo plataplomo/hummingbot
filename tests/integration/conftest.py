@@ -617,41 +617,37 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
     return config
 
 
-@pytest.fixture
-def vcr_cassette_dir(request: PytestRequest) -> str:
-    """Override pytest-recording's default cassette directory logic.
+def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
+    """Extract custom VCR cassette directory from test parametrization."""
+    if not (hasattr(request, "node") and hasattr(request.node, "callspec")):
+        return None
 
-    This fixture is automatically used by pytest-recording to determine where
-    to save cassette files. We override it to use organized subdirectories
-    based on the test parametrization.
-    """
-    # Check if this specific test has custom_vcr_cassette_dir parametrization
-    if hasattr(request, "node") and hasattr(request.node, "callspec"):
-        callspec = getattr(request.node, "callspec", None)
-        if (
-            callspec
-            and hasattr(callspec, "params")
-            and "custom_vcr_cassette_dir" in callspec.params
-        ):
-            # Create the organized directory path from the parametrized value
-            base_dir = Path("tests/cassettes")
-            param_value = callspec.params["custom_vcr_cassette_dir"]
-            custom_dir = base_dir / str(param_value)
-            custom_dir.mkdir(parents=True, exist_ok=True)
-            return str(custom_dir)
+    callspec = getattr(request.node, "callspec", None)
+    if not (callspec and hasattr(callspec, "params")):
+        return None
 
-    # Fall back to default organized structure (module-based like pytest-recording default)
-    # DEFENSIVE CHECK: Ensure node and fspath exist. Mypy=[attr-defined] Ruff=[attr-defined]
-    if not hasattr(request, "node") or not hasattr(request.node, "fspath"):
+    if "custom_vcr_cassette_dir" not in callspec.params:
+        return None
+
+    base_dir = Path("tests/cassettes")
+    param_value = callspec.params["custom_vcr_cassette_dir"]
+    custom_dir = base_dir / str(param_value)
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    return str(custom_dir)
+
+
+def _get_module_based_cassette_dir(request: PytestRequest) -> str:
+    """Get module-based cassette directory from test file path."""
+    # Ensure node and fspath exist
+    if not (hasattr(request, "node") and hasattr(request.node, "fspath")):
         return "tests/cassettes"
 
-    # Handle pytest node path access - pytest's fspath can be str or py.path.local
     node_fspath = getattr(request.node, "fspath", None)
     if node_fspath is None:
         return "tests/cassettes"
 
     # Convert to string path regardless of pytest's internal type
-    node_path = str(node_fspath)  # current test file
+    node_path = str(node_fspath)
     module_path = Path(node_path)
 
     try:
@@ -664,3 +660,20 @@ def vcr_cassette_dir(request: PytestRequest) -> str:
     except ValueError:
         # If path is not relative to tests/, fall back to default
         return "tests/cassettes"
+
+
+@pytest.fixture
+def vcr_cassette_dir(request: PytestRequest) -> str:
+    """Override pytest-recording's default cassette directory logic.
+
+    This fixture is automatically used by pytest-recording to determine where
+    to save cassette files. We override it to use organized subdirectories
+    based on the test parametrization.
+    """
+    # Check for custom parametrized cassette directory
+    custom_dir = _get_custom_cassette_dir(request)
+    if custom_dir:
+        return custom_dir
+
+    # Fall back to module-based directory structure
+    return _get_module_based_cassette_dir(request)

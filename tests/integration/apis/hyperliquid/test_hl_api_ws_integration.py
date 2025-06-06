@@ -216,7 +216,8 @@ class TestHyperliquidAPIWebSocketSubscriptionIntegration:
             return_value=mock_ws_manager,
         ):
             api = HyperliquidAPI(
-                exchange_config=active_hl_config, exchange_secrets=active_hl_secrets,
+                exchange_config=active_hl_config,
+                exchange_secrets=active_hl_secrets,
             )
             # Use object.__setattr__ to bypass protection for integration testing setup
             object.__setattr__(api, "_ws_manager", mock_ws_manager)

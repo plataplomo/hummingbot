@@ -16,13 +16,15 @@ import pytest
 if TYPE_CHECKING:
     # VCR request/response objects aren't well-typed, so we use protocols
     from typing import Protocol
-    
+
     class VCRRequest(Protocol):
         """Protocol for VCR request objects."""
+
         body: Any
-        
+
     class VCRResponse(Protocol):
         """Protocol for VCR response objects."""
+
         body: Any
 else:
     # At runtime, these are just Any to avoid import issues
@@ -237,4 +239,3 @@ def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
         custom_dir.mkdir(parents=True, exist_ok=True)
         return str(custom_dir)
     return "tests/cassettes"  # Default
-

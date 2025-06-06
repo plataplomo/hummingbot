@@ -221,6 +221,60 @@ class BackpackTradingDataMapper:
             ) from e
 
     @staticmethod
+    def _parse_order_quantities(raw_order: BackpackRawOrder) -> tuple[Decimal, Decimal]:
+        """Parse and validate order quantities."""
+        quantity_requested = parse_decimal_value(
+            raw_order.quantity,
+            allow_none=False,
+            field_name="quantity",
+        )
+        if quantity_requested is None:
+            raise TransformationError("quantity_requested is required")
+
+        quantity_filled = parse_decimal_value(
+            raw_order.executedQuantity,
+            allow_none=True,
+            field_name="executedQuantity",
+        ) or Decimal("0")
+
+        return quantity_requested, quantity_filled
+
+    @staticmethod
+    def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | None:
+        """Parse order price field, returning None for zero or invalid values."""
+        if not price_value or price_value == "0":
+            return None
+
+        parsed_price = parse_decimal_value(
+            price_value,
+            allow_none=True,
+            field_name=field_name,
+        )
+        return parsed_price if parsed_price is not None and parsed_price > 0 else None
+
+    @staticmethod
+    def _parse_order_timestamps(
+        raw_order: BackpackRawOrder,
+    ) -> tuple[datetime, datetime | None, datetime | None]:
+        """Parse order timestamps."""
+        created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
+        if created_timestamp is None:
+            raise TransformationError("createdAt is required")
+
+        updated_timestamp = None
+        if raw_order.updatedAt:
+            updated_timestamp = parse_datetime_utc(raw_order.updatedAt, field_name="updatedAt")
+
+        triggered_timestamp = None
+        if raw_order.triggeredAt:
+            triggered_timestamp = parse_datetime_utc(
+                raw_order.triggeredAt,
+                field_name="triggeredAt",
+            )
+
+        return created_timestamp, updated_timestamp, triggered_timestamp
+
+    @staticmethod
     def transform_raw_order_to_internal(raw_order: BackpackRawOrder) -> Order:
         """Transform a BackpackRawOrder to an Internal Order model.
 
@@ -244,68 +298,25 @@ class BackpackTradingDataMapper:
             )
 
             # Parse quantities
-            quantity_requested = parse_decimal_value(
-                raw_order.quantity,
-                allow_none=False,
-                field_name="quantity",
+            quantity_requested, quantity_filled = BackpackTradingDataMapper._parse_order_quantities(
+                raw_order,
             )
-            if quantity_requested is None:
-                raise TransformationError("quantity_requested is required")
 
-            quantity_filled = parse_decimal_value(
-                raw_order.executedQuantity,
-                allow_none=True,
-                field_name="executedQuantity",
-            ) or Decimal("0")
-
-            # Parse price
-            order_price = None
-            if raw_order.price and raw_order.price != "0":
-                parsed_price = parse_decimal_value(
-                    raw_order.price,
-                    allow_none=True,
-                    field_name="price",
-                )
-                if parsed_price is not None and parsed_price > 0:
-                    order_price = parsed_price
-
-            # Parse stop price
-            stop_price = None
-            if raw_order.triggerPrice and raw_order.triggerPrice != "0":
-                parsed_stop_price = parse_decimal_value(
-                    raw_order.triggerPrice,
-                    allow_none=True,
-                    field_name="triggerPrice",
-                )
-                if parsed_stop_price is not None and parsed_stop_price > 0:
-                    stop_price = parsed_stop_price
-
-            # Parse average fill price
-            average_fill_price = None
-            if raw_order.avgFillPrice and raw_order.avgFillPrice != "0":
-                parsed_avg_price = parse_decimal_value(
-                    raw_order.avgFillPrice,
-                    allow_none=True,
-                    field_name="avgFillPrice",
-                )
-                if parsed_avg_price is not None and parsed_avg_price > 0:
-                    average_fill_price = parsed_avg_price
+            # Parse prices
+            order_price = BackpackTradingDataMapper._parse_order_price(raw_order.price, "price")
+            stop_price = BackpackTradingDataMapper._parse_order_price(
+                raw_order.triggerPrice,
+                "triggerPrice",
+            )
+            average_fill_price = BackpackTradingDataMapper._parse_order_price(
+                raw_order.avgFillPrice,
+                "avgFillPrice",
+            )
 
             # Parse timestamps
-            created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
-            if created_timestamp is None:
-                raise TransformationError("createdAt is required")
-
-            updated_timestamp = None
-            if raw_order.updatedAt:
-                updated_timestamp = parse_datetime_utc(raw_order.updatedAt, field_name="updatedAt")
-
-            triggered_timestamp = None
-            if raw_order.triggeredAt:
-                triggered_timestamp = parse_datetime_utc(
-                    raw_order.triggeredAt,
-                    field_name="triggeredAt",
-                )
+            created_timestamp, updated_timestamp, triggered_timestamp = (
+                BackpackTradingDataMapper._parse_order_timestamps(raw_order)
+            )
 
             return Order(
                 exchange_order_id=raw_order.id,

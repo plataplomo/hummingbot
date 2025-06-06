@@ -588,13 +588,8 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def transfer(self, args: TransferArgs) -> Transfer:
-        """Performs an internal transfer of funds between account types."""
-        # Service Input Parameter Validation
-        frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "transfer"
-
-        # Business Logic Pre-Validation (moved from RequestBuilder)
+    def _validate_account_types(self, args: TransferArgs, current_method: str) -> None:
+        """Validate account types for transfer."""
         valid_accounts = {"SPOT", "MARGIN", "FUTURES"}
         if args.from_account_type not in valid_accounts:
             raise ValueError(
@@ -607,160 +602,172 @@ class BackpackAccountService:
                 f"Must be one of {valid_accounts}",
             )
 
-        # Initialize context for error handling
-        raw_data: ParsedJsonResponse | None = None
-        status_code: int = 0
-        raw_response_content: str | None = None
+    async def _execute_transfer_request(self, args: TransferArgs) -> tuple[ParsedJsonResponse, int]:
+        """Execute the transfer API request."""
+        endpoint_path = "/api/v1/capital/transfer"
+        payload = self._request_builder.build_internal_transfer_payload(
+            asset_symbol=args.asset,
+            amount=args.amount,
+            from_account=args.from_account_type,
+            to_account=args.to_account_type,
+            client_transfer_id=args.client_transfer_id,
+        )
+        logger.debug(
+            f"[{self._exchange_name}] Requesting transfer from {endpoint_path} "
+            f"with payload: {payload}",
+        )
 
-        try:
-            # Core operational logic
-            endpoint_path = "/api/v1/capital/transfer"
-            payload = self._request_builder.build_internal_transfer_payload(
-                asset_symbol=args.asset,
-                amount=args.amount,
-                from_account=args.from_account_type,
-                to_account=args.to_account_type,
-                client_transfer_id=args.client_transfer_id,
-            )
-            logger.debug(
-                f"[{self._exchange_name}] Requesting transfer from {endpoint_path} "
-                f"with payload: {payload}",
+        raw_data, status_code, _ = await self._http_client_requester(
+            method="POST",
+            endpoint=endpoint_path,
+            data=payload,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+        )
+
+        logger.debug(
+            f"[{self._exchange_name}] Raw transfer response: {raw_data!r} (Status: {status_code})",
+        )
+
+        if raw_data is None:
+            raise APIError(
+                message=f"No data received for transfer, status: {status_code}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
             )
 
-            raw_data, status_code, _ = await self._http_client_requester(
-                method="POST",
-                endpoint=endpoint_path,
-                data=payload,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+        return raw_data, status_code
+
+    def _process_transfer_response(
+        self,
+        raw_data: ParsedJsonResponse,
+        args: TransferArgs,
+        status_code: int,
+    ) -> Transfer:
+        """Process and transform transfer response."""
+        validated_raw_json_response: RawJsonResponse = (
+            self._response_handler.handle_transfer_response(raw_data)
+        )
+
+        if not isinstance(validated_raw_json_response, dict):
+            raise APIError(
+                message=(
+                    f"Transfer response handler returned unexpected type: "
+                    f"{type(validated_raw_json_response)}, expected dict."
+                ),
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
             )
 
-            if raw_data is not None:
-                raw_response_content = str(raw_data)
+        internal_transfer = self._mapper.transform_raw_transfer_to_internal(
+            raw_response=validated_raw_json_response,
+            exchange_name=self._exchange_name,
+            asset=args.asset,
+            quantity=args.amount,
+            from_account_type_raw=args.from_account_type,
+            to_account_type_raw=args.to_account_type,
+            client_transfer_id=args.client_transfer_id,
+        )
 
-            logger.debug(
-                f"[{self._exchange_name}] Raw transfer response: {raw_data!r} "
-                f"(Status: {status_code})",
-            )
-            if raw_data is None:
-                raise APIError(
-                    message=f"No data received for transfer, status: {status_code}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            # Assuming self._response_handler.handle_transfer_response exists
-            # and validates raw_data, returning it as RawJsonResponse
-            # (typically a dict for transfers).
-            validated_raw_json_response: RawJsonResponse = (
-                self._response_handler.handle_transfer_response(raw_data)
-            )
-            # The mapper's transform_raw_transfer_to_internal expects RawJsonResponse.
-            # We need to ensure validated_raw_json_response is a dict as per
-            # mapper's likely expectation for transfer data.
-            if not isinstance(validated_raw_json_response, dict):
-                raise APIError(
-                    message=(
-                        f"Transfer response handler returned unexpected type: "
-                        f"{type(validated_raw_json_response)}, expected dict."
-                    ),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            internal_transfer = self._mapper.transform_raw_transfer_to_internal(
-                raw_response=validated_raw_json_response,  # Pass validated dict
-                exchange_name=self._exchange_name,  # Pass exchange_name
-                asset=args.asset,
-                quantity=args.amount,
-                from_account_type_raw=args.from_account_type,
-                to_account_type_raw=args.to_account_type,
-                client_transfer_id=args.client_transfer_id,
-            )
-            logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
-            logger.debug(
-                f"[{self._exchange_name}] Transfer successful. "
-                f"Response: {internal_transfer.model_dump_json(exclude_none=True)}",
-            )
-            return internal_transfer
+        logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
+        logger.debug(
+            f"[{self._exchange_name}] Transfer successful. "
+            f"Response: {internal_transfer.model_dump_json(exclude_none=True)}",
+        )
+        return internal_transfer
 
-        except APIError:
-            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+    def _handle_transfer_exceptions(
+        self,
+        e: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle various transfer-related exceptions."""
+        if isinstance(e, APIError):
             raise
-        except TransformationError as e_transform:
+        elif isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for transfer: {e_transform}",
+                f"data for transfer: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
+            ) from e
+        elif isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for transfer: {e_val}",
+                f"failed for transfer: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            # Input parameter validation errors should propagate as ValueError
-            # Service logic errors should be wrapped as APIError
-            error_msg = str(e_service_logic)
+            ) from e
+        elif isinstance(e, ValueError | TypeError):
+            error_msg = str(e)
             if current_method in error_msg and any(
                 param in error_msg for param in ["from_account_type", "to_account_type"]
             ):
-                # This is likely from our input parameter validation - re-raise as is
                 raise
             else:
-                # This is from service internal logic - wrap as APIError
                 logger.error(
                     f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for transfer: {e_service_logic}",
+                    f"for transfer: {e}",
                     exc_info=True,
                 )
                 raise APIError(
                     code=APIErrorCode.UNKNOWN.value,
                     message="Service internal logic error.",
-                    original_exception=e_service_logic,
+                    original_exception=e,
                     http_status=status_code if status_code != 0 else None,
                     exchange_message=raw_response_content,
-                ) from e_service_logic
-        except Exception as e_unexpected:
+                ) from e
+        else:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for transfer: {e_unexpected}",
+                f"for transfer: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
-                original_exception=e_unexpected,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_unexpected
+            ) from e
 
-    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Initiates a withdrawal of funds to an external address."""
-        # Service Input Parameter Validation
+    async def transfer(self, args: TransferArgs) -> Transfer:
+        """Performs an internal transfer of funds between account types."""
         frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "withdraw"
+        current_method = frame.f_code.co_name if frame is not None else "transfer"
 
-        # Business Logic Pre-Validation (moved from RequestBuilder)
+        self._validate_account_types(args, current_method)
+
+        raw_response_content: str | None = None
+        status_code: int = 0
+
+        try:
+            raw_data, status_code = await self._execute_transfer_request(args)
+            raw_response_content = str(raw_data)
+            return self._process_transfer_response(raw_data, args, status_code)
+        except Exception as e:
+            self._handle_transfer_exceptions(e, current_method, status_code, raw_response_content)
+
+    def _validate_withdrawal_network(self, args: WithdrawArgs, current_method: str) -> None:
+        """Validate withdrawal network support."""
         if args.network is None:
             raise ValueError(f"[{current_method}] 'network' is required for withdrawal.")
 
-        # Validate network maps to supported blockchain
         blockchain_mapping = {
             "Arbitrum": "Arbitrum",
             "Base": "Base",
@@ -784,136 +791,157 @@ class BackpackAccountService:
                 f"Supported networks: {list(blockchain_mapping.keys())}",
             )
 
-        # Initialize context for error handling
-        raw_data: ParsedJsonResponse | None = None
-        status_code: int = 0
-        raw_response_content: str | None = None
+    async def _execute_withdrawal_request(
+        self,
+        args: WithdrawArgs,
+    ) -> tuple[ParsedJsonResponse, int]:
+        """Execute withdrawal API request."""
+        endpoint_path = "/api/v1/capital/withdrawals"
+        payload = self._request_builder.build_withdraw_payload(
+            asset=args.asset,
+            amount=args.amount,
+            address=args.address,
+            network=args.network,
+            tag=args.tag,
+            client_withdrawal_id=args.client_withdrawal_id,
+            two_factor_token=args.two_factor_token,
+        )
+        logger.debug(
+            f"[{self._exchange_name}] Requesting withdrawal from {endpoint_path} "
+            f"with payload: {payload}",
+        )
 
-        try:
-            # Core operational logic
-            endpoint_path = "/api/v1/capital/withdrawals"
-            payload = self._request_builder.build_withdraw_payload(
-                asset=args.asset,
-                amount=args.amount,
-                address=args.address,
-                network=args.network,
-                tag=args.tag,
-                client_withdrawal_id=args.client_withdrawal_id,
-                two_factor_token=args.two_factor_token,
-                # Extra parameters from the args model can be accessed if needed
-            )
-            logger.debug(
-                f"[{self._exchange_name}] Requesting withdrawal from {endpoint_path} "
-                f"with payload: {payload}",
-            )
+        raw_data, status_code, _ = await self._http_client_requester(
+            method="POST",
+            endpoint=endpoint_path,
+            data=payload,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+        )
 
-            raw_data, status_code, _ = await self._http_client_requester(
-                method="POST",
-                endpoint=endpoint_path,
-                data=payload,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
-            )
+        logger.debug(
+            f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
+            f"(Status: {status_code})",
+        )
 
-            if raw_data is not None:
-                raw_response_content = str(raw_data)
-
-            logger.debug(
-                f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
-                f"(Status: {status_code})",
-            )
-            if raw_data is None:
-                raise APIError(
-                    message=f"No data received for withdrawal, status: {status_code}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            # Assuming self._response_handler.handle_withdraw_response exists and
-            # returns BackpackRawWithdrawalResponse
-            raw_withdrawal_model: BackpackRawWithdrawalResponse = (
-                self._response_handler.handle_withdraw_response(raw_data)
+        if raw_data is None:
+            raise APIError(
+                message=f"No data received for withdrawal, status: {status_code}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
             )
 
-            internal_withdrawal = self._mapper.transform_raw_withdrawal_response_to_internal(
-                raw_response=raw_withdrawal_model,
-                asset=args.asset,
-                quantity=args.amount,
-                address=args.address,
-                network=args.network,
-                client_withdrawal_id=args.client_withdrawal_id,
-                tag=args.tag,
-            )
-            logger.debug(
-                f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}",
-            )
-            return internal_withdrawal
+        return raw_data, status_code
 
-        except APIError:
-            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+    def _process_withdrawal_response(
+        self,
+        raw_data: ParsedJsonResponse,
+        args: WithdrawArgs,
+        status_code: int,
+    ) -> Withdrawal:
+        """Process and transform withdrawal response."""
+        raw_withdrawal_model: BackpackRawWithdrawalResponse = (
+            self._response_handler.handle_withdraw_response(raw_data)
+        )
+
+        internal_withdrawal = self._mapper.transform_raw_withdrawal_response_to_internal(
+            raw_response=raw_withdrawal_model,
+            asset=args.asset,
+            quantity=args.amount,
+            address=args.address,
+            network=args.network,
+            client_withdrawal_id=args.client_withdrawal_id,
+            tag=args.tag,
+        )
+        logger.debug(
+            f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}",
+        )
+        return internal_withdrawal
+
+    def _handle_withdrawal_exceptions(
+        self,
+        e: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle various withdrawal-related exceptions."""
+        if isinstance(e, APIError):
             raise
-        except TransformationError as e_transform:
+        elif isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for withdrawal: {e_transform}",
+                f"data for withdrawal: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
+            ) from e
+        elif isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for withdrawal: {e_val}",
+                f"failed for withdrawal: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            # Input parameter validation errors should propagate as ValueError
-            # Service logic errors should be wrapped as APIError
-            error_msg = str(e_service_logic)
+            ) from e
+        elif isinstance(e, ValueError | TypeError):
+            error_msg = str(e)
             if current_method in error_msg and "network" in error_msg:
-                # This is likely from our input parameter validation - re-raise as is
                 raise
             else:
-                # This is from service internal logic - wrap as APIError
                 logger.error(
                     f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for withdrawal: {e_service_logic}",
+                    f"for withdrawal: {e}",
                     exc_info=True,
                 )
                 raise APIError(
                     code=APIErrorCode.UNKNOWN.value,
                     message="Service internal logic error.",
-                    original_exception=e_service_logic,
+                    original_exception=e,
                     http_status=status_code if status_code != 0 else None,
                     exchange_message=raw_response_content,
-                ) from e_service_logic
-        except Exception as e_unexpected:
+                ) from e
+        else:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for withdrawal: {e_unexpected}",
+                f"for withdrawal: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
-                original_exception=e_unexpected,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_unexpected
+            ) from e
+
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+        """Initiates a withdrawal of funds to an external address."""
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "withdraw"
+
+        self._validate_withdrawal_network(args, current_method)
+
+        raw_response_content: str | None = None
+        status_code: int = 0
+
+        try:
+            raw_data, status_code = await self._execute_withdrawal_request(args)
+            raw_response_content = str(raw_data)
+            return self._process_withdrawal_response(raw_data, args, status_code)
+        except Exception as e:
+            self._handle_withdrawal_exceptions(e, current_method, status_code, raw_response_content)
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieves historical order data."""
@@ -1050,6 +1078,143 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
+    async def _execute_trade_history_request(
+        self,
+        args: GetTradeHistoryArgs,
+    ) -> tuple[ParsedJsonResponse, int]:
+        """Execute trade history API request."""
+        endpoint_path = "/api/v1/history/fills"
+
+        params = self._request_builder.build_get_trade_history_params(
+            symbol=args.symbol,
+            limit=args.limit,
+            start_time_ms=None,  # Not in service signature
+            end_time_ms=None,  # Not in service signature
+            from_id=None,  # Not in service signature
+        )
+        logger.debug(
+            f"[{self._exchange_name}] Requesting trade history from {endpoint_path} "
+            f"with params: {params}",
+        )
+
+        raw_data, status_code, _ = await self._http_client_requester(
+            method="GET",
+            endpoint=endpoint_path,
+            params=params,
+            is_signed=True,
+            endpoint_group="private",
+            request_weight=1,
+        )
+
+        logger.debug(
+            f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "
+            f"(Status: {status_code})",
+        )
+
+        if raw_data is None:
+            raise APIError(
+                message=f"No data received for trade history, status: {status_code}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
+
+        return raw_data, status_code
+
+    def _process_trade_history_response(
+        self,
+        raw_data: ParsedJsonResponse,
+        args: GetTradeHistoryArgs,
+    ) -> list[Trade]:
+        """Process and transform trade history response."""
+        raw_trades_list: list[BackpackRawTrade] = (
+            self._response_handler.handle_get_trade_history_response(raw_data, args.symbol)
+        )
+
+        internal_trades: list[Trade] = []
+        for raw_trade_model in raw_trades_list:
+            try:
+                trade = self._mapper.transform_raw_trade_to_internal(raw_trade_model)
+                if trade is not None:  # Mapper can return None
+                    internal_trades.append(trade)
+            except (ValidationError, ValueError) as e_map_item:
+                logger.warning(
+                    f"[{self._exchange_name}] Skipping trade history mapping for trade "
+                    f"'{raw_trade_model.id}' due to error: {e_map_item}. Raw: "
+                    f"{raw_trade_model.model_dump_json(exclude_none=True)}",
+                )
+
+        logger.debug(
+            f"[{self._exchange_name}] Mapped internal trade history: {len(internal_trades)} trades",
+        )
+        return internal_trades
+
+    def _handle_trade_history_exceptions(
+        self,
+        e: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle various trade history-related exceptions."""
+        if isinstance(e, APIError):
+            raise
+        elif isinstance(e, TransformationError):
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for trade history: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e
+        elif isinstance(e, ValidationError):
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for trade history: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e
+        elif isinstance(e, ValueError | TypeError):
+            error_msg = str(e)
+            if current_method in error_msg and "limit" in error_msg:
+                raise
+            else:
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for trade history: {e}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                ) from e
+        else:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for trade history: {e}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e
+
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieves historical trade data (fills).
 
@@ -1057,139 +1222,20 @@ class BackpackAccountService:
             args: Parameters for filtering trade history including symbol and limit.
 
         """
-        # Service Input Parameter Validation is now handled by GetTradeHistoryArgs Pydantic model
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_trade_history"
 
-        # Initialize context for error handling
-        raw_data: ParsedJsonResponse | None = None
-        status_code: int = 0
         raw_response_content: str | None = None
+        status_code: int = 0
 
         try:
-            # Core operational logic
-            endpoint_path = "/api/v1/history/fills"
-
-            # The builder supports more parameters, pass None for those not in service signature
-            params = self._request_builder.build_get_trade_history_params(
-                symbol=args.symbol,
-                limit=args.limit,
-                start_time_ms=None,  # Not in service signature
-                end_time_ms=None,  # Not in service signature
-                from_id=None,  # Not in service signature
+            raw_data, status_code = await self._execute_trade_history_request(args)
+            raw_response_content = str(raw_data)
+            return self._process_trade_history_response(raw_data, args)
+        except Exception as e:
+            self._handle_trade_history_exceptions(
+                e,
+                current_method,
+                status_code,
+                raw_response_content,
             )
-            logger.debug(
-                f"[{self._exchange_name}] Requesting trade history from {endpoint_path} "
-                f"with params: {params}",
-            )
-
-            raw_data, status_code, _ = await self._http_client_requester(
-                method="GET",
-                endpoint=endpoint_path,
-                params=params,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
-            )
-
-            if raw_data is not None:
-                raw_response_content = str(raw_data)
-
-            logger.debug(
-                f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "
-                f"(Status: {status_code})",
-            )
-            if raw_data is None:
-                raise APIError(
-                    message=f"No data received for trade history, status: {status_code}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            raw_trades_list: list[BackpackRawTrade] = (
-                self._response_handler.handle_get_trade_history_response(raw_data, args.symbol)
-            )
-
-            internal_trades: list[Trade] = []
-            for raw_trade_model in raw_trades_list:
-                try:
-                    trade = self._mapper.transform_raw_trade_to_internal(raw_trade_model)
-                    if trade is not None:  # Mapper can return None
-                        internal_trades.append(trade)
-                except (ValidationError, ValueError) as e_map_item:
-                    logger.warning(
-                        f"[{self._exchange_name}] Skipping trade history mapping for trade "
-                        f"'{raw_trade_model.id}' due to error: {e_map_item}. Raw: "
-                        f"{raw_trade_model.model_dump_json(exclude_none=True)}",
-                    )
-
-            logger.debug(
-                f"[{self._exchange_name}] Mapped internal trade history: "
-                f"{len(internal_trades)} trades",
-            )
-            return internal_trades
-
-        except APIError:
-            # Re-raise APIErrors from _requester, ResponseHandler, etc.
-            raise
-        except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for trade history: {e_transform}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for trade history: {e_val}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Internal data validation failed.",
-                original_exception=e_val,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            # Input parameter validation errors should propagate as ValueError
-            # Service logic errors should be wrapped as APIError
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and "limit" in error_msg:
-                # This is likely from our input parameter validation - re-raise as is
-                raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for trade history: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for trade history: {e_unexpected}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected

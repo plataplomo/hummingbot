@@ -3,6 +3,7 @@
 Tests validation and processing of position data from the Backpack exchange API
 including position structures, margin information, and position-related calculations.
 """
+
 from typing import Any
 
 import pytest
@@ -353,7 +354,7 @@ def test_BackpackRawPositionUpdate_frozen(
 
 class TestBackpackRawPosition:
     """Tests for the BackpackRawPosition model that might involve more complex validation.
-    
+
     Tests scenarios not covered by simple field-level parametrization.
     """
 

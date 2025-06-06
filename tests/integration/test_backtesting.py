@@ -221,6 +221,104 @@ class TestBacktestingIntegration:
         # except Exception as e:
         #     pytest.fail(f"Integration test failed: {e}")
 
+    def _extract_price_from_data(
+        self,
+        current_data: pd.Series[Any] | pd.DataFrame,
+    ) -> Decimal | None:
+        """Extract price from current data for TEST_SYMBOL."""
+        price_column_key = ("close", TEST_SYMBOL)
+        price_val_raw: Any = None
+
+        if isinstance(current_data, pd.Series):
+            if price_column_key in current_data.index:
+                price_val_raw = current_data[price_column_key]
+        elif price_column_key in current_data.columns:
+            price_val_raw = current_data[price_column_key].iloc[0]
+
+        if price_val_raw is None:
+            return None
+
+        try:
+            return Decimal(str(price_val_raw))
+        except (InvalidOperation, ValueError):
+            return None
+
+    def _create_simple_test_strategy(self) -> BacktestStrategy:
+        """Create a simple test strategy for backtesting."""
+
+        class SimpleTestStrategy(BacktestStrategy):
+            """Simple test strategy that buys when price is below threshold."""
+
+            def __init__(self, parent_test: "TestBacktestingIntegration") -> None:
+                super().__init__("SimpleTestStrategy")
+                self.price_threshold = Decimal("30000")
+                self.position = False
+                self.initialized = False
+                self.parent_test = parent_test
+
+            def initialize(self, data: pd.DataFrame) -> bool:
+                """Initialize strategy with price data from DataFrame."""
+                if self.initialized:
+                    return True
+
+                price_column_key = ("close", TEST_SYMBOL)
+                if price_column_key in data.columns:
+                    try:
+                        mean_price: float = data[price_column_key].mean()
+                        self.price_threshold = Decimal(str(mean_price))
+                        logger.info(
+                            f"Initialized {self.name} with price threshold: "
+                            f"{self.price_threshold:.2f}",
+                        )
+                    except (InvalidOperation, TypeError, KeyError) as e:
+                        logger.warning(
+                            f"Using default threshold {self.price_threshold}. Error: {e}",
+                        )
+                else:
+                    logger.warning(f"Using default threshold {self.price_threshold}")
+
+                self.initialized = True
+                return True
+
+            def update(
+                self,
+                current_data: pd.Series[Any] | pd.DataFrame,
+            ) -> dict[str, list[dict[str, Any]]]:
+                """Update strategy and generate trading signals."""
+                signals: list[dict[str, Any]] = []
+                price = self.parent_test._extract_price_from_data(current_data)
+
+                if price is None:
+                    return {"signals": signals}
+
+                if price < self.price_threshold and not self.position:
+                    signals.append(
+                        {
+                            "type": "ENTER_LONG",
+                            "symbol": TEST_SYMBOL,
+                            "side": "buy",
+                            "price": price,
+                            "size": Decimal("0.1"),
+                        },
+                    )
+                    self.position = True
+                elif price > self.price_threshold * Decimal("1.1") and self.position:
+                    signals.append(
+                        {
+                            "type": "EXIT_LONG",
+                            "symbol": TEST_SYMBOL,
+                            "side": "sell",
+                            "price": price,
+                            "size": Decimal("0.1"),
+                            "pnl": (price / self.price_threshold) - Decimal("1"),
+                        },
+                    )
+                    self.position = False
+
+                return {"signals": signals}
+
+        return SimpleTestStrategy(self)
+
     def test_custom_backtest_strategy(self) -> None:
         """Test with a custom BacktestStrategy implementation."""
         assert self.funding_data is not None, (
@@ -229,110 +327,7 @@ class TestBacktestingIntegration:
         assert self.data_file_path is not None, "data_file_path not initialized"
         assert self.test_results_dir is not None, "test_results_dir not initialized"
 
-        class SimpleTestStrategy(BacktestStrategy):
-            """Simple test strategy that buys when price is below threshold."""
-
-            def __init__(self, price_threshold: Decimal = Decimal("30000")) -> None:
-                super().__init__("SimpleTestStrategy")
-                self.price_threshold = price_threshold
-                self.position = False
-                self.initialized = False
-
-            def initialize(self, data: pd.DataFrame) -> bool:
-                """Initialize strategy with price data from DataFrame."""
-                if not self.initialized:  # Check if already initialized
-                    # Try to find the price column for TEST_SYMBOL
-                    price_column_key = ("close", TEST_SYMBOL)
-                    if price_column_key in data.columns:
-                        try:
-                            # Assume mean returns float or compatible type
-                            # Ignore type error for mean on potentially complex Series
-                            mean_price: float = data[price_column_key].mean()
-                            self.price_threshold = Decimal(str(mean_price))
-                            logger.info(
-                                f"Initialized {self.name} with price threshold: "
-                                f"{self.price_threshold:.2f} from {TEST_SYMBOL} mean price.",
-                            )
-                        except (InvalidOperation, TypeError, KeyError) as e:
-                            logger.warning(
-                                f"Could not calculate mean for {price_column_key}, "
-                                f"using default threshold {self.price_threshold}. Error: {e}",
-                            )
-                    else:
-                        logger.warning(
-                            f"Price column {price_column_key} not found in data, "
-                            f"using default threshold {self.price_threshold}.",
-                        )
-                    self.initialized = True
-                return True
-
-            def update(
-                self,
-                current_data: pd.Series[Any] | pd.DataFrame,
-            ) -> dict[str, list[dict[str, Any]]]:
-                """Update strategy and generate trading signals based on current market data."""
-                signals: list[dict[str, Any]] = []
-
-                # Determine the price for TEST_SYMBOL from current_data
-                # current_data could be a Series (one row) or a DataFrame
-                # (if strategy handles slices)
-                price_val_raw: Any = None
-                price_column_key = ("close", TEST_SYMBOL)
-
-                if isinstance(current_data, pd.Series):
-                    # Ignore type error for index access on complex Series
-                    if price_column_key in current_data.index:
-                        price_val_raw = current_data[price_column_key]  # Correct indexing
-                # Linter flagged isinstance(current_data, pd.DataFrame) as
-                # unnecessary, removing elif. This assumes if it's not a Series,
-                # it must be a DataFrame based on type hint.
-                elif price_column_key in current_data.columns:
-                    # Assuming we need the first (or only) value if it's a
-                    # DataFrame slice for current step
-                    # Ignore type error for iloc on potentially complex Series/DataFrame slice
-                    price_val_raw = current_data[price_column_key].iloc[0]
-
-                if price_val_raw is None:
-                    # logger.debug(f"No price data for {TEST_SYMBOL} in current_data step.")
-                    return {"signals": signals}
-
-                try:
-                    price = Decimal(str(price_val_raw))
-                except (InvalidOperation, ValueError):
-                    # logger.warning(
-                    #    f"Invalid price value {price_val_raw} for {TEST_SYMBOL}, skipping."
-                    # )
-                    return {"signals": signals}
-
-                if price < self.price_threshold:
-                    if not self.position:  # Only enter if not already in position
-                        signals.append(
-                            {
-                                "type": "ENTER_LONG",
-                                "symbol": TEST_SYMBOL,
-                                "side": "buy",
-                                "price": price,
-                                "size": Decimal("0.1"),
-                            },
-                        )
-                        self.position = True  # Update position status
-                elif price > self.price_threshold * Decimal("1.1"):
-                    if self.position:  # Only exit if in position
-                        signals.append(
-                            {
-                                "type": "EXIT_LONG",
-                                "symbol": TEST_SYMBOL,
-                                "side": "sell",
-                                "price": price,
-                                "size": Decimal("0.1"),
-                                "pnl": (price / self.price_threshold) - Decimal("1"),
-                            },
-                        )
-                        self.position = False  # Update position status
-
-                return {"signals": signals}
-
-        strategy = SimpleTestStrategy()
+        strategy = self._create_simple_test_strategy()
 
         engine = BacktestEngine(
             strategy=strategy,
@@ -348,14 +343,10 @@ class TestBacktestingIntegration:
         assert results is not None, "Backtest engine run did not return results."
         assert results.get("success", False), f"Backtest failed. Error: {results.get('error')}"
         assert "metrics" in results
-        # assert "equity_curve" in results # This key is not directly in engine.run() output
 
         metrics = results["metrics"]
         assert "total_return" in metrics
         assert "sharpe_ratio" in metrics
-
-        # plot_file = engine.plot_results() # Commented out as per instruction
-        # assert plot_file is None or os.path.exists(plot_file)
 
         results_file = engine.save_results()
         assert os.path.exists(results_file)

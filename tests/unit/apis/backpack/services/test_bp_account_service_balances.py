@@ -30,7 +30,7 @@ class TestBackpackAccountServiceBalances:
         mock_mapper: MagicMock,
     ) -> None:
         """Test _get_raw_balances_dict successfully fetches and processes balance data.
-        
+
         Tested via public get_balances.
         """
         mock_raw_response_data_dict: RawJsonResponse = {

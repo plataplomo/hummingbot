@@ -4,6 +4,7 @@ Tests the simplified visualization system for generating performance charts,
 trade analysis plots, and market data visualizations in real integration
 scenarios with file I/O and data processing capabilities.
 """
+
 import os
 import shutil
 import tempfile

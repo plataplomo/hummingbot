@@ -81,16 +81,16 @@ class BackpackTradingService:
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order on the Backpack exchange.
-        
+
         Validates the order parameters, submits the order via the API, and returns
         the created order with its assigned ID and current status.
-        
+
         Args:
             args: PlaceOrderArgs containing order details (symbol, side, type, etc.)
-            
+
         Returns:
             Order: The created order object with exchange-assigned ID and status
-            
+
         Raises:
             APIError: If order placement fails due to API errors
             ValueError: If order parameters are invalid for Backpack exchange
@@ -252,16 +252,16 @@ class BackpackTradingService:
 
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Cancel an existing order on the Backpack exchange.
-        
+
         Attempts to cancel the specified order by its ID. The order must be
         in a cancellable state (not already filled or cancelled).
-        
+
         Args:
             args: CancelOrderArgs containing the order ID and optional symbol
-            
+
         Returns:
             bool: True if the order was successfully cancelled
-            
+
         Raises:
             APIError: If cancellation fails due to API errors or order not found
             ValueError: If the order ID is invalid

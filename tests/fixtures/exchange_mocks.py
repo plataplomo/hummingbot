@@ -180,4 +180,3 @@ def mock_arbitrage_opportunity() -> MagicMock:
     opportunity.short_size = Decimal("0.1")
 
     return opportunity
-

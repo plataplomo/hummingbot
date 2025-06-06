@@ -120,173 +120,227 @@ class ExchangeAPI(ABC):
         self._config = config
         self._secrets = secrets
         self.error_mapper = error_mapper
-        if loop:
-            self.loop = loop
-        else:
-            try:
-                self.loop = asyncio.get_running_loop()
-            except RuntimeError:
-                logger.warning(  # Assuming 'logger' is defined in this class or module scope
-                    f"[{self.exchange_name}] ExchangeAPI initialized without a running "
-                    f"event loop and no loop provided. "
-                    f"Creating a new event loop. This might not be intended.",
-                )
-                self.loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self.loop)
-
         self._authenticator = authenticator
         self._ws_handlers: dict[str, MessageHandler] = {}
 
-        # Construct HttpClientConfig parameters using direct field mapping
-        # The concrete API classes are responsible for providing correctly named keys
-        http_config_data = {}
+        # Initialize event loop
+        self.loop = self._setup_event_loop(loop)
 
-        # Required field: rest_endpoint
-        if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:
-            http_config_data["rest_endpoint"] = self._config["rest_endpoint"]
-        # If rest_endpoint is not provided, HttpClientConfig.model_validate will fail,
-        # which is the desired behavior for a required field
-
-        # Optional fields - only include if explicitly provided to let Pydantic defaults apply
-        if (
-            "default_request_timeout" in self._config
-            and self._config["default_request_timeout"] is not None
-        ):
-            http_config_data["default_request_timeout"] = self._config["default_request_timeout"]
-        if "max_retries" in self._config and self._config["max_retries"] is not None:
-            http_config_data["max_retries"] = self._config["max_retries"]
-        if (
-            "retry_delay_seconds" in self._config
-            and self._config["retry_delay_seconds"] is not None
-        ):
-            http_config_data["retry_delay_seconds"] = self._config["retry_delay_seconds"]
-
-        # Use model_validate for robust parsing and type coercion from the dict.
-        # Pydantic will raise ValidationError here if required fields (like rest_endpoint)
-        # are missing or if types are incorrect, which is the desired behavior.
-        http_client_config = HttpClientConfig.model_validate(http_config_data)
-
-        # Set up rate limiting strategy
-        self.rate_limit_strategy = rate_limit_strategy
+        # Setup rate limiting
+        self.rate_limit_strategy = self._setup_rate_limiting(rate_limit_strategy, exchange_config)
         self.exchange_config = exchange_config
 
-        # Create default strategy if none provided
-        if self.rate_limit_strategy is None:
-            if exchange_config and exchange_config.rate_limit_per_minute is not None:
-                # Create a simple token bucket strategy with default settings
-                rate_per_second = exchange_config.rate_limit_per_minute / 60.0
-                bucket_size = max(1, int(rate_per_second * 2))  # 2-second bucket
-                default_limiter_primitive = TokenBucketRateLimiterRuntime(
-                    rate=rate_per_second,
-                    bucket_size=bucket_size,
-                )
-                self.rate_limit_strategy = SimpleTokenBucketStrategy(
-                    limiter=default_limiter_primitive,
-                    default_request_weight=1,
-                )
-                logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
-            else:
-                logger.warning(
-                    f"[{self.exchange_name}] No rate limit strategy provided and no "
-                    f"rate_limit_per_minute in exchange config. Rate limiting may not work.",
-                )
+        # Setup HTTP client
+        self.rest_endpoint, self._http_client = self._setup_http_client(http_client)
 
-        self.rest_endpoint = str(http_client_config.rest_endpoint)  # Get validated endpoint
-        # Ensure rest_endpoint is still validated as before, though Pydantic does it now
-        if not self.rest_endpoint:
-            raise ValueError(
-                f"[{exchange_name}] Missing or invalid 'rest_endpoint' or 'base_url' in config",
-            )
-
-        # Construct WebSocketManagerConfig using direct field mapping
-        # The concrete API classes are responsible for providing correctly named keys
-        self.ws_endpoint = self._config.get("ws_url")
-        if self.ws_endpoint and not isinstance(self.ws_endpoint, str):
-            logger.warning(
-                f"[{exchange_name}] Invalid 'ws_url' in config (must be str). "
-                f"WebSocket functionality will be disabled.",
-            )
-            self.ws_endpoint = None
-        elif not self.ws_endpoint:
-            logger.warning(
-                f"[{exchange_name}] Missing 'ws_url' in config. "
-                f"WebSocket functionality will be disabled.",
-            )
-
-        # Use injected HttpClient if provided, otherwise create one
-        if http_client is not None:
-            self._http_client = http_client
-        else:
-            self._http_client = HttpClient(
-                exchange_name=self.exchange_name,
-                config=http_client_config,
-            )
-
-        # Use injected WebSocketManager if provided, otherwise create one if ws_endpoint exists
-        # Type annotation: _ws_manager can be None when no WebSocket endpoint is configured
-        self._ws_manager: WebSocketManager | None
-        if ws_manager is not None:
-            self._ws_manager = ws_manager
-        else:
-            self._ws_manager = None
-            if self.ws_endpoint:  # At this point, ws_endpoint is either a valid string or None
-                ws_config_data = {"ws_url": self.ws_endpoint}  # ws_url is required
-
-                # Optional fields - only include if explicitly provided to let defaults apply
-                if "ping_interval" in self._config and self._config["ping_interval"] is not None:
-                    ws_config_data["ping_interval"] = self._config["ping_interval"]
-                if (
-                    "reconnect_delay" in self._config
-                    and self._config["reconnect_delay"] is not None
-                ):
-                    ws_config_data["reconnect_delay"] = self._config["reconnect_delay"]
-                if (
-                    "max_reconnect_attempts" in self._config
-                    and self._config["max_reconnect_attempts"] is not None
-                ):
-                    ws_config_data["max_reconnect_attempts"] = self._config[
-                        "max_reconnect_attempts"
-                    ]
-                if (
-                    "connection_timeout" in self._config
-                    and self._config["connection_timeout"] is not None
-                ):
-                    ws_config_data["connection_timeout"] = self._config["connection_timeout"]
-
-                # Use model_validate for robust parsing and type coercion.
-                websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
-
-                # Check if we need to create a WebSocket rate limiter for Hyperliquid
-                outgoing_message_limiter = None
-                if (
-                    self.exchange_name == "hyperliquid"
-                    and exchange_config
-                    and exchange_config.websocket_send_rate_per_minute is not None
-                ):
-                    ws_rate_per_minute = exchange_config.websocket_send_rate_per_minute
-                    ws_rate_per_second = ws_rate_per_minute / 60.0
-                    ws_bucket_size = max(1, int(ws_rate_per_second * 2))
-                    outgoing_message_limiter = TokenBucketRateLimiterRuntime(
-                        rate=ws_rate_per_second,
-                        bucket_size=ws_bucket_size,
-                    )
-                    logger.info(
-                        f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
-                        f"rate={ws_rate_per_second:.2f} msg/sec",
-                    )
-
-                self._ws_manager = WebSocketManager(
-                    exchange_name=self.exchange_name,
-                    config=websocket_manager_config,  # Pass the WebSocketManagerConfig object
-                    message_handler=self._handle_websocket_message,
-                    on_connected_callback=self._on_ws_connected,
-                    outgoing_message_limiter=outgoing_message_limiter,
-                )
+        # Setup WebSocket manager
+        self.ws_endpoint, self._ws_manager = self._setup_websocket_manager(
+            ws_manager, exchange_config
+        )
 
         logger.info(
             f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
             f"WS: {self.ws_endpoint}",
         )
+
+    def _setup_event_loop(
+        self, loop: asyncio.AbstractEventLoop | None
+    ) -> asyncio.AbstractEventLoop:
+        """Setup the event loop for the exchange API."""
+        if loop:
+            return loop
+
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning(
+                f"[{self.exchange_name}] ExchangeAPI initialized without a running "
+                f"event loop and no loop provided. "
+                f"Creating a new event loop. This might not be intended.",
+            )
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            return new_loop
+
+    def _setup_rate_limiting(
+        self,
+        rate_limit_strategy: RateLimitStrategy | None,
+        exchange_config: ExchangeSpecificConfig | None,
+    ) -> RateLimitStrategy | None:
+        """Setup rate limiting strategy."""
+        if rate_limit_strategy is not None:
+            return rate_limit_strategy
+
+        if exchange_config and exchange_config.rate_limit_per_minute is not None:
+            return self._create_default_rate_limiter(exchange_config)
+
+        logger.warning(
+            f"[{self.exchange_name}] No rate limit strategy provided and no "
+            f"rate_limit_per_minute in exchange config. Rate limiting may not work.",
+        )
+        return None
+
+    def _create_default_rate_limiter(
+        self, exchange_config: ExchangeSpecificConfig
+    ) -> RateLimitStrategy:
+        """Create a default rate limiting strategy."""
+        # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
+        # Mypy=[operator, arg-type]
+        rate_per_second: float = exchange_config.rate_limit_per_minute / 60.0  # type: ignore[operator]
+        bucket_size: int = max(1, int(rate_per_second * 2))  # type: ignore[arg-type]
+        default_limiter_primitive = TokenBucketRateLimiterRuntime(
+            rate=rate_per_second,  # type: ignore[arg-type]
+            bucket_size=bucket_size,
+        )
+        strategy = SimpleTokenBucketStrategy(
+            limiter=default_limiter_primitive,
+            default_request_weight=1,
+        )
+        logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
+        return strategy
+
+    def _setup_http_client(self, http_client: HttpClient | None) -> tuple[str, HttpClient]:
+        """Setup HTTP client and return endpoint and client."""
+        if http_client is not None:
+            # Extract endpoint from existing client or config
+            rest_endpoint = self._config.get("rest_endpoint", "")
+            if not rest_endpoint:
+                raise ValueError(
+                    f"[{self.exchange_name}] Missing 'rest_endpoint' in config",
+                )
+            return str(rest_endpoint), http_client
+
+        # Create HTTP client config
+        http_config_data = self._build_http_config_data()
+        http_client_config = HttpClientConfig.model_validate(http_config_data)
+
+        rest_endpoint = str(http_client_config.rest_endpoint)
+        if not rest_endpoint:
+            raise ValueError(
+                f"[{self.exchange_name}] Missing or invalid 'rest_endpoint' in config",
+            )
+
+        new_http_client = HttpClient(
+            exchange_name=self.exchange_name,
+            config=http_client_config,
+        )
+        return rest_endpoint, new_http_client
+
+    def _build_http_config_data(self) -> dict[str, Any]:
+        """Build HTTP client configuration data from config."""
+        http_config_data = {}
+
+        # Required field: rest_endpoint
+        if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:
+            http_config_data["rest_endpoint"] = self._config["rest_endpoint"]
+
+        # Optional fields - only include if explicitly provided
+        optional_fields = ["default_request_timeout", "max_retries", "retry_delay_seconds"]
+
+        for field in optional_fields:
+            if field in self._config and self._config[field] is not None:
+                http_config_data[field] = self._config[field]
+
+        return http_config_data
+
+    def _setup_websocket_manager(
+        self,
+        ws_manager: WebSocketManager | None,
+        exchange_config: ExchangeSpecificConfig | None,
+    ) -> tuple[str | None, WebSocketManager | None]:
+        """Setup WebSocket manager and return endpoint and manager."""
+        if ws_manager is not None:
+            ws_endpoint = self._config.get("ws_url")
+            return ws_endpoint, ws_manager
+
+        # Validate WebSocket endpoint
+        ws_endpoint = self._validate_ws_endpoint()
+        if not ws_endpoint:
+            return None, None
+
+        # Create WebSocket manager
+        ws_manager_instance = self._create_websocket_manager(ws_endpoint, exchange_config)
+        return ws_endpoint, ws_manager_instance
+
+    def _validate_ws_endpoint(self) -> str | None:
+        """Validate and return WebSocket endpoint."""
+        ws_endpoint = self._config.get("ws_url")
+
+        if ws_endpoint and not isinstance(ws_endpoint, str):
+            logger.warning(
+                f"[{self.exchange_name}] Invalid 'ws_url' in config (must be str). "
+                f"WebSocket functionality will be disabled.",
+            )
+            return None
+        elif not ws_endpoint:
+            logger.warning(
+                f"[{self.exchange_name}] Missing 'ws_url' in config. "
+                f"WebSocket functionality will be disabled.",
+            )
+            return None
+
+        return ws_endpoint
+
+    def _create_websocket_manager(
+        self,
+        ws_endpoint: str,
+        exchange_config: ExchangeSpecificConfig | None,
+    ) -> WebSocketManager:
+        """Create WebSocket manager instance."""
+        ws_config_data = self._build_ws_config_data(ws_endpoint)
+        websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
+
+        # Create outgoing message limiter if needed
+        outgoing_message_limiter = self._create_ws_rate_limiter(exchange_config)
+
+        return WebSocketManager(
+            exchange_name=self.exchange_name,
+            config=websocket_manager_config,
+            message_handler=self._handle_websocket_message,
+            on_connected_callback=self._on_ws_connected,
+            outgoing_message_limiter=outgoing_message_limiter,
+        )
+
+    def _build_ws_config_data(self, ws_endpoint: str) -> dict[str, Any]:
+        """Build WebSocket configuration data."""
+        ws_config_data = {"ws_url": ws_endpoint}
+
+        # Optional fields
+        optional_ws_fields = [
+            "ping_interval",
+            "reconnect_delay",
+            "max_reconnect_attempts",
+            "connection_timeout",
+        ]
+
+        for field in optional_ws_fields:
+            if field in self._config and self._config[field] is not None:
+                ws_config_data[field] = self._config[field]
+
+        return ws_config_data
+
+    def _create_ws_rate_limiter(
+        self, exchange_config: ExchangeSpecificConfig | None
+    ) -> TokenBucketRateLimiterRuntime | None:
+        """Create WebSocket rate limiter if needed."""
+        if (
+            self.exchange_name == "hyperliquid"
+            and exchange_config
+            and exchange_config.websocket_send_rate_per_minute is not None
+        ):
+            ws_rate_per_minute = exchange_config.websocket_send_rate_per_minute
+            ws_rate_per_second = ws_rate_per_minute / 60.0
+            ws_bucket_size = max(1, int(ws_rate_per_second * 2))
+            limiter = TokenBucketRateLimiterRuntime(
+                rate=ws_rate_per_second,
+                bucket_size=ws_bucket_size,
+            )
+            logger.info(
+                f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
+                f"rate={ws_rate_per_second:.2f} msg/sec",
+            )
+            return limiter
+        return None
 
     @property
     def is_connected(self) -> bool:
@@ -306,7 +360,7 @@ class ExchangeAPI(ABC):
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Execute an API request with exchange-specific error mapping.
-        
+
         Delegates to HttpClient and handles exchange-specific error responses.
 
         Args:
@@ -333,121 +387,160 @@ class ExchangeAPI(ABC):
 
         """
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
+        data_dict_for_http_client = self._prepare_request_data(data, serialize_none_as_null)
 
-        # Prepare data for HttpClient - handle Pydantic model serialization here
-        data_dict_for_http_client: dict[str, Any] | None
+        try:
+            # Apply rate limiting
+            await self._apply_rate_limiting(
+                method, endpoint, data_dict_for_http_client, request_weight, endpoint_group
+            )
+
+            # Execute HTTP request
+            response_content, status_code, response_headers_dict = await self._execute_http_request(
+                method,
+                request_url,
+                params,
+                data_dict_for_http_client,
+                headers,
+                is_signed,
+                serialize_none_as_null,
+            )
+
+            self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
+            return response_content, status_code, response_headers_dict
+
+        except HttpRequestFailedError as e_http_failed:
+            raise self._handle_http_request_error(e_http_failed, request_url) from e_http_failed
+        except (TimeoutError, aiohttp.ClientError) as e_client:
+            raise self._handle_client_error(e_client, method, request_url) from e_client
+        except APIError:
+            raise
+        except Exception as e_unhandled:
+            raise self._handle_unhandled_error(e_unhandled, method, request_url) from e_unhandled
+
+    def _prepare_request_data(
+        self, data: BaseModel | dict[str, Any] | None, serialize_none_as_null: bool
+    ) -> dict[str, Any] | None:
+        """Prepare data for HttpClient - handle Pydantic model serialization."""
         if isinstance(data, BaseModel):
-            data_dict_for_http_client = data.model_dump(
+            return data.model_dump(
                 by_alias=True,
                 exclude_none=not serialize_none_as_null,
             )
         elif isinstance(data, dict) or data is None:
-            data_dict_for_http_client = data
+            return data
         else:
             raise TypeError(
                 f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. "
                 f"Got {type(data)}",
             )
 
-        response_content: ParsedJsonResponse | str | None = None
-        status_code: int = 0  # Default, will be overwritten
-        response_headers_dict: Mapping[str, str] = {}
+    async def _apply_rate_limiting(
+        self,
+        method: str,
+        endpoint: str,
+        data_dict: dict[str, Any] | None,
+        request_weight: int,
+        endpoint_group: str | None,
+    ) -> None:
+        """Apply rate limiting if strategy is configured."""
+        if self.rate_limit_strategy:
+            request_context = {
+                "exchange_name": self.exchange_name,
+                "method": method,
+                "endpoint": endpoint,
+                "action_payload": data_dict,
+                "request_weight": request_weight,
+                "endpoint_group": endpoint_group,
+            }
+            await self.rate_limit_strategy.prepare_and_acquire(request_context)
 
-        try:
-            # Rate limiting step using the new strategy pattern
-            if self.rate_limit_strategy:
-                request_context = {
-                    "exchange_name": self.exchange_name,
-                    "method": method,
-                    "endpoint": endpoint,
-                    "action_payload": data_dict_for_http_client,
-                    "request_weight": request_weight,
-                    "endpoint_group": endpoint_group,
-                }
-                await self.rate_limit_strategy.prepare_and_acquire(request_context)
+    async def _execute_http_request(
+        self,
+        method: str,
+        request_url: str,
+        params: dict[str, Any] | None,
+        data_dict: dict[str, Any] | None,
+        headers: dict[str, Any] | None,
+        is_signed: bool,
+        serialize_none_as_null: bool,
+    ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
+        """Execute the HTTP request and return response data."""
+        (
+            response_content,
+            status_code,
+            _processed_headers,
+            response_headers_dict,
+        ) = await self._http_client.request(
+            method=method,
+            endpoint_path=request_url,
+            params=params,
+            data=data_dict,
+            headers=headers,
+            authenticator=self._authenticator,
+            is_signed=is_signed,
+            serialize_none_as_null=serialize_none_as_null,
+        )
+        return response_content, status_code, response_headers_dict
 
-            # HttpClient.request now returns: (content, status_code, processed_headers, raw_headers)
-            (
-                response_content,
-                status_code,
-                _processed_headers,
-                response_headers_dict,
-            ) = await self._http_client.request(
-                method=method,
-                endpoint_path=request_url,
-                params=params,
-                data=data_dict_for_http_client,
-                headers=headers,
-                authenticator=self._authenticator,
-                is_signed=is_signed,
-                serialize_none_as_null=serialize_none_as_null,
-            )
-            self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
-            return response_content, status_code, response_headers_dict
+    def _handle_http_request_error(
+        self, e_http_failed: HttpRequestFailedError, request_url: str
+    ) -> APIError:
+        """Handle HTTP request failed errors."""
+        logger.warning(
+            f"[{self.exchange_name}] HTTP request failed for "
+            f"{request_url}: Status={e_http_failed.http_status}, "
+            f"Body='{e_http_failed.exchange_message}'",
+        )
 
-        except HttpRequestFailedError as e_http_failed:
-            logger.warning(
-                f"[{self.exchange_name}] HTTP request failed for {method} "
-                f"{request_url}: Status={e_http_failed.http_status}, "
-                f"Body='{e_http_failed.exchange_message}'",
-            )
-            # Error is already HttpRequestFailedError (subclass of APIError)
-            # We need to map its *contents* using the exchange-specific mapper
-            parsed_error_data: dict[str, Any] | None = None
-            if e_http_failed.exchange_message:
-                try:
-                    parsed_error_data = json.loads(e_http_failed.exchange_message)
-                    if not isinstance(parsed_error_data, dict):
-                        parsed_error_data = None  # Only use if it's a dict
-                except json.JSONDecodeError:
-                    pass  # Keep as None
+        # Parse error data if available
+        parsed_error_data: dict[str, Any] | None = None
+        if e_http_failed.exchange_message:
+            try:
+                parsed_error_data = json.loads(e_http_failed.exchange_message)
+                if not isinstance(parsed_error_data, dict):
+                    parsed_error_data = None
+            except json.JSONDecodeError:
+                pass
 
-            # Delegate to the new error_mapper instance
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=e_http_failed.http_status or 500,  # Ensure status_code is int
-                error_body=e_http_failed.exchange_message or "",
-                error_data=parsed_error_data,
-                request_path=request_url,
-                original_exception=e_http_failed,
-            )
+        # Map error using exchange-specific mapper
+        return self.error_mapper.map_exchange_error(
+            status_code=e_http_failed.http_status or 500,
+            error_body=e_http_failed.exchange_message or "",
+            error_data=parsed_error_data,
+            request_path=request_url,
+            original_exception=e_http_failed,
+        )
 
-            # Simply raise the mapped error. No further inspection or calls based on its
-            # content here.
-            raise mapped_error from e_http_failed
+    def _handle_client_error(self, e_client: Exception, method: str, request_url: str) -> APIError:
+        """Handle client errors (timeout, connection issues)."""
+        logger.error(
+            f"[{self.exchange_name}] Unrecoverable client error for {method} "
+            f"{request_url}: {e_client}",
+        )
+        return self.error_mapper.map_exchange_error(
+            status_code=503,  # Service Unavailable
+            error_body=str(e_client),
+            error_data=None,
+            request_path=request_url,
+            original_exception=e_client,
+        )
 
-        except (TimeoutError, aiohttp.ClientError) as e_client:
-            # These are already raised by HttpClient after its retries
-            logger.error(
-                f"[{self.exchange_name}] Unrecoverable client error for {method} "
-                f"{request_url}: {e_client}",
-            )
-            # Map to a generic APIError
-            # Here, we don't have a specific exchange error body, so pass what we have.
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=503,  # Service Unavailable or similar for network issues
-                error_body=str(e_client),
-                error_data=None,
-                request_path=request_url,
-                original_exception=e_client,
-            )
-            raise mapped_error from e_client
-
-        except APIError:  # Re-raise APIErrors (e.g. from authenticator)
-            raise
-        except Exception as e_unhandled:
-            logger.exception(
-                f"[{self.exchange_name}] Unhandled exception during request {method} "
-                f"{request_url}: {e_unhandled}",
-            )
-            # Map to a generic unknown APIError
-            mapped_error = self.error_mapper.map_exchange_error(
-                status_code=500,  # Internal Server Error equivalent
-                error_body=str(e_unhandled),
-                error_data=None,
-                request_path=request_url,
-                original_exception=e_unhandled,
-            )
-            raise mapped_error from e_unhandled
+    def _handle_unhandled_error(
+        self, e_unhandled: Exception, method: str, request_url: str
+    ) -> APIError:
+        """Handle unexpected errors."""
+        logger.exception(
+            f"[{self.exchange_name}] Unhandled exception during request {method} "
+            f"{request_url}: {e_unhandled}",
+        )
+        return self.error_mapper.map_exchange_error(
+            status_code=500,  # Internal Server Error
+            error_body=str(e_unhandled),
+            error_data=None,
+            request_path=request_url,
+            original_exception=e_unhandled,
+        )
 
     @abstractmethod
     def _update_rate_limit_from_headers(
@@ -501,7 +594,7 @@ class ExchangeAPI(ABC):
 
     async def close(self) -> None:
         """Close the exchange API and clean up resources.
-        
+
         Properly closes the HTTP client session and logs the shutdown process.
         """
         logger.info(f"Closing ExchangeAPI for {self.exchange_name}")

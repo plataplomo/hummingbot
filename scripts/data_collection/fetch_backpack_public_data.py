@@ -33,7 +33,7 @@ class BackpackDataCollector:
 
     def __init__(self, output_dir: Path, session: aiohttp.ClientSession) -> None:
         """Initialize the Backpack public data collector with configuration.
-        
+
         Args:
             output_dir: Directory where collected JSON data files will be saved
             session: aiohttp session for making public API requests
@@ -64,7 +64,9 @@ class BackpackDataCollector:
             logger.warning(f"Using fallback configuration: {self.api_base_url}")
 
     async def _fetch_json(
-        self, url: str, params: dict[str, Any] | None = None,
+        self,
+        url: str,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Fetch JSON data from a URL with error handling."""
         try:
@@ -283,7 +285,9 @@ class BackpackDataCollector:
             self._save_json(data, "bp_borrow_lend_markets.json")
 
     async def fetch_borrow_lend_markets_history(
-        self, interval: str, symbol: str | None = None,
+        self,
+        interval: str,
+        symbol: str | None = None,
     ) -> None:
         """Fetch borrow lend markets history (requires interval parameter)."""
         url = f"{self.api_base_url}/api/v1/borrowLend/markets/history"
@@ -415,7 +419,7 @@ class BackpackDataCollector:
 
 async def main() -> None:
     """Execute comprehensive Backpack public API data collection process.
-    
+
     Parses command-line arguments, sets up configuration and HTTP session,
     and runs the complete public data collection across all Backpack public
     REST API endpoints. Saves collected market data as JSON fixtures for testing.

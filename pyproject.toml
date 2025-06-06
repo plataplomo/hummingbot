@@ -133,6 +133,7 @@ select = [  # Linting rules to apply
 ignore = [
     "D203",  # 1 blank line required before class docstring (conflicts with D211)
     "D213",  # Multi-line docstring summary should start at the second line (conflicts with D212)
+    "COM812", # Missing commas is managed by ruff formatter
 ]
 
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy variable names

@@ -817,7 +817,7 @@ class RawHlCoinName(str):
         handler: GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
         """Define Pydantic validation schema for currency coin names.
-        
+
         Returns a core schema that validates string inputs as proper coin names
         with length and character restrictions for financial data security.
         """

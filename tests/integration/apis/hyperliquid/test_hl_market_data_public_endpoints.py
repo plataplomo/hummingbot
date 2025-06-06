@@ -36,7 +36,7 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     - It's a simple POST request with a small, stable payload
     - The response structure is relatively stable
     - It demonstrates the basic API functionality
-    
+
     Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL
@@ -119,7 +119,7 @@ async def test_vcr_sensitive_data_filtering_demo(custom_vcr_config: dict[str, An
     This test shows how VCR filters sensitive headers and query parameters
     while preserving functional test data. It makes a request to httpbin.org
     which echoes back the request headers, allowing us to verify filtering works.
-    
+
     Cassettes are organized in tests/cassettes/apis/demo/filtering/.
     """
     # Test URL that echoes back request data
@@ -174,7 +174,7 @@ async def test_hyperliquid_info_l2_book_public_endpoint(
 
     This test demonstrates VCR usage with a different endpoint that returns
     order book data. Shows how VCR works with various API response structures.
-    
+
     Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL
@@ -221,7 +221,7 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
 
     This test demonstrates VCR with yet another endpoint format,
     showing how the same infrastructure handles different data types.
-    
+
     Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL

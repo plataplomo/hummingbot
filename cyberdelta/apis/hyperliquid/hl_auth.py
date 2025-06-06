@@ -63,7 +63,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         logger_param: logging.Logger | None = None,
     ) -> None:
         """Initialize the Hyperliquid authenticator with wallet credentials.
-        
+
         Args:
             wallet_private_key_secret: Private key for wallet (if not using account_object)
             chain_id: Ethereum chain ID for EIP-712 signing

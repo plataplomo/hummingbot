@@ -81,7 +81,7 @@ class BackpackRawFill(BaseModel):
 # the BackpackRawFill model being refactored.
 class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     """Pydantic model for a list of raw fill objects from the Backpack API.
-    
+
     This typically represents the direct JSON response which is a list of fills.
     """
 

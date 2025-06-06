@@ -47,119 +47,126 @@ class TestPositionReconciliationSystem:
 
         return mock_config
 
+    def _create_test_positions(self) -> dict[str, list[DerivativePosition]]:
+        """Create test positions for hyperliquid and backpack."""
+        now = datetime.now(UTC)
+        return {
+            "hyperliquid": [
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="BTC",
+                    side=OrderSide.BUY,
+                    size=Decimal("1.0"),
+                    entry_price=Decimal("50000"),
+                    timestamp=now,
+                    mark_price=Decimal("51000"),
+                    liquidation_price=Decimal("45000.0"),
+                    unrealized_pnl=Decimal("1000.0"),
+                ),
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="ETH",
+                    side=OrderSide.SELL,
+                    size=Decimal("-10.0"),
+                    entry_price=Decimal("3000"),
+                    timestamp=now,
+                    mark_price=Decimal("3100"),
+                    liquidation_price=Decimal("2800.0"),
+                    unrealized_pnl=Decimal("1000.0"),
+                ),
+            ],
+            "backpack": [
+                DerivativePosition(
+                    exchange="backpack",
+                    symbol="BTC",
+                    side=OrderSide.SELL,
+                    size=Decimal("-2.0"),
+                    entry_price=Decimal("50500"),
+                    timestamp=now,
+                    mark_price=Decimal("51000"),
+                    liquidation_price=Decimal("55000.0"),
+                    unrealized_pnl=Decimal("-1000.0"),
+                ),
+            ],
+        }
+
+    def _create_api_positions(self) -> dict[str, list[DerivativePosition]]:
+        """Create API positions with discrepancies for testing."""
+        now = datetime.now(UTC)
+        return {
+            "hyperliquid": [
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="BTC",
+                    side=OrderSide.BUY,
+                    size=Decimal("1.1"),  # 10% discrepancy
+                    entry_price=Decimal("50000"),
+                    timestamp=now,
+                    mark_price=Decimal("51000"),
+                    liquidation_price=Decimal("45000.0"),
+                    unrealized_pnl=Decimal("1000.0"),
+                ),
+                DerivativePosition(
+                    exchange="hyperliquid",
+                    symbol="ETH",
+                    side=OrderSide.SELL,
+                    size=Decimal("-10.0"),  # Matches local
+                    entry_price=Decimal("3000"),
+                    timestamp=now,
+                    mark_price=Decimal("3100"),
+                    liquidation_price=Decimal("2800.0"),
+                    unrealized_pnl=Decimal("1000.0"),
+                ),
+            ],
+            "backpack": [
+                DerivativePosition(
+                    exchange="backpack",
+                    symbol="BTC",
+                    side=OrderSide.SELL,
+                    size=Decimal("-2.0"),  # Matches local
+                    entry_price=Decimal("50500"),
+                    timestamp=now,
+                    mark_price=Decimal("51000"),
+                    liquidation_price=Decimal("55000.0"),
+                    unrealized_pnl=Decimal("-1000.0"),
+                ),
+            ],
+        }
+
+    def _setup_tracker_methods(
+        self,
+        tracker: MagicMock,
+        positions: dict[str, list[DerivativePosition]],
+    ) -> None:
+        """Setup mock tracker methods."""
+
+        def get_position(exchange: str, symbol: str) -> DerivativePosition | None:
+            for pos in positions.get(exchange, []):
+                if pos.symbol == symbol:
+                    return pos
+            return None
+
+        def get_positions_by_exchange(exchange: str) -> list[DerivativePosition]:
+            return positions.get(exchange, [])
+
+        tracker.get_position.side_effect = get_position
+        tracker.get_positions_by_exchange.side_effect = get_positions_by_exchange
+
     @pytest.fixture
     def portfolio_tracker(self) -> MagicMock:
         """Create a mock portfolio tracker for testing."""
         tracker = MagicMock()
 
-        # Mock hyperliquid positions
-        hyper_positions = [
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                size=Decimal("1.0"),
-                entry_price=Decimal("50000"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("51000"),
-                liquidation_price=Decimal("45000.0"),
-                unrealized_pnl=Decimal("1000.0"),
-            ),
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="ETH",
-                side=OrderSide.SELL,
-                size=Decimal("-10.0"),
-                entry_price=Decimal("3000"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("3100"),
-                liquidation_price=Decimal("2800.0"),
-                unrealized_pnl=Decimal("1000.0"),
-            ),
-        ]
+        # Create test positions
+        local_positions = self._create_test_positions()
+        api_positions = self._create_api_positions()
 
-        # Mock backpack positions
-        backpack_positions = [
-            DerivativePosition(
-                exchange="backpack",
-                symbol="BTC",
-                side=OrderSide.SELL,
-                size=Decimal("-2.0"),
-                entry_price=Decimal("50500"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("51000"),
-                liquidation_price=Decimal("55000.0"),
-                unrealized_pnl=Decimal("-1000.0"),
-            ),
-        ]
+        # Setup tracker methods
+        self._setup_tracker_methods(tracker, local_positions)
 
-        # Setup the get_position method
-        def get_position(exchange: str, symbol: str) -> DerivativePosition | None:
-            """Get position for testing."""
-            if exchange == "hyperliquid":
-                for pos in hyper_positions:
-                    if pos.symbol == symbol:
-                        return pos
-            elif exchange == "backpack":
-                for pos in backpack_positions:
-                    if pos.symbol == symbol:
-                        return pos
-            return None
-
-        # Setup get_positions_by_exchange method
-        def get_positions_by_exchange(exchange: str) -> list[DerivativePosition]:
-            """Get positions by exchange for testing."""
-            if exchange == "hyperliquid":
-                return hyper_positions
-            if exchange == "backpack":
-                return backpack_positions
-            return []
-
-        # Mock API clients (Use AsyncMock for awaitable methods)
+        # Create mock API clients
         hyperliquid_client = AsyncMock(spec=ExchangeAPI)
         backpack_client = AsyncMock(spec=ExchangeAPI)
-
-        # Setup position data for API clients
-        hyper_api_positions = [
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                size=Decimal("1.1"),  # 10% discrepancy with local (1.0)
-                entry_price=Decimal("50000"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("51000"),
-                liquidation_price=Decimal("45000.0"),
-                unrealized_pnl=Decimal("1000.0"),
-            ),
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="ETH",
-                side=OrderSide.SELL,
-                size=Decimal(
-                    "-10.0",
-                ),  # Corrected: size should be negative for SELL. Matches local.
-                entry_price=Decimal("3000"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("3100"),
-                liquidation_price=Decimal("2800.0"),
-                unrealized_pnl=Decimal("1000.0"),
-            ),
-        ]
-
-        backpack_api_positions = [
-            DerivativePosition(
-                exchange="backpack",
-                symbol="BTC",
-                side=OrderSide.SELL,
-                size=Decimal("-2.0"),  # Matches local
-                entry_price=Decimal("50500"),
-                timestamp=datetime.now(UTC),
-                mark_price=Decimal("51000"),
-                liquidation_price=Decimal("55000.0"),
-                unrealized_pnl=Decimal("-1000.0"),
-            ),
-        ]
 
         # Mock execution handlers for fill history
         execution_handler_hyper = MagicMock()
@@ -221,12 +228,14 @@ class TestPositionReconciliationSystem:
         execution_handler_backpack.get_derived_positions.return_value = backpack_fill_positions
 
         # Configure API clients
+        hyper_api_positions = api_positions["hyperliquid"]
+        backpack_api_positions = api_positions["backpack"]
         hyperliquid_client.get_positions.return_value = hyper_api_positions
         backpack_client.get_positions.return_value = backpack_api_positions
 
         # Configure portfolio tracker methods
-        tracker.get_position.side_effect = get_position
-        tracker.get_positions_by_exchange.side_effect = get_positions_by_exchange
+        # Note: get_position and get_positions_by_exchange are already set up in
+        # _setup_tracker_methods
         tracker.update_position = MagicMock()
 
         # Configure API client and execution handler access

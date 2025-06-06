@@ -193,6 +193,126 @@ class BackpackErrorMapper(IErrorMapper):
             exchange_message=error_message,  # The raw string is the exchange message
         )
 
+    def _parse_error_data(self, error_data: dict[str, Any] | None) -> tuple[str | None, str, str]:
+        """Parse error data to extract code, exchange message, and effective message.
+
+        Returns:
+            Tuple of (bp_code_str, effective_exchange_message, effective_message)
+        """
+        if not error_data:
+            return None, "", ""
+
+        try:
+            raw_error = BackpackRawApiError.model_validate(error_data)
+            return raw_error.code, raw_error.message, ""
+        except ValidationError as e_val_specific:
+            self._log_validation_error(e_val_specific)
+            # Try to extract message even if structure validation failed
+            exchange_message = ""
+            if isinstance(error_data.get("message"), str):
+                exchange_message = error_data["message"]
+            return None, exchange_message, ""
+
+    def _log_validation_error(self, e_val_specific: ValidationError) -> None:
+        """Log validation error details."""
+        class_name = self.__class__.__name__
+        has_errors_method = hasattr(e_val_specific, "errors")
+        errors_str = (
+            e_val_specific.errors(include_url=False) if has_errors_method else str(e_val_specific)
+        )
+        exc_str = str(e_val_specific)
+
+        logger.warning(
+            f"[{class_name}] Failed to parse error_data as BackpackRawApiError. "
+            f"Pydantic errors: {errors_str}. "
+            f"Original exception string: {exc_str}. "
+            f"Error classified as EXCHANGE_SPECIFIC based on initial mapping.",
+        )
+
+    def _construct_effective_message(
+        self,
+        api_error_code_enum: APIErrorCode,
+        effective_exchange_message: str,
+        status_code: int,
+        effective_error_body: str,
+        has_error_data: bool,
+    ) -> str:
+        """Construct the effective error message based on context."""
+        if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
+            return (
+                f"{api_error_code_enum.name.replace('_', ' ').title()}: "
+                f"{effective_exchange_message}"
+            )
+        elif has_error_data:
+            return effective_exchange_message
+        else:
+            return f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
+
+    def _parse_retry_after(
+        self,
+        api_error_code_enum: APIErrorCode,
+        effective_exchange_message: str,
+    ) -> float | None:
+        """Parse retry_after from rate limit error messages."""
+        if api_error_code_enum != APIErrorCode.RATE_LIMITED:
+            return None
+
+        logger.debug(
+            f"Attempting to parse retry_after from Backpack rate limit message: "
+            f"'{effective_exchange_message}'",
+        )
+
+        # Define regex patterns to search for retry-after hints (case-insensitive)
+        retry_patterns = [
+            (re.compile(r"retry after (\d+) seconds?", re.IGNORECASE), "seconds"),
+            (re.compile(r"try again in (\d+) ms", re.IGNORECASE), "milliseconds"),
+            (re.compile(r"please wait (\d+)s", re.IGNORECASE), "seconds"),
+            (re.compile(r"wait for (\d+) milliseconds", re.IGNORECASE), "milliseconds"),
+            (re.compile(r"wait (\d+) seconds?", re.IGNORECASE), "seconds"),
+        ]
+
+        for pattern, unit in retry_patterns:
+            match = pattern.search(effective_exchange_message)
+            if match:
+                try:
+                    numeric_value = int(match.group(1))
+                    if unit == "milliseconds":
+                        parsed_retry_after_seconds = float(numeric_value) / 1000.0
+                    else:  # seconds
+                        parsed_retry_after_seconds = float(numeric_value)
+
+                    logger.info(
+                        f"Parsed retry_after from Backpack message: "
+                        f"{parsed_retry_after_seconds} seconds.",
+                    )
+                    return parsed_retry_after_seconds
+                except (ValueError, IndexError) as e:
+                    logger.debug(f"Failed to parse numeric value from regex match: {e}")
+                    continue
+
+        logger.debug(
+            "No parsable retry_after information found in Backpack rate limit message.",
+        )
+        return None
+
+    def _refine_error_code_for_no_data(
+        self,
+        api_error_code_enum: APIErrorCode,
+        status_code: int,
+    ) -> APIErrorCode:
+        """Refine error code when no error_data is available."""
+        if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
+            return api_error_code_enum
+
+        if status_code == 401 or status_code == 403:
+            return APIErrorCode.AUTHENTICATION_FAILED
+        elif status_code == 404:
+            return APIErrorCode.ORDER_NOT_FOUND
+        elif status_code == 429:
+            return APIErrorCode.RATE_LIMITED
+        else:
+            return api_error_code_enum
+
     def map_exchange_error(
         self,
         status_code: int,
@@ -216,147 +336,47 @@ class BackpackErrorMapper(IErrorMapper):
         """
         effective_error_body = error_body if error_body is not None else "No error body provided"
 
-        # Initial determination of APIErrorCode based on error_data (if available) and status_code.
-        # _map_backpack_error_code_to_api_error_code will return EXCHANGE_SPECIFIC
-        # if error_data is unparseable or contains an unmapped Backpack code.
+        # Initial determination of APIErrorCode
         api_error_code_enum = self._map_backpack_error_code_to_api_error_code(
             error_body=effective_error_body,
             error_data=error_data,
             status_code=status_code,
         )
 
-        bp_code_str: str | None = None
-        effective_exchange_message: str = effective_error_body
-        effective_message: str  # To be defined below
+        # Parse error data
+        bp_code_str, parsed_exchange_message, _ = self._parse_error_data(error_data)
 
-        if error_data:
-            try:
-                # Attempt to parse error_data as BackpackRawApiError to get specific details
-                raw_error = BackpackRawApiError.model_validate(error_data)
-                bp_code_str = raw_error.code
-                effective_exchange_message = raw_error.message
+        # Set effective exchange message
+        effective_exchange_message = parsed_exchange_message or effective_error_body
 
-                # If parsing error_data was successful, construct the message.
-                # api_error_code_enum is already set based on raw_error.code if it was known,
-                # or EXCHANGE_SPECIFIC if it was an unknown (but validly structured) Backpack code.
-                if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
-                    effective_message = (
-                        f"{api_error_code_enum.name.replace('_', ' ').title()}: "
-                        f"{effective_exchange_message}"
-                    )
-                else:
-                    effective_message = effective_exchange_message  # For known EXCHANGE_SPECIFIC
-                    # or unmapped valid BP code
-
-            except ValidationError as e_val_specific:
-                # This block is reached if error_data was present but NOT parseable by
-                # BackpackRawApiError.
-                # api_error_code_enum would have been set to EXCHANGE_SPECIFIC by
-                # _map_backpack_error_code_to_api_error_code because of this parsing failure.
-                # We should honor that EXCHANGE_SPECIFIC determination.
-                # Build message pieces to avoid line length issues
-                class_name = self.__class__.__name__
-                has_errors_method = hasattr(e_val_specific, "errors")
-                errors_str = (
-                    e_val_specific.errors(include_url=False)
-                    if has_errors_method
-                    else str(e_val_specific)
-                )
-                exc_str = str(e_val_specific)
-                code_name = api_error_code_enum.name
-
-                logger.warning(
-                    f"[{class_name}] Failed to parse error_data as BackpackRawApiError. "
-                    f"Pydantic errors: {errors_str}. "
-                    f"Original exception string: {exc_str}. "
-                    f"Error classified as {code_name} based on initial mapping.",
-                )
-
-                # Try to get a more specific exchange message from error_data if possible,
-                # even if the whole structure failed validation.
-                if isinstance(error_data.get("message"), str):
-                    effective_exchange_message = error_data["message"]
-                # else: effective_exchange_message remains effective_error_body
-                # (the full JSON string)
-
-                # Construct a generic message for this unparseable error_data scenario.
-                effective_message = (
-                    f"Backpack API Error (HTTP {status_code}), unparseable error data: "
-                    f"{effective_error_body}"
-                )
-                # bp_code_str remains None as we couldn't parse it.
-                # api_error_code_enum remains as determined by
-                # _map_backpack_error_code_to_api_error_code
-                # (which should be EXCHANGE_SPECIFIC in this path).
-
-        else:  # No error_data was provided
-            effective_exchange_message = effective_error_body
-            # api_error_code_enum from _map_backpack_error_code_to_api_error_code would be
-            # EXCHANGE_SPECIFIC
-            # (as error_data was None). Test expectations suggest that when error_data is None,
-            # we should generally stick to EXCHANGE_SPECIFIC if
-            # _map_backpack_error_code_to_api_error_code
-            # returned it, rather than applying broad status code heuristics, unless the status code
-            # is very specific (like 429 for RATE_LIMITED or 401/403 for AUTHENTICATION_FAILED).
-            if api_error_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
-                if status_code == 401 or status_code == 403:
-                    api_error_code_enum = APIErrorCode.AUTHENTICATION_FAILED
-                elif status_code == 404:
-                    api_error_code_enum = APIErrorCode.ORDER_NOT_FOUND
-                elif status_code == 429:
-                    api_error_code_enum = APIErrorCode.RATE_LIMITED
-
-            # Construct message based on the potentially refined api_error_code_enum
-            if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
-                effective_message = (
-                    f"{api_error_code_enum.name.replace('_', ' ').title()}: "
-                    f"{effective_exchange_message}"
-                )
-            else:
-                effective_message = (
-                    f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
-                )
-
-        # Parse retry_after if this is a rate limit error
-        parsed_retry_after_seconds: float | None = None
-        if api_error_code_enum == APIErrorCode.RATE_LIMITED:
-            logger.debug(
-                f"Attempting to parse retry_after from Backpack rate limit message: "
-                f"'{effective_exchange_message}'",
+        # Handle case where no error_data was provided
+        if not error_data:
+            api_error_code_enum = self._refine_error_code_for_no_data(
+                api_error_code_enum,
+                status_code,
             )
 
-            # Define regex patterns to search for retry-after hints (case-insensitive)
-            retry_patterns = [
-                (re.compile(r"retry after (\d+) seconds?", re.IGNORECASE), "seconds"),
-                (re.compile(r"try again in (\d+) ms", re.IGNORECASE), "milliseconds"),
-                (re.compile(r"please wait (\d+)s", re.IGNORECASE), "seconds"),
-                (re.compile(r"wait for (\d+) milliseconds", re.IGNORECASE), "milliseconds"),
-                (re.compile(r"wait (\d+) seconds?", re.IGNORECASE), "seconds"),
-            ]
+        # Construct effective message
+        effective_message = self._construct_effective_message(
+            api_error_code_enum,
+            effective_exchange_message,
+            status_code,
+            effective_error_body,
+            error_data is not None,
+        )
 
-            for pattern, unit in retry_patterns:
-                match = pattern.search(effective_exchange_message)
-                if match:
-                    try:
-                        numeric_value = int(match.group(1))
-                        if unit == "milliseconds":
-                            parsed_retry_after_seconds = float(numeric_value) / 1000.0
-                        else:  # seconds
-                            parsed_retry_after_seconds = float(numeric_value)
+        # Handle unparseable error_data case
+        if error_data and not bp_code_str and not parsed_exchange_message:
+            effective_message = (
+                f"Backpack API Error (HTTP {status_code}), unparseable error data: "
+                f"{effective_error_body}"
+            )
 
-                        logger.info(
-                            f"Parsed retry_after from Backpack message: "
-                            f"{parsed_retry_after_seconds} seconds.",
-                        )
-                        break  # Use first successful match
-                    except (ValueError, IndexError) as e:
-                        logger.debug(f"Failed to parse numeric value from regex match: {e}")
-                        continue
-
-            if parsed_retry_after_seconds is None:
-                logger.debug(
-                    "No parsable retry_after information found in Backpack rate limit message.",
-                )
+        # Parse retry_after if this is a rate limit error
+        parsed_retry_after_seconds = self._parse_retry_after(
+            api_error_code_enum,
+            effective_exchange_message,
+        )
 
         # Construct the final APIError
         current_metadata = error_data if error_data is not None else {}

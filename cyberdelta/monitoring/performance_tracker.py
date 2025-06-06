@@ -381,7 +381,7 @@ class PerformanceTracker:
             strategies.update(self.returns.keys())
             strategies.update(t["strategy"] for t in self.trades if "strategy" in t)
             strategies.update(s["strategy"] for s in self.signals if "strategy" in s)
-            return sorted(list(strategies))
+            return sorted(strategies)
 
     def get_returns_dataframe(
         self,
@@ -417,7 +417,7 @@ class PerformanceTracker:
                 return pd.DataFrame()
 
             # Create DataFrame with all timestamps
-            sorted_timestamps: list[datetime] = sorted(list(all_timestamps))
+            sorted_timestamps: list[datetime] = sorted(all_timestamps)
             # Create DataFrame with datetime index
             df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
 

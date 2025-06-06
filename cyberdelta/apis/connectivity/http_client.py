@@ -50,7 +50,7 @@ class HttpRequestFailedError(APIError):
         original_exception: Exception | None = None,
     ) -> None:
         """Initialize HttpRequestFailedError with HTTP-specific details.
-        
+
         Args:
             message: Descriptive error message
             http_status_code: HTTP status code from the failed request
@@ -328,19 +328,51 @@ class HttpClient:
         Returns:
             Tuple of (parsed_response, status_code, processed_headers, raw_headers)
         """
+        # Prepare request components
+        request_params, json_payload, full_url, effective_timeout = (
+            self._prepare_request_components(method, endpoint_path, params, data, request_timeout)
+        )
+
+        # Setup headers and authentication
+        request_headers = await self._setup_request_headers_and_auth(
+            authenticator,
+            is_signed,
+            headers,
+            method,
+            endpoint_path,
+            request_params,
+            json_payload,
+            full_url,
+        )
+
+        # Execute request with retries
+        return await self._execute_request_with_retries(
+            method,
+            full_url,
+            request_params,
+            json_payload,
+            request_headers,
+            effective_timeout,
+            endpoint_path,
+            params,
+        )
+
+    def _prepare_request_components(
+        self,
+        method: str,
+        endpoint_path: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
+        request_timeout: float | None,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None, str, float]:
+        """Prepare basic request components."""
         request_params = (params or {}).copy()
-        request_data = data  # This is dict[str, Any] | None (BaseModel handling in ExchangeAPI)
-
         json_payload: dict[str, Any] | None = None
-        if method.upper() not in ["GET", "DELETE"] and request_data is not None:
-            # request_data is already a dict at this point
-            # (BaseModel serialization handled by ExchangeAPI)
-            json_payload = request_data
 
-            # Note: Exchange-specific data cleaning (like Hyperliquid order type fields)
-            # is now handled by the respective authenticator's prepare_request method
-
-            # Log the actual JSON string that will be sent for debugging serialization issues
+        # Prepare JSON payload for non-GET/DELETE requests
+        if method.upper() not in ["GET", "DELETE"] and data is not None:
+            json_payload = data
+            # Log the actual JSON string for debugging
             import json
 
             json_string = json.dumps(json_payload)
@@ -348,25 +380,36 @@ class HttpClient:
                 f"[{self.exchange_name}] JSON payload to be sent to {endpoint_path}: {json_string}",
             )
 
+        # Build full URL
         if endpoint_path.startswith(("http://", "https://")):
             full_url = endpoint_path
         else:
-            # Ensure rest_endpoint has no trailing slash before appending one for urljoin
             clean_base = self.rest_endpoint.rstrip("/")
-            # Ensure relative_path has no leading slash
             clean_relative_path = endpoint_path.lstrip("/")
             full_url = urllib.parse.urljoin(f"{clean_base}/", clean_relative_path)
 
+        # Determine effective timeout
         effective_timeout = (
             request_timeout if request_timeout is not None else self.default_request_timeout
         )
 
-        session_for_initial_headers = await self._get_session()
-        request_headers = session_for_initial_headers.headers.copy()
-        request_headers.update(headers or {})
+        return request_params, json_payload, full_url, effective_timeout
 
-        current_attempt = 0
-        last_exception: Exception | None = None
+    async def _setup_request_headers_and_auth(
+        self,
+        authenticator: IAuthenticator | None,
+        is_signed: bool,
+        headers: dict[str, Any] | None,
+        method: str,
+        endpoint_path: str,
+        request_params: dict[str, Any],
+        json_payload: dict[str, Any] | None,
+        full_url: str,
+    ) -> dict[str, Any]:
+        """Setup request headers and handle authentication."""
+        session_for_initial_headers = await self._get_session()
+        request_headers = dict(session_for_initial_headers.headers.copy())
+        request_headers.update(headers or {})
 
         if is_signed:
             if not authenticator:
@@ -377,196 +420,239 @@ class HttpClient:
                     "Authenticator is required for signed requests.",
                     code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 )
+
             try:
                 auth_components: AuthenticatedRequestComponents = (
                     await authenticator.prepare_request(
                         method=method,
                         path=endpoint_path,
                         params=request_params if request_params else None,
-                        data=json_payload,  # Pass the prepared dict payload
+                        data=json_payload,
                         headers=dict(request_headers),
                     )
                 )
                 request_headers.update(auth_components.headers)
                 if auth_components.params is not None:
-                    request_params = auth_components.params
-                # Always use the data from auth_components for final HTTP call
-                # (authenticator can modify/clean the data as needed)
+                    request_params.update(auth_components.params)
+                # Update json_payload with authenticated data
                 json_payload = auth_components.data
             except APIError as e:
                 logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise
 
+        return request_headers
+
+    async def _execute_request_with_retries(
+        self,
+        method: str,
+        full_url: str,
+        request_params: dict[str, Any],
+        json_payload: dict[str, Any] | None,
+        request_headers: dict[str, Any],
+        effective_timeout: float,
+        endpoint_path: str,
+        original_params: dict[str, Any] | None,
+    ) -> tuple[
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+    ]:
+        """Execute the HTTP request with retry logic."""
+        current_attempt = 0
+        last_exception: Exception | None = None
+
         while current_attempt <= self.max_retries:
             current_attempt += 1
 
-            session = await self._get_session()
-            request_log_details = (
-                f"Attempt {current_attempt}/{self.max_retries + 1} - {method} {full_url}"
-            )
-            if params:  # Changed from request_params to params for original log
-                request_log_details += f" | Params: {params}"
-            logger.info(f"[{self.exchange_name}] {request_log_details}")
-
             try:
-                async with session.request(
+                return await self._execute_single_request(
                     method,
                     full_url,
-                    params=request_params if request_params else None,
-                    json=json_payload
-                    if method.upper() not in ["GET", "DELETE"] and json_payload is not None
-                    else None,
-                    data=None,  # Explicitly set data to None when json_payload is used.
-                    headers=request_headers,
-                    timeout=aiohttp.ClientTimeout(total=effective_timeout),
-                ) as response:
-                    # Delegate to the new method for 2xx responses
-                    if 200 <= response.status < 300:
-                        try:
-                            # _parse_and_validate_response handles 204 correctly as well
-                            # It now returns: content, status, processed_headers, raw_headers
-                            return await self._parse_and_validate_response(response, full_url)
-                        except HttpRequestFailedError as e_parse:  # Catch errors from parsing
-                            # Critical parse/validation errors, usually not retryable on same data
-                            logger.warning(
-                                f"[{self.exchange_name}] Response parse/validation failed for "
-                                f"{full_url} (status {response.status}): {e_parse.message}",
-                            )
-                            last_exception = e_parse  # Store it
-                            # Decide if this specific parsing error should allow a retry.
-                            if e_parse.code == APIErrorCode.INVALID_RESPONSE.value:
-                                raise  # Fail fast on bad content from server
-                            # For other parse errors (like NETWORK_ISSUE from payload problem),
-                            # treat this attempt as failed and proceed to next retry.
-                            continue  # Ensure we go to the next retry attempt
-
-                    # Handle HTTP errors (>= 400) or other non-2xx/non-3xx cases
-                    # This block is reached if status is not 2xx, or if a 2xx parsing error
-                    # (not INVALID_RESPONSE) occurred and we continued, but then the outer
-                    # try block finishes.
-                    # To prevent re-processing a response that already had a parse error,
-                    # we check last_exception.
-                    # However, the `continue` above should prevent falling through here
-                    # for handled parse errors. This part is primarily for non-2xx.
-                    logger.warning(
-                        f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}. ",
-                        # Attempt to read body for error context, but guard it
-                    )
-                    error_body_text: str | None = None
-                    try:
-                        error_body_text = await response.text()
-                        logger.debug(f"[{self.exchange_name}] Error body: {error_body_text[:200]}")
-                    except Exception as e_text:
-                        logger.warning(
-                            f"[{self.exchange_name}] Could not read error response body: {e_text}",
-                        )
-
-                    last_exception = HttpRequestFailedError(
-                        message=f"HTTP req to {endpoint_path} failed with status {response.status}",
-                        http_status_code=response.status,
-                        response_body=error_body_text,
-                    )
-                    if response.status in [400, 401, 403, 404, 405, 406, 415]:
-                        logger.warning(
-                            f"[{self.exchange_name}] Non-retryable client error {response.status} "
-                            f"for {full_url}. Failing fast.",
-                        )
-                        raise last_exception
-
-            except (TimeoutError, aiohttp.ClientError) as e:
+                    request_params,
+                    json_payload,
+                    request_headers,
+                    effective_timeout,
+                    current_attempt,
+                    original_params,
+                )
+            except HttpRequestFailedError as e_http:
+                last_exception = e_http
+                if self._should_fail_fast(e_http):
+                    raise
+            except (TimeoutError, aiohttp.ClientError) as e_client:
                 logger.warning(
                     f"[{self.exchange_name}] Request to {full_url} failed on attempt "
-                    f"{current_attempt}: {type(e).__name__} - {e}",
+                    f"{current_attempt}: {type(e_client).__name__} - {e_client}",
                 )
-                last_exception = e
-            except HttpRequestFailedError as e_http_direct:  # Catch if raised directly
-                logger.warning(
-                    f"[{self.exchange_name}] Error from response processing: "
-                    f"{e_http_direct.message}",
-                )
-                last_exception = e_http_direct
-                if e_http_direct.code == APIErrorCode.INVALID_RESPONSE.value:
-                    raise  # Do not retry if server sent invalid content structure/type
+                last_exception = e_client
 
+            # Check if we should retry
             if current_attempt > self.max_retries:
-                logger.error(
-                    f"[{self.exchange_name}] Request to {full_url} failed after "
-                    f"{self.max_retries + 1} attempts. Last error: {last_exception}",
+                return self._handle_final_failure(last_exception, full_url, endpoint_path)
+
+            # Apply retry delay
+            if last_exception and not self._should_skip_retry_delay(last_exception):
+                await self._apply_retry_delay(current_attempt, full_url)
+
+        # This should not be reached, but handle it defensively
+        raise APIError(
+            f"Request processing loop exited unexpectedly for {full_url}.",
+            code=APIErrorCode.UNKNOWN.value,
+        )
+
+    async def _execute_single_request(
+        self,
+        method: str,
+        full_url: str,
+        request_params: dict[str, Any],
+        json_payload: dict[str, Any] | None,
+        request_headers: dict[str, Any],
+        effective_timeout: float,
+        current_attempt: int,
+        original_params: dict[str, Any] | None,
+    ) -> tuple[
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+    ]:
+        """Execute a single HTTP request attempt."""
+        session = await self._get_session()
+
+        # Log request details
+        request_log_details = (
+            f"Attempt {current_attempt}/{self.max_retries + 1} - {method} {full_url}"
+        )
+        if original_params:
+            request_log_details += f" | Params: {original_params}"
+        logger.info(f"[{self.exchange_name}] {request_log_details}")
+
+        async with session.request(
+            method,
+            full_url,
+            params=request_params if request_params else None,
+            json=json_payload
+            if method.upper() not in ["GET", "DELETE"] and json_payload is not None
+            else None,
+            data=None,
+            headers=request_headers,
+            timeout=aiohttp.ClientTimeout(total=effective_timeout),
+        ) as response:
+            return await self._handle_response(response, full_url)
+
+    async def _handle_response(
+        self, response: aiohttp.ClientResponse, full_url: str
+    ) -> tuple[
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+    ]:
+        """Handle the HTTP response."""
+        if 200 <= response.status < 300:
+            try:
+                return await self._parse_and_validate_response(response, full_url)
+            except HttpRequestFailedError as e_parse:
+                logger.warning(
+                    f"[{self.exchange_name}] Response parse/validation failed for "
+                    f"{full_url} (status {response.status}): {e_parse.message}",
                 )
-                if isinstance(last_exception, APIError | HttpRequestFailedError):  # UP038
-                    raise last_exception
-                if last_exception is None:
-                    raise ValueError(
-                        "DEFENSIVE: last_exception is None after all retries failed",
-                    )
-                # Wrap other client-side exceptions specifically
-                if isinstance(last_exception, TimeoutError):
-                    raise HttpRequestFailedError(
-                        message=f"Request failed after retries: "
-                        f"{type(last_exception).__name__} - {last_exception}",
-                        http_status_code=0,
-                        response_body=str(last_exception),
-                        api_error_code=APIErrorCode.TIMEOUT,  # Specific code for timeout
-                    ) from last_exception
-                # If not an APIError, HttpRequestFailedError, or TimeoutError, assume it's another
-                # client-side error (likely aiohttp.ClientError) or an unexpected one.
-                # Wrap it as a generic network issue.
-                else:
-                    raise HttpRequestFailedError(
-                        message=f"Request failed after retries: "
-                        f"{type(last_exception).__name__} - {last_exception}",
-                        http_status_code=0,
-                        response_body=str(last_exception),
-                        api_error_code=APIErrorCode.NETWORK_ISSUE,
-                    ) from last_exception
+                if e_parse.code == APIErrorCode.INVALID_RESPONSE.value:
+                    raise  # Fail fast on bad content from server
+                raise  # Re-raise for retry handling
 
-            if last_exception:
-                # Check if the specific last_exception should prevent a retry
-                # (e.g., non-retryable HttpRequestFailedError already raised and caught)
-                if isinstance(
-                    last_exception,
-                    HttpRequestFailedError,
-                ) and last_exception.http_status in [400, 401, 403, 404, 405, 406, 415]:
-                    # This should have been raised and exited loop already
-                    logger.debug(
-                        f"Non-retryable error caught again, should have exited: {last_exception}",
-                    )
-                    raise last_exception
+        # Handle non-2xx responses
+        return await self._handle_error_response(response, full_url)
 
-                delay = self.retry_delay_seconds * (2 ** (current_attempt - 1))
-                logger.info(f"[{self.exchange_name}] Retrying {full_url} in {delay:.2f} seconds...")
-                await asyncio.sleep(delay)
+    async def _handle_error_response(
+        self, response: aiohttp.ClientResponse, full_url: str
+    ) -> tuple[
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+    ]:
+        """Handle error responses (non-2xx status codes)."""
+        logger.warning(f"[{self.exchange_name}] HTTP Error {response.status} for {full_url}.")
 
-        logger.error(f"[{self.exchange_name}] Exited request loop for {full_url} unexpectedly.")
-        # Ensure last_exception exists if loop finishes without returning/raising explicitly
-        final_error_message = f"Request processing loop exited unexpectedly for {full_url}."
-        if last_exception:
-            final_error_message += (
-                f" Last known error: {type(last_exception).__name__} - {last_exception}"
+        error_body_text: str | None = None
+        try:
+            error_body_text = await response.text()
+            logger.debug(f"[{self.exchange_name}] Error body: {error_body_text[:200]}")
+        except Exception as e_text:
+            logger.warning(
+                f"[{self.exchange_name}] Could not read error response body: {e_text}",
             )
-            if isinstance(last_exception, APIError | HttpRequestFailedError):  # UP038
-                raise last_exception
-            elif isinstance(last_exception, TimeoutError):
-                raise HttpRequestFailedError(
-                    message=final_error_message,
-                    http_status_code=0,
-                    response_body=str(last_exception),
-                    api_error_code=APIErrorCode.TIMEOUT,
-                ) from last_exception
-            # If not APIError/HttpRequestFailedError or TimeoutError, the linter implies
-            # the remaining type for last_exception (from the try/excepts above) must be
-            # aiohttp.ClientError or a subtype. We treat this as a NETWORK_ISSUE.
-            # Any truly other unexpected exception types would ideally not reach here
-            # or would be caught by a broader Exception handler if logic was different.
-            else:  # Assumed to be aiohttp.ClientError or related based on linter feedback
-                raise HttpRequestFailedError(
-                    message=final_error_message,
-                    http_status_code=0,
-                    response_body=str(last_exception),
-                    api_error_code=APIErrorCode.NETWORK_ISSUE,  # Default for other client errors
-                ) from last_exception
-        # If loop exited and last_exception is somehow None (should not happen)
-        raise APIError(final_error_message, code=APIErrorCode.UNKNOWN.value)
+
+        error = HttpRequestFailedError(
+            message=f"HTTP req failed with status {response.status}",
+            http_status_code=response.status,
+            response_body=error_body_text,
+        )
+
+        if response.status in [400, 401, 403, 404, 405, 406, 415]:
+            logger.warning(
+                f"[{self.exchange_name}] Non-retryable client error {response.status} "
+                f"for {full_url}. Failing fast.",
+            )
+
+        raise error
+
+    def _should_fail_fast(self, error: HttpRequestFailedError) -> bool:
+        """Determine if an error should cause immediate failure without retries."""
+        if error.code == APIErrorCode.INVALID_RESPONSE.value:
+            return True
+        if hasattr(error, "http_status") and error.http_status in [
+            400,
+            401,
+            403,
+            404,
+            405,
+            406,
+            415,
+        ]:
+            return True
+        return False
+
+    def _should_skip_retry_delay(self, exception: Exception) -> bool:
+        """Determine if retry delay should be skipped for certain exceptions."""
+        if isinstance(exception, HttpRequestFailedError):
+            return exception.http_status in [400, 401, 403, 404, 405, 406, 415]
+        return False
+
+    async def _apply_retry_delay(self, current_attempt: int, full_url: str) -> None:
+        """Apply exponential backoff delay before retry."""
+        delay = self.retry_delay_seconds * (2 ** (current_attempt - 1))
+        logger.info(f"[{self.exchange_name}] Retrying {full_url} in {delay:.2f} seconds...")
+        await asyncio.sleep(delay)
+
+    def _handle_final_failure(
+        self, last_exception: Exception | None, full_url: str, endpoint_path: str
+    ) -> tuple[
+        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+    ]:
+        """Handle final failure after all retries exhausted."""
+        logger.error(
+            f"[{self.exchange_name}] Request to {full_url} failed after "
+            f"{self.max_retries + 1} attempts. Last error: {last_exception}",
+        )
+
+        if isinstance(last_exception, APIError | HttpRequestFailedError):
+            raise last_exception
+
+        if last_exception is None:
+            raise ValueError("DEFENSIVE: last_exception is None after all retries failed")
+
+        # Wrap other exceptions
+        if isinstance(last_exception, TimeoutError):
+            raise HttpRequestFailedError(
+                message=(
+                    f"Request failed after retries: "
+                    f"{type(last_exception).__name__} - {last_exception}"
+                ),
+                http_status_code=0,
+                response_body=str(last_exception),
+                api_error_code=APIErrorCode.TIMEOUT,
+            ) from last_exception
+        else:
+            raise HttpRequestFailedError(
+                message=(
+                    f"Request failed after retries: "
+                    f"{type(last_exception).__name__} - {last_exception}"
+                ),
+                http_status_code=0,
+                response_body=str(last_exception),
+                api_error_code=APIErrorCode.NETWORK_ISSUE,
+            ) from last_exception
 
     async def __aenter__(self) -> HttpClient:
         """Enter the async context manager and ensure session is ready."""

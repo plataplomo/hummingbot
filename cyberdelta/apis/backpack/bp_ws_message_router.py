@@ -122,6 +122,92 @@ class BackpackWsMessageRouter:
                 f"Failed to construct subscription payload for topic '{topic}': {e}",
             ) from e
 
+    def _extract_topic_and_data(
+        self,
+        message: dict[str, Any],
+    ) -> tuple[str | None, dict[str, Any] | None]:
+        """Extract topic and data from WebSocket message."""
+        topic_str: str | None = message.get("topic")
+        data_payload: dict[str, Any] | None = message.get("data")
+
+        # Handle different message formats
+        if not topic_str:
+            raw_event_type = message.get("type")
+            if isinstance(raw_event_type, str) and raw_event_type in [
+                "fills",
+                "orders",
+                "positionUpdate",
+            ]:
+                topic_str = raw_event_type
+
+        return topic_str, data_payload
+
+    def _get_base_topic(self, topic_str: str) -> str:
+        """Determine base topic for handler lookup."""
+        base_topic = topic_str
+        if base_topic.startswith("depth."):
+            base_topic = "depth"
+        elif base_topic.startswith("ticker."):
+            base_topic = "ticker"
+        return base_topic
+
+    def _find_handler(
+        self,
+        topic_str: str,
+        base_topic: str,
+        ws_handlers: dict[str, MessageHandler],
+    ) -> MessageHandler | None:
+        """Find appropriate handler for the topic."""
+        app_handler = ws_handlers.get(topic_str)
+        if not app_handler:
+            app_handler = ws_handlers.get(base_topic)
+        return app_handler
+
+    async def _process_topic_specific_payload(
+        self,
+        base_topic: str,
+        topic_str: str,
+        data_payload: dict[str, Any],
+    ) -> tuple[Any, Any]:
+        """Process payload based on topic type and return validated payload and internal model."""
+        validated_payload: Any = None
+        internal_model: Any = None
+
+        if base_topic == "depth":
+            validated_payload = self._raw_ws_handler.handle_depth_payload(data_payload)
+            # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
+            symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
+            internal_model = self._market_data_mapper.transform_ws_depth_event_to_internal(
+                symbol_from_topic,
+                validated_payload,
+            )
+        elif base_topic == "ticker":
+            validated_payload = self._raw_ws_handler.handle_ticker_payload(data_payload)
+            internal_model = self._market_data_mapper.transform_ws_ticker_event_to_internal(
+                validated_payload,
+            )
+        elif base_topic == "fills":
+            validated_payload = self._raw_ws_handler.handle_trade_event_payload(data_payload)
+            internal_model = self._account_data_mapper.transform_ws_fill_event_to_internal_trade(
+                validated_payload,
+            )
+        elif base_topic == "orders":
+            validated_payload = self._raw_ws_handler.handle_order_update_payload(data_payload)
+            internal_model = self._trading_data_mapper.transform_ws_order_update_to_internal_order(
+                validated_payload,
+            )
+        elif base_topic == "positionUpdate":
+            validated_payload = self._raw_ws_handler.handle_position_update_payload(
+                data_payload,
+            )
+            internal_model = (
+                self._account_data_mapper.transform_ws_position_update_to_internal_position(
+                    validated_payload,
+                )
+            )
+
+        return validated_payload, internal_model
+
     async def route_message(
         self,
         message: dict[str, Any],
@@ -141,26 +227,15 @@ class BackpackWsMessageRouter:
             ws_handlers: Mapping of topic strings to application MessageHandler callbacks
 
         """
-        topic_str: str | None = message.get("topic")
-        data_payload: dict[str, Any] | None = message.get("data")
-        event_type_str: str | None = None
+        # Extract topic and data
+        topic_str, data_payload = self._extract_topic_and_data(message)
 
-        # Handle different message formats
         if not topic_str:
-            raw_event_type = message.get("type")
-            if isinstance(raw_event_type, str) and raw_event_type in [
-                "fills",
-                "orders",
-                "positionUpdate",
-            ]:
-                event_type_str = raw_event_type
-                topic_str = event_type_str
-            else:
-                self.logger.debug(
-                    f"[{self._exchange_name}] Unroutable message - no clear string topic "
-                    f"and not a known event type: {message}",
-                )
-                return
+            self.logger.debug(
+                f"[{self._exchange_name}] Unroutable message - no clear string topic "
+                f"and not a known event type: {message}",
+            )
+            return
 
         if data_payload is None:
             self.logger.debug(
@@ -169,19 +244,9 @@ class BackpackWsMessageRouter:
             )
             return
 
-        # topic_str is now guaranteed to be a string
-        app_handler = ws_handlers.get(str(topic_str))
-
-        # Determine base topic for handler lookup
-        base_topic = str(topic_str)
-        if base_topic.startswith("depth."):
-            base_topic = "depth"
-        elif base_topic.startswith("ticker."):
-            base_topic = "ticker"
-
-        # Try base topic if specific topic handler not found
-        if not app_handler:
-            app_handler = ws_handlers.get(base_topic)
+        # Get base topic and find handler
+        base_topic = self._get_base_topic(topic_str)
+        app_handler = self._find_handler(topic_str, base_topic, ws_handlers)
 
         if not app_handler:
             self.logger.debug(
@@ -191,49 +256,15 @@ class BackpackWsMessageRouter:
             return
 
         try:
-            validated_payload: Any = None
-            internal_model: Any = None
+            # Process payload based on topic type
+            validated_payload, internal_model = await self._process_topic_specific_payload(
+                base_topic,
+                topic_str,
+                data_payload,
+            )
 
-            # Process based on base topic type
-            if base_topic == "depth":
-                validated_payload = self._raw_ws_handler.handle_depth_payload(data_payload)
-                # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
-                symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
-                internal_model = self._market_data_mapper.transform_ws_depth_event_to_internal(
-                    symbol_from_topic,
-                    validated_payload,
-                )
-            elif base_topic == "ticker":
-                validated_payload = self._raw_ws_handler.handle_ticker_payload(data_payload)
-                internal_model = self._market_data_mapper.transform_ws_ticker_event_to_internal(
-                    validated_payload,
-                )
-            elif base_topic == "fills":
-                validated_payload = self._raw_ws_handler.handle_trade_event_payload(data_payload)
-                # For fills topic, this could be either public trades or private fills
-                # Based on the context, assume this is private account fills
-                internal_model = (
-                    self._account_data_mapper.transform_ws_fill_event_to_internal_trade(
-                        validated_payload,
-                    )
-                )
-            elif base_topic == "orders":
-                validated_payload = self._raw_ws_handler.handle_order_update_payload(data_payload)
-                internal_model = (
-                    self._trading_data_mapper.transform_ws_order_update_to_internal_order(
-                        validated_payload,
-                    )
-                )
-            elif base_topic == "positionUpdate":
-                validated_payload = self._raw_ws_handler.handle_position_update_payload(
-                    data_payload,
-                )
-                internal_model = (
-                    self._account_data_mapper.transform_ws_position_update_to_internal_position(
-                        validated_payload,
-                    )
-                )
-            else:
+            if validated_payload is None and internal_model is None:
+                # Unknown topic, send raw payload
                 self.logger.warning(
                     f"[{self._exchange_name}] No specific raw WS validator for topic "
                     f"'{topic_str}' (base: '{base_topic}'). "

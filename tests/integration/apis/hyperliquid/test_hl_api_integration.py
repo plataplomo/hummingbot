@@ -611,7 +611,7 @@ class TestHyperliquidAPIMarketDataOperations:
 
 class TestHyperliquidAPIComprehensiveErrorHandling:
     """Comprehensive error handling tests covering various failure scenarios.
-    
+
     Tests edge cases across all API operations to ensure robust error handling.
     """
 

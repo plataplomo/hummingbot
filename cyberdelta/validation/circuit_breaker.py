@@ -444,7 +444,7 @@ class APIErrorBreaker(CircuitBreaker):
         error_message: str | None = None
         if args:
             error_message = args[0] if isinstance(args[0], str | type(None)) else None
-            
+
         # Record the error if provided
         if error_message is not None:
             self.record_error(error_message)
@@ -541,7 +541,7 @@ class LiquidityBreaker(CircuitBreaker):
                 f"as first argument",
             )
             return
-            
+
         current_liquidity = float(args[0])
         self.current_liquidity = current_liquidity
 

@@ -6,4 +6,3 @@ This package contains organized test fixtures split into logical modules:
 - exchange_mocks: Exchange API mocks and trading data fixtures
 - vcr_config: VCR configuration for cassette-based testing
 """
-

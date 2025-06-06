@@ -29,7 +29,7 @@ class TestBackpackAccountServiceTransfers:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test transfer successfully initiates a transfer and returns an internal Transfer.
-        
+
         Returns internal Transfer model.
         """
         asset = "USDC"
@@ -175,7 +175,7 @@ class TestBackpackAccountServiceTransfers:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test public transfer handles None response from http_client_requester.
-        
+
         Should raise APIError.
         """
         asset = "BTC"
@@ -241,7 +241,7 @@ class TestBackpackAccountServiceTransfers:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test public transfer handles unexpected exceptions from http_client_requester.
-        
+
         Should wrap in APIError.
         """
         asset = "ETH"

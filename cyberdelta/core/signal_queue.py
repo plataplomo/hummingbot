@@ -624,6 +624,62 @@ class PrioritySignalQueue:
             )
         return allow_signal
 
+    def _try_perp_format(self, symbol: str) -> str | None:
+        """Try to extract exchange from EXCHANGE-SYMBOL-PERP format."""
+        if "-PERP" not in symbol:
+            return None
+        parts = symbol.split("-")
+        if len(parts) == 3 and parts[0]:
+            return parts[0].lower()
+        return "hyperliquid"  # Default assumption for perp contracts
+
+    def _try_dash_format(self, symbol: str) -> str | None:
+        """Try to extract exchange from EXCHANGE-SYMBOL format."""
+        if "-" not in symbol:
+            return None
+        parts = symbol.split("-", 1)
+        if len(parts) == 2 and parts[0]:
+            return parts[0].lower()
+        return None
+
+    def _try_underscore_format(self, symbol: str) -> str | None:
+        """Try to extract exchange from SYMBOL_EXCHANGE format."""
+        if "_" not in symbol:
+            return None
+        parts = symbol.split("_")
+        if len(parts) == 2 and parts[1]:
+            return parts[1].lower()
+        return "backpack"  # Example assumption
+
+    def _try_colon_format(self, symbol: str) -> str | None:
+        """Try to extract exchange from SYMBOL:EXCHANGE format."""
+        if ":" not in symbol:
+            return None
+        parts = symbol.split(":")
+        if len(parts) == 2 and parts[1]:
+            return parts[1].lower()
+        return None
+
+    def _try_common_exchange_names(self, symbol: str) -> str | None:
+        """Try to find common exchange names within the symbol."""
+        common_exchanges = [
+            "binance",
+            "coinbase",
+            "bybit",
+            "okx",
+            "kucoin",
+            "dydx",
+            "hyperliquid",
+            "backpack",
+            "kraken",
+            "huobi",
+        ]
+
+        for exchange in common_exchanges:
+            if exchange.lower() in symbol.lower():
+                return exchange.lower()
+        return None
+
     def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
         """Attempt to infer the exchange based on the symbol format.
 
@@ -643,49 +699,17 @@ class PrioritySignalQueue:
         # Try different exchange-specific symbol formats
         symbol = symbol.strip().upper()
 
-        # Format: EXCHANGE-SYMBOL-PERP (e.g., HYPERLIQUID-BTC-PERP)
-        if "-PERP" in symbol:
-            parts = symbol.split("-")
-            if len(parts) == 3 and parts[0]:
-                return parts[0].lower()
-            return "hyperliquid"  # Default assumption for perp contracts
-
-        # Format: EXCHANGE-SYMBOL (e.g., BINANCE-BTCUSDT)
-        if "-" in symbol:
-            parts = symbol.split("-", 1)
-            if len(parts) == 2 and parts[0]:
-                return parts[0].lower()
-
-        # Format: SYMBOL_EXCHANGE (e.g., BTC_BACKPACK)
-        if "_" in symbol:
-            parts = symbol.split("_")
-            if len(parts) == 2 and parts[1]:
-                return parts[1].lower()
-            return "backpack"  # Example assumption
-
-        # Format: SYMBOL:EXCHANGE (e.g., BTC:DYDX)
-        if ":" in symbol:
-            parts = symbol.split(":")
-            if len(parts) == 2 and parts[1]:
-                return parts[1].lower()
-
-        # Try to extract common exchange names from the symbol
-        common_exchanges = [
-            "binance",
-            "coinbase",
-            "bybit",
-            "okx",
-            "kucoin",
-            "dydx",
-            "hyperliquid",
-            "backpack",
-            "kraken",
-            "huobi",
-        ]
-
-        for exchange in common_exchanges:
-            if exchange.lower() in symbol.lower():
-                return exchange.lower()
+        # Try each format in order of specificity
+        for format_checker in [
+            self._try_perp_format,
+            self._try_dash_format,
+            self._try_underscore_format,
+            self._try_colon_format,
+            self._try_common_exchange_names,
+        ]:
+            result = format_checker(symbol)
+            if result:
+                return result
 
         # If no exchange could be inferred
         self.logger.debug(f"Could not infer exchange from symbol: {symbol}")
@@ -700,7 +724,7 @@ class PrioritySignalQueue:
             pending_signals: list[TradeSignal] = [
                 signal
                 for _score, _count, signal in sorted(
-                    list(self.signal_queue),
+                    self.signal_queue,
                     key=lambda x: (x[0], x[1]),
                 )
                 if signal.is_valid()

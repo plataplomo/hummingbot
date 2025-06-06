@@ -195,25 +195,59 @@ def _validate_raw_iso_timestamp_string(v: object, info: ValidationInfo) -> str:
     return s  # Return original string
 
 
+def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, value: object) -> None:
+    """Validate timestamp year is within funding rate range (1970-2070)."""
+    if dt_object.year < 1970 or dt_object.year > 2070:
+        raise ValueError(
+            f"Field {field_name}: Timestamp '{value}' results in an implausible year "
+            f"({dt_object.year}) for funding rate context (expected 1970-2070).",
+        )
+
+
+def _validate_funding_rate_numeric_timestamp(v: int | float, field_name: str) -> int | float:
+    """Validate numeric timestamp for funding rate with stricter year range."""
+    dt_object = parse_datetime_utc(v, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
+    _validate_funding_rate_year_range(dt_object, field_name, v)
+    return v
+
+
+def _validate_funding_rate_numeric_string_timestamp(
+    s_val: str,
+    numeric_value: int | float,
+    field_name: str,
+) -> int | float:
+    """Validate numeric string timestamp for funding rate."""
+    dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(
+            f"Field {field_name}: parse_datetime_utc returned None for '{numeric_value}'",
+        )
+    _validate_funding_rate_year_range(dt_object, field_name, numeric_value)
+    return numeric_value
+
+
+def _validate_funding_rate_iso_string_timestamp(s_val: str, field_name: str) -> str:
+    """Validate ISO string timestamp for funding rate."""
+    dt_object = parse_datetime_utc(s_val, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(
+            f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
+        )
+    _validate_funding_rate_year_range(dt_object, field_name, s_val)
+    return s_val
+
+
 def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp for FundingRate: int, float, or ISO string. Year 1970-2070."""
     field_name = info.field_name or "raw_funding_rate_timestamp"
     if v is None:
         raise ValueError(f"Field {field_name}: Value cannot be None.")
 
-    dt_object: datetime | None
-
     if isinstance(v, int | float):
         try:
-            dt_object = parse_datetime_utc(v, field_name=field_name)
-            if dt_object is None:
-                raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
-            if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
-                raise ValueError(
-                    f"Field {field_name}: Timestamp '{v}' results in an implausible year "
-                    f"({dt_object.year}) for funding rate context (expected 1970-2070).",
-                )
-            return v
+            return _validate_funding_rate_numeric_timestamp(v, field_name)
         except ValueError as e:
             raise ValueError(
                 f"Field {field_name}: Invalid numeric timestamp value '{v}'. Details: {e}",
@@ -221,49 +255,22 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
 
     if isinstance(v, str):
         s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
-        is_numeric_string = False
-        numeric_value: int | float | None = None
-        try:
-            numeric_value = int(s_val)
-            is_numeric_string = True
-        except ValueError:
-            try:
-                numeric_value = float(s_val)
-                is_numeric_string = True
-            except ValueError:
-                is_numeric_string = False
+        is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
 
         if is_numeric_string and numeric_value is not None:
             try:
-                dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
-                if dt_object is None:
-                    raise ValueError(
-                        f"Field {field_name}: parse_datetime_utc returned None for "
-                        f"'{numeric_value}'",
-                    )
-                if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
-                    raise ValueError(
-                        f"Field {field_name}: Timestamp str '{s_val}' (parsed as {numeric_value}) "
-                        f"gives year {dt_object.year} (implausible for funding rate context).",
-                    )
-                return numeric_value
+                return _validate_funding_rate_numeric_string_timestamp(
+                    s_val,
+                    numeric_value,
+                    field_name,
+                )
             except ValueError as e:
                 raise ValueError(
                     f"Field {field_name}: Invalid numeric timestamp string '{s_val}'. Details: {e}",
                 ) from e
-        else:  # Standard ISO string
+        else:
             try:
-                dt_object = parse_datetime_utc(s_val, field_name=field_name)
-                if dt_object is None:
-                    raise ValueError(
-                        f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
-                    )
-                if dt_object.year < 1970 or dt_object.year > 2070:  # Strict range 1970-2070
-                    raise ValueError(
-                        f"Field {field_name}: ISO str '{s_val}' gives year {dt_object.year} "
-                        f"(implausible for funding rate context).",
-                    )
-                return s_val
+                return _validate_funding_rate_iso_string_timestamp(s_val, field_name)
             except ValueError as e_orig:
                 raise ValueError(
                     f"Field '{field_name}': Invalid ISO string '{s_val}'. Details: {e_orig}",
@@ -274,28 +281,79 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
     )
 
 
+def _validate_year_range(dt_object: datetime, field_name: str, value: object) -> None:
+    """Validate timestamp year is within acceptable range."""
+    if dt_object.year < 1970 or dt_object.year > 2300:
+        raise ValueError(
+            f"Field {field_name}: Timestamp '{value}' results in an implausible year "
+            f"({dt_object.year}) for this context.",
+        )
+
+
+def _validate_numeric_timestamp(v: int | float, field_name: str) -> int | float:
+    """Validate numeric timestamp and return if valid."""
+    dt_object = parse_datetime_utc(v, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
+    _validate_year_range(dt_object, field_name, v)
+    return v
+
+
+def _try_parse_as_numeric(s_val: str) -> tuple[bool, int | float | None]:
+    """Try to parse string as numeric value."""
+    try:
+        return True, int(s_val)
+    except ValueError:
+        try:
+            return True, float(s_val)
+        except ValueError:
+            return False, None
+
+
+def _validate_numeric_string_timestamp(
+    s_val: str,
+    numeric_value: int | float,
+    field_name: str,
+) -> int | float:
+    """Validate string that represents a numeric timestamp."""
+    dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(
+            f"Field {field_name}: parse_datetime_utc returned None for '{numeric_value}'",
+        )
+    _validate_year_range(dt_object, field_name, numeric_value)
+    return numeric_value
+
+
+def _validate_iso_string_timestamp(s_val: str, field_name: str) -> str:
+    """Validate ISO string timestamp."""
+    dt_object = parse_datetime_utc(s_val, field_name=field_name)
+    if dt_object is None:
+        raise ValueError(
+            f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
+        )
+    _validate_year_range(dt_object, field_name, s_val)
+    return s_val
+
+
+def _handle_validation_error(e: ValueError, field_name: str, s_val: str) -> None:
+    """Handle validation errors with special case for event_time field."""
+    if field_name == "event_time":
+        raise ValueError("Invalid timestamp format") from e
+    raise ValueError(
+        f"Field {field_name}: Invalid numeric timestamp string '{s_val}'. Details: {e}",
+    ) from e
+
+
 def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp that can be int, float, or ISO string. CANNOT be None. Year 1970-2300."""
     field_name = info.field_name or "raw_flexible_timestamp"
-    if (
-        v is None
-    ):  # Explicitly disallow None as per original validator for BackpackRawFundingRate.time
+    if v is None:
         raise ValueError(f"Field {field_name}: Value cannot be None.")
 
-    dt_object: datetime | None  # Allow None initially, will be narrowed by asserts
-
-    if isinstance(v, int | float):  # UP038 Fix
+    if isinstance(v, int | float):
         try:
-            dt_object = parse_datetime_utc(v, field_name=field_name)
-            if dt_object is None:
-                raise ValueError(f"Field {field_name}: parse_datetime_utc returned None for '{v}'")
-            # Reverted to wider year range 1970-2300 for general flexible timestamp
-            if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
-                raise ValueError(
-                    f"Field {field_name}: Timestamp '{v}' results in an implausible year "
-                    f"({dt_object.year}) for this context.",
-                )
-            return v
+            return _validate_numeric_timestamp(v, field_name)
         except ValueError as e:
             raise ValueError(
                 f"Field {field_name}: Invalid numeric timestamp value '{v}'. Details: {e}",
@@ -303,75 +361,25 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
 
     if isinstance(v, str):
         s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
-        is_numeric_string = False
-        numeric_value: int | float | None = None
-        try:
-            numeric_value = int(s_val)
-            is_numeric_string = True
-        except ValueError:
-            try:
-                numeric_value = float(s_val)
-                is_numeric_string = True
-            except ValueError:
-                is_numeric_string = False
+        is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
 
-        if (
-            is_numeric_string and numeric_value is not None
-        ):  # numeric_value must be set if is_numeric_string is True
+        if is_numeric_string and numeric_value is not None:
             try:
-                dt_object = parse_datetime_utc(
-                    numeric_value,
-                    field_name=field_name,
-                )  # Use numeric_value for parsing
-                if dt_object is None:
-                    raise ValueError(
-                        f"Field {field_name}: parse_datetime_utc returned None for "
-                        f"'{numeric_value}'",
-                    )
-                # Reverted to wider year range 1970-2300
-                if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
-                    raise ValueError(
-                        f"Field {field_name}: Timestamp str '{s_val}' (parsed as {numeric_value}) "
-                        f"gives year {dt_object.year} (implausible).",
-                    )
-                return numeric_value  # Return converted numeric value
+                return _validate_numeric_string_timestamp(s_val, numeric_value, field_name)
             except ValueError as e:
-                # Test expects 'Invalid timestamp format' for 'E' field with 'abc'
-                if field_name == "event_time":  # field_name from ValidationInfo for 'E'
-                    raise ValueError("Invalid timestamp format") from e
-                raise ValueError(
-                    f"Field {field_name}: Invalid numeric timestamp string '{s_val}'. Details: {e}",
-                ) from e
-        else:  # Standard ISO string timestamp (or non-numeric string)
+                _handle_validation_error(e, field_name, s_val)
+        else:
             try:
-                dt_object = parse_datetime_utc(s_val, field_name=field_name)
-                if dt_object is None:
-                    raise ValueError(
-                        f"Field {field_name}: parse_datetime_utc returned None for '{s_val}'",
-                    )
-                # Reverted to wider year range 1970-2300
-                if dt_object.year < 1970 or dt_object.year > 2300:  # Reverted to 2300
-                    raise ValueError(
-                        f"Field {field_name}: ISO str '{s_val}' gives year {dt_object.year} "
-                        f"(implausible).",
-                    )
-                return s_val
-            except ValueError:  # Catch parsing error for ISO string
-                # Test expects 'Invalid timestamp format' for 'E' field with 'abc'
+                return _validate_iso_string_timestamp(s_val, field_name)
+            except ValueError:
                 if field_name == "event_time":
                     raise ValueError("Invalid timestamp format") from None
-                # Default error for other fields or more specific error from parse_datetime_utc
-                # To keep original parse_datetime_utc error detail if not event_time:
                 try:
-                    parse_datetime_utc(
-                        s_val,
-                        field_name=field_name,
-                    )  # Call again to get original error
+                    parse_datetime_utc(s_val, field_name=field_name)
                 except ValueError as e_orig:
                     raise ValueError(
                         f"Field '{field_name}': Invalid ISO string '{s_val}'. Details: {e_orig}",
                     ) from e_orig
-                # Should not be reached if parse_datetime_utc always raises on failure for strings
                 raise ValueError(f"Field '{field_name}': Invalid ISO string '{s_val}'.") from None
 
     raise ValueError(

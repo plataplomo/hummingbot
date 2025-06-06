@@ -321,6 +321,7 @@ class WebSocketManager:
     async def _listen(self) -> None:
         """Listens for messages on the WebSocket and handles them."""
         self._logger.info(f"[{self._exchange_name} _listen] Task started.")
+
         if not self._ws_connection:
             self._logger.error(
                 f"[{self._exchange_name} _listen] Listener started without a valid "
@@ -328,139 +329,189 @@ class WebSocketManager:
             )
             return
 
+        await self._listen_loop()
+
+    async def _listen_loop(self) -> None:
+        """Main listening loop for WebSocket messages."""
         self._logger.info(f"[{self._exchange_name} _listen] Entering main loop.")
         original_connection = self._ws_connection
         was_cancelled_flag = False
         loop_iteration_count = 0
+
         try:
-            async for msg in self._ws_connection:
+            # DEFENSIVE CHECK: self._ws_connection is confirmed not None by caller.
+            # Mypy=[union-attr]
+            async for msg in self._ws_connection:  # type: ignore[union-attr]
                 loop_iteration_count += 1
-                current_task_listen_loop = asyncio.current_task()
-                task_name_listen_loop = (
-                    current_task_listen_loop.get_name()
-                    if current_task_listen_loop
-                    else "UnknownTask"
-                )
-                cancelled_state = (
-                    current_task_listen_loop.cancelled() if current_task_listen_loop else "N/A"
-                )
-                self._logger.info(
-                    f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
-                    f"Iteration {loop_iteration_count}. "
-                    f"Msg type: {msg.type if msg else 'None'}. "
-                    f"Cancelled state: {cancelled_state}",
-                )
 
-                if self._ws_connection is not original_connection or self._ws_connection.closed:
-                    self._logger.warning(
-                        "WebSocket connection changed or closed during iteration. "
-                        "Stopping listener for old connection.",
-                    )
+                if not await self._should_continue_listening(
+                    original_connection, loop_iteration_count
+                ):
                     break
 
-                if msg.type == aiohttp.WSMsgType.TEXT:
-                    try:
-                        data = json.loads(msg.data)
-                        await self._message_handler(data)
-                    except json.JSONDecodeError:
-                        self._logger.warning(
-                            f"Received non-JSON WebSocket message: {msg.data[:200]}...",
-                        )
-                    except Exception as e:
-                        self._logger.exception(f"Error processing WebSocket message: {e}")
-
-                elif msg.type == aiohttp.WSMsgType.BINARY:
-                    self._logger.debug(
-                        f"Received binary WebSocket message (length: {len(msg.data)}). "
-                        "Handler for binary not implemented.",
-                    )
-                elif msg.type == aiohttp.WSMsgType.ERROR:
-                    self._logger.error(
-                        f"WebSocket connection error: {self._ws_connection.exception()!r}",
-                    )
-                    break
-                elif msg.type == aiohttp.WSMsgType.CLOSED:
-                    self._logger.info(
-                        f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
-                        f"Received WSMsgType.CLOSED. "
-                        f"Iteration {loop_iteration_count}. Terminating listener loop.",
-                    )
-                    break
-                elif msg.type == aiohttp.WSMsgType.CLOSING:
-                    self._logger.info(
-                        f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
-                        f"Received WSMsgType.CLOSING. "
-                        f"Iteration {loop_iteration_count}. Terminating listener loop.",
-                    )
-                    break
+                await self._handle_websocket_message(msg, loop_iteration_count)
 
         except asyncio.CancelledError:
-            current_task_cancelled = asyncio.current_task()
-            task_name_cancelled = (
-                current_task_cancelled.get_name() if current_task_cancelled else "UnknownTask"
-            )
-            self._logger.error(
-                f"[{self._exchange_name} _listen::{task_name_cancelled}] "
-                f"Listener task explicitly CANCELLED "
-                f"(caught in except block). Loop iterations: {loop_iteration_count}. "
-                f"Re-raising CancelledError.",
-            )
             was_cancelled_flag = True
+            await self._handle_cancelled_listener()
             raise
         except Exception as e:
-            self._logger.exception(f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {e}")
-            if self._ws_connection is original_connection:
-                self._is_connected = False
-                self._ws_connection = None
+            await self._handle_listener_exception(e, original_connection)
         finally:
-            try:
-                current_task = asyncio.current_task()
-            except RuntimeError:
-                # No running event loop (e.g., during test cleanup)
-                current_task = None
-            final_is_cancelled_state = (
-                current_task and current_task.cancelled()
-            ) or was_cancelled_flag
+            await self._cleanup_listener(original_connection, was_cancelled_flag)
 
-            self._logger.info(
-                f"[{self._exchange_name} _listen] Finally block. "
-                f"Task: {current_task.get_name() if current_task else 'None'}, "
-                f"Cancelled state: {final_is_cancelled_state}, "
-                f"Should Reconnect: {self._should_reconnect}",
+    async def _should_continue_listening(self, original_connection: Any, iteration: int) -> bool:
+        """Check if listening should continue."""
+        current_task_listen_loop = asyncio.current_task()
+        task_name_listen_loop = (
+            current_task_listen_loop.get_name() if current_task_listen_loop else "UnknownTask"
+        )
+        cancelled_state = (
+            current_task_listen_loop.cancelled() if current_task_listen_loop else "N/A"
+        )
+
+        self._logger.info(
+            f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
+            f"Iteration {iteration}. "
+            f"Cancelled state: {cancelled_state}",
+        )
+
+        if self._ws_connection is not original_connection or self._ws_connection.closed:
+            self._logger.warning(
+                "WebSocket connection changed or closed during iteration. "
+                "Stopping listener for old connection.",
             )
+            return False
 
-            if current_task:  # pragma: no cover
-                pass  # Keep block for structure if needed later
+        return True
 
-            if (
-                current_task
-                and not final_is_cancelled_state
-                and self._ws_connection is original_connection
-            ):
-                self._is_connected = False
-                self._ws_connection = None
+    async def _handle_websocket_message(self, msg: Any, iteration: int) -> None:
+        """Handle a single WebSocket message based on its type."""
+        current_task = asyncio.current_task()
+        task_name = current_task.get_name() if current_task else "UnknownTask"
 
-            if self._should_reconnect and not final_is_cancelled_state:
-                if self._connection_task is None or self._connection_task.done():
-                    self._logger.info("Scheduling reconnection from listener task termination.")
-                    try:
-                        reconnect_task = self.connect()
-                        if reconnect_task:
-                            self._logger.debug(
-                                f"Reconnection task created: {reconnect_task.get_name()}",
-                            )
-                        else:
-                            self._logger.debug(
-                                "Reconnection task was not created (already connecting)",
-                            )
-                    except RuntimeError as e:
-                        if "no running event loop" in str(e):
-                            self._logger.debug(
-                                "Cannot schedule reconnection: no running event loop "
-                                "(likely test cleanup)",
-                            )
-                        else:
-                            raise
+        self._logger.info(
+            f"[{self._exchange_name} _listen::{task_name}] "
+            f"Iteration {iteration}. "
+            f"Msg type: {msg.type if msg else 'None'}.",
+        )
+
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            await self._handle_text_message(msg)
+        elif msg.type == aiohttp.WSMsgType.BINARY:
+            self._handle_binary_message(msg)
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            self._handle_error_message()
+            raise ConnectionError("WebSocket error received")
+        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
+            await self._handle_close_message(task_name, iteration)
+            raise ConnectionError("WebSocket closed")
+
+    async def _handle_text_message(self, msg: Any) -> None:
+        """Handle TEXT type WebSocket messages."""
+        try:
+            data = json.loads(msg.data)
+            await self._message_handler(data)
+        except json.JSONDecodeError:
+            self._logger.warning(
+                f"Received non-JSON WebSocket message: {msg.data[:200]}...",
+            )
+        except Exception as e:
+            self._logger.exception(f"Error processing WebSocket message: {e}")
+
+    def _handle_binary_message(self, msg: Any) -> None:
+        """Handle BINARY type WebSocket messages."""
+        self._logger.debug(
+            f"Received binary WebSocket message (length: {len(msg.data)}). "
+            "Handler for binary not implemented.",
+        )
+
+    def _handle_error_message(self) -> None:
+        """Handle ERROR type WebSocket messages."""
+        self._logger.error(
+            f"WebSocket connection error: {self._ws_connection.exception()!r}",
+        )
+
+    async def _handle_close_message(self, task_name: str, iteration: int) -> None:
+        """Handle CLOSED/CLOSING type WebSocket messages."""
+        self._logger.info(
+            f"[{self._exchange_name} _listen::{task_name}] "
+            f"Received WSMsgType.CLOSED/CLOSING. "
+            f"Iteration {iteration}. Terminating listener loop.",
+        )
+
+    async def _handle_cancelled_listener(self) -> None:
+        """Handle cancellation of the listener task."""
+        current_task_cancelled = asyncio.current_task()
+        task_name_cancelled = (
+            current_task_cancelled.get_name() if current_task_cancelled else "UnknownTask"
+        )
+        self._logger.error(
+            f"[{self._exchange_name} _listen::{task_name_cancelled}] "
+            f"Listener task explicitly CANCELLED "
+            f"(caught in except block). Re-raising CancelledError.",
+        )
+
+    async def _handle_listener_exception(self, error: Exception, original_connection: Any) -> None:
+        """Handle unexpected exceptions in the listener."""
+        self._logger.exception(f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {error}")
+        if self._ws_connection is original_connection:
+            self._is_connected = False
+            self._ws_connection = None
+
+    async def _cleanup_listener(self, original_connection: Any, was_cancelled: bool) -> None:
+        """Cleanup after listener loop ends."""
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            # No running event loop (e.g., during test cleanup)
+            current_task = None
+
+        final_is_cancelled_state = (current_task and current_task.cancelled()) or was_cancelled
+
+        self._logger.info(
+            f"[{self._exchange_name} _listen] Finally block. "
+            f"Task: {current_task.get_name() if current_task else 'None'}, "
+            f"Cancelled state: {final_is_cancelled_state}, "
+            f"Should Reconnect: {self._should_reconnect}",
+        )
+
+        if current_task:  # pragma: no cover
+            pass  # Keep block for structure if needed later
+
+        if (
+            current_task
+            and not final_is_cancelled_state
+            and self._ws_connection is original_connection
+        ):
+            self._is_connected = False
+            self._ws_connection = None
+
+        await self._schedule_reconnection_if_needed(final_is_cancelled_state)
+
+    async def _schedule_reconnection_if_needed(self, final_is_cancelled_state: bool) -> None:
+        """Schedule reconnection if needed and conditions are met."""
+        if self._should_reconnect and not final_is_cancelled_state:
+            if self._connection_task is None or self._connection_task.done():
+                self._logger.info("Scheduling reconnection from listener task termination.")
+                try:
+                    reconnect_task = self.connect()
+                    if reconnect_task:
+                        self._logger.debug(
+                            f"Reconnection task created: {reconnect_task.get_name()}",
+                        )
+                    else:
+                        self._logger.debug(
+                            "Reconnection task was not created (already connecting)",
+                        )
+                except RuntimeError as e:
+                    if "no running event loop" in str(e):
+                        self._logger.debug(
+                            "Cannot schedule reconnection: no running event loop "
+                            "(likely test cleanup)",
+                        )
+                    else:
+                        raise
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""

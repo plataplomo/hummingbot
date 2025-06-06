@@ -34,7 +34,7 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test _get_raw_positions_list successfully fetches and processes position data.
-        
+
         Tested via public get_positions.
         """
         symbol_arg = "SOL-PERP"
@@ -318,7 +318,7 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_positions with comprehensive scenarios including proper construction.
-        
+
         Tests proper DerivativePosition construction.
         """
         mock_raw_position_data = {

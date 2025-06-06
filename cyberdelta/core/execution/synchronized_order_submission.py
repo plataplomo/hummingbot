@@ -1095,7 +1095,7 @@ class SynchronizedOrderSubmissionService:
                         second_place_order_args,
                     )
                     if not (
-                        hasattr(second_placed_order, "client_order_id") 
+                        hasattr(second_placed_order, "client_order_id")
                         and hasattr(second_placed_order, "to_dict")
                     ):
                         raise ValueError("second_placed_order missing required attributes")

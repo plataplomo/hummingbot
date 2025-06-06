@@ -20,7 +20,7 @@ VALID_CONTENT_TYPE_CHARS_REGEX = re.compile(r"^[a-zA-Z0-9/.\-+=;\s]*$")
 
 class ProcessedResponseHeaders(BaseModel):
     """Pydantic model to hold validated and processed HTTP response header information.
-    
+
     Specifically validates and processes the Content-Type header.
     """
 
@@ -36,7 +36,7 @@ class ProcessedResponseHeaders(BaseModel):
     @classmethod
     def validate_content_type_characters(cls, v: str) -> str:
         """Validates that the content_type string contains acceptable characters.
-        
+
         Ensures string does not consist only of whitespace if not empty.
         """
         if not VALID_CONTENT_TYPE_CHARS_REGEX.fullmatch(v):

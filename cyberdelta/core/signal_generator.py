@@ -342,7 +342,7 @@ class SignalGenerator:
         try:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
-            decimal_rates = [r for r in rates]  # All rates are Decimal by construction
+            decimal_rates = list(rates)  # All rates are Decimal by construction
 
             # Calculate mean
             n = len(decimal_rates)
@@ -394,9 +394,7 @@ class SignalGenerator:
         try:
             # Calculate standard deviation using Decimal arithmetic
             # Convert any non-Decimal values to Decimal
-            decimal_basis = [
-                b for b in basis_values
-            ]  # All basis values are Decimal by construction
+            decimal_basis = list(basis_values)  # All basis values are Decimal by construction
 
             # Calculate mean
             n = len(decimal_basis)

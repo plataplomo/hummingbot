@@ -53,7 +53,7 @@ class HyperliquidRateLimiter:
 
     def __init__(self) -> None:
         """Initialize the rate limiter with Hyperliquid's IP weight limits.
-        
+
         Sets up tracking for a 1200 weight per minute limit with cleanup of old requests.
         """
         self.total_weight_limit = 1200  # per minute
@@ -130,7 +130,7 @@ class HyperliquidDataCollector:
 
     def __init__(self, output_dir: Path, session: aiohttp.ClientSession) -> None:
         """Initialize the Hyperliquid public data collector with rate limiting.
-        
+
         Args:
             output_dir: Directory where collected JSON data files will be saved
             session: aiohttp session for making public API requests
@@ -162,7 +162,10 @@ class HyperliquidDataCollector:
             logger.warning(f"Using fallback configuration: {self.api_base_url}")
 
     async def _fetch_json(
-        self, url: str, payload: dict[str, Any], request_type: str,
+        self,
+        url: str,
+        payload: dict[str, Any],
+        request_type: str,
     ) -> dict[str, Any] | None:
         """Fetch JSON data from a URL with POST payload, rate limiting, and error handling."""
         # Apply rate limiting
@@ -237,7 +240,10 @@ class HyperliquidDataCollector:
             self._save_json(data, filename)
 
     async def fetch_candle_snapshot(
-        self, coin: str, interval: str = "1m", hours_back: int = 1,
+        self,
+        coin: str,
+        interval: str = "1m",
+        hours_back: int = 1,
     ) -> None:
         """Fetch candle snapshot for a coin."""
         url = f"{self.api_base_url}/info"
@@ -289,7 +295,10 @@ class HyperliquidDataCollector:
 
     # Additional info types based on SDK and documentation
     async def fetch_funding_history(
-        self, coin: str, start_time: int | None = None, end_time: int | None = None,
+        self,
+        coin: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> None:
         """Fetch funding history for a coin."""
         url = f"{self.api_base_url}/info"
@@ -410,7 +419,10 @@ class HyperliquidDataCollector:
 
     # Additional endpoints discovered from Hyperliquid SDK and documentation
     async def fetch_user_fills_by_time(
-        self, user: str, start_time: int | None = None, end_time: int | None = None,
+        self,
+        user: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> None:
         """Fetch user fills/trades for a user within a specific time range."""
         url = f"{self.api_base_url}/info"
@@ -433,7 +445,10 @@ class HyperliquidDataCollector:
             self._save_json(data, filename)
 
     async def fetch_user_funding_history(
-        self, user: str, start_time: int | None = None, end_time: int | None = None,
+        self,
+        user: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> None:
         """Fetch user funding history."""
         url = f"{self.api_base_url}/info"
@@ -644,7 +659,7 @@ class HyperliquidDataCollector:
 
 async def main() -> None:
     """Execute comprehensive Hyperliquid public API data collection process.
-    
+
     Parses command-line arguments, sets up configuration and rate-limited HTTP session,
     and runs the complete public data collection across all Hyperliquid info endpoints.
     Respects API rate limits and saves collected market data as JSON fixtures for testing.

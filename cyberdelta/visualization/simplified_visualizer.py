@@ -278,7 +278,7 @@ class SimpleVisualizer:
                 xy=(final_time, final_pnl),
                 xytext=(15, 15),
                 textcoords="offset points",
-                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                arrowprops={"arrowstyle": "->", "connectionstyle": "arc3,rad=.2"},
             )
         except Exception as e:
             # Annotation can sometimes fail with certain data, log but continue
@@ -353,7 +353,7 @@ class SimpleVisualizer:
                 ),
                 xytext=(15, -15),  # Adjust position slightly
                 textcoords="offset points",
-                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"),
+                arrowprops={"arrowstyle": "->", "connectionstyle": "arc3,rad=.2"},
             )
         except Exception as e:
             logger.warning(f"Could not add max drawdown annotation: {e}")
@@ -409,7 +409,7 @@ class SimpleVisualizer:
             f"Mean: {mean_pnl:.2f}",
             xy=(mean_pnl, 0),
             xytext=(mean_pnl * 1.1, max(counts) * 0.9),
-            arrowprops=dict(facecolor="black", shrink=0.05),
+            arrowprops={"facecolor": "black", "shrink": 0.05},
         )
 
         # Finalize plot
@@ -485,7 +485,7 @@ class SimpleVisualizer:
             f"Win Rate: {win_rate:.2f}%\nAvg Win: ${avg_win:.2f}\nAvg Loss: ${avg_loss:.2f}"
         )
         # Position text box
-        props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+        props = {"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5}
         ax.text(
             0.05,
             0.95,

@@ -168,7 +168,9 @@ async def main() -> None:
 
         # PortfolioTracker expects Config, PortfolioTrackerConfig, and SymbolMapper
         portfolio_tracker: PortfolioTracker = PortfolioTracker(
-            config, config.portfolio_tracker, symbol_mapper=symbol_mapper,
+            config,
+            config.portfolio_tracker,
+            symbol_mapper=symbol_mapper,
         )
         app_state["portfolio_tracker"] = portfolio_tracker
 
@@ -241,7 +243,7 @@ async def main() -> None:
         logger.info("Initializing API clients...")
         # Get secrets configuration
         secrets_config = get_secrets_config()
-        
+
         exchanges = config.exchanges
         for exchange_name, exchange_config in exchanges.items():
             if not exchange_config.enabled:
@@ -252,7 +254,7 @@ async def main() -> None:
             if exchange_name not in secrets_config.exchanges:
                 logger.error(f"No secrets found for exchange: {exchange_name}")
                 continue
-            
+
             exchange_secrets = secrets_config.exchanges[exchange_name]
 
             logger.debug(f"Attempting to initialize API for {exchange_name}...")
@@ -271,7 +273,7 @@ async def main() -> None:
             portfolio_tracker.register_api_client(exchange_name, client)
             logger.info("Initialized and connected API client", exchange=exchange_name)
         app_state["api_clients"] = api_clients
-        
+
         # Update data_handler with the initialized API clients
         data_handler.api_clients = api_clients
 
@@ -313,7 +315,7 @@ async def main() -> None:
                 "max_price_spread_pct": float(strategy_config.params.max_price_spread_pct),
                 "min_profit_usd": float(strategy_config.params.min_profit_usd),
             }
-            
+
             strategy: Strategy = FundingRateArbitrageStrategy(
                 name=strategy_params["name"],
                 symbol=strategy_params["symbol"],
@@ -326,7 +328,7 @@ async def main() -> None:
             logger.info("Initialized strategy", name=strategy.name)
         else:
             logger.info("HyperLiquid-Backpack funding arbitrage strategy is disabled")
-        
+
         logger.info("Strategies initialized", count=len(strategies))
 
     except Exception as e:
@@ -372,7 +374,8 @@ async def main() -> None:
         # Start data streams and processing
         main_tasks.append(
             asyncio.create_task(
-                data_handler.start_connections(), name="DataHandler_start_connections",
+                data_handler.start_connections(),
+                name="DataHandler_start_connections",
             ),
         )
         # Start signal queue processing
@@ -406,8 +409,9 @@ async def main() -> None:
                         _shutdown_coro_for_signal(),
                         name=f"ShutdownHandler_{signal.Signals(sig).name}",
                     )
+
                 return handler
-            
+
             loop.add_signal_handler(
                 sig_name_enum,
                 create_signal_handler(sig_name_enum),

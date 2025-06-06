@@ -433,139 +433,179 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unhandled
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 100) -> list[Trade]:
-        """Retrieves recent trades for a specific symbol."""
-        # Service Input Parameter Validation
-        frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
-
+    def _validate_recent_trades_params(
+        self,
+        symbol: str,
+        limit: int | None,
+        current_method: str,
+    ) -> None:
+        """Validate parameters for get_recent_trades."""
         if not symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
         if limit is not None and limit <= 0:
             raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
 
-        # Initialize context for error handling
-        raw_data_list: ParsedJsonResponse | None = None
-        status_code: int = 0
-        raw_response_content: str | None = None
+    async def _execute_recent_trades_request(
+        self,
+        symbol: str,
+        limit: int | None = 100,
+    ) -> tuple[ParsedJsonResponse, int, dict[str, str]]:
+        """Execute recent trades API request."""
+        params = self._request_builder.build_get_recent_trades_params(
+            symbol=symbol,
+            limit=limit,
+        )
+        endpoint_path = "/api/v1/trades"
+        logger.debug(
+            f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
+            f"from {endpoint_path} with params: {params}",
+        )
 
-        try:
-            # Core operational logic
-            params = self._request_builder.build_get_recent_trades_params(
-                symbol=symbol,
-                limit=limit,
+        response_tuple = await self._http_client_requester(
+            method="GET",
+            endpoint=endpoint_path,
+            params=params,
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
+        )
+        raw_data_list, status_code, headers = response_tuple
+
+        logger.debug(
+            f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
+            f"(Status: {status_code}, Headers: {headers})",
+        )
+
+        if raw_data_list is None or not isinstance(raw_data_list, list):
+            raise APIError(
+                f"Recent trades for {symbol} returned invalid data (status: {status_code})",
+                APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
             )
-            endpoint_path = "/api/v1/trades"
-            logger.debug(
-                f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
-                f"from {endpoint_path} with params: {params}",
+
+        return raw_data_list, status_code, headers
+
+    def _process_recent_trades_response(
+        self,
+        raw_data_list: ParsedJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: dict[str, str],
+    ) -> list[Trade]:
+        """Process and transform recent trades response."""
+        raw_trade_models: list[BackpackRawTrade] = (
+            self._response_handler.handle_get_recent_trades_response(
+                raw_data_list,
+                symbol,
+                status_code,
+                headers,
             )
-
-            response_tuple = await self._http_client_requester(
-                method="GET",
-                endpoint=endpoint_path,
-                params=params,
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            raw_data_list, status_code, headers = response_tuple
-
-            if raw_data_list is not None:
-                raw_response_content = str(raw_data_list)
-
-            logger.debug(
-                f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
-                f"(Status: {status_code}, Headers: {headers})",
-            )
-
-            if raw_data_list is None or not isinstance(raw_data_list, list):
-                raise APIError(
-                    f"Recent trades for {symbol} returned invalid data (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
+        )
+        internal_trades: list[Trade] = []
+        for raw_model in raw_trade_models:
+            try:
+                trade = self._mapper.transform_raw_trade_to_internal(raw_model)
+                internal_trades.append(trade)
+            except (ValidationError, ValueError) as e_map_item:
+                raw_data_str = (
+                    raw_model.model_dump_json()
+                    if hasattr(raw_model, "model_dump_json")
+                    else repr(raw_model)
                 )
+                logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}")
+        logger.debug(
+            f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
+        )
+        return internal_trades
 
-            raw_trade_models: list[BackpackRawTrade] = (
-                self._response_handler.handle_get_recent_trades_response(
-                    raw_data_list,
-                    symbol,
-                    status_code,
-                    headers,
-                )
-            )
-            internal_trades: list[Trade] = []
-            for raw_model in raw_trade_models:
-                try:
-                    trade = self._mapper.transform_raw_trade_to_internal(raw_model)
-                    internal_trades.append(trade)
-                except (ValidationError, ValueError) as e_map_item:
-                    raw_data_str = (
-                        raw_model.model_dump_json()
-                        if hasattr(raw_model, "model_dump_json")
-                        else repr(raw_model)
-                    )
-                    logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}")
-            logger.debug(
-                f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
-            )
-            return internal_trades
-
-        except APIError:
-            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+    def _handle_recent_trades_exceptions(
+        self,
+        e: Exception,
+        current_method: str,
+        symbol: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle various recent trades-related exceptions."""
+        if isinstance(e, APIError):
             raise
-        except TransformationError as e_transform:
+        elif isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"data for {symbol}: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
+            ) from e
+        elif isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
+                f"failed for {symbol}: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
+            ) from e
+        elif isinstance(e, ValueError | TypeError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
+                f"for {symbol}: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
-                original_exception=e_service_logic,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_service_logic
-        except Exception as e_unhandled:
+            ) from e
+        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected error "
-                f"for {symbol}: {e_unhandled}",
+                f"[{self._exchange_name}] {current_method}: Unexpected error for {symbol}: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error occurred.",
-                original_exception=e_unhandled,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_unhandled
+            ) from e
+
+    async def get_recent_trades(self, symbol: str, limit: int | None = 100) -> list[Trade]:
+        """Retrieves recent trades for a specific symbol."""
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
+
+        self._validate_recent_trades_params(symbol, limit, current_method)
+
+        raw_response_content: str | None = None
+        status_code: int = 0
+
+        try:
+            raw_data_list, status_code, headers = await self._execute_recent_trades_request(
+                symbol,
+                limit,
+            )
+            raw_response_content = str(raw_data_list)
+            return self._process_recent_trades_response(raw_data_list, symbol, status_code, headers)
+        except Exception as e:
+            self._handle_recent_trades_exceptions(
+                e,
+                current_method,
+                symbol,
+                status_code,
+                raw_response_content,
+            )
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Retrieves the current funding rate for a specific symbol."""
@@ -694,19 +734,8 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Retrieves current funding rates for one or more symbols.
-
-        If Backpack API doesn't support a bulk endpoint, this method iterates
-        and calls the single-symbol funding rate endpoint.
-        """
-        # Service Input Parameter Validation
-        frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
-
-        # Extract validated symbols from Pydantic model
-        symbols = args.symbols
-
+    def _validate_funding_rates_symbols(self, symbols: list[str], current_method: str) -> None:
+        """Validate symbols for get_funding_rates."""
         if not symbols:
             raise ValueError(f"[{current_method}] At least one symbol is required for Backpack.")
         for symbol in symbols:
@@ -715,89 +744,109 @@ class BackpackMarketDataService:
                     f"[{current_method}] All symbols in list must be non-empty strings.",
                 )
 
-        # Initialize context for error handling
-        status_code: int = 0
-        raw_response_content: str | None = None
+    async def _fetch_individual_funding_rates(self, symbols: list[str]) -> list[FundingRate]:
+        """Fetch funding rates for individual symbols."""
+        rates: list[FundingRate] = []
+        for symbol_item in symbols:
+            try:
+                current_rate: FundingRate = await self.get_funding_rate(symbol_item)
+                rates.append(current_rate)
+            except APIError as e:
+                logger.error(
+                    f"[{self._exchange_name}] Failed to fetch current funding rate for "
+                    f"{symbol_item} within get_funding_rates service method: {e.message}",
+                )
+                raise APIError(
+                    message=f"Failed to get funding rate for {symbol_item}: {e.message}",
+                    code=e.code,
+                    http_status=e.http_status,
+                    original_exception=e,
+                    exchange_message=e.exchange_message,
+                ) from e
+        return rates
 
-        try:
-            # Core operational logic
-            rates: list[FundingRate] = []
-            for symbol_item in symbols:
-                try:
-                    # Call the service's own get_funding_rate method for a single symbol
-                    current_rate: FundingRate = await self.get_funding_rate(symbol_item)
-                    rates.append(current_rate)
-                except APIError as e:
-                    logger.error(
-                        f"[{self._exchange_name}] Failed to fetch current funding rate for "
-                        f"{symbol_item} within get_funding_rates service method: {e.message}",
-                    )
-                    # Option: collect errors and continue, or raise immediately.
-                    # For consistency with how API was, re-raising.
-                    raise APIError(
-                        message=f"Failed to get funding rate for {symbol_item}: {e.message}",
-                        code=e.code,  # Preserve original error code
-                        http_status=e.http_status,
-                        original_exception=e,
-                        exchange_message=e.exchange_message,
-                    ) from e
-            return rates
-
-        except APIError:
-            # Re-raise APIErrors from get_funding_rate calls
+    def _handle_funding_rates_exceptions(
+        self,
+        e: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle exceptions for get_funding_rates."""
+        if isinstance(e, APIError):
             raise
-        except TransformationError as e_transform:
+        elif isinstance(e, TransformationError):
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange data: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
+            ) from e
+        elif isinstance(e, ValidationError):
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
+                f"[{self._exchange_name}] {current_method}: Internal data validation failed: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
+            ) from e
+        elif isinstance(e, ValueError | TypeError):
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
-                original_exception=e_service_logic,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_service_logic
-        except Exception as e_unexpected:
+            ) from e
+        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
-                original_exception=e_unexpected,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_unexpected
+            ) from e
+
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
+        """Retrieves current funding rates for one or more symbols.
+
+        If Backpack API doesn't support a bulk endpoint, this method iterates
+        and calls the single-symbol funding rate endpoint.
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
+
+        self._validate_funding_rates_symbols(args.symbols, current_method)
+
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            return await self._fetch_individual_funding_rates(args.symbols)
+        except Exception as e:
+            self._handle_funding_rates_exceptions(
+                e,
+                current_method,
+                status_code,
+                raw_response_content,
+            )
 
     async def get_historical_funding_rates(
         self,
