@@ -4,7 +4,7 @@ These tests make real HTTP requests to Hyperliquid's public API endpoints and us
 cassette-based recording to avoid repeated network calls while maintaining test reliability.
 """
 
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 import pytest
@@ -13,7 +13,6 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 
 # Now using standardized fixtures from conftest.py:
 # - active_hl_config: Environment-aware ExchangeSpecificConfig for Hyperliquid
-# - active_bp_config: ExchangeSpecificConfig for Backpack (if needed)
 
 
 @pytest.mark.asyncio
@@ -66,7 +65,7 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
             # For a real API call, we expect some assets to be available
             # Extract universe list and validate structure
             assert "universe" in meta, "Meta should have universe key"
-            raw_universe_data = meta["universe"]
+            raw_universe_data = cast(list[dict[str, Any]], meta["universe"])
             assert isinstance(raw_universe_data, list), "Universe should be a list"
 
             # Cast to proper types for type checker compliance
@@ -241,49 +240,4 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
             found_assets = [asset for asset in common_assets if asset in data]
             assert len(found_assets) > 0, (
                 f"Should have at least one common asset from {common_assets}"
-            )
-
-
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_backpack_public_markets_endpoint(
-    active_bp_config: ExchangeSpecificConfig,
-) -> None:
-    """Test Backpack's public markets endpoint.
-
-    This test demonstrates VCR usage with a different exchange (Backpack)
-    to show cross-exchange compatibility and different API patterns.
-    """
-    # Use active configuration to get the correct API base URL
-    base_url = str(active_bp_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/api/v1/markets"
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify markets response structure
-            assert isinstance(data, list), "Response should be a list of markets"
-            assert len(data) > 0, "Should have at least one market"
-
-            # Verify market structure
-            for market in data:
-                assert isinstance(market, dict), "Each market should be a dict"
-                assert "symbol" in market, "Each market should have a 'symbol' field"
-                assert "orderBookState" in market, (
-                    "Each market should have a 'orderBookState' field"
-                )
-                assert "baseSymbol" in market, "Each market should have a 'baseSymbol' field"
-                assert "quoteSymbol" in market, "Each market should have a 'quoteSymbol' field"
-
-            # Verify we have common trading pairs
-            symbols = [market["symbol"] for market in data]
-            # Common pairs that should exist on Backpack
-            expected_pairs = ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
-            found_pairs = [pair for pair in expected_pairs if pair in symbols]
-            assert len(found_pairs) > 0, (
-                f"Should have at least one common pair from {expected_pairs}"
             )

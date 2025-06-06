@@ -4,6 +4,9 @@ This module verifies that the Backpack API fixtures are working correctly
 with the test configuration system.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
@@ -45,12 +48,12 @@ class TestBackpackConfigFixtures:
 
     def test_bp_api_with_di_uses_config_fixtures(
         self,
-        bp_api_with_di: object,  # This is a factory function
+        bp_api_with_di: Callable[..., Any],  # This is a factory function
         active_bp_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that bp_api_with_di factory uses config fixtures by default."""
         # Create API instance without providing config/secrets
-        api = bp_api_with_di()  # type: ignore[operator]
+        api = bp_api_with_di()
         assert isinstance(api, BackpackAPI)
 
         # Verify it's using the config from fixtures (always mainnet for Backpack)

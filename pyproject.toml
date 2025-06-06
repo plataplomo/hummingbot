@@ -90,6 +90,7 @@ markers = [
     "file_io: marks tests that perform file I/O operations",
     "network: marks tests that require network access",
     "timing: marks tests that depend on timing/sleep operations",
+    "vcr_cassette_dir: specify custom VCR cassette directory (usage: @pytest.mark.vcr_cassette_dir('api/backpack/public'))",
 ]
 
 # Ruff configuration for linting

@@ -1,53 +1,167 @@
-# tests/config/test_config.yaml.example
-# Test-specific configuration for CyberDeltaEngine
-# Copy to tests/config/test_config.yaml and customize for your test environment.
+# CyberDeltaEngine Configuration for Prototype 0.0.1
 
+# General settings
 general:
-  # For testing, we might want a more verbose log level by default
-  log_level: DEBUG 
-  # Other general settings can be minimal or specific for tests if needed
+  log_level: INFO
+  log_file: "logs/cyberdelta.log"
+  module_log_levels:
+    "cyberdelta.engine": "INFO"
+    "cyberdelta.exchange": "INFO"
+    "cyberdelta.strategy": "INFO"
+    "cyberdelta.risk": "INFO"
+    "cyberdelta.execution": "INFO"
+    "cyberdelta.safety_systems": "INFO"
+  safe_mode: true  # Start in safe mode (read-only)
+  state_file: "data/state.json"
+  state_backup_directory: "data/state_backups"
+  state_save_interval: 300  # seconds
+  state_backup_count: 5     # Number of previous state files to keep
 
+# Exchange configuration
 exchanges:
   hyperliquid:
     exchange_name: "hyperliquid"
-    enabled: true # Enable for testing
-    # Explicitly define mainnet and testnet URLs
+    enabled: true
+    # Mainnet URLs
     api_base_url_mainnet: "https://api.hyperliquid.xyz"
     ws_url_mainnet: "wss://api.hyperliquid.xyz/ws"
+    # Testnet URLs
     api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
     ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
-    # Default environment for tests using this config file
-    is_mainnet_environment: false # DEFAULT TO TESTNET FOR HYPERLIQUID
-    chain_id: 1337 # Constant for Hyperliquid EIP-712 domain
-    symbols: {"ETH": "ETH", "BTC": "BTC", "SOL": "SOL_USDC"} # Sample test symbols
-    # Test-specific rate limits (can be more lenient or specific)
-    rate_limit_per_minute: 10000 # Higher for testing if needed, or specific test values
-    ip_weight_limit_per_minute: 10000 
-    info_request_type_ip_weights: {"l2Book": 1, "allMids": 1} # Lower weights for tests
-    default_info_weight: 1
-    exchange_action_base_ip_weight: 1
-    address_action_safety_net: {"rate_per_minute": 10000}
-    websocket_send_rate_per_minute: 10000
-
+    # Environment flag - set to false to use testnet (default for development)
+    is_mainnet_environment: false
+    # Hyperliquid-specific rate limiting configuration
+    ip_weight_limit_per_minute: 1140  # Total IP weight budget per minute
+    info_request_type_ip_weights:
+      l2Book: 2                      # Level 2 Order Book
+      allMids: 2                     # All Mid Prices
+      meta: 2                        # Meta info
+      metaAndAssetCtxs: 2           # Meta and Asset Contexts  
+      clearinghouseState: 10         # Clearinghouse State
+      openOrders: 1                  # Open Orders
+      userFills: 1                   # User Fills
+      fundingHistory: 2              # Funding History
+      historicalOrders: 5            # Historical Orders
+      orderStatus: 1                 # Order Status
+      userRole: 60                   # User Role
+      recentTrades: 2                # Recent Trades
+    default_info_weight: 20          # Default weight for unlisted /info types
+    exchange_action_base_ip_weight: 1 # Base IP weight for /exchange actions
+    address_action_safety_net:
+      rate_per_minute: 300           # Client-side safety net for address actions
+    websocket_send_rate_per_minute: 1800  # 30 msg/sec, under HL's 2000/min limit
+    symbols:
+      # Map internal symbol names to exchange-specific symbols
+      BTC: "BTC" 
+      ETH: "ETH"
+    # Optional HTTP Client Settings (examples)
+    request_timeout_seconds: 20
+    ws_ping_interval_seconds: 25
+    # ws_max_reconnect_attempts: 5  # Example of another optional field
+    # Exchange-Specific Parameters (required for Hyperliquid)
+    chain_id: 1337
+    
   backpack:
     exchange_name: "backpack"
-    enabled: true # Enable for testing
+    enabled: true
+    # Mainnet URLs (Backpack currently only has mainnet)
     api_base_url_mainnet: "https://api.backpack.exchange"
     ws_url_mainnet: "wss://ws.backpack.exchange"
-    api_base_url_testnet: null # Backpack has no testnet
-    ws_url_testnet: null       # Backpack has no testnet
-    is_mainnet_environment: true # Always mainnet for Backpack
-    chain_id: null
-    rate_limit_per_minute: 10000 # Higher for testing if needed
-    symbols: {"SOL_USDC": "SOL_USDC", "PYTH_USDC": "PYTH_USDC"} # Sample test symbols
-  
-  # Add other exchanges if they need specific test configurations
+    # Testnet URLs not provided (Backpack doesn't have testnet)
+    # api_base_url_testnet: null
+    # ws_url_testnet: null
+    # Environment flag - always true for Backpack as they only have mainnet
+    is_mainnet_environment: true
+    rate_limit_per_minute: 120  # Backpack uses simple rate limiting
+    symbols:
+      BTC: "BTC_USDC" # Example Spot market
+      # BTC: "BTC-PERP" # Example Perp market
+      ETH: "ETH_USDC"
+    # Optional HTTP Client Settings (examples)
+    request_timeout_seconds: 15.0
+    # chain_id is not required for Backpack, so it can be omitted
+    # Other optional HTTP/WS fields can be omitted to use system defaults
 
-# Other sections like strategies, risk, etc., can be minimal or omitted
-# if not directly needed for API client testing, or include test-specific values.
-strategies: {} # Minimal
-risk: {}       # Minimal
-execution: {}  # Minimal
-safety_systems: {} # Minimal
-monitoring: {} # Minimal
-portfolio_tracker: {} # Minimal
+# Strategy configuration (Simplified for Prototype 0.0.1)
+strategies:
+  # Focus: HyperLiquid Perpetual vs. Backpack Spot
+  hl_perp_bp_spot:
+    enabled: true
+    # Define symbols using the internal names (mapped above)
+    long_exchange: "backpack" # Where we go long (buy spot)
+    short_exchange: "hyperliquid"  # Where we go short (sell perpetual)
+    symbol_long: "BTC"        # Internal symbol for the long leg
+    symbol_short: "BTC"       # Internal symbol for the short leg
+    
+    params:
+      funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
+      max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
+      min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
+      
+# Risk management (Simplified for Prototype 0.0.1)
+risk:
+  global:
+    max_position_usd: 200.0      # Max size per single arbitrage position
+    max_total_exposure_usd: 1000.0 # Max total value across all open positions
+    
+  # --- Simple Sizing Path (Optional Alternative to Kelly) ---
+  use_simple_sizing_path: true            # Default to standard Kelly sizing
+  simple_sizing_method: "fixed_fraction" # Default method if simple path is enabled
+  simple_fixed_fraction: "0.1"           # Default fraction (1%) if method is fixed_fraction
+  simple_fixed_usd_size: "10.0"          # Default USD size if method is fixed_usd
+
+# Execution parameters
+execution:
+  # Slippage for market orders (if used, Taker orders preferred for prototype)
+  max_slippage_pct: 0.001 # 0.1% maximum slippage tolerance
+  
+  # Retry logic for failed API calls (e.g., temporary network issues)
+  max_retries: 3
+  retry_delay_base_sec: 1.0 # Initial delay in seconds for exponential backoff
+  
+  # Delay after placing orders before checking status (improves reliability with mocks/latency)
+  settlement_delay: 2.0 # seconds 
+
+  # Compensation settings (NEW)
+  compensation:
+    use_limit_orders: true # Use limit orders for compensation by default
+    limit_price_offset_pct: 0.05 # % offset for limit price (0.05%)
+
+# Safety Systems Configuration
+safety_systems:
+  # Circuit Breakers to halt trading on excessive failures
+  circuit_breakers:
+    enabled: true
+    # Global breaker (trips if *any* exchange hits its limit)
+    global_consecutive_failures: 5 # Trips after 5 consecutive failures globally
+    global_reset_timeout_sec: 300  # Reset after 5 minutes if tripped
+    
+    # Per-exchange breakers
+    exchange_consecutive_failures: 3 # Trips after 3 consecutive failures for a specific exchange
+    exchange_reset_timeout_sec: 180 # Reset after 3 minutes
+
+  # Position reconciliation checker
+  position_reconciliation:
+    enabled: true
+    check_interval_sec: 600 # Check every 10 minutes
+    max_discrepancy_pct: 0.01 # Alert if discrepancy > 0.01% of expected size
+
+  # Balance checker
+  balance_monitoring:
+    enabled: true
+    check_interval_sec: 300 # Check every 5 minutes
+    min_balance_thresholds_usd:
+      hyperliquid: 100.0
+      backpack: 100.0
+
+# Monitoring and Notifications (Simplified placeholders)
+monitoring:
+  notifications_enabled: true
+  alert_methods: ["log"] # Start simple, just log alerts
+  # alert_methods: ["log", "telegram"] # Example for later
+
+# Portfolio Tracker Configuration
+portfolio_tracker:
+  data_freshness_seconds: 60
+  initial_balances: {}  # Example: { "hyperliquid": { "USDC": "10000.00" } }
+  initial_positions: []  # Example: List of initial derivative positions

@@ -3,6 +3,7 @@
 Defines pytest markers used throughout the test suite to categorize
 different types of tests for selective execution and CI/CD organization.
 """
+
 # Test markers for categorizing unit vs integration tests
 import pytest
 
@@ -11,3 +12,6 @@ integration = pytest.mark.integration
 slow = pytest.mark.slow
 network = pytest.mark.network
 file_io = pytest.mark.file_io
+
+# VCR cassette directory marker
+vcr_cassette_dir = pytest.mark.vcr_cassette_dir

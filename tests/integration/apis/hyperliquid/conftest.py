@@ -30,7 +30,7 @@ def active_hl_config(
     hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
     # Override is_mainnet_environment based on hl_test_environment_from_config fixture
     return hl_config_from_file.model_copy(
-        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"},
+        update={"is_mainnet_environment": hl_test_environment_from_config == "testnet"},
     )
 
 

@@ -4,6 +4,9 @@ This module verifies that the Hyperliquid API fixtures are working correctly
 with the test configuration system.
 """
 
+from collections.abc import Callable
+from typing import Any
+
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
@@ -50,12 +53,12 @@ class TestHyperliquidConfigFixtures:
 
     def test_hl_api_with_di_uses_config_fixtures(
         self,
-        hl_api_with_di: object,  # This is a factory function
+        hl_api_with_di: Callable[..., Any],  # This is a factory function
         active_hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that hl_api_with_di factory uses config fixtures by default."""
         # Create API instance without providing config/secrets
-        api = hl_api_with_di()  # type: ignore[operator]
+        api = hl_api_with_di()
         assert isinstance(api, HyperliquidAPI)
 
         # Verify it's using the config from fixtures

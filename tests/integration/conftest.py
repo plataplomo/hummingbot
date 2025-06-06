@@ -6,20 +6,41 @@ end-to-end testing of the trading engine components working together.
 """
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest.mock import create_autospec, patch
+
+if TYPE_CHECKING:
+    from typing import Protocol
+    
+    class PytestMarker(Protocol):
+        """Protocol for pytest marker objects."""
+        args: tuple[Any, ...]
+    
+    class PytestNode(Protocol):
+        """Protocol for pytest node objects."""
+        name: str
+        fspath: str | Any  # pytest uses py.path.local which isn't well typed
+        
+        def get_closest_marker(self, name: str) -> PytestMarker | None:
+            """Get the closest marker with the given name."""
+            ...
+else:
+    PytestNode = Any
+    PytestMarker = Any
 
 import pytest
 import pytest_asyncio
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.config_models import PortfolioTrackerConfig
-from cyberdelta.core.data_handler import DataHandler, Ticker
+from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import SpotBalance
+from cyberdelta.core.models import SpotBalance, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import (
     FundingRateValidatorProtocol,
@@ -237,7 +258,7 @@ def risk_manager(
     mock_config: AppSettings,
 ) -> object:  # Keep as object to avoid circular dependency if RiskManager imports protocols
     """Create Risk Manager instance using protocol-compliant mocks.
-    
+
     Uses mocks for portfolio tracker and funding rate validator.
     """
     from cyberdelta.core.risk_manager import RiskManager  # Local import
@@ -367,3 +388,47 @@ def mock_opportunity() -> ArbitrageOpportunity:
         basis_volatility=0.002,  # Example float value
         utility_score=0.6,  # Example float value
     )
+
+
+# --- VCR Configuration Override for Integration Tests ---
+
+
+@pytest.fixture
+def vcr_config() -> dict[str, Any]:
+    """Simple VCR config without pytest internal dependencies.
+
+    Uses the base VCR configuration from tests.conftest and organizes cassettes
+    in a default directory structure. Tests can use explicit markers or 
+    environment variables to customize cassette locations if needed.
+    
+    This approach avoids pytest internal API dependencies that cause type issues.
+    """
+    # Import the base vcr_config from the parent conftest
+    parent_conftest = pytest.importorskip("tests.conftest")
+    base_vcr_config_func = parent_conftest.vcr_config
+    
+    # Create a minimal mock request for the base config
+    class MockRequest:
+        node = None
+        
+    # Get base configuration without pytest dependencies
+    base_config = base_vcr_config_func(MockRequest())
+    config = base_config.copy()
+    
+    # Use organized cassette directory structure
+    # Tests can override this with explicit vcr_cassette_dir markers
+    cassette_base_dir = Path("tests/cassettes")
+    
+    # Default to organized subdirectories - can be overridden by:
+    # 1. Environment variable VCR_CASSETTE_SUBDIR
+    # 2. Explicit test markers (handled by pytest-recording)
+    cassette_subdir = os.environ.get("VCR_CASSETTE_SUBDIR")
+    if cassette_subdir:
+        custom_dir = cassette_base_dir / cassette_subdir
+        custom_dir.mkdir(parents=True, exist_ok=True)
+        config["cassette_library_dir"] = str(custom_dir)
+    else:
+        # Use default organized structure
+        config["cassette_library_dir"] = str(cassette_base_dir)
+
+    return dict(config)
