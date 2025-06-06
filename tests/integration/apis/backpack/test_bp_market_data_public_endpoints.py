@@ -15,16 +15,19 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 # - active_bp_config: ExchangeSpecificConfig for Backpack
 
 
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_backpack_public_markets_endpoint(
     active_bp_config: ExchangeSpecificConfig,
+    custom_vcr_cassette_dir: str,  # Accept the parametrized fixture
 ) -> None:
     """Test Backpack's public markets endpoint.
 
     This test demonstrates VCR usage with a different exchange (Backpack)
     to show cross-exchange compatibility and different API patterns.
+    Cassettes are organized in tests/cassettes/apis/backpack/public/.
     """
     # Use active configuration to get the correct API base URL
     base_url = str(active_bp_config.active_api_base_url).rstrip("/")

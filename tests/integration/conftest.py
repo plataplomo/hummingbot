@@ -16,16 +16,18 @@ from unittest.mock import create_autospec, patch
 
 if TYPE_CHECKING:
     from typing import Protocol
-    
+
     class PytestMarker(Protocol):
         """Protocol for pytest marker objects."""
+
         args: tuple[Any, ...]
-    
+
     class PytestNode(Protocol):
         """Protocol for pytest node objects."""
+
         name: str
         fspath: str | Any  # pytest uses py.path.local which isn't well typed
-        
+
         def get_closest_marker(self, name: str) -> PytestMarker | None:
             """Get the closest marker with the given name."""
             ...
@@ -395,40 +397,227 @@ def mock_opportunity() -> ArbitrageOpportunity:
 
 @pytest.fixture
 def vcr_config() -> dict[str, Any]:
-    """Simple VCR config without pytest internal dependencies.
+    """VCR configuration for integration tests without calling base fixture directly.
 
-    Uses the base VCR configuration from tests.conftest and organizes cassettes
-    in a default directory structure. Tests can use explicit markers or 
-    environment variables to customize cassette locations if needed.
-    
-    This approach avoids pytest internal API dependencies that cause type issues.
+    Provides complete VCR configuration with environment variable support for
+    organized cassette directory structure. This avoids calling fixtures directly
+    which is deprecated in pytest.
     """
-    # Import the base vcr_config from the parent conftest
-    parent_conftest = pytest.importorskip("tests.conftest")
-    base_vcr_config_func = parent_conftest.vcr_config
-    
-    # Create a minimal mock request for the base config
-    class MockRequest:
-        node = None
-        
-    # Get base configuration without pytest dependencies
-    base_config = base_vcr_config_func(MockRequest())
-    config = base_config.copy()
-    
-    # Use organized cassette directory structure
-    # Tests can override this with explicit vcr_cassette_dir markers
-    cassette_base_dir = Path("tests/cassettes")
-    
-    # Default to organized subdirectories - can be overridden by:
-    # 1. Environment variable VCR_CASSETTE_SUBDIR
-    # 2. Explicit test markers (handled by pytest-recording)
-    cassette_subdir = os.environ.get("VCR_CASSETTE_SUBDIR")
-    if cassette_subdir:
-        custom_dir = cassette_base_dir / cassette_subdir
-        custom_dir.mkdir(parents=True, exist_ok=True)
-        config["cassette_library_dir"] = str(custom_dir)
-    else:
-        # Use default organized structure
-        config["cassette_library_dir"] = str(cassette_base_dir)
 
-    return dict(config)
+    def filter_request_body(request: Any) -> Any:
+        """Filter and sanitize request body content for VCR cassette recording."""
+        if hasattr(request, "body") and getattr(request, "body", None):
+            # Filter known sensitive patterns in request bodies
+            request_body: Any = request.body
+            body_str = (
+                request_body.decode("utf-8")
+                if isinstance(request_body, bytes)
+                else str(request_body)
+            )
+
+            # Replace common sensitive patterns
+            import re
+
+            # Filter private keys (hex strings that look like private keys)
+            body_str = re.sub(
+                r'"private_key":\s*"0x[a-fA-F0-9]{64}"',
+                '"private_key": "FILTERED_PRIVATE_KEY"',
+                body_str,
+            )
+            # Filter API keys
+            body_str = re.sub(r'"api_key":\s*"[^"]*"', '"api_key": "FILTERED_API_KEY"', body_str)
+            # Filter signatures
+            body_str = re.sub(
+                r'"signature":\s*"[^"]*"',
+                '"signature": "FILTERED_SIGNATURE"',
+                body_str,
+            )
+            # Filter timestamps to make tests more deterministic
+            body_str = re.sub(r'"timestamp":\s*\d+', '"timestamp": 1234567890', body_str)
+
+            request.body = body_str.encode("utf-8") if isinstance(request_body, bytes) else body_str
+        return request
+
+    def filter_response_body(response: Any) -> Any:
+        """Filter and sanitize response body content for VCR cassette recording."""
+        if hasattr(response, "body") and getattr(response, "body", None):
+            # For now, we don't filter response bodies as they typically don't contain
+            # user credentials, but this hook is available for future use
+            pass
+        return response
+
+    # Base VCR configuration (copied from tests.fixtures.vcr_config to avoid fixture calling)
+    config = {
+        "filter_headers": [
+            # ===== GLOBAL HEADERS =====
+            # Standard authentication headers
+            ("Authorization", "FILTERED_AUTHORIZATION_HEADER"),
+            ("Bearer", "FILTERED_BEARER_TOKEN"),
+            ("Cookie", "FILTERED_COOKIE"),
+            ("Set-Cookie", "FILTERED_SET_COOKIE"),
+            # API key headers (various formats)
+            ("X-API-Key", "FILTERED_API_KEY"),
+            ("X-Api-Key", "FILTERED_API_KEY"),  # Case variation
+            ("API-Key", "FILTERED_API_KEY"),
+            ("Api-Key", "FILTERED_API_KEY"),
+            ("X-Auth-Token", "FILTERED_AUTH_TOKEN"),
+            ("X-Access-Token", "FILTERED_ACCESS_TOKEN"),
+            # Signature headers (for HMAC-based auth)
+            ("X-Signature", "FILTERED_SIGNATURE"),
+            ("X-Sig", "FILTERED_SIGNATURE"),
+            ("Signature", "FILTERED_SIGNATURE"),
+            # Timestamp headers (for replay protection)
+            ("X-Timestamp", "FILTERED_TIMESTAMP"),
+            ("X-Time", "FILTERED_TIMESTAMP"),
+            ("Timestamp", "FILTERED_TIMESTAMP"),
+            # Window headers (for time-based auth)
+            ("X-Window", "FILTERED_WINDOW"),
+            ("X-Time-Window", "FILTERED_WINDOW"),
+            # User agent (normalize for consistency)
+            ("User-Agent", "CyberDeltaEngine-Test-Suite/1.0"),
+            # ===== EXCHANGE-SPECIFIC HEADERS =====
+            # Backpack Exchange headers
+            ("X-BP-API-Key", "FILTERED_BACKPACK_API_KEY"),
+            ("X-BP-Signature", "FILTERED_BACKPACK_SIGNATURE"),
+            ("X-BP-Timestamp", "FILTERED_BACKPACK_TIMESTAMP"),
+            # Hyperliquid Exchange headers
+            ("X-HL-Agent", "FILTERED_HYPERLIQUID_AGENT"),
+            ("X-HL-Signature", "FILTERED_HYPERLIQUID_SIGNATURE"),
+            # Common exchange headers that might contain sensitive data
+            ("X-Nonce", "FILTERED_NONCE"),
+            ("X-Request-Id", "FILTERED_REQUEST_ID"),
+            ("X-Client-Id", "FILTERED_CLIENT_ID"),
+            # Session and tracking headers
+            ("X-Session-Id", "FILTERED_SESSION_ID"),
+            ("X-Trace-Id", "FILTERED_TRACE_ID"),
+            ("X-Correlation-Id", "FILTERED_CORRELATION_ID"),
+        ],
+        "filter_query_parameters": [
+            # ===== AUTHENTICATION PARAMETERS =====
+            ("api_key", "FILTERED_QUERY_API_KEY"),
+            ("apikey", "FILTERED_QUERY_API_KEY"),
+            ("key", "FILTERED_QUERY_KEY"),
+            ("token", "FILTERED_QUERY_TOKEN"),
+            ("auth", "FILTERED_QUERY_AUTH"),
+            ("authorization", "FILTERED_QUERY_AUTHORIZATION"),
+            # ===== SIGNATURE PARAMETERS =====
+            ("signature", "FILTERED_QUERY_SIGNATURE"),
+            ("sig", "FILTERED_QUERY_SIGNATURE"),
+            ("sign", "FILTERED_QUERY_SIGNATURE"),
+            ("hmac", "FILTERED_QUERY_HMAC"),
+            # ===== TIMESTAMP PARAMETERS =====
+            ("timestamp", "FILTERED_QUERY_TIMESTAMP"),
+            ("ts", "FILTERED_QUERY_TIMESTAMP"),
+            ("time", "FILTERED_QUERY_TIMESTAMP"),
+            ("nonce", "FILTERED_QUERY_NONCE"),
+            # ===== SESSION PARAMETERS =====
+            ("session", "FILTERED_QUERY_SESSION"),
+            ("session_id", "FILTERED_QUERY_SESSION_ID"),
+            ("request_id", "FILTERED_QUERY_REQUEST_ID"),
+            # ===== USER IDENTIFICATION =====
+            ("user_id", "FILTERED_QUERY_USER_ID"),
+            ("client_id", "FILTERED_QUERY_CLIENT_ID"),
+            ("wallet", "FILTERED_QUERY_WALLET"),
+            ("address", "FILTERED_QUERY_ADDRESS"),
+        ],
+        "filter_post_data_parameters": [
+            # ===== POST BODY PARAMETERS =====
+            # Same patterns as query parameters but for POST body
+            ("api_key", "FILTERED_POST_API_KEY"),
+            ("signature", "FILTERED_POST_SIGNATURE"),
+            ("timestamp", "FILTERED_POST_TIMESTAMP"),
+            ("private_key", "FILTERED_POST_PRIVATE_KEY"),
+            ("secret", "FILTERED_POST_SECRET"),
+            ("password", "FILTERED_POST_PASSWORD"),
+            ("passphrase", "FILTERED_POST_PASSPHRASE"),
+            ("mnemonic", "FILTERED_POST_MNEMONIC"),
+            ("seed", "FILTERED_POST_SEED"),
+        ],
+        # ===== CUSTOM FILTERS =====
+        "before_record_request": filter_request_body,
+        "before_record_response": filter_response_body,
+        # ===== MATCHING CONFIGURATION =====
+        # Match on method, URI components, but NOT on filtered query params
+        "match_on": ["method", "scheme", "host", "port", "path"],
+        # ===== CASSETTE CONFIGURATION =====
+        # NOTE: cassette_library_dir is handled by the vcr_cassette_dir fixture
+        # Record mode can be controlled via environment variable
+        "record_mode": os.environ.get("VCR_RECORD_MODE", "once"),
+        # ===== RESPONSE PROCESSING =====
+        "decode_compressed_response": True,  # Handle gzipped responses
+        # ===== SECURITY OPTIONS =====
+        "ignore_hosts": [],
+        "ignore_localhost": True,
+    }
+
+    # NOTE: cassette_library_dir is now managed by the vcr_cassette_dir fixture
+    # which handles organized directory structure based on test parametrization
+
+    return config
+
+
+@pytest.fixture
+def custom_vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
+    """Fixture to specify custom VCR cassette directory for integration tests.
+
+    Use with pytest.mark.parametrize to organize cassettes by exchange/endpoint:
+        @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/public"], indirect=True)
+        @pytest.mark.vcr
+        async def test_backpack_public_endpoint(custom_vcr_cassette_dir):
+            ...
+    """
+    if hasattr(request, "param"):
+        # Create the full path
+        base_dir = Path("tests/cassettes")
+        custom_dir = base_dir / request.param
+        # Ensure directory exists
+        custom_dir.mkdir(parents=True, exist_ok=True)
+        return str(custom_dir)
+    return "tests/cassettes"  # Default
+
+
+@pytest.fixture
+def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) -> dict[str, Any]:
+    """VCR configuration with custom cassette path for integration tests.
+
+    This fixture uses the custom_vcr_cassette_dir to set the cassette directory.
+    """
+    # Make a copy of the base config
+    config = vcr_config.copy()
+
+    # Override cassette directory with the custom one
+    config["cassette_library_dir"] = custom_vcr_cassette_dir
+
+    return config
+
+
+@pytest.fixture
+def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
+    """Override pytest-recording's default cassette directory logic.
+
+    This fixture is automatically used by pytest-recording to determine where
+    to save cassette files. We override it to use organized subdirectories
+    based on the test parametrization.
+    """
+    # Check if this specific test has custom_vcr_cassette_dir parametrization
+    if hasattr(request, "node") and hasattr(request.node, "callspec"):
+        callspec = request.node.callspec
+        if hasattr(callspec, "params") and "custom_vcr_cassette_dir" in callspec.params:
+            # Create the organized directory path from the parametrized value
+            base_dir = Path("tests/cassettes")
+            custom_dir = base_dir / callspec.params["custom_vcr_cassette_dir"]
+            custom_dir.mkdir(parents=True, exist_ok=True)
+            return str(custom_dir)
+
+    # Fall back to default organized structure (module-based like pytest-recording default)
+    from typing import cast
+
+    # Handle pytest node path access with proper typing
+    node_path = cast(str, request.node.fspath)  # current test file
+    module_path = Path(node_path)
+    module_relative_path = module_path.relative_to(Path("tests"))
+    cassettes_dir = (
+        Path("tests/cassettes") / module_relative_path.parent / module_relative_path.stem
+    )
+    cassettes_dir.mkdir(parents=True, exist_ok=True)
+    return str(cassettes_dir)

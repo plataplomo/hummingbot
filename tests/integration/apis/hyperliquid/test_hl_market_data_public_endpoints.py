@@ -15,11 +15,13 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 # - active_hl_config: Environment-aware ExchangeSpecificConfig for Hyperliquid
 
 
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test Hyperliquid's public /info endpoint with metaAndAssetCtxs type.
 
@@ -34,6 +36,8 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     - It's a simple POST request with a small, stable payload
     - The response structure is relatively stable
     - It demonstrates the basic API functionality
+    
+    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
@@ -105,15 +109,18 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
             )
 
 
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/demo/filtering"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_vcr_sensitive_data_filtering_demo() -> None:
+async def test_vcr_sensitive_data_filtering_demo(custom_vcr_config: dict[str, Any]) -> None:
     """Demonstration test for VCR sensitive data filtering capabilities.
 
     This test shows how VCR filters sensitive headers and query parameters
     while preserving functional test data. It makes a request to httpbin.org
     which echoes back the request headers, allowing us to verify filtering works.
+    
+    Cassettes are organized in tests/cassettes/apis/demo/filtering/.
     """
     # Test URL that echoes back request data
     url = "https://httpbin.org/anything"
@@ -155,16 +162,20 @@ async def test_vcr_sensitive_data_filtering_demo() -> None:
             # The filtering protects against leaking credentials in test files.
 
 
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_l2_book_public_endpoint(
     active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test Hyperliquid's public /info endpoint with l2Book type for order book data.
 
     This test demonstrates VCR usage with a different endpoint that returns
     order book data. Shows how VCR works with various API response structures.
+    
+    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
@@ -198,16 +209,20 @@ async def test_hyperliquid_info_l2_book_public_endpoint(
             assert len(asks) > 0, "Should have at least one ask"
 
 
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
 async def test_hyperliquid_info_all_mids_public_endpoint(
     active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test Hyperliquid's public /info endpoint with allMids type for mid prices.
 
     This test demonstrates VCR with yet another endpoint format,
     showing how the same infrastructure handles different data types.
+    
+    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
     # Use configuration system to get the correct API base URL
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
