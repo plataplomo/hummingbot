@@ -22,18 +22,44 @@ if TYPE_CHECKING:
 
         args: tuple[Any, ...]
 
+    class PytestCallSpec(Protocol):
+        """Protocol for pytest callspec objects."""
+
+        params: dict[str, Any]
+
     class PytestNode(Protocol):
         """Protocol for pytest node objects."""
 
         name: str
         fspath: str | Any  # pytest uses py.path.local which isn't well typed
+        callspec: PytestCallSpec | None
 
         def get_closest_marker(self, name: str) -> PytestMarker | None:
             """Get the closest marker with the given name."""
             ...
+
+    class PytestRequest(Protocol):
+        """Protocol for pytest request fixture."""
+
+        node: PytestNode
+        param: Any  # For parametrized fixtures
+
+    class VCRRequest(Protocol):
+        """Protocol for VCR request objects."""
+
+        body: Any
+
+    class VCRResponse(Protocol):
+        """Protocol for VCR response objects."""
+
+        body: Any
 else:
     PytestNode = Any
     PytestMarker = Any
+    PytestCallSpec = Any
+    PytestRequest = Any
+    VCRRequest = Any
+    VCRResponse = Any
 
 import pytest
 import pytest_asyncio
@@ -404,7 +430,7 @@ def vcr_config() -> dict[str, Any]:
     which is deprecated in pytest.
     """
 
-    def filter_request_body(request: object) -> object:
+    def filter_request_body(request: VCRRequest) -> VCRRequest:
         """Filter and sanitize request body content for VCR cassette recording."""
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
@@ -438,7 +464,7 @@ def vcr_config() -> dict[str, Any]:
             request.body = body_str.encode("utf-8") if isinstance(request_body, bytes) else body_str
         return request
 
-    def filter_response_body(response: object) -> object:
+    def filter_response_body(response: VCRResponse) -> VCRResponse:
         """Filter and sanitize response body content for VCR cassette recording."""
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
@@ -557,7 +583,7 @@ def vcr_config() -> dict[str, Any]:
 
 
 @pytest.fixture
-def custom_vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
+def custom_vcr_cassette_dir(request: PytestRequest) -> str:
     """Fixture to specify custom VCR cassette directory for integration tests.
 
     Use with pytest.mark.parametrize to organize cassettes by exchange/endpoint:
@@ -592,7 +618,7 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
 
 
 @pytest.fixture
-def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
+def vcr_cassette_dir(request: PytestRequest) -> str:
     """Override pytest-recording's default cassette directory logic.
 
     This fixture is automatically used by pytest-recording to determine where
