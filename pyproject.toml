@@ -126,6 +126,7 @@ select = [  # Linting rules to apply
     "Q",   # quality
     "COM", # comments
     "S",   # security
+    "C",   # complexity
 ]
 
 # Ignore rules that conflict with current codebase formatting
