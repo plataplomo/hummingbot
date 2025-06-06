@@ -404,7 +404,7 @@ def vcr_config() -> dict[str, Any]:
     which is deprecated in pytest.
     """
 
-    def filter_request_body(request: Any) -> Any:
+    def filter_request_body(request: object) -> object:
         """Filter and sanitize request body content for VCR cassette recording."""
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
@@ -438,7 +438,7 @@ def vcr_config() -> dict[str, Any]:
             request.body = body_str.encode("utf-8") if isinstance(request_body, bytes) else body_str
         return request
 
-    def filter_response_body(response: Any) -> Any:
+    def filter_response_body(response: object) -> object:
         """Filter and sanitize response body content for VCR cassette recording."""
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
@@ -601,23 +601,40 @@ def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
     """
     # Check if this specific test has custom_vcr_cassette_dir parametrization
     if hasattr(request, "node") and hasattr(request.node, "callspec"):
-        callspec = request.node.callspec
-        if hasattr(callspec, "params") and "custom_vcr_cassette_dir" in callspec.params:
+        callspec = getattr(request.node, "callspec", None)
+        if (
+            callspec
+            and hasattr(callspec, "params")
+            and "custom_vcr_cassette_dir" in callspec.params
+        ):
             # Create the organized directory path from the parametrized value
             base_dir = Path("tests/cassettes")
-            custom_dir = base_dir / callspec.params["custom_vcr_cassette_dir"]
+            param_value = callspec.params["custom_vcr_cassette_dir"]
+            custom_dir = base_dir / str(param_value)
             custom_dir.mkdir(parents=True, exist_ok=True)
             return str(custom_dir)
 
     # Fall back to default organized structure (module-based like pytest-recording default)
-    from typing import cast
+    # DEFENSIVE CHECK: Ensure node and fspath exist. Mypy=[attr-defined] Ruff=[attr-defined]
+    if not hasattr(request, "node") or not hasattr(request.node, "fspath"):
+        return "tests/cassettes"
 
-    # Handle pytest node path access with proper typing
-    node_path = cast(str, request.node.fspath)  # current test file
+    # Handle pytest node path access - pytest's fspath can be str or py.path.local
+    node_fspath = getattr(request.node, "fspath", None)
+    if node_fspath is None:
+        return "tests/cassettes"
+
+    # Convert to string path regardless of pytest's internal type
+    node_path = str(node_fspath)  # current test file
     module_path = Path(node_path)
-    module_relative_path = module_path.relative_to(Path("tests"))
-    cassettes_dir = (
-        Path("tests/cassettes") / module_relative_path.parent / module_relative_path.stem
-    )
-    cassettes_dir.mkdir(parents=True, exist_ok=True)
-    return str(cassettes_dir)
+
+    try:
+        module_relative_path = module_path.relative_to(Path("tests"))
+        cassettes_dir = (
+            Path("tests/cassettes") / module_relative_path.parent / module_relative_path.stem
+        )
+        cassettes_dir.mkdir(parents=True, exist_ok=True)
+        return str(cassettes_dir)
+    except ValueError:
+        # If path is not relative to tests/, fall back to default
+        return "tests/cassettes"
