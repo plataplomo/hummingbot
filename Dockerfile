@@ -9,7 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     build-essential \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
 
 # Copy project files for building
 COPY pyproject.toml setup.py README.md ./
