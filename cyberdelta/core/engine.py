@@ -233,7 +233,8 @@ class Engine:
                 f"{getattr(signal, 'signal_type', 'UNKNOWN')} for "
                 f"{getattr(signal, 'symbol', 'UNKNOWN')}.",
             )
-            await self.signal_handler(signal)
+            if self.signal_handler is not None:
+                await self.signal_handler(signal)
 
     async def process_dataframe(self, df: pd.DataFrame, symbol: str) -> None:
         """Process a pandas DataFrame of historical/batch market data.

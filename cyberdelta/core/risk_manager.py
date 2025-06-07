@@ -1298,11 +1298,13 @@ class RiskManager:
 
         # Apply validation factor
         validation_factor = min(long_validation_factor, short_validation_factor)
-        calculated_size_usd = self._apply_validation_factor(
+        calculated_size_usd_validated = self._apply_validation_factor(
             calculated_size_usd, validation_factor, opportunity.symbol
         )
-        if calculated_size_usd is None:
+        if calculated_size_usd_validated is None:
             return None
+        
+        calculated_size_usd = calculated_size_usd_validated
 
         # Check constraints
         is_valid, reason = await self._check_portfolio_constraints(

@@ -1144,6 +1144,9 @@ class PortfolioTracker:
                 f"EntryBase={entry_price_in_base}).",
             )
             return None
+        
+        # Fallback return - should not reach here
+        return None
 
     async def _get_position_prices_in_base(
         self, position: DerivativePosition, exchange_id: str, base_currency: str
@@ -1399,15 +1402,14 @@ class PortfolioTracker:
 
     @classmethod
     def _process_single_balance(
-        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: dict[str, Any]
+        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: dict[str, Any] | SpotBalance
     ) -> None:
         """Process a single balance entry."""
         if isinstance(bal_data_any, dict):
             try:
                 # Ensure keys are str for model_validate
-                temp_bal_dict_for_comp = cast(dict[str, Any], bal_data_any)
                 validated_bal_dict: dict[str, Any] = {
-                    str(k): v for k, v in temp_bal_dict_for_comp.items()
+                    str(k): v for k, v in bal_data_any.items()
                 }
                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
                     validated_bal_dict,
@@ -1445,15 +1447,14 @@ class PortfolioTracker:
         tracker: PortfolioTracker,
         ex_id_str_pos: str,
         sym_str: str,
-        pos_data_any: dict[str, Any],
+        pos_data_any: dict[str, Any] | DerivativePosition,
     ) -> None:
         """Process a single position entry."""
         if isinstance(pos_data_any, dict):
             try:
                 # Ensure keys are str for model_validate
-                temp_pos_dict_for_comp = cast(dict[str, Any], pos_data_any)
                 validated_pos_dict_for_model: dict[str, Any] = {
-                    str(k): v for k, v in temp_pos_dict_for_comp.items()
+                    str(k): v for k, v in pos_data_any.items()
                 }
                 tracker.positions[ex_id_str_pos][sym_str] = DerivativePosition.model_validate(
                     validated_pos_dict_for_model
@@ -1491,15 +1492,14 @@ class PortfolioTracker:
         tracker: PortfolioTracker,
         ex_id_str_ord: str,
         ord_id_str: str,
-        order_data_any: dict[str, Any],
+        order_data_any: dict[str, Any] | Order,
     ) -> None:
         """Process a single order entry."""
         if isinstance(order_data_any, dict):
             try:
                 # Ensure keys are str for model_validate
-                temp_order_dict_for_comp = cast(dict[str, Any], order_data_any)
                 validated_order_dict_for_model: dict[str, Any] = {
-                    str(k): v for k, v in temp_order_dict_for_comp.items()
+                    str(k): v for k, v in order_data_any.items()
                 }
                 tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
                     validated_order_dict_for_model,
@@ -1557,7 +1557,7 @@ class PortfolioTracker:
         cls,
         target_dict: dict[str, datetime],
         ex_id_str: str,
-        ts_data_any: str | datetime,
+        ts_data_any: str | datetime | None,
         field_name: str,
     ) -> None:
         """Process a single timestamp entry."""

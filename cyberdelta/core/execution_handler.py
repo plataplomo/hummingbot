@@ -473,10 +473,6 @@ class ExecutionHandler:
             execution.status = ExecutionStatus.FAILED
             return None
 
-        # DEFENSIVE CHECK: Ensure quantities are not None. Mypy=[return-value]
-        if base_asset_quantity_long is None or base_asset_quantity_short is None:
-            return None
-
         return base_asset_quantity_long, base_asset_quantity_short
 
     def _get_default_time_in_force(self) -> TimeInForce:

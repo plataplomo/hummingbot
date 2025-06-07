@@ -21,7 +21,7 @@ import structlog
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config import ConfigurationError, get_app_settings, get_secrets_config
+from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings, get_secrets_config
 from cyberdelta.config.logging_config import setup_logging
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
@@ -135,7 +135,7 @@ def _parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_configuration(args: argparse.Namespace) -> object:
+def _load_configuration(args: argparse.Namespace) -> AppSettings:
     """Load application configuration."""
     # Set config path if provided
     if args.config:
@@ -157,7 +157,7 @@ def _load_configuration(args: argparse.Namespace) -> object:
         sys.exit(1)
 
 
-def _initialize_core_components(config: object) -> dict[str, Any]:
+def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
     """Initialize all core application components."""
     app_state: dict[str, Any] = {}
 
@@ -250,7 +250,7 @@ def _initialize_core_components(config: object) -> dict[str, Any]:
 
 
 async def _initialize_api_clients(
-    config: object, app_state: dict[str, Any]
+    config: AppSettings, app_state: dict[str, Any]
 ) -> dict[str, ExchangeAPI]:
     """Initialize and connect API clients."""
     api_clients: dict[str, ExchangeAPI] = {}
@@ -310,7 +310,7 @@ async def _initialize_api_clients(
         sys.exit(1)
 
 
-def _initialize_strategies(config: object, app_state: dict[str, Any]) -> list[Strategy]:
+def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> list[Strategy]:
     """Initialize trading strategies."""
     strategies: list[Strategy] = []
 
@@ -357,32 +357,6 @@ def _initialize_strategies(config: object, app_state: dict[str, Any]) -> list[St
         raise
 
 
-def _wire_components(app_state: dict[str, Any], strategies: list[Strategy]) -> None:
-    """Wire components according to the new architecture."""
-    logger.info("Wiring components...")
-    # DataHandler pushes MarketData -> Engine
-    app_state["data_handler"].register_observer(app_state["engine"].process_market_data)
-    logger.debug("Registered Engine.process_market_data with DataHandler")
-
-    # Engine pushes TradeSignals -> SignalQueue
-    app_state["engine"].set_signal_handler(app_state["signal_queue"].enqueue_signal)
-    logger.debug("Set SignalQueue.enqueue_signal as Engine's signal handler")
-
-    # SignalQueue pushes validated/prioritized signals -> RiskManager (done in queue init)
-    logger.debug("SignalQueue configured to call RiskManager.process_signal")
-
-    # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
-    logger.debug("RiskManager configured to send orders to ExecutionHandler")
-
-    # ExecutionHandler updates PortfolioTracker (assumed internal or via events)
-    # TODO: Verify how ExecutionHandler reports fills/updates to PortfolioTracker.
-    logger.debug("Component wiring complete.")
-
-    # Add and enable strategies in the Engine
-    for strategy in strategies:
-        app_state["engine"].add_strategy(strategy)
-        app_state["engine"].enable_strategy(strategy.name)
-    logger.info("Added and enabled strategies in Engine", count=len(strategies))
 
 
 async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
@@ -449,6 +423,120 @@ async def _start_main_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]
     return main_tasks
 
 
+async def _wire_components(app_state: dict[str, Any]) -> None:
+    """Wire components according to the new architecture."""
+    logger.info("Wiring components...")
+    # DataHandler pushes MarketData -> Engine
+    app_state["data_handler"].register_observer(app_state["engine"].process_market_data)
+    logger.debug("Registered Engine.process_market_data with DataHandler")
+
+    # Engine pushes TradeSignals -> SignalQueue
+    app_state["engine"].set_signal_handler(app_state["signal_queue"].enqueue_signal)
+    logger.debug("Set SignalQueue.enqueue_signal as Engine's signal handler")
+
+    # SignalQueue pushes validated/prioritized signals -> RiskManager (done in queue init)
+    logger.debug("SignalQueue configured to call RiskManager.process_signal")
+
+    # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
+    logger.debug("RiskManager configured to send orders to ExecutionHandler")
+
+    # ExecutionHandler updates PortfolioTracker (assumed internal or via events)
+    # TODO: Verify how ExecutionHandler reports fills/updates to PortfolioTracker.
+    logger.debug("Component wiring complete.")
+
+
+
+
+async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
+    """Start background component tasks."""
+    main_tasks: list[asyncio.Task[Any]] = []
+    
+    logger.info("Loading initial state...")
+    await app_state["portfolio_tracker"].load_state()
+    # Fetch initial balances/positions AFTER loading state
+    await app_state["portfolio_tracker"].initialize_portfolio()
+
+    logger.info("Starting background component tasks...")
+    # Start data streams and processing
+    main_tasks.append(
+        asyncio.create_task(
+            app_state["data_handler"].start_connections(),
+            name="DataHandler_start_connections",
+        ),
+    )
+    # Start signal queue processing
+    main_tasks.append(
+        asyncio.create_task(
+            app_state["signal_queue"].run(cancellation_token), 
+            name="SignalQueue_run"
+        ),
+    )
+    
+    return main_tasks
+
+
+async def _start_engine(app_state: dict[str, Any]) -> None:
+    """Start the trading engine."""
+    logger.info("Starting Trading Engine...")
+    app_state["engine"].start()  # Call the synchronous start method
+    logger.info("Engine started. Entering main monitoring loop.")
+
+
+async def _run_main_loop() -> None:
+    """Run the main monitoring loop."""
+    # Keep main running - tasks run in background. Wait for cancellation.
+    await cancellation_token.wait()
+
+
+async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
+    """Clean up background tasks."""
+    # Wait for component tasks launched by main to finish
+    if main_tasks:
+        logger.info(f"Waiting for {len(main_tasks)} main component tasks to complete...")
+        _, pending = await asyncio.wait(main_tasks, timeout=15.0)
+        if pending:
+            logger.warning(
+                f"{len(pending)} main tasks did not finish gracefully, cancelling...",
+            )
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    logger.debug("Task cancelled successfully", task_name=task.get_name())
+                except Exception as task_exc:
+                    logger.error(
+                        "Error during forced cancellation of task",
+                        task_name=task.get_name(),
+                        error=str(task_exc),
+                        exc_info=False,
+                    )
+
+
+async def _handle_shutdown_and_cleanup(
+    app_state: dict[str, Any], main_tasks: list[asyncio.Task[Any]]
+) -> None:
+    """Handle shutdown sequence and cleanup background tasks."""
+    global cancellation_token
+    
+    logger.info("Main loop terminated or error occurred. Ensuring shutdown...")
+    if not cancellation_token.is_set():
+        logger.warning("Shutdown not initiated by signal handler, triggering now.")
+        # Ensure shutdown runs even if wait() exited unexpectedly
+        await shutdown(app_state)
+
+    # Wait for component tasks launched by main to finish
+    await _cleanup_tasks(main_tasks)
+    
+    if main_tasks:
+        # Check if all tasks completed successfully
+        _, pending = await asyncio.wait(main_tasks, timeout=0)
+        if not pending:
+            logger.info("All main component tasks completed.")
+
+    logger.info("CyberDeltaEngine main function finished.")
+
+
 async def main() -> None:
     """Main application entry point."""
     global cancellation_token
@@ -476,90 +564,22 @@ async def main() -> None:
         await shutdown(app_state)
         sys.exit(1)
 
-    # 4. Wire Components according to the new architecture
-    logger.info("Wiring components...")
-    # DataHandler pushes MarketData -> Engine
-    data_handler.register_observer(engine.process_market_data)
-    logger.debug("Registered Engine.process_market_data with DataHandler")
-
-    # Engine pushes TradeSignals -> SignalQueue
-    engine.set_signal_handler(signal_queue.enqueue_signal)
-    logger.debug("Set SignalQueue.enqueue_signal as Engine's signal handler")
-
-    # SignalQueue pushes validated/prioritized signals -> RiskManager (done in queue init)
-    logger.debug("SignalQueue configured to call RiskManager.process_signal")
-
-    # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
-    logger.debug("RiskManager configured to send orders to ExecutionHandler")
-
-    # ExecutionHandler updates PortfolioTracker (assumed internal or via events)
-    # TODO: Verify how ExecutionHandler reports fills/updates to PortfolioTracker.
-    logger.debug("Component wiring complete.")
-
+    # Wire components  
+    await _wire_components(app_state)
+    
     # Add and enable strategies in the Engine
     for strategy in strategies:
-        engine.add_strategy(strategy)
-        engine.enable_strategy(strategy.name)
+        app_state["engine"].add_strategy(strategy)
+        app_state["engine"].enable_strategy(strategy.name)
     logger.info("Added and enabled strategies in Engine", count=len(strategies))
 
-    # 5. Start Components and Main Loop
-    main_tasks: list[asyncio.Task[Any]] = []
+    # Start components and main loop
     try:
-        logger.info("Loading initial state...")
-        await portfolio_tracker.load_state()
-        # Fetch initial balances/positions AFTER loading state
-        await portfolio_tracker.initialize_portfolio()
+        main_tasks = await _start_background_tasks(app_state)
+        await _start_engine(app_state)
 
-        logger.info("Starting background component tasks...")
-        # Start data streams and processing
-        main_tasks.append(
-            asyncio.create_task(
-                data_handler.start_connections(),
-                name="DataHandler_start_connections",
-            ),
-        )
-        # Start signal queue processing
-        main_tasks.append(
-            asyncio.create_task(signal_queue.run(cancellation_token), name="SignalQueue_run"),
-        )
-        # Add other component run loops if needed
-
-        # Start the engine (now ready to receive data and forward signals)
-        logger.info("Starting Trading Engine...")
-        # engine.run() # This would block if run directly
-        # asyncio.run(engine.run_async())  # asyncio.run cannot be called when a loop is running
-        engine.start()  # Call the synchronous start method
-        logger.info("Engine started. Entering main monitoring loop.")
-
-        # Set up signal handling for graceful shutdown
-        loop = asyncio.get_running_loop()
-
-        # Define the coroutine that will be scheduled by the signal handler
-        async def _shutdown_coro_for_signal() -> None:
-            logger.info("Signal received, initiating shutdown via app_state.")
-            await shutdown(app_state)
-
-        for sig_name_enum in (signal.SIGINT, signal.SIGTERM):
-            # loop.add_signal_handler expects a regular callable.
-            # asyncio.create_task will be called when the signal is received.
-            # Create a closure to properly capture the signal
-            def create_signal_handler(sig: signal.Signals) -> Callable[[], None]:
-                def handler() -> None:
-                    asyncio.create_task(
-                        _shutdown_coro_for_signal(),
-                        name=f"ShutdownHandler_{signal.Signals(sig).name}",
-                    )
-
-                return handler
-
-            loop.add_signal_handler(
-                sig_name_enum,
-                create_signal_handler(sig_name_enum),
-            )
-        logger.debug("Signal handlers registered.")
-
-        # Keep main running - tasks run in background. Wait for cancellation.
-        await cancellation_token.wait()
+        await _setup_signal_handlers(app_state)
+        await _run_main_loop()
 
     except asyncio.CancelledError:
         logger.info("Main task cancelled, initiating shutdown.")
@@ -570,37 +590,7 @@ async def main() -> None:
         if not cancellation_token.is_set():
             await shutdown(app_state)  # Attempt graceful shutdown
     finally:
-        logger.info("Main loop terminated or error occurred. Ensuring shutdown...")
-        if not cancellation_token.is_set():
-            logger.warning("Shutdown not initiated by signal handler, triggering now.")
-            # Ensure shutdown runs even if wait() exited unexpectedly
-            await shutdown(app_state)
-
-        # Wait for component tasks launched by main to finish
-        if main_tasks:
-            logger.info(f"Waiting for {len(main_tasks)} main component tasks to complete...")
-            _, pending = await asyncio.wait(main_tasks, timeout=15.0)
-            if pending:
-                logger.warning(
-                    f"{len(pending)} main tasks did not finish gracefully, cancelling...",
-                )
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        logger.debug("Task cancelled successfully", task_name=task.get_name())
-                    except Exception as task_exc:
-                        logger.error(
-                            "Error during forced cancellation of task",
-                            task_name=task.get_name(),
-                            error=str(task_exc),
-                            exc_info=False,
-                        )
-            else:
-                logger.info("All main component tasks completed.")
-
-        logger.info("CyberDeltaEngine main function finished.")
+        await _handle_shutdown_and_cleanup(app_state, main_tasks)
 
 
 if __name__ == "__main__":

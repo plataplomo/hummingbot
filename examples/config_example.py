@@ -221,16 +221,17 @@ def _display_risk_info(app_settings: AppSettings) -> None:
     risk_config = app_settings.risk
     if risk_config:
         global_risk = risk_config.global_risk
-        logger.info(f"  Max Position Size: {global_risk.max_position_size_pct}%")
-        logger.info(f"  Max Daily Loss: {global_risk.max_daily_loss_pct}%")
-        logger.info(f"  Stop Loss: {global_risk.stop_loss_pct}%")
+        logger.info(f"  Max Position USD: {global_risk.max_position_usd}")
+        logger.info(f"  Max Total Exposure USD: {global_risk.max_total_exposure_usd}")
 
     logger.info("\n=== Circuit Breakers ===")
     circuit_breakers = app_settings.safety_systems.circuit_breakers
     if circuit_breakers:
         logger.info(f"  Enabled: {circuit_breakers.enabled}")
-        logger.info(f"  Max Drawdown: {circuit_breakers.max_drawdown_pct}%")
-        logger.info(f"  Max Daily Loss: {circuit_breakers.max_daily_loss_pct}%")
+        logger.info(f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}")
+        logger.info(f"  Global Reset Timeout: {circuit_breakers.global_reset_timeout_sec}s")
+        logger.info(f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}")
+        logger.info(f"  Exchange Reset Timeout: {circuit_breakers.exchange_reset_timeout_sec}s")
     else:
         logger.info("No circuit breaker configurations found.")
 
