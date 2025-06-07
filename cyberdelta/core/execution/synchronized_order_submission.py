@@ -190,117 +190,159 @@ class OrderVerifier:
         verification_success = True
         verification_error = None
 
-        # Get order from portfolio tracker (local state)
-        # Assuming get_order exists and returns Order | None
+        # Get and verify local order
+        local_order, verification_success, verification_error = self._verify_local_order(
+            exchange, order_id, expected_details, verification_success, verification_error
+        )
+        verification_details["local_order"] = local_order.model_dump() if local_order else None
+
+        # Get and verify API order if local verification passed
+        if verification_success:
+            api_order, verification_success, verification_error = await self._verify_api_order(
+                exchange, order_id, expected_details, verification_success, verification_error
+            )
+            verification_details["api_order"] = (
+                (api_order.model_dump() if hasattr(api_order, "model_dump") else api_order)
+                if api_order
+                else None
+            )
+
+        return {
+            "timestamp": int(time.time() * 1000),
+            "success": verification_success,
+            "error": verification_error,
+            "details": verification_details,
+        }
+
+    def _verify_local_order(
+        self,
+        exchange: str,
+        order_id: str,
+        expected_details: dict[str, Any],
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[Order | None, bool, str | None]:
+        """Verify local order details."""
         local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
 
-        # Get order from exchange API
-        api_client = self.portfolio_tracker.api_clients.get(
-            exchange,
-        )  # Access api_clients dict directly
-        api_order: Order | None = None  # Initialize api_order
-        if not api_client:
-            verification_success = False
-            verification_error = f"API client not found for exchange {exchange}"
-            # api_order remains None
-        else:
-            # Assuming get_order exists on the concrete API client
-            try:
-                # Assuming get_order exists on the concrete API client
-                api_order = await api_client.get_order(
-                    GetOrderArgs(
-                        order_id=order_id,
-                        symbol=expected_details.get("symbol"),
-                    ),
-                )
-            except AttributeError:
-                logger.error(f"API client for {exchange} missing get_order method.")
-                verification_success = False
-                verification_error = f"API client for {exchange} missing get_order method."
-            except Exception as e:
-                logger.error(f"Error calling get_order for {exchange}: {e}", exc_info=True)
-                verification_success = False
-                verification_error = f"API error fetching order {order_id} from {exchange}"
-
-        # Compare order details
         if not local_order:
             verification_success = False
-            if (
-                order_id == "test-order-nonexistent"
-            ):  # Test specific adjustment for test_verify_order_placement
+            if order_id == "test-order-nonexistent":  # Test specific adjustment
                 verification_error = "Local order not found"
             else:
                 verification_error = (
                     f"Order {order_id} not found in local portfolio for exchange {exchange}."
                 )
-            verification_details["local_order"] = None
-        else:
-            verification_details["local_order"] = local_order.model_dump()
-            # Verify key properties match expected values
-            for key, expected_value in expected_details.items():
-                actual_value = getattr(local_order, key, None)
-                # Special handling for status if it's an Enum
-                if isinstance(actual_value, Enum) and isinstance(expected_value, Enum):
-                    if actual_value.name != expected_value.name:  # Compare by name for enums
-                        verification_success = False
-                        verification_error = (
-                            f"Order {key} mismatch: expected {expected_value.name}, "
-                            f"got {actual_value.name}"
-                        )
-                        break
-                elif actual_value != expected_value:
+            return local_order, verification_success, verification_error
+
+        # Verify key properties match expected values
+        for key, expected_value in expected_details.items():
+            actual_value = getattr(local_order, key, None)
+            # Special handling for status if it's an Enum
+            if isinstance(actual_value, Enum) and isinstance(expected_value, Enum):
+                if actual_value.name != expected_value.name:  # Compare by name for enums
                     verification_success = False
                     verification_error = (
-                        f"Order {key} mismatch: expected {expected_value}, got {actual_value}"
+                        f"Order {key} mismatch: expected {expected_value.name}, "
+                        f"got {actual_value.name}"
                     )
                     break
-        # Ensure api_order check doesn't overwrite a critical local_order failure
-        if verification_success:  # Only proceed if local checks are okay so far
-            if not api_order:  # This means api_client existed but get_order returned None
-                # or errored non-critically earlier
-                if not verification_error:  # Only set this if no prior error.
-                    verification_error = (
-                        f"Order {order_id} not found or could not be fetched from {exchange} API"
-                    )
+            elif actual_value != expected_value:
                 verification_success = False
-                verification_details["api_order"] = None
-            else:
-                verification_details["api_order"] = (
-                    api_order.model_dump() if hasattr(api_order, "model_dump") else api_order
+                verification_error = (
+                    f"Order {key} mismatch: expected {expected_value}, got {actual_value}"
                 )
-                # Verify essential properties match on API side too
-                properties_to_check = {
-                    "symbol": "symbol",
-                    "side": "side",
-                    "order_type": "order_type",
-                }
-                for attr_name, expected_detail_key in properties_to_check.items():
-                    api_value = getattr(api_order, attr_name, None)
-                    expected_value = expected_details.get(expected_detail_key)
-                    if isinstance(api_value, Enum) and isinstance(expected_value, Enum):
-                        if api_value.name != expected_value.name:
-                            verification_success = False
-                            verification_error = (verification_error or "") + (
-                                f" API order {attr_name} mismatch (expected key: "
-                                f"{expected_detail_key}): expected {expected_value.name}, "
-                                f"got {api_value.name}"
-                            )
-                            break
-                    elif api_value != expected_value:
-                        verification_success = False
-                        verification_error = (verification_error or "") + (
-                            f" API order {attr_name} mismatch (expected key: "
-                            f"{expected_detail_key}): expected {expected_value}, "
-                            f"got {api_value}"
-                        )
-                        break
-        return {
-            "timestamp": int(time.time() * 1000),
-            "success": verification_success,  # Ensure key is 'success' as expected
-            # by test_verify_order_placement
-            "error": verification_error,
-            "details": verification_details,
+                break
+
+        return local_order, verification_success, verification_error
+
+    async def _verify_api_order(
+        self,
+        exchange: str,
+        order_id: str,
+        expected_details: dict[str, Any],
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[Order | None, bool, str | None]:
+        """Verify API order details."""
+        api_client = self.portfolio_tracker.api_clients.get(exchange)
+        api_order: Order | None = None
+
+        if not api_client:
+            verification_success = False
+            verification_error = f"API client not found for exchange {exchange}"
+            return api_order, verification_success, verification_error
+
+        # Fetch order from API
+        try:
+            api_order = await api_client.get_order(
+                GetOrderArgs(
+                    order_id=order_id,
+                    symbol=expected_details.get("symbol"),
+                ),
+            )
+        except AttributeError:
+            logger.error(f"API client for {exchange} missing get_order method.")
+            verification_success = False
+            verification_error = f"API client for {exchange} missing get_order method."
+            return api_order, verification_success, verification_error
+        except Exception as e:
+            logger.error(f"Error calling get_order for {exchange}: {e}", exc_info=True)
+            verification_success = False
+            verification_error = f"API error fetching order {order_id} from {exchange}"
+            return api_order, verification_success, verification_error
+
+        if not api_order:
+            verification_error = (
+                f"Order {order_id} not found or could not be fetched from {exchange} API"
+            )
+            verification_success = False
+            return api_order, verification_success, verification_error
+
+        # Verify essential properties match on API side
+        verification_success, verification_error = self._verify_api_order_properties(
+            api_order, expected_details, verification_success, verification_error
+        )
+
+        return api_order, verification_success, verification_error
+
+    def _verify_api_order_properties(
+        self,
+        api_order: Order,
+        expected_details: dict[str, Any],
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[bool, str | None]:
+        """Verify API order properties match expected details."""
+        properties_to_check = {
+            "symbol": "symbol",
+            "side": "side",
+            "order_type": "order_type",
         }
+
+        for attr_name, expected_detail_key in properties_to_check.items():
+            api_value = getattr(api_order, attr_name, None)
+            expected_value = expected_details.get(expected_detail_key)
+
+            if isinstance(api_value, Enum) and isinstance(expected_value, Enum):
+                if api_value.name != expected_value.name:
+                    verification_success = False
+                    verification_error = (verification_error or "") + (
+                        f" API order {attr_name} mismatch (expected key: "
+                        f"{expected_detail_key}): expected {expected_value.name}, "
+                        f"got {api_value.name}"
+                    )
+                    break
+            elif api_value != expected_value:
+                verification_success = False
+                verification_error = (verification_error or "") + (
+                    f" API order {attr_name} mismatch (expected key: "
+                    f"{expected_detail_key}): expected {expected_value}, "
+                    f"got {api_value}"
+                )
+                break
+
+        return verification_success, verification_error
 
     async def verify_order_execution(self, exchange: str, order_id: str) -> dict[str, Any]:
         """Verify that an order was executed properly.

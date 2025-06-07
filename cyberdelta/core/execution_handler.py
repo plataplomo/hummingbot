@@ -199,174 +199,180 @@ class ExecutionHandler:
         execution = TradeExecution(opportunity)
         self.active_executions[execution.id] = execution
         execution.start_time = datetime.now(UTC)
-        # Use a local variable for error messages within this method's scope
-        op_error_msg: str | None = None
 
         logger.info(
             f"Starting execution {execution.id} for opportunity: {opportunity.opportunity.symbol}",
         )
 
-        # --- Circuit Breaker Check ---
-        if self.circuit_breaker_system:
-            try:
-                can_long, long_reason = self.circuit_breaker_system.can_execute(
-                    opportunity.opportunity.long_exchange,
-                )
-                if not can_long:
-                    raise CircuitBreakerTrippedError(
-                        f"Circuit breaker tripped for long exchange "
-                        f"{opportunity.opportunity.long_exchange}: {long_reason}",
-                    )
-                can_short, short_reason = self.circuit_breaker_system.can_execute(
-                    opportunity.opportunity.short_exchange,
-                )
-                if not can_short:
-                    raise CircuitBreakerTrippedError(
-                        f"Circuit breaker tripped for short exchange "
-                        f"{opportunity.opportunity.short_exchange}: {short_reason}",
-                    )
-            except CircuitBreakerTrippedError as e:
-                op_error_msg = f"Execution {execution.id} rejected by circuit breaker: {e}"
-                logger.error(op_error_msg)
-                execution.error_message = str(e)
-                execution.status = ExecutionStatus.REJECTED
-                execution.end_time = datetime.now(UTC)
-                self._add_to_history(execution)
-                return execution
+        try:
+            # Check circuit breakers
+            self._check_circuit_breakers(execution, opportunity)
 
-        # --- Setup & Pre-Checks ---
+            # Setup and validate clients and symbols
+            (
+                _,
+                _,
+                long_symbol,
+                short_symbol,
+            ) = await self._setup_execution_prerequisites(execution, opportunity)
+
+            # Execute the main order placement logic
+            await self._place_orders_for_opportunity(execution, long_symbol, short_symbol)
+
+        except CircuitBreakerTrippedError as e:
+            return self._handle_circuit_breaker_rejection(execution, e)
+        except APIError as e:
+            return self._handle_api_error_during_execution(execution, opportunity, e)
+        except Exception as e:
+            return self._handle_unexpected_error_during_execution(execution, opportunity, e)
+
+        # Finalize execution
+        return self._finalize_execution(execution)
+
+    def _check_circuit_breakers(
+        self, execution: TradeExecution, opportunity: SizedOpportunity
+    ) -> None:
+        """Check circuit breakers for both exchanges."""
+        if not self.circuit_breaker_system:
+            return
+
+        can_long, long_reason = self.circuit_breaker_system.can_execute(
+            opportunity.opportunity.long_exchange,
+        )
+        if not can_long:
+            raise CircuitBreakerTrippedError(
+                f"Circuit breaker tripped for long exchange "
+                f"{opportunity.opportunity.long_exchange}: {long_reason}",
+            )
+
+        can_short, short_reason = self.circuit_breaker_system.can_execute(
+            opportunity.opportunity.short_exchange,
+        )
+        if not can_short:
+            raise CircuitBreakerTrippedError(
+                f"Circuit breaker tripped for short exchange "
+                f"{opportunity.opportunity.short_exchange}: {short_reason}",
+            )
+
+    async def _setup_execution_prerequisites(
+        self, execution: TradeExecution, opportunity: SizedOpportunity
+    ) -> tuple[ExchangeAPI, ExchangeAPI, str, str]:
+        """Setup and validate API clients and symbols for execution."""
+        # Get API clients
         long_client = self.api_clients.get(opportunity.opportunity.long_exchange)
         short_client = self.api_clients.get(opportunity.opportunity.short_exchange)
 
-        try:
-            if not long_client or not short_client:
-                missing_client_exchange_name = (
-                    opportunity.opportunity.long_exchange
-                    if not long_client
-                    else opportunity.opportunity.short_exchange
-                )
-                op_error_msg = (
-                    f"Execution {execution.id} failed: Missing API client for "
-                    f"'{missing_client_exchange_name}'"
-                )
-                logger.error(op_error_msg)
-                execution.error_message = op_error_msg
-                execution.status = ExecutionStatus.FAILED
-                execution.end_time = datetime.now(UTC)
-                self._add_to_history(execution)
-                return execution
-
-            # Get exchange-specific symbols
-            long_symbol = self.symbol_mapper.get_exchange_symbol(
-                opportunity.opportunity.symbol,
-                opportunity.opportunity.long_exchange,
+        if not long_client or not short_client:
+            missing_client_exchange_name = (
+                opportunity.opportunity.long_exchange
+                if not long_client
+                else opportunity.opportunity.short_exchange
             )
-            short_symbol = self.symbol_mapper.get_exchange_symbol(
-                opportunity.opportunity.symbol,
-                opportunity.opportunity.short_exchange,
+            raise APIError(
+                f"Missing API client for '{missing_client_exchange_name}'",
+                code="MISSING_CLIENT",
             )
-            if not long_symbol or not short_symbol:
-                missing_leg = "long" if not long_symbol else "short"
-                missing_symbol_exchange_name = (
-                    opportunity.opportunity.long_exchange
-                    if not long_symbol
-                    else opportunity.opportunity.short_exchange
-                )
-                op_error_msg = (
-                    f"Execution {execution.id} failed: Could not map symbol "
-                    f"'{opportunity.opportunity.symbol}' for {missing_leg} leg on exchange "
-                    f"'{missing_symbol_exchange_name}'."
-                )
-                logger.error(op_error_msg)
-                execution.error_message = op_error_msg
-                execution.status = ExecutionStatus.FAILED
-                execution.end_time = datetime.now(UTC)
-                self._add_to_history(execution)
-                return execution
 
-        except (
-            APIError
-        ) as e:  # Catches errors from symbol_mapper or client.get if they raised APIError
-            op_error_msg = (
-                f"APIError during pre-check/setup for execution {execution.id} "
-                f"for {opportunity.opportunity.symbol}: {e}"
+        # Get exchange-specific symbols
+        long_symbol = self.symbol_mapper.get_exchange_symbol(
+            opportunity.opportunity.symbol,
+            opportunity.opportunity.long_exchange,
+        )
+        short_symbol = self.symbol_mapper.get_exchange_symbol(
+            opportunity.opportunity.symbol,
+            opportunity.opportunity.short_exchange,
+        )
+
+        if not long_symbol or not short_symbol:
+            missing_leg = "long" if not long_symbol else "short"
+            missing_symbol_exchange_name = (
+                opportunity.opportunity.long_exchange
+                if not long_symbol
+                else opportunity.opportunity.short_exchange
             )
-            logger.error(op_error_msg, exc_info=True)
-            execution.error_message = str(e)
-            execution.status = ExecutionStatus.FAILED
-            if self.circuit_breaker_system:
-                # Determine which exchange string ID to use for recording the error
-                # e.exchange_code is an int/str code, not the exchange_id string.
-                # Default to long_exchange if unclear, as this is a pre-check phase error.
-                failed_exchange_str = opportunity.opportunity.long_exchange
-                logger.warning(
-                    f"APIError in pre-check for exec {execution.id}. Attributing to: "
-                    f"{failed_exchange_str}",
-                )
-                self.circuit_breaker_system.record_api_error(failed_exchange_str, str(e))
-            execution.end_time = datetime.now(UTC)
-            self._add_to_history(execution)
-            return execution
-        except Exception as e:
-            op_error_msg = (
-                f"Unexpected error during pre-check/setup for execution {execution.id} "
-                f"for {opportunity.opportunity.symbol}: {e}"
+            raise APIError(
+                f"Could not map symbol '{opportunity.opportunity.symbol}' for {missing_leg} leg "
+                f"on exchange '{missing_symbol_exchange_name}'",
+                code="SYMBOL_MAPPING_FAILED",
             )
-            logger.exception(op_error_msg)
-            execution.error_message = str(e)
-            execution.status = ExecutionStatus.FAILED
-            execution.end_time = datetime.now(UTC)
-            self._add_to_history(execution)
-            return execution
 
-        # If pre-checks pass, proceed to place orders
-        # This is the main execution logic that interacts with exchanges.
-        try:
-            await self._place_orders_for_opportunity(execution, long_symbol, short_symbol)
-            # _place_orders_for_opportunity should update execution.status
-            # and error_message internally.
-        except APIError as e:
-            # This catch block handles API errors specifically from _place_orders_for_opportunity
-            op_error_msg = (
-                f"APIError during order placement for execution {execution.id} "
-                f"for {opportunity.opportunity.symbol}: {e}"
+        return long_client, short_client, long_symbol, short_symbol
+
+    def _handle_circuit_breaker_rejection(
+        self, execution: TradeExecution, e: CircuitBreakerTrippedError
+    ) -> TradeExecution:
+        """Handle circuit breaker rejection."""
+        op_error_msg = f"Execution {execution.id} rejected by circuit breaker: {e}"
+        logger.error(op_error_msg)
+        execution.error_message = str(e)
+        execution.status = ExecutionStatus.REJECTED
+        execution.end_time = datetime.now(UTC)
+        self._add_to_history(execution)
+        return execution
+
+    def _handle_api_error_during_execution(
+        self, execution: TradeExecution, opportunity: SizedOpportunity, e: APIError
+    ) -> TradeExecution:
+        """Handle API errors during execution."""
+        op_error_msg = (
+            f"APIError during execution {execution.id} for {opportunity.opportunity.symbol}: {e}"
+        )
+        logger.error(op_error_msg, exc_info=True)
+        execution.error_message = str(e)
+        execution.status = ExecutionStatus.FAILED
+
+        if self.circuit_breaker_system:
+            self._record_api_error_for_circuit_breaker(execution, opportunity, e)
+
+        execution.end_time = datetime.now(UTC)
+        self._add_to_history(execution)
+        return execution
+
+    def _handle_unexpected_error_during_execution(
+        self, execution: TradeExecution, opportunity: SizedOpportunity, e: Exception
+    ) -> TradeExecution:
+        """Handle unexpected errors during execution."""
+        op_error_msg = (
+            f"Unexpected error during execution {execution.id} "
+            f"for {opportunity.opportunity.symbol}: {e}"
+        )
+        logger.exception(op_error_msg)
+        execution.error_message = str(e)
+        execution.status = ExecutionStatus.FAILED
+        execution.end_time = datetime.now(UTC)
+        self._add_to_history(execution)
+        return execution
+
+    def _record_api_error_for_circuit_breaker(
+        self, execution: TradeExecution, opportunity: SizedOpportunity, e: APIError
+    ) -> None:
+        """Record API error for circuit breaker system."""
+        # Determine which exchange caused the error
+        long_not_filled = False
+        if execution.long_order_response is not None:
+            long_not_filled = not execution.long_order_response.get("is_filled", True)
+
+        short_not_filled = False
+        if execution.short_order_response is not None:
+            short_not_filled = not execution.short_order_response.get("is_filled", True)
+
+        if execution.long_order_id and not execution.short_order_id and long_not_filled:
+            failed_exchange_str = opportunity.opportunity.long_exchange
+        elif execution.short_order_id and short_not_filled:
+            failed_exchange_str = opportunity.opportunity.short_exchange
+        else:
+            failed_exchange_str = opportunity.opportunity.long_exchange  # Default to long
+            logger.warning(
+                f"Could not definitively determine failing exchange for APIError in exec "
+                f"{execution.id} (Error: {e}). Defaulting to long exchange: "
+                f"{failed_exchange_str}",
             )
-            logger.error(op_error_msg, exc_info=True)  # Log with traceback for APIError
-            execution.error_message = str(e)
-            execution.status = ExecutionStatus.FAILED
-            if self.circuit_breaker_system:
-                # Determine which exchange caused the error
-                long_not_filled = False
-                if execution.long_order_response is not None:
-                    long_not_filled = not execution.long_order_response.get("is_filled", True)
 
-                short_not_filled = False
-                if execution.short_order_response is not None:
-                    short_not_filled = not execution.short_order_response.get("is_filled", True)
+        if self.circuit_breaker_system is not None:
+            self.circuit_breaker_system.record_api_error(failed_exchange_str, str(e))
 
-                if execution.long_order_id and not execution.short_order_id and long_not_filled:
-                    failed_exchange_str = opportunity.opportunity.long_exchange
-                elif execution.short_order_id and short_not_filled:
-                    failed_exchange_str = opportunity.opportunity.short_exchange
-                else:
-                    failed_exchange_str = opportunity.opportunity.long_exchange  # Default to long
-                    logger.warning(
-                        f"Could not definitively determine failing exchange for APIError in exec "
-                        f"{execution.id} (Error: {e}). Defaulting to long exchange: "
-                        f"{failed_exchange_str}",
-                    )
-                self.circuit_breaker_system.record_api_error(failed_exchange_str, str(e))
-        except Exception as e:
-            # Catch-all for other unexpected errors from _place_orders_for_opportunity
-            op_error_msg = (
-                f"Unexpected error during order placement for execution {execution.id} "
-                f"for {opportunity.opportunity.symbol}: {e}"
-            )
-            logger.exception(op_error_msg)  # Use logger.exception for full traceback
-            execution.error_message = str(e)
-            execution.status = ExecutionStatus.FAILED
-
-        # --- Post-Execution Processing ---
+    def _finalize_execution(self, execution: TradeExecution) -> TradeExecution:
+        """Finalize execution and add to history."""
         # Ensure end_time is set if not already by failure paths
         if execution.end_time is None:
             execution.end_time = datetime.now(UTC)
