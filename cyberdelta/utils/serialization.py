@@ -7,6 +7,7 @@ for handling Decimal types and other CyberDelta-specific data structures.
 import json
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 import numpy as np
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
     supported by the standard JSON encoder.
     """
 
-    def default(self, o: object) -> JSONValue:
+    def default(self, o: object) -> Any:
         """Serialize object to JSON-compatible type.
 
         Args:
@@ -50,15 +51,13 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
         # Handle Pydantic models
         if isinstance(o, BaseModel):
             # Use Pydantic's built-in serialization
-            result = o.model_dump(mode="json")
-            # Ensure the result is a valid JSONValue
-            return result
+            return o.model_dump(mode="json")
         # Let the base class default method raise the TypeError for other types
         return super().default(o)
 
 
 # Helper function to easily dump JSON with the custom encoder
-def dump_json(data: object, **kwargs: object) -> str:
+def dump_json(data: object, **kwargs: Any) -> str:
     """Dump data to JSON string using the custom CyberDeltaJSONEncoder.
 
     Args:
@@ -69,13 +68,13 @@ def dump_json(data: object, **kwargs: object) -> str:
         JSON string representation of the data
 
     """
-    # Convert kwargs to any type to avoid mypy issues
-    return json.dumps(data, cls=CyberDeltaJSONEncoder, **kwargs)  # type: ignore[misc]
+    # Use the custom encoder with proper kwargs handling
+    return json.dumps(data, cls=CyberDeltaJSONEncoder, **kwargs)
 
 
 # Optionally, a helper to load JSON (though standard json.loads often works fine
 # unless specific object hooks are needed for complex deserialization)
-def load_json(json_str: str, **kwargs: object) -> JSONValue:
+def load_json(json_str: str, **kwargs: Any) -> Any:
     """Load data from JSON string.
 
     Args:
@@ -86,6 +85,5 @@ def load_json(json_str: str, **kwargs: object) -> JSONValue:
         Parsed JSON data structure
 
     """
-    # Convert kwargs to any type to avoid mypy issues
-    result = json.loads(json_str, **kwargs)  # type: ignore[misc]
-    return result  # type: ignore[return-value]
+    # Load JSON with proper kwargs handling
+    return json.loads(json_str, **kwargs)

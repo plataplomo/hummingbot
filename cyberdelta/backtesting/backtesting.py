@@ -219,22 +219,44 @@ class BacktestEngine:
         """
         self.logger.info(f"Starting backtest for {self.strategy.name}")
 
+        # Split data into training and test sets
+        train_data, test_data = self._split_data(training_portion)
+
+        # Initialize strategy
+        init_result = self._initialize_strategy(train_data)
+        if not init_result["success"]:
+            return init_result
+
+        # Initialize results handler
+        results_init = self._initialize_results_handler()
+        if not results_init["success"]:
+            return results_init
+
+        # Run the main backtest loop
+        return self._run_backtest_loop(test_data)
+
+    def _split_data(self, training_portion: Decimal) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Split data into training and test sets."""
         # Convert training_portion to float for index calculation
         # This is an acceptable use of float as it's for array indexing, not financial calculation
         train_size = int(len(self.data) * float(training_portion))
         train_data = self.data.iloc[:train_size]
         test_data = self.data.iloc[train_size:]
+        return train_data, test_data
 
-        # Initialize strategy
+    def _initialize_strategy(self, train_data: pd.DataFrame) -> dict[str, Any]:
+        """Initialize the strategy with training data."""
         try:
             if not self.strategy.initialize(train_data):
                 self.logger.error("Strategy initialization method returned False")
                 return {"success": False, "error": "Strategy initialization failed"}
+            return {"success": True}
         except Exception as e:
             self.logger.error("Strategy initialization failed")
             return {"success": False, "error": f"Strategy initialization failed: {e}"}
 
-        # Initialize results handler
+    def _initialize_results_handler(self) -> dict[str, Any]:
+        """Initialize the results handler."""
         try:
             results_handler = BacktestResultsHandler(
                 strategy_name=self.strategy.name,
@@ -244,10 +266,13 @@ class BacktestEngine:
                 results_dir=self.results_dir,
             )
             self.results_handler = results_handler  # Assign to instance attribute
+            return {"success": True}
         except ImportError as e:
             self.logger.error(f"Could not import BacktestResultsHandler: {e}")
             return {"success": False, "error": "Failed to load results handler."}
 
+    def _run_backtest_loop(self, test_data: pd.DataFrame) -> dict[str, Any]:
+        """Run the main backtest loop."""
         # Reset capital to initial value
         self.capital = self.initial_capital
         current_capital = self.initial_capital
@@ -266,175 +291,214 @@ class BacktestEngine:
 
             # Process trades
             if result and "signals" in result:
-                for signal in result["signals"]:
-                    # Process signal
-                    if "type" in signal and "symbol" in signal:
-                        # Get signal details
-                        signal_type = signal["type"]
-                        symbol = signal["symbol"]
-                        side = signal.get("side", "buy")  # Default to buy
-                        price = signal.get("price", 0)
-                        size = signal.get("size", 0)
-
-                        # Handle entry signals
-                        if signal_type in ["ENTER_LONG", "ENTER_SHORT"]:
-                            # Calculate position value
-                            if isinstance(price, str):
-                                try:
-                                    price = Decimal(price)
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid price value: {price}")
-                                    continue
-                            elif not isinstance(price, Decimal):
-                                try:
-                                    price = Decimal(str(price))
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid price value: {price}")
-                                    continue
-
-                            if isinstance(size, str):
-                                try:
-                                    size = Decimal(size)
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid size value: {size}")
-                                    continue
-                            elif not isinstance(size, Decimal):
-                                try:
-                                    size = Decimal(str(size))
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid size value: {size}")
-                                    continue
-
-                            position_value = price * size
-
-                            # Check if we have enough capital
-                            if position_value > current_capital:
-                                self.logger.warning(
-                                    f"Insufficient capital: {float(current_capital)} "
-                                    f"< {float(position_value)}",
-                                )
-                                continue
-
-                            # Create position
-                            position = {
-                                "symbol": symbol,
-                                "side": side,
-                                "entry_price": price,
-                                "size": size,
-                                "entry_time": idx,
-                            }
-                            positions[symbol] = position
-
-                            # Track position
-                            self.results_handler.add_position(position)
-
-                            # Deduct from capital
-                            current_capital -= position_value
-
-                            # Add entry trade
-                            if isinstance(idx, datetime | pd.Timestamp):
-                                trade_time = idx.isoformat()
-                            else:
-                                trade_time = str(idx)
-                            trade = {
-                                "symbol": symbol,
-                                "side": side,
-                                "price": float(price),
-                                "size": float(size),
-                                "value": float(position_value),
-                                "time": trade_time,
-                                "type": "ENTRY",
-                            }
-                            self.results_handler.add_trade(trade)
-
-                        # Handle exit signals
-                        elif signal_type in ["EXIT_LONG", "EXIT_SHORT"] and symbol in positions:
-                            position = positions[symbol]
-                            entry_price = position["entry_price"]
-                            position_size = position["size"]
-
-                            # Calculate exit value
-                            if isinstance(price, str):
-                                try:
-                                    price = Decimal(price)
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid price value: {price}")
-                                    continue
-                            elif not isinstance(price, Decimal):
-                                try:
-                                    price = Decimal(str(price))
-                                except InvalidOperation:
-                                    self.logger.error(f"Invalid price value: {price}")
-                                    continue
-
-                            # Calculate exit value and P&L
-                            exit_value = price * position_size
-
-                            # Calculate P&L based on side
-                            if position["side"].lower() == "buy":  # Long position
-                                pnl = (price - entry_price) * position_size
-                            else:  # Short position
-                                pnl = (entry_price - price) * position_size
-
-                            # Add exit trade
-                            if isinstance(idx, datetime | pd.Timestamp):
-                                trade_time = idx.isoformat()
-                            else:
-                                trade_time = str(idx)
-                            trade = {
-                                "symbol": symbol,
-                                "side": "sell" if position["side"].lower() == "buy" else "buy",
-                                "price": float(price),
-                                "size": float(position_size),
-                                "value": float(exit_value),
-                                "pnl": float(pnl),
-                                "time": trade_time,
-                                "type": "EXIT",
-                            }
-                            self.results_handler.add_trade(trade)
-
-                            # Update capital
-                            current_capital += exit_value
-
-                            # Remove position
-                            del positions[symbol]
+                current_capital = self._process_signals(
+                    result["signals"], positions, current_capital, idx
+                )
 
             # Record equity point at this timestamp
-            if self.results_handler:
-                # Determine the correct datetime object for the equity point
-                if isinstance(idx, datetime | pd.Timestamp):
-                    timestamp_dt = idx if isinstance(idx, datetime) else idx.to_pydatetime()
-                else:
-                    self.logger.error(
-                        f"Unexpected index type for equity point: {type(idx)}. Skipping.",
+            self._record_equity_point(idx, current_capital)
+
+        # Finalize results
+        return self._finalize_results(current_capital)
+
+    def _process_signals(
+        self,
+        signals: list[dict[str, Any]],
+        positions: dict[str, dict[str, Any]],
+        current_capital: Decimal,
+        idx: Any,
+    ) -> Decimal:
+        """Process trading signals and update positions."""
+        for signal in signals:
+            if "type" in signal and "symbol" in signal:
+                signal_type = signal["type"]
+                symbol = signal["symbol"]
+
+                if signal_type in ["ENTER_LONG", "ENTER_SHORT"]:
+                    current_capital = self._process_entry_signal(
+                        signal, positions, current_capital, idx
                     )
-                    continue  # Skip this equity point
+                elif signal_type in ["EXIT_LONG", "EXIT_SHORT"] and symbol in positions:
+                    current_capital = self._process_exit_signal(
+                        signal, positions, current_capital, idx
+                    )
 
-                # Only add the point if we successfully obtained a datetime object
-                if timestamp_dt is not None:
-                    self.results_handler.add_equity_point(timestamp_dt, current_capital)
+        return current_capital
 
-        # Calculate final results
-        # Get the final metrics and results
+    def _process_entry_signal(
+        self,
+        signal: dict[str, Any],
+        positions: dict[str, dict[str, Any]],
+        current_capital: Decimal,
+        idx: Any,
+    ) -> Decimal:
+        """Process entry signal and create position."""
+        symbol = signal["symbol"]
+        side = signal.get("side", "buy")  # Default to buy
+        price = self._convert_to_decimal(signal.get("price", 0), "price")
+        size = self._convert_to_decimal(signal.get("size", 0), "size")
+
+        if price is None or size is None:
+            return current_capital
+
+        position_value = price * size
+
+        # Check if we have enough capital
+        if position_value > current_capital:
+            self.logger.warning(
+                f"Insufficient capital: {float(current_capital)} < {float(position_value)}",
+            )
+            return current_capital
+
+        # Create position
+        position = {
+            "symbol": symbol,
+            "side": side,
+            "entry_price": price,
+            "size": size,
+            "entry_time": idx,
+        }
+        positions[symbol] = position
+
+        # Track position
+        if self.results_handler:
+            self.results_handler.add_position(position)
+
+        # Deduct from capital
+        current_capital -= position_value
+
+        # Add entry trade
+        self._add_trade_record(symbol, side, price, size, position_value, idx, "ENTRY")
+
+        return current_capital
+
+    def _process_exit_signal(
+        self,
+        signal: dict[str, Any],
+        positions: dict[str, dict[str, Any]],
+        current_capital: Decimal,
+        idx: Any,
+    ) -> Decimal:
+        """Process exit signal and close position."""
+        symbol = signal["symbol"]
+        position = positions[symbol]
+        entry_price = position["entry_price"]
+        position_size = position["size"]
+
+        price = self._convert_to_decimal(signal.get("price", 0), "price")
+        if price is None:
+            return current_capital
+
+        # Calculate exit value and P&L
+        exit_value = price * position_size
+
+        # Calculate P&L based on side
+        if position["side"].lower() == "buy":  # Long position
+            pnl = (price - entry_price) * position_size
+        else:  # Short position
+            pnl = (entry_price - price) * position_size
+
+        # Add exit trade
+        exit_side = "sell" if position["side"].lower() == "buy" else "buy"
+        self._add_trade_record(
+            symbol, exit_side, price, position_size, exit_value, idx, "EXIT", pnl
+        )
+
+        # Update capital
+        current_capital += exit_value
+
+        # Remove position
+        del positions[symbol]
+
+        return current_capital
+
+    def _convert_to_decimal(self, value: Any, field_name: str) -> Decimal | None:
+        """Convert value to Decimal with error handling."""
+        if isinstance(value, str):
+            try:
+                return Decimal(value)
+            except InvalidOperation:
+                self.logger.error(f"Invalid {field_name} value: {value}")
+                return None
+        elif not isinstance(value, Decimal):
+            try:
+                return Decimal(str(value))
+            except InvalidOperation:
+                self.logger.error(f"Invalid {field_name} value: {value}")
+                return None
+        return value
+
+    def _add_trade_record(
+        self,
+        symbol: str,
+        side: str,
+        price: Decimal,
+        size: Decimal,
+        value: Decimal,
+        idx: Any,
+        trade_type: str,
+        pnl: Decimal | None = None,
+    ) -> None:
+        """Add trade record to results handler."""
         if not self.results_handler:
-            self.logger.info("No results handler available, cannot calculate or save metrics.")
+            return
+
+        if isinstance(idx, datetime | pd.Timestamp):
+            trade_time = idx.isoformat()
+        else:
+            trade_time = str(idx)
+
+        trade = {
+            "symbol": symbol,
+            "side": side,
+            "price": float(price),
+            "size": float(size),
+            "value": float(value),
+            "time": trade_time,
+            "type": trade_type,
+        }
+
+        if pnl is not None:
+            trade["pnl"] = float(pnl)
+
+        self.results_handler.add_trade(trade)
+
+    def _record_equity_point(self, idx: Any, current_capital: Decimal) -> None:
+        """Record equity point at current timestamp."""
+        if not self.results_handler:
+            return
+
+        # Determine the correct datetime object for the equity point
+        if isinstance(idx, datetime | pd.Timestamp):
+            timestamp_dt = idx if isinstance(idx, datetime) else idx.to_pydatetime()
+        else:
+            self.logger.error(
+                f"Unexpected index type for equity point: {type(idx)}. Skipping.",
+            )
+            return
+
+        self.results_handler.add_equity_point(timestamp_dt, current_capital)
+
+    def _finalize_results(self, final_capital: Decimal) -> dict[str, Any]:
+        """Finalize and return backtest results."""
+        # Update final capital
+        self.capital = final_capital
+
+        # Generate results
+        if self.results_handler:
+            results = self.results_handler.generate_results()
+            self.logger.info(f"Backtest completed. Final capital: {float(final_capital)}")
+            return results
+        else:
+            self.logger.warning("No results handler available")
             return {
                 "success": True,
-                "message": "Backtest completed, no results handler.",
-                "final_equity": float(current_capital),
+                "final_capital": float(final_capital),
+                "initial_capital": float(self.initial_capital),
+                "total_return": float(
+                    (final_capital - self.initial_capital) / self.initial_capital
+                ),
             }
-
-        metrics = self.results_handler.calculate_metrics()
-
-        # Save results to file
-        try:
-            filename = f"{self.strategy.name}_backtest_results.json"
-            saved_path = self.save_results(filename=filename)
-            self.logger.info(f"Backtest completed. Results saved to {saved_path}")
-            return {"success": True, "metrics": metrics, "results_file": saved_path}
-        except Exception as e:
-            self.logger.error(f"Failed to save backtest results: {e}")
-            return {"success": False, "error": "Failed to save results", "metrics": metrics}
 
     def save_results(self, filename: str | None = None) -> str:
         """Save backtest results to a file.

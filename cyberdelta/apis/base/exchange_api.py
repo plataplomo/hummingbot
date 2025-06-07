@@ -186,10 +186,13 @@ class ExchangeAPI(ABC):
         """Create a default rate limiting strategy."""
         # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
         # Mypy=[operator, arg-type]
-        rate_per_second: float = exchange_config.rate_limit_per_minute / 60.0  # type: ignore[operator]
-        bucket_size: int = max(1, int(rate_per_second * 2))  # type: ignore[arg-type]
+        if exchange_config.rate_limit_per_minute is None:
+            raise ValueError("rate_limit_per_minute cannot be None")
+
+        rate_per_second: float = exchange_config.rate_limit_per_minute / 60.0
+        bucket_size: int = max(1, int(rate_per_second * 2))
         default_limiter_primitive = TokenBucketRateLimiterRuntime(
-            rate=rate_per_second,  # type: ignore[arg-type]
+            rate=rate_per_second,
             bucket_size=bucket_size,
         )
         strategy = SimpleTokenBucketStrategy(
@@ -228,7 +231,7 @@ class ExchangeAPI(ABC):
 
     def _build_http_config_data(self) -> dict[str, Any]:
         """Build HTTP client configuration data from config."""
-        http_config_data = {}
+        http_config_data: dict[str, Any] = {}
 
         # Required field: rest_endpoint
         if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:

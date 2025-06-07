@@ -483,7 +483,7 @@ class BackpackMarketDataService:
                 http_status=status_code,
             )
 
-        return raw_data_list, status_code, headers
+        return raw_data_list, status_code, dict(headers)
 
     def _process_recent_trades_response(
         self,
@@ -605,6 +605,13 @@ class BackpackMarketDataService:
                 symbol,
                 status_code,
                 raw_response_content,
+            )
+            # DEFENSIVE CHECK: This should never be reached as _handle_recent_trades_exceptions raises
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in get_recent_trades",
+                original_exception=e,
+                http_status=status_code,
             )
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
@@ -833,6 +840,10 @@ class BackpackMarketDataService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
 
+        # DEFENSIVE CHECK: Ensure symbols is not None. Mypy=[arg-type]
+        if args.symbols is None:
+            raise ValueError(f"[{current_method}] symbols cannot be None")
+
         self._validate_funding_rates_symbols(args.symbols, current_method)
 
         status_code: int = 0
@@ -846,6 +857,13 @@ class BackpackMarketDataService:
                 current_method,
                 status_code,
                 raw_response_content,
+            )
+            # DEFENSIVE CHECK: This should never be reached as _handle_funding_rates_exceptions raises
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in get_funding_rates",
+                original_exception=e,
+                http_status=status_code,
             )
 
     async def get_historical_funding_rates(

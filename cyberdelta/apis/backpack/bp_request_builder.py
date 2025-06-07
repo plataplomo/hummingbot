@@ -182,7 +182,7 @@ class BackpackRequestBuilder:
             OrderType.MARKET: "Market",
             OrderType.STOP_MARKET: "Market",  # With triggerPrice it becomes a stop
             OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
-        }.get(order_type)
+        }.get(order_type, "Limit")  # Default to "Limit" if not found
 
         # Map time in force (only for limit orders, service validates this)
         api_time_in_force = None

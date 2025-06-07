@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 class OrderComponents(TypedDict):
     """Type-safe components for Order creation."""
+
     side: OrderSide
     order_type: OrderType
     status: OrderStatus
@@ -255,7 +256,7 @@ class HyperliquidTradingDataMapper:
             order_components = HyperliquidTradingDataMapper._parse_order_components(
                 raw_order, trigger
             )
-            
+
             # Create and return the Order object
             return HyperliquidTradingDataMapper._create_order_from_components(
                 raw_order, order_components
@@ -273,8 +274,8 @@ class HyperliquidTradingDataMapper:
     ) -> OrderComponents:
         """Parse all components needed for Order creation."""
         # Map enums
-        side, order_type, status, time_in_force = (
-            HyperliquidTradingDataMapper._parse_order_enums(raw_order, trigger)
+        side, order_type, status, time_in_force = HyperliquidTradingDataMapper._parse_order_enums(
+            raw_order, trigger
         )
 
         # Parse quantities and price
@@ -283,9 +284,7 @@ class HyperliquidTradingDataMapper:
         )
 
         # Parse timestamps
-        created_at, updated_at = HyperliquidTradingDataMapper._parse_order_timestamps(
-            raw_order
-        )
+        created_at, updated_at = HyperliquidTradingDataMapper._parse_order_timestamps(raw_order)
 
         # Parse trigger/stop logic
         stop_price, trigger_by = HyperliquidTradingDataMapper._parse_trigger_info(trigger)
@@ -327,7 +326,7 @@ class HyperliquidTradingDataMapper:
         )
         if updated_at is None:
             updated_at = created_at
-            
+
         return created_at, updated_at
 
     @staticmethod
@@ -337,7 +336,7 @@ class HyperliquidTradingDataMapper:
         """Parse trigger/stop logic."""
         stop_price = None
         trigger_by = None
-        
+
         if trigger:
             stop_price = parse_decimal_value(
                 str(getattr(trigger, "trigger_px", "")),
@@ -352,7 +351,7 @@ class HyperliquidTradingDataMapper:
                     trigger_by = TriggerType.MARK_PRICE
                 elif trigger_type_str.lower() == "last":
                     trigger_by = TriggerType.LAST_PRICE
-                    
+
         return stop_price, trigger_by
 
     @staticmethod
@@ -363,7 +362,7 @@ class HyperliquidTradingDataMapper:
     ) -> tuple[Decimal | None, Decimal]:
         """Calculate average_fill_price based on business rules."""
         average_fill_price = None
-        
+
         if quantity_filled > 0:
             # For Hyperliquid orders, avg_px is not available in order data
             # Use limit price as approximation when available
@@ -380,7 +379,7 @@ class HyperliquidTradingDataMapper:
                     f"maintain model consistency.",
                 )
                 quantity_filled = Decimal("0")
-                
+
         return average_fill_price, quantity_filled
 
     @staticmethod
@@ -469,7 +468,7 @@ class HyperliquidTradingDataMapper:
             order_components = HyperliquidTradingDataMapper._parse_historical_order_components(
                 raw_historical_order, trigger
             )
-            
+
             # Create and return the Order object
             return HyperliquidTradingDataMapper._create_historical_order_from_components(
                 raw_historical_order, order_components
@@ -571,7 +570,7 @@ class HyperliquidTradingDataMapper:
         # expects price=None
         if price is not None and price == Decimal("0"):
             price = None
-            
+
         return quantity_requested, quantity_filled, price
 
     @staticmethod
@@ -591,7 +590,7 @@ class HyperliquidTradingDataMapper:
             )
             or created_at
         )
-        
+
         return created_at, updated_at
 
     @staticmethod
@@ -602,7 +601,7 @@ class HyperliquidTradingDataMapper:
     ) -> tuple[Decimal | None, Decimal]:
         """Calculate average_fill_price for historical orders."""
         average_fill_price = None
-        
+
         if quantity_filled > 0:
             # For Hyperliquid orders, avg_px is not available in order data
             # Use limit price as approximation when available
@@ -619,7 +618,7 @@ class HyperliquidTradingDataMapper:
                     f"maintain model consistency.",
                 )
                 quantity_filled = Decimal("0")
-                
+
         return average_fill_price, quantity_filled
 
     @staticmethod
@@ -630,7 +629,7 @@ class HyperliquidTradingDataMapper:
         """Create Order object from parsed historical order components."""
         # Get client order ID
         cloid = getattr(raw_historical_order, "cloid", None)
-        
+
         # Create order directly - no dict unpacking to avoid pyright issues
         if cloid is not None:
             return Order(

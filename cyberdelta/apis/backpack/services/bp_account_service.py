@@ -762,6 +762,13 @@ class BackpackAccountService:
             return self._process_transfer_response(raw_data, args, status_code)
         except Exception as e:
             self._handle_transfer_exceptions(e, current_method, status_code, raw_response_content)
+            # DEFENSIVE CHECK: This should never be reached as _handle_transfer_exceptions raises
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in transfer",
+                original_exception=e,
+                http_status=status_code,
+            )
 
     def _validate_withdrawal_network(self, args: WithdrawArgs, current_method: str) -> None:
         """Validate withdrawal network support."""
@@ -797,6 +804,11 @@ class BackpackAccountService:
     ) -> tuple[ParsedJsonResponse, int]:
         """Execute withdrawal API request."""
         endpoint_path = "/api/v1/capital/withdrawals"
+
+        # DEFENSIVE CHECK: Ensure network is not None. Mypy=[arg-type]
+        if args.network is None:
+            raise ValueError("Network is required for withdrawal")
+
         payload = self._request_builder.build_withdraw_payload(
             asset=args.asset,
             amount=args.amount,
@@ -942,6 +954,13 @@ class BackpackAccountService:
             return self._process_withdrawal_response(raw_data, args, status_code)
         except Exception as e:
             self._handle_withdrawal_exceptions(e, current_method, status_code, raw_response_content)
+            # DEFENSIVE CHECK: This should never be reached as _handle_withdrawal_exceptions raises
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in withdraw",
+                original_exception=e,
+                http_status=status_code,
+            )
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieves historical order data."""
@@ -1238,4 +1257,11 @@ class BackpackAccountService:
                 current_method,
                 status_code,
                 raw_response_content,
+            )
+            # DEFENSIVE CHECK: This should never be reached as _handle_trade_history_exceptions raises
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in get_trade_history",
+                original_exception=e,
+                http_status=status_code,
             )

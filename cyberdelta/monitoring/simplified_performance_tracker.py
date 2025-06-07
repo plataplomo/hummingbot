@@ -105,7 +105,7 @@ class SimplePerformanceTracker:
         self.metrics_history: list[PerformanceMetrics] = []
         self.trade_history: dict[str, TradeMetrics] = {}
         self.signal_history: dict[str, SignalMetrics] = {}
-        self.opportunity_history: dict[str, dict] = {}
+        self.opportunity_history: dict[str, dict[str, Any]] = {}
 
         # Current state
         self.current_trades: dict[str, TradeMetrics] = {}
