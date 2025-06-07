@@ -173,45 +173,55 @@ class PerformanceDataPersistence:
             return None
 
         if data_type == "returns":
-            # For returns data, convert timestamp keys back to datetime objects
-            if isinstance(loaded_data, dict):
-                processed_returns: dict[str, Any] = {}
-                for strategy_name, strategy_data in loaded_data.items():
-                    if isinstance(strategy_data, dict):
-                        processed_strategy_data: dict[datetime, float] = {}
-                        # DEFENSIVE CHECK: Handle unknown types from JSON.
-                        # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
-                        for ts_str, val in strategy_data.items():
-                            try:
-                                timestamp = datetime.fromisoformat(str(ts_str))
-                                processed_strategy_data[timestamp] = float(val)
-                            except (ValueError, TypeError):
-                                logger.warning(f"Could not parse timestamp: {ts_str}")
-                                continue
-                        processed_returns[strategy_name] = processed_strategy_data
-                    else:
-                        processed_returns[strategy_name] = strategy_data
-                return processed_returns
-            else:
-                return loaded_data
-
+            return self._post_process_returns_data(loaded_data)
         elif data_type in ["trades", "signals", "funding_rates"]:
-            # For list-based data, convert datetime fields in each item
-            if isinstance(loaded_data, list):
-                processed_list: list[dict[str, Any]] = []
-                for item in loaded_data:
-                    if isinstance(item, dict):
-                        # DEFENSIVE CHECK: Handle unknown dict types from JSON.
-                        # Pyright=[reportUnknownArgumentType]
-                        processed_list.append(self._post_process_dict(item))
-                    else:
-                        processed_list.append(item)
-                return processed_list
-            else:
-                return loaded_data
-
+            return self._post_process_list_data(loaded_data)
         else:
             # Unknown data type, return as-is
+            return loaded_data
+
+    def _post_process_returns_data(
+        self, loaded_data: dict[str, Any] | list[Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Post-process returns data to convert timestamp keys back to datetime objects."""
+        # For returns data, convert timestamp keys back to datetime objects
+        if isinstance(loaded_data, dict):
+            processed_returns: dict[str, Any] = {}
+            for strategy_name, strategy_data in loaded_data.items():
+                if isinstance(strategy_data, dict):
+                    processed_strategy_data: dict[datetime, float] = {}
+                    # DEFENSIVE CHECK: Handle unknown types from JSON.
+                    # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
+                    for ts_str, val in strategy_data.items():
+                        try:
+                            timestamp = datetime.fromisoformat(str(ts_str))
+                            processed_strategy_data[timestamp] = float(val)
+                        except (ValueError, TypeError):
+                            logger.warning(f"Could not parse timestamp: {ts_str}")
+                            continue
+                    processed_returns[strategy_name] = processed_strategy_data
+                else:
+                    processed_returns[strategy_name] = strategy_data
+            return processed_returns
+        else:
+            return loaded_data
+
+    def _post_process_list_data(
+        self, loaded_data: dict[str, Any] | list[Any]
+    ) -> dict[str, Any] | list[Any]:
+        """Post-process list-based data to convert datetime fields in each item."""
+        # For list-based data, convert datetime fields in each item
+        if isinstance(loaded_data, list):
+            processed_list: list[dict[str, Any]] = []
+            for item in loaded_data:
+                if isinstance(item, dict):
+                    # DEFENSIVE CHECK: Handle unknown dict types from JSON.
+                    # Pyright=[reportUnknownArgumentType]
+                    processed_list.append(self._post_process_dict(item))
+                else:
+                    processed_list.append(item)
+            return processed_list
+        else:
             return loaded_data
 
     def _post_process_dict(self, item: dict[str, Any]) -> dict[str, Any]:

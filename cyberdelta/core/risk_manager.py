@@ -1178,13 +1178,43 @@ class RiskManager:
             f"RiskManager: Starting to size opportunity for {opportunity.symbol} on "
             f"{opportunity.long_exchange}/{opportunity.short_exchange}",
         )
+
+        # Validate opportunity and get validation factors
+        validation_result = await self._validate_and_get_factors(opportunity)
+        if validation_result is None:
+            return None
+
+        long_validation_factor, short_validation_factor = validation_result
+
+        # Check total capital
+        total_capital = await self.portfolio_tracker.get_total_capital()
+        if total_capital <= ZERO:
+            logger.warning(
+                f"Cannot size opportunity {opportunity.symbol}: Total capital is zero or negative.",
+            )
+            return None
+
+        # Calculate sized opportunity based on method
+        sized_opportunity = await self._calculate_sized_opportunity(
+            opportunity, total_capital, long_validation_factor, short_validation_factor
+        )
+        if sized_opportunity is None:
+            return None
+
+        # Apply portfolio level controls
+        final_sized_opportunity = await self._apply_portfolio_level_controls(sized_opportunity)
+
+        return self._log_and_return_result(opportunity, final_sized_opportunity)
+
+    async def _validate_and_get_factors(
+        self, opportunity: ArbitrageOpportunity
+    ) -> tuple[Decimal, Decimal] | None:
+        """Validate opportunity and get validation factors."""
         try:
             # Perform initial validation steps (circuit breaker, balances, etc.)
-            # This pipeline should raise ValueError on failure.
             await self._validate_opportunity_pipeline(opportunity)
 
-            # Get validation factors *after* _validate_opportunity_pipeline passes,
-            # especially circuit breaker and balance checks.
+            # Get validation factors
             long_validation_factor = self._get_validation_metrics(
                 opportunity.long_exchange,
                 opportunity.symbol,
@@ -1215,115 +1245,130 @@ class RiskManager:
                 )
                 return None
 
+            return long_validation_factor, short_validation_factor
+
         except ValueError as e:
             self.logger.warning(
                 f"Opportunity {opportunity.symbol} failed pre-sizing validation: {e}",
             )
             return None
 
-        total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital <= ZERO:
-            logger.warning(
-                f"Cannot size opportunity {opportunity.symbol}: Total capital is zero or negative.",
-            )
-            return None
-
+    async def _calculate_sized_opportunity(
+        self,
+        opportunity: ArbitrageOpportunity,
+        total_capital: Decimal,
+        long_validation_factor: Decimal,
+        short_validation_factor: Decimal,
+    ) -> SizedOpportunity | None:
+        """Calculate sized opportunity based on configured method."""
         # Choose sizing method - configurable, default to simple since kelly is not fully configured
         sizing_method = getattr(self, "sizing_method", "simple")
 
-        sized_opportunity: SizedOpportunity | None = None
         if sizing_method == "kelly":
-            # --- Kelly Sizing Path --- #
-            calculated_size_usd = self._calculate_kelly_size(opportunity, total_capital)
-            if calculated_size_usd <= self.min_trade_size_usd:
-                self.logger.info(
-                    f"Kelly calculated size (${calculated_size_usd}) for {opportunity.symbol} "
-                    f"below min size (${self.min_trade_size_usd}). Rejecting.",
-                )
-                return None
-
-            # --- Apply Validation Factor (if validator exists) --- #
-            # This repeats logic, assuming long_validation_factor and short_validation_factor
-            # are fetched at the start of size_opportunity
-            validation_factor = min(
-                long_validation_factor,
-                short_validation_factor,
-            )  # Already checked for None
-
-            if validation_factor < ONE:  # Apply reduction only if factor < 1
-                self.logger.info(
-                    f"Applying validation factor {validation_factor:.3f} to size for "
-                    f"{opportunity.symbol} (kelly path).",
-                )
-                calculated_size_usd *= validation_factor
-                calculated_size_usd = calculated_size_usd.quantize(
-                    Decimal("0.01"),
-                    rounding=ROUND_DOWN,
-                )
-                if calculated_size_usd <= self.min_trade_size_usd:
-                    self.logger.info(
-                        f"Kelly size reduced below min size after validation factor for "
-                        f"{opportunity.symbol}. Rejecting.",
-                    )
-                    return None
-                self.logger.debug(
-                    f"Kelly size after validation factor for {opportunity.symbol}: "
-                    f"${calculated_size_usd:.2f}",
-                )
-            # --- END Validation Factor for Kelly --- #
-
-            # Check constraints for the calculated Kelly size
-            is_valid, reason = await self._check_portfolio_constraints(
-                calculated_size_usd,
-                opportunity,
+            return await self._calculate_kelly_sized_opportunity(
+                opportunity, total_capital, long_validation_factor, short_validation_factor
             )
-            if not is_valid:
-                self.logger.info(
-                    f"Kelly sized opportunity {opportunity.symbol} rejected due to "
-                    f"portfolio constraints: {reason}",
-                )
-                return None
-
-            # Construct SizedOpportunity if valid
-            final_size = calculated_size_usd
-            allocation_percentage = (final_size / total_capital) if total_capital > ZERO else ZERO
-            # Re-calculate expected profit based on the final size
-            # Expected return (NFD) as percentage
-            expected_return_pct = opportunity.net_funding_differential
-            expected_profit = final_size * expected_return_pct
-            # Placeholder for risk-adjusted return (e.g., Sharpe ratio if volatility is meaningful)
-            risk_adjusted_return = expected_return_pct  # Simplistic for now
-
-            sized_opportunity = SizedOpportunity(
-                opportunity=opportunity,
-                long_size=final_size,
-                short_size=final_size,  # Assuming symmetric size for now
-                allocation_percentage=allocation_percentage,
-                expected_profit=expected_profit,
-                expected_return=expected_return_pct,
-                risk_adjusted_return=risk_adjusted_return,
-            )
-
         elif sizing_method == "simple":
-            # --- Simple Sizing Path --- #
-            sized_opportunity = await self._calculate_simple_size(
+            return await self._calculate_simple_size(
                 opportunity,
                 total_capital,
                 long_validation_factor,
                 short_validation_factor,
             )
-            if sized_opportunity is None:
-                self.logger.info(
-                    f"Simple sizing failed or rejected opportunity {opportunity.symbol}",
-                )
-                return None  # _calculate_simple_size already logged the reason
-
         else:
             logger.error(f"Unknown sizing method configured: '{sizing_method}'")
             return None
 
-        # --- Apply Portfolio Level Controls --- #
-        final_sized_opportunity = await self._apply_portfolio_level_controls(sized_opportunity)
+    async def _calculate_kelly_sized_opportunity(
+        self,
+        opportunity: ArbitrageOpportunity,
+        total_capital: Decimal,
+        long_validation_factor: Decimal,
+        short_validation_factor: Decimal,
+    ) -> SizedOpportunity | None:
+        """Calculate sized opportunity using Kelly criterion."""
+        # Calculate Kelly size
+        calculated_size_usd = self._calculate_kelly_size(opportunity, total_capital)
+        if calculated_size_usd <= self.min_trade_size_usd:
+            self.logger.info(
+                f"Kelly calculated size (${calculated_size_usd}) for {opportunity.symbol} "
+                f"below min size (${self.min_trade_size_usd}). Rejecting.",
+            )
+            return None
+
+        # Apply validation factor
+        validation_factor = min(long_validation_factor, short_validation_factor)
+        calculated_size_usd = self._apply_validation_factor(
+            calculated_size_usd, validation_factor, opportunity.symbol
+        )
+        if calculated_size_usd is None:
+            return None
+
+        # Check constraints
+        is_valid, reason = await self._check_portfolio_constraints(
+            calculated_size_usd,
+            opportunity,
+        )
+        if not is_valid:
+            self.logger.info(
+                f"Kelly sized opportunity {opportunity.symbol} rejected due to "
+                f"portfolio constraints: {reason}",
+            )
+            return None
+
+        # Construct SizedOpportunity
+        return self._construct_sized_opportunity(opportunity, calculated_size_usd, total_capital)
+
+    def _apply_validation_factor(
+        self, calculated_size_usd: Decimal, validation_factor: Decimal, symbol: str
+    ) -> Decimal | None:
+        """Apply validation factor to calculated size."""
+        if validation_factor < ONE:  # Apply reduction only if factor < 1
+            self.logger.info(
+                f"Applying validation factor {validation_factor:.3f} to size for "
+                f"{symbol} (kelly path).",
+            )
+            calculated_size_usd *= validation_factor
+            calculated_size_usd = calculated_size_usd.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_DOWN,
+            )
+            if calculated_size_usd <= self.min_trade_size_usd:
+                self.logger.info(
+                    f"Kelly size reduced below min size after validation factor for "
+                    f"{symbol}. Rejecting.",
+                )
+                return None
+            self.logger.debug(
+                f"Kelly size after validation factor for {symbol}: ${calculated_size_usd:.2f}",
+            )
+        return calculated_size_usd
+
+    def _construct_sized_opportunity(
+        self, opportunity: ArbitrageOpportunity, final_size: Decimal, total_capital: Decimal
+    ) -> SizedOpportunity:
+        """Construct SizedOpportunity from calculated size."""
+        allocation_percentage = (final_size / total_capital) if total_capital > ZERO else ZERO
+        # Re-calculate expected profit based on the final size
+        expected_return_pct = opportunity.net_funding_differential
+        expected_profit = final_size * expected_return_pct
+        # Placeholder for risk-adjusted return (e.g., Sharpe ratio if volatility is meaningful)
+        risk_adjusted_return = expected_return_pct  # Simplistic for now
+
+        return SizedOpportunity(
+            opportunity=opportunity,
+            long_size=final_size,
+            short_size=final_size,  # Assuming symmetric size for now
+            allocation_percentage=allocation_percentage,
+            expected_profit=expected_profit,
+            expected_return=expected_return_pct,
+            risk_adjusted_return=risk_adjusted_return,
+        )
+
+    def _log_and_return_result(
+        self, opportunity: ArbitrageOpportunity, final_sized_opportunity: SizedOpportunity | None
+    ) -> SizedOpportunity | None:
+        """Log the final result and return it."""
         logger.debug(
             f"[RM_SIZE_OPP_DEBUG] After _apply_portfolio_level_controls, "
             f"final_sized_opportunity is: {final_sized_opportunity}, "

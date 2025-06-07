@@ -15,6 +15,7 @@ import structlog
 
 from cyberdelta.config import AppSettings
 from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager
@@ -157,6 +158,14 @@ class StrategyManager:
         if data.symbol not in self.active_symbols:
             return
 
+        # Update historical data for all strategies
+        await self._update_historical_data(data)
+
+        # Process data through each enabled strategy
+        await self._process_strategies_for_symbol(data)
+
+    async def _update_historical_data(self, data: Candle) -> None:
+        """Update historical data for all strategies handling this symbol."""
         strategy_name = ""  # Initialize strategy_name
         try:
             for _strategy_name, strategy in self.strategies.items():
@@ -174,6 +183,8 @@ class StrategyManager:
             )
             raise
 
+    async def _process_strategies_for_symbol(self, data: Candle) -> None:
+        """Process data through each enabled strategy for this symbol."""
         for strategy_name in list(self.enabled_strategies):
             if strategy_name not in self.strategies:
                 continue
@@ -182,93 +193,122 @@ class StrategyManager:
             if strategy.symbol != data.symbol:
                 continue
 
-            try:
-                generated_signals = await strategy.process_data(data)
-            except Exception as e:
-                logger.error(
-                    f"Error processing data in strategy '{strategy_name}'",
-                    error=str(e),
-                    exc_info=True,
-                )
-                continue
+            await self._process_single_strategy(strategy, data, strategy_name)
 
-            if generated_signals is None:
-                continue
-
-            signal_list = (
-                generated_signals if isinstance(generated_signals, list) else [generated_signals]
+    async def _process_single_strategy(
+        self, strategy: Strategy, data: Candle, strategy_name: str
+    ) -> None:
+        """Process data through a single strategy and handle generated signals."""
+        try:
+            generated_signals = await strategy.process_data(data)
+        except Exception as e:
+            logger.error(
+                f"Error processing data in strategy '{strategy_name}'",
+                error=str(e),
+                exc_info=True,
             )
+            return
 
-            for signal in signal_list:
-                # Type validated by Pydantic on Strategy return hint, isinstance check removed.
-                # Basic Sanity Check:
-                if not all(
-                    [
-                        getattr(signal, "symbol", None) is not None,
-                        getattr(signal, "signal_type", None) is not None,
-                        getattr(signal, "side", None) is not None,
-                        getattr(signal, "price", None) is not None,
-                        getattr(signal, "quantity", None) is not None,
-                    ],
-                ):
-                    # Attempt to get a structured representation if possible
-                    if hasattr(signal, "model_dump") and callable(signal.model_dump):
-                        try:
-                            signal_data_dict = signal.model_dump()  # Renamed variable
-                        except Exception as dump_err:
-                            logger.warning(
-                                f"Failed to dump malformed signal data: {dump_err}",
-                                signal_object=str(signal),  # Fallback to str()
-                            )
-                            signal_data_dict = {"error": "Failed to dump signal"}  # Provide a dict
-                    else:
-                        signal_data_dict = {"raw_signal": str(signal)}  # Provide a dict
+        if generated_signals is None:
+            return
 
-                    logger.warning(
-                        "Malformed signal received from strategy",
-                        strategy_name=strategy.name,
-                        signal_data=signal_data_dict,  # Log the dict
-                        error_details=(
-                            "Signal object missing required attributes or not a TradeSignal"
-                        ),
-                    )
-                    continue  # Skip to the next signal
+        signal_list = (
+            generated_signals if isinstance(generated_signals, list) else [generated_signals]
+        )
 
-                # --- Risk Management and Sizing --- #
-                try:
-                    # For now, skip risk management sizing since the method doesn't exist
-                    # TODO: Implement proper risk management integration
-                    # sized_signal = await self.risk_manager.validate_and_size_trade_signal(signal)
-                    # if sized_signal is None:
-                    #     logger.info(
-                    #         f"Signal rejected by risk manager sizing: {signal.signal_id}",
-                    #         signal_symbol=signal.symbol,
-                    #     )
-                    #     continue
-                    # signal = sized_signal  # Replace original signal with sized one
-                    pass  # Placeholder for future risk management integration
+        for signal in signal_list:
+            await self._process_single_signal(signal, strategy)
 
-                except Exception as risk_e:
-                    logger.error(
-                        "Error during potential (currently bypassed) risk management step",
-                        signal_id=signal.signal_id if signal else None,
-                        error=str(risk_e),
-                        exc_info=True,
-                    )
-                    continue
+    async def _process_single_signal(self, signal: TradeSignal, strategy: Strategy) -> None:
+        """Process a single signal through validation and queue addition."""
+        # Validate signal
+        if not self._validate_signal(signal, strategy):
+            return
 
-                # --- Add to Signal Queue --- #
-                try:
-                    # add_signal is now asynchronous
-                    await self.signal_queue.add_signal(signal)  # Add await
-                    logger.debug("Signal added to queue", signal_id=signal.signal_id)
-                except Exception as queue_e:  # Use different variable name
-                    logger.error(
-                        "Signal queue failed to add signal",
-                        signal_id=signal.signal_id,
-                        error=str(queue_e),  # Use queue_e
-                        exc_info=True,
-                    )
+        # Apply risk management (placeholder for now)
+        if not await self._apply_risk_management(signal):
+            return
+
+        # Add to signal queue
+        await self._add_signal_to_queue(signal)
+
+    def _validate_signal(self, signal: TradeSignal, strategy: Strategy) -> bool:
+        """Validate that a signal has all required fields."""
+        # Basic Sanity Check:
+        if not all(
+            [
+                getattr(signal, "symbol", None) is not None,
+                getattr(signal, "signal_type", None) is not None,
+                getattr(signal, "side", None) is not None,
+                getattr(signal, "price", None) is not None,
+                getattr(signal, "quantity", None) is not None,
+            ],
+        ):
+            # Attempt to get a structured representation if possible
+            signal_data_dict = self._get_signal_data_dict(signal)
+
+            logger.warning(
+                "Malformed signal received from strategy",
+                strategy_name=strategy.name,
+                signal_data=signal_data_dict,  # Log the dict
+                error_details=("Signal object missing required attributes or not a TradeSignal"),
+            )
+            return False
+
+        return True
+
+    def _get_signal_data_dict(self, signal: TradeSignal) -> dict[str, Any]:
+        """Get a dictionary representation of signal data for logging."""
+        if hasattr(signal, "model_dump") and callable(signal.model_dump):
+            try:
+                return signal.model_dump()
+            except Exception as dump_err:
+                logger.warning(
+                    f"Failed to dump malformed signal data: {dump_err}",
+                    signal_object=str(signal),  # Fallback to str()
+                )
+                return {"error": "Failed to dump signal"}
+        else:
+            return {"raw_signal": str(signal)}
+
+    async def _apply_risk_management(self, signal: TradeSignal) -> bool:
+        """Apply risk management to a signal (placeholder for now)."""
+        try:
+            # For now, skip risk management sizing since the method doesn't exist
+            # TODO: Implement proper risk management integration
+            # sized_signal = await self.risk_manager.validate_and_size_trade_signal(signal)
+            # if sized_signal is None:
+            #     logger.info(
+            #         f"Signal rejected by risk manager sizing: {signal.signal_id}",
+            #         signal_symbol=signal.symbol,
+            #     )
+            #     return False
+            # signal = sized_signal  # Replace original signal with sized one
+            pass  # Placeholder for future risk management integration
+            return True
+
+        except Exception as risk_e:
+            logger.error(
+                "Error during potential (currently bypassed) risk management step",
+                signal_id=signal.signal_id if signal else None,
+                error=str(risk_e),
+                exc_info=True,
+            )
+            return False
+
+    async def _add_signal_to_queue(self, signal: TradeSignal) -> None:
+        """Add a validated signal to the signal queue."""
+        try:
+            # add_signal is now asynchronous
+            await self.signal_queue.add_signal(signal)  # Add await
+            logger.debug("Signal added to queue", signal_id=signal.signal_id)
+        except Exception as queue_e:  # Use different variable name
+            logger.error(
+                "Signal queue failed to add signal",
+                signal_id=signal.signal_id,
+                error=str(queue_e),  # Use queue_e
+                exc_info=True,
+            )
 
     async def on_market_data(self, market_data: Candle) -> None:
         """Entry point for market data. Processes data via relevant strategies."""

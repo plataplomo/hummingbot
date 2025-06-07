@@ -195,7 +195,13 @@ class DerivativePosition(BaseModel):
     @model_validator(mode="after")
     def check_position_logic(self) -> Self:
         """Validate cross-field consistency (entry_price, side/size, details slots)."""
-        # Entry Price Logic
+        self._validate_entry_price_logic()
+        self._validate_side_size_logic()
+        self._validate_extension_slot_consistency()
+        return self
+
+    def _validate_entry_price_logic(self) -> None:
+        """Validate entry price consistency with position size."""
         if self.size != Decimal("0"):
             if self.entry_price is None:
                 raise ValueError("entry_price must be provided if size is non-zero")
@@ -205,14 +211,17 @@ class DerivativePosition(BaseModel):
             if self.entry_price is not None:
                 raise ValueError("entry_price must be None if size is zero")
 
-        # Side vs Size Logic
+    def _validate_side_size_logic(self) -> None:
+        """Validate side consistency with position size."""
         if self.size > Decimal("0") and self.side != OrderSide.BUY:
             raise ValueError("side must be BUY if size is positive")
         if self.size < Decimal("0") and self.side != OrderSide.SELL:
             raise ValueError("side must be SELL if size is negative")
 
-        # Check Extension Slot Consistency (Idea 5)
+    def _validate_extension_slot_consistency(self) -> None:
+        """Validate exchange-specific details consistency (Idea 5)."""
         known_exchanges_with_details = {"hyperliquid", "backpack"}
+
         if self.exchange == "hyperliquid" and self.bp_details is not None:
             raise ValueError(
                 "Backpack details (bp_details) must be None for a Hyperliquid position",
@@ -221,6 +230,7 @@ class DerivativePosition(BaseModel):
             raise ValueError(
                 "Hyperliquid details (hl_details) must be None for a Backpack position",
             )
+
         # Add check for unrecognized exchanges having details
         if self.exchange not in known_exchanges_with_details:
             if self.hl_details is not None or self.bp_details is not None:
@@ -228,8 +238,6 @@ class DerivativePosition(BaseModel):
                     f"Exchange-specific details provided for unrecognized exchange: "
                     f"{self.exchange}",
                 )
-
-        return self
 
 
 # --- Derivative Position Details & Sub-Models (INTERNAL) ---

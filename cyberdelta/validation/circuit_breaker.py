@@ -694,14 +694,28 @@ class CircuitBreakerSystem:
             Tuple of (can_execute, reason_if_blocked)
 
         """
+        # Check global breakers first
+        global_check_result = self._check_global_breakers()
+        if global_check_result[0] is False:
+            return global_check_result
+
+        # Check exchange-specific breakers
+        exchange_check_result = self._check_exchange_breakers(exchange, symbol)
+        if exchange_check_result[0] is False:
+            return exchange_check_result
+
+        return True, None  # Allowed if no breakers are OPEN
+
+    def _check_global_breakers(self) -> tuple[bool, str | None]:
+        """Check all global circuit breakers."""
         now = datetime.now(UTC)
 
-        # Check global breakers
         for breaker_name, breaker in self.breakers.items():
             if not breaker.allow_operation():
                 reason = f"Global breaker '{breaker_name}' is OPEN due to: {breaker.trip_reason}"
                 logger.warning(f"Execution blocked: {reason}")
                 return False, reason
+
             # Test recovery for HALF_OPEN global breakers
             if breaker.state == BreakerState.HALF_OPEN and breaker.trip_time is not None:
                 cooldown_time = timedelta(seconds=breaker.cooldown_seconds)
@@ -713,54 +727,74 @@ class CircuitBreakerSystem:
                     else:
                         logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
 
-        # Check exchange-specific breakers
-        if exchange in self.exchange_breakers:
-            for _breaker_type, breaker_item in self.exchange_breakers[exchange].items():
-                # Use breaker.name which is the fully qualified name like "backpack/api_errors"
+        return True, None
 
-                breakers_to_check: list[CircuitBreaker] = []
-                if isinstance(breaker_item, CircuitBreaker):
-                    breakers_to_check.append(breaker_item)
-                else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
-                    # due to Union type
-                    # This is a dict of symbol-specific breakers
-                    if symbol and symbol in breaker_item:
-                        actual_breaker = breaker_item[symbol]
-                        breakers_to_check.append(actual_breaker)
-                    elif not symbol:
-                        for s_breaker in breaker_item.values():
-                            breakers_to_check.append(s_breaker)
-                    # No explicit `else` here for unexpected type within the dict branch,
-                    # as the values of that dict are expected to be CircuitBreaker.
+    def _check_exchange_breakers(
+        self, exchange: str, symbol: str | None
+    ) -> tuple[bool, str | None]:
+        """Check exchange-specific circuit breakers."""
+        if exchange not in self.exchange_breakers:
+            return True, None
 
-                for breaker in breakers_to_check:
-                    if not breaker.allow_operation():
-                        reason = (
-                            f"Exchange breaker '{breaker.name}' for {exchange} is OPEN due to: "
-                            f"{breaker.trip_reason}"
-                        )
-                        logger.warning(f"Execution blocked for {exchange}: {reason}")
-                        return False, reason
-                    # Test recovery for HALF_OPEN exchange breakers
-                    if breaker.state == BreakerState.HALF_OPEN and breaker.trip_time is not None:
-                        cooldown_time = timedelta(seconds=breaker.cooldown_seconds)
-                        if now >= breaker.trip_time + cooldown_time:
-                            if not breaker.test_recovery():
-                                reason = (
-                                    f"Exchange breaker '{breaker.name}' for {exchange} failed "
-                                    f"recovery test."
-                                )
-                                logger.warning(f"Execution blocked for {exchange}: {reason}")
-                                return False, reason
-                            else:
-                                logger.info(
-                                    f"Exchange breaker '{breaker.name}' for {exchange} recovered "
-                                    f"and is now CLOSED.",
-                                )
+        for _breaker_type, breaker_item in self.exchange_breakers[exchange].items():
+            breakers_to_check = self._get_breakers_to_check(breaker_item, symbol)
 
-        # TODO: Consider symbol-specific breakers if implemented more directly
+            for breaker in breakers_to_check:
+                check_result = self._check_individual_breaker(breaker, exchange)
+                if check_result[0] is False:
+                    return check_result
 
-        return True, None  # Allowed if no breakers are OPEN
+        return True, None
+
+    def _get_breakers_to_check(
+        self, breaker_item: CircuitBreaker | dict[str, CircuitBreaker], symbol: str | None
+    ) -> list[CircuitBreaker]:
+        """Get the list of breakers to check based on the breaker item type."""
+        breakers_to_check: list[CircuitBreaker] = []
+
+        if isinstance(breaker_item, CircuitBreaker):
+            breakers_to_check.append(breaker_item)
+        else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
+            # This is a dict of symbol-specific breakers
+            if symbol and symbol in breaker_item:
+                actual_breaker = breaker_item[symbol]
+                breakers_to_check.append(actual_breaker)
+            elif not symbol:
+                for s_breaker in breaker_item.values():
+                    breakers_to_check.append(s_breaker)
+
+        return breakers_to_check
+
+    def _check_individual_breaker(
+        self, breaker: CircuitBreaker, exchange: str
+    ) -> tuple[bool, str | None]:
+        """Check an individual circuit breaker and handle recovery testing."""
+        if not breaker.allow_operation():
+            reason = (
+                f"Exchange breaker '{breaker.name}' for {exchange} is OPEN due to: "
+                f"{breaker.trip_reason}"
+            )
+            logger.warning(f"Execution blocked for {exchange}: {reason}")
+            return False, reason
+
+        # Test recovery for HALF_OPEN exchange breakers
+        if breaker.state == BreakerState.HALF_OPEN and breaker.trip_time is not None:
+            now = datetime.now(UTC)
+            cooldown_time = timedelta(seconds=breaker.cooldown_seconds)
+            if now >= breaker.trip_time + cooldown_time:
+                if not breaker.test_recovery():
+                    reason = (
+                        f"Exchange breaker '{breaker.name}' for {exchange} failed recovery test."
+                    )
+                    logger.warning(f"Execution blocked for {exchange}: {reason}")
+                    return False, reason
+                else:
+                    logger.info(
+                        f"Exchange breaker '{breaker.name}' for {exchange} recovered "
+                        f"and is now CLOSED.",
+                    )
+
+        return True, None
 
     def record_api_error(self, exchange: str, error_message: str) -> None:
         """Record an API error for the specified exchange and globally.

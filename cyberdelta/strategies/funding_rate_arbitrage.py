@@ -26,6 +26,7 @@ from cyberdelta.core.models import (
     Ticker,
     TradeSignal,
 )
+from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
@@ -155,6 +156,57 @@ class FundingRateArbitrageStrategy(Strategy):
         # Get current time
         now = datetime.now(UTC)
 
+        # Get prices and validate
+        price_data = self._get_and_validate_prices()
+        if price_data is None:
+            return None
+
+        perp_price, spot_price, perp_ticker, spot_ticker = price_data
+
+        # Update historical basis data
+        basis = perp_price - spot_price
+        self._update_historical_basis(now, basis, max_history)
+
+        # Calculate basis volatility
+        basis_volatility = self._calculate_basis_volatility(self.symbol)
+
+        # Validate funding rate and check threshold
+        nfd = funding_rate.funding_rate
+        if not self._is_valid_funding_rate(nfd):
+            return None
+
+        # At this point nfd is guaranteed to be non-None due to validation
+        assert nfd is not None  # Type narrowing for mypy
+
+        # Calculate costs and profit
+        profit_data = self._calculate_profit_and_costs(nfd)
+        if profit_data is None:
+            return None
+
+        expected_profit, utility_score = profit_data
+
+        # Determine trading sides and entry prices
+        perp_side = "SHORT" if nfd > 0 else "LONG"
+        entry_prices = self._get_entry_prices(perp_ticker, spot_ticker, perp_side)
+        if entry_prices is None:
+            return None
+
+        long_price, short_price = entry_prices
+
+        # Create opportunity object
+        return self._create_opportunity_object(
+            now,
+            nfd,
+            expected_profit,
+            utility_score,
+            basis_volatility,
+            perp_side,
+            long_price,
+            short_price,
+        )
+
+    def _get_and_validate_prices(self) -> tuple[Decimal, Decimal, Ticker, Ticker] | None:
+        """Get and validate prices for perp and spot markets."""
         # Get prices for basis calculation
         perp_ticker = self.data_handler.get_latest_ticker(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
@@ -178,11 +230,10 @@ class FundingRateArbitrageStrategy(Strategy):
             )
             return None
 
-        perp_price = current_perp_price
-        spot_price = current_spot_price
-        basis = perp_price - spot_price
+        return current_perp_price, current_spot_price, perp_ticker, spot_ticker
 
-        # Update historical basis data
+    def _update_historical_basis(self, now: datetime, basis: Decimal, max_history: int) -> None:
+        """Update historical basis data."""
         if self.symbol not in self.historical_basis:
             self.historical_basis[self.symbol] = []
         self.historical_basis[self.symbol].append((now, basis))
@@ -191,25 +242,30 @@ class FundingRateArbitrageStrategy(Strategy):
         if len(self.historical_basis[self.symbol]) > max_history:
             self.historical_basis[self.symbol] = self.historical_basis[self.symbol][-max_history:]
 
-        # Calculate basis volatility
-        basis_volatility = self._calculate_basis_volatility(self.symbol)
-
-        # Calculate Net Funding Differential (NFD)
-        nfd = funding_rate.funding_rate
+    def _is_valid_funding_rate(self, nfd: Decimal | None) -> bool:
+        """Validate funding rate and check if it meets threshold."""
         if nfd is None:
             logger.warning(
-                f"Funding rate value is None for {self.symbol} on "
-                f"{self.perp_exchange} from {funding_rate}",
+                f"Funding rate value is None for {self.symbol} on {self.perp_exchange}",
             )
-            return None
+            return False
 
         # Skip if NFD is below threshold
         if abs(nfd) < self.min_funding_differential:
             logger.debug(f"NFD ({nfd:.6f}%) below threshold ({self.min_funding_differential:.6f}%)")
-            return None
+            return False
 
+        return True
+
+    def _calculate_profit_and_costs(self, nfd: Decimal) -> tuple[Decimal, float] | None:
+        """Calculate expected profit and utility score."""
         # Estimate position size (will be refined by risk manager)
         position_size = Decimal("1000.0")
+
+        # Get spot symbol for cost calculation
+        spot_symbol = self.symbol_mapping.get(self.symbol)
+        if spot_symbol is None:
+            return None
 
         # Estimate trading costs
         perp_slippage = self._estimate_slippage(self.symbol, position_size, self.perp_exchange)
@@ -235,20 +291,21 @@ class FundingRateArbitrageStrategy(Strategy):
             return None
 
         # Calculate utility score
+        basis_volatility = self._calculate_basis_volatility(self.symbol)
         utility_score = expected_profit - (self.risk_aversion * (basis_volatility**2))
 
-        # Determine which side to take based on funding rate
-        perp_side = "SHORT" if nfd > 0 else "LONG"
+        return expected_profit, float(utility_score)
 
-        # Determine entry prices based on Candle close prices
-        # A real strategy might estimate entry better (e.g., mid-price, or consider liquidity)
-        # For simplicity, use the close price of the respective tickers
-
+    def _get_entry_prices(
+        self, perp_ticker: Ticker, spot_ticker: Ticker, perp_side: str
+    ) -> tuple[Decimal, Decimal] | None:
+        """Get entry prices for long and short positions."""
         # Ensure prices are not None before using them
         entry_perp_price = perp_ticker.price
         entry_spot_price = spot_ticker.price
 
         if entry_perp_price is None or entry_spot_price is None:
+            spot_symbol = self.symbol_mapping.get(self.symbol)
             logger.warning(
                 f"Cannot determine entry prices due to None ticker price for "
                 f"{self.symbol} or {spot_symbol}.",
@@ -258,7 +315,20 @@ class FundingRateArbitrageStrategy(Strategy):
         long_price = entry_perp_price if perp_side == "LONG" else entry_spot_price
         short_price = entry_spot_price if perp_side == "LONG" else entry_perp_price
 
-        # Create opportunity object
+        return long_price, short_price
+
+    def _create_opportunity_object(
+        self,
+        now: datetime,
+        nfd: Decimal,
+        expected_profit: Decimal,
+        utility_score: float,
+        basis_volatility: Decimal,
+        perp_side: str,
+        long_price: Decimal,
+        short_price: Decimal,
+    ) -> ArbitrageOpportunity:
+        """Create the arbitrage opportunity object."""
         opportunity = ArbitrageOpportunity(
             symbol=self.symbol,
             long_exchange=self.perp_exchange if perp_side == "LONG" else self.spot_exchange,
@@ -270,7 +340,7 @@ class FundingRateArbitrageStrategy(Strategy):
             net_funding_differential=nfd,
             timestamp=now,
             expected_profit=expected_profit,
-            utility_score=float(utility_score),
+            utility_score=utility_score,
             basis_volatility=float(basis_volatility),
             optimal_size=None,
         )
@@ -655,129 +725,196 @@ class FundingRateArbitrageStrategy(Strategy):
             logger.error(f"PortfolioTracker not set for {self.name}")
             return signals
 
+        # Get positions and validate
+        position_data = self._get_and_validate_positions()
+        if position_data is None:
+            return signals
+
+        perp_position, spot_position, spot_symbol = position_data
+
+        # Get and validate prices
+        price_data = self._get_and_validate_rebalance_prices(perp_ticker_live, spot_ticker_live)
+        if price_data is None:
+            return signals
+
+        perp_price_rebal, spot_price_rebal = price_data
+
+        # Calculate net exposure and check if rebalancing is needed
+        net_exposure = self._calculate_net_exposure(
+            perp_position, spot_position, perp_price_rebal, spot_price_rebal
+        )
+
+        if not self._should_rebalance_based_on_exposure(
+            net_exposure, perp_position, spot_position, perp_price_rebal, spot_price_rebal
+        ):
+            return signals
+
+        # Generate rebalance signal
+        rebalance_signal = self._create_rebalance_signal(
+            net_exposure,
+            perp_position,
+            spot_position,
+            perp_price_rebal,
+            spot_price_rebal,
+            spot_symbol,
+        )
+
+        if rebalance_signal:
+            signals.append(rebalance_signal)
+
+        return signals
+
+    def _get_and_validate_positions(
+        self,
+    ) -> tuple[DerivativePosition, DerivativePosition, str] | None:
+        """Get and validate perp and spot positions."""
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
             logger.error(f"Spot symbol not mapped for {self.symbol} in _generate_rebalance_signal")
-            return signals
+            return None
         spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
 
-        if (
-            perp_ticker_live is None or spot_ticker_live is None
-        ):  # Short-circuit before accessing .price
+        # Check if positions are None before accessing .size
+        if perp_position is None or spot_position is None:
+            logger.warning("Perp or spot position is None, cannot rebalance.")
+            return None
+
+        return perp_position, spot_position, spot_symbol
+
+    def _get_and_validate_rebalance_prices(
+        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+    ) -> tuple[Decimal, Decimal] | None:
+        """Get and validate live prices for rebalancing."""
+        if perp_ticker_live is None or spot_ticker_live is None:
             logger.warning("Live ticker data unavailable for rebalance check (ticker object None).")
-            return signals
+            return None
 
         current_perp_live_price = perp_ticker_live.price
         current_spot_live_price = spot_ticker_live.price
 
         if current_perp_live_price is None or current_spot_live_price is None:
             logger.warning("Live ticker data unavailable for rebalance check (price is None).")
-            return signals
+            return None
 
-        perp_price_rebal = current_perp_live_price
-        spot_price_rebal = current_spot_live_price
+        return current_perp_live_price, current_spot_live_price
 
-        # Check if positions are None before accessing .size
-        if perp_position is None or spot_position is None:
-            logger.warning("Perp or spot position is None, cannot rebalance.")
-            return signals
-        # Assuming DerivativePosition.size is Decimal (not Decimal | None)
-        # The original check also had: or perp_position.size is None or spot_position.size is None
-        # If .size can be None, that check needs to be here too.
-        # For now, assuming .size is non-optional if position object exists.
-
+    def _calculate_net_exposure(
+        self,
+        perp_position: DerivativePosition,
+        spot_position: DerivativePosition,
+        perp_price: Decimal,
+        spot_price: Decimal,
+    ) -> Decimal:
+        """Calculate net exposure across perp and spot positions."""
         # Simplified rebalancing: aim for market-neutral by value
         # Positive size = long, negative size = short
-        perp_value = perp_position.size * perp_price_rebal
-        spot_value = spot_position.size * spot_price_rebal
-        net_exposure = perp_value + spot_value
+        perp_value = perp_position.size * perp_price
+        spot_value = spot_position.size * spot_price
+        return perp_value + spot_value
 
+    def _should_rebalance_based_on_exposure(
+        self,
+        net_exposure: Decimal,
+        perp_position: DerivativePosition,
+        spot_position: DerivativePosition,
+        perp_price: Decimal,
+        spot_price: Decimal,
+    ) -> bool:
+        """Determine if rebalancing is needed based on net exposure."""
         # If net exposure is significant, rebalance
         # Example: rebalance if exposure is > 1% of the smaller leg's absolute value
-        # This threshold logic can be much more sophisticated
+        perp_value = perp_position.size * perp_price
+        spot_value = spot_position.size * spot_price
         threshold_value = min(abs(perp_value), abs(spot_value)) * Decimal("0.01")
+
         if threshold_value == Decimal(0) and net_exposure != Decimal(0):
             logger.info(
                 f"Rebalance needed for {self.symbol} due to zero threshold and "
                 f"non-zero exposure: {net_exposure}",
             )
+            return True
         elif abs(net_exposure) > threshold_value and threshold_value > Decimal(0):
             logger.info(
                 f"Rebalance triggered for {self.symbol}. Net exposure: {net_exposure}, "
                 f"Threshold: {threshold_value}",
             )
-        else:
-            return signals  # No rebalancing needed
+            return True
 
-        # Determine which leg to adjust and by how much (simplified)
-        # This logic assumes we want to bring net_exposure closer to zero.
-        # A more robust approach would consider transaction costs, minimum order sizes etc.
+        return False
 
+    def _create_rebalance_signal(
+        self,
+        net_exposure: Decimal,
+        perp_position: DerivativePosition,
+        spot_position: DerivativePosition,
+        perp_price: Decimal,
+        spot_price: Decimal,
+        spot_symbol: str,
+    ) -> TradeSignal | None:
+        """Create a rebalance signal based on net exposure."""
         if abs(net_exposure) < Decimal("0.01"):  # Effectively zero, no rebalance needed
-            return signals
+            return None
 
-        if net_exposure > Decimal(0):  # Net long, need to sell something or buy less
-            # Option 1: Sell some of the leg that made it net long
-            # (e.g. if perp_value is more positive)
-            # Option 2: Increase the short leg
-            # Simplified: Adjust the perpetual leg by the net exposure amount
+        # Determine which leg to adjust and by how much
+        if net_exposure > Decimal(0):  # Net long, need to sell something
             if perp_position.size > 0:  # If perp is long, sell some
                 side = OrderSide.SELL
                 exchange_to_adjust = self.perp_exchange
                 symbol_to_adjust = self.symbol
-                price_to_use = perp_price_rebal
+                price_to_use = perp_price
             else:  # Perp is short, sell more of spot (if spot is long)
                 side = OrderSide.SELL
                 exchange_to_adjust = self.spot_exchange
                 symbol_to_adjust = spot_symbol
-                price_to_use = spot_price_rebal
-        else:  # Net short, need to buy something or sell less
+                price_to_use = spot_price
+        else:  # Net short, need to buy something
             if perp_position.size < 0:  # If perp is short, buy some back
                 side = OrderSide.BUY
                 exchange_to_adjust = self.perp_exchange
                 symbol_to_adjust = self.symbol
-                price_to_use = perp_price_rebal
+                price_to_use = perp_price
             else:  # Perp is long, buy more of spot (if spot is short)
                 side = OrderSide.BUY
                 exchange_to_adjust = self.spot_exchange
                 symbol_to_adjust = spot_symbol
-                price_to_use = spot_price_rebal
+                price_to_use = spot_price
 
         if price_to_use <= Decimal(0):
             logger.warning(
                 f"Price for rebalancing {symbol_to_adjust} is zero or None, "
                 f"cannot calculate quantity.",
             )
-            return signals
+            return None
 
         quantity_to_rebalance = abs(net_exposure) / price_to_use
 
-        if quantity_to_rebalance > Decimal("0"):  # Ensure non-zero quantity
-            signals.append(
-                TradeSignal(
-                    source_strategy=self.name,
-                    symbol=symbol_to_adjust,
-                    exchange=exchange_to_adjust,
-                    side=side,
-                    price=price_to_use,  # Use current market price for rebalance
-                    quantity=quantity_to_rebalance,
-                    signal_type=SignalType.REBALANCE,
-                    timestamp=datetime.now(UTC),
-                    # Confidence for rebalance might be different or not applicable
-                    confidence=1.0,  # MODIFIED: Decimal to float
-                    metadata={
-                        "strategy_name": self.name,
-                        "opportunity_id": "REBALANCE-" + datetime.now(UTC).isoformat(),
-                    },
-                ),
-            )
-            logger.info(
-                f"Generated rebalance signal: {side} {quantity_to_rebalance} "
-                f"{symbol_to_adjust} on {exchange_to_adjust}",
-            )
+        if quantity_to_rebalance <= Decimal("0"):
+            return None
 
-        return signals
+        signal = TradeSignal(
+            source_strategy=self.name,
+            symbol=symbol_to_adjust,
+            exchange=exchange_to_adjust,
+            side=side,
+            price=price_to_use,  # Use current market price for rebalance
+            quantity=quantity_to_rebalance,
+            signal_type=SignalType.REBALANCE,
+            timestamp=datetime.now(UTC),
+            # Confidence for rebalance might be different or not applicable
+            confidence=1.0,  # MODIFIED: Decimal to float
+            metadata={
+                "strategy_name": self.name,
+                "opportunity_id": "REBALANCE-" + datetime.now(UTC).isoformat(),
+            },
+        )
+
+        logger.info(
+            f"Generated rebalance signal: {side} {quantity_to_rebalance} "
+            f"{symbol_to_adjust} on {exchange_to_adjust}",
+        )
+
+        return signal
 
     def on_start(self) -> None:
         """Start the strategy and initialize any required state."""

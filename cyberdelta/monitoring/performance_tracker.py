@@ -601,69 +601,92 @@ class PerformanceTracker:
             if not self.funding_rates:
                 return pd.DataFrame()
 
-            # Make a copy to filter
-            filtered_rates = list(self.funding_rates)
-
-            if exchange:
-                filtered_rates = [r for r in filtered_rates if r.get("exchange") == exchange]
-
-            if symbol:
-                filtered_rates = [r for r in filtered_rates if r.get("symbol") == symbol]
-
-            # Filter by time
-            if start_time:
-                start_dt = pd.to_datetime(start_time)
-                filtered_rates = [
-                    r
-                    for r in filtered_rates
-                    if r.get("timestamp") and pd.to_datetime(r["timestamp"]) >= start_dt
-                ]
-
-            if end_time:
-                end_dt = pd.to_datetime(end_time)
-                filtered_rates = [
-                    r
-                    for r in filtered_rates
-                    if r.get("timestamp") and pd.to_datetime(r["timestamp"]) <= end_dt
-                ]
+            # Filter the funding rates data
+            filtered_rates = self._filter_funding_rates(exchange, symbol, start_time, end_time)
 
             if not filtered_rates:
                 return pd.DataFrame()
 
-            # Convert to DataFrame
-            df = pd.DataFrame(filtered_rates)
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            numeric_cols = ["funding_rate", "predicted_rate"]
-            for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            # Convert to DataFrame and process
+            df = self._create_funding_rates_dataframe(filtered_rates)
 
-            # Set index
-            df = df.set_index("timestamp")
+            # Apply pivot if requested
+            return self._apply_pivot_if_requested(df, pivot)
 
-            # Pivot if requested
-            if pivot and "symbol" in df.columns and "funding_rate" in df.columns:
-                try:
-                    # Pivot requires unique index/column combinations
-                    # Drop duplicates based on index (timestamp) and symbol before pivoting
-                    df_unique = df.reset_index().drop_duplicates(
-                        subset=["timestamp", "symbol"],
-                        keep="last",
-                    )
-                    df_pivot = df_unique.pivot(
-                        index="timestamp",
-                        columns="symbol",
-                        values="funding_rate",
-                    )
-                    return df_pivot
-                except Exception as e:
-                    logger.warning(
-                        f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}",
-                    )
-                    # Return the unpivoted DataFrame if pivot fails
-                    return df.sort_index()
-            else:
+    def _filter_funding_rates(
+        self,
+        exchange: str | None,
+        symbol: str | None,
+        start_time: datetime | None,
+        end_time: datetime | None,
+    ) -> list[dict[str, Any]]:
+        """Filter funding rates by exchange, symbol, and time range."""
+        # Make a copy to filter
+        filtered_rates = list(self.funding_rates)
+
+        if exchange:
+            filtered_rates = [r for r in filtered_rates if r.get("exchange") == exchange]
+
+        if symbol:
+            filtered_rates = [r for r in filtered_rates if r.get("symbol") == symbol]
+
+        # Filter by time
+        if start_time:
+            start_dt = pd.to_datetime(start_time)
+            filtered_rates = [
+                r
+                for r in filtered_rates
+                if r.get("timestamp") and pd.to_datetime(r["timestamp"]) >= start_dt
+            ]
+
+        if end_time:
+            end_dt = pd.to_datetime(end_time)
+            filtered_rates = [
+                r
+                for r in filtered_rates
+                if r.get("timestamp") and pd.to_datetime(r["timestamp"]) <= end_dt
+            ]
+
+        return filtered_rates
+
+    def _create_funding_rates_dataframe(self, filtered_rates: list[dict[str, Any]]) -> pd.DataFrame:
+        """Create and process the funding rates DataFrame."""
+        # Convert to DataFrame
+        df = pd.DataFrame(filtered_rates)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        numeric_cols = ["funding_rate", "predicted_rate"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Set index
+        df = df.set_index("timestamp")
+        return df
+
+    def _apply_pivot_if_requested(self, df: pd.DataFrame, pivot: bool) -> pd.DataFrame:
+        """Apply pivot transformation if requested."""
+        if pivot and "symbol" in df.columns and "funding_rate" in df.columns:
+            try:
+                # Pivot requires unique index/column combinations
+                # Drop duplicates based on index (timestamp) and symbol before pivoting
+                df_unique = df.reset_index().drop_duplicates(
+                    subset=["timestamp", "symbol"],
+                    keep="last",
+                )
+                df_pivot = df_unique.pivot(
+                    index="timestamp",
+                    columns="symbol",
+                    values="funding_rate",
+                )
+                return df_pivot
+            except Exception as e:
+                logger.warning(
+                    f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}",
+                )
+                # Return the unpivoted DataFrame if pivot fails
                 return df.sort_index()
+        else:
+            return df.sort_index()
 
     # --- Persistence Methods (delegated) --- #
 

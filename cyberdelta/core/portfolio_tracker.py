@@ -1031,136 +1031,19 @@ class PortfolioTracker:
 
         for exchange_id, positions in self.positions.items():
             for position_key, position in positions.items():
-                # Add position's own realized PNL if it's valid
-                # Re-adding None check for safety, along with finiteness
-                if position.realized_pnl is not None and position.realized_pnl.is_finite():
-                    pnl_quote_asset = (
-                        position.symbol.split("_")[-1]
-                        if "_" in position.symbol
-                        else position.symbol.split("-")[-1]
-                    )  # Simple guess
-                    conversion_rate = await self._get_asset_price_in_base(
-                        exchange_id,
-                        pnl_quote_asset,
-                        base_currency,
-                    )
-
-                    # Check conversion rate validity
-                    if conversion_rate is not None and conversion_rate.is_finite():
-                        try:
-                            # Ensure we only add Decimal to Decimal
-                            converted_pnl = position.realized_pnl * conversion_rate
-                            if converted_pnl.is_finite():  # Final check before adding
-                                total_realized_pnl += converted_pnl
-                            else:
-                                logger.warning(
-                                    f"Converted realized PNL for {position_key} "
-                                    f"is not finite ({converted_pnl}). Skipping addition.",
-                                )
-                        except (TypeError, InvalidOperation) as e:
-                            logger.error(
-                                f"Error during realized PNL conversion/addition "
-                                f"for {position_key}: {e}",
-                            )
-                    else:
-                        logger.warning(
-                            f"Cannot convert realized PNL for {position_key} on {exchange_id} "
-                            f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
-                            f"Conversion Rate: {conversion_rate}.",
-                        )
-                elif position.realized_pnl is not None:  # Log if it exists but isn't finite
-                    logger.warning(
-                        f"Position {position_key} realized PNL is not finite: "
-                        f"{position.realized_pnl}",
-                    )
-
-                # Calculate unrealized PNL
-                # DEFENSIVE CHECK: Check entry_price is not None *before* size check
-                # because a non-zero size *requires* a non-None entry_price (model validation)
-                if position.size == Decimal("0") or position.entry_price is None:
-                    logger.debug(
-                        f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
-                        f"due to zero size or missing entry price.",
-                    )
-                    continue
-
-                # 1. Get Mark Price in the requested Base Currency
-                mark_price_in_base = await self._get_asset_price_in_base(
-                    exchange_id,
-                    position.symbol,
-                    base_currency,
+                # Process realized PNL
+                total_realized_pnl = await self._process_position_realized_pnl(
+                    position, position_key, exchange_id, base_currency, total_realized_pnl
                 )
 
-                # 2. Get Entry Price (which is in the Quote currency of the symbol)
-                entry_price_in_quote = position.entry_price
+                # Process unrealized PNL
+                unrealized_pnl = await self._calculate_position_unrealized_pnl(
+                    position, position_key, exchange_id, base_currency
+                )
+                if unrealized_pnl is not None:
+                    total_unrealized_pnl += unrealized_pnl
 
-                # 3. Determine the Quote Currency from the symbol
-                quote_currency = None
-                if "-" in position.symbol:
-                    quote_currency = position.symbol.split("-")[-1]
-                elif "_" in position.symbol:
-                    quote_currency = position.symbol.split("_")[-1]
-                else:
-                    logger.warning(
-                        f"Cannot determine quote currency for symbol {position.symbol}, "
-                        f"cannot calculate unrealized PNL accurately.",
-                    )
-                    continue  # Skip if we can't determine quote currency
-
-                # 4. Convert Entry Price from Quote Currency to Base Currency
-                entry_price_in_base: Decimal | None
-                if quote_currency == base_currency:
-                    entry_price_in_base = entry_price_in_quote
-                else:
-                    # Need conversion rate from quote to base
-                    quote_to_base_rate = await self._get_asset_price_in_base(
-                        exchange_id,
-                        quote_currency,
-                        base_currency,
-                    )
-                    if quote_to_base_rate is not None:
-                        entry_price_in_base = entry_price_in_quote * quote_to_base_rate
-                    else:
-                        logger.warning(
-                            f"Cannot convert entry price for {position.symbol} "
-                            f"from {quote_currency} to {base_currency}. "
-                            f"Skipping unrealized PNL.",
-                        )
-                        entry_price_in_base = None  # Explicitly set to None if conversion fails
-
-                # 5. Calculate Unrealized PNL if possible
-                # DEFENSIVE CHECK: Add explicit None checks for mark_price_in_base
-                # and entry_price_in_base
-                if (
-                    mark_price_in_base is not None
-                    and entry_price_in_base is not None
-                    and mark_price_in_base.is_finite()
-                    and entry_price_in_base.is_finite()  # Check finiteness here
-                ):
-                    try:
-                        # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
-                        unrealized_pnl = position.size * (mark_price_in_base - entry_price_in_base)
-                        total_unrealized_pnl += unrealized_pnl
-                        logger.debug(
-                            f"  [{exchange_id}] Position PNL: {position.symbol} "
-                            f"size {position.size}, entry_base {entry_price_in_base:.4f}, "
-                            f"mark_base {mark_price_in_base:.4f} => Unrealized: "
-                            f"{unrealized_pnl:.4f} {base_currency}",
-                        )
-
-                    except (TypeError, InvalidOperation) as e:
-                        logger.error(
-                            f"Error calculating unrealized PNL for {position_key} "
-                            f"on {exchange_id}: {e}",
-                        )
-                else:
-                    logger.warning(
-                        f"Skipping unrealized PNL calculation for {position_key} "
-                        f"({position.symbol}) on {exchange_id} due to missing/invalid "
-                        f"converted prices (MarkBase={mark_price_in_base}, "
-                        f"EntryBase={entry_price_in_base}).",
-                    )
-
+        # Ensure finite results
         finite_realized = total_realized_pnl if total_realized_pnl.is_finite() else Decimal("0.0")
         finite_unrealized = (
             total_unrealized_pnl if total_unrealized_pnl.is_finite() else Decimal("0.0")
@@ -1171,6 +1054,201 @@ class PortfolioTracker:
             f"Unrealized={finite_unrealized} {base_currency}",
         )
         return finite_realized, finite_unrealized
+
+    async def _process_position_realized_pnl(
+        self,
+        position: DerivativePosition,
+        position_key: str,
+        exchange_id: str,
+        base_currency: str,
+        total_realized_pnl: Decimal,
+    ) -> Decimal:
+        """Process realized PNL for a single position."""
+        # Add position's own realized PNL if it's valid
+        # Re-adding None check for safety, along with finiteness
+        if position.realized_pnl is not None and position.realized_pnl.is_finite():
+            pnl_quote_asset = (
+                position.symbol.split("_")[-1]
+                if "_" in position.symbol
+                else position.symbol.split("-")[-1]
+            )  # Simple guess
+            conversion_rate = await self._get_asset_price_in_base(
+                exchange_id,
+                pnl_quote_asset,
+                base_currency,
+            )
+
+            # Check conversion rate validity
+            if conversion_rate is not None and conversion_rate.is_finite():
+                try:
+                    # Ensure we only add Decimal to Decimal
+                    converted_pnl = position.realized_pnl * conversion_rate
+                    if converted_pnl.is_finite():  # Final check before adding
+                        total_realized_pnl += converted_pnl
+                    else:
+                        logger.warning(
+                            f"Converted realized PNL for {position_key} "
+                            f"is not finite ({converted_pnl}). Skipping addition.",
+                        )
+                except (TypeError, InvalidOperation) as e:
+                    logger.error(
+                        f"Error during realized PNL conversion/addition for {position_key}: {e}",
+                    )
+            else:
+                logger.warning(
+                    f"Cannot convert realized PNL for {position_key} on {exchange_id} "
+                    f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
+                    f"Conversion Rate: {conversion_rate}.",
+                )
+        elif position.realized_pnl is not None:  # Log if it exists but isn't finite
+            logger.warning(
+                f"Position {position_key} realized PNL is not finite: {position.realized_pnl}",
+            )
+
+        return total_realized_pnl
+
+    async def _calculate_position_unrealized_pnl(
+        self,
+        position: DerivativePosition,
+        position_key: str,
+        exchange_id: str,
+        base_currency: str,
+    ) -> Decimal | None:
+        """Calculate unrealized PNL for a single position."""
+        # DEFENSIVE CHECK: Check entry_price is not None *before* size check
+        # because a non-zero size *requires* a non-None entry_price (model validation)
+        if position.size == Decimal("0") or position.entry_price is None:
+            logger.debug(
+                f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
+                f"due to zero size or missing entry price.",
+            )
+            return None
+
+        # Get prices in base currency
+        mark_price_in_base, entry_price_in_base = await self._get_position_prices_in_base(
+            position, exchange_id, base_currency
+        )
+
+        # Calculate unrealized PNL if possible
+        if self._can_calculate_unrealized_pnl(mark_price_in_base, entry_price_in_base):
+            # Type checker knows these are not None after the check
+            assert mark_price_in_base is not None
+            assert entry_price_in_base is not None
+            return self._compute_unrealized_pnl(
+                position, mark_price_in_base, entry_price_in_base, exchange_id
+            )
+        else:
+            logger.warning(
+                f"Skipping unrealized PNL calculation for {position_key} "
+                f"({position.symbol}) on {exchange_id} due to missing/invalid "
+                f"converted prices (MarkBase={mark_price_in_base}, "
+                f"EntryBase={entry_price_in_base}).",
+            )
+            return None
+
+    async def _get_position_prices_in_base(
+        self, position: DerivativePosition, exchange_id: str, base_currency: str
+    ) -> tuple[Decimal | None, Decimal | None]:
+        """Get mark price and entry price converted to base currency."""
+        # 1. Get Mark Price in the requested Base Currency
+        mark_price_in_base = await self._get_asset_price_in_base(
+            exchange_id,
+            position.symbol,
+            base_currency,
+        )
+
+        # 2. Get Entry Price (which is in the Quote currency of the symbol)
+        entry_price_in_quote = position.entry_price
+
+        # 3. Determine the Quote Currency from the symbol
+        quote_currency = self._extract_quote_currency(position.symbol)
+        if quote_currency is None:
+            logger.warning(
+                f"Cannot determine quote currency for symbol {position.symbol}, "
+                f"cannot calculate unrealized PNL accurately.",
+            )
+            return mark_price_in_base, None
+
+        # 4. Convert Entry Price from Quote Currency to Base Currency
+        if entry_price_in_quote is not None:
+            entry_price_in_base = await self._convert_entry_price_to_base(
+                entry_price_in_quote, quote_currency, base_currency, exchange_id, position.symbol
+            )
+        else:
+            entry_price_in_base = None
+
+        return mark_price_in_base, entry_price_in_base
+
+    def _extract_quote_currency(self, symbol: str) -> str | None:
+        """Extract quote currency from symbol."""
+        if "-" in symbol:
+            return symbol.split("-")[-1]
+        elif "_" in symbol:
+            return symbol.split("_")[-1]
+        return None
+
+    async def _convert_entry_price_to_base(
+        self,
+        entry_price_in_quote: Decimal,
+        quote_currency: str,
+        base_currency: str,
+        exchange_id: str,
+        symbol: str,
+    ) -> Decimal | None:
+        """Convert entry price from quote currency to base currency."""
+        if quote_currency == base_currency:
+            return entry_price_in_quote
+
+        # Need conversion rate from quote to base
+        quote_to_base_rate = await self._get_asset_price_in_base(
+            exchange_id,
+            quote_currency,
+            base_currency,
+        )
+        if quote_to_base_rate is not None:
+            return entry_price_in_quote * quote_to_base_rate
+        else:
+            logger.warning(
+                f"Cannot convert entry price for {symbol} "
+                f"from {quote_currency} to {base_currency}. "
+                f"Skipping unrealized PNL.",
+            )
+            return None
+
+    def _can_calculate_unrealized_pnl(
+        self, mark_price_in_base: Decimal | None, entry_price_in_base: Decimal | None
+    ) -> bool:
+        """Check if unrealized PNL can be calculated."""
+        return (
+            mark_price_in_base is not None
+            and entry_price_in_base is not None
+            and mark_price_in_base.is_finite()
+            and entry_price_in_base.is_finite()
+        )
+
+    def _compute_unrealized_pnl(
+        self,
+        position: DerivativePosition,
+        mark_price_in_base: Decimal,
+        entry_price_in_base: Decimal,
+        exchange_id: str,
+    ) -> Decimal | None:
+        """Compute the unrealized PNL for a position."""
+        try:
+            # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
+            unrealized_pnl = position.size * (mark_price_in_base - entry_price_in_base)
+            logger.debug(
+                f"  [{exchange_id}] Position PNL: {position.symbol} "
+                f"size {position.size}, entry_base {entry_price_in_base:.4f}, "
+                f"mark_base {mark_price_in_base:.4f} => Unrealized: "
+                f"{unrealized_pnl:.4f}",
+            )
+            return unrealized_pnl
+        except (TypeError, InvalidOperation) as e:
+            logger.error(
+                f"Error calculating unrealized PNL for {position.symbol} on {exchange_id}: {e}",
+            )
+            return None
 
     async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal | None:
         """Calculate the current drawdown from the high watermark.
@@ -1293,169 +1371,209 @@ class PortfolioTracker:
         """Deserialize the portfolio state from a dictionary."""
         tracker = cls(app_settings, pt_config)
 
-        balances_data_get = data.get("balances", {})
-        if isinstance(balances_data_get, dict):
-            balances_data_typed = cast(dict[str, Any], balances_data_get)
-            ex_id_str: str
-            assets_dict_any: Any
-            for ex_id_str, assets_dict_any in balances_data_typed.items():
-                if isinstance(assets_dict_any, dict):
-                    current_assets_items = cast(dict[str, Any], assets_dict_any)
-                    k_asset_raw: str
-                    bal_data_any: Any
-                    for k_asset_raw, bal_data_any in current_assets_items.items():
-                        asset_str = str(k_asset_raw)
-                        if isinstance(bal_data_any, dict):
-                            try:
-                                # Ensure keys are str for model_validate
-                                temp_bal_dict_for_comp = cast(dict[str, Any], bal_data_any)
-                                validated_bal_dict: dict[str, Any] = {
-                                    str(k): v for k, v in temp_bal_dict_for_comp.items()
-                                }
-                                tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
-                                    validated_bal_dict,
-                                )
-                            except ValidationError as e:
-                                logger.error(
-                                    f"Error validating SpotBalance for {asset_str} "
-                                    f"on {ex_id_str}: {e}",
-                                )
-                            except Exception as e:  # Catch other potential errors from str(k)
-                                logger.warning(
-                                    f"Type error processing balance {ex_id_str}/{asset_str} "
-                                    f"in from_dict: {e}",
-                                )
-                        elif isinstance(bal_data_any, SpotBalance):  # If already an object
-                            tracker.balances[ex_id_str][asset_str] = bal_data_any
-
-        positions_data_get = data.get("positions", {})
-        if isinstance(positions_data_get, dict):
-            positions_data_typed = cast(dict[str, Any], positions_data_get)
-            ex_id_str_pos: str
-            syms_dict_any: Any
-            for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
-                if isinstance(syms_dict_any, dict):
-                    syms_dict_typed = cast(dict[str, Any], syms_dict_any)
-                    sym_str: str
-                    pos_data_any: Any
-                    for sym_str, pos_data_any in syms_dict_typed.items():
-                        if isinstance(pos_data_any, dict):
-                            try:
-                                # Ensure keys are str for model_validate
-                                temp_pos_dict_for_comp = cast(dict[str, Any], pos_data_any)
-                                validated_pos_dict_for_model: dict[str, Any] = {
-                                    str(k): v for k, v in temp_pos_dict_for_comp.items()
-                                }
-                                tracker.positions[ex_id_str_pos][sym_str] = (
-                                    DerivativePosition.model_validate(validated_pos_dict_for_model)
-                                )
-                            except ValidationError as e:
-                                logger.error(
-                                    f"Error validating DerivativePosition for {sym_str} "
-                                    f"on {ex_id_str_pos}: {e}",
-                                )
-                            except Exception as e:  # Catch other potential errors from str(k)
-                                logger.warning(
-                                    f"Type error processing position {ex_id_str_pos}/{sym_str} "
-                                    f"in from_dict: {e}",
-                                )
-                        elif isinstance(pos_data_any, DerivativePosition):
-                            tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
-
-        orders_data_get = data.get("orders", {})
-        if isinstance(orders_data_get, dict):
-            orders_data_typed = cast(dict[str, Any], orders_data_get)
-            ex_id_str_ord: str
-            ords_dict_any: Any
-            for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
-                if isinstance(ords_dict_any, dict):
-                    ords_dict_typed = cast(dict[str, Any], ords_dict_any)
-                    ord_id_str: str
-                    order_data_any: Any
-                    for ord_id_str, order_data_any in ords_dict_typed.items():
-                        if isinstance(order_data_any, dict):
-                            try:
-                                # Ensure keys are str for model_validate
-                                temp_order_dict_for_comp = cast(dict[str, Any], order_data_any)
-                                validated_order_dict_for_model: dict[str, Any] = {
-                                    str(k): v for k, v in temp_order_dict_for_comp.items()
-                                }
-                                tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
-                                    validated_order_dict_for_model,
-                                )
-                            except ValidationError as e:
-                                logger.error(
-                                    f"Error validating Order for {ord_id_str} "
-                                    f"on {ex_id_str_ord}: {e}",
-                                )
-                            except Exception as e:  # Catch other potential errors from str(k)
-                                logger.warning(
-                                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} "
-                                    f"in from_dict: {e}",
-                                )
-                        elif isinstance(order_data_any, Order):
-                            tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
-
-        last_update_data_get = data.get("last_update_time", {})
-        if isinstance(last_update_data_get, dict):
-            last_update_data_typed = cast(dict[str, Any], last_update_data_get)
-            ex_id_str_lut: str
-            ts_data_any_lut: Any
-            for ex_id_str_lut, ts_data_any_lut in last_update_data_typed.items():
-                # Assuming ts_data_any_lut is already datetime or a parsable string/timestamp
-                try:
-                    if isinstance(ts_data_any_lut, datetime):
-                        tracker.last_update_time[ex_id_str_lut] = ts_data_any_lut
-                    else:  # Attempt parsing
-                        # Ensure ts_data_any_lut is not None before passing to parse_datetime_utc
-                        if ts_data_any_lut is not None:
-                            parsed_ts = parse_datetime_utc(
-                                ts_data_any_lut,
-                                field_name=f"last_update_time.{ex_id_str_lut}",
-                            )
-                            if parsed_ts:
-                                tracker.last_update_time[ex_id_str_lut] = parsed_ts
-                        else:
-                            logger.warning(
-                                f"Received None for last_update_time for {ex_id_str_lut}, "
-                                f"skipping.",
-                            )
-                except Exception as e:
-                    logger.error(f"Error deserializing last_update_time for {ex_id_str_lut}: {e}")
-
-        last_reconciliation_data_get = data.get("last_reconciliation_time", {})
-        if isinstance(last_reconciliation_data_get, dict):
-            last_reconciliation_data_typed = cast(dict[str, Any], last_reconciliation_data_get)
-            ex_id_str_lrt: str
-            ts_data_any_lrt: Any
-            for ex_id_str_lrt, ts_data_any_lrt in last_reconciliation_data_typed.items():
-                try:
-                    if isinstance(ts_data_any_lrt, datetime):
-                        tracker.last_reconciliation_time[ex_id_str_lrt] = ts_data_any_lrt
-                    else:
-                        # Ensure ts_data_any_lrt is not None before passing to parse_datetime_utc
-                        if ts_data_any_lrt is not None:
-                            parsed_ts = parse_datetime_utc(
-                                ts_data_any_lrt,
-                                field_name=f"last_reconciliation_time.{ex_id_str_lrt}",
-                            )
-                            if parsed_ts:
-                                tracker.last_reconciliation_time[ex_id_str_lrt] = parsed_ts
-                        else:
-                            logger.warning(
-                                f"Received None for last_reconciliation_time for "
-                                f"{ex_id_str_lrt}, skipping.",
-                            )
-                except Exception as e:
-                    logger.error(
-                        f"Error deserializing last_reconciliation_time for {ex_id_str_lrt}: {e}",
-                    )
-
-        tracker.high_watermark = Decimal(str(data.get("high_watermark", "0.0")))
-        tracker.realized_pnl = Decimal(str(data.get("realized_pnl", "0.0")))
+        # Load each data section
+        cls._load_balances_from_dict(tracker, data)
+        cls._load_positions_from_dict(tracker, data)
+        cls._load_orders_from_dict(tracker, data)
+        cls._load_timestamps_from_dict(tracker, data)
+        cls._load_scalar_fields_from_dict(tracker, data)
 
         logger.info("PortfolioTracker state loaded from dict (object deserialization attempted).")
         return tracker
+
+    @classmethod
+    def _load_balances_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load balances data from dictionary."""
+        balances_data_get = data.get("balances", {})
+        if not isinstance(balances_data_get, dict):
+            return
+
+        balances_data_typed = cast(dict[str, Any], balances_data_get)
+        for ex_id_str, assets_dict_any in balances_data_typed.items():
+            if not isinstance(assets_dict_any, dict):
+                continue
+
+            current_assets_items = cast(dict[str, Any], assets_dict_any)
+            for k_asset_raw, bal_data_any in current_assets_items.items():
+                asset_str = str(k_asset_raw)
+                cls._process_single_balance(tracker, ex_id_str, asset_str, bal_data_any)
+
+    @classmethod
+    def _process_single_balance(
+        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: Any
+    ) -> None:
+        """Process a single balance entry."""
+        if isinstance(bal_data_any, dict):
+            try:
+                # Ensure keys are str for model_validate
+                temp_bal_dict_for_comp = cast(dict[str, Any], bal_data_any)
+                validated_bal_dict: dict[str, Any] = {
+                    str(k): v for k, v in temp_bal_dict_for_comp.items()
+                }
+                tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
+                    validated_bal_dict,
+                )
+            except ValidationError as e:
+                logger.error(
+                    f"Error validating SpotBalance for {asset_str} on {ex_id_str}: {e}",
+                )
+            except Exception as e:  # Catch other potential errors from str(k)
+                logger.warning(
+                    f"Type error processing balance {ex_id_str}/{asset_str} in from_dict: {e}",
+                )
+        elif isinstance(bal_data_any, SpotBalance):  # If already an object
+            tracker.balances[ex_id_str][asset_str] = bal_data_any
+
+    @classmethod
+    def _load_positions_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load positions data from dictionary."""
+        positions_data_get = data.get("positions", {})
+        if not isinstance(positions_data_get, dict):
+            return
+
+        positions_data_typed = cast(dict[str, Any], positions_data_get)
+        for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
+            if not isinstance(syms_dict_any, dict):
+                continue
+
+            syms_dict_typed = cast(dict[str, Any], syms_dict_any)
+            for sym_str, pos_data_any in syms_dict_typed.items():
+                cls._process_single_position(tracker, ex_id_str_pos, sym_str, pos_data_any)
+
+    @classmethod
+    def _process_single_position(
+        cls, tracker: PortfolioTracker, ex_id_str_pos: str, sym_str: str, pos_data_any: Any
+    ) -> None:
+        """Process a single position entry."""
+        if isinstance(pos_data_any, dict):
+            try:
+                # Ensure keys are str for model_validate
+                temp_pos_dict_for_comp = cast(dict[str, Any], pos_data_any)
+                validated_pos_dict_for_model: dict[str, Any] = {
+                    str(k): v for k, v in temp_pos_dict_for_comp.items()
+                }
+                tracker.positions[ex_id_str_pos][sym_str] = DerivativePosition.model_validate(
+                    validated_pos_dict_for_model
+                )
+            except ValidationError as e:
+                logger.error(
+                    f"Error validating DerivativePosition for {sym_str} on {ex_id_str_pos}: {e}",
+                )
+            except Exception as e:  # Catch other potential errors from str(k)
+                logger.warning(
+                    f"Type error processing position {ex_id_str_pos}/{sym_str} in from_dict: {e}",
+                )
+        elif isinstance(pos_data_any, DerivativePosition):
+            tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
+
+    @classmethod
+    def _load_orders_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load orders data from dictionary."""
+        orders_data_get = data.get("orders", {})
+        if not isinstance(orders_data_get, dict):
+            return
+
+        orders_data_typed = cast(dict[str, Any], orders_data_get)
+        for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
+            if not isinstance(ords_dict_any, dict):
+                continue
+
+            ords_dict_typed = cast(dict[str, Any], ords_dict_any)
+            for ord_id_str, order_data_any in ords_dict_typed.items():
+                cls._process_single_order(tracker, ex_id_str_ord, ord_id_str, order_data_any)
+
+    @classmethod
+    def _process_single_order(
+        cls, tracker: PortfolioTracker, ex_id_str_ord: str, ord_id_str: str, order_data_any: Any
+    ) -> None:
+        """Process a single order entry."""
+        if isinstance(order_data_any, dict):
+            try:
+                # Ensure keys are str for model_validate
+                temp_order_dict_for_comp = cast(dict[str, Any], order_data_any)
+                validated_order_dict_for_model: dict[str, Any] = {
+                    str(k): v for k, v in temp_order_dict_for_comp.items()
+                }
+                tracker.orders[ex_id_str_ord][ord_id_str] = Order.model_validate(
+                    validated_order_dict_for_model,
+                )
+            except ValidationError as e:
+                logger.error(
+                    f"Error validating Order for {ord_id_str} on {ex_id_str_ord}: {e}",
+                )
+            except Exception as e:  # Catch other potential errors from str(k)
+                logger.warning(
+                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} in from_dict: {e}",
+                )
+        elif isinstance(order_data_any, Order):
+            tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
+
+    @classmethod
+    def _load_timestamps_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load timestamp data from dictionary."""
+        cls._load_last_update_times(tracker, data)
+        cls._load_last_reconciliation_times(tracker, data)
+
+    @classmethod
+    def _load_last_update_times(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load last update times from dictionary."""
+        last_update_data_get = data.get("last_update_time", {})
+        if not isinstance(last_update_data_get, dict):
+            return
+
+        last_update_data_typed = cast(dict[str, Any], last_update_data_get)
+        for ex_id_str_lut, ts_data_any_lut in last_update_data_typed.items():
+            cls._process_timestamp(
+                tracker.last_update_time, ex_id_str_lut, ts_data_any_lut, "last_update_time"
+            )
+
+    @classmethod
+    def _load_last_reconciliation_times(
+        cls, tracker: PortfolioTracker, data: dict[str, Any]
+    ) -> None:
+        """Load last reconciliation times from dictionary."""
+        last_reconciliation_data_get = data.get("last_reconciliation_time", {})
+        if not isinstance(last_reconciliation_data_get, dict):
+            return
+
+        last_reconciliation_data_typed = cast(dict[str, Any], last_reconciliation_data_get)
+        for ex_id_str_lrt, ts_data_any_lrt in last_reconciliation_data_typed.items():
+            cls._process_timestamp(
+                tracker.last_reconciliation_time,
+                ex_id_str_lrt,
+                ts_data_any_lrt,
+                "last_reconciliation_time",
+            )
+
+    @classmethod
+    def _process_timestamp(
+        cls, target_dict: dict[str, datetime], ex_id_str: str, ts_data_any: Any, field_name: str
+    ) -> None:
+        """Process a single timestamp entry."""
+        try:
+            if isinstance(ts_data_any, datetime):
+                target_dict[ex_id_str] = ts_data_any
+            else:
+                # Ensure ts_data_any is not None before passing to parse_datetime_utc
+                if ts_data_any is not None:
+                    parsed_ts = parse_datetime_utc(
+                        ts_data_any,
+                        field_name=f"{field_name}.{ex_id_str}",
+                    )
+                    if parsed_ts:
+                        target_dict[ex_id_str] = parsed_ts
+                else:
+                    logger.warning(
+                        f"Received None for {field_name} for {ex_id_str}, skipping.",
+                    )
+        except Exception as e:
+            logger.error(f"Error deserializing {field_name} for {ex_id_str}: {e}")
+
+    @classmethod
+    def _load_scalar_fields_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
+        """Load scalar fields from dictionary."""
+        tracker.high_watermark = Decimal(str(data.get("high_watermark", "0.0")))
+        tracker.realized_pnl = Decimal(str(data.get("realized_pnl", "0.0")))
 
     # --- Watchlist/Active Symbols ---
     def add_symbol_to_watchlist(self, symbol: str) -> None:
@@ -1535,112 +1653,17 @@ class PortfolioTracker:
                 updated_count = 0
                 new_count = 0
 
-                items_to_process: list[Order | dict[str, Any]] = []
-                if isinstance(orders_data, dict):
-                    item_val: Any  # Values from dict[str, Any] are Any
-                    for item_val in orders_data.values():
-                        if isinstance(item_val, Order):
-                            items_to_process.append(item_val)
-                        elif isinstance(item_val, dict):
-                            # Explicitly cast to the expected dict type for the list
-                            items_to_process.append(cast(dict[str, Any], item_val))
-                        else:
-                            self.logger.warning(
-                                f"Skipping unexpected value type in orders_data dict: "
-                                f"{type(item_val)}",
-                            )
-                # If not a dict, it must be list[Order] per type hint
-                else:  # orders_data is list[Order]
-                    # orders_data is list[Order] here, no further isinstance check needed.
-                    item_in_list: Order
-                    for item_in_list in orders_data:
-                        items_to_process.append(item_in_list)
-                # Original final else for unexpected orders_data type is effectively unreachable
-                # if input strictly matches type hint. This is acceptable.
+                # Prepare items to process
+                items_to_process = self._prepare_order_items(orders_data)
 
+                # Process each order item
                 for order_data_item in items_to_process:
                     if isinstance(order_data_item, dict):
-                        order_dict_data: dict[str, Any] = order_data_item  # Now this is safe
-                        try:
-                            order = Order.model_validate(order_dict_data)
-                            # Process validated order
-                            order.price = self._safe_decimal_convert(
-                                order.price,
-                                "price",
-                                order.symbol,
-                                exchange_id,
-                            )
-                            order.quantity_requested = self._safe_decimal_convert(
-                                order.quantity_requested,
-                                "quantity_requested",
-                                order.symbol,
-                                exchange_id,
-                            ) or Decimal("0")
-                            order.quantity_filled = self._safe_decimal_convert(
-                                order.quantity_filled,
-                                "quantity_filled",
-                                order.symbol,
-                                exchange_id,
-                            ) or Decimal("0")
-                            if isinstance(order.status, str):
-                                try:
-                                    order.status = OrderStatus(order.status)
-                                except ValueError:
-                                    self.logger.warning(
-                                        f"Invalid status string '{order.status}' for "
-                                        f"order {order.client_order_id}",
-                                    )
-                                    order.status = OrderStatus.UNKNOWN
-                            current_orders[order.client_order_id] = order
+                        if self._process_order_dict(order_data_item, current_orders, exchange_id):
                             updated_count += 1
-                        except ValidationError as e:
-                            # Ensure order_dict_data is used for logging if it's a dict
-                            client_id_for_log = order_dict_data.get(
-                                "clientOrderId",
-                                order_dict_data.get("client_order_id", "UnknownClientOrderID"),
-                            )
-                            self.logger.error(
-                                f"Error validating Order for {client_id_for_log} "
-                                f"on {exchange_id}: {e}",
-                            )
-                    # If not dict, must be Order (items_to_process has Order | dict[str, Any],
-                    # and non-Order/dict items were filtered).
-                    # Pre-filtering ensures: if not dict here, it must be Order.
                     else:  # order_data_item must be an Order
-                        order_obj_from_list: Order = order_data_item  # Renamed variable
-                        # Process order object
-                        order_obj_from_list.price = self._safe_decimal_convert(
-                            order_obj_from_list.price,
-                            "price",
-                            order_obj_from_list.symbol,
-                            exchange_id,
-                        )
-                        order_obj_from_list.quantity_requested = self._safe_decimal_convert(
-                            order_obj_from_list.quantity_requested,
-                            "quantity_requested",
-                            order_obj_from_list.symbol,
-                            exchange_id,
-                        ) or Decimal("0")
-                        order_obj_from_list.quantity_filled = self._safe_decimal_convert(
-                            order_obj_from_list.quantity_filled,
-                            "quantity_filled",
-                            order_obj_from_list.symbol,
-                            exchange_id,
-                        ) or Decimal("0")
-                        if isinstance(order_obj_from_list.status, str):
-                            try:
-                                order_obj_from_list.status = OrderStatus(order_obj_from_list.status)
-                            except ValueError:
-                                self.logger.warning(
-                                    f"Invalid status string '{order_obj_from_list.status}' for "
-                                    f"order {order_obj_from_list.client_order_id}",
-                                )
-                                order_obj_from_list.status = OrderStatus.UNKNOWN
-                            current_orders[order_obj_from_list.client_order_id] = (
-                                order_obj_from_list
-                            )
+                        if self._process_order_object(order_data_item, current_orders, exchange_id):
                             new_count += 1
-                    # No else needed as items_to_process is already filtered
 
                 self.orders[exchange_id] = current_orders
                 self.logger.info(
@@ -1649,6 +1672,90 @@ class PortfolioTracker:
                 )
 
         asyncio.create_task(_do_parse())
+
+    def _prepare_order_items(
+        self, orders_data: list[Order] | dict[str, Any]
+    ) -> list[Order | dict[str, Any]]:
+        """Prepare order items for processing."""
+        items_to_process: list[Order | dict[str, Any]] = []
+
+        if isinstance(orders_data, dict):
+            for item_val in orders_data.values():
+                if isinstance(item_val, Order):
+                    items_to_process.append(item_val)
+                elif isinstance(item_val, dict):
+                    # Explicitly cast to the expected dict type for the list
+                    items_to_process.append(cast(dict[str, Any], item_val))
+                else:
+                    self.logger.warning(
+                        f"Skipping unexpected value type in orders_data dict: {type(item_val)}",
+                    )
+        else:  # orders_data is list[Order]
+            for item_in_list in orders_data:
+                items_to_process.append(item_in_list)
+
+        return items_to_process
+
+    def _process_order_dict(
+        self, order_dict_data: dict[str, Any], current_orders: dict[str, Order], exchange_id: str
+    ) -> bool:
+        """Process an order from dictionary data. Returns True if successful."""
+        try:
+            order = Order.model_validate(order_dict_data)
+            self._normalize_order_fields(order, exchange_id)
+            self._normalize_order_status(order)
+            current_orders[order.client_order_id] = order
+            return True
+        except ValidationError as e:
+            client_id_for_log = order_dict_data.get(
+                "clientOrderId",
+                order_dict_data.get("client_order_id", "UnknownClientOrderID"),
+            )
+            self.logger.error(
+                f"Error validating Order for {client_id_for_log} on {exchange_id}: {e}",
+            )
+            return False
+
+    def _process_order_object(
+        self, order_obj: Order, current_orders: dict[str, Order], exchange_id: str
+    ) -> bool:
+        """Process an order object. Returns True if successful."""
+        self._normalize_order_fields(order_obj, exchange_id)
+        self._normalize_order_status(order_obj)
+        current_orders[order_obj.client_order_id] = order_obj
+        return True
+
+    def _normalize_order_fields(self, order: Order, exchange_id: str) -> None:
+        """Normalize order fields using safe decimal conversion."""
+        order.price = self._safe_decimal_convert(
+            order.price,
+            "price",
+            order.symbol,
+            exchange_id,
+        )
+        order.quantity_requested = self._safe_decimal_convert(
+            order.quantity_requested,
+            "quantity_requested",
+            order.symbol,
+            exchange_id,
+        ) or Decimal("0")
+        order.quantity_filled = self._safe_decimal_convert(
+            order.quantity_filled,
+            "quantity_filled",
+            order.symbol,
+            exchange_id,
+        ) or Decimal("0")
+
+    def _normalize_order_status(self, order: Order) -> None:
+        """Normalize order status field."""
+        if isinstance(order.status, str):
+            try:
+                order.status = OrderStatus(order.status)
+            except ValueError:
+                self.logger.warning(
+                    f"Invalid status string '{order.status}' for order {order.client_order_id}",
+                )
+                order.status = OrderStatus.UNKNOWN
 
     def reset(self) -> None:
         """Reset the portfolio tracker to a clean initial state.

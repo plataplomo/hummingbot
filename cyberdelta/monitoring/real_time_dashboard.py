@@ -288,6 +288,14 @@ class RealTimeDashboard:
 
     def setup_callbacks(self) -> None:
         """Set up the dashboard callbacks."""
+        self._setup_strategy_callbacks()
+        self._setup_performance_callbacks()
+        self._setup_trade_callbacks()
+        self._setup_funding_callbacks()
+        self._setup_metrics_callbacks()
+
+    def _setup_strategy_callbacks(self) -> None:
+        """Set up strategy-related callbacks."""
 
         # Update strategy dropdown options
         @self.app.callback(
@@ -317,6 +325,9 @@ class RealTimeDashboard:
             now: datetime = datetime.now(UTC)
             self.last_update_time = now
             return f"Last Updated: {self.last_update_time.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    def _setup_performance_callbacks(self) -> None:
+        """Set up performance-related callbacks."""
 
         # Update performance overview chart
         @self.app.callback(
@@ -375,6 +386,9 @@ class RealTimeDashboard:
                 strategy_names=selected_strategies,
                 title="Drawdown Analysis",
             )
+
+    def _setup_trade_callbacks(self) -> None:
+        """Set up trade-related callbacks."""
 
         # Update PnL distribution chart
         @self.app.callback(
@@ -455,6 +469,9 @@ class RealTimeDashboard:
                 title="Trade Analysis (PnL vs Duration)",
             )
 
+    def _setup_funding_callbacks(self) -> None:
+        """Set up funding rate callbacks."""
+
         # Update funding rate heatmap
         @self.app.callback(
             Output("funding-rate-heatmap", "figure"),
@@ -474,6 +491,9 @@ class RealTimeDashboard:
                 funding_data=funding_data,
                 title="Funding Rate Heatmap",
             )
+
+    def _setup_metrics_callbacks(self) -> None:
+        """Set up metrics table callbacks."""
 
         # Update performance metrics table
         @self.app.callback(

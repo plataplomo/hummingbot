@@ -543,96 +543,163 @@ class PrioritySignalQueue:
         if not self.circuit_breaker_system:
             return True  # No CB system, always allow
 
-        exchanges_to_check: set[str] = set()
-        metadata = signal.metadata or {}
+        # Determine exchanges to check
+        exchanges_to_check = self._get_exchanges_for_cb_check(signal)
 
-        # Priority 1: Use explicit exchanges from metadata if available (Arbitrage)
-        long_exchange = metadata.get("long_exchange")
-        short_exchange = metadata.get("short_exchange")
-        if long_exchange and isinstance(long_exchange, str):  # Type check
-            exchanges_to_check.add(long_exchange)
-        if short_exchange and isinstance(short_exchange, str):  # Type check
-            exchanges_to_check.add(short_exchange)
+        # Check symbol-level circuit breaker
+        if not self._check_symbol_level_breaker(signal):
+            return False
 
-        # Priority 2: Use the top-level `exchange` field if populated and no arb exchanges found
-        if not exchanges_to_check and signal.exchange:
-            # The type of signal.exchange is str | list[str] | None.
-            # If it's a string and not empty, add it.
-            if isinstance(signal.exchange, str):
-                if signal.exchange:  # Ensure not empty string
-                    exchanges_to_check.add(signal.exchange)
-                else:
-                    self.logger.warning(
-                        f"Signal {signal.signal_id} for {signal.symbol} has an empty "
-                        f"string for 'exchange' field.",
-                    )
-                    return False  # Reject if exchange string is empty
-            # If it's a list, process it.
-            # The isinstance check for list can be removed if Ruff implies it from type hints.
-            # However, keeping it can be a defensive measure if the input might not strictly adhere
-            # to the Union[str, List[str], None] type hint despite Pydantic validation.
-            # Given the linter error, we'll remove it here.
-            else:  # Assumed list type after checking for str
-                # Filter out non-string or empty string elements
-                # Mypy complains, but keep isinstance for robustness against malformed list input
-                valid_exchanges = [ex for ex in signal.exchange if ex]  # Check for non-empty string
-                if valid_exchanges:
-                    exchanges_to_check.update(valid_exchanges)
-                else:
-                    self.logger.warning(
-                        f"Signal {signal.signal_id} for {signal.symbol} 'exchange' field "
-                        f"is a list with no valid non-empty strings.",
-                    )
-                    return False  # Reject if list is empty or contains only empty strings
-            # else: # Should not happen if type hint is enforced by Pydantic
-            #     self.logger.error(f"Signal {signal.signal_id} for {signal.symbol} has unexpected "
-            #                       f"type for 'exchange': {type(signal.exchange)}")
-            #     return False
-
-        # If after all checks, no valid exchange could be determined, reject the signal.
+        # If no exchanges to check, symbol CB passed
         if not exchanges_to_check:
-            self.logger.warning(
-                f"Cannot determine target exchange(s) for pre-add circuit breaker check on signal "
-                f"{signal.symbol} (metadata: {metadata}, exchange field: {signal.exchange}). "
-                f"Rejecting signal for safety.",
+            self.logger.debug(
+                f"No exchanges derived for signal {signal.signal_id}, symbol CB passed. Allowing.",
             )
-            return False  # Reject if exchange cannot be determined
+            return True
 
-        # Check breakers using can_execute
-        for ex in exchanges_to_check:
-            exchange_id: str = ex
-            try:
-                # Ensure circuit_breaker_system is checked before calling methods on it
-                if not self.circuit_breaker_system:
-                    # This case should be caught earlier, but defensive check
-                    self.logger.error(
-                        "Circuit breaker system is None during check, rejecting signal.",
+        # Check exchange-level circuit breakers
+        if not self._check_exchange_level_breakers(signal, exchanges_to_check):
+            return False
+
+        self.logger.debug(
+            f"All circuit breakers passed for signal {signal.signal_id} ({signal.symbol})",
+        )
+        return True
+
+    def _get_exchanges_for_cb_check(self, signal: TradeSignal) -> list[str]:
+        """Get list of exchanges to check for circuit breakers."""
+        exchanges_to_check: list[str] = []
+
+        # Prioritize metadata if available for specific long/short exchanges
+        if self._has_arbitrage_metadata(signal):
+            exchanges_to_check = self._extract_arbitrage_exchanges(signal)
+        # Fallback to signal.exchange field
+        elif isinstance(signal.exchange, str):
+            exchanges_to_check.append(signal.exchange)
+        else:  # Assumed to be list[str] if not str, per type hint str | list[str]
+            exchanges_to_check.extend([str(ex) for ex in signal.exchange])
+
+        if not exchanges_to_check:
+            self.logger.debug(
+                f"No specific exchanges found for signal {signal.signal_id} "
+                f"({signal.symbol}) to check CB. Checking symbol-level.",
+            )
+
+        return exchanges_to_check
+
+    def _has_arbitrage_metadata(self, signal: TradeSignal) -> bool:
+        """Check if signal has arbitrage metadata."""
+        return (
+            signal.metadata is not None
+            and "long_exchange" in signal.metadata
+            and signal.metadata["long_exchange"] is not None
+        )
+
+    def _extract_arbitrage_exchanges(self, signal: TradeSignal) -> list[str]:
+        """Extract exchanges from arbitrage metadata."""
+        if signal.metadata is None:
+            return []
+
+        exchanges_to_check = [str(signal.metadata["long_exchange"])]
+
+        if "short_exchange" in signal.metadata and signal.metadata["short_exchange"] is not None:
+            # Ensure not to add the same exchange twice if long_exchange == short_exchange
+            short_exchange = str(signal.metadata["short_exchange"])
+            if short_exchange != str(signal.metadata["long_exchange"]):
+                exchanges_to_check.append(short_exchange)
+
+        return exchanges_to_check
+
+    def _check_symbol_level_breaker(self, signal: TradeSignal) -> bool:
+        """Check symbol-level circuit breaker."""
+        if not self.circuit_breaker_system:
+            return True
+
+        # Assume a naming convention like "symbol_SYMBOL_main" for general symbol breakers
+        symbol_breaker_name = f"symbol_{signal.symbol}_main"
+        symbol_breaker = self.circuit_breaker_system.get_breaker(symbol_breaker_name)
+
+        if symbol_breaker and symbol_breaker.state == BreakerState.OPEN:
+            self.logger.warning(
+                f"Symbol circuit breaker for {signal.symbol} ({symbol_breaker_name}) is OPEN. "
+                f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} rejected.",
+            )
+            return False
+
+        return True
+
+    def _check_exchange_level_breakers(
+        self, signal: TradeSignal, exchanges_to_check: list[str]
+    ) -> bool:
+        """Check exchange-level circuit breakers."""
+        for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
+            if not self._check_single_exchange_cb(signal, exchange_name):
+                return False
+        return True
+
+    def _check_single_exchange_cb(self, signal: TradeSignal, exchange_name: str) -> bool:
+        """Check circuit breakers for a single exchange."""
+        # Check for API error breakers specifically
+        if not self._check_api_error_breaker(signal, exchange_name):
+            return False
+
+        # Check exchange-symbol pair specific breaker
+        if not self._check_pair_breaker(signal, exchange_name):
+            return False
+
+        return True
+
+    def _check_api_error_breaker(self, signal: TradeSignal, exchange_name: str) -> bool:
+        """Check API error breaker for an exchange."""
+        if not self.circuit_breaker_system:
+            return True
+
+        exchange_breaker_item = self.circuit_breaker_system.get_exchange_breaker(
+            exchange_name,
+            "api_errors",
+        )
+
+        # Handle the case where get_exchange_breaker returns a CircuitBreaker directly
+        if isinstance(exchange_breaker_item, CircuitBreaker):
+            if exchange_breaker_item.state == BreakerState.OPEN:
+                self.logger.warning(
+                    f"Exchange circuit breaker for {exchange_name} (api_errors) is OPEN. "
+                    f"Reason: {exchange_breaker_item.trip_reason}. Signal {signal.signal_id} "
+                    f"rejected.",
+                )
+                return False
+        elif isinstance(exchange_breaker_item, dict):
+            # If it's a dict, it contains symbol-specific breakers
+            # For now, check if any symbol-specific breaker is open
+            for symbol_breaker in exchange_breaker_item.values():
+                if symbol_breaker.state == BreakerState.OPEN:
+                    self.logger.warning(
+                        f"Symbol-specific circuit breaker for {exchange_name} is OPEN. "
+                        f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} "
+                        f"rejected.",
                     )
                     return False
 
-                can_exec, reason = self.circuit_breaker_system.can_execute(
-                    exchange_id,
-                    signal.symbol,
-                )
+        return True
 
-                if not can_exec:
-                    self.logger.warning(
-                        f"Circuit breaker for {exchange_id} is active, rejecting signal "
-                        f"{signal.symbol}. "
-                        f"Reason: {reason}",
-                    )
-                    return False  # Reject signal if any relevant breaker is tripped
-            except Exception as e:
-                # Catch potential errors during the circuit breaker check itself
-                self.logger.error(
-                    f"Error checking circuit breaker for exchange '{exchange_id}', "
-                    f"symbol '{signal.symbol}'. Rejecting signal for safety. Error: {e}",
-                    exc_info=True,
-                )
-                return False  # Reject on error during check
+    def _check_pair_breaker(self, signal: TradeSignal, exchange_name: str) -> bool:
+        """Check exchange-symbol pair specific breaker."""
+        if not self.circuit_breaker_system:
+            return True
 
-        # If loop completes without returning False, all checks passed
-        return True  # Allow signal if all checks pass
+        pair_breaker_name = f"pair_{exchange_name}_{signal.symbol}_main"
+        pair_breaker = self.circuit_breaker_system.get_breaker(pair_breaker_name)
+
+        if pair_breaker and pair_breaker.state == BreakerState.OPEN:
+            self.logger.warning(
+                f"Pair circuit breaker for {exchange_name}-{signal.symbol} "
+                f"({pair_breaker_name}) is OPEN. "
+                f"Reason: {pair_breaker.trip_reason}. Signal {signal.signal_id} "
+                f"rejected.",
+            )
+            return False
+
+        return True
 
     def _check_circuit_breakers_post_get(self, signal: TradeSignal) -> bool:
         """Check circuit breakers just before returning a signal from get_next_signal."""
@@ -943,94 +1010,23 @@ class PrioritySignalQueue:
         if not self.circuit_breaker_system:
             return True  # No CB system, always pass
 
-        exchanges_to_check: list[str] = []
-        # Prioritize metadata if available for specific long/short exchanges
-        if (
-            signal.metadata
-            and "long_exchange" in signal.metadata
-            and signal.metadata["long_exchange"] is not None
-        ):
-            exchanges_to_check.append(str(signal.metadata["long_exchange"]))
-            if (
-                "short_exchange" in signal.metadata
-                and signal.metadata["short_exchange"] is not None
-            ):
-                # Ensure not to add the same exchange twice if long_exchange == short_exchange
-                # (e.g. for spot)
-                if str(signal.metadata["short_exchange"]) != str(signal.metadata["long_exchange"]):
-                    exchanges_to_check.append(str(signal.metadata["short_exchange"]))
-        # Fallback to signal.exchange field
-        elif isinstance(signal.exchange, str):
-            exchanges_to_check.append(signal.exchange)
-        else:  # Assumed to be list[str] if not str, per type hint str | list[str]
-            exchanges_to_check.extend([str(ex) for ex in signal.exchange])
-
-        if not exchanges_to_check:
-            # If no specific exchange found, check symbol-level breaker if any
-            # Or, if this case is an error, log and return False
-            self.logger.debug(
-                f"No specific exchanges found for signal {signal.signal_id} "
-                f"({signal.symbol}) to check CB. Checking symbol-level.",
-            )
-            # Pass to symbol check
+        # Determine exchanges to check
+        exchanges_to_check = self._get_exchanges_for_cb_check(signal)
 
         # Check symbol-level circuit breaker
-        # Assume a naming convention like "symbol_SYMBOL_main" for general symbol breakers
-        symbol_breaker_name = f"symbol_{signal.symbol}_main"
-        symbol_breaker = self.circuit_breaker_system.get_breaker(symbol_breaker_name)
-        if symbol_breaker and symbol_breaker.state == BreakerState.OPEN:
-            self.logger.warning(
-                f"Symbol circuit breaker for {signal.symbol} ({symbol_breaker_name}) is OPEN. "
-                f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} rejected.",
-            )
+        if not self._check_symbol_level_breaker(signal):
             return False
 
+        # If no exchanges to check, symbol CB passed
         if not exchanges_to_check:
             self.logger.debug(
                 f"No exchanges derived for signal {signal.signal_id}, symbol CB passed. Allowing.",
             )
-            return True  # No specific exchanges, and symbol CB (if any) passed
+            return True
 
         # Check exchange-level circuit breakers
-        for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
-            # Check for API error breakers specifically
-            exchange_breaker_item = self.circuit_breaker_system.get_exchange_breaker(
-                exchange_name,
-                "api_errors",
-            )
-
-            # Handle the case where get_exchange_breaker returns a CircuitBreaker directly
-            if isinstance(exchange_breaker_item, CircuitBreaker):
-                if exchange_breaker_item.state == BreakerState.OPEN:
-                    self.logger.warning(
-                        f"Exchange circuit breaker for {exchange_name} (api_errors) is OPEN. "
-                        f"Reason: {exchange_breaker_item.trip_reason}. Signal {signal.signal_id} "
-                        f"rejected.",
-                    )
-                    return False
-            elif isinstance(exchange_breaker_item, dict):
-                # If it's a dict, it contains symbol-specific breakers
-                # For now, check if any symbol-specific breaker is open
-                for symbol_breaker in exchange_breaker_item.values():
-                    if symbol_breaker.state == BreakerState.OPEN:
-                        self.logger.warning(
-                            f"Symbol-specific circuit breaker for {exchange_name} is OPEN. "
-                            f"Reason: {symbol_breaker.trip_reason}. Signal {signal.signal_id} "
-                            f"rejected.",
-                        )
-                        return False
-
-            # Check exchange-symbol pair specific breaker
-            pair_breaker_name = f"pair_{exchange_name}_{signal.symbol}_main"
-            pair_breaker = self.circuit_breaker_system.get_breaker(pair_breaker_name)
-            if pair_breaker and pair_breaker.state == BreakerState.OPEN:
-                self.logger.warning(
-                    f"Pair circuit breaker for {exchange_name}-{signal.symbol} "
-                    f"({pair_breaker_name}) is OPEN. "
-                    f"Reason: {pair_breaker.trip_reason}. Signal {signal.signal_id} "
-                    f"rejected.",
-                )
-                return False
+        if not self._check_exchange_level_breakers(signal, exchanges_to_check):
+            return False
 
         self.logger.debug(
             f"All circuit breakers passed for signal {signal.signal_id} ({signal.symbol})",
