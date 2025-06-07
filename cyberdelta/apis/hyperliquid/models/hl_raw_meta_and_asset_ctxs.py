@@ -141,22 +141,36 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         by_alias: bool | None = None,
         by_name: bool | None = None,
     ) -> Self:
-        """Validate the [meta, assetCtxs] tuple response structure.
+        """Validate the [meta, assetCtxs] tuple response structure."""
+        list_obj = cls._validate_input_structure(obj)
+        meta_dict, asset_ctxs_list = cls._extract_tuple_elements(list_obj)
 
-        Ensure the input is a list of length 2, with the first element a dict (meta) and
-        the second a list of dicts (asset contexts). Raise ValueError if the structure is
-        not as expected. This is essential for robust boundary validation of upstream API data.
-        """
+        meta = cls._validate_meta_section(
+            meta_dict, strict=strict, context=context, from_attributes=from_attributes
+        )
+
+        validated_asset_ctxs = cls._validate_asset_contexts_section(
+            asset_ctxs_list, strict=strict, context=context, from_attributes=from_attributes
+        )
+
+        return cls(meta=meta, asset_ctxs=validated_asset_ctxs)
+
+    @classmethod
+    def _validate_input_structure(cls, obj: object) -> list[object]:
+        """Validate that input is a 2-element list."""
         if not isinstance(obj, list):
             raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
 
         list_obj = cast(list[object], obj)
-        if not isinstance(list_obj, list):
-            raise ValueError("Defensive check: list_obj is not a list after cast")
 
         if len(list_obj) != 2:
             raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
 
+        return list_obj
+
+    @classmethod
+    def _extract_tuple_elements(cls, list_obj: list[object]) -> tuple[dict[str, Any], list[object]]:
+        """Extract and validate meta and asset_ctxs elements from tuple."""
         meta_obj_raw = list_obj[0]
         asset_ctxs_list_raw = list_obj[1]
 
@@ -168,54 +182,90 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             )
 
         meta_dict = cast(dict[str, Any], meta_obj_raw)
-        if not isinstance(meta_dict, dict):
-            raise ValueError("Defensive check: meta_dict is not a dict after cast")
 
         asset_ctxs_list_of_objects = cast(list[object], asset_ctxs_list_raw)
-        if not isinstance(asset_ctxs_list_of_objects, list):
-            raise ValueError("Defensive check: asset_ctxs_list_of_objects is not a list after cast")
 
-        meta = HyperliquidRawMetaResponse.model_validate(
+        return meta_dict, asset_ctxs_list_of_objects
+
+    @classmethod
+    def _validate_meta_section(
+        cls,
+        meta_dict: dict[str, Any],
+        *,
+        strict: bool | None,
+        context: dict[str, Any] | None,
+        from_attributes: bool | None,
+    ) -> HyperliquidRawMetaResponse:
+        """Validate the meta section."""
+        return HyperliquidRawMetaResponse.model_validate(
             meta_dict,
             strict=strict,
             context=context,
             from_attributes=from_attributes,
         )
 
+    @classmethod
+    def _validate_asset_contexts_section(
+        cls,
+        asset_ctxs_list: list[object],
+        *,
+        strict: bool | None,
+        context: dict[str, Any] | None,
+        from_attributes: bool | None,
+    ) -> list[HyperliquidRawAssetCtx]:
+        """Validate the asset contexts section."""
         validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
-        # Pre-calculate the set of allowed JSON keys for HyperliquidRawAssetCtx
-        allowed_json_keys_for_asset_ctx: set[str] = set()
-        for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
-            # Always add the Python field name
-            allowed_json_keys_for_asset_ctx.add(field_name)
-            # If an alias exists and is different from the field name, add it too
-            if field_info.alias and field_info.alias != field_name:
-                allowed_json_keys_for_asset_ctx.add(field_info.alias)
+        allowed_json_keys = cls._get_allowed_asset_ctx_keys()
 
-        for i, item_obj in enumerate(asset_ctxs_list_of_objects):
-            if not isinstance(item_obj, dict):
-                raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
-            item_dict_original = cast(dict[str, Any], item_obj)
-            if not isinstance(item_dict_original, dict):
-                raise ValueError(
-                    f"Defensive check: item_dict_original at index {i} is not a dict after cast",
-                )
-
-            # Filter item_dict_original to keep only keys that are valid for HyperliquidRawAssetCtx
-            item_dict_filtered = {
-                k: v for k, v in item_dict_original.items() if k in allowed_json_keys_for_asset_ctx
-            }
-
-            validated_asset_ctxs.append(
-                HyperliquidRawAssetCtx.model_validate(
-                    item_dict_filtered,  # Use the correctly filtered dictionary
-                    strict=strict,
-                    context=context,
-                    from_attributes=from_attributes,
-                ),
+        for i, item_obj in enumerate(asset_ctxs_list):
+            validated_ctx = cls._validate_single_asset_context(
+                item_obj,
+                i,
+                allowed_json_keys,
+                strict=strict,
+                context=context,
+                from_attributes=from_attributes,
             )
+            validated_asset_ctxs.append(validated_ctx)
 
-        return cls(meta=meta, asset_ctxs=validated_asset_ctxs)
+        return validated_asset_ctxs
+
+    @classmethod
+    def _get_allowed_asset_ctx_keys(cls) -> set[str]:
+        """Get allowed JSON keys for HyperliquidRawAssetCtx."""
+        allowed_json_keys: set[str] = set()
+        for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
+            allowed_json_keys.add(field_name)
+            if field_info.alias and field_info.alias != field_name:
+                allowed_json_keys.add(field_info.alias)
+        return allowed_json_keys
+
+    @classmethod
+    def _validate_single_asset_context(
+        cls,
+        item_obj: object,
+        index: int,
+        allowed_keys: set[str],
+        *,
+        strict: bool | None,
+        context: dict[str, Any] | None,
+        from_attributes: bool | None,
+    ) -> HyperliquidRawAssetCtx:
+        """Validate a single asset context item."""
+        if not isinstance(item_obj, dict):
+            raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{index}] must be a dictionary")
+
+        item_dict_original = cast(dict[str, Any], item_obj)
+
+        # Filter to keep only valid keys
+        item_dict_filtered = {k: v for k, v in item_dict_original.items() if k in allowed_keys}
+
+        return HyperliquidRawAssetCtx.model_validate(
+            item_dict_filtered,
+            strict=strict,
+            context=context,
+            from_attributes=from_attributes,
+        )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
