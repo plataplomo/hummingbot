@@ -89,6 +89,26 @@ class PrioritySignalQueue:
             True if signal was added, False if rejected
 
         """
+        # Prepare signal metadata and validation
+        if not self._prepare_signal_metadata(signal):
+            return False
+
+        # Set expiration time if not already set
+        if signal.expiration is None:
+            self._calculate_expiration(signal)  # Modifies signal in place
+
+        # Check circuit breakers before adding
+        if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
+            return False
+
+        # Clean expired signals periodically
+        await self._cleanup_expired_signals_if_needed()
+
+        # Add signal to queue
+        return await self._add_signal_to_queue(signal)
+
+    def _prepare_signal_metadata(self, signal: TradeSignal) -> bool:
+        """Prepare and validate signal metadata."""
         # Ensure signal.metadata exists for score checking/setting
         if signal.metadata is None:
             signal.metadata = {}
@@ -113,19 +133,10 @@ class PrioritySignalQueue:
             utility_score = 0.0
             signal.metadata["utility_score"] = utility_score  # Store default back
 
-        # Set expiration time if not already set
-        if signal.expiration is None:
-            # Use the method to calculate and potentially modify the signal object
-            self._calculate_expiration(signal)  # Modifies signal in place
+        return True
 
-        # Check circuit breakers before adding
-        if self.circuit_breaker_system and not self._check_circuit_breakers_pre_add(signal):
-            # Logging moved inside _check_circuit_breakers_pre_add for context
-            return False
-
-        # Clean expired signals periodically
-        # Run cleanup *before* acquiring the main lock to avoid holding it during
-        # potentially longer cleanup
+    async def _cleanup_expired_signals_if_needed(self) -> None:
+        """Clean expired signals periodically if needed."""
         now = datetime.now(UTC)
         if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
             async with self.lock:  # Acquire lock specifically for cleanup
@@ -134,56 +145,73 @@ class PrioritySignalQueue:
                     self._clean_expired_signals()  # This modifies self.signal_queue
                     self.last_cleanup = now
 
+    async def _add_signal_to_queue(self, signal: TradeSignal) -> bool:
+        """Add signal to the priority queue with duplicate checking and trimming."""
         # Use asyncio.Lock for adding the signal
         async with self.lock:  # Changed to async with self.lock
             # Check for duplicates before adding
-            existing_ids = {s.signal_id for _, _, s in self.signal_queue if hasattr(s, "signal_id")}
-            if hasattr(signal, "signal_id") and signal.signal_id in existing_ids:
-                self.logger.debug(f"Rejected duplicate signal ID: {signal.signal_id}")
-                return False  # Indicate rejection due to duplicate
+            if self._is_duplicate_signal(signal):
+                return False
 
             # Add to priority queue FIRST
-            self.counter += 1
-            # Ensure utility_score is float before negation
-            try:
-                priority = -float(signal.metadata.get("utility_score", 0.0))
-            except (ValueError, TypeError):
-                priority = 0.0  # Default priority if conversion fails
-                self.logger.warning(
-                    f"Invalid utility score for {signal.symbol}, using 0.0 priority.",
-                )
-
-            heapq.heappush(self.signal_queue, (priority, self.counter, signal))
+            self._push_signal_to_heap(signal)
 
             # THEN check if trimming is needed
-            trimmed = False
-            if len(self.signal_queue) > self.max_queue_size:
-                trimmed = self._trim_queue()  # Trim if queue is over size limit
-                if not trimmed:
-                    self.logger.error(
-                        "Failed to trim queue after adding signal. State might be inconsistent.",
-                    )
-                    # Decide behavior: raise error, remove added signal, or just log?
-                    # Logging for now.
-                    # Attempt removal of the just added signal (based on counter) might be complex
-                    # if heap reordered.
-                    # Let's return False for now, though the signal *is* in the queue.
-                    return False  # Indicate potential issue post-add
+            trimmed = self._trim_queue_if_needed()
+            if trimmed is False:  # Explicit False check for trim failure
+                return False
 
-            # Log addition
-            log_level = (
-                logging.DEBUG if not trimmed else logging.INFO
-            )  # Log INFO if trimming occurred
-            self.logger.log(
-                log_level,
-                f"Added signal for {signal.symbol} to queue with score "
-                f"{signal.metadata.get('utility_score', 'N/A')}"
-                f"{' (and trimmed queue)' if trimmed else ''}",
-            )
-            # Signal the async wait event
+            # Log addition and signal event
+            self._log_signal_addition(signal, trimmed)
             self.new_signal_event.set()  # Directly set event in async context
 
             return True  # Indicate successful addition
+
+    def _is_duplicate_signal(self, signal: TradeSignal) -> bool:
+        """Check if signal is a duplicate."""
+        existing_ids = {s.signal_id for _, _, s in self.signal_queue if hasattr(s, "signal_id")}
+        if hasattr(signal, "signal_id") and signal.signal_id in existing_ids:
+            self.logger.debug(f"Rejected duplicate signal ID: {signal.signal_id}")
+            return True
+        return False
+
+    def _push_signal_to_heap(self, signal: TradeSignal) -> None:
+        """Push signal to the heap with proper priority calculation."""
+        self.counter += 1
+        # Ensure utility_score is float before negation
+        try:
+            metadata = signal.metadata or {}
+            priority = -float(metadata.get("utility_score", 0.0))
+        except (ValueError, TypeError):
+            priority = 0.0  # Default priority if conversion fails
+            self.logger.warning(
+                f"Invalid utility score for {signal.symbol}, using 0.0 priority.",
+            )
+
+        heapq.heappush(self.signal_queue, (priority, self.counter, signal))
+
+    def _trim_queue_if_needed(self) -> bool | None:
+        """Trim queue if needed. Returns True if trimmed, False if failed, None if not needed."""
+        if len(self.signal_queue) > self.max_queue_size:
+            trimmed = self._trim_queue()  # Trim if queue is over size limit
+            if not trimmed:
+                self.logger.error(
+                    "Failed to trim queue after adding signal. State might be inconsistent.",
+                )
+                return False  # Indicate potential issue post-add
+            return True
+        return None  # No trimming needed
+
+    def _log_signal_addition(self, signal: TradeSignal, trimmed: bool | None) -> None:
+        """Log the signal addition with appropriate level."""
+        log_level = logging.DEBUG if not trimmed else logging.INFO  # Log INFO if trimming occurred
+        metadata = signal.metadata or {}
+        self.logger.log(
+            log_level,
+            f"Added signal for {signal.symbol} to queue with score "
+            f"{metadata.get('utility_score', 'N/A')}"
+            f"{' (and trimmed queue)' if trimmed else ''}",
+        )
 
     async def add_from_opportunity(
         self,

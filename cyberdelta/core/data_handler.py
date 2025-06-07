@@ -263,80 +263,8 @@ class DataHandler:
             if not symbols:
                 logger.warning(f"[{exchange_id}] No symbols configured. Skipping subscriptions.")
             else:
-                logger.info(f"[{exchange_id}] Subscribing to channels for symbols: {symbols}")
+                await self._setup_subscriptions(exchange_id, client, symbols)
 
-                # Use the standard subscribe method from ExchangeAPI base class
-                # Define message handlers for different data types
-                async def ticker_handler(
-                    data_payload: dict[str, Any],
-                    full_message: dict[str, Any],
-                ) -> None:
-                    await self._handle_ticker_message(exchange_id, data_payload, full_message)
-
-                async def orderbook_handler(
-                    data_payload: dict[str, Any],
-                    full_message: dict[str, Any],
-                ) -> None:
-                    await self._handle_orderbook_message(exchange_id, data_payload, full_message)
-
-                async def funding_handler(
-                    data_payload: dict[str, Any],
-                    full_message: dict[str, Any],
-                ) -> None:
-                    await self._handle_funding_message(exchange_id, data_payload, full_message)
-
-                async def user_events_handler(
-                    data_payload: dict[str, Any],
-                    full_message: dict[str, Any],
-                ) -> None:
-                    await self._handle_user_events_message(exchange_id, data_payload, full_message)
-
-                # Subscribe to different topics based on exchange capabilities
-                subscribe_tasks: list[Coroutine[Any, Any, None]] = []
-
-                # Subscribe to ticker/price data for each symbol
-                for symbol in symbols:
-                    # Different exchanges have different topic formats
-                    if exchange_id == "hyperliquid":
-                        # Hyperliquid uses l2Book for order book data
-                        subscribe_tasks.append(
-                            client.subscribe(f"l2Book:{symbol}", orderbook_handler),
-                        )
-                        # Hyperliquid uses trades for trade data
-                        subscribe_tasks.append(client.subscribe(f"trades:{symbol}", ticker_handler))
-                    elif exchange_id == "backpack":
-                        # Backpack topic formats (adjust based on actual implementation)
-                        subscribe_tasks.append(client.subscribe(f"ticker.{symbol}", ticker_handler))
-                        subscribe_tasks.append(
-                            client.subscribe(f"orderbook.{symbol}", orderbook_handler),
-                        )
-                        subscribe_tasks.append(
-                            client.subscribe(f"funding.{symbol}", funding_handler),
-                        )
-                    else:
-                        # Generic fallback - adjust based on actual exchange implementations
-                        subscribe_tasks.append(client.subscribe(f"ticker:{symbol}", ticker_handler))
-                        subscribe_tasks.append(
-                            client.subscribe(f"orderbook:{symbol}", orderbook_handler),
-                        )
-                        subscribe_tasks.append(
-                            client.subscribe(f"funding:{symbol}", funding_handler),
-                        )
-
-                # Subscribe to user events for account data
-                if exchange_id == "hyperliquid":
-                    subscribe_tasks.append(client.subscribe("userEvents", user_events_handler))
-                elif exchange_id == "backpack":
-                    subscribe_tasks.append(client.subscribe("account", user_events_handler))
-
-                if subscribe_tasks:
-                    await asyncio.gather(*subscribe_tasks, return_exceptions=True)
-                    logger.info(f"[{exchange_id}] Subscriptions completed.")
-                else:
-                    logger.warning(f"[{exchange_id}] No subscription tasks created.")
-
-            # The WebSocket connection is now established and subscribed
-            # The message handling will be done through the registered handlers
             logger.info(f"[{exchange_id}] WebSocket setup completed.")
 
         except ConnectionError as e:
@@ -353,6 +281,126 @@ class DataHandler:
             if client.is_connected:
                 logger.info(f"[{exchange_id}] Closing WebSocket due to error: {e}")
                 await client.close_websocket()
+
+    async def _setup_subscriptions(
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        symbols: list[str],
+    ) -> None:
+        """Setup all subscriptions for the given exchange and symbols."""
+        logger.info(f"[{exchange_id}] Subscribing to channels for symbols: {symbols}")
+
+        # Define message handlers for different data types
+        handlers = self._create_message_handlers(exchange_id)
+
+        # Subscribe to different topics based on exchange capabilities
+        subscribe_tasks = self._create_subscription_tasks(exchange_id, client, symbols, handlers)
+
+        if subscribe_tasks:
+            await asyncio.gather(*subscribe_tasks, return_exceptions=True)
+            logger.info(f"[{exchange_id}] Subscriptions completed.")
+        else:
+            logger.warning(f"[{exchange_id}] No subscription tasks created.")
+
+    def _create_message_handlers(self, exchange_id: str) -> dict[str, Any]:
+        """Create message handlers for different data types."""
+
+        async def ticker_handler(
+            data_payload: dict[str, Any],
+            full_message: dict[str, Any],
+        ) -> None:
+            await self._handle_ticker_message(exchange_id, data_payload, full_message)
+
+        async def orderbook_handler(
+            data_payload: dict[str, Any],
+            full_message: dict[str, Any],
+        ) -> None:
+            await self._handle_orderbook_message(exchange_id, data_payload, full_message)
+
+        async def funding_handler(
+            data_payload: dict[str, Any],
+            full_message: dict[str, Any],
+        ) -> None:
+            await self._handle_funding_message(exchange_id, data_payload, full_message)
+
+        async def user_events_handler(
+            data_payload: dict[str, Any],
+            full_message: dict[str, Any],
+        ) -> None:
+            await self._handle_user_events_message(exchange_id, data_payload, full_message)
+
+        return {
+            "ticker": ticker_handler,
+            "orderbook": orderbook_handler,
+            "funding": funding_handler,
+            "user_events": user_events_handler,
+        }
+
+    def _create_subscription_tasks(
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        symbols: list[str],
+        handlers: dict[str, Any],
+    ) -> list[Coroutine[Any, Any, None]]:
+        """Create subscription tasks for all symbols and data types."""
+        subscribe_tasks: list[Coroutine[Any, Any, None]] = []
+
+        # Subscribe to ticker/price data for each symbol
+        for symbol in symbols:
+            symbol_tasks = self._create_symbol_subscription_tasks(
+                exchange_id, client, symbol, handlers
+            )
+            subscribe_tasks.extend(symbol_tasks)
+
+        # Subscribe to user events for account data
+        user_events_task = self._create_user_events_subscription(exchange_id, client, handlers)
+        if user_events_task:
+            subscribe_tasks.append(user_events_task)
+
+        return subscribe_tasks
+
+    def _create_symbol_subscription_tasks(
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        symbol: str,
+        handlers: dict[str, Any],
+    ) -> list[Coroutine[Any, Any, None]]:
+        """Create subscription tasks for a specific symbol."""
+        tasks: list[Coroutine[Any, Any, None]] = []
+
+        if exchange_id == "hyperliquid":
+            # Hyperliquid uses l2Book for order book data
+            tasks.append(client.subscribe(f"l2Book:{symbol}", handlers["orderbook"]))
+            # Hyperliquid uses trades for trade data
+            tasks.append(client.subscribe(f"trades:{symbol}", handlers["ticker"]))
+        elif exchange_id == "backpack":
+            # Backpack topic formats (adjust based on actual implementation)
+            tasks.append(client.subscribe(f"ticker.{symbol}", handlers["ticker"]))
+            tasks.append(client.subscribe(f"orderbook.{symbol}", handlers["orderbook"]))
+            tasks.append(client.subscribe(f"funding.{symbol}", handlers["funding"]))
+        else:
+            # Generic fallback - adjust based on actual exchange implementations
+            tasks.append(client.subscribe(f"ticker:{symbol}", handlers["ticker"]))
+            tasks.append(client.subscribe(f"orderbook:{symbol}", handlers["orderbook"]))
+            tasks.append(client.subscribe(f"funding:{symbol}", handlers["funding"]))
+
+        return tasks
+
+    def _create_user_events_subscription(
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        handlers: dict[str, Any],
+    ) -> Coroutine[Any, Any, None] | None:
+        """Create user events subscription task."""
+        if exchange_id == "hyperliquid":
+            return client.subscribe("userEvents", handlers["user_events"])
+        elif exchange_id == "backpack":
+            return client.subscribe("account", handlers["user_events"])
+        return None
 
     async def _handle_ticker_message(
         self,

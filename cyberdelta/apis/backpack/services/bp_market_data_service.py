@@ -606,13 +606,14 @@ class BackpackMarketDataService:
                 status_code,
                 raw_response_content,
             )
-            # DEFENSIVE CHECK: This should never be reached as _handle_recent_trades_exceptions raises
+            # DEFENSIVE CHECK: This should never be reached as
+            # _handle_recent_trades_exceptions raises
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error in get_recent_trades",
                 original_exception=e,
                 http_status=status_code,
-            )
+            ) from e
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Retrieves the current funding rate for a specific symbol."""
@@ -858,13 +859,14 @@ class BackpackMarketDataService:
                 status_code,
                 raw_response_content,
             )
-            # DEFENSIVE CHECK: This should never be reached as _handle_funding_rates_exceptions raises
+            # DEFENSIVE CHECK: This should never be reached as
+            # _handle_funding_rates_exceptions raises
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error in get_funding_rates",
                 original_exception=e,
                 http_status=status_code,
-            )
+            ) from e
 
     async def get_historical_funding_rates(
         self,

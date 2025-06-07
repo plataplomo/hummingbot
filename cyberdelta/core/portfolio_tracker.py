@@ -612,10 +612,31 @@ class PortfolioTracker:
             trade: The Trade object.
 
         """
-        if not trade or not trade.symbol or not trade.quantity or trade.quantity <= Decimal(0):
-            logger.warning(f"Ignoring invalid or zero-quantity trade on {exchange_id}: {trade}")
+        if not self._validate_trade(exchange_id, trade):
             return
 
+        base_symbol = self._get_base_symbol(exchange_id, trade)
+
+        logger.info(
+            f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} "
+            f"{base_symbol} (from {trade.symbol}) @ {trade.price}",
+        )
+
+        await self._update_position_from_trade(exchange_id, trade, base_symbol)
+
+        # Placeholder: Balance update logic
+        self._update_balances_from_trade(exchange_id, trade)
+        logger.debug(f"Placeholder: Update balances for trade {trade.id} on {exchange_id}")
+
+    def _validate_trade(self, exchange_id: str, trade: Trade) -> bool:
+        """Validate trade data before processing."""
+        if not trade or not trade.symbol or not trade.quantity or trade.quantity <= Decimal(0):
+            logger.warning(f"Ignoring invalid or zero-quantity trade on {exchange_id}: {trade}")
+            return False
+        return True
+
+    def _get_base_symbol(self, exchange_id: str, trade: Trade) -> str:
+        """Get the base symbol for the trade."""
         # Ensure symbol_mapper is available
         if not hasattr(self, "symbol_mapper") or self.symbol_mapper is None:
             logger.error("SymbolMapper not initialized in PortfolioTracker. Cannot process trade.")
@@ -632,11 +653,12 @@ class PortfolioTracker:
                 self.symbol_mapper.get_internal_symbol(exchange_id, trade.symbol)
                 or trade.symbol.split("-")[0].split("/")[0]
             )
+        return base_symbol
 
-        logger.info(
-            f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} "
-            f"{base_symbol} (from {trade.symbol}) @ {trade.price}",
-        )
+    async def _update_position_from_trade(
+        self, exchange_id: str, trade: Trade, base_symbol: str
+    ) -> None:
+        """Update position based on trade execution."""
 
         async def _update_position_async() -> None:
             async with self._lock:
@@ -646,159 +668,181 @@ class PortfolioTracker:
                 trade_side = trade.side
                 trade_timestamp = trade.executed_at  # USE executed_at
 
-                realized_pnl_for_this_trade = Decimal("0")
-
                 if not current_position or current_position.size == Decimal(0):
-                    # Opening new position
-                    logger.debug(
-                        f"Opening new position for {base_symbol} on {exchange_id} "
-                        f"from trade {trade.id}",
+                    self._open_new_position(
+                        exchange_id,
+                        base_symbol,
+                        trade_side,
+                        trade_quantity,
+                        trade_price,
+                        trade_timestamp,
                     )
-                    new_pos = DerivativePosition(
-                        exchange=exchange_id,
-                        symbol=base_symbol,
-                        side=trade_side,
-                        size=trade_quantity,
-                        entry_price=trade_price,
-                        timestamp=trade_timestamp,  # Uses corrected trade_timestamp
-                        mark_price=trade_price,  # Initial mark price
-                        # last_trade_id=trade.id # REMOVED
-                    )
-                    self.positions[exchange_id][base_symbol] = new_pos
-                    self.active_symbols.add(base_symbol)
                 else:
-                    # Modifying existing position
-                    logger.debug(
-                        f"Modifying existing position for {base_symbol} on {exchange_id} "
-                        f"from trade {trade.id}. Current size: {current_position.size}, "
-                        f"side: {current_position.side}",
+                    self._modify_existing_position(
+                        current_position, trade, base_symbol, exchange_id
                     )
-                    current_entry_price = current_position.entry_price or Decimal(
-                        0,
-                    )  # Default if somehow None
-
-                    if current_position.side == trade_side:
-                        # Increasing position
-                        logger.debug(
-                            f"Increasing position for {base_symbol}. Trade qty: {trade_quantity}",
-                        )
-                        if (
-                            current_position.size < Decimal(0) and trade_side == OrderSide.SELL
-                        ):  # Increasing short
-                            new_avg_price = (
-                                (abs(current_position.size) * current_entry_price)
-                                + (trade_quantity * trade_price)
-                            ) / (abs(current_position.size) + trade_quantity)
-                            current_position.size -= trade_quantity
-                        elif (
-                            current_position.size > Decimal(0) and trade_side == OrderSide.BUY
-                        ):  # Increasing long
-                            new_avg_price = (
-                                (current_position.size * current_entry_price)
-                                + (trade_quantity * trade_price)
-                            ) / (current_position.size + trade_quantity)
-                            current_position.size += trade_quantity
-                        else:  # This is the correct fallback else for the increasing position logic
-                            logger.error(
-                                f"Logical error in increasing position {base_symbol}. "
-                                f"Current size {current_position.size}, "
-                                f"side {current_position.side}. "
-                                f"Trade qty {trade_quantity}, side {trade_side}",
-                            )
-                            new_avg_price = trade_price  # Fallback
-
-                        current_position.entry_price = new_avg_price
-                        logger.debug(
-                            f"Position for {base_symbol} increased. New size: "
-                            f"{current_position.size}, "
-                            f"New avg entry: {current_position.entry_price}",
-                        )
-
-                    else:
-                        # Decreasing or flipping position
-                        logger.debug(
-                            f"Reducing or flipping position for {base_symbol}. "
-                            f"Trade qty: {trade_quantity}",
-                        )
-
-                        # Calculate PNL on the portion of the position affected by this trade
-                        # PNL = (Exit Price - Entry Price) * Quantity
-                        # For short positions, PNL = (Entry Price - Exit Price) * Quantity
-                        qty_affected = min(trade_quantity, abs(current_position.size))
-
-                        if current_entry_price != Decimal(0):  # Avoid PNL calc if entry was 0
-                            if current_position.side == OrderSide.BUY:  # Closing/reducing a long
-                                realized_pnl_for_this_trade = (
-                                    trade_price - current_entry_price
-                                ) * qty_affected
-                            else:  # Closing/reducing a short
-                                realized_pnl_for_this_trade = (
-                                    current_entry_price - trade_price
-                                ) * qty_affected
-
-                            self._update_realized_pnl(
-                                realized_pnl_for_this_trade,
-                            )  # Update portfolio total PNL
-                            current_position.realized_pnl = (
-                                current_position.realized_pnl or Decimal(0)
-                            ) + realized_pnl_for_this_trade
-                            logger.info(
-                                f"Trade {trade.id} for {base_symbol}: "
-                                f"Realized PNL {realized_pnl_for_this_trade:.4f}. "
-                                f"Position Realized PNL: {current_position.realized_pnl:.4f}",
-                            )
-
-                        if trade_quantity < abs(current_position.size):
-                            # Reducing position, not closing or flipping
-                            logger.debug(
-                                f"Reducing position for {base_symbol}. New size: "
-                                f"{
-                                    current_position.size - qty_affected
-                                    if current_position.side == OrderSide.BUY
-                                    else current_position.size + qty_affected
-                                }",
-                            )
-                            if current_position.side == OrderSide.BUY:
-                                current_position.size -= trade_quantity
-                            else:  # SELL side
-                                current_position.size += trade_quantity
-                            # Entry price remains the same
-
-                        elif trade_quantity == abs(current_position.size):
-                            # Closing position to flat
-                            logger.debug(f"Closing position for {base_symbol} to flat.")
-                            current_position.size = Decimal(0)
-                            current_position.entry_price = None  # Flat position has no entry price
-                            # current_position.side can be left as is or set to a default, e.g., BUY
-                            self.active_symbols.discard(base_symbol)  # Symbol might become inactive
-
-                        else:  # Flipping position (trade_quantity > abs(current_position.size))
-                            remaining_qty = trade_quantity - abs(current_position.size)
-                            logger.debug(
-                                f"Flipping position for {base_symbol}. "
-                                f"Remaining qty after closing: {remaining_qty}",
-                            )
-                            current_position.size = (
-                                remaining_qty if trade_side == OrderSide.BUY else -remaining_qty
-                            )
-                            current_position.side = trade_side
-                            current_position.entry_price = (
-                                trade_price  # Entry price for the new portion
-                            )
-                            # PNL for the closed portion already calculated above
-
-                    current_position.timestamp = trade_timestamp
-                    current_position.mark_price = (
-                        trade_price  # Update mark price to last trade price
-                    )
-                    # current_position.last_trade_id = trade.id # Ensure this is removed/commented
-                    self.positions[exchange_id][base_symbol] = current_position
 
         await _update_position_async()
 
-        # Placeholder: Balance update logic
-        self._update_balances_from_trade(exchange_id, trade)
-        logger.debug(f"Placeholder: Update balances for trade {trade.id} on {exchange_id}")
+    def _open_new_position(
+        self,
+        exchange_id: str,
+        base_symbol: str,
+        trade_side: OrderSide,
+        trade_quantity: Decimal,
+        trade_price: Decimal,
+        trade_timestamp: datetime,
+    ) -> None:
+        """Open a new position."""
+        logger.debug(
+            f"Opening new position for {base_symbol} on {exchange_id}",
+        )
+        new_pos = DerivativePosition(
+            exchange=exchange_id,
+            symbol=base_symbol,
+            side=trade_side,
+            size=trade_quantity,
+            entry_price=trade_price,
+            timestamp=trade_timestamp,  # Uses corrected trade_timestamp
+            mark_price=trade_price,  # Initial mark price
+            # last_trade_id=trade.id # REMOVED
+        )
+        self.positions[exchange_id][base_symbol] = new_pos
+        self.active_symbols.add(base_symbol)
+
+    def _modify_existing_position(
+        self,
+        current_position: DerivativePosition,
+        trade: Trade,
+        base_symbol: str,
+        exchange_id: str,
+    ) -> None:
+        """Modify an existing position based on trade."""
+        logger.debug(
+            f"Modifying existing position for {base_symbol} on {exchange_id} "
+            f"from trade {trade.id}. Current size: {current_position.size}, "
+            f"side: {current_position.side}",
+        )
+
+        if current_position.side == trade.side:
+            self._increase_position(current_position, trade, base_symbol)
+        else:
+            self._decrease_or_flip_position(current_position, trade, base_symbol)
+
+        # Update position metadata
+        current_position.timestamp = trade.executed_at
+        current_position.mark_price = trade.price  # Update mark price to last trade price
+        self.positions[exchange_id][base_symbol] = current_position
+
+    def _increase_position(
+        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+    ) -> None:
+        """Increase an existing position."""
+        logger.debug(f"Increasing position for {base_symbol}. Trade qty: {trade.quantity}")
+
+        current_entry_price = current_position.entry_price or Decimal(0)
+
+        if current_position.size < Decimal(0) and trade.side == OrderSide.SELL:
+            # Increasing short
+            new_avg_price = (
+                (abs(current_position.size) * current_entry_price) + (trade.quantity * trade.price)
+            ) / (abs(current_position.size) + trade.quantity)
+            current_position.size -= trade.quantity
+        elif current_position.size > Decimal(0) and trade.side == OrderSide.BUY:
+            # Increasing long
+            new_avg_price = (
+                (current_position.size * current_entry_price) + (trade.quantity * trade.price)
+            ) / (current_position.size + trade.quantity)
+            current_position.size += trade.quantity
+        else:
+            logger.error(
+                f"Logical error in increasing position {base_symbol}. "
+                f"Current size {current_position.size}, "
+                f"side {current_position.side}. "
+                f"Trade qty {trade.quantity}, side {trade.side}",
+            )
+            new_avg_price = trade.price  # Fallback
+
+        current_position.entry_price = new_avg_price
+        logger.debug(
+            f"Position for {base_symbol} increased. New size: "
+            f"{current_position.size}, "
+            f"New avg entry: {current_position.entry_price}",
+        )
+
+    def _decrease_or_flip_position(
+        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+    ) -> None:
+        """Decrease or flip an existing position."""
+        logger.debug(
+            f"Reducing or flipping position for {base_symbol}. Trade qty: {trade.quantity}",
+        )
+
+        # Calculate PNL on the portion of the position affected by this trade
+        qty_affected = min(trade.quantity, abs(current_position.size))
+        current_entry_price = current_position.entry_price or Decimal(0)
+
+        self._calculate_realized_pnl(current_position, trade, qty_affected, current_entry_price)
+
+        self._update_position_size(current_position, trade, base_symbol)
+
+    def _calculate_realized_pnl(
+        self,
+        current_position: DerivativePosition,
+        trade: Trade,
+        qty_affected: Decimal,
+        current_entry_price: Decimal,
+    ) -> Decimal:
+        """Calculate realized PnL for the trade."""
+        realized_pnl_for_this_trade = Decimal("0")
+
+        if current_entry_price != Decimal(0):  # Avoid PNL calc if entry was 0
+            if current_position.side == OrderSide.BUY:  # Closing/reducing a long
+                realized_pnl_for_this_trade = (trade.price - current_entry_price) * qty_affected
+            else:  # Closing/reducing a short
+                realized_pnl_for_this_trade = (current_entry_price - trade.price) * qty_affected
+
+            self._update_realized_pnl(realized_pnl_for_this_trade)
+            current_position.realized_pnl = (
+                current_position.realized_pnl or Decimal(0)
+            ) + realized_pnl_for_this_trade
+            logger.info(
+                f"Trade {trade.id} for {trade.symbol}: "
+                f"Realized PNL {realized_pnl_for_this_trade:.4f}. "
+                f"Position Realized PNL: {current_position.realized_pnl:.4f}",
+            )
+
+        return realized_pnl_for_this_trade
+
+    def _update_position_size(
+        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+    ) -> None:
+        """Update position size based on trade."""
+        if trade.quantity < abs(current_position.size):
+            # Reducing position, not closing or flipping
+            logger.debug(f"Reducing position for {base_symbol}")
+            if current_position.side == OrderSide.BUY:
+                current_position.size -= trade.quantity
+            else:  # SELL side
+                current_position.size += trade.quantity
+            # Entry price remains the same
+
+        elif trade.quantity == abs(current_position.size):
+            # Closing position to flat
+            logger.debug(f"Closing position for {base_symbol} to flat.")
+            current_position.size = Decimal(0)
+            current_position.entry_price = None  # Flat position has no entry price
+            self.active_symbols.discard(base_symbol)  # Symbol might become inactive
+
+        else:  # Flipping position (trade.quantity > abs(current_position.size))
+            remaining_qty = trade.quantity - abs(current_position.size)
+            logger.debug(
+                f"Flipping position for {base_symbol}. "
+                f"Remaining qty after closing: {remaining_qty}",
+            )
+            current_position.size = remaining_qty if trade.side == OrderSide.BUY else -remaining_qty
+            current_position.side = trade.side
+            current_position.entry_price = trade.price  # Entry price for the new portion
 
     def _update_balances_from_trade(self, exchange_id: str, trade: Trade) -> None:
         # Placeholder for balance update logic based on trade details

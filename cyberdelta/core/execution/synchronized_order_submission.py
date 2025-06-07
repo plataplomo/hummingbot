@@ -29,7 +29,6 @@ from cyberdelta.core.models import (
     OrderStatus,
     OrderType,
     TimeInForce,
-    Trade,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -356,6 +355,56 @@ class OrderVerifier:
         verification_error = None
 
         # 1. Get order from portfolio tracker (local state)
+        local_order, verification_success, verification_error = self._verify_local_order_execution(
+            exchange, order_id, verification_details, verification_success, verification_error
+        )
+
+        # 2. Get API client and early return if not found
+        api_client = self.portfolio_tracker.api_clients.get(exchange)
+        if not api_client:
+            return self._handle_missing_api_client(
+                exchange, verification_success, verification_error, verification_details
+            )
+
+        # 3. Get order from exchange API
+        api_order, verification_success, verification_error = await self._fetch_api_order(
+            exchange,
+            order_id,
+            local_order,
+            api_client,
+            verification_details,
+            verification_success,
+            verification_error,
+        )
+
+        # 4. Perform Status Checks
+        verification_success, verification_error = self._verify_order_statuses(
+            local_order, api_order, order_id, exchange, verification_success, verification_error
+        )
+
+        # 5. Get recent fills
+        await self._fetch_recent_fills(
+            api_client, local_order, order_id, exchange, verification_details
+        )
+
+        verification_details["final_error_summary_before_return"] = verification_error
+
+        return {
+            "timestamp": int(time.time() * 1000),
+            "success": verification_success,
+            "error": verification_error,
+            "details": verification_details,
+        }
+
+    def _verify_local_order_execution(
+        self,
+        exchange: str,
+        order_id: str,
+        verification_details: dict[str, Any],
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[Order | None, bool, str | None]:
+        """Verify local order state."""
         local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
         if not local_order:
             verification_success = False
@@ -367,71 +416,56 @@ class OrderVerifier:
             verification_details["local_order_status"] = local_order.status.name
             verification_details["local_order_details"] = local_order.model_dump()
 
-        # 2. Get API client
-        api_client = self.portfolio_tracker.api_clients.get(exchange)
-        if not api_client:
-            verification_success = False
-            error_msg = f"API client not found for exchange {exchange}."
-            verification_error = (
-                f"{verification_error} {error_msg}" if verification_error else error_msg
-            )
-            return {  # Early return if no API client
-                "timestamp": int(time.time() * 1000),
-                "success": verification_success,
-                "error": verification_error,
-                "details": verification_details,
-            }
+        return local_order, verification_success, verification_error
 
-        # 3. Get order from exchange API (using get_order, as test mocks this
-        # primarily for success path)
-        # Test also mocks get_order_status for specific failure case,
-        # so we might need to call that too.
-        # For now, let's stick to get_order for the primary fetch.
+    def _handle_missing_api_client(
+        self,
+        exchange: str,
+        verification_success: bool,
+        verification_error: str | None,
+        verification_details: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Handle case where API client is not found."""
+        verification_success = False
+        error_msg = f"API client not found for exchange {exchange}."
+        verification_error = (
+            f"{verification_error} {error_msg}" if verification_error else error_msg
+        )
+        return {
+            "timestamp": int(time.time() * 1000),
+            "success": verification_success,
+            "error": verification_error,
+            "details": verification_details,
+        }
+
+    async def _fetch_api_order(
+        self,
+        exchange: str,
+        order_id: str,
+        local_order: Order | None,
+        api_client: ExchangeAPI,
+        verification_details: dict[str, Any],
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[Order | None, bool, str | None]:
+        """Fetch order from exchange API."""
         api_order: Order | None = None
         try:
             symbol_for_api_call = local_order.symbol if local_order else None
-            if not symbol_for_api_call and local_order:  # Should not happen if local_order exists
+            if not symbol_for_api_call and local_order:
                 logger.warning(f"Local order {order_id} exists but has no symbol for API call.")
 
-            # The test TestOrderVerifier.test_verify_order_execution mocks api_client.get_order
-            # for success
-            # and api_client.get_order_status for the OPEN status failure case.
-            # Let's try using get_order_status as the primary source from API for verification.
-            # If not available, fallback to get_order might be an option, or specific handling.
-            if hasattr(api_client, "get_order_status"):
-                api_order = await api_client.get_order_status(
-                    GetOrderArgs(
-                        order_id=order_id,
-                        symbol=symbol_for_api_call,
-                    ),
-                )
-            elif hasattr(
-                api_client,
-                "get_order",
-            ):  # Fallback if get_order_status is not on protocol
-                logger.warning(
-                    f"API client for {exchange} missing get_order_status, "
-                    f"falling back to get_order.",
-                )
-                api_order = await api_client.get_order(
-                    GetOrderArgs(
-                        order_id=order_id,
-                        symbol=symbol_for_api_call,
-                    ),
-                )
-            else:
-                raise AttributeError(
-                    f"API client for {exchange} missing get_order_status and get_order methods.",
-                )
+            api_order = await self._call_api_order_method(
+                api_client, exchange, order_id, symbol_for_api_call
+            )
 
             if api_order:
                 verification_details["api_order_status"] = api_order.status.name
                 verification_details["api_order_details"] = api_order.model_dump()
             else:
                 verification_details["api_order_status"] = "NOT_FOUND_ON_API"
-        except (
-            AttributeError
-        ) as e:  # Catch if chosen method (get_order_status/get_order) is missing
+
+        except AttributeError as e:
             logger.error(
                 f"API client for {exchange} is missing a required order fetch method: {e!r}",
             )
@@ -453,12 +487,46 @@ class OrderVerifier:
             )
             verification_success = False
 
-        # 4. Perform Status Checks
-        # Only proceed with detailed status checks if no critical errors occurred during API fetch
+        return api_order, verification_success, verification_error
+
+    async def _call_api_order_method(
+        self, api_client: ExchangeAPI, exchange: str, order_id: str, symbol_for_api_call: str | None
+    ) -> Order | None:
+        """Call the appropriate API method to fetch order."""
+        if hasattr(api_client, "get_order_status"):
+            return await api_client.get_order_status(
+                GetOrderArgs(
+                    order_id=order_id,
+                    symbol=symbol_for_api_call,
+                ),
+            )
+        elif hasattr(api_client, "get_order"):
+            logger.warning(
+                f"API client for {exchange} missing get_order_status, falling back to get_order.",
+            )
+            return await api_client.get_order(
+                GetOrderArgs(
+                    order_id=order_id,
+                    symbol=symbol_for_api_call,
+                ),
+            )
+        else:
+            raise AttributeError(
+                f"API client for {exchange} missing get_order_status and get_order methods.",
+            )
+
+    def _verify_order_statuses(
+        self,
+        local_order: Order | None,
+        api_order: Order | None,
+        order_id: str,
+        exchange: str,
+        verification_success: bool,
+        verification_error: str | None,
+    ) -> tuple[bool, str | None]:
+        """Verify order statuses match expected values."""
         if verification_success:
-            if not local_order:  # Should already be handled, but as a safeguard
-                pass  # error already set
-            elif local_order.status != OrderStatus.FILLED:
+            if local_order and local_order.status != OrderStatus.FILLED:
                 verification_success = False
                 error_msg = (
                     f"Local order {order_id} status is {local_order.status}, expected FILLED."
@@ -467,16 +535,14 @@ class OrderVerifier:
                     f"{verification_error} {error_msg}" if verification_error else error_msg
                 )
 
-            if not api_order:  # API did not find the order
-                verification_success = False  # This makes it fail if API order is None
+            if not api_order:
+                verification_success = False
                 error_msg = f"Order {order_id} not found on {exchange} via API."
                 verification_error = (
                     f"{verification_error} {error_msg}" if verification_error else error_msg
                 )
             elif api_order.status != OrderStatus.FILLED:
                 verification_success = False
-                # This is the key check for the failing test
-                # TestOrderVerifier.test_verify_order_execution
                 error_msg = (
                     f"Order status mismatch: API order {order_id} status is {api_order.status}, "
                     f"expected FILLED."
@@ -485,43 +551,36 @@ class OrderVerifier:
                     f"{verification_error} {error_msg}" if verification_error else error_msg
                 )
 
-        # 5. Get recent fills (conditionally)
-        recent_fills: list[Trade] = []  # Default to empty list, explicitly typed
-        if api_client:  # api_client itself can be None if not found for exchange
+        return verification_success, verification_error
+
+    async def _fetch_recent_fills(
+        self,
+        api_client: ExchangeAPI,
+        local_order: Order | None,
+        order_id: str,
+        exchange: str,
+        verification_details: dict[str, Any],
+    ) -> None:
+        """Fetch recent fills for the order."""
+        if api_client:
             try:
                 symbol_for_fills = local_order.symbol if local_order else None
-                # Use GetTradeHistoryArgs for the new Pydantic-based interface
                 trade_history_args = GetTradeHistoryArgs(symbol=symbol_for_fills)
                 fills_result = await api_client.get_trade_history(args=trade_history_args)
-                # No need to check isinstance(fills_result, list) if protocol guarantees list[Trade]
-                recent_fills = fills_result  # Assign to recent_fills for potential use
-                verification_details["recent_fills_count"] = len(recent_fills)
-            except APIError as e:  # Catch API specific errors if get_trade_history raises them
+                verification_details["recent_fills_count"] = len(fills_result)
+            except APIError as e:
                 logger.warning(
                     f"API error getting recent fills for {order_id} on {exchange}: {e!r}",
                 )
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
-            except Exception as e:  # Catch other potential errors
+            except Exception as e:
                 logger.warning(f"Could not get recent fills for {order_id} on {exchange}: {e!r}")
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
         else:
-            # This case handles if api_client was None from the start
             verification_details["recent_fills_count"] = 0
             verification_details["recent_fills_error"] = "API client not available for exchange"
-
-        verification_details["final_error_summary_before_return"] = (
-            verification_error  # For debugging
-        )
-
-        return {
-            "timestamp": int(time.time() * 1000),
-            # Ensure key is 'success' as expected by test_verify_order_execution
-            "success": verification_success,
-            "error": verification_error,
-            "details": verification_details,
-        }
 
     async def verify_order_fill(self, exchange: str, order_id: str) -> dict[str, Any]:
         """Verify that an order has been filled correctly.
@@ -888,7 +947,7 @@ class SynchronizedOrderSubmissionService:
         opportunity: OpportunityType,
     ) -> dict[str, Any]:
         """Perform pre-execution verification checks."""
-        results = {}
+        results: dict[str, Any] = {}
         all_success = True
         error_msg = ""
 
@@ -899,6 +958,41 @@ class SynchronizedOrderSubmissionService:
                 {"message": "Pre-execution verification started."},
             )
 
+        # Circuit breaker checks
+        all_success, error_msg = await self._verify_circuit_breakers(
+            execution_context, opportunity, results, all_success, error_msg
+        )
+
+        # Market conditions check
+        if all_success:
+            all_success, error_msg = await self._verify_market_conditions_check(
+                execution_context, opportunity, results, all_success, error_msg
+            )
+
+        # Balance checks
+        if all_success:
+            all_success, error_msg = await self._verify_balances_check(
+                execution_context, opportunity, results, all_success, error_msg
+            )
+
+        if self.execution_coordinator:
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "pre_execution_end",
+                {"success": all_success, "error_summary": error_msg or None},
+            )
+
+        return {"verified": all_success, "error": error_msg.strip() or None, "details": results}
+
+    async def _verify_circuit_breakers(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        results: dict[str, Any],
+        all_success: bool,
+        error_msg: str,
+    ) -> tuple[bool, str]:
+        """Verify circuit breakers for both legs."""
         # Circuit breaker check for long leg
         cb_long_ok, cb_long_msg = self.circuit_breaker_system.can_execute(
             opportunity.long_exchange,
@@ -932,42 +1026,53 @@ class SynchronizedOrderSubmissionService:
                 error_msg += f"Short leg CB: {cb_short_msg or 'Failed'}. "
                 results["circuit_breaker_short"] = {"success": False, "error": cb_short_msg}
 
-        # Market conditions check
-        if all_success:
-            market_result = await self.verify_market_conditions(opportunity)
-            if self.execution_coordinator:
-                await self.execution_coordinator.add_checkpoint(
-                    execution_context,
-                    "pre_execution_market",
-                    {"success": market_result["verified"], "details": market_result},
-                )
-            if not market_result["verified"]:
-                all_success = False
-                error_msg += f"Market conditions: {market_result.get('error') or 'Failed'}. "
-            results["market_conditions"] = market_result
+        return all_success, error_msg
 
-        # Balance checks
-        if all_success:
-            balance_result = await self.verify_balances(opportunity)
-            if self.execution_coordinator:
-                await self.execution_coordinator.add_checkpoint(
-                    execution_context,
-                    "pre_execution_balance",
-                    {"success": balance_result["verified"], "details": balance_result},
-                )
-            if not balance_result["verified"]:
-                all_success = False
-                error_msg += f"Balance check: {balance_result.get('error') or 'Failed'}. "
-            results["balances"] = balance_result
-
+    async def _verify_market_conditions_check(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        results: dict[str, Any],
+        all_success: bool,
+        error_msg: str,
+    ) -> tuple[bool, str]:
+        """Verify market conditions."""
+        market_result = await self.verify_market_conditions(opportunity)
         if self.execution_coordinator:
             await self.execution_coordinator.add_checkpoint(
                 execution_context,
-                "pre_execution_end",
-                {"success": all_success, "error_summary": error_msg or None},
+                "pre_execution_market",
+                {"success": market_result["verified"], "details": market_result},
             )
+        if not market_result["verified"]:
+            all_success = False
+            error_msg += f"Market conditions: {market_result.get('error') or 'Failed'}. "
+        results["market_conditions"] = market_result
 
-        return {"verified": all_success, "error": error_msg.strip() or None, "details": results}
+        return all_success, error_msg
+
+    async def _verify_balances_check(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        results: dict[str, Any],
+        all_success: bool,
+        error_msg: str,
+    ) -> tuple[bool, str]:
+        """Verify balances."""
+        balance_result = await self.verify_balances(opportunity)
+        if self.execution_coordinator:
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "pre_execution_balance",
+                {"success": balance_result["verified"], "details": balance_result},
+            )
+        if not balance_result["verified"]:
+            all_success = False
+            error_msg += f"Balance check: {balance_result.get('error') or 'Failed'}. "
+        results["balances"] = balance_result
+
+        return all_success, error_msg
 
     async def verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify market conditions (e.g., price spreads, volatility)."""
@@ -1014,210 +1119,265 @@ class SynchronizedOrderSubmissionService:
             timestamp=int(time.time() * 1000),
         )
 
-        # Determine which order to place first (e.g., the long order)
         try:
-            # First leg - prepare and place order
-            first_order = self._prepare_order(opportunity, "long")
-            first_exchange = (
-                "hyperliquid"  # This would be determined from opportunity in real implementation
-            )
+            # Execute first leg
+            result = await self._execute_first_leg(opportunity, execution_context, result)
+            if result.status == ExecutionStatus.FAILED:
+                return result
 
-            # Store order info in result
-            result.first_exchange = first_exchange
-
-            # Checkpoint: first order preparation
-            await self.execution_coordinator.add_checkpoint(
-                execution_context,
-                "first_order_preparation",
-                {"exchange": first_exchange, "order": first_order.model_dump()},
-            )
-
-            # Place first order
-            first_api = self.exchange_adapters[first_exchange]
-
-            # Place order with verify
-            try:
-                # Create PlaceOrderArgs object for the API call
-                first_place_order_args = PlaceOrderArgs(
-                    symbol=first_order.symbol,
-                    side=first_order.side,
-                    order_type=first_order.order_type,
-                    quantity=first_order.quantity_requested,
-                    time_in_force=TimeInForce.GTC,  # Default value
-                    price=first_order.price,
-                    # TODO: Handle post_only, reduce_only if needed via config/adapter
-                )
-                placed_order: Order = await first_api.place_order(first_place_order_args)
-                if not (
-                    hasattr(placed_order, "client_order_id") and hasattr(placed_order, "to_dict")
-                ):
-                    raise ValueError("placed_order missing required attributes")
-                result.first_order_id = placed_order.client_order_id  # Use client_order_id
-
-                # Checkpoint: first order placed
-                await self.execution_coordinator.add_checkpoint(
-                    execution_context,
-                    "first_order_placed",
-                    {"order_id": placed_order.client_order_id, "order": placed_order.model_dump()},
-                )
-
-                # Verify first order
-                order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
-                verification_result = await order_verifier.verify_order_placement(
-                    first_exchange,
-                    placed_order.client_order_id,  # Use client_order_id
-                    {
-                        "symbol": first_order.symbol,
-                        "side": first_order.side,
-                        "type": first_order.order_type,  # Corrected field
-                    },
-                )
-
-                # Only proceed if verification succeeds
-                if not verification_result.get("success", False):
-                    result.status = ExecutionStatus.FAILED
-                    result.error = verification_result.get(
-                        "error",
-                        "First order verification failed",
-                    )
-                    return result
-
-                # Wait for fill if needed
-                if self.config.get("execution.wait_for_first_fill", True):
-                    # Monitor for fills - this would be implemented to check if order is filled
-                    fill_result = {"filled": True}  # Placeholder for actual fill monitoring
-
-                    # Check fill verification
-                    if not fill_result.get("filled", False):
-                        result.status = ExecutionStatus.FAILED
-                        result.error = "First order did not fill within timeout"
-                        return result
-
-                    result.first_fill = fill_result
-
-                    # Checkpoint: first order filled
-                    await self.execution_coordinator.add_checkpoint(
-                        execution_context,
-                        "first_order_filled",
-                        fill_result,
-                    )
-
-                # Second leg
-                second_order = self._prepare_order(opportunity, "short")
-                second_exchange = (
-                    "backpack"  # This would be determined from opportunity in real implementation
-                )
-
-                # Store in result
-                result.second_exchange = second_exchange
-
-                # Checkpoint: second order preparation
-                await self.execution_coordinator.add_checkpoint(
-                    execution_context,
-                    "second_order_preparation",
-                    {"exchange": second_exchange, "order": second_order.model_dump()},
-                )
-
-                # Place second order
-                second_api = self.exchange_adapters[second_exchange]
-
-                # Place order with verification
-                try:
-                    # Create PlaceOrderArgs object for the API call
-                    second_place_order_args = PlaceOrderArgs(
-                        symbol=second_order.symbol,
-                        side=second_order.side,
-                        order_type=second_order.order_type,
-                        quantity=second_order.quantity_requested,
-                        time_in_force=TimeInForce.GTC,  # Default value
-                        price=second_order.price,
-                        # TODO: Handle post_only, reduce_only if needed via config/adapter
-                    )
-                    second_placed_order: Order = await second_api.place_order(
-                        second_place_order_args,
-                    )
-                    if not (
-                        hasattr(second_placed_order, "client_order_id")
-                        and hasattr(second_placed_order, "to_dict")
-                    ):
-                        raise ValueError("second_placed_order missing required attributes")
-                    result.second_order_id = (
-                        second_placed_order.client_order_id
-                    )  # Use client_order_id
-
-                    # Checkpoint: second order placed
-                    await self.execution_coordinator.add_checkpoint(
-                        execution_context,
-                        "second_order_placed",
-                        {
-                            "order_id": second_placed_order.client_order_id,
-                            "order": second_placed_order.model_dump(),
-                        },
-                    )
-
-                    # Verify second order
-                    second_verification = await order_verifier.verify_order_placement(
-                        second_exchange,
-                        second_placed_order.client_order_id,  # Use client_order_id
-                        {
-                            "symbol": second_order.symbol,
-                            "side": second_order.side,
-                            "type": second_order.order_type,  # Corrected field
-                        },
-                    )
-
-                    if not second_verification.get("success", False):
-                        # Second order failed but first succeeded - partial completion
-                        result.status = ExecutionStatus.PARTIALLY_COMPLETED
-                        result.error = second_verification.get(
-                            "error",
-                            "Second order verification failed",
-                        )
-                    else:
-                        # Both orders succeeded
-                        result.status = ExecutionStatus.COMPLETED
-
-                        # Wait for second fill if needed
-                        if self.config.get("execution.wait_for_second_fill", True):
-                            # Monitor for fills - this would be implemented
-                            # to check if order is filled
-                            second_fill_result = {
-                                "filled": True,
-                            }  # Placeholder for actual fill monitoring
-
-                            if not second_fill_result.get("filled", False):
-                                result.status = ExecutionStatus.PARTIALLY_COMPLETED
-                                result.error = "Second order did not fill within timeout"
-                            else:
-                                result.second_fill = second_fill_result
-
-                                # Checkpoint: second order filled
-                                await self.execution_coordinator.add_checkpoint(
-                                    execution_context,
-                                    "second_order_filled",
-                                    second_fill_result,
-                                )
-
-                                # Complete execution
-                                result.status = ExecutionStatus.COMPLETED
-
-                except Exception as e:
-                    # Second order failed
-                    logger.error(f"Error placing second order: {e}")
-                    result.status = ExecutionStatus.PARTIALLY_COMPLETED
-                    result.error = f"Second order error: {str(e)}"
-
-            except Exception as e:
-                # First order failed
-                logger.error(f"Error placing first order: {e}")
-                result.status = ExecutionStatus.FAILED
-                result.error = f"First order error: {str(e)}"
+            # Execute second leg
+            result = await self._execute_second_leg(opportunity, execution_context, result)
 
         except Exception as e:
-            # General execution error
-            logger.error(f"Error in sequential execution: {e}")
             result.status = ExecutionStatus.FAILED
-            result.error = f"Execution error: {str(e)}"
+            result.error = f"Execution failed: {e!r}"
+
+        return result
+
+    async def _execute_first_leg(
+        self,
+        opportunity: OpportunityType,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Execute the first leg of the sequential order."""
+        # First leg - prepare and place order
+        first_order = self._prepare_order(opportunity, "long")
+        first_exchange = (
+            "hyperliquid"  # This would be determined from opportunity in real implementation
+        )
+
+        # Store order info in result
+        result.first_exchange = first_exchange
+
+        # Checkpoint: first order preparation
+        await self.execution_coordinator.add_checkpoint(
+            execution_context,
+            "first_order_preparation",
+            {"exchange": first_exchange, "order": first_order.model_dump()},
+        )
+
+        # Place and verify first order
+        result = await self._place_and_verify_first_order(
+            first_order, first_exchange, execution_context, result
+        )
+        if result.status == ExecutionStatus.FAILED:
+            return result
+
+        # Wait for fill if needed
+        if self.config.get("execution.wait_for_first_fill", True):
+            result = await self._wait_for_first_fill(execution_context, result)
+
+        return result
+
+    async def _place_and_verify_first_order(
+        self,
+        first_order: Order,
+        first_exchange: str,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Place and verify the first order."""
+        first_api = self.exchange_adapters[first_exchange]
+
+        try:
+            # Create PlaceOrderArgs object for the API call
+            first_place_order_args = PlaceOrderArgs(
+                symbol=first_order.symbol,
+                side=first_order.side,
+                order_type=first_order.order_type,
+                quantity=first_order.quantity_requested,
+                time_in_force=TimeInForce.GTC,  # Default value
+                price=first_order.price,
+                # TODO: Handle post_only, reduce_only if needed via config/adapter
+            )
+            placed_order: Order = await first_api.place_order(first_place_order_args)
+            if not (hasattr(placed_order, "client_order_id") and hasattr(placed_order, "to_dict")):
+                raise ValueError("placed_order missing required attributes")
+            result.first_order_id = placed_order.client_order_id  # Use client_order_id
+
+            # Checkpoint: first order placed
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "first_order_placed",
+                {"order_id": placed_order.client_order_id, "order": placed_order.model_dump()},
+            )
+
+            # Verify first order
+            order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
+            verification_result = await order_verifier.verify_order_placement(
+                first_exchange,
+                placed_order.client_order_id,  # Use client_order_id
+                {
+                    "symbol": first_order.symbol,
+                    "side": first_order.side,
+                    "type": first_order.order_type,  # Corrected field
+                },
+            )
+
+            # Only proceed if verification succeeds
+            if not verification_result.get("success", False):
+                result.status = ExecutionStatus.FAILED
+                result.error = verification_result.get(
+                    "error",
+                    "First order verification failed",
+                )
+
+        except Exception as e:
+            result.status = ExecutionStatus.FAILED
+            result.error = f"First order placement failed: {e!r}"
+
+        return result
+
+    async def _wait_for_first_fill(
+        self,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Wait for the first order to fill."""
+        # Monitor for fills - this would be implemented to check if order is filled
+        fill_result = {"filled": True}  # Placeholder for actual fill monitoring
+
+        # Check fill verification
+        if not fill_result.get("filled", False):
+            result.status = ExecutionStatus.FAILED
+            result.error = "First order did not fill within timeout"
+            return result
+
+        result.first_fill = fill_result
+
+        # Checkpoint: first order filled
+        await self.execution_coordinator.add_checkpoint(
+            execution_context,
+            "first_order_filled",
+            fill_result,
+        )
+
+        return result
+
+    async def _execute_second_leg(
+        self,
+        opportunity: OpportunityType,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Execute the second leg of the sequential order."""
+        # Second leg
+        second_order = self._prepare_order(opportunity, "short")
+        second_exchange = (
+            "backpack"  # This would be determined from opportunity in real implementation
+        )
+
+        # Store in result
+        result.second_exchange = second_exchange
+
+        # Checkpoint: second order preparation
+        await self.execution_coordinator.add_checkpoint(
+            execution_context,
+            "second_order_preparation",
+            {"exchange": second_exchange, "order": second_order.model_dump()},
+        )
+
+        # Place and verify second order
+        result = await self._place_and_verify_second_order(
+            second_order, second_exchange, execution_context, result
+        )
+
+        # Wait for second fill if needed and order was successful
+        if result.status == ExecutionStatus.COMPLETED and self.config.get(
+            "execution.wait_for_second_fill", True
+        ):
+            result = await self._wait_for_second_fill(execution_context, result)
+
+        return result
+
+    async def _place_and_verify_second_order(
+        self,
+        second_order: Order,
+        second_exchange: str,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Place and verify the second order."""
+        second_api = self.exchange_adapters[second_exchange]
+
+        try:
+            # Create PlaceOrderArgs object for the API call
+            second_place_order_args = PlaceOrderArgs(
+                symbol=second_order.symbol,
+                side=second_order.side,
+                order_type=second_order.order_type,
+                quantity=second_order.quantity_requested,
+                time_in_force=TimeInForce.GTC,  # Default value
+                price=second_order.price,
+                # TODO: Handle post_only, reduce_only if needed via config/adapter
+            )
+            second_placed_order: Order = await second_api.place_order(
+                second_place_order_args,
+            )
+            if not (
+                hasattr(second_placed_order, "client_order_id")
+                and hasattr(second_placed_order, "to_dict")
+            ):
+                raise ValueError("second_placed_order missing required attributes")
+            result.second_order_id = second_placed_order.client_order_id  # Use client_order_id
+
+            # Checkpoint: second order placed
+            await self.execution_coordinator.add_checkpoint(
+                execution_context,
+                "second_order_placed",
+                {
+                    "order_id": second_placed_order.client_order_id,
+                    "order": second_placed_order.model_dump(),
+                },
+            )
+
+            # Verify second order
+            order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
+            second_verification = await order_verifier.verify_order_placement(
+                second_exchange,
+                second_placed_order.client_order_id,  # Use client_order_id
+                {
+                    "symbol": second_order.symbol,
+                    "side": second_order.side,
+                    "type": second_order.order_type,  # Corrected field
+                },
+            )
+
+            if not second_verification.get("success", False):
+                # Second order failed but first succeeded - partial completion
+                result.status = ExecutionStatus.PARTIALLY_COMPLETED
+                result.error = second_verification.get(
+                    "error",
+                    "Second order verification failed",
+                )
+            else:
+                # Both orders succeeded
+                result.status = ExecutionStatus.COMPLETED
+
+        except Exception as e:
+            result.status = ExecutionStatus.PARTIALLY_COMPLETED
+            result.error = f"Second order placement failed: {e!r}"
+
+        return result
+
+    async def _wait_for_second_fill(
+        self,
+        execution_context: ExecutionContext,
+        result: ExecutionResult,
+    ) -> ExecutionResult:
+        """Wait for the second order to fill."""
+        # Monitor for fills - this would be implemented
+        # to check if order is filled
+        second_fill_result = {
+            "filled": True,
+        }  # Placeholder for actual fill monitoring
+
+        if not second_fill_result.get("filled", False):
+            result.status = ExecutionStatus.PARTIALLY_COMPLETED
+            result.error = "Second order did not fill within timeout"
+        else:
+            result.second_fill = second_fill_result
 
         return result
 
@@ -1316,6 +1476,36 @@ class SynchronizedOrderSubmissionService:
         all_details: dict[str, Any] = {"positions": {}, "fills": {}, "orders": {}}
 
         # Position Verification
+        overall_success = await self._verify_positions_step(
+            execution_context, opportunity, execution_result, all_details, overall_success
+        )
+
+        # Fill Verification (only if positions OK or not applicable)
+        if overall_success:
+            overall_success = await self._verify_fills_step(
+                execution_context, opportunity, execution_result, all_details, overall_success
+            )
+
+        # Order Verification (similarly, only if previous steps OK)
+        if overall_success:
+            overall_success = await self._verify_orders_step(
+                execution_context, opportunity, execution_result, all_details, overall_success
+            )
+
+        # Log final result and add checkpoint
+        await self._log_verification_result(execution_context, overall_success, all_details)
+
+        return {"verified": overall_success, "details": all_details}
+
+    async def _verify_positions_step(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        execution_result: ExecutionResult,
+        all_details: dict[str, Any],
+        overall_success: bool,
+    ) -> bool:
+        """Verify positions step."""
         position_result = await self.verify_positions(opportunity, execution_result)
         all_details["positions"] = position_result
         if not position_result.get("verified", False):
@@ -1326,71 +1516,87 @@ class SynchronizedOrderSubmissionService:
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
-                    execution_context,  # Use execution_context
+                    execution_context,
                     "position_verification_failed",
                     {
                         "error": position_result.get("error"),
                         "details": position_result.get("details"),
                     },
                 )
+        return overall_success
 
-        # Fill Verification (only if positions OK or not applicable)
-        if overall_success:  # Check if previous steps failed
-            fill_result = await self.verify_fills(opportunity, execution_result)
-            all_details["fills"] = fill_result
-            if not fill_result.get("verified", False):
-                overall_success = False
-                logger.warning(
-                    f"Post-execution fill verification FAILED for "
-                    f"{execution_context.execution_id}: "
-                    f"{fill_result.get('error')}",
+    async def _verify_fills_step(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        execution_result: ExecutionResult,
+        all_details: dict[str, Any],
+        overall_success: bool,
+    ) -> bool:
+        """Verify fills step."""
+        fill_result = await self.verify_fills(opportunity, execution_result)
+        all_details["fills"] = fill_result
+        if not fill_result.get("verified", False):
+            overall_success = False
+            logger.warning(
+                f"Post-execution fill verification FAILED for "
+                f"{execution_context.execution_id}: "
+                f"{fill_result.get('error')}",
+            )
+            if self.execution_coordinator:
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context,
+                    "fill_verification_failed",
+                    {"error": fill_result.get("error"), "details": fill_result.get("details")},
                 )
-                if self.execution_coordinator:
-                    await self.execution_coordinator.add_checkpoint(
-                        execution_context,  # Use execution_context
-                        "fill_verification_failed",
-                        {"error": fill_result.get("error"), "details": fill_result.get("details")},
-                    )
+        return overall_success
 
-        # Order Verification (similarly, only if previous steps OK)
-        if overall_success:  # Check if previous steps failed
-            order_result = await self.verify_orders(opportunity, execution_result)
-            all_details["orders"] = order_result
-            if not order_result.get("verified", False):
-                overall_success = False
-                logger.warning(
-                    f"Post-execution order verification FAILED for "
-                    f"{execution_context.execution_id}: "
-                    f"{order_result.get('error')}",
+    async def _verify_orders_step(
+        self,
+        execution_context: ExecutionContext,
+        opportunity: OpportunityType,
+        execution_result: ExecutionResult,
+        all_details: dict[str, Any],
+        overall_success: bool,
+    ) -> bool:
+        """Verify orders step."""
+        order_result = await self.verify_orders(opportunity, execution_result)
+        all_details["orders"] = order_result
+        if not order_result.get("verified", False):
+            overall_success = False
+            logger.warning(
+                f"Post-execution order verification FAILED for "
+                f"{execution_context.execution_id}: "
+                f"{order_result.get('error')}",
+            )
+            if self.execution_coordinator:
+                await self.execution_coordinator.add_checkpoint(
+                    execution_context,
+                    "order_verification_failed",
+                    {
+                        "error": order_result.get("error"),
+                        "details": order_result.get("details"),
+                    },
                 )
-                if self.execution_coordinator:
-                    await self.execution_coordinator.add_checkpoint(
-                        execution_context,  # Use execution_context
-                        "order_verification_failed",
-                        {
-                            "error": order_result.get("error"),
-                            "details": order_result.get("details"),
-                        },
-                    )
+        return overall_success
 
+    async def _log_verification_result(
+        self,
+        execution_context: ExecutionContext,
+        overall_success: bool,
+        all_details: dict[str, Any],
+    ) -> None:
+        """Log the final verification result and add checkpoint."""
         if overall_success:
             logger.info(f"Post-execution verification SUCCESS for {execution_context.execution_id}")
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
-                    execution_context,  # Use execution_context
+                    execution_context,
                     "post_execution_verification_success",
                     all_details,
                 )
         else:
             logger.error(f"Post-execution verification FAILED for {execution_context.execution_id}")
-            # A general failure checkpoint if no specific one was added and
-            # overall_success is False. This could happen if overall_success is
-            # set to False by other logic not adding a checkpoint. However, with current
-            # structure, individual failures add checkpoints. Consider if a generic
-            # failure checkpoint is needed if all_details is empty but overall_success
-            # is False. For now, assume individual failure checkpoints are sufficient.
-
-        return {"verified": overall_success, "details": all_details}
 
     async def verify_positions(
         self,

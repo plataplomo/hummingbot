@@ -768,7 +768,7 @@ class BackpackAccountService:
                 message="Unexpected error in transfer",
                 original_exception=e,
                 http_status=status_code,
-            )
+            ) from e
 
     def _validate_withdrawal_network(self, args: WithdrawArgs, current_method: str) -> None:
         """Validate withdrawal network support."""
@@ -960,7 +960,7 @@ class BackpackAccountService:
                 message="Unexpected error in withdraw",
                 original_exception=e,
                 http_status=status_code,
-            )
+            ) from e
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieves historical order data."""
@@ -1258,10 +1258,11 @@ class BackpackAccountService:
                 status_code,
                 raw_response_content,
             )
-            # DEFENSIVE CHECK: This should never be reached as _handle_trade_history_exceptions raises
+            # DEFENSIVE CHECK: This should never be reached as
+            # _handle_trade_history_exceptions raises
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error in get_trade_history",
                 original_exception=e,
                 http_status=status_code,
-            )
+            ) from e

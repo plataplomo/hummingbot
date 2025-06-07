@@ -306,7 +306,7 @@ class BacktestEngine:
         signals: list[dict[str, Any]],
         positions: dict[str, dict[str, Any]],
         current_capital: Decimal,
-        idx: Any,
+        idx: datetime | pd.Timestamp | str | int,
     ) -> Decimal:
         """Process trading signals and update positions."""
         for signal in signals:
@@ -330,7 +330,7 @@ class BacktestEngine:
         signal: dict[str, Any],
         positions: dict[str, dict[str, Any]],
         current_capital: Decimal,
-        idx: Any,
+        idx: datetime | pd.Timestamp | str | int,
     ) -> Decimal:
         """Process entry signal and create position."""
         symbol = signal["symbol"]
@@ -563,11 +563,7 @@ class StrategyAdapter(BacktestStrategy):
         Converts resulting TradeSignal(s) back to the backtester's dict format. Handles
         both synchronous and asynchronous process_data methods.
         """
-        timestamp_info = (
-            current_data.name.isoformat()
-            if hasattr(current_data, "name") and current_data.name is not None
-            else "Empty DF"
-        )
+        timestamp_info = self._get_timestamp_info(current_data)
         self._logger.debug(
             f"Updating adapter for strategy '{self.strategy.name}' at {timestamp_info}",
         )
@@ -580,50 +576,8 @@ class StrategyAdapter(BacktestStrategy):
                 self._logger.warning("No Candle converted from input, cannot update strategy.")
                 return {"signals": []}
 
-            # 2. Call the core strategy's process_data method for each MarketData object
-            trade_signals: list[TradeSignal] = []
-            for md in candle_list:
-                signal_or_coro = self.strategy.process_data(md)
-
-                processed_signal: TradeSignal | list[TradeSignal] | None = None
-
-                # Handle async coroutines
-                if asyncio.iscoroutine(signal_or_coro):
-                    try:
-                        # Check if a loop is already running
-                        loop = asyncio.get_running_loop()
-                        self._logger.warning(
-                            "Running async process_data within sync backtest loop. "
-                            "Consider engine refactor.",
-                        )
-                        task = loop.create_task(signal_or_coro)
-                        processed_signal = asyncio.get_event_loop().run_until_complete(task)
-                    except RuntimeError:  # No running event loop
-                        processed_signal = asyncio.run(signal_or_coro)
-                    except Exception as async_err:
-                        self._logger.exception(f"Error running async process_data: {async_err}")
-                        continue  # Skip this candle on async error
-
-                # DEFENSIVE CHECK: Handle synchronous results. Mypy=[unreachable] Ruff=[]
-                # Note: This branch may be unreachable but kept for defensive programming
-                if not asyncio.iscoroutine(signal_or_coro):
-                    processed_signal = signal_or_coro  # type: ignore[unreachable]
-
-                # Process the result - only if we didn't continue from exception
-                if processed_signal is None:
-                    continue
-
-                if isinstance(processed_signal, list):
-                    # Ensure all items in the list are TradeSignals
-                    valid_signals = [s for s in processed_signal if isinstance(s, TradeSignal)]
-                    trade_signals.extend(valid_signals)
-                elif isinstance(processed_signal, TradeSignal):
-                    trade_signals.append(processed_signal)
-                else:
-                    # DEFENSIVE CHECK: Unexpected type handling. Mypy=[unreachable] Ruff=[]
-                    self._logger.warning(  # type: ignore[unreachable]
-                        f"process_data returned unexpected type: {type(processed_signal)}",
-                    )
+            # 2. Process candles through strategy
+            trade_signals = self._process_candles_through_strategy(candle_list)
 
             # 3. Convert core TradeSignal objects back to backtester's signal format (dict)
             backtest_signals: list[dict[str, Any]] = self._convert_signals(
@@ -640,117 +594,205 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
+    def _get_timestamp_info(self, current_data: pd.Series | pd.DataFrame) -> str:
+        """Get timestamp information for logging."""
+        return (
+            current_data.name.isoformat()
+            if hasattr(current_data, "name") and current_data.name is not None
+            else "Empty DF"
+        )
+
+    def _process_candles_through_strategy(self, candle_list: list[Candle]) -> list[TradeSignal]:
+        """Process candles through the strategy and handle async/sync results."""
+        trade_signals: list[TradeSignal] = []
+
+        for md in candle_list:
+            signal_or_coro = self.strategy.process_data(md)
+            processed_signal = self._handle_strategy_result(signal_or_coro)
+
+            if processed_signal is None:
+                continue
+
+            self._add_processed_signals(processed_signal, trade_signals)
+
+        return trade_signals
+
+    def _handle_strategy_result(
+        self, signal_or_coro: Any
+    ) -> TradeSignal | list[TradeSignal] | None:
+        """Handle both async and sync strategy results."""
+        # Handle async coroutines
+        if asyncio.iscoroutine(signal_or_coro):
+            return self._handle_async_result(signal_or_coro)
+
+        # DEFENSIVE CHECK: Handle synchronous results. Mypy=[unreachable] Ruff=[]
+        # Note: This branch may be unreachable but kept for defensive programming
+        return signal_or_coro  # type: ignore[unreachable]
+
+    def _handle_async_result(self, signal_or_coro: Any) -> TradeSignal | list[TradeSignal] | None:
+        """Handle async strategy results."""
+        try:
+            # Check if a loop is already running
+            loop = asyncio.get_running_loop()
+            self._logger.warning(
+                "Running async process_data within sync backtest loop. Consider engine refactor.",
+            )
+            task = loop.create_task(signal_or_coro)
+            return asyncio.get_event_loop().run_until_complete(task)
+        except RuntimeError:  # No running event loop
+            return asyncio.run(signal_or_coro)
+        except Exception as async_err:
+            self._logger.exception(f"Error running async process_data: {async_err}")
+            return None
+
+    def _add_processed_signals(
+        self, processed_signal: TradeSignal | list[TradeSignal], trade_signals: list[TradeSignal]
+    ) -> None:
+        """Add processed signals to the trade signals list."""
+        if isinstance(processed_signal, list):
+            # Ensure all items in the list are TradeSignals
+            valid_signals = [s for s in processed_signal if isinstance(s, TradeSignal)]
+            trade_signals.extend(valid_signals)
+        elif isinstance(processed_signal, TradeSignal):
+            trade_signals.append(processed_signal)
+        else:
+            # DEFENSIVE CHECK: Unexpected type handling. Mypy=[unreachable] Ruff=[]
+            self._logger.warning(  # type: ignore[unreachable]
+                f"process_data returned unexpected type: {type(processed_signal)}",
+            )
+
     def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
         """Convert a pandas Series or DataFrame row into a list of Candle objects.
 
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
         """
         candle_list: list[Candle] = []
+
+        if isinstance(data, pd.Series):
+            candle_list.extend(self._convert_series_to_candles(data))
+        elif isinstance(data, pd.DataFrame):
+            candle_list.extend(self._convert_dataframe_to_candles(data))
+
+        return candle_list
+
+    def _convert_series_to_candles(self, data: pd.Series) -> list[Candle]:
+        """Convert a pandas Series to a list of Candle objects."""
+        candle_list: list[Candle] = []
+        timestamp = self._get_validated_timestamp(data)
+
+        if isinstance(data.index, pd.MultiIndex):
+            candle_list.extend(self._process_multiindex_series(data, timestamp))
+        else:
+            candle_list.extend(self._process_single_index_series(data, timestamp))
+
+        return candle_list
+
+    def _convert_dataframe_to_candles(self, data: pd.DataFrame) -> list[Candle]:
+        """Convert a pandas DataFrame to a list of Candle objects."""
+        candle_list: list[Candle] = []
+        # Handle DataFrame - less common for single updates
+        self._logger.warning(
+            "Received DataFrame in _convert_to_candles, processing row by row.",
+        )
+        for _timestamp, row_series in data.iterrows():  # B007: Rename unused timestamp
+            # Recursively call with the Series for this row
+            candle_list.extend(self._convert_to_candles(row_series))
+        return candle_list
+
+    def _get_validated_timestamp(self, data: pd.Series) -> datetime:
+        """Get and validate timestamp from Series data."""
         # Default timestamp if not available in data (should not happen with time series)
         default_ts = datetime.now(tz=UTC)  # Use timezone aware default
 
-        if isinstance(data, pd.Series):
-            # Handle single timestamp (Series)
-            timestamp = data.name  # Typically the timestamp from the index
-            # DEFENSIVE CHECK: Runtime check for timestamp type
-            if not isinstance(timestamp, datetime | pd.Timestamp):
-                self._logger.warning(
-                    f"Input Series name is not a valid timestamp: {timestamp}. Using default.",
-                )
-                timestamp = default_ts
-            else:
-                if isinstance(timestamp, pd.Timestamp):
-                    timestamp = timestamp.to_pydatetime()  # Convert pd.Timestamp
-                # If it's already datetime, ensure it's timezone-aware (assume UTC if naive)
-                if timestamp.tzinfo is None:
-                    timestamp = timestamp.replace(tzinfo=UTC)
-
-            if isinstance(data.index, pd.MultiIndex):
-                # Assuming MultiIndex levels are (field, symbol) based on column structure
-                # e.g., columns are [('open', 'BTC'), ('close', 'BTC'), ('open', 'ETH') ...]
-                # So, data.index for a row Series will be this MultiIndex.
-                # Level 0 of index = field (open, close), Level 1 of index = symbol (BTC, ETH)
-                actual_symbols = data.index.get_level_values(1).unique()  # Get symbols from level 1
-                for actual_symbol_str in actual_symbols:
-                    symbol = str(actual_symbol_str)  # Ensure it's a string
-                    # Get all data for this specific symbol: will be a Series with index
-                    # ['open', 'close', ...]
-                    symbol_specific_data = data.xs(key=actual_symbol_str, level=1, axis=0)
-
-                    try:
-                        # DEFENSIVE CHECK: Validate required fields exist in
-                        # symbol_specific_data.index
-                        required_fields = ["open", "high", "low", "close", "volume"]
-                        if not all(
-                            field in symbol_specific_data.index for field in required_fields
-                        ):
-                            self._logger.warning(
-                                f"Missing required fields for symbol {symbol} at {timestamp}. "
-                                f"Fields available: {symbol_specific_data.index.tolist()}. "
-                                f"Skipping candle.",
-                            )
-                            continue
-
-                        candle = Candle(
-                            symbol=symbol,
-                            interval="1m",  # TODO: Use actual interval if available
-                            open_time=timestamp,
-                            open=Decimal(str(symbol_specific_data.get("open", "NaN"))),
-                            high=Decimal(str(symbol_specific_data.get("high", "NaN"))),
-                            low=Decimal(str(symbol_specific_data.get("low", "NaN"))),
-                            close=Decimal(str(symbol_specific_data.get("close", "NaN"))),
-                            volume=Decimal(str(symbol_specific_data.get("volume", "NaN"))),
-                        )
-                        candle_list.append(candle)
-                    except Exception:
-                        data_str = (
-                            symbol_specific_data.to_dict()
-                            if isinstance(symbol_specific_data, pd.Series)
-                            else "Error converting to dict"
-                        )
-                        self._logger.error(
-                            f"Error creating candle for symbol {symbol} at {timestamp}. "
-                            f"Data: {data_str}",
-                        )
-            else:
-                # Assuming single index represents symbol or just one instrument
-                # (non-MultiIndex columns case)
-                symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
-                try:
-                    # DEFENSIVE CHECK: Validate required fields exist
-                    required = ["open", "high", "low", "close", "volume"]
-                    if not all(field in data.index for field in required):
-                        self._logger.warning(
-                            f"Missing OHLCV fields for {symbol} at {timestamp}. Skipping candle.",
-                        )
-                    else:
-                        candle = Candle(
-                            symbol=str(symbol),
-                            interval="1m",  # TODO: Use actual interval if available
-                            open_time=timestamp,
-                            open=Decimal(str(data.get("open", "NaN"))),
-                            high=Decimal(str(data.get("high", "NaN"))),
-                            low=Decimal(str(data.get("low", "NaN"))),
-                            close=Decimal(str(data.get("close", "NaN"))),
-                            volume=Decimal(str(data.get("volume", "NaN"))),
-                        )
-                        candle_list.append(candle)
-                except Exception as e:
-                    self._logger.error(
-                        f"Error converting Series to Candle for symbol {symbol} "
-                        f"at {timestamp}: {e} - Series data: {data.to_dict()}",
-                    )
-
-        elif isinstance(data, pd.DataFrame):  # No longer redundant after adding Series[Any] hint
-            # Handle DataFrame - less common for single updates
+        timestamp = data.name  # Typically the timestamp from the index
+        # DEFENSIVE CHECK: Runtime check for timestamp type
+        if not isinstance(timestamp, datetime | pd.Timestamp):
             self._logger.warning(
-                "Received DataFrame in _convert_to_candles, processing row by row.",
+                f"Input Series name is not a valid timestamp: {timestamp}. Using default.",
             )
-            for _timestamp, row_series in data.iterrows():  # B007: Rename unused timestamp
-                # Recursively call with the Series for this row
-                candle_list.extend(self._convert_to_candles(row_series))
+            return default_ts
+
+        if isinstance(timestamp, pd.Timestamp):
+            timestamp = timestamp.to_pydatetime()  # Convert pd.Timestamp
+        # If it's already datetime, ensure it's timezone-aware (assume UTC if naive)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=UTC)
+
+        return timestamp
+
+    def _process_multiindex_series(self, data: pd.Series, timestamp: datetime) -> list[Candle]:
+        """Process Series with MultiIndex to extract candles for multiple symbols."""
+        candle_list: list[Candle] = []
+
+        # Assuming MultiIndex levels are (field, symbol) based on column structure
+        # e.g., columns are [('open', 'BTC'), ('close', 'BTC'), ('open', 'ETH') ...]
+        # So, data.index for a row Series will be this MultiIndex.
+        # Level 0 of index = field (open, close), Level 1 of index = symbol (BTC, ETH)
+        actual_symbols = data.index.get_level_values(1).unique()  # Get symbols from level 1
+
+        for actual_symbol_str in actual_symbols:
+            symbol = str(actual_symbol_str)  # Ensure it's a string
+            # Get all data for this specific symbol: will be a Series with index
+            # ['open', 'close', ...]
+            symbol_specific_data = data.xs(key=actual_symbol_str, level=1, axis=0)
+
+            candle = self._create_candle_from_symbol_data(symbol_specific_data, symbol, timestamp)
+            if candle:
+                candle_list.append(candle)
 
         return candle_list
+
+    def _process_single_index_series(self, data: pd.Series, timestamp: datetime) -> list[Candle]:
+        """Process Series with single index to extract candle for one symbol."""
+        candle_list: list[Candle] = []
+
+        # Assuming single index represents symbol or just one instrument
+        # (non-MultiIndex columns case)
+        symbol = data.index.name if data.index.name else "UNKNOWN_SYMBOL"
+
+        candle = self._create_candle_from_symbol_data(data, str(symbol), timestamp)
+        if candle:
+            candle_list.append(candle)
+
+        return candle_list
+
+    def _create_candle_from_symbol_data(
+        self, symbol_data: pd.Series, symbol: str, timestamp: datetime
+    ) -> Candle | None:
+        """Create a Candle object from symbol-specific data."""
+        try:
+            # DEFENSIVE CHECK: Validate required fields exist
+            required_fields = ["open", "high", "low", "close", "volume"]
+            if not all(field in symbol_data.index for field in required_fields):
+                self._logger.warning(
+                    f"Missing required fields for symbol {symbol} at {timestamp}. "
+                    f"Fields available: {symbol_data.index.tolist()}. "
+                    f"Skipping candle.",
+                )
+                return None
+
+            candle = Candle(
+                symbol=symbol,
+                interval="1m",  # TODO: Use actual interval if available
+                open_time=timestamp,
+                open=Decimal(str(symbol_data.get("open", "NaN"))),
+                high=Decimal(str(symbol_data.get("high", "NaN"))),
+                low=Decimal(str(symbol_data.get("low", "NaN"))),
+                close=Decimal(str(symbol_data.get("close", "NaN"))),
+                volume=Decimal(str(symbol_data.get("volume", "NaN"))),
+            )
+            return candle
+        except Exception as e:
+            data_str = (
+                symbol_data.to_dict()
+                if isinstance(symbol_data, pd.Series)
+                else "Error converting to dict"
+            )
+            self._logger.error(
+                f"Error creating candle for symbol {symbol} at {timestamp}. "
+                f"Data: {data_str}. Error: {e}",
+            )
+            return None
 
     def _convert_signals(
         self,
@@ -759,6 +801,16 @@ class StrategyAdapter(BacktestStrategy):
     ) -> list[dict[str, Any]]:
         """Convert TradeSignal objects to dictionary format for backtesting trades."""
         signals_out: list[dict[str, Any]] = []
+        timestamp = self._get_signal_timestamp(current_data)
+
+        for signal in signals:
+            signal_dict = self._convert_single_signal(signal, current_data, timestamp)
+            signals_out.append(signal_dict)
+
+        return signals_out
+
+    def _get_signal_timestamp(self, current_data: pd.Series | pd.DataFrame) -> datetime:
+        """Get timestamp for signal conversion."""
         timestamp = (
             current_data.name
             if isinstance(current_data, pd.Series)
@@ -770,191 +822,151 @@ class StrategyAdapter(BacktestStrategy):
             timestamp = timestamp.to_pydatetime()  # Ensure datetime object
         elif isinstance(timestamp, datetime) and timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)
+        return timestamp
 
-        def get_current_price(symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
-            """Get current price (close) for a symbol."""
-            price_val = None
-            self._logger.debug(
-                f"[get_current_price] Attempting to get price for symbol: '{symbol}'",
-            )
-            self._logger.debug(
-                f"[get_current_price] Data index type: {type(data.index)}, index: {data.index}",
-            )
-
-            try:
-                if isinstance(data.index, pd.MultiIndex):
-                    self._logger.debug(
-                        f"[get_current_price] Data has MultiIndex. Accessing data.loc['{symbol}']",
-                    )
-                    symbol_data = data.loc[symbol]
-                    self._logger.debug(
-                        f"[get_current_price] symbol_data type: {type(symbol_data)}, "
-                        f"content: {symbol_data}",
-                    )
-                    price_val = (
-                        symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
-                    )
-                else:
-                    self._logger.debug(
-                        "[get_current_price] Data has non-MultiIndex. "
-                        "Accessing data directly for 'close'.",
-                    )
-                    # Assumes single series, check if name matches or just get close
-                    if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
-                        price_val = data.get("close") if hasattr(data, "get") else data
-                    else:  # Check if the series itself contains the symbol? Unlikely.
-                        self._logger.warning(
-                            f"[get_current_price] Cannot reliably get price for {symbol} "
-                            f"from simple Series.",
-                        )
-            except KeyError as ke:
-                self._logger.error(
-                    f"[get_current_price] KeyError getting current price for symbol '{symbol}': "
-                    f"{ke}. Data shape: {data.shape}, Data index: {data.index}",
-                    exc_info=True,
-                )
-                return None
-            except Exception as e:
-                self._logger.error(
-                    f"[get_current_price] Error getting current price for {symbol}: {e}",
-                    exc_info=True,
-                )
-                return None
-
-            if price_val is not None and not np.isnan(price_val):
-                parsed_decimal = Decimal(str(price_val))
-                if parsed_decimal.is_finite():
-                    return parsed_decimal
-                else:
-                    self._logger.warning(
-                        f"Parsed price {parsed_decimal} for {symbol} is not finite.",
-                    )
-                    return None
-            else:
-                self._logger.warning(f"Could not find valid current price for symbol {symbol}")
-                return None
-
-        for signal in signals:
-            # Use signal.timestamp if available and valid, otherwise fallback to current
-            # row timestamp
-            signal_timestamp = signal.timestamp
-            # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
-            if not isinstance(signal_timestamp, datetime):  # type: ignore[unreachable]
-                signal_timestamp = timestamp  # Fallback to row timestamp
-            elif signal_timestamp.tzinfo is None:
-                signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
-
-            # Pydantic's model_dump() is preferred for robust serialization
-            signal_dict = signal.model_dump(
-                mode="python",
-                exclude_none=True,
-            )  # Use mode="python" for Decimal etc.
-
-            # --- Legacy fields for BacktestEngine compatibility (if needed) ---
-            # The BacktestEngine might expect certain fields like 'action' or 'type'.
-            # Map SignalType to an action string if required by the engine.
-            # This is where the 'action' key should be derived.
-
-            self._logger.debug(
-                f"ADAPTER_CONVERT_SIGNALS: Original signal_type: {signal.signal_type} "
-                f"(type: {type(signal.signal_type)})",
-            )
-            self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
-
-            # Example: Map SignalType to a simple action string
-            # DEFENSIVE CHECK: Ensure signal_type is SignalType enum. Mypy=[unreachable] Ruff=[]
-            if isinstance(signal.signal_type, SignalType):
-                signal_dict["action"] = signal.signal_type.name.upper()
-            else:
-                # Handle cases where signal_type might be a string already
-                # (should not happen with Pydantic)
-                signal_dict["action"] = str(signal.signal_type).upper()  # type: ignore[unreachable]
-
-            self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
-
-            # Ensure 'type' (if used by engine) is consistent with 'action' or SignalType
-            signal_dict["type"] = signal_dict["action"]  # Or signal.signal_type.value
-
-            # Get current price for PnL calculation if needed
-            current_price: Decimal | None = get_current_price(signal.symbol, current_data)
-
-            # Calculate PnL for exit signals
-            is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
-            if is_exit and signal.price is not None and current_price is not None:
-                # DEFENSIVE CHECK: Ensure price is finite Decimal
-                if isinstance(signal.price, Decimal) and signal.price.is_finite():
-                    entry_price = signal.price
-                    if signal.signal_type == SignalType.EXIT_LONG:  # Closing a long position
-                        if signal.quantity is not None:
-                            signal_dict["pnl"] = (current_price - entry_price) * signal.quantity
-                    elif signal.signal_type == SignalType.EXIT_SHORT:  # Closing a short position
-                        if signal.quantity is not None:
-                            signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
-                else:
-                    self._logger.warning(
-                        f"Invalid price ({signal.price}) for PnL calculation on exit signal.",
-                    )
-            elif is_exit:
-                self._logger.warning(
-                    f"Could not calculate PnL for exit signal: Missing price "
-                    f"({signal.price}) or current price ({current_price})",
-                )
-
-            signals_out.append(signal_dict)
-
-        return signals_out
-
-    def _convert_row_to_candle(
+    def _convert_single_signal(
         self,
-        row_data: pd.Series,
-        symbol: str,
-        timestamp: datetime,
-    ) -> Candle | None:
-        try:
-            # Ensure timestamp is timezone-aware (UTC)
-            if timestamp.tzinfo is None:
-                timestamp = timestamp.replace(tzinfo=UTC)
+        signal: TradeSignal,
+        current_data: pd.Series | pd.DataFrame,
+        fallback_timestamp: datetime,
+    ) -> dict[str, Any]:
+        """Convert a single TradeSignal to dictionary format."""
+        # Pydantic's model_dump() is preferred for robust serialization
+        signal_dict = signal.model_dump(mode="python", exclude_none=True)
+
+        # Add legacy fields for BacktestEngine compatibility
+        self._add_legacy_signal_fields(signal, signal_dict)
+
+        # Calculate PnL for exit signals
+        self._calculate_signal_pnl(signal, signal_dict, current_data)
+
+        return signal_dict
+
+    def _get_validated_signal_timestamp(
+        self, signal: TradeSignal, fallback_timestamp: datetime
+    ) -> datetime:
+        """Get and validate signal timestamp."""
+        signal_timestamp = signal.timestamp
+        # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
+        if not isinstance(signal_timestamp, datetime):  # type: ignore[unreachable]
+            signal_timestamp = fallback_timestamp  # Fallback to row timestamp
+        elif signal_timestamp.tzinfo is None:
+            signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
+        return signal_timestamp
+
+    def _add_legacy_signal_fields(self, signal: TradeSignal, signal_dict: dict[str, Any]) -> None:
+        """Add legacy fields for BacktestEngine compatibility."""
+        self._logger.debug(
+            f"ADAPTER_CONVERT_SIGNALS: Original signal_type: {signal.signal_type} "
+            f"(type: {type(signal.signal_type)})",
+        )
+        self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
+
+        # Example: Map SignalType to a simple action string
+        # DEFENSIVE CHECK: Ensure signal_type is SignalType enum. Mypy=[unreachable] Ruff=[]
+        if isinstance(signal.signal_type, SignalType):
+            signal_dict["action"] = signal.signal_type.name.upper()
+        else:
+            # Handle cases where signal_type might be a string already
+            # (should not happen with Pydantic)
+            signal_dict["action"] = str(signal.signal_type).upper()  # type: ignore[unreachable]
+
+        self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
+
+        # Ensure 'type' (if used by engine) is consistent with 'action' or SignalType
+        signal_dict["type"] = signal_dict["action"]  # Or signal.signal_type.value
+
+    def _calculate_signal_pnl(
+        self,
+        signal: TradeSignal,
+        signal_dict: dict[str, Any],
+        current_data: pd.Series | pd.DataFrame,
+    ) -> None:
+        """Calculate PnL for exit signals."""
+        # Get current price for PnL calculation if needed
+        current_price: Decimal | None = self._get_current_price(signal.symbol, current_data)
+
+        # Calculate PnL for exit signals
+        is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
+        if is_exit and signal.price is not None and current_price is not None:
+            # DEFENSIVE CHECK: Ensure price is finite Decimal
+            if isinstance(signal.price, Decimal) and signal.price.is_finite():
+                entry_price = signal.price
+                if signal.signal_type == SignalType.EXIT_LONG:  # Closing a long position
+                    if signal.quantity is not None:
+                        signal_dict["pnl"] = (current_price - entry_price) * signal.quantity
+                elif signal.signal_type == SignalType.EXIT_SHORT:  # Closing a short position
+                    if signal.quantity is not None:
+                        signal_dict["pnl"] = (entry_price - current_price) * signal.quantity
             else:
-                timestamp = timestamp.astimezone(UTC)
-
-            self._logger.debug(
-                f"[_convert_row_to_candle] For {symbol} at {timestamp}, received "
-                f"row_data.index: {row_data.index.tolist()}, "
-                f"row_data.values: {row_data.values.tolist()}",
+                self._logger.warning(
+                    f"Invalid price ({signal.price}) for PnL calculation on exit signal.",
+                )
+        elif is_exit:
+            self._logger.warning(
+                f"Could not calculate PnL for exit signal: Missing price "
+                f"({signal.price}) or current price ({current_price})",
             )
 
-            # Try to get OHLCV directly
-            open_price = row_data.get("open")
-            high_price = row_data.get("high")
-            low_price = row_data.get("low")
-            close_price = row_data.get("close")
-            volume = row_data.get("volume")
+    def _get_current_price(self, symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
+        """Get current price (close) for a symbol."""
+        price_val = None
+        self._logger.debug(
+            f"[get_current_price] Attempting to get price for symbol: '{symbol}'",
+        )
+        self._logger.debug(
+            f"[get_current_price] Data index type: {type(data.index)}, index: {data.index}",
+        )
 
-            if (
-                open_price is None
-                or high_price is None
-                or low_price is None
-                or close_price is None
-                or volume is None
-            ):
-                self._logger.warning(f"Missing OHLCV fields for {symbol} at {timestamp}")
-                return None
-
-            candle = Candle(
-                symbol=symbol,
-                interval="1m",
-                open_time=timestamp,
-                open=Decimal(str(open_price)),
-                high=Decimal(str(high_price)),
-                low=Decimal(str(low_price)),
-                close=Decimal(str(close_price)),
-                volume=Decimal(str(volume)),
+        try:
+            if isinstance(data.index, pd.MultiIndex):
+                self._logger.debug(
+                    f"[get_current_price] Data has MultiIndex. Accessing data.loc['{symbol}']",
+                )
+                symbol_data = data.loc[symbol]
+                self._logger.debug(
+                    f"[get_current_price] symbol_data type: {type(symbol_data)}, "
+                    f"content: {symbol_data}",
+                )
+                price_val = symbol_data.get("close") if hasattr(symbol_data, "get") else symbol_data
+            else:
+                self._logger.debug(
+                    "[get_current_price] Data has non-MultiIndex. "
+                    "Accessing data directly for 'close'.",
+                )
+                # Assumes single series, check if name matches or just get close
+                if data.index.name == symbol or symbol == "UNKNOWN_SYMBOL":  # Crude check
+                    price_val = data.get("close") if hasattr(data, "get") else data
+                else:  # Check if the series itself contains the symbol? Unlikely.
+                    self._logger.warning(
+                        f"[get_current_price] Cannot reliably get price for {symbol} "
+                        f"from simple Series.",
+                    )
+        except KeyError as ke:
+            self._logger.error(
+                f"[get_current_price] KeyError getting current price for symbol '{symbol}': "
+                f"{ke}. Data shape: {data.shape}, Data index: {data.index}",
+                exc_info=True,
             )
-            return candle
+            return None
         except Exception as e:
             self._logger.error(
-                f"Error converting row to Candle for symbol {symbol} at {timestamp}: {e}",
+                f"[get_current_price] Error getting current price for {symbol}: {e}",
+                exc_info=True,
             )
+            return None
+
+        if price_val is not None and not np.isnan(price_val):
+            parsed_decimal = Decimal(str(price_val))
+            if parsed_decimal.is_finite():
+                return parsed_decimal
+            else:
+                self._logger.warning(
+                    f"Parsed price {parsed_decimal} for {symbol} is not finite.",
+                )
+                return None
+        else:
+            self._logger.warning(f"Could not find valid current price for symbol {symbol}")
             return None
 
 
