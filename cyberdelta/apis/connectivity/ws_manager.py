@@ -172,151 +172,208 @@ class WebSocketManager:
             f"Should_reconnect: {self._should_reconnect}, Is_connected: {self.is_connected}",
         )
         async with self._reconnect_lock:
-            self._logger.info(
-                f"[{self._exchange_name} _establish_connection] Acquired reconnect_lock. "
-                f"Should_reconnect: {self._should_reconnect}",
-            )
-            if not self._should_reconnect:
-                self._logger.info(
-                    "Reconnection disabled after lock, _establish_connection not proceeding.",
-                )
+            if not await self._should_proceed_with_connection():
                 return
 
-            if self.is_connected:
-                self._logger.info("Already connected, _establish_connection not proceeding.")
+            await self._connection_retry_loop()
+
+    async def _should_proceed_with_connection(self) -> bool:
+        """Check if connection should proceed after acquiring lock."""
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] Acquired reconnect_lock. "
+            f"Should_reconnect: {self._should_reconnect}",
+        )
+        if not self._should_reconnect:
+            self._logger.info(
+                "Reconnection disabled after lock, _establish_connection not proceeding.",
+            )
+            return False
+
+        if self.is_connected:
+            self._logger.info("Already connected, _establish_connection not proceeding.")
+            return False
+
+        return True
+
+    async def _connection_retry_loop(self) -> None:
+        """Main retry loop for connection attempts."""
+        current_attempt = 0
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] Starting connection attempts loop. "
+            f"Max attempts: {self._max_reconnect_attempts}",
+        )
+
+        while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
+            self._logger.info(
+                f"[{self._exchange_name} _establish_connection] Loop Iteration. "
+                f"Current attempt: {current_attempt + 1}",
+            )
+
+            if current_attempt > 0:
+                await self._apply_reconnect_delay(current_attempt)
+
+            connection_successful = await self._attempt_single_connection(current_attempt)
+            if connection_successful:
                 return
 
-            current_attempt = 0
+            current_attempt += 1
+
+        await self._handle_connection_failure(current_attempt)
+
+    async def _apply_reconnect_delay(self, attempt: int) -> None:
+        """Apply exponential backoff delay before reconnection attempt."""
+        backoff_base = self._reconnect_delay * (2 ** (attempt - 1))
+        jitter = backoff_base * 0.2 * (secrets.SystemRandom().random() - 0.5)
+        actual_delay = max(1.0, backoff_base + jitter)
+        self._logger.info(
+            f"Reconnection attempt {attempt + 1}/"
+            f"{self._max_reconnect_attempts} in {actual_delay:.2f}s...",
+        )
+        await asyncio.sleep(actual_delay)
+
+    async def _attempt_single_connection(self, attempt: int) -> bool:
+        """Attempt a single WebSocket connection.
+
+        Returns:
+            True if connection was successful, False otherwise.
+        """
+        try:
             self._logger.info(
-                f"[{self._exchange_name} _establish_connection] Starting connection attempts loop. "
-                f"Max attempts: {self._max_reconnect_attempts}",
+                f"Attempting to connect to {self._ws_url} (Attempt {attempt + 1})",
             )
-            while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
-                self._logger.info(
-                    f"[{self._exchange_name} _establish_connection] Loop Iteration. "
-                    f"Current attempt: {current_attempt + 1}",
+
+            await self._establish_websocket_connection()
+            await self._setup_connection_tasks()
+            await self._execute_connection_callback()
+
+            return True
+
+        except asyncio.CancelledError:
+            self._logger.error("Connection attempt cancelled.")
+            self._should_reconnect = False
+            return False
+        except (TimeoutError, aiohttp.ClientError) as e:
+            self._logger.warning(
+                f"[{self._exchange_name} _establish_connection] "
+                f"Connection attempt {attempt + 1} "
+                f"failed: {e}",
+            )
+            self._reset_connection_state()
+            return False
+        except Exception as e:
+            self._logger.exception(
+                f"[{self._exchange_name} _establish_connection] "
+                f"Unexpected error during connection "
+                f"attempt {attempt + 1}: {e}",
+            )
+            self._reset_connection_state()
+            return False
+
+    async def _establish_websocket_connection(self) -> None:
+        """Establish the actual WebSocket connection."""
+        session = await self._get_session()
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] "
+            f"About to call session.ws_connect for {self._ws_url}",
+        )
+
+        server_expected_ping_interval = (
+            self._ping_interval * self.HEARTBEAT_FACTOR if self._ping_interval > 0 else 0
+        )
+
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] "
+            f"Attempting to connect to {self._ws_url} "
+            f"via session {id(session) if session else 'None'}",
+        )
+
+        self._ws_connection = await session.ws_connect(
+            self._ws_url,
+            heartbeat=server_expected_ping_interval,
+            timeout=sentinel,
+        )
+
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] "
+            f"session.ws_connect call completed. "
+            f"self._ws_connection is now: {type(self._ws_connection)}",
+        )
+
+        self._is_connected = True
+
+    async def _setup_connection_tasks(self) -> None:
+        """Setup listener and ping tasks after successful connection."""
+        self._logger.info(
+            f"[{self._exchange_name} _establish_connection] "
+            f"Successfully connected to {self._ws_url}. "
+            f"Starting listener/ping tasks.",
+        )
+
+        await self._cancel_existing_tasks()
+        await self._create_new_tasks()
+
+    async def _cancel_existing_tasks(self) -> None:
+        """Cancel any existing listener and ping tasks."""
+        if self._listener_task and not self._listener_task.done():
+            self._logger.info(
+                f"[{self._exchange_name} _establish_connection] "
+                f"Cancelling existing listener task: "
+                f"{self._listener_task.get_name()}",
+            )
+            self._listener_task.cancel()
+
+        if self._ping_task and not self._ping_task.done():
+            self._logger.info(
+                f"[{self._exchange_name} _establish_connection] "
+                f"Cancelling existing ping task: "
+                f"{self._ping_task.get_name()}",
+            )
+            self._ping_task.cancel()
+
+    async def _create_new_tasks(self) -> None:
+        """Create new listener and ping tasks."""
+        self._listener_task = self._task_factory(
+            self._listen(),
+            name=f"{self._exchange_name}_ws_listen",
+        )
+
+        if self._ping_interval > 0:
+            self._ping_task = self._task_factory(
+                self._keep_alive(),
+                name=f"{self._exchange_name}_ws_ping",
+            )
+
+    async def _execute_connection_callback(self) -> None:
+        """Execute the on_connected callback if provided."""
+        if self._on_connected_callback:
+            try:
+                self._logger.info("Executing on_connected_callback...")
+                await self._on_connected_callback()
+                self._logger.info("on_connected_callback executed successfully.")
+            except Exception as cb_exc:
+                self._logger.error(
+                    f"Error during on_connected_callback: {cb_exc}",
+                    exc_info=True,
                 )
-                if current_attempt > 0:
-                    backoff_base = self._reconnect_delay * (2 ** (current_attempt - 1))
-                    jitter = backoff_base * 0.2 * (secrets.SystemRandom().random() - 0.5)
-                    actual_delay = max(1.0, backoff_base + jitter)
-                    self._logger.info(
-                        f"Reconnection attempt {current_attempt + 1}/"
-                        f"{self._max_reconnect_attempts} in {actual_delay:.2f}s...",
-                    )
-                    await asyncio.sleep(actual_delay)
 
-                try:
-                    self._logger.info(
-                        f"Attempting to connect to {self._ws_url} (Attempt {current_attempt + 1})",
-                    )
-                    session = await self._get_session()
-                    self._logger.info(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"About to call session.ws_connect for {self._ws_url}",
-                    )
-                    server_expected_ping_interval = (
-                        self._ping_interval * self.HEARTBEAT_FACTOR
-                        if self._ping_interval > 0
-                        else 0
-                    )
+    def _reset_connection_state(self) -> None:
+        """Reset connection state after failed attempt."""
+        self._is_connected = False
+        self._ws_connection = None
 
-                    self._logger.info(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"Attempting to connect to {self._ws_url} "
-                        f"(Attempt {current_attempt + 1}) via session "
-                        f"{id(session) if session else 'None'}",
-                    )
-                    self._ws_connection = await session.ws_connect(
-                        self._ws_url,
-                        heartbeat=server_expected_ping_interval,
-                        timeout=sentinel,
-                    )
-                    self._logger.info(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"session.ws_connect call completed. "
-                        f"self._ws_connection is now: {type(self._ws_connection)}",
-                    )
-
-                    self._is_connected = True
-                    current_attempt = 0
-                    self._logger.info(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"Successfully connected to {self._ws_url}. "
-                        f"Starting listener/ping tasks.",
-                    )
-
-                    if self._listener_task and not self._listener_task.done():
-                        self._logger.info(
-                            f"[{self._exchange_name} _establish_connection] "
-                            f"Cancelling existing listener task: "
-                            f"{self._listener_task.get_name()}",
-                        )
-                        self._listener_task.cancel()
-                    if self._ping_task and not self._ping_task.done():
-                        self._logger.info(
-                            f"[{self._exchange_name} _establish_connection] "
-                            f"Cancelling existing ping task: "
-                            f"{self._ping_task.get_name()}",
-                        )
-                        self._ping_task.cancel()
-
-                    self._listener_task = self._task_factory(
-                        self._listen(),
-                        name=f"{self._exchange_name}_ws_listen",
-                    )
-                    if self._ping_interval > 0:
-                        self._ping_task = self._task_factory(
-                            self._keep_alive(),
-                            name=f"{self._exchange_name}_ws_ping",
-                        )
-
-                    if self._on_connected_callback:
-                        try:
-                            self._logger.info("Executing on_connected_callback...")
-                            await self._on_connected_callback()
-                            self._logger.info("on_connected_callback executed successfully.")
-                        except Exception as cb_exc:
-                            self._logger.error(
-                                f"Error during on_connected_callback: {cb_exc}",
-                                exc_info=True,
-                            )
-                    return
-
-                except asyncio.CancelledError:
-                    self._logger.error("Connection attempt cancelled.")
-                    self._should_reconnect = False
-                    break
-                except (TimeoutError, aiohttp.ClientError) as e:
-                    self._logger.warning(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"Connection attempt {current_attempt + 1} "
-                        f"failed: {e}",
-                    )
-                    self._is_connected = False
-                    self._ws_connection = None
-                    current_attempt += 1
-                except Exception as e:
-                    self._logger.exception(
-                        f"[{self._exchange_name} _establish_connection] "
-                        f"Unexpected error during connection "
-                        f"attempt {current_attempt + 1}: {e}",
-                    )
-                    self._is_connected = False
-                    self._ws_connection = None
-                    current_attempt += 1
-
-            if self._should_reconnect and current_attempt >= self._max_reconnect_attempts:
-                self._logger.critical(
-                    f"Failed to connect to {self._ws_url} after "
-                    f"{self._max_reconnect_attempts} attempts. Giving up.",
-                )
-                self._should_reconnect = False
-            elif not self._should_reconnect:
-                self._logger.info(
-                    f"Connection process for {self._ws_url} stopped "
-                    f"because reconnections are disabled.",
-                )
+    async def _handle_connection_failure(self, current_attempt: int) -> None:
+        """Handle the case where all connection attempts failed."""
+        if self._should_reconnect and current_attempt >= self._max_reconnect_attempts:
+            self._logger.critical(
+                f"Failed to connect to {self._ws_url} after "
+                f"{self._max_reconnect_attempts} attempts. Giving up.",
+            )
+            self._should_reconnect = False
+        elif not self._should_reconnect:
+            self._logger.info(
+                f"Connection process for {self._ws_url} stopped "
+                f"because reconnections are disabled.",
+            )
 
     async def _listen(self) -> None:
         """Listens for messages on the WebSocket and handles them."""
@@ -638,6 +695,16 @@ class WebSocketManager:
 
         ws_conn_at_close_start = self._ws_connection
 
+        await self._cancel_connection_task()
+        await self._cancel_listener_task()
+        await self._cancel_ping_task()
+        await self._close_websocket_connection(ws_conn_at_close_start)
+        await self._close_session()
+
+        self._logger.info(f"WebSocketManager for {self._ws_url} is fully closed.")
+
+    async def _cancel_connection_task(self) -> None:
+        """Cancel the connection task if it's running."""
         if self._connection_task and not self._connection_task.done():
             self._logger.debug("Cancelling in-progress connection task.")
             self._connection_task.cancel()
@@ -648,109 +715,105 @@ class WebSocketManager:
             except Exception as e:
                 self._logger.warning(f"Error awaiting cancelled connection task: {e}")
 
+    async def _cancel_listener_task(self) -> None:
+        """Cancel the listener task if it's running."""
         if self._listener_task and not self._listener_task.done():
             self._logger.debug(f"Cancelling listener task: {self._listener_task.get_name()}")
             self._listener_task.cancel()
-            try:
-                self._logger.debug(
-                    f"Awaiting listener task: {self._listener_task.get_name()}, "
-                    f"cancelled state: {self._listener_task.cancelled()}",
-                )
-                await asyncio.wait_for(self._listener_task, timeout=5.0)
-                self._logger.debug(
-                    f"Listener task {self._listener_task.get_name()} awaited. "
-                    f"Done: {self._listener_task.done()}, "
-                    f"Cancelled: {self._listener_task.cancelled()}",
-                )
-            except asyncio.CancelledError:
-                self._logger.debug(
-                    f"Listener task {self._listener_task.get_name()} "
-                    f"successfully cancelled and awaited.",
-                )
-            except TimeoutError:
-                self._logger.error(
-                    f"Timeout (5s) waiting for listener task {self._listener_task.get_name()} "
-                    f"to complete during close! Task state: "
-                    f"Done={self._listener_task.done()}, "
-                    f"Cancelled={self._listener_task.cancelled()}",
-                )
-            except Exception as e:
-                self._logger.warning(
-                    f"Error awaiting cancelled listener task {self._listener_task.get_name()}: {e}",
-                    exc_info=True,
-                )
+            await self._await_task_cancellation(
+                self._listener_task, "listener", self._listener_task.get_name()
+            )
 
+    async def _cancel_ping_task(self) -> None:
+        """Cancel the ping task if it's running."""
         if self._ping_task and not self._ping_task.done():
             self._logger.debug(f"Cancelling ping task: {self._ping_task.get_name()}")
             self._ping_task.cancel()
-            try:
-                self._logger.debug(
-                    f"Awaiting ping task: {self._ping_task.get_name()}, "
-                    f"cancelled state: {self._ping_task.cancelled()}",
-                )
-                await asyncio.wait_for(self._ping_task, timeout=5.0)
-                self._logger.debug(
-                    f"Ping task {self._ping_task.get_name()} awaited. "
-                    f"Done: {self._ping_task.done()}, "
-                    f"Cancelled: {self._ping_task.cancelled()}",
-                )
-            except asyncio.CancelledError:
-                self._logger.debug(
-                    f"Ping task {self._ping_task.get_name()} successfully cancelled and awaited.",
-                )
-            except TimeoutError:
-                self._logger.error(
-                    f"Timeout (5s) waiting for ping task {self._ping_task.get_name()} "
-                    f"to complete during close! Task state: "
-                    f"Done={self._ping_task.done()}, "
-                    f"Cancelled={self._ping_task.cancelled()}",
-                )
-            except Exception as e:
-                self._logger.warning(
-                    f"Error awaiting cancelled ping task {self._ping_task.get_name()}: {e}",
-                    exc_info=True,
-                )
+            await self._await_task_cancellation(self._ping_task, "ping", self._ping_task.get_name())
 
-        closed_ws_successfully = False
-        if ws_conn_at_close_start and not ws_conn_at_close_start.closed:
+    async def _await_task_cancellation(
+        self, task: asyncio.Task[None], task_type: str, task_name: str
+    ) -> None:
+        """Wait for a task to be cancelled with timeout handling."""
+        try:
             self._logger.debug(
-                f"Closing WebSocket connection object {id(ws_conn_at_close_start)} "
-                f"for {self._ws_url}.",
+                f"Awaiting {task_type} task: {task_name}, cancelled state: {task.cancelled()}",
             )
-            try:
-                await ws_conn_at_close_start.close()
-                self._logger.info(
-                    f"WS connection to {self._ws_url} (id: "
-                    f"{id(ws_conn_at_close_start)}) closed by explicit call.",
-                )
-                closed_ws_successfully = True
-            except Exception as e:
-                self._logger.error(
-                    f"Error during explicit close of WS connection "
-                    f"{id(ws_conn_at_close_start)}: {e}",
-                    exc_info=True,
-                )
-        elif ws_conn_at_close_start and ws_conn_at_close_start.closed:
+            await asyncio.wait_for(task, timeout=5.0)
             self._logger.debug(
-                f"WS connection {id(ws_conn_at_close_start)} for {self._ws_url} "
-                f"was already closed.",
+                f"{task_type.title()} task {task_name} awaited. "
+                f"Done: {task.done()}, "
+                f"Cancelled: {task.cancelled()}",
             )
-            closed_ws_successfully = True
-        else:
+        except asyncio.CancelledError:
             self._logger.debug(
-                f"No active WS connection object to close explicitly for {self._ws_url}.",
+                f"{task_type.title()} task {task_name} successfully cancelled and awaited.",
             )
-            closed_ws_successfully = True
+        except TimeoutError:
+            self._logger.error(
+                f"Timeout (5s) waiting for {task_type} task {task_name} "
+                f"to complete during close! Task state: "
+                f"Done={task.done()}, "
+                f"Cancelled={task.cancelled()}",
+            )
+        except Exception as e:
+            self._logger.warning(
+                f"Error awaiting cancelled {task_type} task {task_name}: {e}",
+                exc_info=True,
+            )
+
+    async def _close_websocket_connection(
+        self, ws_conn_at_close_start: ClientWebSocketResponse | None
+    ) -> None:
+        """Close the WebSocket connection object."""
+        closed_ws_successfully = await self._attempt_websocket_close(ws_conn_at_close_start)
 
         self._ws_connection = None
         if closed_ws_successfully:
             self._is_connected = False
         self._is_connected = False
 
+    async def _attempt_websocket_close(self, ws_conn: ClientWebSocketResponse | None) -> bool:
+        """Attempt to close the WebSocket connection.
+
+        Returns:
+            True if connection was closed successfully or was already closed.
+        """
+        if ws_conn and not ws_conn.closed:
+            return await self._close_active_websocket(ws_conn)
+        elif ws_conn and ws_conn.closed:
+            self._logger.debug(
+                f"WS connection {id(ws_conn)} for {self._ws_url} was already closed.",
+            )
+            return True
+        else:
+            self._logger.debug(
+                f"No active WS connection object to close explicitly for {self._ws_url}.",
+            )
+            return True
+
+    async def _close_active_websocket(self, ws_conn: ClientWebSocketResponse) -> bool:
+        """Close an active WebSocket connection."""
+        self._logger.debug(
+            f"Closing WebSocket connection object {id(ws_conn)} for {self._ws_url}.",
+        )
+        try:
+            await ws_conn.close()
+            self._logger.info(
+                f"WS connection to {self._ws_url} (id: {id(ws_conn)}) closed by explicit call.",
+            )
+            return True
+        except Exception as e:
+            self._logger.error(
+                f"Error during explicit close of WS connection {id(ws_conn)}: {e}",
+                exc_info=True,
+            )
+            return False
+
+    async def _close_session(self) -> None:
+        """Close the aiohttp session if it was created internally."""
         if self._session and not self._external_session and not self._session.closed:
             self._logger.info("Closing internally created aiohttp.ClientSession.")
             await self._session.close()
             self._logger.info("Internally created ClientSession closed.")
         self._session = None
-
-        self._logger.info(f"WebSocketManager for {self._ws_url} is fully closed.")

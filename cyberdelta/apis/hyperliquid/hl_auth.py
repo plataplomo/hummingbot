@@ -6,10 +6,10 @@ import asyncio
 import logging
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 if TYPE_CHECKING:
-    from typing import TypeGuard
+    pass
 
 import msgpack
 from eth_account import Account
@@ -72,9 +72,29 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             is_mainnet_environment: Whether connecting to mainnet (True) or testnet (False)
             logger_param: Optional logger instance for authentication events
         """
-        self.logger = logger_param or get_logger(__name__)  # Use provided or get new one
+        self.logger = logger_param or get_logger(__name__)
         self._is_mainnet_env = is_mainnet_environment
+        self._chain_id = chain_id
 
+        self._validate_auth_parameters(wallet_private_key_secret, account_object)
+        self._account = self._setup_account(
+            wallet_private_key_secret, account_object, passphrase_secret
+        )
+        self._setup_wallet_properties()
+        self._setup_nonce_management()
+        self._setup_eip712_configuration(chain_id)
+
+        self.logger.info(
+            f"HyperliquidEip712Authenticator initialized for address: {self.wallet_address} "
+            f"on chain_id: {self.chain_id}",
+        )
+
+    def _validate_auth_parameters(
+        self,
+        wallet_private_key_secret: SecretStr | None,
+        account_object: LocalAccount | None,
+    ) -> None:
+        """Validate that exactly one authentication method is provided."""
         if not wallet_private_key_secret and not account_object:
             msg = "Either wallet_private_key_secret or account_object must be provided."
             self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
@@ -84,101 +104,116 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
             raise ValueError(msg)
 
+    def _setup_account(
+        self,
+        wallet_private_key_secret: SecretStr | None,
+        account_object: LocalAccount | None,
+        passphrase_secret: SecretStr | None,
+    ) -> LocalAccount:
+        """Setup and validate the account object."""
         if wallet_private_key_secret:
-            # Perform cryptographic validation of private key
-            try:
-                private_key_str = wallet_private_key_secret.get_secret_value().strip()
-
-                # Strip "0x" prefix if present
-                processed_pk_str = (
-                    private_key_str[2:] if private_key_str.startswith("0x") else private_key_str
-                )
-
-                # Validate format (64-character hex string)
-                if not (
-                    len(processed_pk_str) == 64
-                    and all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)
-                ):
-                    raise ValueError(
-                        "Hyperliquid private_key must be a 64-character hex string "
-                        "(with or without '0x' prefix).",
-                    )
-
-                # Cryptographic validation using eth_account
-                try:
-                    self._account: LocalAccount = Account.from_key(processed_pk_str)
-                except Exception as e:
-                    raise ValueError(
-                        f"Hyperliquid private_key is not cryptographically valid: {e}",
-                    ) from e
-
-            except ValueError as e:
-                self.logger.error(
-                    f"HyperliquidEip712Authenticator: Invalid private key: {e}",
-                    exc_info=True,
-                )
-                raise ValueError(f"Invalid private key: {e}") from e
-
-            # Validate passphrase if provided
+            account = self._create_account_from_private_key(wallet_private_key_secret)
             if passphrase_secret:
-                try:
-                    phrase_str = passphrase_secret.get_secret_value().strip()
-
-                    # Word count check (12 or 24 words)
-                    num_words = len(phrase_str.split())
-                    if num_words not in (12, 24):
-                        raise ValueError(
-                            f"Hyperliquid passphrase must consist of 12 or 24 words, "
-                            f"got {num_words} words.",
-                        )
-
-                    # BIP-39 mnemonic validation
-                    try:
-                        mnemonic_validator = Mnemonic("english")
-                        if not mnemonic_validator.check(phrase_str):
-                            raise ValueError(
-                                "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
-                                "(checksum or wordlist error).",
-                            )
-                    except Exception as e:
-                        # Handle any other exceptions from mnemonic validation
-                        if "not a valid BIP-39 mnemonic" not in str(e):
-                            raise ValueError(
-                                f"Error validating Hyperliquid passphrase with mnemonic "
-                                f"library: {e}",
-                            ) from e
-                        raise
-
-                except ValueError as e:
-                    self.logger.error(
-                        f"HyperliquidEip712Authenticator: Invalid passphrase: {e}",
-                        exc_info=True,
-                    )
-                    raise ValueError(f"Invalid passphrase: {e}") from e
-
-        elif account_object:  # account_object is guaranteed to be non-None here
-            self._account = account_object
+                self._validate_passphrase(passphrase_secret)
+            return account
+        elif account_object:
+            return account_object
         else:
             # This case should be impossible due to the initial checks
-            # but added for exhaustive handling and to satisfy linters if they get confused.
             impos_msg = "Internal error: Account could not be assigned despite checks."
             self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
             raise RuntimeError(impos_msg)
 
-        # Account is guaranteed to be non-None after successful initialization above
+    def _create_account_from_private_key(
+        self,
+        wallet_private_key_secret: SecretStr,
+    ) -> LocalAccount:
+        """Create a LocalAccount from a private key with validation."""
+        try:
+            private_key_str = wallet_private_key_secret.get_secret_value().strip()
+            processed_pk_str = self._process_private_key_string(private_key_str)
+            self._validate_private_key_format(processed_pk_str)
 
-        self._wallet_address: str = self._account.address  # Derive address
-        self._chain_id: int = chain_id
+            # Cryptographic validation using eth_account
+            try:
+                account_obj: LocalAccount = Account.from_key(processed_pk_str)
+                return account_obj
+            except Exception as e:
+                raise ValueError(
+                    f"Hyperliquid private_key is not cryptographically valid: {e}",
+                ) from e
 
-        self.logger.info(
-            f"HyperliquidEip712Authenticator initialized for address: {self.wallet_address} "
-            f"on chain_id: {self.chain_id}",
-        )
+        except ValueError as e:
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Invalid private key: {e}",
+                exc_info=True,
+            )
+            raise ValueError(f"Invalid private key: {e}") from e
 
-        # Nonce strategy: use millisecond timestamp, ensuring strict increment if called rapidly.
+    def _process_private_key_string(self, private_key_str: str) -> str:
+        """Process private key string by removing 0x prefix if present."""
+        return private_key_str[2:] if private_key_str.startswith("0x") else private_key_str
+
+    def _validate_private_key_format(self, processed_pk_str: str) -> None:
+        """Validate that private key is a 64-character hex string."""
+        if not (
+            len(processed_pk_str) == 64
+            and all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)
+        ):
+            raise ValueError(
+                "Hyperliquid private_key must be a 64-character hex string "
+                "(with or without '0x' prefix).",
+            )
+
+    def _validate_passphrase(self, passphrase_secret: SecretStr) -> None:
+        """Validate the BIP-39 passphrase if provided."""
+        try:
+            phrase_str = passphrase_secret.get_secret_value().strip()
+            self._validate_passphrase_word_count(phrase_str)
+            self._validate_passphrase_bip39(phrase_str)
+        except ValueError as e:
+            self.logger.error(
+                f"HyperliquidEip712Authenticator: Invalid passphrase: {e}",
+                exc_info=True,
+            )
+            raise ValueError(f"Invalid passphrase: {e}") from e
+
+    def _validate_passphrase_word_count(self, phrase_str: str) -> None:
+        """Validate that passphrase has correct word count."""
+        num_words = len(phrase_str.split())
+        if num_words not in (12, 24):
+            raise ValueError(
+                f"Hyperliquid passphrase must consist of 12 or 24 words, got {num_words} words.",
+            )
+
+    def _validate_passphrase_bip39(self, phrase_str: str) -> None:
+        """Validate that passphrase is a valid BIP-39 mnemonic."""
+        try:
+            mnemonic_validator = Mnemonic("english")
+            if not mnemonic_validator.check(phrase_str):
+                raise ValueError(
+                    "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
+                    "(checksum or wordlist error).",
+                )
+        except Exception as e:
+            # Handle any other exceptions from mnemonic validation
+            if "not a valid BIP-39 mnemonic" not in str(e):
+                raise ValueError(
+                    f"Error validating Hyperliquid passphrase with mnemonic library: {e}",
+                ) from e
+            raise
+
+    def _setup_wallet_properties(self) -> None:
+        """Setup wallet address properties."""
+        self._wallet_address: str = self._account.address
+
+    def _setup_nonce_management(self) -> None:
+        """Setup nonce management for timestamp-based nonces."""
         self._last_nonce_ms: int = 0
         self._nonce_lock = asyncio.Lock()
 
+    def _setup_eip712_configuration(self, chain_id: int) -> None:
+        """Setup EIP-712 domain and type configurations."""
         # Initialize EIP-712 domain data for Exchange/Agent scheme (sign_l1_action)
         self._exchange_action_domain = HyperliquidAgentDomainData(
             name="Exchange",
@@ -237,15 +272,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # Recursively clean nested structures
         for value in data.values():
-            if isinstance(value, dict):
-                # Cast to proper type since isinstance check confirms it's a dict
-                self._clean_order_type_fields(cast(dict[str, Any], value))
+            if self._is_dict_str_any(value):
+                # TypeGuard confirms it's a dict[str, Any]
+                self._clean_order_type_fields(value)
             elif self._is_list_any(value):
                 # Use TypeGuard to properly type the list
                 for item in value:
-                    if isinstance(item, dict):
-                        # Cast to proper type since isinstance check confirms it's a dict
-                        self._clean_order_type_fields(cast(dict[str, Any], item))
+                    if self._is_dict_str_any(item):
+                        # TypeGuard confirms it's a dict[str, Any]
+                        self._clean_order_type_fields(item)
 
     def _is_ethereum_address(self, value: str) -> bool:
         """Check if a string looks like an Ethereum address."""
@@ -256,14 +291,19 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Type guard to check if value is a list."""
         return isinstance(value, list)
 
+    @staticmethod
+    def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
+        """Type guard to check if value is a dict[str, Any]."""
+        return isinstance(value, dict)
+
     def _lowercase_addresses_in_list(self, lst: list[Any]) -> None:
         """Process a list to lowercase Ethereum addresses."""
         for i in range(len(lst)):
             item = lst[i]
             if isinstance(item, str) and self._is_ethereum_address(item):
                 lst[i] = item.lower()
-            elif isinstance(item, dict):
-                self._lowercase_addresses_in_payload(cast(dict[str, Any], item))
+            elif self._is_dict_str_any(item):
+                self._lowercase_addresses_in_payload(item)
             elif self._is_list_any(item):
                 # Recursive call for nested lists
                 self._lowercase_addresses_in_list(item)
@@ -282,9 +322,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             if isinstance(value, str) and self._is_ethereum_address(value):
                 # This looks like an Ethereum address
                 data[key] = value.lower()
-            elif isinstance(value, dict):
+            elif self._is_dict_str_any(value):
                 # Recursively process nested dictionaries
-                self._lowercase_addresses_in_payload(cast(dict[str, Any], value))
+                self._lowercase_addresses_in_payload(value)
             elif self._is_list_any(value):
                 # Process the list
                 self._lowercase_addresses_in_list(value)
@@ -374,8 +414,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # Calculate action_hash (mimicking SDK's action_hash function)
         msgpacked_action = msgpack.packb(action_payload_dict)
-        if not isinstance(msgpacked_action, bytes):
-            raise ValueError("msgpack.packb should return bytes")
         action_hash_data_parts: list[bytes] = [msgpacked_action]
         action_hash_data_parts.append(current_nonce_ms.to_bytes(8, "big"))
 

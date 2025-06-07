@@ -19,8 +19,9 @@ All transformation methods follow the standard pattern:
 """
 
 import logging
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, TypedDict, TypeGuard
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
@@ -42,6 +43,27 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 logger = logging.getLogger(__name__)
+
+
+class OrderComponents(TypedDict):
+    """Type-safe components for Order creation."""
+    side: OrderSide
+    order_type: OrderType
+    status: OrderStatus
+    time_in_force: TimeInForce
+    quantity_requested: Decimal
+    quantity_filled: Decimal
+    price: Decimal | None
+    average_fill_price: Decimal | None
+    stop_price: Decimal | None
+    trigger_by: TriggerType | None
+    created_at: datetime
+    updated_at: datetime
+
+
+def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
+    """Type guard to check if value is a dict[str, Any]."""
+    return isinstance(value, dict)
 
 
 class HyperliquidTradingDataMapper:
@@ -143,10 +165,9 @@ class HyperliquidTradingDataMapper:
 
         """
         # Only limit orders have TIF in HL
-        if "limit" in order_type and isinstance(order_type["limit"], dict):
-            # Type narrowing for pyright - we've confirmed it's a dict
-            # After isinstance check, we know it's a dict
-            limit_dict: dict[str, Any] = cast(dict[str, Any], order_type["limit"])
+        if "limit" in order_type and _is_dict_str_any(order_type["limit"]):
+            # TypeGuard confirms it's a dict[str, Any]
+            limit_dict = order_type["limit"]
             tif_val: Any = limit_dict.get("tif", "")
             tif_str = str(tif_val).upper()
 
@@ -230,115 +251,200 @@ class HyperliquidTradingDataMapper:
 
         """
         try:
-            # Map enums
-            side, order_type, status, time_in_force = (
-                HyperliquidTradingDataMapper._parse_order_enums(raw_order, trigger)
+            # Parse all order components
+            order_components = HyperliquidTradingDataMapper._parse_order_components(
+                raw_order, trigger
             )
-
-            # Parse quantities and price
-            quantity_requested, quantity_filled, price = (
-                HyperliquidTradingDataMapper._parse_order_quantities_and_price(raw_order)
+            
+            # Create and return the Order object
+            return HyperliquidTradingDataMapper._create_order_from_components(
+                raw_order, order_components
             )
-
-            # Parse timestamps
-            created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
-            if created_at is None:
-                raise TransformationError("created_at (timestamp) is required")
-
-            updated_at = parse_datetime_utc(
-                raw_order.status_timestamp,
-                field_name="statusTimestamp",
-            )
-            if updated_at is None:
-                updated_at = created_at
-
-            # Parse trigger/stop logic
-            stop_price = None
-            trigger_by = None
-            if trigger:
-                stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")),
-                    allow_none=True,
-                    field_name="triggerPx",
-                )
-
-                # Map trigger type if available
-                trigger_type_str = getattr(trigger, "trigger_type", None)
-                if trigger_type_str:
-                    if trigger_type_str.lower() == "mark":
-                        trigger_by = TriggerType.MARK_PRICE
-                    elif trigger_type_str.lower() == "last":
-                        trigger_by = TriggerType.LAST_PRICE
-
-            # Calculate average_fill_price based on business rules
-            # Rule: average_fill_price must be positive if quantity_filled > 0
-            average_fill_price = None
-            if quantity_filled > 0:
-                # For Hyperliquid orders, avg_px is not available in order data
-                # Use limit price as approximation when available
-                if price is not None and price > 0:
-                    average_fill_price = price
-                else:
-                    # If no valid price available but quantity is filled,
-                    # this indicates an inconsistent state. For market orders with fills
-                    # but no price data, we cannot determine a valid average_fill_price.
-                    # Set quantity_filled to 0 to maintain model consistency.
-                    logger.warning(
-                        f"Order {raw_order.oid}: quantity_filled={quantity_filled} "
-                        f"but no valid price available. Setting quantity_filled=0 to "
-                        f"maintain model consistency.",
-                    )
-                    quantity_filled = Decimal("0")
-
-            # Handle client_order_id - only include if not None to let Order generate UUID
-            if raw_order.cloid is not None:
-                return Order(
-                    exchange_order_id=str(raw_order.oid),
-                    symbol=raw_order.asset,
-                    side=side,
-                    order_type=order_type,
-                    status=status,
-                    quantity_requested=quantity_requested,
-                    quantity_filled=quantity_filled,
-                    price=price,
-                    average_fill_price=average_fill_price,
-                    stop_price=stop_price,
-                    time_in_force=time_in_force,
-                    trigger_by=trigger_by,
-                    exchange=ExchangeName.HYPERLIQUID.value,
-                    client_order_id=raw_order.cloid,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                    triggered_at=None,
-                    strategy_name=None,
-                    signal_id=None,
-                )
-            else:
-                return Order(
-                    exchange_order_id=str(raw_order.oid),
-                    symbol=raw_order.asset,
-                    side=side,
-                    order_type=order_type,
-                    status=status,
-                    quantity_requested=quantity_requested,
-                    quantity_filled=quantity_filled,
-                    price=price,
-                    average_fill_price=average_fill_price,
-                    stop_price=stop_price,
-                    time_in_force=time_in_force,
-                    trigger_by=trigger_by,
-                    exchange=ExchangeName.HYPERLIQUID.value,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                    triggered_at=None,
-                    strategy_name=None,
-                    signal_id=None,
-                )
 
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawOrder to Order: {e}",
             ) from e
+
+    @staticmethod
+    def _parse_order_components(
+        raw_order: HyperliquidRawOrder,
+        trigger: HyperliquidRawTriggerInfo | None = None,
+    ) -> OrderComponents:
+        """Parse all components needed for Order creation."""
+        # Map enums
+        side, order_type, status, time_in_force = (
+            HyperliquidTradingDataMapper._parse_order_enums(raw_order, trigger)
+        )
+
+        # Parse quantities and price
+        quantity_requested, quantity_filled, price = (
+            HyperliquidTradingDataMapper._parse_order_quantities_and_price(raw_order)
+        )
+
+        # Parse timestamps
+        created_at, updated_at = HyperliquidTradingDataMapper._parse_order_timestamps(
+            raw_order
+        )
+
+        # Parse trigger/stop logic
+        stop_price, trigger_by = HyperliquidTradingDataMapper._parse_trigger_info(trigger)
+
+        # Calculate average_fill_price
+        average_fill_price, quantity_filled = (
+            HyperliquidTradingDataMapper._calculate_average_fill_price(
+                raw_order, quantity_filled, price
+            )
+        )
+
+        return OrderComponents(
+            side=side,
+            order_type=order_type,
+            status=status,
+            time_in_force=time_in_force,
+            quantity_requested=quantity_requested,
+            quantity_filled=quantity_filled,
+            price=price,
+            average_fill_price=average_fill_price,
+            stop_price=stop_price,
+            trigger_by=trigger_by,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
+    @staticmethod
+    def _parse_order_timestamps(
+        raw_order: HyperliquidRawOrder,
+    ) -> tuple[datetime, datetime]:
+        """Parse order timestamps."""
+        created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
+        if created_at is None:
+            raise TransformationError("created_at (timestamp) is required")
+
+        updated_at = parse_datetime_utc(
+            raw_order.status_timestamp,
+            field_name="statusTimestamp",
+        )
+        if updated_at is None:
+            updated_at = created_at
+            
+        return created_at, updated_at
+
+    @staticmethod
+    def _parse_trigger_info(
+        trigger: HyperliquidRawTriggerInfo | None,
+    ) -> tuple[Decimal | None, TriggerType | None]:
+        """Parse trigger/stop logic."""
+        stop_price = None
+        trigger_by = None
+        
+        if trigger:
+            stop_price = parse_decimal_value(
+                str(getattr(trigger, "trigger_px", "")),
+                allow_none=True,
+                field_name="triggerPx",
+            )
+
+            # Map trigger type if available
+            trigger_type_str = getattr(trigger, "trigger_type", None)
+            if trigger_type_str:
+                if trigger_type_str.lower() == "mark":
+                    trigger_by = TriggerType.MARK_PRICE
+                elif trigger_type_str.lower() == "last":
+                    trigger_by = TriggerType.LAST_PRICE
+                    
+        return stop_price, trigger_by
+
+    @staticmethod
+    def _calculate_average_fill_price(
+        raw_order: HyperliquidRawOrder,
+        quantity_filled: Decimal,
+        price: Decimal | None,
+    ) -> tuple[Decimal | None, Decimal]:
+        """Calculate average_fill_price based on business rules."""
+        average_fill_price = None
+        
+        if quantity_filled > 0:
+            # For Hyperliquid orders, avg_px is not available in order data
+            # Use limit price as approximation when available
+            if price is not None and price > 0:
+                average_fill_price = price
+            else:
+                # If no valid price available but quantity is filled,
+                # this indicates an inconsistent state. For market orders with fills
+                # but no price data, we cannot determine a valid average_fill_price.
+                # Set quantity_filled to 0 to maintain model consistency.
+                logger.warning(
+                    f"Order {raw_order.oid}: quantity_filled={quantity_filled} "
+                    f"but no valid price available. Setting quantity_filled=0 to "
+                    f"maintain model consistency.",
+                )
+                quantity_filled = Decimal("0")
+                
+        return average_fill_price, quantity_filled
+
+    @staticmethod
+    def _create_order_from_components(
+        raw_order: HyperliquidRawOrder,
+        components: OrderComponents,
+    ) -> Order:
+        """Create Order object from parsed components."""
+        # Create order directly - no dict unpacking to avoid pyright issues
+        if raw_order.cloid is not None:
+            return Order(
+                client_order_id=raw_order.cloid,
+                exchange_order_id=str(raw_order.oid),
+                symbol=raw_order.asset,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                side=components["side"],
+                order_type=components["order_type"],
+                status=components["status"],
+                quantity_requested=components["quantity_requested"],
+                quantity_filled=components["quantity_filled"],
+                price=components["price"],
+                stop_price=components["stop_price"],
+                average_fill_price=components["average_fill_price"],
+                trigger_by=components["trigger_by"],
+                time_in_force=components["time_in_force"],
+                created_at=components["created_at"],
+                updated_at=components["updated_at"],
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                quote_quantity_requested=None,
+                reduce_only=False,
+                post_only=False,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            )
+        else:
+            return Order(
+                exchange_order_id=str(raw_order.oid),
+                symbol=raw_order.asset,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                side=components["side"],
+                order_type=components["order_type"],
+                status=components["status"],
+                quantity_requested=components["quantity_requested"],
+                quantity_filled=components["quantity_filled"],
+                price=components["price"],
+                stop_price=components["stop_price"],
+                average_fill_price=components["average_fill_price"],
+                trigger_by=components["trigger_by"],
+                time_in_force=components["time_in_force"],
+                created_at=components["created_at"],
+                updated_at=components["updated_at"],
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                quote_quantity_requested=None,
+                reduce_only=False,
+                post_only=False,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            )
 
     @staticmethod
     def transform_raw_historical_order_to_internal(
@@ -359,153 +465,228 @@ class HyperliquidTradingDataMapper:
 
         """
         try:
-            # Map enums
-            side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
-            order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_historical_order.order_type,
-                trigger,
+            # Parse all historical order components
+            order_components = HyperliquidTradingDataMapper._parse_historical_order_components(
+                raw_historical_order, trigger
             )
-            status = HyperliquidTradingDataMapper._map_status_to_internal(
-                raw_historical_order.status,
+            
+            # Create and return the Order object
+            return HyperliquidTradingDataMapper._create_historical_order_from_components(
+                raw_historical_order, order_components
             )
-            time_in_force = HyperliquidTradingDataMapper._map_time_in_force(
-                raw_historical_order.order_type,
-            )
-
-            # Parse quantities
-            quantity_requested = parse_decimal_value(
-                raw_historical_order.sz,
-                allow_none=False,
-                field_name="sz",
-            )
-            if quantity_requested is None:
-                raise TransformationError("quantity_requested (sz) is required")
-
-            # For historical orders, calculate filled quantity from original size and remaining
-            remaining_sz = parse_decimal_value(
-                str(getattr(raw_historical_order, "remaining_sz", "0")),
-                allow_none=True,
-                field_name="remainingSz",
-            )
-            if remaining_sz is None:
-                remaining_sz = Decimal("0")
-
-            quantity_filled = quantity_requested - remaining_sz
-
-            # Parse price - handle market orders correctly
-            price = parse_decimal_value(
-                str(raw_historical_order.limit_px),
-                allow_none=True,
-                field_name="limitPx",
-            )
-            # For market orders, Hyperliquid uses limit_px="0", but internal Order
-            # expects price=None
-            if price is not None and price == Decimal("0"):
-                price = None
-
-            # Parse timestamps
-            created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
-            if created_at is None:
-                raise TransformationError("created_at (timestamp) is required")
-
-            # Historical orders might not have separate status timestamp
-            updated_at = (
-                parse_datetime_utc(
-                    getattr(raw_historical_order, "status_timestamp", None),
-                    field_name="statusTimestamp",
-                )
-                or created_at
-            )
-
-            # Parse trigger/stop logic
-            stop_price = None
-            trigger_by = None
-            if trigger:
-                stop_price = parse_decimal_value(
-                    str(getattr(trigger, "trigger_px", "")),
-                    allow_none=True,
-                    field_name="triggerPx",
-                )
-
-                # Map trigger type if available
-                trigger_type_str = getattr(trigger, "trigger_type", None)
-                if trigger_type_str:
-                    if trigger_type_str.lower() == "mark":
-                        trigger_by = TriggerType.MARK_PRICE
-                    elif trigger_type_str.lower() == "last":
-                        trigger_by = TriggerType.LAST_PRICE
-
-            # Calculate average_fill_price based on business rules
-            # Rule: average_fill_price must be positive if quantity_filled > 0
-            average_fill_price = None
-            if quantity_filled > 0:
-                # For Hyperliquid orders, avg_px is not available in order data
-                # Use limit price as approximation when available
-                if price is not None and price > 0:
-                    average_fill_price = price
-                else:
-                    # If no valid price available but quantity is filled,
-                    # this indicates an inconsistent state. For market orders with fills
-                    # but no price data, we cannot determine a valid average_fill_price.
-                    # Set quantity_filled to 0 to maintain model consistency.
-                    logger.warning(
-                        f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} "
-                        f"but no valid price available. Setting quantity_filled=0 to "
-                        f"maintain model consistency.",
-                    )
-                    quantity_filled = Decimal("0")
-
-            # Handle client_order_id - only include if not None to let Order generate UUID
-            cloid = getattr(raw_historical_order, "cloid", None)
-
-            if cloid is not None:
-                return Order(
-                    exchange_order_id=str(raw_historical_order.oid),
-                    symbol=raw_historical_order.asset,
-                    side=side,
-                    order_type=order_type,
-                    status=status,
-                    quantity_requested=quantity_requested,
-                    quantity_filled=quantity_filled,
-                    price=price,
-                    average_fill_price=average_fill_price,
-                    stop_price=stop_price,
-                    time_in_force=time_in_force,
-                    trigger_by=trigger_by,
-                    exchange=ExchangeName.HYPERLIQUID.value,
-                    client_order_id=cloid,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                    triggered_at=None,
-                    strategy_name=None,
-                    signal_id=None,
-                )
-            else:
-                return Order(
-                    exchange_order_id=str(raw_historical_order.oid),
-                    symbol=raw_historical_order.asset,
-                    side=side,
-                    order_type=order_type,
-                    status=status,
-                    quantity_requested=quantity_requested,
-                    quantity_filled=quantity_filled,
-                    price=price,
-                    average_fill_price=average_fill_price,
-                    stop_price=stop_price,
-                    time_in_force=time_in_force,
-                    trigger_by=trigger_by,
-                    exchange=ExchangeName.HYPERLIQUID.value,
-                    created_at=created_at,
-                    updated_at=updated_at,
-                    triggered_at=None,
-                    strategy_name=None,
-                    signal_id=None,
-                )
 
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
             ) from e
+
+    @staticmethod
+    def _parse_historical_order_components(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+        trigger: HyperliquidRawTriggerInfo | None = None,
+    ) -> OrderComponents:
+        """Parse all components needed for historical Order creation."""
+        # Map enums
+        side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
+        order_type = HyperliquidTradingDataMapper._map_type_to_internal(
+            raw_historical_order.order_type,
+            trigger,
+        )
+        status = HyperliquidTradingDataMapper._map_status_to_internal(
+            raw_historical_order.status,
+        )
+        time_in_force = HyperliquidTradingDataMapper._map_time_in_force(
+            raw_historical_order.order_type,
+        )
+
+        # Parse quantities and price
+        quantity_requested, quantity_filled, price = (
+            HyperliquidTradingDataMapper._parse_historical_quantities_and_price(
+                raw_historical_order
+            )
+        )
+
+        # Parse timestamps
+        created_at, updated_at = HyperliquidTradingDataMapper._parse_historical_timestamps(
+            raw_historical_order
+        )
+
+        # Parse trigger/stop logic (reuse existing method)
+        stop_price, trigger_by = HyperliquidTradingDataMapper._parse_trigger_info(trigger)
+
+        # Calculate average_fill_price (reuse existing method with different order ID)
+        average_fill_price, quantity_filled = (
+            HyperliquidTradingDataMapper._calculate_historical_average_fill_price(
+                raw_historical_order, quantity_filled, price
+            )
+        )
+
+        return OrderComponents(
+            side=side,
+            order_type=order_type,
+            status=status,
+            time_in_force=time_in_force,
+            quantity_requested=quantity_requested,
+            quantity_filled=quantity_filled,
+            price=price,
+            average_fill_price=average_fill_price,
+            stop_price=stop_price,
+            trigger_by=trigger_by,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
+    @staticmethod
+    def _parse_historical_quantities_and_price(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+    ) -> tuple[Decimal, Decimal, Decimal | None]:
+        """Parse quantities and price for historical orders."""
+        # Parse quantities
+        quantity_requested = parse_decimal_value(
+            raw_historical_order.sz,
+            allow_none=False,
+            field_name="sz",
+        )
+        if quantity_requested is None:
+            raise TransformationError("quantity_requested (sz) is required")
+
+        # For historical orders, calculate filled quantity from original size and remaining
+        remaining_sz = parse_decimal_value(
+            str(getattr(raw_historical_order, "remaining_sz", "0")),
+            allow_none=True,
+            field_name="remainingSz",
+        )
+        if remaining_sz is None:
+            remaining_sz = Decimal("0")
+
+        quantity_filled = quantity_requested - remaining_sz
+
+        # Parse price - handle market orders correctly
+        price = parse_decimal_value(
+            str(raw_historical_order.limit_px),
+            allow_none=True,
+            field_name="limitPx",
+        )
+        # For market orders, Hyperliquid uses limit_px="0", but internal Order
+        # expects price=None
+        if price is not None and price == Decimal("0"):
+            price = None
+            
+        return quantity_requested, quantity_filled, price
+
+    @staticmethod
+    def _parse_historical_timestamps(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+    ) -> tuple[datetime, datetime]:
+        """Parse timestamps for historical orders."""
+        created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
+        if created_at is None:
+            raise TransformationError("created_at (timestamp) is required")
+
+        # Historical orders might not have separate status timestamp
+        updated_at = (
+            parse_datetime_utc(
+                getattr(raw_historical_order, "status_timestamp", None),
+                field_name="statusTimestamp",
+            )
+            or created_at
+        )
+        
+        return created_at, updated_at
+
+    @staticmethod
+    def _calculate_historical_average_fill_price(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+        quantity_filled: Decimal,
+        price: Decimal | None,
+    ) -> tuple[Decimal | None, Decimal]:
+        """Calculate average_fill_price for historical orders."""
+        average_fill_price = None
+        
+        if quantity_filled > 0:
+            # For Hyperliquid orders, avg_px is not available in order data
+            # Use limit price as approximation when available
+            if price is not None and price > 0:
+                average_fill_price = price
+            else:
+                # If no valid price available but quantity is filled,
+                # this indicates an inconsistent state. For market orders with fills
+                # but no price data, we cannot determine a valid average_fill_price.
+                # Set quantity_filled to 0 to maintain model consistency.
+                logger.warning(
+                    f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} "
+                    f"but no valid price available. Setting quantity_filled=0 to "
+                    f"maintain model consistency.",
+                )
+                quantity_filled = Decimal("0")
+                
+        return average_fill_price, quantity_filled
+
+    @staticmethod
+    def _create_historical_order_from_components(
+        raw_historical_order: HyperliquidRawHistoricalOrder,
+        components: OrderComponents,
+    ) -> Order:
+        """Create Order object from parsed historical order components."""
+        # Get client order ID
+        cloid = getattr(raw_historical_order, "cloid", None)
+        
+        # Create order directly - no dict unpacking to avoid pyright issues
+        if cloid is not None:
+            return Order(
+                client_order_id=cloid,
+                exchange_order_id=str(raw_historical_order.oid),
+                symbol=raw_historical_order.asset,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                side=components["side"],
+                order_type=components["order_type"],
+                status=components["status"],
+                quantity_requested=components["quantity_requested"],
+                quantity_filled=components["quantity_filled"],
+                price=components["price"],
+                stop_price=components["stop_price"],
+                average_fill_price=components["average_fill_price"],
+                trigger_by=components["trigger_by"],
+                time_in_force=components["time_in_force"],
+                created_at=components["created_at"],
+                updated_at=components["updated_at"],
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                quote_quantity_requested=None,
+                reduce_only=False,
+                post_only=False,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            )
+        else:
+            return Order(
+                exchange_order_id=str(raw_historical_order.oid),
+                symbol=raw_historical_order.asset,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                side=components["side"],
+                order_type=components["order_type"],
+                status=components["status"],
+                quantity_requested=components["quantity_requested"],
+                quantity_filled=components["quantity_filled"],
+                price=components["price"],
+                stop_price=components["stop_price"],
+                average_fill_price=components["average_fill_price"],
+                trigger_by=components["trigger_by"],
+                time_in_force=components["time_in_force"],
+                created_at=components["created_at"],
+                updated_at=components["updated_at"],
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                quote_quantity_requested=None,
+                reduce_only=False,
+                post_only=False,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            )
 
     @staticmethod
     def transform_ws_order_update_to_internal_order(

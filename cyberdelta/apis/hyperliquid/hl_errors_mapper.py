@@ -54,65 +54,146 @@ class HyperliquidErrorMapper(IErrorMapper):
         """
         if not error_message:
             return HyperliquidAPIErrorCategory.UNKNOWN
+
         msg = error_message.strip().lower()
         if msg == "error":
             return HyperliquidAPIErrorCategory.ERROR
-        # Canonical string check (from hl_api_error.py)
+
+        # Try canonical string matching first
+        category = HyperliquidErrorMapper._try_canonical_string_match(msg)
+        if category != HyperliquidAPIErrorCategory.UNKNOWN:
+            return category
+
+        # Fallback to regex pattern matching
+        return HyperliquidErrorMapper._try_regex_pattern_match(msg)
+
+    @staticmethod
+    def _try_canonical_string_match(msg: str) -> HyperliquidAPIErrorCategory:
+        """Try to match error message using canonical error strings."""
         for canonical, category in HYPERLIQUID_ERROR_STRINGS.items():
             if canonical in msg:
                 return category
-        # Fallback to regex/robust matching for variants
+        return HyperliquidAPIErrorCategory.UNKNOWN
+
+    @staticmethod
+    def _try_regex_pattern_match(msg: str) -> HyperliquidAPIErrorCategory:
+        """Try to match error message using regex patterns."""
+        # Try authentication and balance patterns
+        category = HyperliquidErrorMapper._match_auth_and_balance_patterns(msg)
+        if category != HyperliquidAPIErrorCategory.UNKNOWN:
+            return category
+
+        # Try asset and order validation patterns
+        category = HyperliquidErrorMapper._match_asset_and_order_patterns(msg)
+        if category != HyperliquidAPIErrorCategory.UNKNOWN:
+            return category
+
+        # Try specialized patterns (rate limit, price, server, order state, TWAP)
+        return HyperliquidErrorMapper._match_specialized_patterns(msg)
+
+    @staticmethod
+    def _match_auth_and_balance_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match authentication and balance related patterns."""
         if HyperliquidErrorMapper._regex_match(msg, r"insufficient (balance|margin)"):
             return HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE
         if HyperliquidErrorMapper._regex_match(msg, r"invalid signature"):
             return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
+        if HyperliquidErrorMapper._regex_match(msg, r"unauthorized"):
+            return HyperliquidAPIErrorCategory.UNAUTHORIZED
+        if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
+            return HyperliquidAPIErrorCategory.UNAUTHORIZED
+        return HyperliquidAPIErrorCategory.UNKNOWN
+
+    @staticmethod
+    def _match_asset_and_order_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match asset and order validation patterns."""
         if HyperliquidErrorMapper._regex_match(msg, r"invalid asset"):
             return HyperliquidAPIErrorCategory.INVALID_ASSET
         if HyperliquidErrorMapper._regex_match(msg, r"invalid order type"):
             return HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE
+
+        # Order size patterns
+        return HyperliquidErrorMapper._match_order_size_patterns(msg)
+
+    @staticmethod
+    def _match_specialized_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match specialized error patterns (rate limit, price, server, order state, TWAP)."""
+        # Rate limit patterns
+        if HyperliquidErrorMapper._match_rate_limit_patterns(msg):
+            return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
+
+        # Price and value patterns
+        if HyperliquidErrorMapper._regex_match(msg, r"price out of bounds"):
+            return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
+        if HyperliquidErrorMapper._regex_match(msg, r"order must have minimum value"):
+            return HyperliquidAPIErrorCategory.ORDER_MIN_VALUE
+
+        # Server error patterns
+        if HyperliquidErrorMapper._regex_match(msg, r"internal server error"):
+            return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
+
+        # Order state patterns
+        category = HyperliquidErrorMapper._match_order_state_patterns(msg)
+        if category != HyperliquidAPIErrorCategory.UNKNOWN:
+            return category
+
+        # TWAP patterns
+        return HyperliquidErrorMapper._match_twap_patterns(msg)
+
+    @staticmethod
+    def _match_order_size_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match order size related error patterns."""
         if HyperliquidErrorMapper._regex_match(msg, r"invalid order size"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
         if HyperliquidErrorMapper._regex_match(msg, r"order size too small"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
         if HyperliquidErrorMapper._regex_match(msg, r"order size too large"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
-        if HyperliquidErrorMapper._regex_match(msg, r"price out of bounds"):
-            return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
+        return HyperliquidAPIErrorCategory.UNKNOWN
+
+    @staticmethod
+    def _match_rate_limit_patterns(msg: str) -> bool:
+        """Check if message matches rate limit patterns."""
         if HyperliquidErrorMapper._regex_match(msg, r"(rate limit|ratelimit) exceeded"):
-            return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
+            return True
+
         # Detect address-based rate limit messages that indicate fallback to
         # "one request every 10 seconds"
-        if HyperliquidErrorMapper._regex_match(
-            msg,
-            [
-                r"please wait and retry",
-                r"too many requests.*please wait",
-                r"exceeded.*address.*limit",
-                r"one request every \d+ seconds",
-                r"your ip has been rate limited",  # IP ban pattern
-                r"ip.*rate.*limit",  # General IP rate limit pattern
-            ],
-        ):
-            return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
-        if HyperliquidErrorMapper._regex_match(msg, r"unauthorized"):
-            return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
-            return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        if HyperliquidErrorMapper._regex_match(msg, r"internal server error"):
-            return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
-        if HyperliquidErrorMapper._regex_match(msg, r"order must have minimum value"):
-            return HyperliquidAPIErrorCategory.ORDER_MIN_VALUE
-        if HyperliquidErrorMapper._regex_match(
-            msg,
-            [r"order was never placed", r"already canceled", r"already filled", r"order not found"],
-        ):
+        rate_limit_patterns = [
+            r"please wait and retry",
+            r"too many requests.*please wait",
+            r"exceeded.*address.*limit",
+            r"one request every \d+ seconds",
+            r"your ip has been rate limited",  # IP ban pattern
+            r"ip.*rate.*limit",  # General IP rate limit pattern
+        ]
+        return HyperliquidErrorMapper._regex_match(msg, rate_limit_patterns)
+
+    @staticmethod
+    def _match_order_state_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match order state related error patterns."""
+        order_not_found_patterns = [
+            r"order was never placed",
+            r"already canceled",
+            r"already filled",
+            r"order not found",
+        ]
+        if HyperliquidErrorMapper._regex_match(msg, order_not_found_patterns):
             return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
+        return HyperliquidAPIErrorCategory.UNKNOWN
+
+    @staticmethod
+    def _match_twap_patterns(msg: str) -> HyperliquidAPIErrorCategory:
+        """Match TWAP related error patterns."""
         if HyperliquidErrorMapper._regex_match(msg, r"invalid twap duration"):
             return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
-        if HyperliquidErrorMapper._regex_match(
-            msg,
-            [r"twap was never placed", r"twap already canceled", r"twap already filled"],
-        ):
+
+        twap_not_found_patterns = [
+            r"twap was never placed",
+            r"twap already canceled",
+            r"twap already filled",
+        ]
+        if HyperliquidErrorMapper._regex_match(msg, twap_not_found_patterns):
             return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
         return HyperliquidAPIErrorCategory.UNKNOWN
 
@@ -209,9 +290,33 @@ class HyperliquidErrorMapper(IErrorMapper):
             APIError: The standardized internal error model for business logic.
 
         """
-        # Priority check for Hyperliquid IP ban (403 + rate limit message)
+        # Check for IP ban pattern first (403 + rate limit message)
+        ip_ban_error = self._check_ip_ban_pattern(status_code, error_body, original_exception)
+        if ip_ban_error:
+            return ip_ban_error
+
+        # Handle critical HTTP status codes
+        critical_status_error = self._handle_critical_status_codes(
+            status_code, error_body, original_exception
+        )
+        if critical_status_error:
+            return critical_status_error
+
+        # Extract and categorize error message
+        extracted_message, category = self._extract_and_categorize_error(
+            error_body, error_data, status_code
+        )
+
+        # Build the final API error
+        return self._build_api_error(
+            extracted_message, category, status_code, original_exception, request_path
+        )
+
+    def _check_ip_ban_pattern(
+        self, status_code: int, error_body: str | None, original_exception: Exception | None
+    ) -> APIError | None:
+        """Check for Hyperliquid IP ban pattern (403 + rate limit message)."""
         if status_code == 403:
-            # Check if the error is categorized as rate limit
             error_category = self._categorize_hyperliquid_error(error_body or "")
             if error_category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
                 logger.warning(
@@ -224,12 +329,14 @@ class HyperliquidErrorMapper(IErrorMapper):
                     http_status=status_code,
                     exchange_message=error_body,
                     original_exception=original_exception,
-                    # Hyperliquid IP bans typically last 60-65 seconds, but no explicit duration
-                    # is provided in the error message
                     retry_after=None,
                 )
+        return None
 
-        # Prioritize critical HTTP status codes for direct mapping if body/data is uninformative
+    def _handle_critical_status_codes(
+        self, status_code: int, error_body: str | None, original_exception: Exception | None
+    ) -> APIError | None:
+        """Handle critical HTTP status codes with direct mapping."""
         if status_code == 503:
             return APIError(
                 message=error_body or "Service Unavailable (503)",
@@ -238,6 +345,7 @@ class HyperliquidErrorMapper(IErrorMapper):
                 exchange_message=error_body,
                 original_exception=original_exception,
             )
+
         if status_code == 429:
             return APIError(
                 message=error_body or "Rate limit exceeded (429)",
@@ -246,34 +354,12 @@ class HyperliquidErrorMapper(IErrorMapper):
                 exchange_message=error_body,
                 original_exception=original_exception,
             )
-        # Handle common authentication/authorization issues based on status code,
-        # especially if the error_body might be generic or empty.
-        if status_code == 401:
-            # If error_body provides a more specific reason, map_string_error might refine it.
-            # However, if error_body is empty or generic, this status code is a strong indicator.
-            specific_error_from_string = self.map_string_error(
-                error_body or "",
-                http_status=status_code,
-            )
-            if (
-                specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value
-                and error_body
-            ):
-                return specific_error_from_string  # Use if string mapping was specific
-                # and body wasn't empty
 
-            # If error_body is empty, provide a clearer default message for these statuses
-            message = error_body if error_body else "Authentication failed"
-            return APIError(
-                message=message,
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                http_status=status_code,
-                exchange_message=error_body,
-                original_exception=original_exception,
-            )
-        # Handle 403 that is NOT a rate limit (authentication/forbidden)
+        if status_code == 401:
+            return self._handle_authentication_error(status_code, error_body, original_exception)
+
         if status_code == 403:
-            # This is a non-rate-limit 403, treat as authentication failure
+            # Non-rate-limit 403, treat as authentication failure
             message = error_body if error_body else "Forbidden"
             return APIError(
                 message=message,
@@ -283,79 +369,123 @@ class HyperliquidErrorMapper(IErrorMapper):
                 original_exception=original_exception,
             )
 
-        # Fallback to categorizing based on error_body content if not a critical HTTP status
-        category: HyperliquidAPIErrorCategory
-        extracted_message: str = error_body or "Unknown Hyperliquid error"
+        return None
+
+    def _handle_authentication_error(
+        self, status_code: int, error_body: str | None, original_exception: Exception | None
+    ) -> APIError:
+        """Handle 401 authentication errors with refined string mapping."""
+        specific_error_from_string = self.map_string_error(
+            error_body or "",
+            http_status=status_code,
+        )
+
+        if specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value and error_body:
+            return specific_error_from_string
+
+        message = error_body if error_body else "Authentication failed"
+        return APIError(
+            message=message,
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=status_code,
+            exchange_message=error_body,
+            original_exception=original_exception,
+        )
+
+    def _extract_and_categorize_error(
+        self, error_body: str | None, error_data: dict[str, Any] | None, status_code: int
+    ) -> tuple[str, HyperliquidAPIErrorCategory]:
+        """Extract error message and categorize it."""
+        extracted_message = error_body or "Unknown Hyperliquid error"
 
         if error_data and isinstance(error_data.get("error"), str):
-            # If error_data contains an 'error' string, prioritize it.
-            # This matches Hyperliquid's typical JSON error structure: {"error": "message"}
+            # Prioritize error_data["error"] structure
             extracted_message = error_data["error"]
             category = HyperliquidErrorMapper._categorize_hyperliquid_error(extracted_message)
         elif error_body:
-            # If no error_data or error_data.error is not a string, try parsing error_body
-            # as it might be a JSON array like ["error string"], or just a plain string.
-            try:
-                potential_list = json.loads(error_body)  # Ensure error_body is not None here
-                if (
-                    isinstance(potential_list, list)
-                    and potential_list
-                    and isinstance(potential_list[0], str)
-                ):
-                    extracted_message = potential_list[0]
-                # else, extracted_message remains error_body (which is now confirmed not None)
-            except (json.JSONDecodeError, TypeError):
-                # Not a JSON list, or error_body was None (TypeError from json.loads)
-                # extracted_message remains error_body (which is now confirmed not None)
-                pass  # extracted_message is already set to error_body
+            # Try parsing error_body as JSON array or use as-is
+            extracted_message = self._parse_error_body(error_body)
             category = HyperliquidErrorMapper._categorize_hyperliquid_error(extracted_message)
         else:
-            # If error_body is also None (or empty), and no error_data.error
+            # No error_body or error_data available
             extracted_message = f"Unknown Hyperliquid error (HTTP {status_code})"
             category = HyperliquidAPIErrorCategory.UNKNOWN
 
+        return extracted_message, category
+
+    def _parse_error_body(self, error_body: str) -> str:
+        """Parse error_body which might be JSON array or plain string."""
+        try:
+            potential_list = json.loads(error_body)
+            if (
+                isinstance(potential_list, list)
+                and potential_list
+                and isinstance(potential_list[0], str)
+            ):
+                return potential_list[0]
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return error_body
+
+    def _build_api_error(
+        self,
+        extracted_message: str,
+        category: HyperliquidAPIErrorCategory,
+        status_code: int,
+        original_exception: Exception | None,
+        request_path: str | None,
+    ) -> APIError:
+        """Build the final APIError object."""
         api_error_code_enum = HyperliquidErrorMapper._map_category_to_api_error_code(category)
 
-        # Determine exchange_specific_code based on category
-        exchange_specific_code: str | None = None
-        if (
-            category != HyperliquidAPIErrorCategory.UNKNOWN
-            and category != HyperliquidAPIErrorCategory.ERROR
-        ):
-            exchange_specific_code = category.name  # Use the enum member name as a code
+        # Determine exchange_specific_code
+        exchange_specific_code = self._get_exchange_specific_code(category)
 
-        # Check for specific address-based rate limit messages that indicate
-        # the "one request every X seconds" fallback mode
-        retry_after: float | None = None
-        if category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
-            msg_lower = extracted_message.lower()
-            # Look for specific patterns that indicate the fallback mode
-            if "one request every 10 seconds" in msg_lower:
-                retry_after = 10.5  # Add small buffer
-            elif "one request every" in msg_lower:
-                # Try to extract the number of seconds from the message
-                match = re.search(r"one request every (\d+) seconds", msg_lower)
-                if match:
-                    seconds = int(match.group(1))
-                    retry_after = seconds + 0.5  # Add small buffer
+        # Calculate retry_after for rate limits
+        retry_after = self._calculate_retry_after(category, extracted_message)
 
         api_err_response_obj = APIErrorResponse.from_exchange_error(
             message=extracted_message,
             code=api_error_code_enum.value,
             http_status=status_code,
-            exchange_code=exchange_specific_code,  # Pass the derived exchange_specific_code
+            exchange_code=exchange_specific_code,
             exchange_message=extracted_message,
-            retry_after=retry_after,  # Pass the calculated retry_after
-            # original_exception not part of interface, metadata can hold request_path
+            retry_after=retry_after,
             metadata={"request_path": request_path} if request_path else None,
         )
 
         return APIError(
             message=api_err_response_obj.message,
-            code=api_err_response_obj.code,  # This should be an int (APIErrorCode.value)
+            code=api_err_response_obj.code,
             http_status=api_err_response_obj.http_status,
             exchange_code=api_err_response_obj.exchange_code,
             exchange_message=api_err_response_obj.exchange_message,
             retry_after=api_err_response_obj.retry_after,
             original_exception=original_exception,
         )
+
+    def _get_exchange_specific_code(self, category: HyperliquidAPIErrorCategory) -> str | None:
+        """Get exchange-specific code based on category."""
+        if (
+            category != HyperliquidAPIErrorCategory.UNKNOWN
+            and category != HyperliquidAPIErrorCategory.ERROR
+        ):
+            return category.name
+        return None
+
+    def _calculate_retry_after(
+        self, category: HyperliquidAPIErrorCategory, extracted_message: str
+    ) -> float | None:
+        """Calculate retry_after for rate limit errors."""
+        if category != HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
+            return None
+
+        msg_lower = extracted_message.lower()
+        if "one request every 10 seconds" in msg_lower:
+            return 10.5  # Add small buffer
+        elif "one request every" in msg_lower:
+            match = re.search(r"one request every (\d+) seconds", msg_lower)
+            if match:
+                seconds = int(match.group(1))
+                return seconds + 0.5  # Add small buffer
+        return None
