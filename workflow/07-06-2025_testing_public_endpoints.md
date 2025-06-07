@@ -11,7 +11,8 @@
 2.  **Hyperliquid:** We will use a combination of:
     *   `openapi_hl.json` (our reverse-engineered spec).
     *   Web search results to confirm endpoint types if needed.
-    *   https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api Hyperliquid documentation
+    *   https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api Hyperliquid API docs
+    *   https://github.com/hyperliquid-dex/hyperliquid-python-sdk Hyperliquid official Python SDK
 
 ---
 **Prompt for Angel: Comprehensive Cassette-Based Integration Testing for All Public API Endpoints**
