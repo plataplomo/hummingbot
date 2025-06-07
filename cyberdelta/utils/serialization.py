@@ -44,10 +44,10 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
             return o.isoformat()
         if isinstance(o, np.integer):
             # Convert numpy integer to standard Python int using .item()
-            return o.item()
+            return int(o.item())
         if isinstance(o, np.floating):
             # Convert numpy float to standard Python float using .item()
-            return o.item()
+            return float(o.item())
         # Handle Pydantic models
         if isinstance(o, BaseModel):
             # Use Pydantic's built-in serialization
@@ -66,7 +66,6 @@ def dump_json(
     allow_nan: bool = True,
     indent: int | str | None = None,
     separators: tuple[str, str] | None = None,
-    default: object | None = None,
     sort_keys: bool = False,
 ) -> str:
     """Dump data to JSON string using the custom CyberDeltaJSONEncoder.
@@ -96,14 +95,13 @@ def dump_json(
         allow_nan=allow_nan,
         indent=indent,
         separators=separators,
-        default=default,
         sort_keys=sort_keys,
     )
 
 
 # Optionally, a helper to load JSON (though standard json.loads often works fine
 # unless specific object hooks are needed for complex deserialization)
-def load_json(json_str: str, **kwargs: object) -> object:
+def load_json(json_str: str) -> object:
     """Load data from JSON string.
 
     Args:
@@ -114,5 +112,5 @@ def load_json(json_str: str, **kwargs: object) -> object:
         Parsed JSON data structure
 
     """
-    # Load JSON with proper kwargs handling
-    return json.loads(json_str, **kwargs)
+    # Load JSON with standard handling
+    return json.loads(json_str)

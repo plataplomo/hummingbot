@@ -160,9 +160,10 @@ class OrderBook(BaseModel):
         cls._validate_level_structure(level_raw, field_name, index)
 
         # Extract raw price/quantity. Runtime checks follow.
-        # Ignores needed as Pyright cannot infer types from 'level_raw: object'.
-        price_raw = level_raw[0]  # pyright: ignore[reportUnknownArgumentType]
-        quantity_raw = level_raw[1]  # pyright: ignore[reportUnknownArgumentType]
+        # Type narrowing after validation - we know level_raw is list|tuple with length 2
+        level_sequence = level_raw
+        price_raw = level_sequence[0]
+        quantity_raw = level_sequence[1]
 
         # 2. Parse and validate price and quantity
         price = cls._parse_and_validate_price(price_raw, field_name, index)

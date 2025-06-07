@@ -32,6 +32,8 @@ from pathlib import Path
 from typing import Any
 
 from cyberdelta.config import get_app_settings, get_secrets_config
+from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.secrets_models import SecretsConfig
 
 # Configure logging for the example
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -150,7 +152,7 @@ def _validate_config_files(config_path: Path, secrets_path: Path) -> None:
         sys.exit(1)
 
 
-def _load_configurations() -> tuple[object, object]:
+def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
     """Load application settings and secrets configuration."""
     logger.info("Loading configuration...")
     try:
@@ -171,14 +173,14 @@ def _load_configurations() -> tuple[object, object]:
     return app_settings, secrets_config
 
 
-def _display_basic_info(app_settings: object) -> None:
+def _display_basic_info(app_settings: AppSettings) -> None:
     """Display basic configuration information."""
     logger.info("\n=== Configuration Information (from AppSettings) ===")
     logger.info(f"Safe Mode: {app_settings.general.safe_mode}")
     logger.info(f"Log Level: {app_settings.general.log_level}")
 
 
-def _display_exchange_info(app_settings: object) -> None:
+def _display_exchange_info(app_settings: AppSettings) -> None:
     """Display exchange configuration information."""
     logger.info("\n=== Exchange Information ===")
     exchanges = app_settings.exchanges
@@ -193,7 +195,7 @@ def _display_exchange_info(app_settings: object) -> None:
         logger.info("No exchange configurations found.")
 
 
-def _display_strategy_info(app_settings: object) -> None:
+def _display_strategy_info(app_settings: AppSettings) -> None:
     """Display strategy configuration information."""
     logger.info("\n=== Strategy Configuration ===")
     strategies = app_settings.strategies
@@ -213,7 +215,7 @@ def _display_strategy_info(app_settings: object) -> None:
         logger.info("No strategy configurations found.")
 
 
-def _display_risk_info(app_settings: object) -> None:
+def _display_risk_info(app_settings: AppSettings) -> None:
     """Display risk management configuration."""
     logger.info("\n=== Risk Management Configuration ===")
     risk_config = app_settings.risk
@@ -233,7 +235,7 @@ def _display_risk_info(app_settings: object) -> None:
         logger.info("No circuit breaker configurations found.")
 
 
-def _display_credentials_status(app_settings: object, secrets_config: object) -> None:
+def _display_credentials_status(app_settings: AppSettings, secrets_config: SecretsConfig) -> None:
     """Display API credentials status without exposing secrets."""
     logger.info("\n=== API Credentials Status (from SecretsConfig) ===")
     exchanges = app_settings.exchanges

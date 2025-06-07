@@ -118,12 +118,8 @@ async def shutdown(app_state: dict[str, Any]) -> None:
     logger.info("Shutdown sequence complete.")
 
 
-async def main() -> None:
-    """Main application entry point."""
-    global cancellation_token
-    app_state: dict[str, Any] = {}
-
-    # Argument parsing
+def _parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="CyberDeltaEngine - Funding Rate Arbitrage Bot")
     parser.add_argument(
         "--config",
@@ -136,8 +132,11 @@ async def main() -> None:
         action="store_true",
         help="Run without executing trades",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def _load_configuration(args: argparse.Namespace) -> object:
+    """Load application configuration."""
     # Set config path if provided
     if args.config:
         os.environ["CYBERDELTA_CONFIG_PATH"] = args.config
@@ -149,7 +148,7 @@ async def main() -> None:
             "Configuration loaded successfully",
             source=args.config or "Default",
         )
-        app_state["config"] = config
+        return config
     except (ConfigurationError, RuntimeError) as e:
         logger.error("Configuration error", error=str(e), exc_info=True)
         sys.exit(1)
@@ -157,10 +156,11 @@ async def main() -> None:
         logger.error("Unexpected error loading configuration", error=str(e), exc_info=True)
         sys.exit(1)
 
-    # Setup logging (must be after config is loaded)
-    setup_logging(config)
 
-    # 1. Initialize Core Components
+def _initialize_core_components(config: object) -> dict[str, Any]:
+    """Initialize all core application components."""
+    app_state: dict[str, Any] = {}
+
     try:
         logger.info("Initializing core components...")
         # StateManager expects Config
@@ -242,14 +242,20 @@ async def main() -> None:
         app_state["strategy_manager"] = strategy_manager
 
         logger.info("Core components initialized.")
+        return app_state
 
     except Exception as e:
         logger.error("Fatal error during component initialization", error=str(e), exc_info=True)
         sys.exit(1)
 
-    # 2. Initialize API Clients and link to components
+
+async def _initialize_api_clients(
+    config: object, app_state: dict[str, Any]
+) -> dict[str, ExchangeAPI]:
+    """Initialize and connect API clients."""
     api_clients: dict[str, ExchangeAPI] = {}
-    client: ExchangeAPI  # Declare type of client here
+    client: ExchangeAPI
+
     try:
         logger.info("Initializing API clients...")
         # Get secrets configuration
@@ -279,19 +285,19 @@ async def main() -> None:
             await client.connect_websocket()  # CORRECTED: Call connect_websocket()
             api_clients[exchange_name] = client
             # Register API client with relevant components
-            data_handler.register_api_client(exchange_name, client)
-            execution_handler.register_api_client(exchange_name, client)
-            portfolio_tracker.register_api_client(exchange_name, client)
+            app_state["data_handler"].register_api_client(exchange_name, client)
+            app_state["execution_handler"].register_api_client(exchange_name, client)
+            app_state["portfolio_tracker"].register_api_client(exchange_name, client)
             logger.info("Initialized and connected API client", exchange=exchange_name)
-        app_state["api_clients"] = api_clients
 
         # Update data_handler with the initialized API clients
-        data_handler.api_clients = api_clients
+        app_state["data_handler"].api_clients = api_clients
 
         if not api_clients:
             logger.error("No enabled API clients found. Exiting.")
             sys.exit(1)
         logger.info("API clients initialized and registered.")
+        return api_clients
 
     except Exception as e:
         logger.error(
@@ -303,8 +309,11 @@ async def main() -> None:
         await shutdown(app_state)
         sys.exit(1)
 
-    # 3. Initialize Strategies
+
+def _initialize_strategies(config: object, app_state: dict[str, Any]) -> list[Strategy]:
+    """Initialize trading strategies."""
     strategies: list[Strategy] = []
+
     try:
         logger.info("Initializing strategies...")
         # For now, we're using the HyperLiquid Perp vs Backpack Spot strategy
@@ -330,9 +339,9 @@ async def main() -> None:
             strategy: Strategy = FundingRateArbitrageStrategy(
                 name=strategy_params["name"],
                 symbol=strategy_params["symbol"],
-                data_handler=data_handler,
-                portfolio_tracker=portfolio_tracker,
-                risk_manager=risk_manager,
+                data_handler=app_state["data_handler"],
+                portfolio_tracker=app_state["portfolio_tracker"],
+                risk_manager=app_state["risk_manager"],
                 params=strategy_params,
             )
             strategies.append(strategy)
@@ -341,9 +350,129 @@ async def main() -> None:
             logger.info("HyperLiquid-Backpack funding arbitrage strategy is disabled")
 
         logger.info("Strategies initialized", count=len(strategies))
+        return strategies
 
     except Exception as e:
         logger.error("Fatal error during strategy initialization", error=str(e), exc_info=True)
+        raise
+
+
+def _wire_components(app_state: dict[str, Any], strategies: list[Strategy]) -> None:
+    """Wire components according to the new architecture."""
+    logger.info("Wiring components...")
+    # DataHandler pushes MarketData -> Engine
+    app_state["data_handler"].register_observer(app_state["engine"].process_market_data)
+    logger.debug("Registered Engine.process_market_data with DataHandler")
+
+    # Engine pushes TradeSignals -> SignalQueue
+    app_state["engine"].set_signal_handler(app_state["signal_queue"].enqueue_signal)
+    logger.debug("Set SignalQueue.enqueue_signal as Engine's signal handler")
+
+    # SignalQueue pushes validated/prioritized signals -> RiskManager (done in queue init)
+    logger.debug("SignalQueue configured to call RiskManager.process_signal")
+
+    # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
+    logger.debug("RiskManager configured to send orders to ExecutionHandler")
+
+    # ExecutionHandler updates PortfolioTracker (assumed internal or via events)
+    # TODO: Verify how ExecutionHandler reports fills/updates to PortfolioTracker.
+    logger.debug("Component wiring complete.")
+
+    # Add and enable strategies in the Engine
+    for strategy in strategies:
+        app_state["engine"].add_strategy(strategy)
+        app_state["engine"].enable_strategy(strategy.name)
+    logger.info("Added and enabled strategies in Engine", count=len(strategies))
+
+
+async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
+    """Set up signal handling for graceful shutdown."""
+    loop = asyncio.get_running_loop()
+
+    # Define the coroutine that will be scheduled by the signal handler
+    async def _shutdown_coro_for_signal() -> None:
+        logger.info("Signal received, initiating shutdown via app_state.")
+        await shutdown(app_state)
+
+    for sig_name_enum in (signal.SIGINT, signal.SIGTERM):
+        # loop.add_signal_handler expects a regular callable.
+        # asyncio.create_task will be called when the signal is received.
+        # Create a closure to properly capture the signal
+        def create_signal_handler(sig: signal.Signals) -> Callable[[], None]:
+            def handler() -> None:
+                asyncio.create_task(
+                    _shutdown_coro_for_signal(),
+                    name=f"ShutdownHandler_{signal.Signals(sig).name}",
+                )
+
+            return handler
+
+        loop.add_signal_handler(
+            sig_name_enum,
+            create_signal_handler(sig_name_enum),
+        )
+    logger.debug("Signal handlers registered.")
+
+
+async def _start_main_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
+    """Start main application tasks."""
+    main_tasks: list[asyncio.Task[Any]] = []
+
+    logger.info("Loading initial state...")
+    await app_state["portfolio_tracker"].load_state()
+    # Fetch initial balances/positions AFTER loading state
+    await app_state["portfolio_tracker"].initialize_portfolio()
+
+    logger.info("Starting background component tasks...")
+    # Start data streams and processing
+    main_tasks.append(
+        asyncio.create_task(
+            app_state["data_handler"].start_connections(),
+            name="DataHandler_start_connections",
+        ),
+    )
+    # Start signal queue processing
+    main_tasks.append(
+        asyncio.create_task(
+            app_state["signal_queue"].run(cancellation_token), name="SignalQueue_run"
+        ),
+    )
+    # Add other component run loops if needed
+
+    # Start the engine (now ready to receive data and forward signals)
+    logger.info("Starting Trading Engine...")
+    # engine.run() # This would block if run directly
+    # asyncio.run(engine.run_async())  # asyncio.run cannot be called when a loop is running
+    app_state["engine"].start()  # Call the synchronous start method
+    logger.info("Engine started. Entering main monitoring loop.")
+
+    return main_tasks
+
+
+async def main() -> None:
+    """Main application entry point."""
+    global cancellation_token
+    app_state: dict[str, Any] = {}
+
+    # Parse arguments and load configuration
+    args = _parse_arguments()
+    config = _load_configuration(args)
+    app_state["config"] = config
+
+    # Setup logging (must be after config is loaded)
+    setup_logging(config)
+
+    # Initialize core components
+    app_state.update(_initialize_core_components(config))
+
+    # Initialize API clients
+    api_clients = await _initialize_api_clients(config, app_state)
+    app_state["api_clients"] = api_clients
+
+    # Initialize strategies
+    try:
+        strategies = _initialize_strategies(config, app_state)
+    except Exception:
         await shutdown(app_state)
         sys.exit(1)
 
