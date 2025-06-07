@@ -825,7 +825,9 @@ class TestBackpackAPIPublicBehavior:
         # Create API instance from factory
         backpack_api = bp_api_with_di()
 
-        with patch.object(backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock) as mock_super:
+        with patch.object(
+            backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock
+        ) as mock_super:
             await backpack_api.connect_websocket()
             mock_super.assert_called_once()
 
@@ -838,7 +840,9 @@ class TestBackpackAPIPublicBehavior:
         # Create API instance from factory
         backpack_api = bp_api_with_di()
 
-        with patch.object(backpack_api.__class__.__bases__[0], "close", new_callable=AsyncMock) as mock_super:
+        with patch.object(
+            backpack_api.__class__.__bases__[0], "close", new_callable=AsyncMock
+        ) as mock_super:
             await backpack_api.close()
             mock_super.assert_called_once()
 
@@ -854,7 +858,9 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
-            with patch.object(backpack_api.__class__.__bases__[0], "subscribe", new_callable=AsyncMock) as mock_super:
+            with patch.object(
+                backpack_api.__class__.__bases__[0], "subscribe", new_callable=AsyncMock
+            ) as mock_super:
                 await backpack_api.subscribe("test_topic", mock_handler)
 
                 # Should log subscription info
@@ -873,7 +879,9 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(backpack_api.__class__.__bases__[0], "_on_ws_connected"):
             with patch.object(backpack_api.__class__.__bases__[0], "_resubscribe"):
-                with patch.object(backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock) as mock_connect:
+                with patch.object(
+                    backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock
+                ) as mock_connect:
                     # Test WebSocket connection callbacks through public API behavior
                     # These would normally be called internally, but we test the logging
 

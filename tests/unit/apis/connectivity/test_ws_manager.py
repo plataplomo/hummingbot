@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Define a dummy message handler for tests
 async def dummy_message_handler(message: dict[str, Any]) -> None:
     """Handle WebSocket messages for testing purposes."""
-    pass
+    _ = message  # Acknowledge the parameter
 
 
 async def dummy_on_connected_callback() -> None:
@@ -50,6 +50,7 @@ def create_async_mock_task_for_side_effect(
     **kwargs: object,  # Generic pass-through for mock/callback
 ) -> AsyncMock:
     """Create an AsyncMock, intended for use as a side_effect."""
+    _ = args, kwargs  # Acknowledge parameters
     return AsyncMock()
 
 
@@ -319,7 +320,7 @@ class TestWebSocketManager:
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test connection retries on failure and eventually gives up."""
-        mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
+        mock_ws_connect_method, _ = patched_ws_connect
 
         async def actual_mock_ws_connect_side_effect_failure() -> None:
             raise aiohttp.ClientConnectorError(MagicMock(), OSError("Connection failed"))
@@ -363,6 +364,7 @@ def _create_task_capture_side_effect(
         **kwargs_capture: object,
     ) -> asyncio.Task[Any]:
         """Create side effect for create task capture."""
+        _ = args_capture, kwargs_capture  # Acknowledge parameters
         task = original_create_task(coro, name=name)
         if name:
             created_tasks_map[name] = task
@@ -493,7 +495,7 @@ async def _cleanup_test_tasks(
         (ping_task_for_close, "ping_task_for_close"),
     ]
     
-    for task, _task_name in tasks_to_cancel:
+    for task, _ in tasks_to_cancel:
         if task and not task.done():
             task.cancel()
             try:
@@ -502,10 +504,13 @@ async def _cleanup_test_tasks(
                 pass
 
 
+class TestWebSocketManagerTaskManagement:
+    """Additional test suite for WebSocket task management functionality."""
+
     @pytest.mark.asyncio
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_close_cancels_tasks_and_closes_connection_session(
-        self: TestWebSocketManager,
+        self,
         mock_aiohttp_session_ws_connect_method: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
@@ -553,12 +558,12 @@ async def _cleanup_test_tasks(
 
     @pytest.mark.asyncio
     async def test_close_when_not_connected_closes_idle_internal_session(
-        self: TestWebSocketManager,
+        self,
         default_ws_manager_config: WebSocketManagerConfig,
         patched_ws_connect: tuple[AsyncMock, AsyncMock],
     ) -> None:
         """Test close() on a never-connected manager with an internal session closes it."""
-        _mock_ws_connect_method, _mock_ws_connection = patched_ws_connect
+        _, _ = patched_ws_connect  # Acknowledge parameter
 
         with patch(
             "cyberdelta.apis.connectivity.ws_manager.aiohttp.ClientSession",
@@ -598,192 +603,12 @@ async def _cleanup_test_tasks(
             finally:
                 await manager.close()
 
-def _setup_listen_test_logger() -> logging.Logger:
-    """Setup logger for listen loop test."""
-    test_case_logger = logging.getLogger("UnitTestListenLoopReconnect")
-    test_case_logger.setLevel(logging.INFO)
-    test_case_logger.info(
-        "--- Test: test_listen_loop_processes_message_and_reconnects_on_close starting ---",
-    )
-    return test_case_logger
-
-
-def _create_dynamic_ws_connect_side_effect(
-    mock_ws_connection_factory: Callable[..., AsyncMock],
-    test_case_logger: logging.Logger,
-) -> tuple[Callable[..., Awaitable[AsyncMock]], AsyncMock]:
-    """Create dynamic WebSocket connect side effect for testing."""
-    second_connection_mock = mock_ws_connection_factory(
-        receive_sequence=[(WSMsgType.CLOSED, None, None)],
-        closed=True,
-    )
-    second_connection_mock.exception = MagicMock(return_value=None)
-    
-    connect_attempt_count = 0
-
-    async def dynamic_ws_connect_side_effect(*_args: object, **_kwargs: object) -> AsyncMock:
-        nonlocal connect_attempt_count
-        connect_attempt_count += 1
-        test_case_logger.info(
-            f"[dynamic_ws_connect_side_effect] Called. Attempt: {connect_attempt_count}",
-        )
-        if connect_attempt_count == 1:
-            test_case_logger.info(
-                "[dynamic_ws_connect_side_effect] Attempt 1: Raising ClientConnectorError.",
-            )
-            raise aiohttp.ClientConnectorError(
-                MagicMock(),
-                OSError("Simulated immediate connection failure for attempt 1"),
-            )
-
-        test_case_logger.info(
-            f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: "
-            f"Returning second_connection_mock.",
-        )
-        return second_connection_mock
-    
-    return dynamic_ws_connect_side_effect, second_connection_mock
-
-
-def _setup_listen_test_manager(
-    default_ws_manager_config: WebSocketManagerConfig,
-    test_case_logger: logging.Logger,
-    mock_create_task: MagicMock,
-) -> tuple[WebSocketManager, AsyncMock, dict[str, asyncio.Task[Any]]]:
-    """Setup WebSocket manager for listen test."""
-    mock_user_message_handler = AsyncMock()  # Will not be called
-    test_config = default_ws_manager_config.model_copy(
-        update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01},
-    )
-    test_case_logger.info(f"Creating WebSocketManager with config: {test_config}")
-    manager = WebSocketManager(
-        exchange_name="listen_reconnect_test",
-        message_handler=mock_user_message_handler,
-        config=test_config,
-        on_connected_callback=dummy_on_connected_callback,
-        session=None,
-    )
-    
-    created_tasks_map_listen_test: dict[str, asyncio.Task[Any]] = {}
-    original_asyncio_create_task_listen_test = asyncio.tasks.create_task
-
-    def side_effect_for_create_task_capture_listen_test(
-        coro: Coroutine[Any, Any, Any],
-        *args_capture: object,
-        name: str | None = None,
-        **kwargs_capture: object,
-    ) -> asyncio.Task[Any]:
-        """Create side effect for create task capture listen test."""
-        task = original_asyncio_create_task_listen_test(coro, name=name)
-        if name:
-            created_tasks_map_listen_test[name] = task
-        return task
-
-    mock_create_task.side_effect = side_effect_for_create_task_capture_listen_test
-    
-    return manager, mock_user_message_handler, created_tasks_map_listen_test
-
-
-def _verify_log_messages(mock_logger_patch: MagicMock) -> None:
-    """Verify expected log messages are present."""
-    found_first_attempt_fail_log = False
-    
-    # Check warnings first
-    for call_args in mock_logger_patch.warning.call_args_list:
-        logged_message = str(call_args)
-        if (
-            "Connection attempt 1 failed" in logged_message
-            and "Cannot connect to host" in logged_message
-        ):
-            found_first_attempt_fail_log = True
-            break
-    
-    # Check errors if not found in warnings
-    if not found_first_attempt_fail_log:
-        for call_args in mock_logger_patch.error.call_args_list:
-            logged_message = str(call_args)
-            if (
-                "Connection attempt 1 failed" in logged_message
-                and "Cannot connect to host" in logged_message
-            ):
-                found_first_attempt_fail_log = True
-                break
-    
-    assert found_first_attempt_fail_log, (
-        f"Expected log for first connection attempt failing with 'Cannot connect to "
-        f"host' not found. Warnings: {mock_logger_patch.warning.call_args_list}, "
-        f"Errors: {mock_logger_patch.error.call_args_list}"
-    )
-
-
-def _verify_sleep_calls(mock_sleep: AsyncMock, test_config: WebSocketManagerConfig) -> None:
-    """Verify expected sleep calls were made."""
-    assert mock_sleep.call_count == 2, (
-        f"Expected 2 calls to sleep, got {mock_sleep.call_count}. "
-        f"Calls: {mock_sleep.call_args_list}"
-    )
-
-    found_retry_sleep = False
-    found_test_sleep = False
-
-    effective_min_retry_sleep = 1.0
-    effective_max_retry_sleep = (
-        1.0 + abs(test_config.reconnect_delay * 0.2 * 0.5) + 0.01
-    )
-
-    for call_item in mock_sleep.call_args_list:
-        args, _kwargs = call_item
-        sleep_duration = args[0]
-        if effective_min_retry_sleep <= sleep_duration <= effective_max_retry_sleep:
-            found_retry_sleep = True
-        elif sleep_duration == 0.05:
-            found_test_sleep = True
-
-    assert found_retry_sleep, (
-        f"Expected a retry sleep (approx {effective_min_retry_sleep}-"
-        f"{effective_max_retry_sleep}s). Calls: {mock_sleep.call_args_list}"
-    )
-    assert found_test_sleep, (
-        f"Expected a test sleep (0.05s). Calls: {mock_sleep.call_args_list}"
-    )
-
-
-async def _handle_restarted_listen_task(
-    created_tasks_map_listen_test: dict[str, asyncio.Task[Any]],
-    listener_task_name_listen_test: str,
-    test_case_logger: logging.Logger,
-) -> None:
-    """Handle restarted listen task."""
-    assert listener_task_name_listen_test in created_tasks_map_listen_test
-    restarted_listen_task = created_tasks_map_listen_test[listener_task_name_listen_test]
-    assert restarted_listen_task is not None
-
-    if not restarted_listen_task.done():
-        try:
-            await asyncio.wait_for(restarted_listen_task, timeout=0.5)
-        except TimeoutError:
-            test_case_logger.warning(
-                "[TEST] Restarted listener task timed out waiting for completion.",
-            )
-            restarted_listen_task.cancel()
-            await asyncio.gather(restarted_listen_task, return_exceptions=True)
-        except Exception as e_wait:
-            test_case_logger.error(
-                f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}",
-            )
-
-    await asyncio.sleep(0.1)
-    test_case_logger.info(
-        "Slept 0.1s after awaiting restarted_listen_task potentially.",
-    )
-
-
     @patch("aiohttp.ClientSession.ws_connect")
     @patch("cyberdelta.apis.connectivity.ws_manager.asyncio.create_task")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     @pytest.mark.asyncio
     async def test_listen_loop_processes_message_and_reconnects_on_close(
-        self: TestWebSocketManager,
+        self,
         mock_sleep: AsyncMock,
         mock_create_task: MagicMock,
         mock_aiohttp_session_ws_connect_method: AsyncMock,
@@ -800,7 +625,7 @@ async def _handle_restarted_listen_task(
         
         (
             dynamic_ws_connect_side_effect,
-            _second_connection_mock,
+            _,
         ) = _create_dynamic_ws_connect_side_effect(
             mock_ws_connection_factory, test_case_logger
         )
@@ -867,7 +692,7 @@ async def _handle_restarted_listen_task(
             await manager.close()
 
     def test_config_validation_invalid_url(
-        self: TestWebSocketManager,
+        self,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test that config validation fails with invalid WebSocket URL."""
@@ -894,7 +719,7 @@ async def _handle_restarted_listen_task(
         ],
     )
     def test_config_validation_numeric_bounds(
-        self: TestWebSocketManager,
+        self,
         field: str,
         invalid_value: int,
         error_part: str,
@@ -910,7 +735,7 @@ async def _handle_restarted_listen_task(
         assert error_part.lower() in str(exc_info.value).lower()
 
     def test_config_frozen_and_extra_forbid(
-        self: TestWebSocketManager,
+        self,
         default_ws_manager_config: WebSocketManagerConfig,
     ) -> None:
         """Test that config model is frozen and forbids extra fields."""
@@ -932,6 +757,188 @@ async def _handle_restarted_listen_task(
         }
         with pytest.raises(ValidationError, match=r"Extra inputs are not permitted"):
             WebSocketManagerConfig.model_validate(data_with_extra)
+
+
+def _setup_listen_test_logger() -> logging.Logger:
+    """Setup logger for listen loop test."""
+    test_case_logger = logging.getLogger("UnitTestListenLoopReconnect")
+    test_case_logger.setLevel(logging.INFO)
+    test_case_logger.info(
+        "--- Test: test_listen_loop_processes_message_and_reconnects_on_close starting ---",
+    )
+    return test_case_logger
+
+
+def _create_dynamic_ws_connect_side_effect(
+    mock_ws_connection_factory: Callable[..., AsyncMock],
+    test_case_logger: logging.Logger,
+) -> tuple[Callable[..., Awaitable[AsyncMock]], AsyncMock]:
+    """Create dynamic WebSocket connect side effect for testing."""
+    second_connection_mock = mock_ws_connection_factory(
+        receive_sequence=[(WSMsgType.CLOSED, None, None)],
+        closed=True,
+    )
+    second_connection_mock.exception = MagicMock(return_value=None)
+    
+    connect_attempt_count = 0
+
+    async def dynamic_ws_connect_side_effect(*args: object, **kwargs: object) -> AsyncMock:
+        _ = args, kwargs  # Acknowledge parameters
+        nonlocal connect_attempt_count
+        connect_attempt_count += 1
+        test_case_logger.info(
+            f"[dynamic_ws_connect_side_effect] Called. Attempt: {connect_attempt_count}",
+        )
+        if connect_attempt_count == 1:
+            test_case_logger.info(
+                "[dynamic_ws_connect_side_effect] Attempt 1: Raising ClientConnectorError.",
+            )
+            raise aiohttp.ClientConnectorError(
+                MagicMock(),
+                OSError("Simulated immediate connection failure for attempt 1"),
+            )
+
+        test_case_logger.info(
+            f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: "
+            f"Returning second_connection_mock.",
+        )
+        return second_connection_mock
+    
+    return dynamic_ws_connect_side_effect, second_connection_mock
+
+
+def _setup_listen_test_manager(
+    default_ws_manager_config: WebSocketManagerConfig,
+    test_case_logger: logging.Logger,
+    mock_create_task: MagicMock,
+) -> tuple[WebSocketManager, AsyncMock, dict[str, asyncio.Task[Any]]]:
+    """Setup WebSocket manager for listen test."""
+    mock_user_message_handler = AsyncMock()  # Will not be called
+    test_config = default_ws_manager_config.model_copy(
+        update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01},
+    )
+    test_case_logger.info(f"Creating WebSocketManager with config: {test_config}")
+    manager = WebSocketManager(
+        exchange_name="listen_reconnect_test",
+        message_handler=mock_user_message_handler,
+        config=test_config,
+        on_connected_callback=dummy_on_connected_callback,
+        session=None,
+    )
+    
+    created_tasks_map_listen_test: dict[str, asyncio.Task[Any]] = {}
+    original_asyncio_create_task_listen_test = asyncio.tasks.create_task
+
+    def side_effect_for_create_task_capture_listen_test(
+        coro: Coroutine[Any, Any, Any],
+        *args_capture: object,
+        name: str | None = None,
+        **kwargs_capture: object,
+    ) -> asyncio.Task[Any]:
+        """Create side effect for create task capture listen test."""
+        _ = args_capture, kwargs_capture  # Acknowledge parameters
+        task = original_asyncio_create_task_listen_test(coro, name=name)
+        if name:
+            created_tasks_map_listen_test[name] = task
+        return task
+
+    mock_create_task.side_effect = side_effect_for_create_task_capture_listen_test
+    
+    return manager, mock_user_message_handler, created_tasks_map_listen_test
+
+
+def _verify_log_messages(mock_logger_patch: MagicMock) -> None:
+    """Verify expected log messages are present."""
+    found_first_attempt_fail_log = False
+    
+    # Check warnings first
+    for call_args in mock_logger_patch.warning.call_args_list:
+        logged_message = str(call_args)
+        if (
+            "Connection attempt 1 failed" in logged_message
+            and "Cannot connect to host" in logged_message
+        ):
+            found_first_attempt_fail_log = True
+            break
+    
+    # Check errors if not found in warnings
+    if not found_first_attempt_fail_log:
+        for call_args in mock_logger_patch.error.call_args_list:
+            logged_message = str(call_args)
+            if (
+                "Connection attempt 1 failed" in logged_message
+                and "Cannot connect to host" in logged_message
+            ):
+                found_first_attempt_fail_log = True
+                break
+    
+    assert found_first_attempt_fail_log, (
+        f"Expected log for first connection attempt failing with 'Cannot connect to "
+        f"host' not found. Warnings: {mock_logger_patch.warning.call_args_list}, "
+        f"Errors: {mock_logger_patch.error.call_args_list}"
+    )
+
+
+def _verify_sleep_calls(mock_sleep: AsyncMock, test_config: WebSocketManagerConfig) -> None:
+    """Verify expected sleep calls were made."""
+    assert mock_sleep.call_count == 2, (
+        f"Expected 2 calls to sleep, got {mock_sleep.call_count}. "
+        f"Calls: {mock_sleep.call_args_list}"
+    )
+
+    found_retry_sleep = False
+    found_test_sleep = False
+
+    effective_min_retry_sleep = 1.0
+    effective_max_retry_sleep = (
+        1.0 + abs(test_config.reconnect_delay * 0.2 * 0.5) + 0.01
+    )
+
+    for call_item in mock_sleep.call_args_list:
+        args, _ = call_item
+        sleep_duration = args[0]
+        if effective_min_retry_sleep <= sleep_duration <= effective_max_retry_sleep:
+            found_retry_sleep = True
+        elif sleep_duration == 0.05:
+            found_test_sleep = True
+
+    assert found_retry_sleep, (
+        f"Expected a retry sleep (approx {effective_min_retry_sleep}-"
+        f"{effective_max_retry_sleep}s). Calls: {mock_sleep.call_args_list}"
+    )
+    assert found_test_sleep, (
+        f"Expected a test sleep (0.05s). Calls: {mock_sleep.call_args_list}"
+    )
+
+
+async def _handle_restarted_listen_task(
+    created_tasks_map_listen_test: dict[str, asyncio.Task[Any]],
+    listener_task_name_listen_test: str,
+    test_case_logger: logging.Logger,
+) -> None:
+    """Handle restarted listen task."""
+    assert listener_task_name_listen_test in created_tasks_map_listen_test
+    restarted_listen_task = created_tasks_map_listen_test[listener_task_name_listen_test]
+    assert restarted_listen_task is not None
+
+    if not restarted_listen_task.done():
+        try:
+            await asyncio.wait_for(restarted_listen_task, timeout=0.5)
+        except TimeoutError:
+            test_case_logger.warning(
+                "[TEST] Restarted listener task timed out waiting for completion.",
+            )
+            restarted_listen_task.cancel()
+            await asyncio.gather(restarted_listen_task, return_exceptions=True)
+        except Exception as e_wait:
+            test_case_logger.error(
+                f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}",
+            )
+
+    await asyncio.sleep(0.1)
+    test_case_logger.info(
+        "Slept 0.1s after awaiting restarted_listen_task potentially.",
+    )
 
 
 # Temporary simple async test to check pytest-asyncio functionality
@@ -1030,6 +1037,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
 
         # Create a message handler that raises an exception
         async def failing_message_handler(message: dict[str, Any]) -> None:
+            _ = message  # Acknowledge parameter
             raise ValueError("Message handler intentionally failed")
 
         # Create mock connection with a message sequence
@@ -1169,7 +1177,6 @@ class TestWebSocketManagerComprehensiveErrorHandling:
     async def test_zero_max_reconnect_attempts(
         self,
         mock_ws_connect: AsyncMock,
-        caplog: LogCaptureFixture,
     ) -> None:
         """Test behavior with zero max reconnect attempts."""
         config = WebSocketManagerConfig(

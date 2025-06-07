@@ -62,7 +62,7 @@ def create_raw_transfer_response(
 
 def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> dict[str, Any]:
     """Create base withdrawal data dictionary."""
-    defaults = {
+    defaults: dict[str, Any] = {
         "id": 123,
         "status": "confirmed",
         "blockchain": "Ethereum",
@@ -86,14 +86,15 @@ def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> d
     }
     
     # Apply mapped kwargs, removing original snake_case keys
-    for snake_key, camel_key in field_mapping.items():
-        if snake_key in kwargs:
-            defaults[camel_key] = kwargs[snake_key]
-            # Don't update with the snake_case version
-            kwargs = {k: v for k, v in kwargs.items() if k != snake_key}
+    filtered_kwargs: dict[str, str | int | float | bool | None] = {}
+    for key, value in kwargs.items():
+        if key in field_mapping:
+            defaults[field_mapping[key]] = value
+        else:
+            filtered_kwargs[key] = value
     
     # Update with remaining kwargs
-    defaults.update(kwargs)
+    defaults.update(filtered_kwargs)
     return defaults
 
 
@@ -559,6 +560,7 @@ class TestWithdrawalTransformation:
                 field_name: str = "",
             ) -> Decimal | None:
                 """Return appropriate Decimal conversion based on field name."""
+                _ = allow_none  # Acknowledge parameter
                 if field_name == "fee":
                     return None
                 # For other parsing calls, return a valid decimal
