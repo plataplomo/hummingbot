@@ -478,8 +478,10 @@ class BacktestEngine:
             return
 
         # Determine the correct datetime object for the equity point
-        if isinstance(idx, datetime | pd.Timestamp):
-            timestamp_dt = idx if isinstance(idx, datetime) else idx.to_pydatetime()
+        if isinstance(idx, datetime):
+            timestamp_dt = idx
+        elif isinstance(idx, pd.Timestamp):
+            timestamp_dt = idx.to_pydatetime()
         else:
             self.logger.error(
                 f"Unexpected index type for equity point: {type(idx)}. Skipping.",
@@ -679,16 +681,11 @@ class StrategyAdapter(BacktestStrategy):
     ) -> None:
         """Add processed signals to the trade signals list."""
         if isinstance(processed_signal, list):
-            # Ensure all items in the list are TradeSignals
-            valid_signals = [s for s in processed_signal if isinstance(s, TradeSignal)]
-            trade_signals.extend(valid_signals)
-        elif isinstance(processed_signal, TradeSignal):
-            trade_signals.append(processed_signal)
+            # All items in list[TradeSignal] are guaranteed to be TradeSignals
+            trade_signals.extend(processed_signal)
         else:
-            # DEFENSIVE CHECK: Unexpected type handling. Mypy=[unreachable] Ruff=[]
-            self._logger.warning(  # type: ignore[unreachable]
-                f"process_data returned unexpected type: {type(processed_signal)}",
-            )
+            # processed_signal is TradeSignal after type narrowing
+            trade_signals.append(processed_signal)
 
     def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
         """Convert a pandas Series or DataFrame row into a list of Candle objects.
@@ -699,7 +696,8 @@ class StrategyAdapter(BacktestStrategy):
 
         if isinstance(data, pd.Series):
             candle_list.extend(self._convert_series_to_candles(data))
-        elif isinstance(data, pd.DataFrame):
+        else:
+            # data is pd.DataFrame after type narrowing
             candle_list.extend(self._convert_dataframe_to_candles(data))
 
         return candle_list
@@ -812,11 +810,8 @@ class StrategyAdapter(BacktestStrategy):
             )
             return candle
         except Exception as e:
-            data_str = (
-                symbol_data.to_dict()
-                if isinstance(symbol_data, pd.Series)
-                else "Error converting to dict"
-            )
+            # symbol_data is guaranteed to be pd.Series from type annotation
+            data_str = symbol_data.to_dict()
             self._logger.error(
                 f"Error creating candle for symbol {symbol} at {timestamp}. "
                 f"Data: {data_str}. Error: {e}",
@@ -901,13 +896,8 @@ class StrategyAdapter(BacktestStrategy):
         self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict before action: {signal_dict}")
 
         # Example: Map SignalType to a simple action string
-        # DEFENSIVE CHECK: Ensure signal_type is SignalType enum. Mypy=[unreachable] Ruff=[]
-        if isinstance(signal.signal_type, SignalType):
-            signal_dict["action"] = signal.signal_type.name.upper()
-        else:
-            # Handle cases where signal_type might be a string already
-            # (should not happen with Pydantic)
-            signal_dict["action"] = str(signal.signal_type).upper()  # type: ignore[unreachable]
+        # signal.signal_type is guaranteed to be SignalType from TradeSignal model
+        signal_dict["action"] = signal.signal_type.name.upper()
 
         self._logger.debug(f"ADAPTER_CONVERT_SIGNALS: signal_dict after action: {signal_dict}")
 
@@ -928,7 +918,7 @@ class StrategyAdapter(BacktestStrategy):
         is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
         if is_exit and signal.price is not None and current_price is not None:
             # DEFENSIVE CHECK: Ensure price is finite Decimal
-            if isinstance(signal.price, Decimal) and signal.price.is_finite():
+            if signal.price.is_finite():
                 entry_price = signal.price
                 if signal.signal_type == SignalType.EXIT_LONG:  # Closing a long position
                     if signal.quantity is not None:

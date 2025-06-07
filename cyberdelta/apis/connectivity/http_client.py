@@ -284,11 +284,7 @@ class HttpClient:
                     api_error_code=APIErrorCode.INVALID_RESPONSE,
                 ) from je
         else:  # Not JSON, return raw text
-            if response_text is None:
-                raise ValueError(
-                    f"DEFENSIVE: response_text is None for {full_url} with "
-                    f"non-JSON 2xx non-204 status",
-                )
+            # response_text is guaranteed to be non-None and non-empty at this point
             return response_text, response.status, processed_headers, raw_response_headers
 
     async def request(

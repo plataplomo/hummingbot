@@ -117,10 +117,8 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
-        # CAST 1: For type checker, v is already confirmed list by runtime check
+        # CAST 1: For type checker, v is already confirmed list by runtime check above
         list_of_objects = cast(list[object], v)
-        if not isinstance(list_of_objects, list):
-            raise ValueError("Defensive check: list_of_objects is not a list after cast")
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -131,12 +129,8 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
                     f"got {item_type}.",
                 )
 
-            # CAST 2: For type checker, item_obj is already confirmed dict by runtime check
+            # CAST 2: For type checker, item_obj is already confirmed dict by runtime check above
             item_dict = cast(dict[str, object], item_obj)
-            if not isinstance(item_dict, dict):
-                raise ValueError(
-                    f"Defensive check: item_dict at index {item_idx} is not a dict after cast",
-                )
 
             validated_items.append(item_dict)
         return validated_items

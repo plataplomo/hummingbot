@@ -1426,7 +1426,7 @@ class PortfolioTracker:
                 logger.warning(
                     f"Type error processing balance {ex_id_str}/{asset_str} in from_dict: {e}",
                 )
-        elif isinstance(bal_data_any, SpotBalance):  # If already an object
+        else:  # bal_data_any is SpotBalance after type narrowing
             tracker.balances[ex_id_str][asset_str] = bal_data_any
 
     @classmethod
@@ -1471,7 +1471,7 @@ class PortfolioTracker:
                 logger.warning(
                     f"Type error processing position {ex_id_str_pos}/{sym_str} in from_dict: {e}",
                 )
-        elif isinstance(pos_data_any, DerivativePosition):
+        else:  # pos_data_any is DerivativePosition after type narrowing
             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
 
     @classmethod
@@ -1516,7 +1516,7 @@ class PortfolioTracker:
                 logger.warning(
                     f"Type error processing order {ex_id_str_ord}/{ord_id_str} in from_dict: {e}",
                 )
-        elif isinstance(order_data_any, Order):
+        else:  # order_data_any is Order after type narrowing
             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
 
     @classmethod

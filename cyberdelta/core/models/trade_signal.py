@@ -102,7 +102,7 @@ class TradeSignal(BaseModel):
             validated_list: list[str] = []
             for idx, item in enumerate(v):
                 # DEFENSIVE CHECK: List items could be any type in raw input
-                if not isinstance(item, str):
+                if type(item) is not str:
                     raise TypeError(f"{field_name} list item {idx} must be a string.")
                 validated_item = validate_str_field(
                     item,
