@@ -7,7 +7,7 @@ strategy performance using Dash and Plotly for visualization.
 import logging
 import threading
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 # Ignore untyped library errors for dash/plotly until stubs are available/configured
 import dash
@@ -15,6 +15,7 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
+from dash.development.base_component import Component
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
@@ -506,7 +507,7 @@ class RealTimeDashboard:
             selected_strategies: list[str] | None,
             time_range: str,
             n_intervals: int,
-        ) -> html.Table:
+        ) -> Component:
             if not selected_strategies:
                 return html.P("No strategies selected")
 
@@ -592,7 +593,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return self.data_cache[cache_key]
+            return cast(pd.DataFrame, self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -635,7 +636,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return self.data_cache[cache_key]
+            return cast(pd.DataFrame, self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -677,7 +678,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return self.data_cache[cache_key]
+            return cast(pd.DataFrame, self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -717,6 +718,7 @@ class RealTimeDashboard:
             return self.server_thread
         else:
             self._run_server()
+            return None
 
     def _run_server(self) -> None:
         """Run the dashboard server."""
@@ -730,7 +732,7 @@ def launch_dashboard(
     port: int = 8050,
     debug: bool = False,
     use_threading: bool = True,
-) -> RealTimeDashboard:
+) -> RealTimeDashboard | tuple[RealTimeDashboard, threading.Thread | None]:
     """Launch the real-time dashboard.
 
     Args:

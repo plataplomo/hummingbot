@@ -10,7 +10,10 @@ import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from matplotlib.backends.backend_pdf import PdfPages
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -799,7 +802,7 @@ class SimpleVisualizer:
         except ImportError:
             logger.warning("Could not create PDF report. PDF backend not available.")
 
-    def _add_plots_to_pdf(self, pdf: object, plots: dict[str, str]) -> None:
+    def _add_plots_to_pdf(self, pdf: "PdfPages", plots: dict[str, str]) -> None:
         """Add all plot images to the PDF."""
         for _plot_name, plot_path in plots.items():
             # Create a new figure with the saved image
@@ -810,7 +813,7 @@ class SimpleVisualizer:
             pdf.savefig(fig)
             plt.close(fig)
 
-    def _add_summary_page_to_pdf(self, pdf: object) -> None:
+    def _add_summary_page_to_pdf(self, pdf: "PdfPages") -> None:
         """Add a summary page to the PDF report."""
         fig, ax = plt.subplots(figsize=(12, 8))
         ax.axis("off")

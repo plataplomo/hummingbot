@@ -3,6 +3,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import logging  # Add logging import
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -32,119 +33,140 @@ ExchangePositions = dict[str, dict[str, DerivativePosition]]
 ExchangeOrders = dict[str, dict[str, Order]]
 
 
+@pytest.fixture
+def config() -> MagicMock:
+    """Create a mock config for testing."""
+    config = MagicMock()
+
+    # Explicitly type the side effect function for config.get
+    def get_config_value(key: str, default: object = None) -> object:
+        """Mock config.get implementation.
+
+        Returns values for known keys, otherwise returns the provided default.
+        Type: (str, object) -> object
+        Note: This is a test mock; in production, config values should be strictly typed.
+        """
+        config_dict: dict[str, object] = {
+            "exchanges": {"hyperliquid": {}, "backpack": {}},
+            "exchanges.hyperliquid.enabled": True,
+            "exchanges.backpack.enabled": True,
+            "portfolio.reconciliation_interval": 300,
+        }
+        return config_dict.get(key, default)
+
+    config.get.side_effect = get_config_value
+    return config
+
+
+@pytest.fixture
+def pt_config() -> PortfolioTrackerConfig:
+    """Create a PortfolioTrackerConfig for testing."""
+    return PortfolioTrackerConfig(
+        data_freshness_seconds=60,
+        initial_balances={},
+        initial_positions=[],
+    )
+
+def _get_mock_price_data() -> dict[str, Decimal]:
+    """Get mock price data for testing."""
+    return {
+        "BTC_USDC": Decimal("50000.0"),
+        "ETH_USDC": Decimal("3000.0"),
+        "ETH_BTC": Decimal("0.06"),  # 3000/50000
+    }
+
+
+def _handle_direct_pairs(base: str, quote: str, prices: dict[str, Decimal]) -> Decimal | None:
+    """Handle direct trading pairs."""
+    pair_key = f"{base}_{quote}"
+    return prices.get(pair_key)
+
+
+def _handle_inverse_pairs(base: str, quote: str, prices: dict[str, Decimal]) -> Decimal | None:
+    """Handle inverse trading pairs."""
+    inverse_key = f"{quote}_{base}"
+    if inverse_key in prices:
+        return Decimal("1.0") / prices[inverse_key]
+    return None
+
+
+def _handle_usd_usdc_pairs(base: str, quote: str) -> Decimal | None:
+    """Handle USD/USDC conversion pairs."""
+    if (base == "USD" and quote == "USDC") or (base == "USDC" and quote == "USD"):
+        return Decimal("1.0")
+    return None
+
+
+def _create_mock_get_ticker_side_effect(
+    mock_logger: logging.Logger,
+) -> Callable[[str], Awaitable[Ticker | None]]:
+    """Create mock get_ticker side effect function."""
+    prices = _get_mock_price_data()
+    
+    async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
+        mock_logger.debug(f"SIDE_EFFECT: Called with symbol: '{symbol}'")
+        
+        # Parse symbol
+        parts = symbol.split("-")
+        if len(parts) != 2:
+            mock_logger.error(f"SIDE_EFFECT: Invalid symbol format '{symbol}', returning None.")
+            return None
+        base, quote = parts
+        now = datetime.now(UTC)
+        
+        # Try direct pairs
+        price = _handle_direct_pairs(base, quote, prices)
+        if price is not None:
+            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            return Ticker(symbol=symbol, timestamp=now, price=price)
+        
+        # Try inverse pairs
+        price = _handle_inverse_pairs(base, quote, prices)
+        if price is not None:
+            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            return Ticker(symbol=symbol, timestamp=now, price=price)
+        
+        # Try USD/USDC pairs
+        price = _handle_usd_usdc_pairs(base, quote)
+        if price is not None:
+            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            return Ticker(symbol=symbol, timestamp=now, price=price)
+        
+        mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
+        return None
+    
+    return mock_get_ticker_side_effect
+
+
+def _setup_client_mocks(clients: list[AsyncMock], side_effect: Callable) -> None:
+    """Setup mock clients with common behavior."""
+    for client in clients:
+        client.get_ticker.side_effect = side_effect
+        client.is_healthy = MagicMock(return_value=True)
+        client.get_account_summary = AsyncMock(return_value=None)
+        client.get_balances = AsyncMock(return_value=[])
+        client.get_positions = AsyncMock(return_value=[])
+        client.get_open_orders = AsyncMock(return_value=[])
+
+
 class TestPortfolioTracker:
-    """Test suite for the PortfolioTracker class."""
-
-    @pytest.fixture
-    def config(self) -> MagicMock:
-        """Create a mock config for testing."""
-        config = MagicMock()
-
-        # Explicitly type the side effect function for config.get
-        def get_config_value(key: str, default: object = None) -> object:
-            """Mock config.get implementation.
-
-            Returns values for known keys, otherwise returns the provided default.
-            Type: (str, object) -> object
-            Note: This is a test mock; in production, config values should be strictly typed.
-            """
-            config_dict: dict[str, object] = {
-                "exchanges": {"hyperliquid": {}, "backpack": {}},
-                "exchanges.hyperliquid.enabled": True,
-                "exchanges.backpack.enabled": True,
-                "portfolio.reconciliation_interval": 300,
-            }
-            return config_dict.get(key, default)
-
-        config.get.side_effect = get_config_value
-        return config
-
-    @pytest.fixture
-    def pt_config(self) -> PortfolioTrackerConfig:
-        """Create a PortfolioTrackerConfig for testing."""
-        return PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[],
-        )
+    """Test cases for PortfolioTracker."""
 
     @pytest.fixture
     def api_clients(self) -> dict[str, AsyncMock]:
         """Create mock API clients for testing."""
         # Use a distinct logger for the mock side effect
         mock_logger = logging.getLogger(__name__ + ".mock_get_ticker_side_effect")
-        mock_logger.setLevel(logging.DEBUG)  # Ensure debug logs are captured
+        mock_logger.setLevel(logging.DEBUG)
 
         # Create overall client mocks
         hyperliquid_client = AsyncMock(spec=ExchangeAPI)
         backpack_client = AsyncMock(spec=ExchangeAPI)
-
-        # Define the side_effect function for get_ticker
-        async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
-            mock_logger.debug(f"SIDE_EFFECT: Called with symbol: '{symbol}'")
-            # Simplify symbol handling for mock
-            parts = symbol.split("-")
-            if len(parts) != 2:
-                mock_logger.error(f"SIDE_EFFECT: Invalid symbol format '{symbol}', returning None.")
-                return None
-            base, quote = parts
-
-            # Define known prices (use strings for Decimal robustness)
-            btc_usdc_price = Decimal("50000.0")
-            eth_usdc_price = Decimal("3000.0")
-            now = datetime.now(UTC)
-
-            if base == "BTC" and quote == "USDC":
-                mock_logger.debug(f"SIDE_EFFECT: Returning BTC-USDC ticker price={btc_usdc_price}")
-                return Ticker(symbol=symbol, timestamp=now, price=btc_usdc_price)
-            if base == "ETH" and quote == "USDC":
-                mock_logger.debug(f"SIDE_EFFECT: Returning ETH-USDC ticker price={eth_usdc_price}")
-                return Ticker(symbol=symbol, timestamp=now, price=eth_usdc_price)
-            if base == "USDC" and quote == "BTC":
-                price = Decimal("1.0") / btc_usdc_price
-                mock_logger.debug(f"SIDE_EFFECT: Returning USDC-BTC ticker price={price}")
-                return Ticker(symbol=symbol, timestamp=now, price=price)
-            if base == "USDC" and quote == "ETH":
-                price = Decimal("1.0") / eth_usdc_price
-                mock_logger.debug(f"SIDE_EFFECT: Returning USDC-ETH ticker price={price}")
-                return Ticker(symbol=symbol, timestamp=now, price=price)
-            # Add case for USD <-> USDC if needed by tests
-            if (base == "USD" and quote == "USDC") or (base == "USDC" and quote == "USD"):
-                mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price=1.0")
-                return Ticker(symbol=symbol, timestamp=now, price=Decimal("1.0"))
-            if symbol == "BTC-USDC":
-                mock_logger.debug(
-                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('50000.0')}",
-                )
-                return Ticker(symbol=symbol, price=Decimal("50000.0"), timestamp=now)
-            if symbol == "USDC-BTC":
-                mock_logger.debug(
-                    f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('0.00002')}",
-                )
-                return Ticker(symbol=symbol, price=Decimal("0.00002"), timestamp=now)  # 1/50000
-            if symbol == "ETH-BTC":  # ADD THIS CASE
-                # Assuming ETH=3000, BTC=50000 => ETH/BTC = 3000/50000 = 0.06
-                mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={Decimal('0.06')}")
-                return Ticker(symbol=symbol, price=Decimal("0.06"), timestamp=now)
-            # Add other pairs as needed for tests
-            mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
-            return None
-
-        # Assign the side_effect to the get_ticker method of each client mock
-        hyperliquid_client.get_ticker.side_effect = mock_get_ticker_side_effect
-        backpack_client.get_ticker.side_effect = mock_get_ticker_side_effect
-
-        # Ensure clients are healthy by default for tests - using MagicMock for callable behavior
-        hyperliquid_client.is_healthy = MagicMock(return_value=True)
-        backpack_client.is_healthy = MagicMock(return_value=True)
-
-        # Explicitly mock get_account_summary as an AsyncMock for each client
-        # and other data-fetching methods to return empty lists by default
-        for client in [hyperliquid_client, backpack_client]:
-            client.get_account_summary = AsyncMock(return_value=None)
-            client.get_balances = AsyncMock(return_value=[])
-            client.get_positions = AsyncMock(return_value=[])
-            client.get_open_orders = AsyncMock(return_value=[])
+        clients = [hyperliquid_client, backpack_client]
+        
+        # Create and assign side effect
+        side_effect = _create_mock_get_ticker_side_effect(mock_logger)
+        _setup_client_mocks(clients, side_effect)
 
         return {"hyperliquid": hyperliquid_client, "backpack": backpack_client}
 

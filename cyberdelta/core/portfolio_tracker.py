@@ -1402,7 +1402,11 @@ class PortfolioTracker:
 
     @classmethod
     def _process_single_balance(
-        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: dict[str, Any] | SpotBalance
+        cls,
+        tracker: PortfolioTracker,
+        ex_id_str: str,
+        asset_str: str,
+        bal_data_any: dict[str, Any] | SpotBalance,
     ) -> None:
         """Process a single balance entry."""
         if isinstance(bal_data_any, dict):

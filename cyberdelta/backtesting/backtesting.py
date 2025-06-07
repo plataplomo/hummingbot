@@ -291,12 +291,17 @@ class BacktestEngine:
 
             # Process trades
             if result and "signals" in result:
+                # Cast idx to proper type for type checking
+                typed_idx = (
+                    idx if isinstance(idx, datetime | pd.Timestamp | str | int) else str(idx)
+                )
                 current_capital = self._process_signals(
-                    result["signals"], positions, current_capital, idx
+                    result["signals"], positions, current_capital, typed_idx
                 )
 
             # Record equity point at this timestamp
-            self._record_equity_point(idx, current_capital)
+            typed_idx = idx if isinstance(idx, datetime | pd.Timestamp | str | int) else str(idx)
+            self._record_equity_point(typed_idx, current_capital)
 
         # Finalize results
         return self._finalize_results(current_capital)
@@ -490,7 +495,7 @@ class BacktestEngine:
 
         # Generate results
         if self.results_handler:
-            results = self.results_handler.generate_results()
+            results = self.results_handler.calculate_metrics()
             self.logger.info(f"Backtest completed. Final capital: {float(final_capital)}")
             return results
         else:
@@ -600,11 +605,15 @@ class StrategyAdapter(BacktestStrategy):
 
     def _get_timestamp_info(self, current_data: pd.Series | pd.DataFrame) -> str:
         """Get timestamp information for logging."""
-        return (
-            current_data.name.isoformat()
-            if hasattr(current_data, "name") and current_data.name is not None
-            else "Empty DF"
-        )
+        if hasattr(current_data, "name") and current_data.name is not None:
+            # Handle different types of index names
+            name = current_data.name
+            if hasattr(name, "isoformat"):
+                return str(name.isoformat())
+            else:
+                return str(name)
+        else:
+            return "Empty DF"
 
     def _process_candles_through_strategy(self, candle_list: list[Candle]) -> list[TradeSignal]:
         """Process candles through the strategy and handle async/sync results."""
@@ -629,24 +638,38 @@ class StrategyAdapter(BacktestStrategy):
         if asyncio.iscoroutine(signal_or_coro):
             return self._handle_async_result(signal_or_coro)
 
-        # DEFENSIVE CHECK: Handle synchronous results. Mypy=[unreachable] Ruff=[]
-        # Note: This branch may be unreachable but kept for defensive programming
-        return signal_or_coro  # type: ignore[unreachable]
+        # Handle synchronous results - narrow the type
+        if isinstance(signal_or_coro, TradeSignal | list):
+            return signal_or_coro
+        
+        # If it's not a recognized type, return None
+        return None
 
     def _handle_async_result(
         self, signal_or_coro: object
     ) -> TradeSignal | list[TradeSignal] | None:
         """Handle async strategy results."""
+        # Type check to ensure we have a coroutine
+        if not asyncio.iscoroutine(signal_or_coro):
+            return None
+            
         try:
             # Check if a loop is already running
             loop = asyncio.get_running_loop()
             self._logger.warning(
                 "Running async process_data within sync backtest loop. Consider engine refactor.",
             )
-            task = loop.create_task(signal_or_coro)
+            # Create task with proper type annotation
+            task: asyncio.Task[TradeSignal | list[TradeSignal] | None] = loop.create_task(
+                signal_or_coro
+            )
             return asyncio.get_event_loop().run_until_complete(task)
         except RuntimeError:  # No running event loop
-            return asyncio.run(signal_or_coro)
+            result = asyncio.run(signal_or_coro)
+            # Ensure return type is correct
+            if isinstance(result, TradeSignal | list) or result is None:
+                return result
+            return None
         except Exception as async_err:
             self._logger.exception(f"Error running async process_data: {async_err}")
             return None
@@ -817,17 +840,28 @@ class StrategyAdapter(BacktestStrategy):
 
     def _get_signal_timestamp(self, current_data: pd.Series | pd.DataFrame) -> datetime:
         """Get timestamp for signal conversion."""
-        timestamp = (
-            current_data.name
-            if isinstance(current_data, pd.Series)
-            else current_data.index[-1]
-            if not current_data.empty
-            else pd.Timestamp.utcnow()
-        )
-        if isinstance(timestamp, pd.Timestamp):
-            timestamp = timestamp.to_pydatetime()  # Ensure datetime object
-        elif isinstance(timestamp, datetime) and timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=UTC)
+        if isinstance(current_data, pd.Series):
+            timestamp_raw = current_data.name
+        elif not current_data.empty:
+            timestamp_raw = current_data.index[-1]
+        else:
+            timestamp_raw = pd.Timestamp.utcnow()
+            
+        # Convert to datetime
+        if isinstance(timestamp_raw, pd.Timestamp):
+            timestamp = timestamp_raw.to_pydatetime()
+        elif isinstance(timestamp_raw, datetime):
+            timestamp = timestamp_raw
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+        else:
+            # Fallback for other types - convert to string first if needed
+            try:
+                timestamp = pd.Timestamp(timestamp_raw).to_pydatetime()  # type: ignore[arg-type]
+            except (ValueError, TypeError):
+                # If conversion fails, use current time as fallback
+                timestamp = pd.Timestamp.utcnow().to_pydatetime()
+            
         return timestamp
 
     def _convert_single_signal(
@@ -853,10 +887,8 @@ class StrategyAdapter(BacktestStrategy):
     ) -> datetime:
         """Get and validate signal timestamp."""
         signal_timestamp = signal.timestamp
-        # DEFENSIVE CHECK: Ensure timestamp is datetime. Mypy=[unreachable] Ruff=[]
-        if not isinstance(signal_timestamp, datetime):  # type: ignore[unreachable]
-            signal_timestamp = fallback_timestamp  # Fallback to row timestamp
-        elif signal_timestamp.tzinfo is None:
+        # Signal timestamp is guaranteed to be datetime by TradeSignal model
+        if signal_timestamp.tzinfo is None:
             signal_timestamp = signal_timestamp.replace(tzinfo=UTC)  # Assume UTC if naive
         return signal_timestamp
 

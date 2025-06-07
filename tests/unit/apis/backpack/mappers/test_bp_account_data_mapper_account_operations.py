@@ -13,7 +13,7 @@ Tests all public transformation methods with various scenarios including:
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, cast
+from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import pytest
@@ -23,9 +23,7 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
-    Asset,
     BackpackRawWithdrawalResponse,
-    Blockchain,
 )
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import DerivativePosition, Trade
@@ -62,65 +60,55 @@ def create_raw_transfer_response(
     return cast("RawJsonResponse", response)
 
 
+def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> dict[str, Any]:
+    """Create base withdrawal data dictionary."""
+    defaults = {
+        "id": 123,
+        "status": "confirmed",
+        "blockchain": "Ethereum",
+        "quantity": "1000.0",
+        "fee": "5.0",
+        "symbol": "USDC",
+        "toAddress": "0xabc123",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "isInternal": False,
+        "transactionHash": "0xhash123",
+    }
+    defaults.update(kwargs)
+    return defaults
+
+
+def _add_optional_withdrawal_fields(
+    data: dict[str, Any], **optional_fields: str | int | float | bool | None
+) -> dict[str, Any]:
+    """Add optional fields to withdrawal data if they are not None."""
+    for key, value in optional_fields.items():
+        if value is not None:
+            data[key] = value
+    return data
+
+
 def create_raw_withdrawal_response(
-    withdrawal_id: int = 123,
-    status: str = "confirmed",
-    blockchain: Blockchain = "Ethereum",
-    quantity: str = "1000.0",
-    fee: str = "5.0",
-    symbol: Asset = "USDC",
-    to_address: str = "0xabc123",
-    created_at: str = "2024-01-15T10:30:00Z",
-    is_internal: bool = False,
-    transaction_hash: str | None = "0xhash123",
-    client_id: str | None = None,
-    identifier: str | None = None,
-    fiat_fee: str | None = None,
-    fiat_state: str | None = None,
-    fiat_symbol: str | None = None,
-    provider_id: str | None = None,
-    subaccount_id: int | None = None,
-    bank_name: str | None = None,
-    bank_identifier: str | None = None,
-    account_identifier: str | None = None,
+    **kwargs: str | int | float | bool | None,
 ) -> BackpackRawWithdrawalResponse:
     """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations."""
-    # Create data dict that matches what the model expects from API
-    raw_data = {
-        "id": withdrawal_id,
-        "status": status,
-        "blockchain": blockchain,
-        "quantity": quantity,
-        "fee": fee,
-        "symbol": symbol,
-        "toAddress": to_address,
-        "createdAt": created_at,
-        "isInternal": is_internal,
+    # Create base data with defaults
+    raw_data = _create_base_withdrawal_data(**kwargs)
+    
+    # Add optional fields
+    optional_fields = {
+        "clientId": kwargs.get("client_id"),
+        "identifier": kwargs.get("identifier"),
+        "fiatFee": kwargs.get("fiat_fee"),
+        "fiatState": kwargs.get("fiat_state"),
+        "fiatSymbol": kwargs.get("fiat_symbol"),
+        "providerId": kwargs.get("provider_id"),
+        "subaccountId": kwargs.get("subaccount_id"),
+        "bankName": kwargs.get("bank_name"),
+        "bankIdentifier": kwargs.get("bank_identifier"),
+        "accountIdentifier": kwargs.get("account_identifier"),
     }
-
-    # Add optional fields if they have values
-    if transaction_hash is not None:
-        raw_data["transactionHash"] = transaction_hash
-    if client_id is not None:
-        raw_data["clientId"] = client_id
-    if identifier is not None:
-        raw_data["identifier"] = identifier
-    if fiat_fee is not None:
-        raw_data["fiatFee"] = fiat_fee
-    if fiat_state is not None:
-        raw_data["fiatState"] = fiat_state
-    if fiat_symbol is not None:
-        raw_data["fiatSymbol"] = fiat_symbol
-    if provider_id is not None:
-        raw_data["providerId"] = provider_id
-    if subaccount_id is not None:
-        raw_data["subaccountId"] = subaccount_id
-    if bank_name is not None:
-        raw_data["bankName"] = bank_name
-    if bank_identifier is not None:
-        raw_data["bankIdentifier"] = bank_identifier
-    if account_identifier is not None:
-        raw_data["accountIdentifier"] = account_identifier
+    raw_data = _add_optional_withdrawal_fields(raw_data, **optional_fields)
 
     return BackpackRawWithdrawalResponse.model_validate(raw_data)
 

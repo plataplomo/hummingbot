@@ -228,9 +228,13 @@ def _display_risk_info(app_settings: AppSettings) -> None:
     circuit_breakers = app_settings.safety_systems.circuit_breakers
     if circuit_breakers:
         logger.info(f"  Enabled: {circuit_breakers.enabled}")
-        logger.info(f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}")
+        logger.info(
+            f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}"
+        )
         logger.info(f"  Global Reset Timeout: {circuit_breakers.global_reset_timeout_sec}s")
-        logger.info(f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}")
+        logger.info(
+            f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}"
+        )
         logger.info(f"  Exchange Reset Timeout: {circuit_breakers.exchange_reset_timeout_sec}s")
     else:
         logger.info("No circuit breaker configurations found.")

@@ -165,17 +165,7 @@ def _process_dataframe_columns(combined_df: pd.DataFrame) -> pd.DataFrame:
     # Sort columns by symbol then metric for consistent structure
     if not combined_df.columns.empty:
         try:
-            # Check if columns are already tuples, if not convert them
-            if not isinstance(combined_df.columns, pd.MultiIndex):
-                # Convert column names to tuples if they aren't already
-                # DEFENSIVE CHECK: Check if columns are iterable but not strings.
-                # Mypy=[unreachable] Ruff=[]
-                if hasattr(combined_df.columns[0], "__iter__") and not isinstance(
-                    combined_df.columns[0],
-                    str,
-                ):
-                    combined_df.columns = pd.MultiIndex.from_tuples(combined_df.columns)
-                # Note: Removed unreachable else clause as type checker can't reach it
+            # Sort by MultiIndex levels if we have a MultiIndex
             combined_df = combined_df.sort_index(axis=1, level=[1, 0])
         except (TypeError, ValueError) as e:
             logger.error(f"Error processing DataFrame columns: {e}. Columns: {combined_df.columns}")

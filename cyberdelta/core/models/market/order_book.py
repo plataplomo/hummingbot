@@ -161,7 +161,9 @@ class OrderBook(BaseModel):
 
         # Extract raw price/quantity. Runtime checks follow.
         # Type narrowing after validation - we know level_raw is list|tuple with length 2
-        level_sequence = level_raw
+        # Cast to the appropriate type after validation
+        from typing import cast
+        level_sequence = cast(list[object] | tuple[object, ...], level_raw)
         price_raw = level_sequence[0]
         quantity_raw = level_sequence[1]
 

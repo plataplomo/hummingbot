@@ -23,7 +23,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
     supported by the standard JSON encoder.
     """
 
-    def default(self, o: object) -> Any:
+    def default(self, o: object) -> str | int | float | dict[str, Any]:
         """Serialize object to JSON-compatible type.
 
         Args:
@@ -53,7 +53,9 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
             # Use Pydantic's built-in serialization
             return o.model_dump(mode="json")
         # Let the base class default method raise the TypeError for other types
-        return super().default(o)
+        # Note: super().default(o) returns Any but we need to handle this
+        # Since this is a fallback for unknown types, we'll raise TypeError explicitly
+        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
 
 
 # Helper function to easily dump JSON with the custom encoder
