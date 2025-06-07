@@ -115,13 +115,14 @@ def _create_mock_receive_behavior(
             except StopIteration as e_stop:
                 mock_conn.closed = True
                 raise TimeoutError("Mocked receive sequence exhausted, timing out.") from e_stop
-        mock_conn.closed = True
         
         if block_indefinitely:
             # Block indefinitely when receive_sequence is None or exhausted
             future: asyncio.Future[WSMessage] = asyncio.Future()
             return await future  # This will block forever unless cancelled
         
+        # Only mark as closed if not blocking indefinitely
+        mock_conn.closed = True
         raise TimeoutError("Mocked receive timeout")
     
     return mock_receive_internal

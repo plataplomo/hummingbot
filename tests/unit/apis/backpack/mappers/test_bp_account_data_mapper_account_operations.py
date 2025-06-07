@@ -74,6 +74,25 @@ def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> d
         "isInternal": False,
         "transactionHash": "0xhash123",
     }
+    
+    # Map snake_case kwargs to the correct field names
+    field_mapping = {
+        "withdrawal_id": "id",
+        "to_address": "toAddress", 
+        "created_at": "createdAt",
+        "is_internal": "isInternal",
+        "transaction_hash": "transactionHash",
+        "client_id": "clientId",
+    }
+    
+    # Apply mapped kwargs, removing original snake_case keys
+    for snake_key, camel_key in field_mapping.items():
+        if snake_key in kwargs:
+            defaults[camel_key] = kwargs[snake_key]
+            # Don't update with the snake_case version
+            kwargs = {k: v for k, v in kwargs.items() if k != snake_key}
+    
+    # Update with remaining kwargs
     defaults.update(kwargs)
     return defaults
 

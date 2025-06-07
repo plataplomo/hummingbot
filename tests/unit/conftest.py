@@ -241,8 +241,8 @@ def mock_config() -> Callable[..., AppSettings]:
                 "hyperliquid": ExchangeSpecificConfig(
                     exchange_name=ExchangeName.HYPERLIQUID,
                     enabled=True,
-                    api_base_url_mainnet=create_test_http_url("https://api.hyperliquid.xyz"),
-                    ws_url_mainnet=create_test_any_url("wss://api.hyperliquid.xyz/ws"),
+                    api_base_url_mainnet="https://api.hyperliquid.xyz",
+                    ws_url_mainnet="wss://api.hyperliquid.xyz/ws",
                     rate_limit_per_minute=120,
                     symbols={"BTC": "BTC", "ETH": "ETH"},
                     chain_id=1337,
@@ -257,8 +257,8 @@ def mock_config() -> Callable[..., AppSettings]:
                 "backpack": ExchangeSpecificConfig(
                     exchange_name=ExchangeName.BACKPACK,
                     enabled=True,
-                    api_base_url_mainnet=create_test_http_url("https://api.backpack.exchange"),
-                    ws_url_mainnet=create_test_any_url("wss://api.backpack.exchange/ws"),
+                    api_base_url_mainnet="https://api.backpack.exchange",
+                    ws_url_mainnet="wss://api.backpack.exchange/ws",
                     rate_limit_per_minute=100,
                     symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
                     request_timeout_seconds=15.0,
@@ -372,8 +372,8 @@ def test_app_settings() -> AppSettings:
             "hyperliquid": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.HYPERLIQUID,
                 enabled=True,
-                api_base_url_mainnet=create_test_http_url("https://api.hyperliquid.xyz"),
-                ws_url_mainnet=create_test_any_url("wss://api.hyperliquid.xyz/ws"),
+                api_base_url_mainnet="https://api.hyperliquid.xyz",
+                ws_url_mainnet="wss://api.hyperliquid.xyz/ws",
                 symbols={"BTC": "BTC", "ETH": "ETH"},
                 chain_id=1337,
                 ip_weight_limit_per_minute=1200,
@@ -385,8 +385,8 @@ def test_app_settings() -> AppSettings:
             "backpack": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.BACKPACK,
                 enabled=True,
-                api_base_url_mainnet=create_test_http_url("https://api.backpack.exchange"),
-                ws_url_mainnet=create_test_any_url("wss://api.backpack.exchange/ws"),
+                api_base_url_mainnet="https://api.backpack.exchange",
+                ws_url_mainnet="wss://api.backpack.exchange/ws",
                 rate_limit_per_minute=100,
                 symbols={"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
             ),

@@ -465,7 +465,7 @@ class TestBackpackMarketDataServicePublicData:
                 "time": 1678886400200,
             },
         ]
-        mock_headers_from_client = MagicMock()
+        mock_headers_from_client = {"Content-Type": "application/json", "X-RateLimit-Remaining": "100"}
 
         mock_request_builder.build_get_recent_trades_params.return_value = mock_params
         mock_http_client_requester.return_value = (

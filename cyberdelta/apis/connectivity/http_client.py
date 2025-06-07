@@ -330,7 +330,7 @@ class HttpClient:
         )
 
         # Setup headers and authentication
-        request_headers = await self._setup_request_headers_and_auth(
+        request_headers, request_params, json_payload = await self._setup_request_headers_and_auth(
             authenticator,
             is_signed,
             headers,
@@ -401,7 +401,7 @@ class HttpClient:
         request_params: dict[str, Any],
         json_payload: dict[str, Any] | None,
         full_url: str,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
         """Setup request headers and handle authentication."""
         session_for_initial_headers = await self._get_session()
         request_headers = dict(session_for_initial_headers.headers.copy())
@@ -422,21 +422,21 @@ class HttpClient:
                     await authenticator.prepare_request(
                         method=method,
                         path=endpoint_path,
-                        params=request_params if request_params else None,
+                        params=dict(request_params) if request_params else None,
                         data=json_payload,
                         headers=dict(request_headers),
                     )
                 )
                 request_headers.update(auth_components.headers)
                 if auth_components.params is not None:
-                    request_params.update(auth_components.params)
+                    request_params = auth_components.params
                 # Update json_payload with authenticated data
                 json_payload = auth_components.data
             except APIError as e:
                 logger.error(f"[{self.exchange_name}] Auth prep failed for {full_url}: {e}")
                 raise
 
-        return request_headers
+        return request_headers, request_params, json_payload
 
     async def _execute_request_with_retries(
         self,

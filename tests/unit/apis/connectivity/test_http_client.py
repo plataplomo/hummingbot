@@ -442,12 +442,13 @@ class TestHttpClient:
         # [CAST-REVIEW-REQUIRED]
         prepare_request_mock_signed = cast("AsyncMock", mock_authenticator.prepare_request)
         assert isinstance(prepare_request_mock_signed, AsyncMock)
+        # Verify the authenticator was called with the original parameters
         prepare_request_mock_signed.assert_called_once_with(
             method="POST",
-            path="/signed_action",
+            path="/signed_action", 
             params=original_params,
             data=original_data,
-            headers=dict(expected_headers_for_auth_prep),  # Ensure it's a plain dict
+            headers=expected_headers_for_auth_prep,
         )
 
         # Assertions on what was *actually* sent by aiohttp
