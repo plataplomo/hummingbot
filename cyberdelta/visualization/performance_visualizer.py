@@ -440,18 +440,35 @@ class PerformanceVisualizer:
             Plotly figure object
 
         """
+        # Set up dashboard parameters
         height = height or int(self.config.default_height * 2)
         width = width or int(self.config.default_width * 1.5)
+        names = strategy_names if strategy_names is not None else returns_data.columns.tolist()
+        benchmark_data = benchmark_data if benchmark_data is not None else pd.DataFrame()
 
-        # Use a local variable to ensure type safety for strategy names
-        names: list[str] = (
-            strategy_names if strategy_names is not None else returns_data.columns.tolist()
-        )
-        if benchmark_data is None:
-            benchmark_data = pd.DataFrame()
+        # Create the subplot structure
+        fig = self._create_dashboard_subplots(trade_data, funding_data)
 
-        # Create subplot grid
-        fig = make_subplots(
+        # Add all chart components
+        self._add_cumulative_returns_chart(fig, returns_data, names, benchmark_data)
+        self._add_drawdown_chart(fig, returns_data, names)
+
+        if trade_data is not None:
+            self._add_trade_analysis_chart(fig, trade_data)
+
+        if funding_data is not None:
+            self._add_funding_rate_heatmap(fig, funding_data)
+
+        # Apply final layout
+        self._apply_dashboard_layout(fig, height, width)
+
+        return fig
+
+    def _create_dashboard_subplots(
+        self, trade_data: pd.DataFrame | None, funding_data: pd.DataFrame | None
+    ) -> go.Figure:
+        """Create the subplot structure for the dashboard."""
+        return make_subplots(
             rows=2,
             cols=2,
             subplot_titles=(
@@ -465,13 +482,21 @@ class PerformanceVisualizer:
             horizontal_spacing=0.1,
         )
 
-        # 1. Cumulative Returns Chart
+    def _add_cumulative_returns_chart(
+        self,
+        fig: go.Figure,
+        returns_data: pd.DataFrame,
+        names: list[str],
+        benchmark_data: pd.DataFrame,
+    ) -> None:
+        """Add cumulative returns chart to the dashboard."""
         # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
         cum_returns = (1 + returns_data[names]).cumprod() - 1
 
         if self.config.color_palette is None:
             raise ValueError("color_palette must not be None")
         color_palette = self.config.color_palette
+
         for i, strategy in enumerate(names):
             color = color_palette[i % len(color_palette)]
             fig.add_trace(
@@ -502,10 +527,18 @@ class PerformanceVisualizer:
                 col=1,
             )
 
-        # 2. Drawdown Chart
+    def _add_drawdown_chart(
+        self, fig: go.Figure, returns_data: pd.DataFrame, names: list[str]
+    ) -> None:
+        """Add drawdown chart to the dashboard."""
         # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax
+        cum_returns = (1 + returns_data[names]).cumprod() - 1
         rolling_max = cum_returns.cummax()
         drawdowns = (cum_returns / rolling_max - 1) * 100
+
+        if self.config.color_palette is None:
+            raise ValueError("color_palette must not be None")
+        color_palette = self.config.color_palette
 
         for i, strategy in enumerate(names):
             color = color_palette[i % len(color_palette)]
@@ -523,87 +556,94 @@ class PerformanceVisualizer:
                 col=2,
             )
 
-        # 3. Trade Analysis (if data provided)
-        if trade_data is not None:
-            # Split data into profitable and losing trades
-            profitable = trade_data[trade_data["pnl"] > 0]
-            losing = trade_data[trade_data["pnl"] <= 0]
+    def _add_trade_analysis_chart(self, fig: go.Figure, trade_data: pd.DataFrame) -> None:
+        """Add trade analysis chart to the dashboard."""
+        # Split data into profitable and losing trades
+        profitable = trade_data[trade_data["pnl"] > 0]
+        losing = trade_data[trade_data["pnl"] <= 0]
 
-            # Add profitable trades
-            if not profitable.empty:
-                size = np.sqrt(profitable["pnl"].abs()) * 5
-                fig.add_trace(
-                    go.Scatter(
-                        x=profitable["duration"],
-                        y=profitable["pnl"],
-                        mode="markers",
-                        name="Profitable Trades",
-                        marker={
-                            "color": "green",
-                            "size": size,
-                            "opacity": 0.7,
-                            "line": {"width": 1, "color": "darkgreen"},
-                        },
-                        hoverinfo="text",
-                        hovertext=profitable.apply(
-                            lambda row: f"PnL: ${row['pnl']:.2f}<br>"
-                            f"Duration: {row['duration']} min",
-                            axis=1,
-                        ),
-                    ),
-                    row=2,
-                    col=1,
-                )
+        # Add profitable trades
+        if not profitable.empty:
+            self._add_profitable_trades_scatter(fig, profitable)
 
-            # Add losing trades
-            if not losing.empty:
-                size = np.sqrt(losing["pnl"].abs()) * 5
-                fig.add_trace(
-                    go.Scatter(
-                        x=losing["duration"],
-                        y=losing["pnl"],
-                        mode="markers",
-                        name="Losing Trades",
-                        marker={
-                            "color": "red",
-                            "size": size,
-                            "opacity": 0.7,
-                            "line": {"width": 1, "color": "darkred"},
-                        },
-                        hoverinfo="text",
-                        hovertext=losing.apply(
-                            lambda row: f"PnL: ${row['pnl']:.2f}<br>"
-                            f"Duration: {row['duration']} min",
-                            axis=1,
-                        ),
-                    ),
-                    row=2,
-                    col=1,
-                )
+        # Add losing trades
+        if not losing.empty:
+            self._add_losing_trades_scatter(fig, losing)
 
-        # 4. Funding Rate Heatmap (if data provided)
-        if funding_data is not None:
-            # Pivot data if necessary
-            # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
-            if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
-                pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
-            else:
-                pivot_data = funding_data
-
-            fig.add_trace(
-                go.Heatmap(
-                    z=pivot_data.values.T,
-                    x=pivot_data.index,
-                    y=pivot_data.columns,
-                    colorscale="RdBu",
-                    zmid=0,
-                    name="Funding Rates",
+    def _add_profitable_trades_scatter(self, fig: go.Figure, profitable: pd.DataFrame) -> None:
+        """Add profitable trades scatter plot."""
+        size = np.sqrt(profitable["pnl"].abs()) * 5
+        fig.add_trace(
+            go.Scatter(
+                x=profitable["duration"],
+                y=profitable["pnl"],
+                mode="markers",
+                name="Profitable Trades",
+                marker={
+                    "color": "green",
+                    "size": size,
+                    "opacity": 0.7,
+                    "line": {"width": 1, "color": "darkgreen"},
+                },
+                hoverinfo="text",
+                hovertext=profitable.apply(
+                    lambda row: f"PnL: ${row['pnl']:.2f}<br>Duration: {row['duration']} min",
+                    axis=1,
                 ),
-                row=2,
-                col=2,
-            )
+            ),
+            row=2,
+            col=1,
+        )
 
-        # Update layout
+    def _add_losing_trades_scatter(self, fig: go.Figure, losing: pd.DataFrame) -> None:
+        """Add losing trades scatter plot."""
+        size = np.sqrt(losing["pnl"].abs()) * 5
+        fig.add_trace(
+            go.Scatter(
+                x=losing["duration"],
+                y=losing["pnl"],
+                mode="markers",
+                name="Losing Trades",
+                marker={
+                    "color": "red",
+                    "size": size,
+                    "opacity": 0.7,
+                    "line": {"width": 1, "color": "darkred"},
+                },
+                hoverinfo="text",
+                hovertext=losing.apply(
+                    lambda row: f"PnL: ${row['pnl']:.2f}<br>Duration: {row['duration']} min",
+                    axis=1,
+                ),
+            ),
+            row=2,
+            col=1,
+        )
+
+    def _add_funding_rate_heatmap(self, fig: go.Figure, funding_data: pd.DataFrame) -> None:
+        """Add funding rate heatmap to the dashboard."""
+        # Pivot data if necessary
+        # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
+        if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
+            pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
+        else:
+            pivot_data = funding_data
+
+        fig.add_trace(
+            go.Heatmap(
+                z=pivot_data.values.T,
+                x=pivot_data.index,
+                y=pivot_data.columns,
+                colorscale="RdBu",
+                zmid=0,
+                name="Funding Rates",
+            ),
+            row=2,
+            col=2,
+        )
+
+    def _apply_dashboard_layout(self, fig: go.Figure, height: int, width: int) -> None:
+        """Apply final layout settings to the dashboard."""
         fig.update_layout(
             title="Strategy Performance Dashboard",
             template=self.config.template,
@@ -626,8 +666,6 @@ class PerformanceVisualizer:
         if funding_data is not None:
             fig.update_xaxes(title_text="Date", row=2, col=2)
             fig.update_yaxes(title_text="Asset", row=2, col=2)
-
-        return fig
 
 
 class PerformanceMetricsCalculator:

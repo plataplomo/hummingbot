@@ -175,8 +175,9 @@ class FundingRateArbitrageStrategy(Strategy):
         if not self._is_valid_funding_rate(nfd):
             return None
 
-        # At this point nfd is guaranteed to be non-None due to validation
-        assert nfd is not None  # Type narrowing for mypy
+        # DEFENSIVE CHECK: Type narrowing for mypy. Mypy=[unreachable] Ruff=[]
+        if nfd is None:
+            return None
 
         # Calculate costs and profit
         profit_data = self._calculate_profit_and_costs(nfd)

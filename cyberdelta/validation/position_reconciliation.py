@@ -278,187 +278,294 @@ class PositionReconciliationSystem:
             logger.error("Cannot apply corrections: Portfolio tracker not registered")
             return
 
-        # The `results["discrepancies"]` list should now contain DiscrepancyDetail objects.
+        # Validate and get discrepancy details
+        discrepancy_details_list = self._get_discrepancy_details(results)
+        if discrepancy_details_list is None:
+            return
+
+        # Process each discrepancy
+        for discrepancy_detail in discrepancy_details_list:
+            self._process_single_discrepancy(
+                exchange, discrepancy_detail, api_positions_map, results
+            )
+
+    def _get_discrepancy_details(self, results: dict[str, Any]) -> list[DiscrepancyDetail] | None:
+        """Extract and validate discrepancy details from results."""
         discrepancy_details_list_any = results.get("discrepancies", [])
         if not isinstance(discrepancy_details_list_any, list):
             logger.error(
                 "_apply_corrections: results['discrepancies'] is not a list. "
                 f"Got: {type(discrepancy_details_list_any)}",
             )
+            return None
+
+        return cast(list[DiscrepancyDetail], discrepancy_details_list_any)
+
+    def _process_single_discrepancy(
+        self,
+        exchange: str,
+        discrepancy_detail: DiscrepancyDetail,
+        api_positions_map: dict[str, DerivativePosition],
+        results: dict[str, Any],
+    ) -> None:
+        """Process a single discrepancy and apply corrections."""
+        # We are primarily correcting size discrepancies here.
+        if discrepancy_detail.discrepancy_type != "size":
+            logger.debug(
+                f"Skipping correction for non-size discrepancy type: "
+                f"{discrepancy_detail.discrepancy_type} for symbol {discrepancy_detail.symbol}",
+            )
             return
 
-        discrepancy_details_list = cast(list[DiscrepancyDetail], discrepancy_details_list_any)
+        symbol = discrepancy_detail.symbol
+        exchange_value = self._parse_exchange_value(discrepancy_detail, symbol)
+        if exchange_value is None:
+            return
 
-        for discrepancy_detail in discrepancy_details_list:  # This is a DiscrepancyDetail model
-            # We are primarily correcting size discrepancies here.
-            if discrepancy_detail.discrepancy_type != "size":
-                logger.debug(
-                    f"Skipping correction for non-size discrepancy type: "
-                    f"{discrepancy_detail.discrepancy_type} for symbol {discrepancy_detail.symbol}",
-                )
-                continue
+        # Apply the position correction
+        self._apply_position_correction(exchange, symbol, exchange_value, api_positions_map)
 
-            symbol = discrepancy_detail.symbol  # Directly from the DiscrepancyDetail model
+        # Mark as corrected in history
+        self._mark_discrepancy_corrected(exchange, symbol, discrepancy_detail, results)
 
-            try:
-                # exchange_value in DiscrepancyDetail is already a string representation or None
-                exchange_value_str = discrepancy_detail.exchange_value
-                if exchange_value_str is None:
-                    logger.warning(
-                        f"Skipping discrepancy for {symbol} due to missing "
-                        f"'exchange_value' in DiscrepancyDetail",
-                    )
-                    continue
-                exchange_value = Decimal(exchange_value_str)  # Corrected size from API as Decimal
-            except InvalidOperation:
-                # DEFENSIVE CHECK: exchange_value_str is guaranteed to be defined here
-                logger.warning(
-                    f"Could not parse 'exchange_value' from DiscrepancyDetail for {symbol} "
-                    f"as Decimal: {exchange_value_str}",
-                )
-                continue
+    def _parse_exchange_value(
+        self, discrepancy_detail: DiscrepancyDetail, symbol: str
+    ) -> Decimal | None:
+        """Parse exchange value from discrepancy detail."""
+        exchange_value_str = discrepancy_detail.exchange_value
+        if exchange_value_str is None:
+            logger.warning(
+                f"Skipping discrepancy for {symbol} due to missing "
+                f"'exchange_value' in DiscrepancyDetail",
+            )
+            return None
 
-            current_local_position = self._portfolio_tracker.get_position(exchange, symbol)
-            api_position_for_correction = api_positions_map.get(
+        try:
+            return Decimal(exchange_value_str)
+        except InvalidOperation:
+            logger.warning(
+                f"Could not parse 'exchange_value' from DiscrepancyDetail for {symbol} "
+                f"as Decimal: {exchange_value_str}",
+            )
+            return None
+
+    def _apply_position_correction(
+        self,
+        exchange: str,
+        symbol: str,
+        exchange_value: Decimal,
+        api_positions_map: dict[str, DerivativePosition],
+    ) -> None:
+        """Apply position correction based on exchange value."""
+        current_local_position = self._portfolio_tracker.get_position(exchange, symbol)
+        api_position_for_correction = api_positions_map.get(symbol)
+
+        timestamp_to_use = self._get_correction_timestamp(
+            api_position_for_correction, current_local_position
+        )
+
+        if current_local_position is None:
+            self._create_missing_position(
+                exchange, symbol, exchange_value, api_position_for_correction, timestamp_to_use
+            )
+        elif current_local_position.size != exchange_value:
+            self._update_existing_position(
+                exchange,
                 symbol,
-            )  # Full API DerivativePosition
+                exchange_value,
+                current_local_position,
+                api_position_for_correction,
+                timestamp_to_use,
+            )
+        else:
+            logger.info(
+                f"Position for {exchange}/{symbol} already matches exchange value "
+                f"{exchange_value}. No size correction needed based on this discrepancy.",
+            )
 
-            timestamp_to_use = datetime.now(UTC)  # Default timestamp
-            if api_position_for_correction:
-                timestamp_to_use = api_position_for_correction.timestamp
-            elif current_local_position:
-                timestamp_to_use = current_local_position.timestamp
+    def _get_correction_timestamp(
+        self,
+        api_position: DerivativePosition | None,
+        local_position: DerivativePosition | None,
+    ) -> datetime:
+        """Get appropriate timestamp for correction."""
+        if api_position:
+            return api_position.timestamp
+        elif local_position:
+            return local_position.timestamp
+        else:
+            return datetime.now(UTC)
 
-            if current_local_position is None:
-                # Position exists on API (or is corrected to exist), but not locally. Create it.
-                if exchange_value != Decimal("0"):  # Only create if size is non-zero
-                    logger.info(
-                        f"Creating missing local position: {exchange} {symbol} "
-                        f"size={exchange_value}",
-                    )
-                    if api_position_for_correction:
-                        # Create new position based on full API data, but with corrected size
-                        new_local_pos = DerivativePosition(
-                            exchange=exchange,
-                            symbol=symbol,
-                            side=OrderSide.BUY
-                            if exchange_value > Decimal("0")
-                            else OrderSide.SELL
-                            if exchange_value < Decimal("0")
-                            else api_position_for_correction.side,
-                            size=exchange_value,
-                            entry_price=api_position_for_correction.entry_price
-                            if exchange_value != Decimal("0")
-                            else None,
-                            timestamp=api_position_for_correction.timestamp,
-                            mark_price=api_position_for_correction.mark_price,
-                            liquidation_price=api_position_for_correction.liquidation_price,
-                            unrealized_pnl=api_position_for_correction.unrealized_pnl,
-                            realized_pnl=api_position_for_correction.realized_pnl,
-                            strategy_name=api_position_for_correction.strategy_name,
-                            signal_id=api_position_for_correction.signal_id,
-                            hl_details=api_position_for_correction.hl_details,
-                            bp_details=api_position_for_correction.bp_details,
-                        )
-                        self._portfolio_tracker.update_position(exchange, new_local_pos)
-                    else:
-                        # This case should be rare if reconcile_positions ensures API data for
-                        # discrepancies
-                        logger.warning(
-                            f"Cannot create local position for {exchange}/{symbol} - "
-                            f"missing full API data for discrepancy correction, only size "
-                            f"{exchange_value} is known.",
-                        )
+    def _create_missing_position(
+        self,
+        exchange: str,
+        symbol: str,
+        exchange_value: Decimal,
+        api_position: DerivativePosition | None,
+        timestamp: datetime,
+    ) -> None:
+        """Create a missing local position."""
+        if exchange_value == Decimal("0"):
+            return  # Don't create zero-size positions
 
-                        # Create minimal DerivativePosition with just side and size
-                        new_local_pos = DerivativePosition(
-                            exchange=exchange,
-                            symbol=symbol,
-                            side=OrderSide.BUY if exchange_value > 0 else OrderSide.SELL,
-                            size=exchange_value,
-                            entry_price=None,
-                            timestamp=timestamp_to_use,
-                        )
-                        self._portfolio_tracker.update_position(exchange, new_local_pos)
+        logger.info(
+            f"Creating missing local position: {exchange} {symbol} size={exchange_value}",
+        )
 
-            elif current_local_position.size != exchange_value:
-                # Position exists locally, but size is different. Update it.
+        if api_position:
+            new_local_pos = self._create_position_from_api_data(
+                exchange, symbol, exchange_value, api_position
+            )
+        else:
+            new_local_pos = self._create_minimal_position(
+                exchange, symbol, exchange_value, timestamp
+            )
+
+        self._portfolio_tracker.update_position(exchange, new_local_pos)
+
+    def _create_position_from_api_data(
+        self,
+        exchange: str,
+        symbol: str,
+        exchange_value: Decimal,
+        api_position: DerivativePosition,
+    ) -> DerivativePosition:
+        """Create position from full API data."""
+        return DerivativePosition(
+            exchange=exchange,
+            symbol=symbol,
+            side=OrderSide.BUY
+            if exchange_value > Decimal("0")
+            else OrderSide.SELL
+            if exchange_value < Decimal("0")
+            else api_position.side,
+            size=exchange_value,
+            entry_price=api_position.entry_price if exchange_value != Decimal("0") else None,
+            timestamp=api_position.timestamp,
+            mark_price=api_position.mark_price,
+            liquidation_price=api_position.liquidation_price,
+            unrealized_pnl=api_position.unrealized_pnl,
+            realized_pnl=api_position.realized_pnl,
+            strategy_name=api_position.strategy_name,
+            signal_id=api_position.signal_id,
+            hl_details=api_position.hl_details,
+            bp_details=api_position.bp_details,
+        )
+
+    def _create_minimal_position(
+        self,
+        exchange: str,
+        symbol: str,
+        exchange_value: Decimal,
+        timestamp: datetime,
+    ) -> DerivativePosition:
+        """Create minimal position when API data is not available."""
+        logger.warning(
+            f"Cannot create local position for {exchange}/{symbol} - "
+            f"missing full API data for discrepancy correction, only size "
+            f"{exchange_value} is known.",
+        )
+
+        return DerivativePosition(
+            exchange=exchange,
+            symbol=symbol,
+            side=OrderSide.BUY if exchange_value > 0 else OrderSide.SELL,
+            size=exchange_value,
+            entry_price=None,
+            timestamp=timestamp,
+        )
+
+    def _update_existing_position(
+        self,
+        exchange: str,
+        symbol: str,
+        exchange_value: Decimal,
+        current_position: DerivativePosition,
+        api_position: DerivativePosition | None,
+        timestamp: datetime,
+    ) -> None:
+        """Update existing position with corrected values."""
+        logger.info(
+            f"Correcting local position: {exchange} {symbol} "
+            f"from {current_position.size} to {exchange_value}",
+        )
+
+        updated_local_position = current_position.model_copy(
+            update={
+                "size": exchange_value,
+                "side": OrderSide.BUY
+                if exchange_value > Decimal("0")
+                else OrderSide.SELL
+                if exchange_value < Decimal("0")
+                else current_position.side,
+                "entry_price": current_position.entry_price
+                if exchange_value != Decimal("0")
+                else None,
+                "timestamp": timestamp,
+                "unrealized_pnl": api_position.unrealized_pnl
+                if api_position
+                else current_position.unrealized_pnl,
+                "mark_price": api_position.mark_price
+                if api_position
+                else current_position.mark_price,
+                "liquidation_price": api_position.liquidation_price
+                if api_position
+                else current_position.liquidation_price,
+            },
+        )
+        self._portfolio_tracker.update_position(exchange, updated_local_position)
+
+    def _mark_discrepancy_corrected(
+        self,
+        exchange: str,
+        symbol: str,
+        discrepancy_detail: DiscrepancyDetail,
+        results: dict[str, Any],
+    ) -> None:
+        """Mark discrepancy as corrected in historical records."""
+        results_timestamp_dt = results.get("timestamp")
+        if results_timestamp_dt is None:
+            logger.warning(
+                f"Missing 'timestamp' in results dict during correction for "
+                f"{exchange}/{symbol}, cannot accurately mark historical record.",
+            )
+            return
+
+        if not isinstance(results_timestamp_dt, datetime):
+            logger.warning(
+                f"Invalid 'timestamp' type in results dict: "
+                f"{type(results_timestamp_dt)}. Cannot mark historical record.",
+            )
+            return
+
+        for historical_record in self.discrepancy_history:
+            if self._matches_historical_record(
+                historical_record, exchange, symbol, discrepancy_detail, results_timestamp_dt
+            ):
+                historical_record.is_corrected = True
                 logger.info(
-                    f"Correcting local position: {exchange} {symbol} "
-                    f"from {current_local_position.size} to {exchange_value}",
+                    f"Marked historical discrepancy as corrected: "
+                    f"{historical_record.model_dump_json(indent=2)}",
                 )
-                # Update existing position: copy most fields, update size and related
-                updated_local_position = current_local_position.model_copy(
-                    update={
-                        "size": exchange_value,
-                        "side": OrderSide.BUY
-                        if exchange_value > Decimal("0")
-                        else OrderSide.SELL
-                        if exchange_value < Decimal("0")
-                        else current_local_position.side,
-                        "entry_price": current_local_position.entry_price
-                        if exchange_value != Decimal("0")
-                        else None,
-                        "timestamp": timestamp_to_use,  # Update timestamp
-                        # Potentially update PnL fields if they can be recalculated
-                        # or are part of API data
-                        # For now, keeping existing PnL, mark_price etc. unless API
-                        # data provides a better source
-                        "unrealized_pnl": api_position_for_correction.unrealized_pnl
-                        if api_position_for_correction
-                        else current_local_position.unrealized_pnl,
-                        "mark_price": api_position_for_correction.mark_price
-                        if api_position_for_correction
-                        else current_local_position.mark_price,
-                        "liquidation_price": api_position_for_correction.liquidation_price
-                        if api_position_for_correction
-                        else current_local_position.liquidation_price,
-                    },
-                )
-                self._portfolio_tracker.update_position(exchange, updated_local_position)
-            else:
-                # Sizes match, no correction needed for this discrepancy (might be price diff etc.)
-                logger.info(
-                    f"Position for {exchange}/{symbol} already matches exchange value "
-                    f"{exchange_value}. No size correction needed based on this discrepancy.",
-                )
+                break
 
-            # Mark as corrected in history if a portfolio change was made for this size discrepancy
-            results_timestamp_dt = results.get("timestamp")  # Timestamp of the reconciliation run
-            if results_timestamp_dt is None:
-                logger.warning(
-                    f"Missing 'timestamp' in results dict during correction for "
-                    f"{exchange}/{symbol}, cannot accurately mark historical record.",
-                )
-                continue  # Cannot match without timestamp
-            if not isinstance(results_timestamp_dt, datetime):
-                logger.warning(
-                    f"Invalid 'timestamp' type in results dict: "
-                    f"{type(results_timestamp_dt)}. Cannot mark historical record.",
-                )
-                continue
-
-            for historical_record in (
-                self.discrepancy_history
-            ):  # self.discrepancy_history is list[HistoricalDiscrepancyRecord]
-                # Match against the specific DiscrepancyDetail that triggered this correction
-                if (
-                    historical_record.exchange_id == exchange
-                    and historical_record.detail.symbol
-                    == symbol  # symbol is from discrepancy_detail.symbol
-                    and historical_record.recorded_at == results_timestamp_dt
-                    and historical_record.detail.discrepancy_type
-                    == "size"  # We are correcting a size discrepancy
-                    and historical_record.detail
-                    == discrepancy_detail  # Match the exact DiscrepancyDetail instance
-                    and not historical_record.is_corrected
-                ):
-                    historical_record.is_corrected = True
-                    logger.info(
-                        f"Marked historical discrepancy as corrected: "
-                        f"{historical_record.model_dump_json(indent=2)}",
-                    )
-                    break  # Found and updated the specific historical record
+    def _matches_historical_record(
+        self,
+        historical_record: HistoricalDiscrepancyRecord,
+        exchange: str,
+        symbol: str,
+        discrepancy_detail: DiscrepancyDetail,
+        results_timestamp_dt: datetime,
+    ) -> bool:
+        """Check if historical record matches the current discrepancy being corrected."""
+        return (
+            historical_record.exchange_id == exchange
+            and historical_record.detail.symbol == symbol
+            and historical_record.recorded_at == results_timestamp_dt
+            and historical_record.detail.discrepancy_type == "size"
+            and historical_record.detail == discrepancy_detail
+            and not historical_record.is_corrected
+        )
 
     def get_discrepancy_history(self, days: int = 7) -> list[HistoricalDiscrepancyRecord]:
         """Get the history of position discrepancies.
@@ -935,63 +1042,70 @@ class PositionReconciliationSystem:
             f"{len(api_positions)} API and {len(local_positions)} local positions.",
         )
 
-        overall_results: dict[str, Any] = {
-            "success": True,
-            "timestamp": now,
-            "discrepancies": [],
-            "symbols_checked": 0,
-            "has_discrepancies": False,
-            "exchange_results": {},  # Store individual results
-        }
+        overall_results = self._initialize_reconciliation_results(now)
 
-        reconciliation_tasks: list[
-            Awaitable[list[HistoricalDiscrepancyRecord]]
-        ] = []  # Corrected return type of _reconcile_symbol
-
+        # Get all symbols to reconcile
         all_symbols = set(api_positions.keys()) | set(local_positions.keys())
         self.logger.debug(
             f"PRS.reconcile_positions: Reconciling symbols for {exchange_id}: {all_symbols}",
         )
 
+        # Create reconciliation tasks
+        reconciliation_tasks = self._create_reconciliation_tasks(
+            exchange_id, all_symbols, api_positions, local_positions
+        )
+
+        if not reconciliation_tasks:
+            logger.info(f"No symbols to reconcile for {exchange_id}.")
+            return overall_results
+
+        # Execute reconciliation and process results
+        await self._execute_and_process_reconciliation(
+            exchange_id, reconciliation_tasks, overall_results, api_positions
+        )
+
+        self.logger.info(
+            f"PRS.reconcile_positions: Complete for {exchange_id}. Success: "
+            f"{overall_results['success']}, Discrepancies found: "
+            f"{overall_results['has_discrepancies']}, Symbols checked: "
+            f"{overall_results['symbols_checked']}",
+        )
+        return overall_results
+
+    def _initialize_reconciliation_results(self, now: datetime) -> dict[str, Any]:
+        """Initialize the reconciliation results structure."""
+        return {
+            "success": True,
+            "timestamp": now,
+            "discrepancies": [],
+            "symbols_checked": 0,
+            "has_discrepancies": False,
+            "exchange_results": {},
+        }
+
+    def _create_reconciliation_tasks(
+        self,
+        exchange_id: str,
+        all_symbols: set[str],
+        api_positions: dict[str, Any],
+        local_positions: dict[str, Any],
+    ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
+        """Create reconciliation tasks for all symbols."""
+        reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]] = []
+
         for symbol_key in all_symbols:
             api_pos_raw = api_positions.get(symbol_key)
             local_pos_raw = local_positions.get(symbol_key)
 
-            # Ensure local_pos_raw is DerivativePosition | None for _parse_local_position
-            parsed_local_pos_input: DerivativePosition | None = None
-            if isinstance(local_pos_raw, DerivativePosition):
-                parsed_local_pos_input = local_pos_raw
-            elif local_pos_raw is not None:
-                self.logger.warning(
-                    f"PRS.reconcile_positions: Unexpected type for local_pos_raw for "
-                    f"{symbol_key}: {type(local_pos_raw)}. Treating as None.",
-                )
-
-            parsed_api_pos = self._parse_api_position(
-                exchange_id,
-                symbol_key,
-                cast(DerivativePosition | None, api_pos_raw),
-            )
-            parsed_local_pos = self._parse_local_position(
-                exchange_id,
-                symbol_key,
-                parsed_local_pos_input,
+            # Parse positions
+            parsed_api_pos, parsed_local_pos = self._parse_symbol_positions(
+                exchange_id, symbol_key, api_pos_raw, local_pos_raw
             )
 
-            # Type-safe check for errors in parsed_api_pos and parsed_local_pos for logging
-            api_pos_has_error = (
-                "error" in parsed_api_pos
-            )  # simplified: ParsedPosition | ErrorDict is always a dict
-            local_pos_has_error = (
-                isinstance(parsed_local_pos, dict) and "error" in parsed_local_pos
-            )  # parsed_local_pos can be None
+            # Log parsing results
+            self._log_parsing_results(exchange_id, symbol_key, parsed_api_pos, parsed_local_pos)
 
-            self.logger.debug(
-                f"PRS._reconcile_symbol: Symbol {symbol_key} on {exchange_id}, API Parsed "
-                f"Successfully: {not api_pos_has_error}, Local Parsed Successfully: "
-                f"{parsed_local_pos is not None and not local_pos_has_error}",
-            )
-
+            # Create reconciliation task
             reconciliation_tasks.append(
                 self._reconcile_symbol(
                     exchange_id,
@@ -1001,119 +1115,208 @@ class PositionReconciliationSystem:
                 ),
             )
 
-        if not reconciliation_tasks:
-            logger.info(f"No symbols to reconcile for {exchange_id}.")
-            return overall_results  # Return early if no tasks
+        return reconciliation_tasks
 
+    def _parse_symbol_positions(
+        self,
+        exchange_id: str,
+        symbol_key: str,
+        api_pos_raw: Any,
+        local_pos_raw: Any,
+    ) -> tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
+        """Parse API and local positions for a symbol."""
+        # Ensure local_pos_raw is DerivativePosition | None for _parse_local_position
+        parsed_local_pos_input: DerivativePosition | None = None
+        if isinstance(local_pos_raw, DerivativePosition):
+            parsed_local_pos_input = local_pos_raw
+        elif local_pos_raw is not None:
+            self.logger.warning(
+                f"PRS.reconcile_positions: Unexpected type for local_pos_raw for "
+                f"{symbol_key}: {type(local_pos_raw)}. Treating as None.",
+            )
+
+        parsed_api_pos = self._parse_api_position(
+            exchange_id,
+            symbol_key,
+            cast(DerivativePosition | None, api_pos_raw),
+        )
+        parsed_local_pos = self._parse_local_position(
+            exchange_id,
+            symbol_key,
+            parsed_local_pos_input,
+        )
+
+        return parsed_api_pos, parsed_local_pos
+
+    def _log_parsing_results(
+        self,
+        exchange_id: str,
+        symbol_key: str,
+        parsed_api_pos: ParsedPosition | ErrorDict,
+        parsed_local_pos: ParsedPosition | ErrorDict | None,
+    ) -> None:
+        """Log the results of position parsing."""
+        api_pos_has_error = "error" in parsed_api_pos
+        local_pos_has_error = isinstance(parsed_local_pos, dict) and "error" in parsed_local_pos
+
+        self.logger.debug(
+            f"PRS._reconcile_symbol: Symbol {symbol_key} on {exchange_id}, API Parsed "
+            f"Successfully: {not api_pos_has_error}, Local Parsed Successfully: "
+            f"{parsed_local_pos is not None and not local_pos_has_error}",
+        )
+
+    async def _execute_and_process_reconciliation(
+        self,
+        exchange_id: str,
+        reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]],
+        overall_results: dict[str, Any],
+        api_positions: dict[str, Any],
+    ) -> None:
+        """Execute reconciliation tasks and process the results."""
         symbol_results_list = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
 
-        # Aggregate results for the current exchange_id
+        # Process results
+        aggregated_discrepancies = self._process_reconciliation_results(
+            exchange_id, symbol_results_list, overall_results
+        )
+
+        # Update overall results
+        overall_results["discrepancies"] = aggregated_discrepancies
+        overall_results["symbols_checked"] = len(reconciliation_tasks)
+
+        # Apply corrections if needed
+        if overall_results["has_discrepancies"]:
+            await self._handle_discrepancy_corrections(exchange_id, overall_results, api_positions)
+
+    def _process_reconciliation_results(
+        self,
+        exchange_id: str,
+        symbol_results_list: list[Any],
+        overall_results: dict[str, Any],
+    ) -> list[HistoricalDiscrepancyRecord]:
+        """Process the results from symbol reconciliation tasks."""
         aggregated_discrepancies: list[HistoricalDiscrepancyRecord] = []
 
         for res_item in symbol_results_list:
             if isinstance(res_item, Exception):
-                self.logger.error(
-                    f"PRS.reconcile_positions: Exception during symbol reconciliation for "
-                    f"{exchange_id}: {res_item}",
-                    exc_info=res_item,
+                self._handle_reconciliation_exception(
+                    exchange_id, res_item, overall_results, aggregated_discrepancies
                 )
-                overall_results["success"] = False
-                # Create a HistoricalDiscrepancyRecord for the error
-                # For _record_discrepancy, we need specific fields.
-                # We'll create a generic one here for now.
-                # This part might need refinement on how to get symbol or more details.
-                error_record = self._record_discrepancy(
-                    exchange_id=exchange_id,
-                    symbol="UNKNOWN_SYMBOL_DUE_TO_EXCEPTION",
-                    discrepancy_type="reconciliation_error",
-                    api_val=None,
-                    local_val=None,
-                    details=f"Gather exception: {str(res_item)}",
-                )
-                aggregated_discrepancies.append(error_record)
-                overall_results["has_discrepancies"] = True
                 continue
 
-            if not isinstance(
-                res_item,
-                list,
-            ):  # _reconcile_symbol returns list[HistoricalDiscrepancyRecord]
-                self.logger.error(
-                    f"PRS.reconcile_positions: Unexpected result type in symbol_results_list "
-                    f"for {exchange_id}: {type(res_item)}. Item: {res_item}",
+            if not isinstance(res_item, list):
+                self._handle_unexpected_result_type(
+                    exchange_id, res_item, overall_results, aggregated_discrepancies
                 )
-                overall_results["success"] = False
-                error_record = self._record_discrepancy(
-                    exchange_id=exchange_id,
-                    symbol="UNKNOWN_SYMBOL_DUE_TO_BAD_RESULT_TYPE",
-                    discrepancy_type="reconciliation_error",
-                    api_val=None,
-                    local_val=None,
-                    details=f"Unexpected result type from _reconcile_symbol: {type(res_item)}",
-                )
-                aggregated_discrepancies.append(error_record)
-                overall_results["has_discrepancies"] = True
                 continue
 
             # res_item is list[HistoricalDiscrepancyRecord]
-            aggregated_discrepancies.extend(res_item)
-            if res_item:  # If the list is not empty, there were discrepancies for this symbol
+            res_item_list = cast(list[HistoricalDiscrepancyRecord], res_item)
+            aggregated_discrepancies.extend(res_item_list)
+            if res_item_list:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True
 
-        overall_results["discrepancies"] = aggregated_discrepancies
-        overall_results["symbols_checked"] = len(all_symbols)
+        return aggregated_discrepancies
 
-        # Auto-correct if enabled
-        if overall_results["has_discrepancies"]:
-            self.logger.info(
-                f"PRS.reconcile_positions: Starting correction check for {exchange_id}. "
-                f"Discrepancies found: {overall_results['has_discrepancies']}",
-            )
-            # _apply_corrections expects api_positions_map: dict[str, DerivativePosition]
-            # The current api_positions is dict[str, Any]. We need to ensure it contains
-            # DerivativePosition or adapt _apply_corrections or how api_positions_map is
-            # constructed.
-            # For now, this might be an issue if api_positions doesn't hold
-            # DerivativePosition objects.
-
-            # Rebuild api_positions_map for _apply_corrections, ensuring values are
-            # DerivativePosition
-            api_positions_map_for_correction: dict[str, DerivativePosition] = {}
-            for sym, pos_data in api_positions.items():
-                if isinstance(pos_data, DerivativePosition):
-                    api_positions_map_for_correction[sym] = pos_data
-                else:
-                    self.logger.warning(
-                        f"PRS.reconcile_positions: Item '{sym}' in api_positions is not a "
-                        f"DerivativePosition for correction: {type(pos_data)}",
-                    )
-
-            # DEFENSIVE CHECK: exchange_value_str at line 325 (original 331) might be flagged
-            # by linter as possibly unbound due to control flow with 'continue' in try-except.
-            # Logic is sound.
-            if (
-                overall_results["auto_correct"]
-                and api_positions_map_for_correction
-                and self._portfolio_tracker
-            ):
-                self._apply_corrections(
-                    exchange_id,
-                    overall_results,
-                    api_positions_map_for_correction,
-                )
-            elif not api_positions_map_for_correction:
-                self.logger.warning(
-                    f"PRS.reconcile_positions: Cannot apply corrections for {exchange_id} "
-                    f"as no valid DerivativePosition found in api_positions input.",
-                )
-
-        self.logger.info(
-            f"PRS.reconcile_positions: Complete for {exchange_id}. Success: "
-            f"{overall_results['success']}, Discrepancies found: "
-            f"{overall_results['has_discrepancies']}, Symbols checked: "
-            f"{overall_results['symbols_checked']}",
+    def _handle_reconciliation_exception(
+        self,
+        exchange_id: str,
+        exception: Exception,
+        overall_results: dict[str, Any],
+        aggregated_discrepancies: list[HistoricalDiscrepancyRecord],
+    ) -> None:
+        """Handle exceptions during reconciliation."""
+        self.logger.error(
+            f"PRS.reconcile_positions: Exception during symbol reconciliation for "
+            f"{exchange_id}: {exception}",
+            exc_info=exception,
         )
-        return overall_results
+        overall_results["success"] = False
+
+        error_record = self._record_discrepancy(
+            exchange_id=exchange_id,
+            symbol="UNKNOWN_SYMBOL_DUE_TO_EXCEPTION",
+            discrepancy_type="reconciliation_error",
+            api_val=None,
+            local_val=None,
+            details=f"Gather exception: {str(exception)}",
+        )
+        aggregated_discrepancies.append(error_record)
+        overall_results["has_discrepancies"] = True
+
+    def _handle_unexpected_result_type(
+        self,
+        exchange_id: str,
+        res_item: Any,
+        overall_results: dict[str, Any],
+        aggregated_discrepancies: list[HistoricalDiscrepancyRecord],
+    ) -> None:
+        """Handle unexpected result types from reconciliation."""
+        self.logger.error(
+            f"PRS.reconcile_positions: Unexpected result type in symbol_results_list "
+            f"for {exchange_id}: {type(res_item)}. Item: {res_item}",
+        )
+        overall_results["success"] = False
+
+        error_record = self._record_discrepancy(
+            exchange_id=exchange_id,
+            symbol="UNKNOWN_SYMBOL_DUE_TO_BAD_RESULT_TYPE",
+            discrepancy_type="reconciliation_error",
+            api_val=None,
+            local_val=None,
+            details=f"Unexpected result type from _reconcile_symbol: {type(res_item)}",
+        )
+        aggregated_discrepancies.append(error_record)
+        overall_results["has_discrepancies"] = True
+
+    async def _handle_discrepancy_corrections(
+        self,
+        exchange_id: str,
+        overall_results: dict[str, Any],
+        api_positions: dict[str, Any],
+    ) -> None:
+        """Handle corrections for found discrepancies."""
+        self.logger.info(
+            f"PRS.reconcile_positions: Starting correction check for {exchange_id}. "
+            f"Discrepancies found: {overall_results['has_discrepancies']}",
+        )
+
+        # Build API positions map for corrections
+        api_positions_map_for_correction = self._build_api_positions_map(exchange_id, api_positions)
+
+        # Apply corrections if conditions are met
+        if (
+            overall_results.get("auto_correct", False)
+            and api_positions_map_for_correction
+            and self._portfolio_tracker
+        ):
+            self._apply_corrections(
+                exchange_id,
+                overall_results,
+                api_positions_map_for_correction,
+            )
+        elif not api_positions_map_for_correction:
+            self.logger.warning(
+                f"PRS.reconcile_positions: Cannot apply corrections for {exchange_id} "
+                f"as no valid DerivativePosition found in api_positions input.",
+            )
+
+    def _build_api_positions_map(
+        self, exchange_id: str, api_positions: dict[str, Any]
+    ) -> dict[str, DerivativePosition]:
+        """Build a map of API positions for corrections."""
+        api_positions_map_for_correction: dict[str, DerivativePosition] = {}
+
+        for sym, pos_data in api_positions.items():
+            if isinstance(pos_data, DerivativePosition):
+                api_positions_map_for_correction[sym] = pos_data
+            else:
+                self.logger.warning(
+                    f"PRS.reconcile_positions: Item '{sym}' in api_positions is not a "
+                    f"DerivativePosition for correction: {type(pos_data)}",
+                )
+
+        return api_positions_map_for_correction
 
     async def _reconcile_symbol(
         self,
@@ -1124,8 +1327,44 @@ class PositionReconciliationSystem:
     ) -> list[HistoricalDiscrepancyRecord]:
         discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
-        # --- Handle Parsing Errors First ---
-        # Check if parsed_api_pos is an ErrorDict by looking for "error" key
+        # Handle parsing errors first
+        error_records = self._handle_parsing_errors(
+            exchange_id, symbol, parsed_api_pos, parsed_local_pos
+        )
+        if error_records:
+            return error_records
+
+        # At this point, both positions are valid ParsedPosition objects
+        api_pos_data = cast(ParsedPosition, parsed_api_pos)
+        local_pos_data = cast(ParsedPosition, parsed_local_pos) if parsed_local_pos else None
+
+        # Handle position existence discrepancies
+        existence_records = self._handle_position_existence_discrepancies(
+            exchange_id, symbol, api_pos_data, local_pos_data
+        )
+        discrepancy_records.extend(existence_records)
+
+        # If one position is missing or flat, no need for detailed comparison
+        if local_pos_data is None or api_pos_data["size"] == Decimal("0"):
+            return discrepancy_records
+
+        # Compare position attributes for non-flat positions
+        attribute_records = self._compare_position_attributes(
+            exchange_id, symbol, api_pos_data, local_pos_data
+        )
+        discrepancy_records.extend(attribute_records)
+
+        return discrepancy_records
+
+    def _handle_parsing_errors(
+        self,
+        exchange_id: str,
+        symbol: str,
+        parsed_api_pos: ParsedPosition | ErrorDict,
+        parsed_local_pos: ParsedPosition | ErrorDict | None,
+    ) -> list[HistoricalDiscrepancyRecord]:
+        """Handle parsing errors for API and local positions."""
+        # Check if parsed_api_pos is an ErrorDict
         if "error" in parsed_api_pos:
             error_dict_api = cast(ErrorDict, parsed_api_pos)
             record = self._record_discrepancy(
@@ -1133,93 +1372,80 @@ class PositionReconciliationSystem:
                 symbol=symbol,
                 discrepancy_type="api_parsing_error",
                 api_val=str(error_dict_api.get("raw_data", "N/A")),
-                local_val=None,  # Local value is not relevant to API parsing error
+                local_val=None,
                 details=str(error_dict_api.get("message", "Unknown API parsing error.")),
             )
-            discrepancy_records.append(record)
-            return discrepancy_records  # Stop further checks for this symbol if API data is bad
+            return [record]
 
-        # Similar check for parsed_local_pos
+        # Check if parsed_local_pos is an ErrorDict
         if isinstance(parsed_local_pos, dict) and "error" in parsed_local_pos:
             error_dict_local = cast(ErrorDict, parsed_local_pos)
             record = self._record_discrepancy(
                 exchange_id=exchange_id,
                 symbol=symbol,
                 discrepancy_type="local_parsing_error",
-                api_val=None,  # API data might be fine, local is the issue
+                api_val=None,
                 local_val=str(error_dict_local.get("raw_data", "N/A")),
                 details=str(error_dict_local.get("message", "Unknown local parsing error.")),
             )
-            discrepancy_records.append(record)
-            return discrepancy_records  # Stop further checks if local parsing failed.
+            return [record]
 
-        # At this point, parsed_api_pos is confirmed to be ParsedPosition
-        api_pos_data = cast(ParsedPosition, parsed_api_pos)
+        return []
 
-        # parsed_local_pos is ParsedPosition | None (and not ErrorDict).
-        local_pos_data: ParsedPosition | None
-        if parsed_local_pos is None:
-            local_pos_data = None
-        else:
-            # parsed_local_pos is a dict and not an ErrorDict (no "error" key)
-            local_pos_data = cast(ParsedPosition, parsed_local_pos)
+    def _handle_position_existence_discrepancies(
+        self,
+        exchange_id: str,
+        symbol: str,
+        api_pos_data: ParsedPosition,
+        local_pos_data: ParsedPosition | None,
+    ) -> list[HistoricalDiscrepancyRecord]:
+        """Handle discrepancies related to position existence."""
+        discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
-        # --- Core Discrepancy Logic ---
-
-        # Case 1: Position exists on API but not in Tracker (local_pos_data is None)
+        # Case 1: Position exists on API but not locally
         if local_pos_data is None:
-            # If API also reports flat (size 0), it's not a discrepancy of "missing"
-            # but rather both are flat.
             if api_pos_data["size"] != Decimal("0"):
                 record = self._record_discrepancy(
                     exchange_id=exchange_id,
                     symbol=symbol,
                     discrepancy_type="size",
-                    api_val=api_pos_data["size"],  # API size
-                    local_val=Decimal("0"),  # Assume local is zero for size comparison
+                    api_val=api_pos_data["size"],
+                    local_val=Decimal("0"),
                     details=(
                         f"Position exists on {exchange_id} (size {api_pos_data['size']}) "
                         f"but not in PortfolioTracker (or size 0)."
                     ),
                 )
                 discrepancy_records.append(record)
-            # If both api_pos_data["size"] == 0 and local_pos_data is None, they agree
-            # (both flat/absent).
-            return discrepancy_records  # No further comparison needed if local is None
+            return discrepancy_records
 
-        # Case 2: Position exists in Tracker but not on API (API reports flat size 0)
-        # api_pos_data here is guaranteed to be a ParsedPosition (not an error dict)
+        # Case 2: Position exists locally but API reports flat
         if api_pos_data["size"] == Decimal("0"):
-            # local_pos_data is NOT None here because Case 1 would have caught it
-            # (function would have returned).
-            # So local_pos_data is ParsedPosition.
             if local_pos_data["size"] != Decimal("0"):
                 record = self._record_discrepancy(
                     exchange_id=exchange_id,
                     symbol=symbol,
-                    discrepancy_type="size",  # Changed from "unknown_api_symbol" to "size"
-                    api_val=Decimal("0"),  # Explicitly state API is zero for size comparison
-                    local_val=local_pos_data["size"],  # Report local size
+                    discrepancy_type="size",
+                    api_val=Decimal("0"),
+                    local_val=local_pos_data["size"],
                     details=(
                         f"Position exists in PortfolioTracker (size {local_pos_data['size']}) "
                         f"but flat or not found on {exchange_id}."
                     ),
                 )
                 discrepancy_records.append(record)
-            return discrepancy_records  # No further comparison if API is flat.
 
-        # Case 3: Position exists in both API and Tracker, and both are non-flat.
-        # Compare attributes.
-        # If we reach here:
-        # - local_pos_data is ParsedPosition (not None, due to Case 1 returning if it
-        #   was None).
-        # - api_pos_data is ParsedPosition and api_pos_data["size"] != Decimal("0")
-        #   (due to Case 2 returning if it was 0).
-        # Thus, both api_pos_data and local_pos_data are valid ParsedPosition objects
-        # representing non-flat positions.
+        return discrepancy_records
 
-        # The `if local_pos_data is None:` block previously here for Case 3 was
-        # redundant and has been removed.
+    def _compare_position_attributes(
+        self,
+        exchange_id: str,
+        symbol: str,
+        api_pos_data: ParsedPosition,
+        local_pos_data: ParsedPosition,
+    ) -> list[HistoricalDiscrepancyRecord]:
+        """Compare attributes of two non-flat positions."""
+        discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
         # Size comparison
         if api_pos_data["size"] != local_pos_data["size"]:
@@ -1232,18 +1458,9 @@ class PositionReconciliationSystem:
             )
             discrepancy_records.append(record)
 
-        # Entry Price Comparison (only if both sides are same and sizes are non-zero and match)
-        # Price comparison is complex if sides/sizes differ. Simplification: only if
-        # size/side match.
-        if (
-            api_pos_data["side"] == local_pos_data["side"]
-            and api_pos_data["size"]
-            != Decimal("0")  # Ensure not comparing prices for flat positions
-            and api_pos_data["size"]
-            == local_pos_data["size"]  # Only compare price if size is already aligned
-        ):
+        # Entry price comparison (only if sides and sizes match)
+        if self._should_compare_entry_price(api_pos_data, local_pos_data):
             if api_pos_data["entry_price"] != local_pos_data["entry_price"]:
-                # Handle None for entry_price carefully if that's valid for non-flat positions
                 record = self._record_discrepancy(
                     exchange_id=exchange_id,
                     symbol=symbol,
@@ -1253,14 +1470,8 @@ class PositionReconciliationSystem:
                 )
                 discrepancy_records.append(record)
 
-        # Optional: Compare mark_price, liquidation_price, unrealized_pnl if available
-        # and makes sense
-        # For example, mark_price:
-        # local_pos_data is guaranteed to be ParsedPosition here, so `local_pos_data
-        # and ...` check is redundant.
-        if api_pos_data.get("mark_price") != local_pos_data.get("mark_price") and api_pos_data[
-            "size"
-        ] != Decimal("0"):  # Only if not flat
+        # Mark price comparison
+        if self._should_compare_mark_price(api_pos_data, local_pos_data):
             record = self._record_discrepancy(
                 exchange_id=exchange_id,
                 symbol=symbol,
@@ -1271,6 +1482,24 @@ class PositionReconciliationSystem:
             discrepancy_records.append(record)
 
         return discrepancy_records
+
+    def _should_compare_entry_price(
+        self, api_pos_data: ParsedPosition, local_pos_data: ParsedPosition
+    ) -> bool:
+        """Determine if entry prices should be compared."""
+        return (
+            api_pos_data["side"] == local_pos_data["side"]
+            and api_pos_data["size"] != Decimal("0")
+            and api_pos_data["size"] == local_pos_data["size"]
+        )
+
+    def _should_compare_mark_price(
+        self, api_pos_data: ParsedPosition, local_pos_data: ParsedPosition
+    ) -> bool:
+        """Determine if mark prices should be compared."""
+        return api_pos_data.get("mark_price") != local_pos_data.get("mark_price") and api_pos_data[
+            "size"
+        ] != Decimal("0")
 
     async def _compare_positions(
         self,
@@ -1381,8 +1610,9 @@ class PositionReconciliationSystem:
                 continue
 
             # res_item is list[HistoricalDiscrepancyRecord]
-            aggregated_discrepancies.extend(res_item)
-            if res_item:  # If the list is not empty, there were discrepancies for this symbol
+            res_item_list = cast(list[HistoricalDiscrepancyRecord], res_item)
+            aggregated_discrepancies.extend(res_item_list)
+            if res_item_list:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True
 
         overall_results["discrepancies"] = aggregated_discrepancies

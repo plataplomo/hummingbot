@@ -10,6 +10,7 @@ import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -728,65 +729,56 @@ class SimpleVisualizer:
         os.makedirs(save_dir, exist_ok=True)
 
         # Generate all plots and save
+        plots = self._generate_and_save_all_plots(save_dir)
+
+        # Generate PDF report
+        self._generate_pdf_report(save_dir, plots)
+
+        return plots
+
+    def _generate_and_save_all_plots(self, save_dir: str) -> dict[str, str]:
+        """Generate all individual plots and save them."""
         plots: dict[str, str] = {}
 
         # Get all the figures
-        fig_pnl = self.plot_cumulative_pnl(save=False, show=False)
-        fig_dd = self.plot_drawdown(save=False, show=False)
-        fig_dist = self.plot_trade_distribution(save=False, show=False)
-        fig_win = self.plot_winning_vs_losing_trades(save=False, show=False)
-        fig_month = self.plot_monthly_performance(save=False, show=False)
-        fig_metrics = self.plot_performance_metrics(save=False, show=False)
+        plot_configs = [
+            ("cumulative_pnl", self.plot_cumulative_pnl),
+            ("drawdown", self.plot_drawdown),
+            ("trade_distribution", self.plot_trade_distribution),
+            ("win_loss_ratio", self.plot_winning_vs_losing_trades),
+            ("monthly_performance", self.plot_monthly_performance),
+            ("performance_metrics", self.plot_performance_metrics),
+        ]
 
-        # Save and add to plots dictionary if figure was successfully created
-        if fig_pnl:
-            pnl_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_cumulative_pnl.png")
-            fig_pnl.savefig(pnl_path)
-            plt.close(fig_pnl)
-            plots["cumulative_pnl"] = pnl_path
+        for plot_name, plot_func in plot_configs:
+            fig = plot_func(save=False, show=False)
+            if fig:
+                file_path = self._save_individual_plot(save_dir, plot_name, fig)
+                plots[plot_name] = file_path
 
-        if fig_dd:
-            dd_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_drawdown.png")
-            fig_dd.savefig(dd_path)
-            plt.close(fig_dd)
-            plots["drawdown"] = dd_path
+        return plots
 
-        if fig_dist:
-            dist_path = os.path.join(
-                save_dir,
-                f"{self.tracker.strategy_name}_trade_distribution.png",
-            )
-            fig_dist.savefig(dist_path)
-            plt.close(fig_dist)
-            plots["trade_distribution"] = dist_path
+    def _save_individual_plot(self, save_dir: str, plot_name: str, fig: Figure) -> str:
+        """Save an individual plot and return its file path."""
+        # Map plot names to file suffixes
+        file_suffix_map = {
+            "cumulative_pnl": "cumulative_pnl",
+            "drawdown": "drawdown",
+            "trade_distribution": "trade_distribution",
+            "win_loss_ratio": "win_loss_ratio",
+            "monthly_performance": "monthly_performance",
+            "performance_metrics": "performance_metrics",
+        }
 
-        if fig_win:
-            win_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_win_loss_ratio.png")
-            fig_win.savefig(win_path)
-            plt.close(fig_win)
-            plots["win_loss_ratio"] = win_path
+        suffix = file_suffix_map.get(plot_name, plot_name)
+        file_path = os.path.join(save_dir, f"{self.tracker.strategy_name}_{suffix}.png")
+        fig.savefig(file_path)
+        plt.close(fig)
+        return file_path
 
-        if fig_month:
-            month_path = os.path.join(
-                save_dir,
-                f"{self.tracker.strategy_name}_monthly_performance.png",
-            )
-            fig_month.savefig(month_path)
-            plt.close(fig_month)
-            plots["monthly_performance"] = month_path
-
-        if fig_metrics:
-            metrics_path = os.path.join(
-                save_dir,
-                f"{self.tracker.strategy_name}_performance_metrics.png",
-            )
-            fig_metrics.savefig(metrics_path)
-            plt.close(fig_metrics)
-            plots["performance_metrics"] = metrics_path
-
-        # Generate PDF report
+    def _generate_pdf_report(self, save_dir: str, plots: dict[str, str]) -> None:
+        """Generate a comprehensive PDF report with all plots."""
         try:
-            # Try importing matplotlib backend for PDF creation
             from matplotlib.backends.backend_pdf import PdfPages
 
             pdf_path = os.path.join(
@@ -796,59 +788,79 @@ class SimpleVisualizer:
             logger.info(f"Saving combined performance report to {pdf_path}")
 
             with PdfPages(pdf_path) as pdf:
-                for _plot_name, plot_path in plots.items():
-                    # Create a new figure with the saved image
-                    img = plt.imread(plot_path)
-                    fig, ax = plt.subplots(figsize=(12, 8))
-                    ax.imshow(img)
-                    ax.axis("off")
-                    pdf.savefig(fig)
-                    plt.close(fig)
+                # Add all plot images to PDF
+                self._add_plots_to_pdf(pdf, plots)
 
-                # Add a summary page
-                fig, ax = plt.subplots(figsize=(12, 8))
-                ax.axis("off")
-                summary_text = f"Performance Report for {self.tracker.strategy_name}\n\n"
-                summary_text += (
-                    f"Generated on: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n"
-                )
-
-                metrics = self.analyzer.calculate_metrics()
-                if metrics:
-                    summary_text += "Performance Summary:\n\n"
-                    for key, value in metrics.items():
-                        display_name = key.replace("_", " ").title()
-
-                        # Handle values based on type - all financial values should now be float
-                        if isinstance(value, int | np.integer):
-                            summary_text += f"{display_name}: {value}\n"
-                        elif key in ["win_rate", "max_drawdown"]:
-                            # Format percentages
-                            summary_text += f"{display_name}: {value:.2f}%\n"
-                        elif key in ["sharpe_ratio"]:
-                            summary_text += f"{display_name}: {value:.2f}\n"
-                        else:
-                            # For float values that represent currency
-                            summary_text += f"{display_name}: ${value:.2f}\n"
-
-                ax.text(
-                    0.5,
-                    0.5,
-                    summary_text,
-                    fontsize=12,
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                )
-                pdf.savefig(fig)
-                plt.close(fig)
+                # Add summary page
+                self._add_summary_page_to_pdf(pdf)
 
             plots["pdf_report"] = pdf_path
 
         except ImportError:
             logger.warning("Could not create PDF report. PDF backend not available.")
 
-        return plots
+    def _add_plots_to_pdf(self, pdf: Any, plots: dict[str, str]) -> None:
+        """Add all plot images to the PDF."""
+        for _plot_name, plot_path in plots.items():
+            # Create a new figure with the saved image
+            img = plt.imread(plot_path)
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.imshow(img)
+            ax.axis("off")
+            pdf.savefig(fig)
+            plt.close(fig)
+
+    def _add_summary_page_to_pdf(self, pdf: Any) -> None:
+        """Add a summary page to the PDF report."""
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.axis("off")
+
+        summary_text = self._generate_summary_text()
+
+        ax.text(
+            0.5,
+            0.5,
+            summary_text,
+            fontsize=12,
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        pdf.savefig(fig)
+        plt.close(fig)
+
+    def _generate_summary_text(self) -> str:
+        """Generate summary text for the PDF report."""
+        summary_text = f"Performance Report for {self.tracker.strategy_name}\n\n"
+        summary_text += f"Generated on: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n"
+
+        metrics = self.analyzer.calculate_metrics()
+        if metrics:
+            summary_text += "Performance Summary:\n\n"
+            summary_text += self._format_metrics_for_summary(metrics)
+
+        return summary_text
+
+    def _format_metrics_for_summary(self, metrics: dict[str, Any]) -> str:
+        """Format metrics for the summary text."""
+        formatted_text = ""
+
+        for key, value in metrics.items():
+            display_name = key.replace("_", " ").title()
+
+            # Handle values based on type - all financial values should now be float
+            if isinstance(value, int | np.integer):
+                formatted_text += f"{display_name}: {value}\n"
+            elif key in ["win_rate", "max_drawdown"]:
+                # Format percentages
+                formatted_text += f"{display_name}: {value:.2f}%\n"
+            elif key in ["sharpe_ratio"]:
+                formatted_text += f"{display_name}: {value:.2f}\n"
+            else:
+                # For float values that represent currency
+                formatted_text += f"{display_name}: ${value:.2f}\n"
+
+        return formatted_text
 
 
 # Example usage

@@ -129,7 +129,7 @@ def _add_ohlcv_data(
 
 
 def _calculate_high_low_prices(
-    df: pd.DataFrame, symbol: str, price_variation: Any, rng: np.random.Generator
+    df: pd.DataFrame, symbol: str, price_variation: np.ndarray[Any, Any], rng: np.random.Generator
 ) -> None:
     """Calculate high and low prices ensuring proper OHLC relationships."""
     df[("high", symbol)] = np.maximum(

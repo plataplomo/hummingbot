@@ -1175,71 +1175,13 @@ class CircuitBreakerSystem:
     ) -> CircuitBreaker | None:
         name = breaker_name_or_key
         try:
-            # Determine cooldown:
-            # 1. From this specific breaker's config (`breaker_specific_config`)
-            cooldown_raw = breaker_specific_config.get("cooldown_seconds")
-            if cooldown_raw is None and default_cooldown_override is not None:
-                cooldown_raw = default_cooldown_override
+            # Determine cooldown
+            cooldown = self._determine_cooldown(
+                breaker_specific_config, default_cooldown_override, name
+            )
 
-            # If still None, use a hardcoded default
-            if cooldown_raw is None:
-                cooldown_raw = 300  # Default 5 minutes
-
-            if not isinstance(cooldown_raw, int | float | str):
-                logger.error(
-                    f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} "
-                    f"(type: {type(cooldown_raw)}). Using system default 300s.",
-                )
-                cooldown_raw = 300  # Fallback
-
-            try:
-                cooldown = int(float(str(cooldown_raw)))  # Robust parsing: str -> float -> int
-            except ValueError:
-                logger.error(
-                    f"Could not parse cooldown value '{cooldown_raw}' for breaker '{name}'. "
-                    "Using system default 300s.",
-                )
-                cooldown = 300
-
-            # Instantiate based on breaker_class
-            if breaker_class == APIErrorBreaker:
-                error_threshold = int(breaker_specific_config.get("error_threshold", 5))
-                window_seconds_val = breaker_specific_config.get(
-                    "time_window_seconds",
-                    breaker_specific_config.get("window_seconds", 60),
-                )
-                window_seconds = int(window_seconds_val)
-                return APIErrorBreaker(name, error_threshold, window_seconds, cooldown)
-
-            elif breaker_class == VolatilityBreaker:
-                lookback_periods = int(breaker_specific_config.get("lookback_periods", 12))
-                volatility_threshold = float(
-                    breaker_specific_config.get("volatility_threshold", 0.05),
-                )
-                return VolatilityBreaker(name, lookback_periods, volatility_threshold, cooldown)
-
-            elif breaker_class == DrawdownBreaker:
-                drawdown_threshold_val = breaker_specific_config.get(
-                    "max_drawdown_percentage",
-                    breaker_specific_config.get("drawdown_threshold", 0.10),
-                )
-                drawdown_threshold = float(drawdown_threshold_val)
-                return DrawdownBreaker(name, drawdown_threshold, cooldown)
-
-            elif breaker_class == LiquidityBreaker:
-                min_liquidity_val = breaker_specific_config.get(
-                    "min_liquidity_usd",
-                    breaker_specific_config.get("min_liquidity", 1000.0),
-                )
-                min_liquidity = float(min_liquidity_val)
-                return LiquidityBreaker(name, min_liquidity, cooldown)
-
-            else:
-                logger.error(
-                    f"Attempted to create unknown or unhandled breaker class: "
-                    f"{breaker_class.__name__} for config key '{name}'",
-                )
-                return None
+            # Create the appropriate breaker instance
+            return self._instantiate_breaker(breaker_class, name, breaker_specific_config, cooldown)
 
         except KeyError as e:
             logger.error(
@@ -1259,3 +1201,104 @@ class CircuitBreakerSystem:
                 f"(Config: {breaker_specific_config})",
             )
             return None
+
+    def _determine_cooldown(
+        self,
+        breaker_specific_config: dict[str, Any],
+        default_cooldown_override: int | None,
+        name: str,
+    ) -> int:
+        """Determine the cooldown value for a breaker from config."""
+        # 1. From this specific breaker's config (`breaker_specific_config`)
+        cooldown_raw = breaker_specific_config.get("cooldown_seconds")
+        if cooldown_raw is None and default_cooldown_override is not None:
+            cooldown_raw = default_cooldown_override
+
+        # If still None, use a hardcoded default
+        if cooldown_raw is None:
+            cooldown_raw = 300  # Default 5 minutes
+
+        if not isinstance(cooldown_raw, int | float | str):
+            logger.error(
+                f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} "
+                f"(type: {type(cooldown_raw)}). Using system default 300s.",
+            )
+            cooldown_raw = 300  # Fallback
+
+        try:
+            cooldown = int(float(str(cooldown_raw)))  # Robust parsing: str -> float -> int
+        except ValueError:
+            logger.error(
+                f"Could not parse cooldown value '{cooldown_raw}' for breaker '{name}'. "
+                "Using system default 300s.",
+            )
+            cooldown = 300
+
+        return cooldown
+
+    def _instantiate_breaker(
+        self,
+        breaker_class: type[CircuitBreaker],
+        name: str,
+        breaker_specific_config: dict[str, Any],
+        cooldown: int,
+    ) -> CircuitBreaker | None:
+        """Instantiate the appropriate breaker based on class type."""
+        if breaker_class == APIErrorBreaker:
+            return self._create_api_error_breaker(name, breaker_specific_config, cooldown)
+        elif breaker_class == VolatilityBreaker:
+            return self._create_volatility_breaker(name, breaker_specific_config, cooldown)
+        elif breaker_class == DrawdownBreaker:
+            return self._create_drawdown_breaker(name, breaker_specific_config, cooldown)
+        elif breaker_class == LiquidityBreaker:
+            return self._create_liquidity_breaker(name, breaker_specific_config, cooldown)
+        else:
+            logger.error(
+                f"Attempted to create unknown or unhandled breaker class: "
+                f"{breaker_class.__name__} for config key '{name}'",
+            )
+            return None
+
+    def _create_api_error_breaker(
+        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+    ) -> APIErrorBreaker:
+        """Create an API error breaker from config."""
+        error_threshold = int(breaker_specific_config.get("error_threshold", 5))
+        window_seconds_val = breaker_specific_config.get(
+            "time_window_seconds",
+            breaker_specific_config.get("window_seconds", 60),
+        )
+        window_seconds = int(window_seconds_val)
+        return APIErrorBreaker(name, error_threshold, window_seconds, cooldown)
+
+    def _create_volatility_breaker(
+        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+    ) -> VolatilityBreaker:
+        """Create a volatility breaker from config."""
+        lookback_periods = int(breaker_specific_config.get("lookback_periods", 12))
+        volatility_threshold = float(
+            breaker_specific_config.get("volatility_threshold", 0.05),
+        )
+        return VolatilityBreaker(name, lookback_periods, volatility_threshold, cooldown)
+
+    def _create_drawdown_breaker(
+        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+    ) -> DrawdownBreaker:
+        """Create a drawdown breaker from config."""
+        drawdown_threshold_val = breaker_specific_config.get(
+            "max_drawdown_percentage",
+            breaker_specific_config.get("drawdown_threshold", 0.10),
+        )
+        drawdown_threshold = float(drawdown_threshold_val)
+        return DrawdownBreaker(name, drawdown_threshold, cooldown)
+
+    def _create_liquidity_breaker(
+        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+    ) -> LiquidityBreaker:
+        """Create a liquidity breaker from config."""
+        min_liquidity_val = breaker_specific_config.get(
+            "min_liquidity_usd",
+            breaker_specific_config.get("min_liquidity", 1000.0),
+        )
+        min_liquidity = float(min_liquidity_val)
+        return LiquidityBreaker(name, min_liquidity, cooldown)

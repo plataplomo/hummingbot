@@ -34,6 +34,7 @@ from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerSystem,
     CircuitBreakerTrippedError,
 )
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 # Keep imports for type checking only if they cause circular dependencies otherwise
 if TYPE_CHECKING:
@@ -441,7 +442,7 @@ class ExecutionHandler:
     def _calculate_base_asset_quantities(
         self,
         execution: TradeExecution,
-        opportunity: Any,  # Use Any to avoid complex type resolution
+        opportunity: ArbitrageOpportunity,
         sized_opp: SizedOpportunity,
     ) -> tuple[Decimal, Decimal] | None:
         """Calculate base asset quantities for both legs."""
@@ -493,7 +494,7 @@ class ExecutionHandler:
     async def _place_long_order(
         self,
         execution: TradeExecution,
-        opportunity: Any,  # Use Any to avoid complex type resolution
+        opportunity: ArbitrageOpportunity,
         long_symbol: str,
         base_asset_quantity_long: Decimal,
         default_tif: TimeInForce,
@@ -545,7 +546,7 @@ class ExecutionHandler:
     async def _place_short_order_with_compensation(
         self,
         execution: TradeExecution,
-        opportunity: Any,  # Use Any to avoid complex type resolution
+        opportunity: ArbitrageOpportunity,
         short_symbol: str,
         long_symbol: str,
         base_asset_quantity_short: Decimal,
@@ -597,7 +598,7 @@ class ExecutionHandler:
     async def _handle_short_order_api_error(
         self,
         execution: TradeExecution,
-        opportunity: Any,  # Use Any to avoid complex type resolution
+        opportunity: ArbitrageOpportunity,
         e_short_leg: APIError,
     ) -> None:
         """Handle API error during short order placement."""
@@ -620,7 +621,7 @@ class ExecutionHandler:
     async def _handle_short_order_failure(
         self,
         execution: TradeExecution,
-        opportunity: Any,  # Use Any to avoid complex type resolution
+        opportunity: ArbitrageOpportunity,
         short_order_result: Order | None,
         long_symbol: str,
         base_asset_quantity_long: Decimal,

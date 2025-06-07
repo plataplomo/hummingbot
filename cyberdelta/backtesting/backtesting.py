@@ -377,7 +377,7 @@ class BacktestEngine:
         signal: dict[str, Any],
         positions: dict[str, dict[str, Any]],
         current_capital: Decimal,
-        idx: Any,
+        idx: datetime | pd.Timestamp | str | int,
     ) -> Decimal:
         """Process exit signal and close position."""
         symbol = signal["symbol"]
@@ -412,7 +412,9 @@ class BacktestEngine:
 
         return current_capital
 
-    def _convert_to_decimal(self, value: Any, field_name: str) -> Decimal | None:
+    def _convert_to_decimal(
+        self, value: str | int | float | Decimal, field_name: str
+    ) -> Decimal | None:
         """Convert value to Decimal with error handling."""
         if isinstance(value, str):
             try:
@@ -435,7 +437,7 @@ class BacktestEngine:
         price: Decimal,
         size: Decimal,
         value: Decimal,
-        idx: Any,
+        idx: datetime | pd.Timestamp | str | int,
         trade_type: str,
         pnl: Decimal | None = None,
     ) -> None:
@@ -463,7 +465,9 @@ class BacktestEngine:
 
         self.results_handler.add_trade(trade)
 
-    def _record_equity_point(self, idx: Any, current_capital: Decimal) -> None:
+    def _record_equity_point(
+        self, idx: datetime | pd.Timestamp | str | int, current_capital: Decimal
+    ) -> None:
         """Record equity point at current timestamp."""
         if not self.results_handler:
             return
@@ -618,7 +622,7 @@ class StrategyAdapter(BacktestStrategy):
         return trade_signals
 
     def _handle_strategy_result(
-        self, signal_or_coro: Any
+        self, signal_or_coro: TradeSignal | list[TradeSignal] | object
     ) -> TradeSignal | list[TradeSignal] | None:
         """Handle both async and sync strategy results."""
         # Handle async coroutines
@@ -629,7 +633,9 @@ class StrategyAdapter(BacktestStrategy):
         # Note: This branch may be unreachable but kept for defensive programming
         return signal_or_coro  # type: ignore[unreachable]
 
-    def _handle_async_result(self, signal_or_coro: Any) -> TradeSignal | list[TradeSignal] | None:
+    def _handle_async_result(
+        self, signal_or_coro: object
+    ) -> TradeSignal | list[TradeSignal] | None:
         """Handle async strategy results."""
         try:
             # Check if a loop is already running

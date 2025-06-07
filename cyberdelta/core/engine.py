@@ -208,7 +208,9 @@ class Engine:
                 exc_info=True,
             )
 
-    def _normalize_strategy_result(self, result: Any) -> list[TradeSignal]:
+    def _normalize_strategy_result(
+        self, result: TradeSignal | list[TradeSignal]
+    ) -> list[TradeSignal]:
         """Normalize strategy result to a list of signals."""
         if isinstance(result, list):
             return result

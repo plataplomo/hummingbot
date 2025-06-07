@@ -23,7 +23,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
     supported by the standard JSON encoder.
     """
 
-    def default(self, o: object) -> Any:
+    def default(self, o: object) -> str | int | float | dict[str, Any]:
         """Serialize object to JSON-compatible type.
 
         Args:

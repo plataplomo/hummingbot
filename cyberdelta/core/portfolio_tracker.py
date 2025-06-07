@@ -1131,12 +1131,11 @@ class PortfolioTracker:
 
         # Calculate unrealized PNL if possible
         if self._can_calculate_unrealized_pnl(mark_price_in_base, entry_price_in_base):
-            # Type checker knows these are not None after the check
-            assert mark_price_in_base is not None
-            assert entry_price_in_base is not None
-            return self._compute_unrealized_pnl(
-                position, mark_price_in_base, entry_price_in_base, exchange_id
-            )
+            # DEFENSIVE CHECK: Type narrowing for mypy. Mypy=[unreachable] Ruff=[]
+            if mark_price_in_base is not None and entry_price_in_base is not None:
+                return self._compute_unrealized_pnl(
+                    position, mark_price_in_base, entry_price_in_base, exchange_id
+                )
         else:
             logger.warning(
                 f"Skipping unrealized PNL calculation for {position_key} "
@@ -1400,7 +1399,7 @@ class PortfolioTracker:
 
     @classmethod
     def _process_single_balance(
-        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: Any
+        cls, tracker: PortfolioTracker, ex_id_str: str, asset_str: str, bal_data_any: dict[str, Any]
     ) -> None:
         """Process a single balance entry."""
         if isinstance(bal_data_any, dict):
@@ -1442,7 +1441,11 @@ class PortfolioTracker:
 
     @classmethod
     def _process_single_position(
-        cls, tracker: PortfolioTracker, ex_id_str_pos: str, sym_str: str, pos_data_any: Any
+        cls,
+        tracker: PortfolioTracker,
+        ex_id_str_pos: str,
+        sym_str: str,
+        pos_data_any: dict[str, Any],
     ) -> None:
         """Process a single position entry."""
         if isinstance(pos_data_any, dict):
@@ -1484,7 +1487,11 @@ class PortfolioTracker:
 
     @classmethod
     def _process_single_order(
-        cls, tracker: PortfolioTracker, ex_id_str_ord: str, ord_id_str: str, order_data_any: Any
+        cls,
+        tracker: PortfolioTracker,
+        ex_id_str_ord: str,
+        ord_id_str: str,
+        order_data_any: dict[str, Any],
     ) -> None:
         """Process a single order entry."""
         if isinstance(order_data_any, dict):
@@ -1547,7 +1554,11 @@ class PortfolioTracker:
 
     @classmethod
     def _process_timestamp(
-        cls, target_dict: dict[str, datetime], ex_id_str: str, ts_data_any: Any, field_name: str
+        cls,
+        target_dict: dict[str, datetime],
+        ex_id_str: str,
+        ts_data_any: str | datetime,
+        field_name: str,
     ) -> None:
         """Process a single timestamp entry."""
         try:
