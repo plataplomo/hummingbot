@@ -360,7 +360,9 @@ class WebSocketManager:
         finally:
             await self._cleanup_listener(original_connection, was_cancelled_flag)
 
-    async def _should_continue_listening(self, original_connection: Any, iteration: int) -> bool:
+    async def _should_continue_listening(
+        self, original_connection: ClientWebSocketResponse | None, iteration: int
+    ) -> bool:
         """Check if listening should continue."""
         current_task_listen_loop = asyncio.current_task()
         task_name_listen_loop = (
@@ -376,7 +378,9 @@ class WebSocketManager:
             f"Cancelled state: {cancelled_state}",
         )
 
-        if self._ws_connection is not original_connection or self._ws_connection.closed:
+        if self._ws_connection is not original_connection or (
+            self._ws_connection is not None and self._ws_connection.closed
+        ):
             self._logger.warning(
                 "WebSocket connection changed or closed during iteration. "
                 "Stopping listener for old connection.",
@@ -385,7 +389,7 @@ class WebSocketManager:
 
         return True
 
-    async def _handle_websocket_message(self, msg: Any, iteration: int) -> None:
+    async def _handle_websocket_message(self, msg: aiohttp.WSMessage, iteration: int) -> None:
         """Handle a single WebSocket message based on its type."""
         current_task = asyncio.current_task()
         task_name = current_task.get_name() if current_task else "UnknownTask"
@@ -407,7 +411,7 @@ class WebSocketManager:
             await self._handle_close_message(task_name, iteration)
             raise ConnectionError("WebSocket closed")
 
-    async def _handle_text_message(self, msg: Any) -> None:
+    async def _handle_text_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle TEXT type WebSocket messages."""
         try:
             data = json.loads(msg.data)
@@ -419,7 +423,7 @@ class WebSocketManager:
         except Exception as e:
             self._logger.exception(f"Error processing WebSocket message: {e}")
 
-    def _handle_binary_message(self, msg: Any) -> None:
+    def _handle_binary_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle BINARY type WebSocket messages."""
         self._logger.debug(
             f"Received binary WebSocket message (length: {len(msg.data)}). "
@@ -428,8 +432,11 @@ class WebSocketManager:
 
     def _handle_error_message(self) -> None:
         """Handle ERROR type WebSocket messages."""
+        exception_info = (
+            self._ws_connection.exception() if self._ws_connection is not None else "Unknown"
+        )
         self._logger.error(
-            f"WebSocket connection error: {self._ws_connection.exception()!r}",
+            f"WebSocket connection error: {exception_info!r}",
         )
 
     async def _handle_close_message(self, task_name: str, iteration: int) -> None:
@@ -452,14 +459,18 @@ class WebSocketManager:
             f"(caught in except block). Re-raising CancelledError.",
         )
 
-    async def _handle_listener_exception(self, error: Exception, original_connection: Any) -> None:
+    async def _handle_listener_exception(
+        self, error: Exception, original_connection: ClientWebSocketResponse | None
+    ) -> None:
         """Handle unexpected exceptions in the listener."""
         self._logger.exception(f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {error}")
         if self._ws_connection is original_connection:
             self._is_connected = False
             self._ws_connection = None
 
-    async def _cleanup_listener(self, original_connection: Any, was_cancelled: bool) -> None:
+    async def _cleanup_listener(
+        self, original_connection: ClientWebSocketResponse | None, was_cancelled: bool
+    ) -> None:
         """Cleanup after listener loop ends."""
         try:
             current_task = asyncio.current_task()

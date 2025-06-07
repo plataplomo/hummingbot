@@ -40,24 +40,48 @@ def parse_datetime_utc(
 
     """
     prefix = f"{field_name}: " if field_name else ""
+
     if value is None:
         return None
     elif isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=UTC)
+        return _ensure_utc_timezone(value)
     elif isinstance(value, int | float):
-        try:
-            # Determine scale: ns, us, ms, or s
-            if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
-                timestamp_s = value / 1e9
-            elif value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
-                timestamp_s = value / 1e6
-            elif value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
-                timestamp_s = value / 1e3
-            else:  # Heuristic: likely seconds (e.g., current date ~1.7e9)
-                timestamp_s = float(value)
-            return datetime.fromtimestamp(timestamp_s, tz=UTC)
-        except (TypeError, ValueError, OSError) as e:
-            raise ValueError(f"{prefix}Invalid timestamp value '{value}': {e}") from e
+        return _parse_numeric_timestamp(value, prefix)
+    elif isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+        return _parse_string_datetime(value, prefix)
+    else:
+        raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
+
+
+def _ensure_utc_timezone(dt: datetime) -> datetime:
+    """Ensure datetime has UTC timezone."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _parse_numeric_timestamp(value: int | float, prefix: str) -> datetime:
+    """Parse numeric timestamp, auto-detecting scale (ns, us, ms, s)."""
+    try:
+        timestamp_s = _determine_timestamp_scale(value)
+        return datetime.fromtimestamp(timestamp_s, tz=UTC)
+    except (TypeError, ValueError, OSError) as e:
+        raise ValueError(f"{prefix}Invalid timestamp value '{value}': {e}") from e
+
+
+def _determine_timestamp_scale(value: int | float) -> float:
+    """Determine the scale of a timestamp and convert to seconds."""
+    # Determine scale: ns, us, ms, or s
+    if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
+        return value / 1e9
+    elif value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
+        return value / 1e6
+    elif value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
+        return value / 1e3
+    else:  # Heuristic: likely seconds (e.g., current date ~1.7e9)
+        return float(value)
+
+
+def _parse_string_datetime(value: str, prefix: str) -> datetime:
+    """Parse string as ISO datetime or numeric timestamp."""
     # ---
     # NOTE: The following type narrowing is canonical and type-safe in Python.
     # Pylance/Pyright may incorrectly flag this as unnecessary due to static type inference,
@@ -65,30 +89,25 @@ def parse_datetime_utc(
     # The 'pyright: ignore[reportUnnecessaryIsInstance]' directive silences this false positive.
     # Mypy does not warn on this line, so this is the most cross-tool compatible solution.
     # ---
-    elif isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        try:
-            dt = datetime.fromisoformat(value)
-            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
-        except ValueError as e_iso:
-            # If ISO parsing fails, try to convert to float and then parse as numeric timestamp
-            try:
-                float_val = float(value)
-                # Reuse the int/float logic to determine if it's ms/ns etc.
-                # Common case: timestamp > 1e11 is likely ms, otherwise seconds.
-                # This threshold (1e11, approx 3.17 years in ms) helps distinguish.
-                # For very large numbers (nanoseconds for recent dates), this might need refinement
-                # if direct nanosecond/microsecond interpretation is required from string.
-                # Example: 1678886400123 (ms) -> 1678886400.123 (s)
-                # Example: 1234567890 (s) -> 1234567890.0 (s)
-                timestamp_s = float_val / 1000.0 if float_val > 1e11 else float_val
-                return datetime.fromtimestamp(timestamp_s, tz=UTC)
-            except (ValueError, TypeError, OSError) as e_num:
-                raise ValueError(
-                    f"{prefix}Cannot parse string '{value}' as ISO datetime ({e_iso}) "
-                    f"or as numeric timestamp ({e_num})",
-                ) from e_num
-    else:
-        raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
+    try:
+        dt = datetime.fromisoformat(value)
+        return _ensure_utc_timezone(dt)
+    except ValueError as e_iso:
+        return _parse_string_as_numeric_timestamp(value, prefix, e_iso)
+
+
+def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: ValueError) -> datetime:
+    """Try to parse string as numeric timestamp if ISO parsing failed."""
+    try:
+        float_val = float(value)
+        # Reuse the timestamp scale logic
+        timestamp_s = _determine_timestamp_scale(float_val)
+        return datetime.fromtimestamp(timestamp_s, tz=UTC)
+    except (ValueError, TypeError, OSError) as e_num:
+        raise ValueError(
+            f"{prefix}Cannot parse string '{value}' as ISO datetime ({iso_error}) "
+            f"or as numeric timestamp ({e_num})",
+        ) from e_num
 
 
 def parse_decimal_value(

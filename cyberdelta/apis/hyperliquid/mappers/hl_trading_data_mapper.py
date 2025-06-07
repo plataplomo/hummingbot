@@ -160,6 +160,58 @@ class HyperliquidTradingDataMapper:
         return TimeInForce.GTC
 
     @staticmethod
+    def _parse_order_enums(
+        raw_order: HyperliquidRawOrder,
+        trigger: HyperliquidRawTriggerInfo | None,
+    ) -> tuple[OrderSide, OrderType, OrderStatus, TimeInForce]:
+        """Parse order enums from raw order data."""
+        side = HyperliquidTradingDataMapper._map_side_to_internal(raw_order.side)
+        order_type = HyperliquidTradingDataMapper._map_type_to_internal(
+            raw_order.order_type,
+            trigger,
+        )
+        status = HyperliquidTradingDataMapper._map_status_to_internal(raw_order.status)
+        time_in_force = HyperliquidTradingDataMapper._map_time_in_force(raw_order.order_type)
+        return side, order_type, status, time_in_force
+
+    @staticmethod
+    def _parse_order_quantities_and_price(
+        raw_order: HyperliquidRawOrder,
+    ) -> tuple[Decimal, Decimal, Decimal | None]:
+        """Parse quantities and price from raw order data."""
+        # Parse quantities
+        quantity_requested = parse_decimal_value(
+            raw_order.sz,
+            allow_none=False,
+            field_name="sz",
+        )
+        if quantity_requested is None:
+            raise TransformationError("quantity_requested (sz) is required")
+
+        remaining_sz = parse_decimal_value(
+            str(raw_order.remaining_sz),
+            allow_none=True,
+            field_name="remainingSz",
+        )
+        if remaining_sz is None:
+            remaining_sz = Decimal("0")
+
+        quantity_filled = quantity_requested - remaining_sz
+
+        # Parse price - handle market orders correctly
+        price = parse_decimal_value(
+            str(raw_order.limit_px),
+            allow_none=True,
+            field_name="limitPx",
+        )
+        # For market orders, Hyperliquid uses limit_px="0", but internal Order
+        # expects price=None
+        if price is not None and price == Decimal("0"):
+            price = None
+
+        return quantity_requested, quantity_filled, price
+
+    @staticmethod
     def transform_raw_order_to_internal(
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
@@ -179,43 +231,14 @@ class HyperliquidTradingDataMapper:
         """
         try:
             # Map enums
-            side = HyperliquidTradingDataMapper._map_side_to_internal(raw_order.side)
-            order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-                raw_order.order_type,
-                trigger,
+            side, order_type, status, time_in_force = (
+                HyperliquidTradingDataMapper._parse_order_enums(raw_order, trigger)
             )
-            status = HyperliquidTradingDataMapper._map_status_to_internal(raw_order.status)
-            time_in_force = HyperliquidTradingDataMapper._map_time_in_force(raw_order.order_type)
 
-            # Parse quantities
-            quantity_requested = parse_decimal_value(
-                raw_order.sz,
-                allow_none=False,
-                field_name="sz",
+            # Parse quantities and price
+            quantity_requested, quantity_filled, price = (
+                HyperliquidTradingDataMapper._parse_order_quantities_and_price(raw_order)
             )
-            if quantity_requested is None:
-                raise TransformationError("quantity_requested (sz) is required")
-
-            remaining_sz = parse_decimal_value(
-                str(raw_order.remaining_sz),
-                allow_none=True,
-                field_name="remainingSz",
-            )
-            if remaining_sz is None:
-                remaining_sz = Decimal("0")
-
-            quantity_filled = quantity_requested - remaining_sz
-
-            # Parse price - handle market orders correctly
-            price = parse_decimal_value(
-                str(raw_order.limit_px),
-                allow_none=True,
-                field_name="limitPx",
-            )
-            # For market orders, Hyperliquid uses limit_px="0", but internal Order
-            # expects price=None
-            if price is not None and price == Decimal("0"):
-                price = None
 
             # Parse timestamps
             created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")

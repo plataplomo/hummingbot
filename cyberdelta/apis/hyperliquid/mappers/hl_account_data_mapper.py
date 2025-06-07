@@ -27,7 +27,9 @@ from typing import Any
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+    HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
+    HyperliquidRawPositionInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
@@ -99,74 +101,10 @@ class HyperliquidAccountDataMapper:
             spot_balances: dict[str, SpotBalance] = {}
 
             # Extract USDC balance from margin summary account value
-            if hasattr(raw_state, "margin_summary") and raw_state.margin_summary:
-                total_usdc = parse_decimal_value(
-                    raw_state.margin_summary.account_value,
-                    allow_none=False,
-                    field_name="margin_summary.account_value",
-                )
-
-                available_usdc = parse_decimal_value(
-                    raw_state.withdrawable,
-                    allow_none=True,
-                    field_name="withdrawable",
-                )
-
-                if total_usdc is not None and total_usdc > Decimal("0"):
-                    # Create HL-specific details
-                    details = HyperliquidSpotBalanceDetails()
-
-                    # Use withdrawable as available, or total if withdrawable is None/invalid
-                    if available_usdc is None or available_usdc < Decimal("0"):
-                        available_usdc = Decimal("0")
-                    elif available_usdc > total_usdc:
-                        available_usdc = total_usdc
-
-                    # Hyperliquid primarily uses USDC for spot balances
-                    spot_balance = SpotBalance(
-                        asset="USDC",
-                        exchange=ExchangeName.HYPERLIQUID.value,
-                        total_quantity=total_usdc,
-                        available_quantity=available_usdc,
-                        timestamp=datetime.now(UTC),
-                        hl_details=details,
-                    )
-
-                    spot_balances["USDC"] = spot_balance
+            HyperliquidAccountDataMapper._process_usdc_balance(raw_state, spot_balances)
 
             # Check for other spot assets in asset positions
-            if hasattr(raw_state, "asset_positions") and raw_state.asset_positions:
-                for asset_pos in raw_state.asset_positions:
-                    asset_name = asset_pos.asset
-
-                    # Skip USDC as it's handled above, and skip obvious perps
-                    if asset_name == "USDC" or "-PERP" in asset_name.upper():
-                        continue
-
-                    # Process potential spot assets
-                    if hasattr(asset_pos, "position") and asset_pos.position:
-                        pos = asset_pos.position
-                        size_str = getattr(pos, "szi", "0")
-                        size = parse_decimal_value(
-                            size_str,
-                            allow_none=True,
-                            field_name=f"asset_positions.{asset_name}.szi",
-                        )
-
-                        if size is not None and size > Decimal("0"):
-                            # Create HL-specific details
-                            details = HyperliquidSpotBalanceDetails()
-
-                            spot_balance = SpotBalance(
-                                asset=asset_name,
-                                exchange=ExchangeName.HYPERLIQUID.value,
-                                total_quantity=size,
-                                available_quantity=size,  # Assume all available for spot
-                                timestamp=datetime.now(UTC),
-                                hl_details=details,
-                            )
-
-                            spot_balances[asset_name] = spot_balance
+            HyperliquidAccountDataMapper._process_other_spot_assets(raw_state, spot_balances)
 
             return spot_balances
 
@@ -174,6 +112,103 @@ class HyperliquidAccountDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
             ) from e
+
+    @staticmethod
+    def _process_usdc_balance(
+        raw_state: HyperliquidRawClearinghouseState,
+        spot_balances: dict[str, SpotBalance],
+    ) -> None:
+        """Process USDC balance from margin summary."""
+        if not (hasattr(raw_state, "margin_summary") and raw_state.margin_summary):
+            return
+
+        total_usdc = parse_decimal_value(
+            raw_state.margin_summary.account_value,
+            allow_none=False,
+            field_name="margin_summary.account_value",
+        )
+
+        available_usdc = parse_decimal_value(
+            raw_state.withdrawable,
+            allow_none=True,
+            field_name="withdrawable",
+        )
+
+        if total_usdc is not None and total_usdc > Decimal("0"):
+            # Create HL-specific details
+            details = HyperliquidSpotBalanceDetails()
+
+            # Use withdrawable as available, or total if withdrawable is None/invalid
+            if available_usdc is None or available_usdc < Decimal("0"):
+                available_usdc = Decimal("0")
+            elif available_usdc > total_usdc:
+                available_usdc = total_usdc
+
+            # Hyperliquid primarily uses USDC for spot balances
+            spot_balance = SpotBalance(
+                asset="USDC",
+                exchange=ExchangeName.HYPERLIQUID.value,
+                total_quantity=total_usdc,
+                available_quantity=available_usdc,
+                timestamp=datetime.now(UTC),
+                hl_details=details,
+            )
+
+            spot_balances["USDC"] = spot_balance
+
+    @staticmethod
+    def _process_other_spot_assets(
+        raw_state: HyperliquidRawClearinghouseState,
+        spot_balances: dict[str, SpotBalance],
+    ) -> None:
+        """Process other spot assets from asset positions."""
+        if not (hasattr(raw_state, "asset_positions") and raw_state.asset_positions):
+            return
+
+        for asset_pos in raw_state.asset_positions:
+            asset_name = asset_pos.asset
+
+            # Skip USDC as it's handled above, and skip obvious perps
+            if asset_name == "USDC" or "-PERP" in asset_name.upper():
+                continue
+
+            HyperliquidAccountDataMapper._process_single_spot_asset(
+                asset_pos, asset_name, spot_balances
+            )
+
+    @staticmethod
+    def _process_single_spot_asset(
+        asset_pos: HyperliquidRawAssetPosition,
+        asset_name: str,
+        spot_balances: dict[str, SpotBalance],
+    ) -> None:
+        """Process a single spot asset position."""
+        # Process potential spot assets
+        if not (hasattr(asset_pos, "position") and asset_pos.position):
+            return
+
+        pos = asset_pos.position
+        size_str = getattr(pos, "szi", "0")
+        size = parse_decimal_value(
+            size_str,
+            allow_none=True,
+            field_name=f"asset_positions.{asset_name}.szi",
+        )
+
+        if size is not None and size > Decimal("0"):
+            # Create HL-specific details
+            details = HyperliquidSpotBalanceDetails()
+
+            spot_balance = SpotBalance(
+                asset=asset_name,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                total_quantity=size,
+                available_quantity=size,  # Assume all available for spot
+                timestamp=datetime.now(UTC),
+                hl_details=details,
+            )
+
+            spot_balances[asset_name] = spot_balance
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_derivative_positions(
@@ -197,111 +232,9 @@ class HyperliquidAccountDataMapper:
             # Extract asset positions from the raw state
             if hasattr(raw_state, "asset_positions") and raw_state.asset_positions:
                 for position_data in raw_state.asset_positions:
-                    if not hasattr(position_data, "position") or not position_data.position:
-                        continue
-
-                    pos = position_data.position
-                    symbol = getattr(pos, "coin", None)
-
-                    if not symbol:
-                        continue
-
-                    # Parse position size
-                    size_str = getattr(pos, "szi", "0")
-                    size = parse_decimal_value(
-                        size_str,
-                        allow_none=False,
-                        field_name="position.szi",
+                    HyperliquidAccountDataMapper._process_single_derivative_position(
+                        position_data, positions
                     )
-
-                    if size is None or size == Decimal("0"):
-                        continue  # Skip zero positions
-
-                    # Parse entry price
-                    entry_price_str = pos.entry_px
-                    entry_price = None
-                    if entry_price_str and entry_price_str != "0":
-                        try:
-                            entry_price = parse_decimal_value(
-                                entry_price_str,
-                                allow_none=True,
-                                field_name="position.entry_px",
-                            )
-                        except (ValueError, TypeError) as e:
-                            logger.warning(
-                                f"Failed to parse entry price for {symbol}: "
-                                f"{entry_price_str}, error: {e}",
-                            )
-
-                    # Skip positions with no entry price (invalid derivative positions)
-                    if entry_price is None or entry_price <= Decimal("0"):
-                        raise TransformationError(
-                            f"Invalid or zero entry price for {symbol}: {entry_price_str}",
-                        )
-
-                    # Parse unrealized PnL
-                    unrealized_pnl = parse_decimal_value(
-                        pos.unrealized_pnl or "0",
-                        allow_none=True,
-                        field_name="position.unrealized_pnl",
-                    )
-
-                    # Parse return on equity (unused for now but available for future use)
-                    # return_on_equity = parse_decimal_value(
-                    #     getattr(pos, "returnOnEquity", "0"),
-                    #     allow_none=True,
-                    #     field_name="position.returnOnEquity",
-                    # )
-
-                    # Create HL-specific details
-                    leverage_obj = pos.leverage
-                    max_leverage = pos.max_leverage or 1
-                    margin_used = parse_decimal_value(
-                        pos.margin_used,
-                        allow_none=True,
-                        field_name="position.margin_used",
-                    )
-
-                    # Extract leverage value from HyperliquidRawLeverage object
-                    leverage_value = 1  # Default
-                    leverage_type = "cross"  # Default
-                    if leverage_obj:
-                        leverage_value = leverage_obj.value or 1
-                        leverage_type = leverage_obj.type or "cross"
-
-                    details = HyperliquidPositionDetails(
-                        leverage_type=leverage_type,
-                        leverage_value=int(leverage_value) if leverage_value else 1,
-                        max_leverage=int(max_leverage) if max_leverage else 1,
-                        margin_used=margin_used,
-                    )
-
-                    # Parse liquidation price
-                    liquidation_price = parse_decimal_value(
-                        pos.liquidation_px,
-                        allow_none=True,
-                        field_name="position.liquidation_px",
-                    )
-
-                    # Determine side based on position size
-                    from cyberdelta.core.models.enums import OrderSide
-
-                    side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
-
-                    position = DerivativePosition(
-                        exchange=ExchangeName.HYPERLIQUID.value,
-                        symbol=symbol,
-                        side=side,
-                        size=size,
-                        entry_price=entry_price,
-                        mark_price=None,  # Not available in this context
-                        liquidation_price=liquidation_price,
-                        unrealized_pnl=unrealized_pnl,
-                        timestamp=datetime.now(UTC),
-                        hl_details=details,
-                    )
-
-                    positions[symbol] = position
 
             return positions
 
@@ -309,6 +242,136 @@ class HyperliquidAccountDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
             ) from e
+
+    @staticmethod
+    def _process_single_derivative_position(
+        position_data: HyperliquidRawAssetPosition,
+        positions: dict[str, DerivativePosition],
+    ) -> None:
+        """Process a single derivative position from asset positions."""
+        if not hasattr(position_data, "position") or not position_data.position:
+            return
+
+        pos = position_data.position
+        symbol = getattr(pos, "coin", None)
+
+        if not symbol:
+            return
+
+        # Parse and validate position data
+        size, entry_price = HyperliquidAccountDataMapper._parse_position_core_data(pos, symbol)
+
+        if size is None or size == Decimal("0"):
+            return  # Skip zero positions
+
+        if entry_price is None or entry_price <= Decimal("0"):
+            raise TransformationError(
+                f"Invalid or zero entry price for {symbol}: {getattr(pos, 'entry_px', None)}",
+            )
+
+        # Create the derivative position
+        position = HyperliquidAccountDataMapper._create_derivative_position(
+            pos, symbol, size, entry_price
+        )
+        positions[symbol] = position
+
+    @staticmethod
+    def _parse_position_core_data(
+        pos: HyperliquidRawPositionInfo, symbol: str
+    ) -> tuple[Decimal | None, Decimal | None]:
+        """Parse core position data (size and entry price)."""
+        # Parse position size
+        size_str = getattr(pos, "szi", "0")
+        size = parse_decimal_value(
+            size_str,
+            allow_none=False,
+            field_name="position.szi",
+        )
+
+        # Parse entry price
+        entry_price_str = pos.entry_px
+        entry_price = None
+        if entry_price_str and entry_price_str != "0":
+            try:
+                entry_price = parse_decimal_value(
+                    entry_price_str,
+                    allow_none=True,
+                    field_name="position.entry_px",
+                )
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}",
+                )
+
+        return size, entry_price
+
+    @staticmethod
+    def _create_derivative_position(
+        pos: HyperliquidRawPositionInfo,
+        symbol: str,
+        size: Decimal,
+        entry_price: Decimal,
+    ) -> DerivativePosition:
+        """Create a DerivativePosition from parsed data."""
+        # Parse unrealized PnL
+        unrealized_pnl = parse_decimal_value(
+            pos.unrealized_pnl or "0",
+            allow_none=True,
+            field_name="position.unrealized_pnl",
+        )
+
+        # Create HL-specific details
+        details = HyperliquidAccountDataMapper._create_position_details(pos)
+
+        # Parse liquidation price
+        liquidation_price = parse_decimal_value(
+            pos.liquidation_px,
+            allow_none=True,
+            field_name="position.liquidation_px",
+        )
+
+        # Determine side based on position size
+        from cyberdelta.core.models.enums import OrderSide
+
+        side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
+
+        return DerivativePosition(
+            exchange=ExchangeName.HYPERLIQUID.value,
+            symbol=symbol,
+            side=side,
+            size=size,
+            entry_price=entry_price,
+            mark_price=None,  # Not available in this context
+            liquidation_price=liquidation_price,
+            unrealized_pnl=unrealized_pnl,
+            timestamp=datetime.now(UTC),
+            hl_details=details,
+        )
+
+    @staticmethod
+    def _create_position_details(pos: HyperliquidRawPositionInfo) -> HyperliquidPositionDetails:
+        """Create HyperliquidPositionDetails from position data."""
+        leverage_obj = pos.leverage
+        max_leverage = pos.max_leverage or 1
+        margin_used = parse_decimal_value(
+            pos.margin_used,
+            allow_none=True,
+            field_name="position.margin_used",
+        )
+
+        # Extract leverage value from HyperliquidRawLeverage object
+        leverage_value = 1  # Default
+        leverage_type = "cross"  # Default
+        if leverage_obj:
+            leverage_value = leverage_obj.value or 1
+            leverage_type = leverage_obj.type or "cross"
+
+        return HyperliquidPositionDetails(
+            leverage_type=leverage_type,
+            leverage_value=int(leverage_value) if leverage_value else 1,
+            max_leverage=int(max_leverage) if max_leverage else 1,
+            margin_used=margin_used,
+        )
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(

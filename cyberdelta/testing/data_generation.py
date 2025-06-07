@@ -2,9 +2,13 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -37,84 +41,10 @@ def generate_synthetic_data(
     start_date = end_date - timedelta(days=days)
     date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
 
-    data_frames = []
+    data_frames: list[pd.DataFrame] = []
 
     for symbol in symbols:
-        num_points = len(date_range)
-        df_symbol = pd.DataFrame(index=date_range)
-
-        if data_type in ["funding_rate", "combined"]:
-            # Simulate funding rates: Random walk around a small mean
-            mean_rate = rng.uniform(-0.0001, 0.0001)
-            volatility = rng.uniform(0.00005, 0.0002)
-            rates = rng.normal(mean_rate, volatility, num_points).cumsum() * 0.1 + mean_rate
-            df_symbol[("funding_rate", symbol)] = rates
-
-        if data_type in ["price", "combined"]:
-            # Simulate prices: Geometric Brownian Motion
-            start_price = rng.uniform(1000, 50000)
-            drift = rng.uniform(-0.001, 0.001)
-            volatility = rng.uniform(0.01, 0.05)
-            log_returns = rng.normal(drift, volatility, num_points)
-            prices = start_price * np.exp(log_returns.cumsum())
-            df_symbol[("mid_price", symbol)] = prices
-            # Simulate bid/ask spread
-            spread = rng.uniform(0.0005, 0.002) * prices  # Spread as fraction of price
-            df_symbol[("bid_price", symbol)] = prices - spread / 2
-            df_symbol[("ask_price", symbol)] = prices + spread / 2
-
-        elif data_type == "ohlcv":
-            # Simulate OHLCV data based on a mid_price simulation
-            start_price = rng.uniform(1000, 50000)
-            drift = rng.uniform(-0.001, 0.001)
-            volatility = rng.uniform(0.01, 0.05)
-            log_returns = rng.normal(drift, volatility, num_points)
-            base_prices = start_price * np.exp(log_returns.cumsum())
-
-            # Derive OHLC from base_prices with some noise
-            price_variation = volatility * base_prices * 0.1  # Smaller variation for OHLC
-            df_symbol[("open", symbol)] = base_prices - rng.normal(
-                0,
-                price_variation / 2,
-                num_points,
-            )
-            df_symbol[("close", symbol)] = base_prices + rng.normal(
-                0,
-                price_variation / 2,
-                num_points,
-            )
-            df_symbol[("high", symbol)] = np.maximum(
-                df_symbol[("open", symbol)],
-                df_symbol[("close", symbol)],
-            ) + rng.exponential(price_variation, num_points)
-            df_symbol[("low", symbol)] = np.minimum(
-                df_symbol[("open", symbol)],
-                df_symbol[("close", symbol)],
-            ) - rng.exponential(price_variation, num_points)
-            # Ensure low <= open/close <= high
-            df_symbol[("low", symbol)] = np.minimum(
-                df_symbol[("low", symbol)],
-                np.minimum(df_symbol[("open", symbol)], df_symbol[("close", symbol)]),
-            )
-            df_symbol[("high", symbol)] = np.maximum(
-                df_symbol[("high", symbol)],
-                np.maximum(df_symbol[("open", symbol)], df_symbol[("close", symbol)]),
-            )
-
-            # Simulate volume
-            mean_volume = rng.uniform(10, 1000)
-            df_symbol[("volume", symbol)] = rng.poisson(mean_volume, num_points)
-
-        # Ensure columns are Decimal
-        # for col in df_symbol.columns:
-        #     try:
-        #         df_symbol[col] = df_symbol[col].apply(
-        #             lambda x: Decimal(str(x)) if pd.notna(x) else None
-        #         )
-        #     except Exception as e:
-        #         logger.error(f"Error converting column {col} to Decimal: {e}")
-        #         # Handle error appropriately, maybe skip column or raise
-
+        df_symbol = _generate_symbol_data(symbol, date_range, data_type, rng)
         data_frames.append(df_symbol)
 
     if not data_frames:
@@ -123,11 +53,117 @@ def generate_synthetic_data(
 
     # Combine dataframes for different symbols
     combined_df = pd.concat(data_frames, axis=1)
+    combined_df = _process_dataframe_columns(combined_df)
 
+    logger.info(
+        f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}",
+    )
+    return combined_df
+
+
+def _generate_symbol_data(
+    symbol: str, date_range: pd.DatetimeIndex, data_type: str, rng: np.random.Generator
+) -> pd.DataFrame:
+    """Generate data for a single symbol."""
+    num_points = len(date_range)
+    df_symbol = pd.DataFrame(index=date_range)
+
+    if data_type in ["funding_rate", "combined"]:
+        _add_funding_rate_data(df_symbol, symbol, num_points, rng)
+
+    if data_type in ["price", "combined"]:
+        _add_price_data(df_symbol, symbol, num_points, rng)
+
+    elif data_type == "ohlcv":
+        _add_ohlcv_data(df_symbol, symbol, num_points, rng)
+
+    return df_symbol
+
+
+def _add_funding_rate_data(
+    df: pd.DataFrame, symbol: str, num_points: int, rng: np.random.Generator
+) -> None:
+    """Add funding rate data to the dataframe."""
+    # Simulate funding rates: Random walk around a small mean
+    mean_rate = rng.uniform(-0.0001, 0.0001)
+    volatility = rng.uniform(0.00005, 0.0002)
+    rates = rng.normal(mean_rate, volatility, num_points).cumsum() * 0.1 + mean_rate
+    df[("funding_rate", symbol)] = rates
+
+
+def _add_price_data(
+    df: pd.DataFrame, symbol: str, num_points: int, rng: np.random.Generator
+) -> None:
+    """Add price data to the dataframe."""
+    # Simulate prices: Geometric Brownian Motion
+    start_price = rng.uniform(1000, 50000)
+    drift = rng.uniform(-0.001, 0.001)
+    volatility = rng.uniform(0.01, 0.05)
+    log_returns = rng.normal(drift, volatility, num_points)
+    prices = start_price * np.exp(log_returns.cumsum())
+    df[("mid_price", symbol)] = prices
+    # Simulate bid/ask spread
+    spread = rng.uniform(0.0005, 0.002) * prices  # Spread as fraction of price
+    df[("bid_price", symbol)] = prices - spread / 2
+    df[("ask_price", symbol)] = prices + spread / 2
+
+
+def _add_ohlcv_data(
+    df: pd.DataFrame, symbol: str, num_points: int, rng: np.random.Generator
+) -> None:
+    """Add OHLCV data to the dataframe."""
+    # Simulate OHLCV data based on a mid_price simulation
+    start_price = rng.uniform(1000, 50000)
+    drift = rng.uniform(-0.001, 0.001)
+    volatility = rng.uniform(0.01, 0.05)
+    log_returns = rng.normal(drift, volatility, num_points)
+    base_prices = start_price * np.exp(log_returns.cumsum())
+
+    # Derive OHLC from base_prices with some noise
+    price_variation = volatility * base_prices * 0.1  # Smaller variation for OHLC
+    df[("open", symbol)] = base_prices - rng.normal(0, price_variation / 2, num_points)
+    df[("close", symbol)] = base_prices + rng.normal(0, price_variation / 2, num_points)
+
+    _calculate_high_low_prices(df, symbol, price_variation, rng)
+    _add_volume_data(df, symbol, num_points, rng)
+
+
+def _calculate_high_low_prices(
+    df: pd.DataFrame, symbol: str, price_variation: np.ndarray, rng: np.random.Generator
+) -> None:
+    """Calculate high and low prices ensuring proper OHLC relationships."""
+    df[("high", symbol)] = np.maximum(
+        df[("open", symbol)],
+        df[("close", symbol)],
+    ) + rng.exponential(price_variation, len(price_variation))
+    df[("low", symbol)] = np.minimum(
+        df[("open", symbol)],
+        df[("close", symbol)],
+    ) - rng.exponential(price_variation, len(price_variation))
+
+    # Ensure low <= open/close <= high
+    df[("low", symbol)] = np.minimum(
+        df[("low", symbol)],
+        np.minimum(df[("open", symbol)], df[("close", symbol)]),
+    )
+    df[("high", symbol)] = np.maximum(
+        df[("high", symbol)],
+        np.maximum(df[("open", symbol)], df[("close", symbol)]),
+    )
+
+
+def _add_volume_data(
+    df: pd.DataFrame, symbol: str, num_points: int, rng: np.random.Generator
+) -> None:
+    """Add volume data to the dataframe."""
+    mean_volume = rng.uniform(10, 1000)
+    df[("volume", symbol)] = rng.poisson(mean_volume, num_points)
+
+
+def _process_dataframe_columns(combined_df: pd.DataFrame) -> pd.DataFrame:
+    """Process and sort dataframe columns."""
     # Sort columns by symbol then metric for consistent structure
     if not combined_df.columns.empty:
-        # If columns are already a MultiIndex, from_tuples will recreate it.
-        # If it's some other non-empty Index that from_tuples can handle, it will convert.
         try:
             # Check if columns are already tuples, if not convert them
             if not isinstance(combined_df.columns, pd.MultiIndex):
@@ -148,7 +184,4 @@ def generate_synthetic_data(
             # Note: Continuing with original columns structure
     # else: combined_df has no columns, leave as is (empty Index for columns)
 
-    logger.info(
-        f"Generated synthetic {data_type} data for {symbols} with shape {combined_df.shape}",
-    )
     return combined_df

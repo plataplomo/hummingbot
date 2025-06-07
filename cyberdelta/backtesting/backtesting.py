@@ -105,94 +105,92 @@ class BacktestEngine:
         """
         self.logger = logger
         self.strategy = strategy
+
+        # Load and validate data
+        self.data = self._load_and_validate_data(data)
+
+        # Validate and set financial parameters
+        self._validate_and_set_financial_params(initial_capital, commission, slippage)
+
+        # Initialize results containers and directory
+        self._initialize_results_containers(results_dir)
+
+    def _load_and_validate_data(self, data: pd.DataFrame | str) -> pd.DataFrame:
+        """Load data from file or validate DataFrame and ensure proper index."""
         if isinstance(data, str):
-            try:
-                # Load data, attempt date parsing for index
-                # Explicitly define header for MultiIndex columns
-                self.data = pd.read_csv(data, index_col=0, header=[0, 1], parse_dates=True)
-                self.logger.info(f"Loaded backtest data from {data}")
-            except Exception as e:
-                self.logger.error(f"Failed to load backtest data from path '{data}': {e}")
-                raise ValueError(f"Invalid data path or format: {data}") from e
+            loaded_data = self._load_data_from_file(data)
         else:
-            # At this point, data is assumed to be a pd.DataFrame
-            # (pandas stub limitations require type ignore)
-            self.data = data.copy()  # Use a copy to avoid modifying original DataFrame
+            loaded_data = data.copy()  # Use a copy to avoid modifying original DataFrame
 
         # Verify data is loaded and not empty
-        if self.data.empty:
+        if loaded_data.empty:
             raise ValueError("Backtest data is empty or failed to load.")
 
+        # Ensure proper DatetimeIndex
+        return self._ensure_datetime_index(loaded_data)
+
+    def _load_data_from_file(self, file_path: str) -> pd.DataFrame:
+        """Load data from CSV file."""
+        try:
+            # Load data, attempt date parsing for index
+            # Explicitly define header for MultiIndex columns
+            data = pd.read_csv(file_path, index_col=0, header=[0, 1], parse_dates=True)
+            self.logger.info(f"Loaded backtest data from {file_path}")
+            return data
+        except Exception as e:
+            self.logger.error(f"Failed to load backtest data from path '{file_path}': {e}")
+            raise ValueError(f"Invalid data path or format: {file_path}") from e
+
+    def _ensure_datetime_index(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Ensure the DataFrame has a proper DatetimeIndex."""
         # Robust check and conversion for DatetimeIndex
         # NOTE: pandas type stubs are incomplete; some type errors here are non-actionable.
-        if not isinstance(self.data.index, pd.DatetimeIndex):
+        if not isinstance(data.index, pd.DatetimeIndex):
             self.logger.warning(
-                f"Data index type is {type(self.data.index)}, not DatetimeIndex. "
-                "Attempting conversion.",
+                f"Data index type is {type(data.index)}, not DatetimeIndex. Attempting conversion.",
             )
             try:
-                original_index_name = getattr(self.data.index, "name", None)
-                converted_index = pd.to_datetime(self.data.index, errors="coerce")
+                original_index_name = getattr(data.index, "name", None)
+                converted_index = pd.to_datetime(data.index, errors="coerce")
                 if hasattr(converted_index, "isna") and converted_index.isna().any():
                     num_failed = converted_index.isna().sum()
                     self.logger.error(f"Failed to parse {num_failed} index values as datetime.")
-                    failed_examples = self.data.index[converted_index.isna()].tolist()[:5]
+                    failed_examples = data.index[converted_index.isna()].tolist()[:5]
                     self.logger.error(f"Examples of failed index values: {failed_examples}")
                     raise ValueError("Failed to convert all index values to datetime objects.")
-                self.data.index = converted_index
+                data.index = converted_index
                 if original_index_name is not None:
-                    self.data.index.name = original_index_name
+                    data.index.name = original_index_name
                 self.logger.info("Successfully converted data index to DatetimeIndex.")
             except Exception as e:
                 self.logger.error(f"Error during index conversion to DatetimeIndex: {e}")
                 raise ValueError("Data index could not be converted to datetime objects.") from e
+        return data
 
-        # Validate and convert initial_capital
-        # Mypy flags the following block as [unreachable] because the 'initial_capital'
-        # parameter is type-hinted as Decimal. However, this runtime check provides
-        # an additional layer of safety against potential upstream type errors (e.g.,
-        # from config loading, manual instantiation) ensuring the instance attribute
-        # is always a Decimal or raises a clear error during initialization.
-        # Future upstream Pydantic refactor is due
-        try:
-            self.initial_capital = Decimal(str(initial_capital))
-        except (InvalidOperation, TypeError) as e:
-            self.logger.error(
-                f"Invalid initial_capital value: {initial_capital}. "
-                f"Cannot convert to Decimal. Error: {e}",
-            )
-            raise ValueError(
-                "initial_capital must be a valid Decimal or convertible string/number.",
-            ) from e
-        # Initialize current capital with the validated Decimal value
+    def _validate_and_set_financial_params(
+        self, initial_capital: Decimal, commission: Decimal, slippage: Decimal
+    ) -> None:
+        """Validate and set financial parameters."""
+        self.initial_capital = self._validate_decimal_param(initial_capital, "initial_capital")
         self.capital = self.initial_capital
+        self.commission = self._validate_decimal_param(commission, "commission")
+        self.slippage = self._validate_decimal_param(slippage, "slippage")
 
-        # Validate and convert commission
-        # Mypy flags the following block as [unreachable] because the 'commission'
-        # parameter is type-hinted as Decimal. However, this runtime check provides
+    def _validate_decimal_param(self, value: Decimal, param_name: str) -> Decimal:
+        """Validate and convert a parameter to Decimal."""
+        # Mypy flags the following block as [unreachable] because the parameter
+        # is type-hinted as Decimal. However, this runtime check provides
         # an additional layer of safety against potential upstream type errors.
-        # Future upstream Pydantic refactor is due
         try:
-            self.commission = Decimal(str(commission))
+            return Decimal(str(value))
         except (InvalidOperation, TypeError) as e:
-            self.logger.error(f"Invalid commission value: {commission}. Error: {e}")
+            self.logger.error(f"Invalid {param_name} value: {value}. Error: {e}")
             raise ValueError(
-                "commission must be a valid Decimal or convertible string/number.",
+                f"{param_name} must be a valid Decimal or convertible string/number.",
             ) from e
 
-        # Validate and convert slippage
-        # Mypy flags the following block as [unreachable] because the 'slippage'
-        # parameter is type-hinted as Decimal. However, this runtime check provides
-        # an additional layer of safety against potential upstream type errors.
-        # Future upstream Pydantic refactor is due
-        try:
-            self.slippage = Decimal(str(slippage))
-        except (InvalidOperation, TypeError) as e:
-            self.logger.error(f"Invalid slippage value: {slippage}. Error: {e}")
-            raise ValueError(
-                "slippage must be a valid Decimal or convertible string/number.",
-            ) from e
-
+    def _initialize_results_containers(self, results_dir: str) -> None:
+        """Initialize results containers and create results directory."""
         self.results_dir = results_dir
 
         # Results containers

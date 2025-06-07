@@ -246,70 +246,95 @@ class PortfolioTracker:
         if not client:
             logger.error(f"No API client found for {exchange_id} in fetch_balances")
             return False
+
         try:
             balances_data = await client.get_balances()  # Returns dict[str, SpotBalance]
+            updated_balances = self._process_balances_data(exchange_id, balances_data)
 
-            updated_balances: dict[str, SpotBalance] = {}
-
-            # If balances_data is empty dict
-            if not balances_data:  # Empty dict received
-                logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
-            else:
-                for asset, balance_obj in balances_data.items():
-                    if balance_obj.exchange == exchange_id:
-                        updated_balances[asset] = balance_obj
-                    else:
-                        logger.warning(
-                            f"[{exchange_id}] Skipping balance for asset {asset} "
-                            f"due to mismatched exchange ID ({balance_obj.exchange}) "
-                            f"in received SpotBalance object (from dict).",
-                        )
-
-            # Update internal state if new valid balances were found
             if updated_balances:
-                async with self._lock:
-                    current_assets_for_exchange = set(self.balances[exchange_id].keys())
-                    newly_updated_asset_symbols = set(updated_balances.keys())
-
-                    assets_to_remove = current_assets_for_exchange - newly_updated_asset_symbols
-                    for asset_to_remove in assets_to_remove:
-                        # Ensure asset actually exists before trying to delete to avoid
-                        # KeyError if logic is imperfect
-                        # Check against the inner dict for the specific exchange_id
-                        if asset_to_remove in self.balances[exchange_id]:
-                            del self.balances[exchange_id][asset_to_remove]
-                            logger.debug(
-                                f"[{exchange_id}] Removed stale balance "
-                                f"for asset {asset_to_remove}.",
-                            )
-
-                    # Now, add/update balances from updated_balances
-                    for asset, balance in updated_balances.items():
-                        self.balances[exchange_id][asset] = balance  # Corrected access
-                    self.last_update_time[exchange_id] = datetime.now(UTC)
-                logger.info(
-                    f"[FETCH_BALANCES:{exchange_id}] Balances updated "
-                    f"successfully with {len(updated_balances)} items. "
-                    f"Assets removed: {len(assets_to_remove)}.",
-                )
-            elif not updated_balances:
-                # This implies that balances_data was not None,
-                # and if it was a list or dict, it was empty,
-                # and no balances were processed into updated_balances.
-                # If balances_data was some other unexpected type,
-                # it would have been caught by an earlier `else`
-                # or the initial type hint for `client.get_balances()` would be violated.
-                logger.warning(
-                    f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or "
-                    f"API returned empty data. Type: {type(balances_data)}",
-                )
-                # Not returning False here, as an empty (but valid) response is not an error.
+                await self._update_balances_state(exchange_id, updated_balances)
+            else:
+                self._handle_empty_balances(exchange_id, balances_data)
 
             return True
 
         except Exception as e:
             logger.exception(f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}")
             return False
+
+    def _process_balances_data(
+        self, exchange_id: str, balances_data: dict[str, SpotBalance]
+    ) -> dict[str, SpotBalance]:
+        """Process raw balances data and filter valid balances."""
+        updated_balances: dict[str, SpotBalance] = {}
+
+        # If balances_data is empty dict
+        if not balances_data:  # Empty dict received
+            logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
+            return updated_balances
+
+        for asset, balance_obj in balances_data.items():
+            if balance_obj.exchange == exchange_id:
+                updated_balances[asset] = balance_obj
+            else:
+                logger.warning(
+                    f"[{exchange_id}] Skipping balance for asset {asset} "
+                    f"due to mismatched exchange ID ({balance_obj.exchange}) "
+                    f"in received SpotBalance object (from dict).",
+                )
+
+        return updated_balances
+
+    async def _update_balances_state(
+        self, exchange_id: str, updated_balances: dict[str, SpotBalance]
+    ) -> None:
+        """Update internal balances state with new data."""
+        async with self._lock:
+            current_assets_for_exchange = set(self.balances[exchange_id].keys())
+            newly_updated_asset_symbols = set(updated_balances.keys())
+
+            # Remove stale assets
+            assets_to_remove = current_assets_for_exchange - newly_updated_asset_symbols
+            self._remove_stale_assets(exchange_id, assets_to_remove)
+
+            # Add/update balances from updated_balances
+            for asset, balance in updated_balances.items():
+                self.balances[exchange_id][asset] = balance  # Corrected access
+            self.last_update_time[exchange_id] = datetime.now(UTC)
+
+        logger.info(
+            f"[FETCH_BALANCES:{exchange_id}] Balances updated "
+            f"successfully with {len(updated_balances)} items. "
+            f"Assets removed: {len(assets_to_remove)}.",
+        )
+
+    def _remove_stale_assets(self, exchange_id: str, assets_to_remove: set[str]) -> None:
+        """Remove stale assets from balances."""
+        for asset_to_remove in assets_to_remove:
+            # Ensure asset actually exists before trying to delete to avoid
+            # KeyError if logic is imperfect
+            # Check against the inner dict for the specific exchange_id
+            if asset_to_remove in self.balances[exchange_id]:
+                del self.balances[exchange_id][asset_to_remove]
+                logger.debug(
+                    f"[{exchange_id}] Removed stale balance for asset {asset_to_remove}.",
+                )
+
+    def _handle_empty_balances(
+        self, exchange_id: str, balances_data: dict[str, SpotBalance]
+    ) -> None:
+        """Handle the case when no valid balances were processed."""
+        # This implies that balances_data was not None,
+        # and if it was a list or dict, it was empty,
+        # and no balances were processed into updated_balances.
+        # If balances_data was some other unexpected type,
+        # it would have been caught by an earlier `else`
+        # or the initial type hint for `client.get_balances()` would be violated.
+        logger.warning(
+            f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or "
+            f"API returned empty data. Type: {type(balances_data)}",
+        )
+        # Not returning False here, as an empty (but valid) response is not an error.
 
     def _parse_balance_info(
         self,

@@ -146,33 +146,13 @@ class HyperliquidMarketDataMapper:
 
         """
         try:
-            # Parse bid levels (raw_book.levels[0])
-            bids: list[tuple[Decimal, Decimal]] = []
-            if raw_book.levels and len(raw_book.levels) > 0:
-                bid_levels = raw_book.levels[0]
-                for level in bid_levels:
-                    if depth is not None and len(bids) >= depth:
-                        break
-
-                    price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-                    size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-                    if price is not None and size is not None:
-                        bids.append((price, size))
-
-            # Parse ask levels (raw_book.levels[1])
-            asks: list[tuple[Decimal, Decimal]] = []
-            if raw_book.levels and len(raw_book.levels) > 1:
-                ask_levels = raw_book.levels[1]
-                for level in ask_levels:
-                    if depth is not None and len(asks) >= depth:
-                        break
-
-                    price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-                    size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-                    if price is not None and size is not None:
-                        asks.append((price, size))
+            # Parse bid and ask levels
+            bids = HyperliquidMarketDataMapper._parse_order_book_levels(
+                raw_book, level_index=0, depth=depth
+            )
+            asks = HyperliquidMarketDataMapper._parse_order_book_levels(
+                raw_book, level_index=1, depth=depth
+            )
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_book.time, field_name="time")
@@ -190,6 +170,40 @@ class HyperliquidMarketDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
             ) from e
+
+    @staticmethod
+    def _parse_order_book_levels(
+        raw_book: HyperliquidRawL2Book,
+        level_index: int,
+        depth: int | None = None,
+    ) -> list[tuple[Decimal, Decimal]]:
+        """Parse order book levels (bids or asks) from raw data.
+
+        Args:
+            raw_book: Raw order book data
+            level_index: Index for levels (0 for bids, 1 for asks)
+            depth: Optional depth limit
+
+        Returns:
+            List of (price, size) tuples
+        """
+        levels: list[tuple[Decimal, Decimal]] = []
+
+        if not raw_book.levels or len(raw_book.levels) <= level_index:
+            return levels
+
+        level_data = raw_book.levels[level_index]
+        for level in level_data:
+            if depth is not None and len(levels) >= depth:
+                break
+
+            price = parse_decimal_value(level.px, allow_none=False, field_name="px")
+            size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
+
+            if price is not None and size is not None:
+                levels.append((price, size))
+
+        return levels
 
     @staticmethod
     def transform_raw_public_trade_to_internal(
