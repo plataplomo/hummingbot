@@ -478,14 +478,16 @@ class BacktestEngine:
             return
 
         # Determine the correct datetime object for the equity point
-        if isinstance(idx, datetime):
-            timestamp_dt = idx
-        elif isinstance(idx, pd.Timestamp):
-            timestamp_dt = idx.to_pydatetime()
-        else:
-            self.logger.error(
-                f"Unexpected index type for equity point: {type(idx)}. Skipping.",
-            )
+        try:
+            if isinstance(idx, datetime):
+                timestamp_dt = idx
+            elif isinstance(idx, pd.Timestamp):
+                timestamp_dt = idx.to_pydatetime()
+            else:
+                # Handle str and int cases by converting to datetime
+                timestamp_dt = pd.to_datetime(idx).to_pydatetime()
+        except Exception:
+            self.logger.error(f"Could not parse index as datetime: {idx}")
             return
 
         self.results_handler.add_equity_point(timestamp_dt, current_capital)
@@ -611,7 +613,7 @@ class StrategyAdapter(BacktestStrategy):
             # Handle different types of index names
             name = current_data.name
             if hasattr(name, "isoformat") and callable(getattr(name, "isoformat", None)):
-                return str(getattr(name, "isoformat")())
+                return str(name.isoformat())
             else:
                 return str(name)
         else:
@@ -769,7 +771,9 @@ class StrategyAdapter(BacktestStrategy):
 
         return candle_list
 
-    def _process_single_index_series(self, data: pd.Series[Any], timestamp: datetime) -> list[Candle]:
+    def _process_single_index_series(
+        self, data: pd.Series[Any], timestamp: datetime
+    ) -> list[Candle]:
         """Process Series with single index to extract candle for one symbol."""
         candle_list: list[Candle] = []
 
@@ -936,7 +940,9 @@ class StrategyAdapter(BacktestStrategy):
                 f"({signal.price}) or current price ({current_price})",
             )
 
-    def _get_current_price(self, symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
+    def _get_current_price(
+        self, symbol: str, data: pd.Series[Any] | pd.DataFrame
+    ) -> Decimal | None:
         """Get current price (close) for a symbol."""
         price_val = None
         self._logger.debug(

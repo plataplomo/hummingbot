@@ -11,9 +11,9 @@ from typing import Any, cast
 
 # Ignore untyped library errors for dash/plotly until stubs are available/configured
 import dash
-import dash_bootstrap_components as dbc
+import dash_bootstrap_components as dbc  # type: ignore[import-untyped]
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # type: ignore[import-untyped]
 from dash import Input, Output, dcc, html
 from dash.development.base_component import Component
 
@@ -118,30 +118,16 @@ class RealTimeDashboard:
                                                     placeholder="Select strategies to display",
                                                 ),
                                                 html.Div(className="mt-3"),
+                                                html.Label("Time Range:", className="fw-bold"),
                                                 dcc.RadioItems(
                                                     id="time-range-selector",
-                                                    options=[
-                                                        {
-                                                            "label": "1 Hour",
-                                                            "value": "1h",
-                                                        },
-                                                        {
-                                                            "label": "1 Day",
-                                                            "value": "1d",
-                                                        },
-                                                        {
-                                                            "label": "1 Week",
-                                                            "value": "1w",
-                                                        },
-                                                        {
-                                                            "label": "1 Month",
-                                                            "value": "1m",
-                                                        },
-                                                        {
-                                                            "label": "All Time",
-                                                            "value": "all",
-                                                        },
-                                                    ],
+                                                    options=cast(Any, [
+                                                        {"label": "1 Hour", "value": "1h"},
+                                                        {"label": "1 Day", "value": "1d"},
+                                                        {"label": "1 Week", "value": "1w"},
+                                                        {"label": "1 Month", "value": "1m"},
+                                                        {"label": "All Time", "value": "all"},
+                                                    ]),
                                                     value="1d",
                                                     inline=True,
                                                 ),
@@ -575,7 +561,7 @@ class RealTimeDashboard:
                 className="small",
             )
 
-            return table
+            return cast(Component, table)
 
     def _get_returns_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
         """Get returns data for selected strategies and time range.

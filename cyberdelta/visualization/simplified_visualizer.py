@@ -350,8 +350,9 @@ class SimpleVisualizer:
             ax.annotate(
                 f"Max DD: {max_dd:.2f}%",
                 xy=(
-                    float(getattr(max_dd_idx, "timestamp")())
-                    if hasattr(max_dd_idx, "timestamp") and callable(getattr(max_dd_idx, "timestamp", None))
+                    float(max_dd_idx.timestamp())
+                    if hasattr(max_dd_idx, "timestamp")
+                    and callable(getattr(max_dd_idx, "timestamp", None))
                     else float(max_dd_idx),
                     max_dd,
                 ),

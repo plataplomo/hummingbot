@@ -580,16 +580,16 @@ def mock_config_with_exchanges() -> AppSettings:
                 # full_config_data["exchanges"][exchange_name]["circuit_breakers"]
                 # ["defaults"]["cooldown_seconds"]
                 exchange_name_from_key = parts[1]
-                if "exchanges" in full_config_data:
-                    exchanges_data = full_config_data["exchanges"]
-                    if exchange_name_from_key in exchanges_data:
-                        exchange_data = exchanges_data[exchange_name_from_key]
-                        if not isinstance(exchange_data, dict):
-                            raise KeyError(f"Exchange {exchange_name_from_key} data is not a dict")
-                    else:
-                        raise KeyError(f"Exchange {exchange_name_from_key} not found")
-                else:
-                    raise KeyError("full_config_data is not a dict or missing exchanges")
+                exchanges_data = full_config_data["exchanges"]
+                if not isinstance(exchanges_data, dict):
+                    raise KeyError("Exchanges data is not a dict")
+                
+                if exchange_name_from_key not in exchanges_data:
+                    raise KeyError(f"Exchange {exchange_name_from_key} not found")
+                
+                exchange_data = exchanges_data[exchange_name_from_key]
+                if not isinstance(exchange_data, dict):
+                    raise KeyError(f"Exchange {exchange_name_from_key} data is not a dict")
                 val = exchange_data["circuit_breakers"]["defaults"]["cooldown_seconds"]
                 return val
             except KeyError:
