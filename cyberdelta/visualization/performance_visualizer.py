@@ -460,7 +460,7 @@ class PerformanceVisualizer:
             self._add_funding_rate_heatmap(fig, funding_data)
 
         # Apply final layout
-        self._apply_dashboard_layout(fig, height, width)
+        self._apply_dashboard_layout(fig, height, width, trade_data, funding_data)
 
         return fig
 
@@ -642,7 +642,14 @@ class PerformanceVisualizer:
             col=2,
         )
 
-    def _apply_dashboard_layout(self, fig: go.Figure, height: int, width: int) -> None:
+    def _apply_dashboard_layout(
+        self, 
+        fig: go.Figure, 
+        height: int, 
+        width: int, 
+        trade_data: pd.DataFrame | None = None, 
+        funding_data: pd.DataFrame | None = None
+    ) -> None:
         """Apply final layout settings to the dashboard."""
         fig.update_layout(
             title="Strategy Performance Dashboard",

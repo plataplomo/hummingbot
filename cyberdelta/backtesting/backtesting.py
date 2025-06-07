@@ -610,8 +610,8 @@ class StrategyAdapter(BacktestStrategy):
         if hasattr(current_data, "name") and current_data.name is not None:
             # Handle different types of index names
             name = current_data.name
-            if hasattr(name, "isoformat"):
-                return str(name.isoformat())
+            if hasattr(name, "isoformat") and callable(getattr(name, "isoformat", None)):
+                return str(getattr(name, "isoformat")())
             else:
                 return str(name)
         else:
@@ -916,7 +916,7 @@ class StrategyAdapter(BacktestStrategy):
 
         # Calculate PnL for exit signals
         is_exit = signal.signal_type in [SignalType.EXIT_LONG, SignalType.EXIT_SHORT]
-        if is_exit and signal.price is not None and current_price is not None:
+        if is_exit and current_price is not None:
             # DEFENSIVE CHECK: Ensure price is finite Decimal
             if signal.price.is_finite():
                 entry_price = signal.price

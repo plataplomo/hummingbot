@@ -217,8 +217,8 @@ class BacktestResultsHandler:
                         # Calculate average holding period in hours
                         # Note: pandas .mean() on TimedeltaIndex can return Timedelta or float(NaN)
                         avg_period = holding_periods.mean()
-                        if pd.notna(avg_period) and hasattr(avg_period, "total_seconds"):
-                            avg_holding_hours = avg_period.total_seconds() / 3600
+                        if pd.notna(avg_period) and hasattr(avg_period, "total_seconds") and callable(getattr(avg_period, "total_seconds", None)):
+                            avg_holding_hours = getattr(avg_period, "total_seconds")() / 3600
 
                 self.metrics["avg_holding_period_hours"] = avg_holding_hours
 

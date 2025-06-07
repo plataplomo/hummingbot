@@ -250,9 +250,10 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
             if exchange_name in secrets_config.exchanges:
                 exchange_secrets = secrets_config.exchanges[exchange_name]
                 # Check if API key is configured (without showing actual values)
-                if hasattr(exchange_secrets, "api_key") and exchange_secrets.api_key:
-                    if isinstance(exchange_secrets.api_key, str):
-                        api_key_str = exchange_secrets.api_key
+                if hasattr(exchange_secrets, "api_key") and getattr(exchange_secrets, "api_key", None):
+                    api_key = getattr(exchange_secrets, "api_key", None)
+                    if isinstance(api_key, str):
+                        api_key_str = api_key
                         masked_key = api_key_str[-4:] if len(api_key_str) >= 4 else "****"
                         logger.info(f"    API Key: Set (ending with ...{masked_key})")
                     else:
@@ -273,7 +274,7 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
     # Example of retrieving a specific secret using the new system
     if "hyperliquid" in secrets_config.exchanges:
         hyperliquid_secrets = secrets_config.exchanges["hyperliquid"]
-        if hasattr(hyperliquid_secrets, "api_key") and hyperliquid_secrets.api_key:
+        if hasattr(hyperliquid_secrets, "api_key") and getattr(hyperliquid_secrets, "api_key", None):
             logger.info("Hyperliquid API Key: Loaded successfully")
         else:
             logger.info("Hyperliquid API Key: Not found")

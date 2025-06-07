@@ -350,8 +350,8 @@ class SimpleVisualizer:
             ax.annotate(
                 f"Max DD: {max_dd:.2f}%",
                 xy=(
-                    float(max_dd_idx.timestamp())
-                    if hasattr(max_dd_idx, "timestamp")
+                    float(getattr(max_dd_idx, "timestamp")())
+                    if hasattr(max_dd_idx, "timestamp") and callable(getattr(max_dd_idx, "timestamp", None))
                     else float(max_dd_idx),
                     max_dd,
                 ),
@@ -405,7 +405,7 @@ class SimpleVisualizer:
         fig, ax = self._setup_plot("Trade PnL Distribution", "PnL ($)", "Frequency")
 
         # Create the histogram
-        counts, bins, _ = ax.hist(pnl_values, bins=30, alpha=0.75, color="skyblue")
+        counts, _, _ = ax.hist(pnl_values, bins=30, alpha=0.75, color="skyblue")
 
         # Add mean line and annotation
         ax.axvline(x=mean_pnl, color="red", linestyle="--")

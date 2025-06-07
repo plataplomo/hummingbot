@@ -334,9 +334,9 @@ class SimplePerformanceTracker:
             "short_exchange": opportunity.short_exchange,
             "symbol": opportunity.symbol,
             "timestamp": opportunity.timestamp,
-            "funding_rate": str(opportunity.funding_rate)
-            if hasattr(opportunity, "funding_rate")
-            else None,
+            "net_funding_differential": str(opportunity.net_funding_differential),
+            "long_funding_rate": str(opportunity.long_funding_rate),
+            "short_funding_rate": str(opportunity.short_funding_rate),
             "expected_profit": str(opportunity.expected_profit)
             if hasattr(opportunity, "expected_profit")
             else None,
