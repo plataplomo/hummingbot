@@ -263,6 +263,7 @@ class BacktestResultsHandler:
             logger.error("Equity curve DataFrame is missing or empty. Cannot generate plots.")
             return None
 
+        fig = None  # Initialize fig to avoid possibly unbound variable
         try:
             fig, axes = plt.subplots(
                 2,
@@ -320,7 +321,7 @@ class BacktestResultsHandler:
         except Exception as e:
             logger.error(f"Error generating plot: {e}", exc_info=True)
             # Ensure plot is closed if error occurs after creation
-            if "fig" in locals() and plt.fignum_exists(fig.number):
+            if fig is not None and plt.fignum_exists(fig.number):
                 plt.close(fig)
             return None
 

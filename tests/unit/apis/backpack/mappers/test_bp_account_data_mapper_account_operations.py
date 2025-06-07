@@ -60,7 +60,7 @@ def create_raw_transfer_response(
     return cast("RawJsonResponse", response)
 
 
-def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> dict[str, Any]:
+def _create_base_withdrawal_data(**kwargs: Any) -> dict[str, Any]:
     """Create base withdrawal data dictionary."""
     defaults = {
         "id": 123,
