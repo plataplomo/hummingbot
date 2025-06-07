@@ -500,7 +500,7 @@ class SimplePerformanceAnalyzer:
         """
         self.tracker = tracker
 
-    def calculate_drawdown(self, pnl_series: pd.Series) -> pd.Series:
+    def calculate_drawdown(self, pnl_series: pd.Series[float]) -> pd.Series[float]:
         """Calculate drawdown from a PnL series.
 
         Args:
@@ -526,7 +526,7 @@ class SimplePerformanceAnalyzer:
 
     def calculate_sharpe_ratio(
         self,
-        returns: pd.Series,
+        returns: pd.Series[float],
         risk_free_rate: Decimal = Decimal("0.0"),
     ) -> Decimal:
         """Calculate the Sharpe ratio for a series of returns.
@@ -585,7 +585,7 @@ class SimplePerformanceAnalyzer:
             return (winning_trades / len(trades_df)) * 100
         return 0.0
 
-    def get_daily_pnl(self) -> pd.Series:
+    def get_daily_pnl(self) -> pd.Series[float]:
         """Get daily P&L data aggregated by date.
 
         Returns:
@@ -611,7 +611,7 @@ class SimplePerformanceAnalyzer:
             logger.error(f"Error calculating daily PnL: {e}")
             return pd.Series()
 
-    def get_daily_returns(self) -> pd.Series:
+    def get_daily_returns(self) -> pd.Series[float]:
         """Calculate daily returns from daily P&L.
 
         Returns:

@@ -131,13 +131,13 @@ def _decimal_to_float(value: Decimal | int | float | str | None) -> float:
     if isinstance(value, int | float):
         # Already float or int, ensure it's finite
         return float(value) if math.isfinite(value) else float("nan")
-    if isinstance(value, str):
-        try:
-            # Try converting string to float
-            f_value = float(value)
-            return f_value if math.isfinite(f_value) else float("nan")
-        except ValueError:
-            return float("nan")  # Invalid string format
+    # value is str after type narrowing
+    try:
+        # Try converting string to float
+        f_value = float(value)
+        return f_value if math.isfinite(f_value) else float("nan")
+    except ValueError:
+        return float("nan")  # Invalid string format
     # DEFENSIVE CHECK: Fallback for other unexpected types. Mypy=[unreachable] Ruff=[]
     return float("nan")  # type: ignore[unreachable]
 

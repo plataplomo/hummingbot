@@ -138,7 +138,7 @@ def _create_mock_get_ticker_side_effect(
     return mock_get_ticker_side_effect
 
 
-def _setup_client_mocks(clients: list[AsyncMock], side_effect: Callable) -> None:
+def _setup_client_mocks(clients: list[AsyncMock], side_effect: Callable[..., Any]) -> None:
     """Setup mock clients with common behavior."""
     for client in clients:
         client.get_ticker.side_effect = side_effect

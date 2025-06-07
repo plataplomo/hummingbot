@@ -56,7 +56,7 @@ class BacktestResultsHandler:
         self.metrics: dict[str, Any] = {}
 
         # Performance metrics
-        self.returns_series: pd.Series | None = None
+        self.returns_series: pd.Series[float] | None = None
 
     def add_trade(self, trade: dict[str, Any]) -> None:
         """Add a trade to the results.
@@ -91,7 +91,7 @@ class BacktestResultsHandler:
             },
         )
 
-    def calculate_returns(self) -> pd.Series:
+    def calculate_returns(self) -> pd.Series[float]:
         """Calculate returns series from equity curve.
 
         Returns:

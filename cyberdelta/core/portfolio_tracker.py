@@ -1144,7 +1144,7 @@ class PortfolioTracker:
                 f"EntryBase={entry_price_in_base}).",
             )
             return None
-        
+
         # Fallback return - should not reach here
         return None
 
@@ -1412,9 +1412,7 @@ class PortfolioTracker:
         if isinstance(bal_data_any, dict):
             try:
                 # Ensure keys are str for model_validate
-                validated_bal_dict: dict[str, Any] = {
-                    str(k): v for k, v in bal_data_any.items()
-                }
+                validated_bal_dict: dict[str, Any] = {str(k): v for k, v in bal_data_any.items()}
                 tracker.balances[ex_id_str][asset_str] = SpotBalance.model_validate(
                     validated_bal_dict,
                 )

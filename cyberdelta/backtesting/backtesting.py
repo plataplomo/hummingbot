@@ -54,7 +54,7 @@ class BacktestStrategy(ABC):
         return True  # Add placeholder return for ABC
 
     @abstractmethod
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         r"""Process the current data point (row) and return signals.
 
         Args:
@@ -566,7 +566,7 @@ class StrategyAdapter(BacktestStrategy):
         # We could potentially call a specific setup method on the core_strategy if it existed
         return True
 
-    def update(self, current_data: pd.Series | pd.DataFrame) -> dict[str, Any]:
+    def update(self, current_data: pd.Series[Any] | pd.DataFrame) -> dict[str, Any]:
         """Process the current market data using the adapted strategy.
 
         Takes a single time step as a pandas Series or DataFrame row and uses the adapted
@@ -605,7 +605,7 @@ class StrategyAdapter(BacktestStrategy):
             )
             return {"signals": []}  # Return empty signals on error
 
-    def _get_timestamp_info(self, current_data: pd.Series | pd.DataFrame) -> str:
+    def _get_timestamp_info(self, current_data: pd.Series[Any] | pd.DataFrame) -> str:
         """Get timestamp information for logging."""
         if hasattr(current_data, "name") and current_data.name is not None:
             # Handle different types of index names
@@ -687,7 +687,7 @@ class StrategyAdapter(BacktestStrategy):
             # processed_signal is TradeSignal after type narrowing
             trade_signals.append(processed_signal)
 
-    def _convert_to_candles(self, data: pd.Series | pd.DataFrame) -> list[Candle]:
+    def _convert_to_candles(self, data: pd.Series[Any] | pd.DataFrame) -> list[Candle]:
         """Convert a pandas Series or DataFrame row into a list of Candle objects.
 
         Handles MultiIndex (symbol, field) DataFrames common in backtesting.
@@ -702,7 +702,7 @@ class StrategyAdapter(BacktestStrategy):
 
         return candle_list
 
-    def _convert_series_to_candles(self, data: pd.Series) -> list[Candle]:
+    def _convert_series_to_candles(self, data: pd.Series[Any]) -> list[Candle]:
         """Convert a pandas Series to a list of Candle objects."""
         candle_list: list[Candle] = []
         timestamp = self._get_validated_timestamp(data)
@@ -726,7 +726,7 @@ class StrategyAdapter(BacktestStrategy):
             candle_list.extend(self._convert_to_candles(row_series))
         return candle_list
 
-    def _get_validated_timestamp(self, data: pd.Series) -> datetime:
+    def _get_validated_timestamp(self, data: pd.Series[Any]) -> datetime:
         """Get and validate timestamp from Series data."""
         # Default timestamp if not available in data (should not happen with time series)
         default_ts = datetime.now(tz=UTC)  # Use timezone aware default
@@ -747,7 +747,7 @@ class StrategyAdapter(BacktestStrategy):
 
         return timestamp
 
-    def _process_multiindex_series(self, data: pd.Series, timestamp: datetime) -> list[Candle]:
+    def _process_multiindex_series(self, data: pd.Series[Any], timestamp: datetime) -> list[Candle]:
         """Process Series with MultiIndex to extract candles for multiple symbols."""
         candle_list: list[Candle] = []
 
@@ -769,7 +769,7 @@ class StrategyAdapter(BacktestStrategy):
 
         return candle_list
 
-    def _process_single_index_series(self, data: pd.Series, timestamp: datetime) -> list[Candle]:
+    def _process_single_index_series(self, data: pd.Series[Any], timestamp: datetime) -> list[Candle]:
         """Process Series with single index to extract candle for one symbol."""
         candle_list: list[Candle] = []
 
@@ -784,7 +784,7 @@ class StrategyAdapter(BacktestStrategy):
         return candle_list
 
     def _create_candle_from_symbol_data(
-        self, symbol_data: pd.Series, symbol: str, timestamp: datetime
+        self, symbol_data: pd.Series[Any], symbol: str, timestamp: datetime
     ) -> Candle | None:
         """Create a Candle object from symbol-specific data."""
         try:
@@ -821,7 +821,7 @@ class StrategyAdapter(BacktestStrategy):
     def _convert_signals(
         self,
         signals: list[TradeSignal],
-        current_data: pd.Series | pd.DataFrame,
+        current_data: pd.Series[Any] | pd.DataFrame,
     ) -> list[dict[str, Any]]:
         """Convert TradeSignal objects to dictionary format for backtesting trades."""
         signals_out: list[dict[str, Any]] = []
@@ -833,7 +833,7 @@ class StrategyAdapter(BacktestStrategy):
 
         return signals_out
 
-    def _get_signal_timestamp(self, current_data: pd.Series | pd.DataFrame) -> datetime:
+    def _get_signal_timestamp(self, current_data: pd.Series[Any] | pd.DataFrame) -> datetime:
         """Get timestamp for signal conversion."""
         if isinstance(current_data, pd.Series):
             timestamp_raw = current_data.name
@@ -862,7 +862,7 @@ class StrategyAdapter(BacktestStrategy):
     def _convert_single_signal(
         self,
         signal: TradeSignal,
-        current_data: pd.Series | pd.DataFrame,
+        current_data: pd.Series[Any] | pd.DataFrame,
         fallback_timestamp: datetime,
     ) -> dict[str, Any]:
         """Convert a single TradeSignal to dictionary format."""
@@ -908,7 +908,7 @@ class StrategyAdapter(BacktestStrategy):
         self,
         signal: TradeSignal,
         signal_dict: dict[str, Any],
-        current_data: pd.Series | pd.DataFrame,
+        current_data: pd.Series[Any] | pd.DataFrame,
     ) -> None:
         """Calculate PnL for exit signals."""
         # Get current price for PnL calculation if needed
@@ -936,7 +936,7 @@ class StrategyAdapter(BacktestStrategy):
                 f"({signal.price}) or current price ({current_price})",
             )
 
-    def _get_current_price(self, symbol: str, data: pd.Series | pd.DataFrame) -> Decimal | None:
+    def _get_current_price(self, symbol: str, data: pd.Series[Any] | pd.DataFrame) -> Decimal | None:
         """Get current price (close) for a symbol."""
         price_val = None
         self._logger.debug(

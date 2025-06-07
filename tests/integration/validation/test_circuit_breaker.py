@@ -580,12 +580,9 @@ def mock_config_with_exchanges() -> AppSettings:
                 # full_config_data["exchanges"][exchange_name]["circuit_breakers"]
                 # ["defaults"]["cooldown_seconds"]
                 exchange_name_from_key = parts[1]
-                if isinstance(full_config_data, dict) and "exchanges" in full_config_data:
+                if "exchanges" in full_config_data:
                     exchanges_data = full_config_data["exchanges"]
-                    if (
-                        isinstance(exchanges_data, dict)
-                        and exchange_name_from_key in exchanges_data
-                    ):
+                    if exchange_name_from_key in exchanges_data:
                         exchange_data = exchanges_data[exchange_name_from_key]
                     else:
                         raise KeyError(f"Exchange {exchange_name_from_key} not found")

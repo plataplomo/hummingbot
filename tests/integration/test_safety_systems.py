@@ -514,11 +514,10 @@ async def test_position_reconciler_detects_discrepancy(
     all_local_positions = real_portfolio_tracker.get_all_positions()
     local_positions_after_update = {}
     for pos_item in all_local_positions:
-        # get_all_positions() typically returns tuples of (key, position)
-        if isinstance(pos_item, tuple) and len(pos_item) == 2:
-            _, pos = pos_item  # Unpack tuple (key, position)
-            if pos.exchange == exchange_id and pos.symbol == symbol:
-                local_positions_after_update[pos.symbol] = pos
+        # get_all_positions() returns tuples of (key, position)
+        _, pos = pos_item  # Unpack tuple (key, position)
+        if pos.exchange == exchange_id and pos.symbol == symbol:
+            local_positions_after_update[pos.symbol] = pos
     logger.info(f"Local positions after update: {local_positions_after_update}")
     logger.info("--- End Reverse Scenario State Check ---")
     # === END State Check Logging ===

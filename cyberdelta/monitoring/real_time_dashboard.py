@@ -521,7 +521,7 @@ class RealTimeDashboard:
 
             for strategy in selected_strategies:
                 if strategy in returns_data.columns:
-                    strategy_returns: pd.Series = returns_data[strategy]
+                    strategy_returns: pd.Series[float] = returns_data[strategy]
                     strategy_trades: pd.DataFrame | None = (
                         trade_data[trade_data["strategy"] == strategy]
                         if not trade_data.empty
