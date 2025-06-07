@@ -1121,8 +1121,8 @@ class PositionReconciliationSystem:
         self,
         exchange_id: str,
         symbol_key: str,
-        api_pos_raw: Any,
-        local_pos_raw: Any,
+        api_pos_raw: object,
+        local_pos_raw: object,
     ) -> tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
         """Parse API and local positions for a symbol."""
         # Ensure local_pos_raw is DerivativePosition | None for _parse_local_position
@@ -1135,10 +1135,20 @@ class PositionReconciliationSystem:
                 f"{symbol_key}: {type(local_pos_raw)}. Treating as None.",
             )
 
+        # Ensure api_pos_raw is DerivativePosition | None for _parse_api_position
+        parsed_api_pos_input: DerivativePosition | None = None
+        if isinstance(api_pos_raw, DerivativePosition):
+            parsed_api_pos_input = api_pos_raw
+        elif api_pos_raw is not None:
+            self.logger.warning(
+                f"PRS.reconcile_positions: Unexpected type for api_pos_raw for "
+                f"{symbol_key}: {type(api_pos_raw)}. Treating as None.",
+            )
+
         parsed_api_pos = self._parse_api_position(
             exchange_id,
             symbol_key,
-            cast(DerivativePosition | None, api_pos_raw),
+            parsed_api_pos_input,
         )
         parsed_local_pos = self._parse_local_position(
             exchange_id,
@@ -1191,7 +1201,7 @@ class PositionReconciliationSystem:
     def _process_reconciliation_results(
         self,
         exchange_id: str,
-        symbol_results_list: list[Any],
+        symbol_results_list: list[list[HistoricalDiscrepancyRecord] | BaseException],
         overall_results: dict[str, Any],
     ) -> list[HistoricalDiscrepancyRecord]:
         """Process the results from symbol reconciliation tasks."""
@@ -1211,9 +1221,8 @@ class PositionReconciliationSystem:
                 continue
 
             # res_item is list[HistoricalDiscrepancyRecord]
-            res_item_list = cast(list[HistoricalDiscrepancyRecord], res_item)
-            aggregated_discrepancies.extend(res_item_list)
-            if res_item_list:  # If the list is not empty, there were discrepancies
+            aggregated_discrepancies.extend(res_item)
+            if res_item:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True
 
         return aggregated_discrepancies
@@ -1247,7 +1256,7 @@ class PositionReconciliationSystem:
     def _handle_unexpected_result_type(
         self,
         exchange_id: str,
-        res_item: Any,
+        res_item: list[HistoricalDiscrepancyRecord] | BaseException,
         overall_results: dict[str, Any],
         aggregated_discrepancies: list[HistoricalDiscrepancyRecord],
     ) -> None:
@@ -1610,9 +1619,8 @@ class PositionReconciliationSystem:
                 continue
 
             # res_item is list[HistoricalDiscrepancyRecord]
-            res_item_list = cast(list[HistoricalDiscrepancyRecord], res_item)
-            aggregated_discrepancies.extend(res_item_list)
-            if res_item_list:  # If the list is not empty, there were discrepancies
+            aggregated_discrepancies.extend(res_item)
+            if res_item:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True
 
         overall_results["discrepancies"] = aggregated_discrepancies

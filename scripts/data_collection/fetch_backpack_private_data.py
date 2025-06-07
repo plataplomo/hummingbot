@@ -592,11 +592,8 @@ class BackpackPrivateDataCollector:
         # Test dust conversion for common assets that users might hold
         return ["SOL", "BTC", "ETH"]
 
-    async def collect_all_private_data(self, symbols: list[str]) -> None:
-        """Collect data from all private endpoints."""
-        logger.info("Starting comprehensive Backpack private data collection...")
-
-        # Account Management
+    async def _collect_account_management_data(self) -> None:
+        """Collect account management data."""
         logger.info("Fetching account management data...")
         await self.fetch_account_info()
 
@@ -606,13 +603,15 @@ class BackpackPrivateDataCollector:
             await self.fetch_convert_dust(asset)
             await asyncio.sleep(0.1)  # Small delay between requests
 
-        # Capital & Balances
+    async def _collect_capital_and_balance_data(self) -> None:
+        """Collect capital and balance data."""
         logger.info("Fetching capital and balance data...")
         await self.fetch_capital_balances()
         await self.fetch_capital_collateral()
         await self.fetch_collateral_info()
 
-        # Account Limits (for each symbol)
+    async def _collect_account_limits_data(self, symbols: list[str]) -> None:
+        """Collect account limits data for each symbol."""
         logger.info("Fetching account limits data...")
         for symbol in symbols:
             await self.fetch_max_borrow_quantity(symbol)
@@ -621,7 +620,8 @@ class BackpackPrivateDataCollector:
             await self.fetch_max_withdrawal_quantity(symbol)
             await asyncio.sleep(0.2)
 
-        # Current Trading Positions
+    async def _collect_current_positions_data(self, symbols: list[str]) -> None:
+        """Collect current trading positions data."""
         logger.info("Fetching current trading positions...")
         await self.fetch_position_summary()
         for symbol in symbols:
@@ -629,7 +629,8 @@ class BackpackPrivateDataCollector:
             await asyncio.sleep(0.1)
         await self.fetch_borrow_lend_positions()
 
-        # Current Open Orders
+    async def _collect_current_orders_data(self, symbols: list[str]) -> None:
+        """Collect current open orders data."""
         logger.info("Fetching current open orders...")
         await self.fetch_open_orders()
         for symbol in symbols:
@@ -643,7 +644,8 @@ class BackpackPrivateDataCollector:
                 await self.fetch_specific_order(symbol, order_id)
                 await asyncio.sleep(0.1)
 
-        # Deposits and Withdrawals
+    async def _collect_deposits_withdrawals_data(self) -> None:
+        """Collect deposits and withdrawals data."""
         logger.info("Fetching deposit and withdrawal data...")
         await self.fetch_deposit_history(limit=50)
         await self.fetch_deposit_history(limit=100, offset=50)
@@ -656,7 +658,8 @@ class BackpackPrivateDataCollector:
             await self.fetch_deposit_address(blockchain)
             await asyncio.sleep(0.1)
 
-        # Historical Data Collection
+    async def _collect_historical_trading_data(self, symbols: list[str]) -> None:
+        """Collect historical trading data."""
         logger.info("Fetching historical trading data...")
 
         # Order history
@@ -696,7 +699,8 @@ class BackpackPrivateDataCollector:
             await self.fetch_settlement_history(symbol=symbol, limit=50)
             await asyncio.sleep(0.1)
 
-        # Borrow/Lend Data
+    async def _collect_borrow_lend_data(self, symbols: list[str]) -> None:
+        """Collect borrow/lend data."""
         logger.info("Fetching borrow/lend data...")
         await self.fetch_borrow_lend_history(limit=100)
         await self.fetch_borrow_lend_position_history(limit=100)
@@ -709,11 +713,26 @@ class BackpackPrivateDataCollector:
                 await self.fetch_borrow_lend_market_history(symbol, interval)
                 await asyncio.sleep(0.1)
 
-        # RFQ Data
+    async def _collect_rfq_data(self) -> None:
+        """Collect RFQ data."""
         logger.info("Fetching RFQ data...")
         await self.fetch_account_rfqs()
         await self.fetch_all_open_rfqs()
         await self.fetch_account_quotes()
+
+    async def collect_all_private_data(self, symbols: list[str]) -> None:
+        """Collect data from all private endpoints."""
+        logger.info("Starting comprehensive Backpack private data collection...")
+
+        await self._collect_account_management_data()
+        await self._collect_capital_and_balance_data()
+        await self._collect_account_limits_data(symbols)
+        await self._collect_current_positions_data(symbols)
+        await self._collect_current_orders_data(symbols)
+        await self._collect_deposits_withdrawals_data()
+        await self._collect_historical_trading_data(symbols)
+        await self._collect_borrow_lend_data(symbols)
+        await self._collect_rfq_data()
 
         logger.info("Comprehensive Backpack private data collection completed!")
 

@@ -57,24 +57,53 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
 
 
 # Helper function to easily dump JSON with the custom encoder
-def dump_json(data: object, **kwargs: Any) -> str:
+def dump_json(
+    data: object,
+    *,
+    skipkeys: bool = False,
+    ensure_ascii: bool = True,
+    check_circular: bool = True,
+    allow_nan: bool = True,
+    indent: int | str | None = None,
+    separators: tuple[str, str] | None = None,
+    default: object | None = None,
+    sort_keys: bool = False,
+) -> str:
     """Dump data to JSON string using the custom CyberDeltaJSONEncoder.
 
     Args:
         data: Data to serialize to JSON
-        **kwargs: Additional keyword arguments for json.dumps
+        skipkeys: Skip keys that are not basic types
+        ensure_ascii: Ensure output is ASCII
+        check_circular: Check for circular references
+        allow_nan: Allow NaN values
+        indent: Indentation for pretty printing
+        separators: Separators for JSON output
+        default: Default function for non-serializable objects
+        sort_keys: Sort dictionary keys
 
     Returns:
         JSON string representation of the data
 
     """
-    # Use the custom encoder with proper kwargs handling
-    return json.dumps(data, cls=CyberDeltaJSONEncoder, **kwargs)
+    # Use the custom encoder with explicit parameters
+    return json.dumps(
+        data,
+        cls=CyberDeltaJSONEncoder,
+        skipkeys=skipkeys,
+        ensure_ascii=ensure_ascii,
+        check_circular=check_circular,
+        allow_nan=allow_nan,
+        indent=indent,
+        separators=separators,
+        default=default,
+        sort_keys=sort_keys,
+    )
 
 
 # Optionally, a helper to load JSON (though standard json.loads often works fine
 # unless specific object hooks are needed for complex deserialization)
-def load_json(json_str: str, **kwargs: Any) -> Any:
+def load_json(json_str: str, **kwargs: object) -> object:
     """Load data from JSON string.
 
     Args:

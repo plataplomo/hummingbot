@@ -43,20 +43,8 @@ logger = structlog.get_logger(__name__)
 cancellation_token = asyncio.Event()
 
 
-async def shutdown(app_state: dict[str, Any]) -> None:
-    """Perform graceful shutdown using cancellation token."""
-    global cancellation_token
-    if cancellation_token.is_set():
-        logger.warning("Shutdown already in progress.")
-        return
-
-    logger.info("Initiating graceful shutdown sequence...")
-    cancellation_token.set()  # Signal tasks to stop
-
-    # Give tasks a moment to react
-    await asyncio.sleep(1)
-
-    # Stop components in a reasonable order (reverse of startup/dependency)
+async def _stop_components(app_state: dict[str, Any]) -> None:
+    """Stop application components in proper order."""
     logger.info("Stopping Engine...")
     if "engine" in app_state:
         app_state["engine"].stop()
@@ -69,11 +57,9 @@ async def shutdown(app_state: dict[str, Any]) -> None:
     if "data_handler" in app_state:
         await app_state["data_handler"].stop()
 
-    # Potentially stop ExecutionHandler poller if exists
-    # logger.info("Stopping Execution Handler components...")
-    # if "execution_handler" in app_state:
-    #     await app_state["execution_handler"].stop()
 
+async def _close_api_connections(app_state: dict[str, Any]) -> None:
+    """Close all API connections with timeout."""
     logger.info("Closing API connections...")
     tasks: list[asyncio.Task[None]] = []
     for api_name, api in app_state.get("api_clients", {}).items():
@@ -90,7 +76,9 @@ async def shutdown(app_state: dict[str, Any]) -> None:
             for task in pending:
                 task.cancel()
 
-    # Save state (should happen after components are stopped)
+
+async def _save_application_state(app_state: dict[str, Any]) -> None:
+    """Save application state to persistent storage."""
     logger.info("Saving final state...")
     if "portfolio_tracker" in app_state:
         try:
@@ -103,6 +91,29 @@ async def shutdown(app_state: dict[str, Any]) -> None:
             await app_state["state_manager"].save_state()
         except Exception as e:
             logger.error(f"Error saving general state: {e}", exc_info=True)
+
+
+async def shutdown(app_state: dict[str, Any]) -> None:
+    """Perform graceful shutdown using cancellation token."""
+    global cancellation_token
+    if cancellation_token.is_set():
+        logger.warning("Shutdown already in progress.")
+        return
+
+    logger.info("Initiating graceful shutdown sequence...")
+    cancellation_token.set()  # Signal tasks to stop
+
+    # Give tasks a moment to react
+    await asyncio.sleep(1)
+
+    # Stop components in proper order
+    await _stop_components(app_state)
+
+    # Close API connections
+    await _close_api_connections(app_state)
+
+    # Save state (should happen after components are stopped)
+    await _save_application_state(app_state)
 
     logger.info("Shutdown sequence complete.")
 

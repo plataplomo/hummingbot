@@ -109,9 +109,8 @@ def create_example_files() -> None:
     logger.warning("   NEVER commit your secrets.yaml file to version control.")
 
 
-def main() -> None:
-    """Main function to demonstrate configuration loading."""
-    # Parse command line arguments
+def _parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Configuration system example")
     parser.add_argument(
         "--config",
@@ -135,20 +134,11 @@ def main() -> None:
         action="store_true",
         help="Run a benchmark of the configuration system",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    if args.create_example:
-        create_example_files()
-        return
 
-    config_path = Path(args.config).resolve()
-    secrets_path = Path(args.secrets).resolve()
-
-    if args.benchmark:
-        run_benchmark(config_path, secrets_path)
-        return
-
-    # Check if config files exist
+def _validate_config_files(config_path: Path, secrets_path: Path) -> None:
+    """Validate that configuration files exist."""
     if not config_path.exists():
         logger.error(f"Configuration file not found at {config_path}")
         logger.info("Consider running with --create-example first.")
@@ -159,7 +149,10 @@ def main() -> None:
         logger.info("Consider running with --create-example first.")
         sys.exit(1)
 
-    logger.info(f"Loading configuration from: {config_path}")
+
+def _load_configurations() -> tuple[object, object]:
+    """Load application settings and secrets configuration."""
+    logger.info("Loading configuration...")
     try:
         app_settings = get_app_settings()
         logger.info("Configuration loaded successfully.")
@@ -167,7 +160,7 @@ def main() -> None:
         logger.error(f"Failed to load configuration: {e}")
         sys.exit(1)
 
-    logger.info(f"Loading secrets from: {secrets_path}")
+    logger.info("Loading secrets...")
     try:
         secrets_config = get_secrets_config()
         logger.info("Secrets loaded successfully.")
@@ -175,15 +168,18 @@ def main() -> None:
         logger.error(f"Failed to load secrets: {e}")
         sys.exit(1)
 
-    # Display configuration information
+    return app_settings, secrets_config
+
+
+def _display_basic_info(app_settings: object) -> None:
+    """Display basic configuration information."""
     logger.info("\n=== Configuration Information (from AppSettings) ===")
     logger.info(f"Safe Mode: {app_settings.general.safe_mode}")
     logger.info(f"Log Level: {app_settings.general.log_level}")
 
-    logger.info("\n=== Full Loaded Configuration (for demonstration) ===")
-    # Can display the full config dict if needed: app_settings.model_dump()
 
-    # --- Display Exchange Information ---
+def _display_exchange_info(app_settings: object) -> None:
+    """Display exchange configuration information."""
     logger.info("\n=== Exchange Information ===")
     exchanges = app_settings.exchanges
     if exchanges:
@@ -196,7 +192,9 @@ def main() -> None:
     else:
         logger.info("No exchange configurations found.")
 
-    # --- Display Strategy Configuration ---
+
+def _display_strategy_info(app_settings: object) -> None:
+    """Display strategy configuration information."""
     logger.info("\n=== Strategy Configuration ===")
     strategies = app_settings.strategies
     if strategies:
@@ -214,7 +212,9 @@ def main() -> None:
     else:
         logger.info("No strategy configurations found.")
 
-    # --- Display Risk Management Configuration ---
+
+def _display_risk_info(app_settings: object) -> None:
+    """Display risk management configuration."""
     logger.info("\n=== Risk Management Configuration ===")
     risk_config = app_settings.risk
     if risk_config:
@@ -223,7 +223,6 @@ def main() -> None:
         logger.info(f"  Max Daily Loss: {global_risk.max_daily_loss_pct}%")
         logger.info(f"  Stop Loss: {global_risk.stop_loss_pct}%")
 
-    # Display circuit breakers
     logger.info("\n=== Circuit Breakers ===")
     circuit_breakers = app_settings.safety_systems.circuit_breakers
     if circuit_breakers:
@@ -233,8 +232,11 @@ def main() -> None:
     else:
         logger.info("No circuit breaker configurations found.")
 
-    # Display API information (without exposing secret values)
+
+def _display_credentials_status(app_settings: object, secrets_config: object) -> None:
+    """Display API credentials status without exposing secrets."""
     logger.info("\n=== API Credentials Status (from SecretsConfig) ===")
+    exchanges = app_settings.exchanges
     if exchanges:
         for exchange_name in exchanges.keys():
             logger.info(f"  - {exchange_name}")
@@ -270,6 +272,35 @@ def main() -> None:
             logger.info("Hyperliquid API Key: Not found")
     else:
         logger.info("Hyperliquid exchange secrets: Not configured")
+
+
+def main() -> None:
+    """Main function to demonstrate configuration loading."""
+    args = _parse_arguments()
+
+    if args.create_example:
+        create_example_files()
+        return
+
+    config_path = Path(args.config).resolve()
+    secrets_path = Path(args.secrets).resolve()
+
+    if args.benchmark:
+        run_benchmark(config_path, secrets_path)
+        return
+
+    # Validate config files exist
+    _validate_config_files(config_path, secrets_path)
+
+    # Load configurations
+    app_settings, secrets_config = _load_configurations()
+
+    # Display all configuration information
+    _display_basic_info(app_settings)
+    _display_exchange_info(app_settings)
+    _display_strategy_info(app_settings)
+    _display_risk_info(app_settings)
+    _display_credentials_status(app_settings, secrets_config)
 
     # Note: Direct access to secrets should be done through the SecretsConfig model
     # rather than using a generic .get() method
