@@ -256,3 +256,357 @@ async def test_hyperliquid_info_all_mids_public_endpoint(
             assert len(found_assets) > 0, (
                 f"Should have at least one common asset from {common_assets}"
             )
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_meta_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with meta type for asset definitions."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    payload = {"type": "meta"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify meta response structure
+            assert isinstance(data, list), "Response should be a list"
+            assert len(data) > 0, "Should have at least one asset"
+
+            # Verify asset structure
+            for asset in data:
+                assert isinstance(asset, dict), "Each asset should be a dict"
+                assert "name" in asset, "Each asset should have a 'name' field"
+                assert "szDecimals" in asset, "Each asset should have a 'szDecimals' field"
+
+            # Verify common assets are present
+            asset_names = [asset["name"] for asset in data]
+            common_assets = ["BTC", "ETH", "SOL"]
+            found_assets = [asset for asset in common_assets if asset in asset_names]
+            assert len(found_assets) > 0, (
+                f"Should have at least one common asset from {common_assets}"
+            )
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_recent_trades_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with recentTrades type."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    payload = {"type": "recentTrades", "coin": "BTC"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify recentTrades response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are trades, verify their structure
+            if len(data) > 0:
+                for trade in data:
+                    assert isinstance(trade, dict), "Each trade should be a dict"
+                    assert "px" in trade, "Each trade should have a 'px' field"
+                    assert "sz" in trade, "Each trade should have a 'sz' field"
+                    assert "time" in trade, "Each trade should have a 'time' field"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_candle_snapshot_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with candleSnapshot type for historical data."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Get data for last 24 hours
+    end_time = 1640995200  # Fixed timestamp for VCR consistency
+    start_time = end_time - 86400  # 24 hours earlier
+    
+    payload = {
+        "type": "candleSnapshot",
+        "coin": "BTC",
+        "interval": "1h",
+        "startTime": start_time,
+        "endTime": end_time
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify candleSnapshot response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are candles, verify their structure
+            if len(data) > 0:
+                for candle in data:
+                    assert isinstance(candle, dict), "Each candle should be a dict"
+                    assert "T" in candle, "Each candle should have a 'T' (time) field"
+                    assert "o" in candle, "Each candle should have a 'o' (open) field"
+                    assert "h" in candle, "Each candle should have a 'h' (high) field"
+                    assert "l" in candle, "Each candle should have a 'l' (low) field"
+                    assert "c" in candle, "Each candle should have a 'c' (close) field"
+                    assert "v" in candle, "Each candle should have a 'v' (volume) field"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_funding_history_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with fundingHistory type."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Get funding history for last 24 hours
+    end_time = 1640995200  # Fixed timestamp for VCR consistency
+    start_time = end_time - 86400  # 24 hours earlier
+    
+    payload = {
+        "type": "fundingHistory",
+        "coin": "BTC",
+        "startTime": start_time,
+        "endTime": end_time
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify fundingHistory response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are funding records, verify their structure
+            if len(data) > 0:
+                for funding in data:
+                    assert isinstance(funding, dict), "Each funding record should be a dict"
+                    assert "coin" in funding, "Each funding record should have a 'coin' field"
+                    assert "fundingRate" in funding, "Each funding record should have a 'fundingRate' field"
+                    assert "time" in funding, "Each funding record should have a 'time' field"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_spot_meta_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with spotMeta type for spot trading assets."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    payload = {"type": "spotMeta"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify spotMeta response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are spot assets, verify their structure
+            if len(data) > 0:
+                for asset in data:
+                    assert isinstance(asset, dict), "Each spot asset should be a dict"
+                    # Note: Structure may vary, just verify it's a valid dict
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_spot_meta_and_asset_ctxs_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with spotMetaAndAssetCtxs type."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    payload = {"type": "spotMetaAndAssetCtxs"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[Any] = await response.json()
+
+            # Verify spotMetaAndAssetCtxs response structure
+            assert isinstance(data, list), "Response should be a list"
+            # Note: Structure may vary between spot meta and contexts
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_clearinghouse_state_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with clearinghouseState type using a public address."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Use a known public address (null address for testing)
+    payload = {"type": "clearinghouseState", "user": "0x0000000000000000000000000000000000000000"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: dict[str, Any] = await response.json()
+
+            # Verify clearinghouseState response structure
+            assert isinstance(data, dict), "Response should be a dict"
+            # Common fields in clearinghouse state
+            if "assetPositions" in data:
+                assert isinstance(data["assetPositions"], list), "Asset positions should be a list"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_spot_clearinghouse_state_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with spotClearinghouseState type."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Use a known public address (null address for testing)
+    payload = {"type": "spotClearinghouseState", "user": "0x0000000000000000000000000000000000000000"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: dict[str, Any] = await response.json()
+
+            # Verify spotClearinghouseState response structure
+            assert isinstance(data, dict), "Response should be a dict"
+            # Note: May be empty for null address, but should still be valid JSON
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_open_orders_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with openOrders type using a public address."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Use a known public address (null address for testing)
+    payload = {"type": "openOrders", "user": "0x0000000000000000000000000000000000000000"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify openOrders response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are orders, verify their structure
+            if len(data) > 0:
+                for order in data:
+                    assert isinstance(order, dict), "Each order should be a dict"
+                    assert "coin" in order, "Each order should have a 'coin' field"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_user_fills_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with userFills type using a public address."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Use a known public address (null address for testing)
+    payload = {"type": "userFills", "user": "0x0000000000000000000000000000000000000000"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify userFills response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are fills, verify their structure
+            if len(data) > 0:
+                for fill in data:
+                    assert isinstance(fill, dict), "Each fill should be a dict"
+                    assert "coin" in fill, "Each fill should have a 'coin' field"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_user_funding_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with userFunding type using a public address."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    
+    # Use a known public address (null address for testing)
+    payload = {"type": "userFunding", "user": "0x0000000000000000000000000000000000000000"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify userFunding response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are funding records, verify their structure
+            if len(data) > 0:
+                for funding in data:
+                    assert isinstance(funding, dict), "Each funding record should be a dict"
