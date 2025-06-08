@@ -85,6 +85,7 @@ class BackpackMarketDataService:
     _response_handler: BackpackResponseHandler
     _mapper: BackpackMarketDataMapper
     _exchange_name: str
+    
 
     def __init__(
         self,
@@ -136,7 +137,7 @@ class BackpackMarketDataService:
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
@@ -338,7 +339,7 @@ class BackpackMarketDataService:
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
@@ -464,7 +465,7 @@ class BackpackMarketDataService:
         response_tuple = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params,
+            params=params.model_dump(),
             is_signed=False,
             endpoint_group="public",
             request_weight=1,
@@ -641,7 +642,7 @@ class BackpackMarketDataService:
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
@@ -992,7 +993,7 @@ class BackpackMarketDataService:
         response_tuple = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params,
+            params=params.model_dump(),
             is_signed=False,
             endpoint_group="public",
             request_weight=1,
@@ -1231,7 +1232,7 @@ class BackpackMarketDataService:
         response_tuple = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params,
+            params=params.model_dump(),
             is_signed=False,
             endpoint_group="public",
             request_weight=1,

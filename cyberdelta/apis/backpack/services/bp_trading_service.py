@@ -49,6 +49,7 @@ HttpClientRequesterSig = Callable[
 
 class BackpackTradingService:
     """Service class for Backpack trading operations. Returns Internal Domain Models."""
+    
 
     def __init__(
         self,
@@ -483,7 +484,7 @@ class BackpackTradingService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint,
-                params=params,
+                params=params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -660,7 +661,7 @@ class BackpackTradingService:
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint,
-            params=params,
+            params=params.model_dump(),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,

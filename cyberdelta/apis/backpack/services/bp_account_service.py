@@ -68,6 +68,7 @@ class BackpackAccountService:
     _mapper: BackpackAccountDataMapper
     _authenticator: IAuthenticator | None
     _exchange_name: str
+    
 
     def __init__(
         self,
@@ -101,7 +102,7 @@ class BackpackAccountService:
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
         """Helper to fetch and validate raw account balances dictionary."""
         endpoint_path = "/api/v1/capital"
-        params = self._request_builder.build_get_balances_params()  # Returns None
+        params = self._request_builder.build_get_balances_params()
         logger.debug(
             f"[{self._exchange_name}] Requesting raw balances dict from {endpoint_path} "
             f"with params: {params}",
@@ -114,7 +115,7 @@ class BackpackAccountService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -164,7 +165,6 @@ class BackpackAccountService:
     async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
         """Helper to fetch and validate raw current open positions list."""
         endpoint_path = "/api/v1/positions"
-        # build_get_positions_params returns None if symbol is None, or {"symbol": symbol}
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
             f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "
@@ -176,7 +176,7 @@ class BackpackAccountService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -234,7 +234,7 @@ class BackpackAccountService:
     async def _get_raw_account_summary_obj(self) -> BackpackRawAccountSummary:
         """Helper to fetch and validate the raw account summary object."""
         endpoint_path = "/api/v1/account"
-        params = self._request_builder.build_get_account_info_params()  # Returns None
+        params = self._request_builder.build_get_account_info_params()
         logger.debug(
             f"[{self._exchange_name}] Requesting raw account summary from {endpoint_path} "
             f"with params: {params}",
@@ -245,7 +245,7 @@ class BackpackAccountService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -995,7 +995,7 @@ class BackpackAccountService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params,
+                params=params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -1119,7 +1119,7 @@ class BackpackAccountService:
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params,
+            params=params.model_dump(),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
