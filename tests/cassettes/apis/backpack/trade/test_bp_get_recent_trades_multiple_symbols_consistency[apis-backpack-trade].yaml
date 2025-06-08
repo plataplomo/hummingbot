@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=SOL_USDC
   response:
     body:
-      string: '[{"id":357524884,"isBuyerMaker":true,"price":"154.74","quantity":"0.01","quoteQuantity":"1.5474","timestamp":1749414160140},{"id":357524883,"isBuyerMaker":true,"price":"154.74","quantity":"0.01","quoteQuantity":"1.5474","timestamp":1749414152415},{"id":357524882,"isBuyerMaker":true,"price":"154.74","quantity":"0.01","quoteQuantity":"1.5474","timestamp":1749414145721},{"id":357524881,"isBuyerMaker":true,"price":"154.74","quantity":"0.04","quoteQuantity":"6.1896","timestamp":1749414141997},{"id":357524880,"isBuyerMaker":true,"price":"154.74","quantity":"0.01","quoteQuantity":"1.5474","timestamp":1749414137970}]'
+      string: '[{"id":357529753,"isBuyerMaker":true,"price":"152.49","quantity":"0.32","quoteQuantity":"48.7968","timestamp":1749426847883},{"id":357529752,"isBuyerMaker":false,"price":"152.5","quantity":"0.02","quoteQuantity":"3.05","timestamp":1749426846436},{"id":357529751,"isBuyerMaker":false,"price":"152.5","quantity":"0.32","quoteQuantity":"48.8","timestamp":1749426841974},{"id":357529750,"isBuyerMaker":false,"price":"152.5","quantity":"0.01","quoteQuantity":"1.525","timestamp":1749426841779},{"id":357529749,"isBuyerMaker":false,"price":"152.5","quantity":"0.09","quoteQuantity":"13.725","timestamp":1749426841492}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '616'
+      - '612'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Sun, 08 Jun 2025 20:22:46 GMT
+      - Sun, 08 Jun 2025 23:54:10 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 7cd087e02a93e72be5eee5176fffe758.cloudfront.net (CloudFront)
+      - 1.1 5343e28419a407f9ee6b620572471578.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - BMTtWLChiRl_k5LL0nmP-U0I_t1OEYDLe7Fsp4da3_dxyE2p2aIdZA==
+      - HrMsNonHVItw-fBkTQ919kRd856T8WThMa6Ffrfs1KBOC2e2Usvk7g==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

@@ -203,7 +203,7 @@ async def test_bp_get_funding_rates_sol_perp_success(
             
             # Validate core funding rate fields
             assert hasattr(funding_rate, "symbol"), f"Funding rate {i} should have symbol attribute"
-            assert hasattr(funding_rate, "rate"), f"Funding rate {i} should have rate attribute"
+            assert hasattr(funding_rate, "funding_rate"), f"Funding rate {i} should have funding_rate attribute"
             assert hasattr(funding_rate, "timestamp"), (
                 f"Funding rate {i} should have timestamp attribute"
             )
@@ -231,46 +231,44 @@ f"got {type(funding_rate.funding_rate)}"
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_bp_get_funding_rates_limit_parameter(
+async def test_bp_get_funding_rates_single_vs_multiple_symbols(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test BackpackAPI.get_funding_rates() respects limit parameter."""
-    # Test with small limit
-    small_limit = 3
-    args_small = GetFundingRatesArgs(
+    """Test BackpackAPI.get_funding_rates() with single vs multiple symbols."""
+    # Test with single symbol
+    args_single = GetFundingRatesArgs(
         symbols=["SOL_USDC_PERP"],
     )
     
-    funding_rates_small = await bp_api_for_test_env.get_funding_rates(args_small)
+    funding_rates_single = await bp_api_for_test_env.get_funding_rates(args_single)
     
     # Validate return type
-    assert isinstance(funding_rates_small, list), (
-
-        f"Expected list, got {type(funding_rates_small)}"
-
+    assert isinstance(funding_rates_single, list), (
+        f"Expected list, got {type(funding_rates_single)}"
     )
     
-    # Test with larger request (second call for comparison)
-    args_large = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+    # Should return exactly one funding rate for one symbol
+    assert len(funding_rates_single) == 1, (
+        f"Expected 1 funding rate for single symbol, got {len(funding_rates_single)}"
     )
     
-    funding_rates_large = await bp_api_for_test_env.get_funding_rates(args_large)
+    # Test with multiple symbols
+    args_multiple = GetFundingRatesArgs(
+        symbols=["SOL_USDC_PERP", "BTC_USDC_PERP"],
+    )
+    
+    funding_rates_multiple = await bp_api_for_test_env.get_funding_rates(args_multiple)
     
     # Validate return type
-    assert isinstance(funding_rates_large, list), (
-
-        f"Expected list, got {type(funding_rates_large)}"
-
+    assert isinstance(funding_rates_multiple, list), (
+        f"Expected list, got {type(funding_rates_multiple)}"
     )
     
-    # If we have enough historical data, larger limit should return more results
-    if len(funding_rates_small) == small_limit:
-        assert len(funding_rates_large) >= len(funding_rates_small), (
-            f"Larger limit should return at least as many results: "
-            f"{len(funding_rates_large)} >= {len(funding_rates_small)}"
-        )
+    # Should return two funding rates for two symbols
+    assert len(funding_rates_multiple) == 2, (
+        f"Expected 2 funding rates for two symbols, got {len(funding_rates_multiple)}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -495,31 +493,23 @@ async def test_bp_get_funding_rates_invalid_args_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_bp_get_funding_rates_zero_limit_handling(
+async def test_bp_get_funding_rates_empty_symbols_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test BackpackAPI.get_funding_rates() with zero limit parameter."""
+    """Test BackpackAPI.get_funding_rates() with empty symbols list raises error."""
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[],  # Empty list should cause error
     )
     
-    try:
-        funding_rates = await bp_api_for_test_env.get_funding_rates(args)
-        # If it succeeds, should return empty list
-        assert isinstance(funding_rates, list), (
-
-            f"Expected list, got {type(funding_rates)}"
-
-        )
-        assert len(funding_rates) == 0, (
-
-            f"Expected empty list for  got {len(funding_rates)} rates"
-
-        )
-    except (APIError, ValueError):
-        # If it raises an error, that's also acceptable behavior
-        pass
+    with pytest.raises(ValueError) as exc_info:
+        await bp_api_for_test_env.get_funding_rates(args)
+    
+    # Validate error details
+    error_str = str(exc_info.value)
+    assert "At least one symbol is required" in error_str, (
+        f"Expected error about required symbols, got: {error_str}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -593,7 +583,7 @@ async def test_bp_get_funding_rates_multiple_symbols_consistency(
         if len(funding_rates) > 0:
             # All funding rates for each symbol should have the same structure
             first_rate = funding_rates[0]
-            required_attrs = ["symbol", "rate"]
+            required_attrs = ["symbol", "funding_rate"]
             
             for attr in required_attrs:
                 assert hasattr(first_rate, attr), (

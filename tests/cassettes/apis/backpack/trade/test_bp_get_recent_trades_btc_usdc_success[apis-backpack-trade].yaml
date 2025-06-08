@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=BTC_USDC
   response:
     body:
-      string: '[{"id":8228703,"isBuyerMaker":true,"price":"106353.6","quantity":"0.00145","quoteQuantity":"154.21272","timestamp":1749414049869},{"id":8228702,"isBuyerMaker":false,"price":"106353.7","quantity":"0.0004","quoteQuantity":"42.54148","timestamp":1749414019508},{"id":8228701,"isBuyerMaker":true,"price":"106364.2","quantity":"0.0002","quoteQuantity":"21.27284","timestamp":1749413998112},{"id":8228700,"isBuyerMaker":true,"price":"106364.2","quantity":"0.0002","quoteQuantity":"21.27284","timestamp":1749413998112},{"id":8228699,"isBuyerMaker":true,"price":"106362.6","quantity":"0.00223","quoteQuantity":"237.188598","timestamp":1749413962299}]'
+      string: '[{"id":8230408,"isBuyerMaker":true,"price":"105736.5","quantity":"0.00005","quoteQuantity":"5.286825","timestamp":1749426831961},{"id":8230407,"isBuyerMaker":false,"price":"105736.8","quantity":"0.00131","quoteQuantity":"138.515208","timestamp":1749426827357},{"id":8230406,"isBuyerMaker":false,"price":"105736.8","quantity":"0.00005","quoteQuantity":"5.28684","timestamp":1749426798851},{"id":8230405,"isBuyerMaker":true,"price":"105714.7","quantity":"0.00283","quoteQuantity":"299.172601","timestamp":1749426790635},{"id":8230404,"isBuyerMaker":false,"price":"105714.8","quantity":"0.00283","quoteQuantity":"299.172884","timestamp":1749426790620}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '642'
+      - '649'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Sun, 08 Jun 2025 20:22:41 GMT
+      - Sun, 08 Jun 2025 23:54:06 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 499f8e746367647a1a77aa826b2426b2.cloudfront.net (CloudFront)
+      - 1.1 d57b2a5738f58b3120f0223cecca8c6c.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - JNjtl-YLJ_rt_S2S7OaVIpRnIPkEKe-T19nqT7DljAD47N3odVaiGw==
+      - tP1RTkB-I4lhWk-rY7GwMBXTGotovD3R8e2SYOXyrBXtWZRlhPMXYA==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
