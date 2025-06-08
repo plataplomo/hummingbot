@@ -4,7 +4,7 @@ These tests make real HTTP requests to Backpack's public API endpoints and use
 cassette-based recording to avoid repeated network calls while maintaining test reliability.
 """
 
-from typing import Any
+from typing import Any, TypeGuard, cast
 
 import aiohttp
 import pytest
@@ -284,20 +284,34 @@ async def test_backpack_public_depth_endpoint(
             assert "asks" in data, "Depth should have an 'asks' field"
             assert "timestamp" in data, "Depth should have a 'timestamp' field"
 
-            # Verify bids and asks are lists
-            assert isinstance(data["bids"], list), "Bids should be a list"
-            assert isinstance(data["asks"], list), "Asks should be a list"
+            # Type guard for order book data - explicit Any parameters to avoid Unknown
+            def is_valid_order_book_side(obj: object) -> TypeGuard[list[list[str]]]:
+                """Type guard to verify object is a valid order book side."""
+                try:
+                    if not isinstance(obj, list):
+                        return False
+                    # Use explicit type checks that pyright accepts
+                    for item in cast(list[Any], obj):  # type: ignore [redundant-cast]
+                        if not isinstance(item, list):
+                            return False
+                        if len(cast(list[Any], item)) != 2:  # type: ignore [redundant-cast]
+                            return False
+                    return True
+                except (TypeError, AttributeError):
+                    return False
 
-            # If there are orders, verify their structure
-            if len(data["bids"]) > 0:
-                for bid in data["bids"]:
-                    assert isinstance(bid, list), "Each bid should be a list [price, quantity]"
-                    assert len(bid) == 2, "Each bid should have price and quantity"
+            # Verify bids and asks structure with TypeGuard + cast pattern
+            bids_data = data.get("bids", [])
+            asks_data = data.get("asks", [])
 
-            if len(data["asks"]) > 0:
-                for ask in data["asks"]:
-                    assert isinstance(ask, list), "Each ask should be a list [price, quantity]"
-                    assert len(ask) == 2, "Each ask should have price and quantity"
+            # Use TypeGuard to validate - after validation, safe to use
+            if not is_valid_order_book_side(bids_data):
+                raise AssertionError("Bids should be a list of [price, quantity] pairs")
+
+            if not is_valid_order_book_side(asks_data):
+                raise AssertionError("Asks should be a list of [price, quantity] pairs")
+
+            # After TypeGuard validation, we know the structure is correct
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/public"], indirect=True)
@@ -311,7 +325,7 @@ async def test_backpack_public_trades_endpoint(
     """Test Backpack's public trades endpoint."""
     base_url = str(active_bp_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/api/v1/trades"
-    params = {"symbol": "SOL_USDC", "limit": 50}
+    params: dict[str, str | int] = {"symbol": "SOL_USDC", "limit": 50}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
@@ -343,16 +357,16 @@ async def test_backpack_public_klines_endpoint(
     """Test Backpack's public klines (candlestick) endpoint."""
     base_url = str(active_bp_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/api/v1/klines"
-    
+
     # Use fixed timestamps for VCR consistency
     start_time = 1640995200  # Fixed timestamp
     end_time = start_time + 3600  # 1 hour later
-    
-    params = {
+
+    params: dict[str, str | int] = {
         "symbol": "SOL_USDC",
         "interval": "1h",
         "startTime": start_time,
-        "endTime": end_time
+        "endTime": end_time,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -368,7 +382,10 @@ async def test_backpack_public_klines_endpoint(
             if len(data) > 0:
                 for kline in data:
                     assert isinstance(kline, list), "Each kline should be a list"
-                    assert len(kline) >= 6, "Each kline should have at least 6 elements [timestamp, open, high, low, close, volume]"
+                    assert len(kline) >= 6, (
+                        "Each kline should have at least 6 elements "
+                        "[timestamp, open, high, low, close, volume]"
+                    )
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/public"], indirect=True)
@@ -382,7 +399,7 @@ async def test_backpack_public_funding_rates_endpoint(
     """Test Backpack's public funding rates endpoint."""
     base_url = str(active_bp_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/api/v1/fundingRates"
-    params = {"symbol": "SOL_USDC_PERP", "limit": 10}
+    params: dict[str, str | int] = {"symbol": "SOL_USDC_PERP", "limit": 10}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
@@ -398,7 +415,9 @@ async def test_backpack_public_funding_rates_endpoint(
                 for rate in data:
                     assert isinstance(rate, dict), "Each funding rate should be a dict"
                     assert "symbol" in rate, "Each funding rate should have a 'symbol' field"
-                    assert "fundingRate" in rate, "Each funding rate should have a 'fundingRate' field"
+                    assert "fundingRate" in rate, (
+                        "Each funding rate should have a 'fundingRate' field"
+                    )
                     assert "timestamp" in rate, "Each funding rate should have a 'timestamp' field"
 
 
@@ -457,7 +476,9 @@ async def test_backpack_public_open_interest_endpoint(
                 for oi in data:
                     assert isinstance(oi, dict), "Each open interest record should be a dict"
                     assert "symbol" in oi, "Each open interest record should have a 'symbol' field"
-                    assert "openInterest" in oi, "Each open interest record should have an 'openInterest' field"
+                    assert "openInterest" in oi, (
+                        "Each open interest record should have an 'openInterest' field"
+                    )
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/public"], indirect=True)
@@ -554,7 +575,7 @@ async def test_backpack_public_trades_history_endpoint(
     """Test Backpack's public trades history endpoint."""
     base_url = str(active_bp_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/api/v1/trades/history"
-    params = {"symbol": "SOL_USDC", "limit": 10}
+    params: dict[str, str | int] = {"symbol": "SOL_USDC", "limit": 10}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:

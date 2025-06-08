@@ -4,7 +4,7 @@ These tests make real HTTP requests to Hyperliquid's public API endpoints and us
 cassette-based recording to avoid repeated network calls while maintaining test reliability.
 """
 
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
 import aiohttp
 import pytest
@@ -13,6 +13,22 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 
 # Now using standardized fixtures from conftest.py:
 # - active_hl_config: Environment-aware ExchangeSpecificConfig for Hyperliquid
+
+
+def _validate_universe_data(obj: object) -> TypeGuard[list[dict[str, Any]]]:
+    """Type guard to verify object is a valid universe list."""
+    try:
+        if not isinstance(obj, list):
+            return False
+        # Use explicit type checks that pyright accepts
+        for item in cast(list[Any], obj):  # type: ignore [redundant-cast]
+            if not isinstance(item, dict):
+                return False
+            if "name" not in cast(dict[str, Any], item):
+                return False
+        return True
+    except (TypeError, AttributeError):
+        return False
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
@@ -30,12 +46,6 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
     2. Sends a POST request with {"type": "metaAndAssetCtxs"} payload
     3. Verifies the response contains valid asset metadata and contexts
     4. Uses VCR to record the HTTP interaction for future test runs
-
-    This is a good candidate for VCR conversion because:
-    - It's a public endpoint (no authentication required)
-    - It's a simple POST request with a small, stable payload
-    - The response structure is relatively stable
-    - It demonstrates the basic API functionality
 
     Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
     """
@@ -66,44 +76,37 @@ async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
             asset_ctxs: list[Any] = data[1]
             assert isinstance(asset_ctxs, list), "Asset contexts should be a list"
 
-            # For a real API call, we expect some assets to be available
-            # Extract universe list and validate structure
+            # Extract universe list and validate structure with TypeGuard
             assert "universe" in meta, "Meta should have universe key"
-            raw_universe_data = cast(list[dict[str, Any]], meta["universe"])
-            assert isinstance(raw_universe_data, list), "Universe should be a list"
 
-            # Cast to proper types for type checker compliance
-            raw_universe: list[dict[str, Any]] = []
-            for universe_item in raw_universe_data:
-                assert isinstance(universe_item, dict), "Each universe item should be a dict"
-                assert "name" in universe_item, "Each universe item should have a 'name' field"
-                raw_universe.append(universe_item)
+            # Cast to Any first to avoid Unknown type issues with pyright
+            universe_obj = cast(Any, meta["universe"])
 
-            # Now we can safely work with the validated data
+            # Direct validation with TypeGuard
+            if not _validate_universe_data(universe_obj):
+                raise AssertionError("Universe should be a list of dicts with 'name' field")
+
+            # TypeGuard has already validated the structure
+            raw_universe = universe_obj
+
+            # Validate data integrity
             assert len(raw_universe) > 0, "Should have at least one asset in universe"
             assert len(asset_ctxs) > 0, "Should have at least one asset context"
-
-            # Verify that the number of universe items matches asset contexts
             assert len(raw_universe) == len(asset_ctxs), (
                 "Universe and asset contexts should have matching lengths"
             )
 
             # Verify structure of asset context items
-            # Note: Hyperliquid asset contexts don't have "name" field,
-            # they are ordered to match the universe items by index
             for ctx in asset_ctxs:
                 ctx_dict: dict[str, Any] = ctx
                 assert isinstance(ctx_dict, dict), "Each asset context should be a dict"
-                # Check for common fields in asset contexts
                 assert "markPx" in ctx_dict, "Each asset context should have a 'markPx' field"
                 assert "funding" in ctx_dict, "Each asset context should have a 'funding' field"
 
-            # Verify that common assets like BTC or ETH are present
-            asset_names: list[str] = []
-            for item in raw_universe:
-                asset_name = item.get("name", "")
-                if isinstance(asset_name, str):
-                    asset_names.append(asset_name)
+            # Verify common assets are present
+            asset_names = [
+                item.get("name", "") for item in raw_universe if isinstance(item.get("name"), str)
+            ]
             assert any(name in ["BTC", "ETH", "SOL"] for name in asset_names), (
                 "Should have at least one common asset like BTC, ETH, or SOL"
             )
@@ -338,17 +341,17 @@ async def test_hyperliquid_info_candle_snapshot_public_endpoint(
     """Test Hyperliquid's public /info endpoint with candleSnapshot type for historical data."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Get data for last 24 hours
     end_time = 1640995200  # Fixed timestamp for VCR consistency
     start_time = end_time - 86400  # 24 hours earlier
-    
+
     payload = {
         "type": "candleSnapshot",
         "coin": "BTC",
         "interval": "1h",
         "startTime": start_time,
-        "endTime": end_time
+        "endTime": end_time,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -383,16 +386,16 @@ async def test_hyperliquid_info_funding_history_public_endpoint(
     """Test Hyperliquid's public /info endpoint with fundingHistory type."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Get funding history for last 24 hours
     end_time = 1640995200  # Fixed timestamp for VCR consistency
     start_time = end_time - 86400  # 24 hours earlier
-    
+
     payload = {
         "type": "fundingHistory",
         "coin": "BTC",
         "startTime": start_time,
-        "endTime": end_time
+        "endTime": end_time,
     }
 
     async with aiohttp.ClientSession() as session:
@@ -409,7 +412,9 @@ async def test_hyperliquid_info_funding_history_public_endpoint(
                 for funding in data:
                     assert isinstance(funding, dict), "Each funding record should be a dict"
                     assert "coin" in funding, "Each funding record should have a 'coin' field"
-                    assert "fundingRate" in funding, "Each funding record should have a 'fundingRate' field"
+                    assert "fundingRate" in funding, (
+                        "Each funding record should have a 'fundingRate' field"
+                    )
                     assert "time" in funding, "Each funding record should have a 'time' field"
 
 
@@ -474,10 +479,13 @@ async def test_hyperliquid_info_clearinghouse_state_public_endpoint(
     active_hl_config: ExchangeSpecificConfig,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with clearinghouseState type using a public address."""
+    """Test Hyperliquid's public /info endpoint with clearinghouseState type.
+
+    Uses a public address for testing.
+    """
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Use a known public address (null address for testing)
     payload = {"type": "clearinghouseState", "user": "0x0000000000000000000000000000000000000000"}
 
@@ -505,9 +513,12 @@ async def test_hyperliquid_info_spot_clearinghouse_state_public_endpoint(
     """Test Hyperliquid's public /info endpoint with spotClearinghouseState type."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Use a known public address (null address for testing)
-    payload = {"type": "spotClearinghouseState", "user": "0x0000000000000000000000000000000000000000"}
+    payload = {
+        "type": "spotClearinghouseState",
+        "user": "0x0000000000000000000000000000000000000000",
+    }
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload) as response:
@@ -531,7 +542,7 @@ async def test_hyperliquid_info_open_orders_public_endpoint(
     """Test Hyperliquid's public /info endpoint with openOrders type using a public address."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Use a known public address (null address for testing)
     payload = {"type": "openOrders", "user": "0x0000000000000000000000000000000000000000"}
 
@@ -562,7 +573,7 @@ async def test_hyperliquid_info_user_fills_public_endpoint(
     """Test Hyperliquid's public /info endpoint with userFills type using a public address."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Use a known public address (null address for testing)
     payload = {"type": "userFills", "user": "0x0000000000000000000000000000000000000000"}
 
@@ -593,7 +604,7 @@ async def test_hyperliquid_info_user_funding_public_endpoint(
     """Test Hyperliquid's public /info endpoint with userFunding type using a public address."""
     base_url = str(active_hl_config.active_api_base_url).rstrip("/")
     url = f"{base_url}/info"
-    
+
     # Use a known public address (null address for testing)
     payload = {"type": "userFunding", "user": "0x0000000000000000000000000000000000000000"}
 
@@ -610,3 +621,32 @@ async def test_hyperliquid_info_user_funding_public_endpoint(
             if len(data) > 0:
                 for funding in data:
                     assert isinstance(funding, dict), "Each funding record should be a dict"
+
+
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hyperliquid_info_perp_dexs_public_endpoint(
+    active_hl_config: ExchangeSpecificConfig,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test Hyperliquid's public /info endpoint with perpDexs type for perpetual DEX info."""
+    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
+    url = f"{base_url}/info"
+    payload = {"type": "perpDexs"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            assert response.status == 200, f"Expected status 200, got {response.status}"
+
+            data: list[dict[str, Any]] = await response.json()
+
+            # Verify perpDexs response structure
+            assert isinstance(data, list), "Response should be a list"
+
+            # If there are DEX entries, verify their structure
+            if len(data) > 0:
+                for dex in data:
+                    assert isinstance(dex, dict), "Each DEX entry should be a dict"
+                    # Basic structure validation - actual fields may vary
