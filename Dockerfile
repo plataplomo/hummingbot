@@ -40,7 +40,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zsh \
     git \
     fonts-powerline \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# <<< ADDED: Configure locale to support UTF-8 characters for themes
+RUN apt-get update && apt-get install -y locales && \
+    sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
 
 # Copy and install the built wheel
 COPY --from=builder /build/dist/*.whl ./
@@ -52,9 +61,8 @@ RUN pip install --no-cache-dir uvloop
 RUN curl -fsSL https://bodo.run/yek.sh | bash
 
 # The --unattended flag prevents it from trying to chsh or start a zsh session
-RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-# Use sed to set the agnoster theme in the .zshrc file
-RUN sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' ~/.zshrc
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
+    sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' ~/.zshrc
 
 # Create necessary directories
 RUN mkdir -p /app/data/state_backups /app/logs /app/config
