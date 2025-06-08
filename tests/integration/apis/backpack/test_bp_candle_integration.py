@@ -11,8 +11,9 @@ Tests cover:
 - Complete API -> Service -> Handler -> Mapper -> Internal Model pipeline
 """
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 
@@ -20,6 +21,14 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
+
+
+class FreezerProtocol(Protocol):
+    """Protocol for pytest-freezer fixture."""
+    
+    def move_to(self, target: datetime | str) -> None:
+        """Move the frozen time to the target datetime."""
+        ...
 
 
 @pytest.mark.parametrize(
@@ -31,6 +40,7 @@ from cyberdelta.core.models.market.candle import Candle
 async def test_bp_get_market_data_sol_usdc_1h_success(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with SOL_USDC 1h interval returns valid Candle models.
     
@@ -40,14 +50,22 @@ async def test_bp_get_market_data_sol_usdc_1h_success(
     - Response handling and validation
     - Mapping to internal Candle models
     """
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    # Calculate a time that's recent enough for API but fixed relative to test run
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(hours=1)  # 1 hour before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
         timeframe="1h",
-        start_time_ms=start_time * 1000,
+        start_time_ms=start_time * 1000,  # Convert to milliseconds
         end_time_ms=end_time * 1000,
     )
     
@@ -141,11 +159,19 @@ async def test_bp_get_market_data_sol_usdc_1h_success(
 async def test_bp_get_market_data_btc_usdc_1h_success(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with BTC_USDC 1h interval returns valid Candle models."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(hours=1)  # 1 hour before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="BTC_USDC",
@@ -199,10 +225,17 @@ async def test_bp_get_market_data_btc_usdc_1h_success(
 async def test_bp_get_market_data_different_intervals(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with different time intervals."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
     
     # Test different intervals
     intervals = ["1m", "5m", "1h"]
@@ -261,11 +294,19 @@ async def test_bp_get_market_data_different_intervals(
 async def test_bp_get_market_data_chronological_ordering(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() returns candles in proper chronological order."""
-    # Use fixed timestamps for VCR consistency - longer time range to get multiple candles
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 86400  # 24 hours earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(hours=1)  # 1 hour before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -294,7 +335,6 @@ async def test_bp_get_market_data_chronological_ordering(
                 hasattr(next_candle, "open_time")):
                 
                 # Check that timestamps are reasonable and consistent
-                from datetime import datetime
                 assert isinstance(current_candle.open_time, datetime), (
                     f"Candle {i} open_time should be datetime, got {type(current_candle.open_time)}"
                 )
@@ -319,11 +359,19 @@ async def test_bp_get_market_data_chronological_ordering(
 async def test_bp_get_market_data_precision_validation(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() ensures proper Decimal precision handling."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(hours=1)  # 1 hour before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -400,11 +448,19 @@ async def test_bp_get_market_data_precision_validation(
 async def test_bp_get_market_data_ohlc_relationships_validation(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() validates comprehensive OHLC relationships."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 7200  # 2 hours earlier to get more candles
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(hours=1)  # 1 hour before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -475,11 +531,19 @@ async def test_bp_get_market_data_ohlc_relationships_validation(
 async def test_bp_get_market_data_invalid_symbol_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with invalid symbol raises appropriate error."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(days=1)  # 1 day before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="INVALID_SYMBOL",
@@ -505,11 +569,19 @@ async def test_bp_get_market_data_invalid_symbol_error(
 async def test_bp_get_market_data_invalid_interval_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with invalid interval raises appropriate error."""
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(days=1)  # 1 day before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -535,11 +607,19 @@ async def test_bp_get_market_data_invalid_interval_error(
 async def test_bp_get_market_data_invalid_time_range_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with invalid time range raises appropriate error."""
     # Invalid time range: start_time > end_time
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time + 3600  # 1 hour AFTER end_time (invalid)
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt + timedelta(hours=1)  # 1 hour AFTER end_time (invalid)
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -565,11 +645,20 @@ async def test_bp_get_market_data_invalid_time_range_error(
 async def test_bp_get_market_data_future_time_range_handling(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() with future time range returns empty or errors."""
-    # Time range in the future (relative to fixed timestamp for VCR)
-    start_time = 1640995200 + 86400  # 1 day after fixed timestamp
-    end_time = start_time + 3600  # 1 hour later
+    # Time range in the future (relative to frozen time for VCR)
+    now = datetime.now(UTC)
+    current_time_dt = now - timedelta(days=7)  # 1 week ago as base
+    start_time_dt = current_time_dt + timedelta(days=1)  # 1 day in the future
+    end_time_dt = start_time_dt + timedelta(hours=1)  # 1 hour later
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(current_time_dt)
+    
+    start_time = int(start_time_dt.timestamp())
+    end_time = int(end_time_dt.timestamp())
     
     args = GetMarketDataArgs(
         symbol="SOL_USDC",
@@ -649,14 +738,22 @@ async def test_bp_get_market_data_very_old_time_range_handling(
 async def test_bp_get_market_data_multiple_symbols_consistency(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
+    freezer: FreezerProtocol,
 ) -> None:
     """Test BackpackAPI.get_market_data() returns consistent structure across symbols."""
     symbols = ["SOL_USDC", "BTC_USDC"]
     all_candles: dict[str, list[Candle]] = {}
     
-    # Use fixed timestamps for VCR consistency
-    end_time = 1640995200  # Fixed timestamp
-    start_time = end_time - 3600  # 1 hour earlier
+    # Use dynamic timestamps that are recent but deterministic for VCR
+    now = datetime.now(UTC)
+    end_time_dt = now - timedelta(days=7)  # 1 week ago
+    start_time_dt = end_time_dt - timedelta(days=1)  # 1 day before that
+    
+    # Freeze time to ensure VCR consistency
+    freezer.move_to(end_time_dt)
+    
+    end_time = int(end_time_dt.timestamp())
+    start_time = int(start_time_dt.timestamp())
     
     for symbol in symbols:
         args = GetMarketDataArgs(

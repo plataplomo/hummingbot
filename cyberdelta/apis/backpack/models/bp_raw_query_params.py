@@ -137,10 +137,10 @@ class BackpackRawGetHistoricalFundingRatesParams(BaseModel):
     Attributes:
         symbol: The trading symbol to get funding rates for (e.g., "SOL_USDC").
                 Must be a non-empty string with maximum 64 characters.
-        startTime: Optional start time in milliseconds since Unix epoch.
-                   Raw integer timestamp for filtering results.
-        endTime: Optional end time in milliseconds since Unix epoch.
-                 Raw integer timestamp for filtering results.
+        startTime: Optional start time in seconds since Unix epoch.
+                   Raw integer timestamp for filtering results (converted from milliseconds).
+        endTime: Optional end time in seconds since Unix epoch.
+                 Raw integer timestamp for filtering results (converted from milliseconds).
         limit: Optional maximum number of funding rate records to retrieve.
                Must be a non-negative integer if provided.
 
@@ -237,10 +237,10 @@ class BackpackRawGetMarketDataParams(BaseModel):
         interval: The candlestick interval. Must be one of the supported intervals:
                   "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d",
                   "1w".
-        startTime: Optional start time in milliseconds since Unix epoch.
-                   Raw integer timestamp for filtering results.
-        endTime: Optional end time in milliseconds since Unix epoch.
-                 Raw integer timestamp for filtering results.
+        startTime: Optional start time in seconds since Unix epoch.
+                   Raw integer timestamp for filtering results (converted from milliseconds).
+        endTime: Optional end time in seconds since Unix epoch.
+                 Raw integer timestamp for filtering results (converted from milliseconds).
         limit: Optional maximum number of candlesticks to retrieve.
                Must be a non-negative integer if provided.
 

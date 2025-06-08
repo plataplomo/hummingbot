@@ -1232,7 +1232,7 @@ class BackpackMarketDataService:
         response_tuple = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params.model_dump(),
+            params=params.model_dump(exclude_none=True),
             is_signed=False,
             endpoint_group="public",
             request_weight=1,

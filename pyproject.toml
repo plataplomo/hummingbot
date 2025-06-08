@@ -52,6 +52,7 @@ dependencies = [
     "logfire==3.16.1",
     "msgpack==1.1.0",
     "cryptography==45.0.3",
+    "pytest-freezer==0.4.9",
 ]
 
 [project.optional-dependencies]

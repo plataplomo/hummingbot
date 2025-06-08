@@ -480,10 +480,14 @@ class BackpackRequestBuilder:
             BackpackRawGetHistoricalFundingRatesParams: The validated request parameters model.
 
         """
+        # Convert millisecond timestamps to seconds as required by Backpack API
+        start_time_seconds = None if start_time_ms is None else start_time_ms // 1000
+        end_time_seconds = None if end_time_ms is None else end_time_ms // 1000
+        
         return BackpackRawGetHistoricalFundingRatesParams(
             symbol=BackpackRequestBuilder.format_symbol(symbol),
-            startTime=start_time_ms,
-            endTime=end_time_ms,
+            startTime=start_time_seconds,
+            endTime=end_time_seconds,
             limit=limit,
         )
 
@@ -695,11 +699,15 @@ class BackpackRequestBuilder:
         # Map to raw API format - business logic validation is done by service layer
         formatted_symbol = BackpackRequestBuilder.format_symbol(symbol)
 
+        # Convert millisecond timestamps to seconds as required by Backpack API
+        start_time_seconds = None if start_time_ms is None else start_time_ms // 1000
+        end_time_seconds = None if end_time_ms is None else end_time_ms // 1000
+        
         return BackpackRawGetMarketDataParams(
             symbol=formatted_symbol,
             interval=timeframe_str,
-            **{"startTime": start_time_ms} if start_time_ms is not None else {},
-            **{"endTime": end_time_ms} if end_time_ms is not None else {},
+            **{"startTime": start_time_seconds} if start_time_seconds is not None else {},
+            **{"endTime": end_time_seconds} if end_time_seconds is not None else {},
             limit=limit,
         )
 
