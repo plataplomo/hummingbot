@@ -369,7 +369,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.5" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.26.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==6.1.1" },
-    { name = "pytest-freezer", specifier = ">=0.4.9" },
+    { name = "pytest-freezer", specifier = "==0.4.9" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = "==3.14.0" },
     { name = "pytest-recording", marker = "extra == 'dev'", specifier = "==0.13.4" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
