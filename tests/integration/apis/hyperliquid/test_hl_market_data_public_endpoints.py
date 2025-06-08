@@ -1,652 +1,351 @@
-"""Integration tests for Hyperliquid public endpoints using pytest-recording (VCR).
+"""Integration tests for Hyperliquid public endpoints using real API client.
 
-These tests make real HTTP requests to Hyperliquid's public API endpoints and use
-cassette-based recording to avoid repeated network calls while maintaining test reliability.
+These tests validate the complete data pipeline from API client public methods
+to final internal domain models using pytest-recording (VCR) for deterministic tests.
 """
 
-from typing import Any, TypeGuard, cast
+from decimal import Decimal
+from typing import Any
 
-import aiohttp
 import pytest
 
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-
-# Now using standardized fixtures from conftest.py:
-# - active_hl_config: Environment-aware ExchangeSpecificConfig for Hyperliquid
-
-
-def _validate_universe_data(obj: object) -> TypeGuard[list[dict[str, Any]]]:
-    """Type guard to verify object is a valid universe list."""
-    try:
-        if not isinstance(obj, list):
-            return False
-        # Use explicit type checks that pyright accepts
-        for item in cast(list[Any], obj):  # type: ignore [redundant-cast]
-            if not isinstance(item, dict):
-                return False
-            if "name" not in cast(dict[str, Any], item):
-                return False
-        return True
-    except (TypeError, AttributeError):
-        return False
+from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.core.models.market.candle import Candle
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_meta_and_asset_ctxs_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_ticker_integration(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with metaAndAssetCtxs type.
-
-    This test:
-    1. Makes a real HTTP request to Hyperliquid's /info endpoint
-    2. Sends a POST request with {"type": "metaAndAssetCtxs"} payload
-    3. Verifies the response contains valid asset metadata and contexts
-    4. Uses VCR to record the HTTP interaction for future test runs
-
-    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
+    """Test HyperliquidAPI.get_ticker() method returns valid Ticker internal model.
+    
+    This validates the complete pipeline:
+    - API method call (get_ticker)
+    - Request building (metaAndAssetCtxs endpoint)
+    - Response handling and validation
+    - Mapping to internal Ticker model
     """
-    # Use configuration system to get the correct API base URL
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "metaAndAssetCtxs"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            # Verify successful response
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            # Parse JSON response
-            data: list[Any] = await response.json()
-
-            # Verify response structure - Hyperliquid returns a 2-element array
-            assert isinstance(data, list), "Response should be a list"
-            assert len(data) == 2, "Response should have exactly 2 elements"
-
-            # First element is meta (universe data)
-            meta: dict[str, Any] = data[0]
-            assert isinstance(meta, dict), "Meta should be a dict"
-            assert "universe" in meta, "Meta should have 'universe' key"
-            assert isinstance(meta["universe"], list), "Universe should be a list"
-
-            # Second element is asset contexts
-            asset_ctxs: list[Any] = data[1]
-            assert isinstance(asset_ctxs, list), "Asset contexts should be a list"
-
-            # Extract universe list and validate structure with TypeGuard
-            assert "universe" in meta, "Meta should have universe key"
-
-            # Cast to Any first to avoid Unknown type issues with pyright
-            universe_obj = cast(Any, meta["universe"])
-
-            # Direct validation with TypeGuard
-            if not _validate_universe_data(universe_obj):
-                raise AssertionError("Universe should be a list of dicts with 'name' field")
-
-            # TypeGuard has already validated the structure
-            raw_universe = universe_obj
-
-            # Validate data integrity
-            assert len(raw_universe) > 0, "Should have at least one asset in universe"
-            assert len(asset_ctxs) > 0, "Should have at least one asset context"
-            assert len(raw_universe) == len(asset_ctxs), (
-                "Universe and asset contexts should have matching lengths"
-            )
-
-            # Verify structure of asset context items
-            for ctx in asset_ctxs:
-                ctx_dict: dict[str, Any] = ctx
-                assert isinstance(ctx_dict, dict), "Each asset context should be a dict"
-                assert "markPx" in ctx_dict, "Each asset context should have a 'markPx' field"
-                assert "funding" in ctx_dict, "Each asset context should have a 'funding' field"
-
-            # Verify common assets are present
-            asset_names = [
-                item.get("name", "") for item in raw_universe if isinstance(item.get("name"), str)
-            ]
-            assert any(name in ["BTC", "ETH", "SOL"] for name in asset_names), (
-                "Should have at least one common asset like BTC, ETH, or SOL"
-            )
+    ticker = await hl_api_for_test_env.get_ticker("BTC")
+    
+    # Validate internal model structure
+    assert ticker is not None, "Ticker should not be None for BTC"
+    assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
+    
+    # Validate core ticker fields
+    assert ticker.symbol == "BTC", f"Expected symbol 'BTC', got '{ticker.symbol}'"
+    assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
+    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+    
+    # Validate price precision (should be reasonable for BTC)
+    assert ticker.price > Decimal("1000"), f"BTC price seems too low: {ticker.price}"
+    assert ticker.price < Decimal("1000000"), f"BTC price seems too high: {ticker.price}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/demo/filtering"], indirect=True)
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_vcr_sensitive_data_filtering_demo(custom_vcr_config: dict[str, Any]) -> None:
-    """Demonstration test for VCR sensitive data filtering capabilities.
+async def test_hl_get_ticker_integration_eth(
+    hl_api_for_test_env: HyperliquidAPI,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test HyperliquidAPI.get_ticker() method with ETH symbol."""
+    ticker = await hl_api_for_test_env.get_ticker("ETH")
+    
+    assert ticker is not None, "Ticker should not be None for ETH"
+    assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
+    assert ticker.symbol == "ETH", f"Expected symbol 'ETH', got '{ticker.symbol}'"
+    assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
+    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
 
-    This test shows how VCR filters sensitive headers and query parameters
-    while preserving functional test data. It makes a request to httpbin.org
-    which echoes back the request headers, allowing us to verify filtering works.
 
-    Cassettes are organized in tests/cassettes/apis/demo/filtering/.
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.vcr
+async def test_hl_get_order_book_integration(
+    hl_api_for_test_env: HyperliquidAPI,
+    custom_vcr_config: dict[str, Any],
+) -> None:
+    """Test HyperliquidAPI.get_order_book() method returns valid OrderBook internal model.
+    
+    This validates the complete pipeline:
+    - API method call (get_order_book)
+    - Request building (l2Book endpoint)
+    - Response handling and validation
+    - Mapping to internal OrderBook model
     """
-    # Test URL that echoes back request data
-    url = "https://httpbin.org/anything"
-
-    # Simulate sensitive headers that should be filtered
-    sensitive_headers = {
-        "X-API-Key": "secret_api_key_12345",
-        "X-Signature": "hmac_signature_abcdef",
-        "X-Timestamp": "1640995200",
-        "Authorization": "Bearer secret_token_xyz",
-        "X-BP-API-Key": "backpack_secret_key",
-        "User-Agent": "Custom-Agent/1.0",  # Should be normalized
-    }
-
-    # Simulate sensitive query parameters
-    sensitive_params = {
-        "api_key": "query_secret_key",
-        "signature": "query_signature_123",
-        "timestamp": "1640995200",
-        "user_id": "sensitive_user_123",
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=sensitive_headers, params=sensitive_params) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: dict[str, Any] = await response.json()
-
-            # Verify the service received our request
-            assert "headers" in data, "Response should contain headers"
-            assert "args" in data, "Response should contain query args"
-
-            # The actual filtering verification will be done by examining the
-            # generated cassette file, but the test itself should pass normally
-            assert data["url"] is not None, "URL should be present"
-
-            # Note: The sensitive data filtering happens at the VCR level
-            # when recording cassettes, not in the actual HTTP response.
-            # The filtering protects against leaking credentials in test files.
+    order_book = await hl_api_for_test_env.get_order_book("BTC")
+    
+    # Validate internal model structure
+    assert order_book is not None, "OrderBook should not be None for BTC"
+    assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
+    
+    # Validate core order book fields
+    assert order_book.symbol == "BTC", f"Expected symbol 'BTC', got '{order_book.symbol}'"
+    
+    # Validate bids structure
+    assert isinstance(order_book.bids, list), f"Bids should be list, got {type(order_book.bids)}"
+    assert len(order_book.bids) > 0, "Should have at least one bid for liquid BTC market"
+    
+    # Validate first bid structure
+    first_bid = order_book.bids[0]
+    assert isinstance(first_bid, tuple), f"Bid should be tuple, got {type(first_bid)}"
+    assert len(first_bid) == 2, f"Bid tuple should have 2 elements, got {len(first_bid)}"
+    
+    bid_price, bid_size = first_bid
+    assert isinstance(bid_price, Decimal), f"Bid price should be Decimal, got {type(bid_price)}"
+    assert isinstance(bid_size, Decimal), f"Bid size should be Decimal, got {type(bid_size)}"
+    assert bid_price > Decimal("0"), f"Bid price should be positive, got {bid_price}"
+    assert bid_size > Decimal("0"), f"Bid size should be positive, got {bid_size}"
+    
+    # Validate asks structure
+    assert isinstance(order_book.asks, list), f"Asks should be list, got {type(order_book.asks)}"
+    assert len(order_book.asks) > 0, "Should have at least one ask for liquid BTC market"
+    
+    # Validate first ask structure
+    first_ask = order_book.asks[0]
+    assert isinstance(first_ask, tuple), f"Ask should be tuple, got {type(first_ask)}"
+    assert len(first_ask) == 2, f"Ask tuple should have 2 elements, got {len(first_ask)}"
+    
+    ask_price, ask_size = first_ask
+    assert isinstance(ask_price, Decimal), f"Ask price should be Decimal, got {type(ask_price)}"
+    assert isinstance(ask_size, Decimal), f"Ask size should be Decimal, got {type(ask_size)}"
+    assert ask_price > Decimal("0"), f"Ask price should be positive, got {ask_price}"
+    assert ask_size > Decimal("0"), f"Ask size should be positive, got {ask_size}"
+    
+    # Validate spread (ask should be higher than bid)
+    assert ask_price > bid_price, f"Ask price {ask_price} should be higher than bid price {bid_price}"
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_l2_book_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_recent_trades_integration(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with l2Book type for order book data.
-
-    This test demonstrates VCR usage with a different endpoint that returns
-    order book data. Shows how VCR works with various API response structures.
-
-    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
+    """Test HyperliquidAPI.get_recent_trades() method returns valid Trade internal models.
+    
+    This validates the complete pipeline:
+    - API method call (get_recent_trades)
+    - Request building (recentTrades endpoint)
+    - Response handling and validation
+    - Mapping to internal Trade models
     """
-    # Use configuration system to get the correct API base URL
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "l2Book", "coin": "BTC"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: dict[str, Any] = await response.json()
-
-            # Verify l2Book response structure
-            assert isinstance(data, dict), "Response should be a dict"
-            assert "levels" in data, "Response should have 'levels' field"
-            assert "time" in data, "Response should have 'time' field"
-
-            # Verify levels structure (bids and asks)
-            levels_list: list[Any] = data["levels"]
-            assert isinstance(levels_list, list), "Levels should be a list"
-            assert len(levels_list) == 2, "Should have 2 levels (bids and asks)"
-
-            # Verify bids and asks are lists
-            bids: list[Any] = data["levels"][0]
-            asks: list[Any] = data["levels"][1]
-            assert isinstance(bids, list), "Bids should be a list"
-            assert isinstance(asks, list), "Asks should be a list"
-
-            # For a liquid market like BTC, we expect some orders
-            assert len(bids) > 0, "Should have at least one bid"
-            assert len(asks) > 0, "Should have at least one ask"
+    trades = await hl_api_for_test_env.get_recent_trades("BTC", limit=10)
+    
+    # Validate return type
+    assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
+    
+    # For liquid market like BTC, we expect some trades (though this depends on timing)
+    if len(trades) > 0:
+        # Validate each trade is a valid Trade model
+        for i, trade in enumerate(trades):
+            assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
+            
+            # Validate core trade fields
+            assert hasattr(trade, "symbol"), f"Trade {i} should have symbol attribute"
+            assert hasattr(trade, "price"), f"Trade {i} should have price attribute"
+            assert hasattr(trade, "size"), f"Trade {i} should have size attribute"
+            assert hasattr(trade, "timestamp"), f"Trade {i} should have timestamp attribute"
+            
+            # Validate data types
+            assert isinstance(trade.price, Decimal), f"Trade {i} price should be Decimal, got {type(trade.price)}"
+            assert isinstance(trade.size, Decimal), f"Trade {i} size should be Decimal, got {type(trade.size)}"
+            
+            # Validate positive values
+            assert trade.price > Decimal("0"), f"Trade {i} price should be positive, got {trade.price}"
+            assert trade.size > Decimal("0"), f"Trade {i} size should be positive, got {trade.size}"
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_all_mids_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_historical_funding_rates_integration(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with allMids type for mid prices.
-
-    This test demonstrates VCR with yet another endpoint format,
-    showing how the same infrastructure handles different data types.
-
-    Cassettes are organized in tests/cassettes/apis/hyperliquid/public/.
+    """Test HyperliquidAPI.get_historical_funding_rates() method returns valid FundingRate internal models.
+    
+    This validates the complete pipeline:
+    - API method call (get_historical_funding_rates)
+    - Request building (fundingHistory endpoint)
+    - Response handling and validation
+    - Mapping to internal FundingRate models
     """
-    # Use configuration system to get the correct API base URL
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "allMids"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: dict[str, Any] = await response.json()
-
-            # Verify allMids response structure
-            # Note: Hyperliquid's allMids endpoint returns a dict where keys are asset indices
-            # (@1, @2, etc.) and symbol names (BTC, ETH, etc.), and values are price strings
-            assert isinstance(data, dict), "Response should be a dict"
-
-            # Verify we have mid prices for assets
-            assert len(data) > 0, "Should have mid prices for at least one asset"
-
-            # Verify mid price format (should be string representations of numbers)
-            for symbol, price in data.items():
-                assert isinstance(symbol, str), f"Symbol {symbol} should be a string"
-                assert isinstance(price, str), f"Price for {symbol} should be a string"
-                # Verify it's a valid number
-                float(price)  # Should not raise an exception
-
-            # Verify some common assets are present
-            common_assets = ["BTC", "ETH", "SOL"]
-            found_assets = [asset for asset in common_assets if asset in data]
-            assert len(found_assets) > 0, (
-                f"Should have at least one common asset from {common_assets}"
-            )
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_meta_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with meta type for asset definitions."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "meta"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify meta response structure
-            assert isinstance(data, list), "Response should be a list"
-            assert len(data) > 0, "Should have at least one asset"
-
-            # Verify asset structure
-            for asset in data:
-                assert isinstance(asset, dict), "Each asset should be a dict"
-                assert "name" in asset, "Each asset should have a 'name' field"
-                assert "szDecimals" in asset, "Each asset should have a 'szDecimals' field"
-
-            # Verify common assets are present
-            asset_names = [asset["name"] for asset in data]
-            common_assets = ["BTC", "ETH", "SOL"]
-            found_assets = [asset for asset in common_assets if asset in asset_names]
-            assert len(found_assets) > 0, (
-                f"Should have at least one common asset from {common_assets}"
-            )
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_recent_trades_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with recentTrades type."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "recentTrades", "coin": "BTC"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify recentTrades response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are trades, verify their structure
-            if len(data) > 0:
-                for trade in data:
-                    assert isinstance(trade, dict), "Each trade should be a dict"
-                    assert "px" in trade, "Each trade should have a 'px' field"
-                    assert "sz" in trade, "Each trade should have a 'sz' field"
-                    assert "time" in trade, "Each trade should have a 'time' field"
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_candle_snapshot_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with candleSnapshot type for historical data."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Get data for last 24 hours
-    end_time = 1640995200  # Fixed timestamp for VCR consistency
+    from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
+    
+    # Use fixed timestamps for VCR consistency
+    end_time = 1640995200  # Fixed timestamp
     start_time = end_time - 86400  # 24 hours earlier
-
-    payload = {
-        "type": "candleSnapshot",
-        "coin": "BTC",
-        "interval": "1h",
-        "startTime": start_time,
-        "endTime": end_time,
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify candleSnapshot response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are candles, verify their structure
-            if len(data) > 0:
-                for candle in data:
-                    assert isinstance(candle, dict), "Each candle should be a dict"
-                    assert "T" in candle, "Each candle should have a 'T' (time) field"
-                    assert "o" in candle, "Each candle should have a 'o' (open) field"
-                    assert "h" in candle, "Each candle should have a 'h' (high) field"
-                    assert "l" in candle, "Each candle should have a 'l' (low) field"
-                    assert "c" in candle, "Each candle should have a 'c' (close) field"
-                    assert "v" in candle, "Each candle should have a 'v' (volume) field"
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_funding_history_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with fundingHistory type."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Get funding history for last 24 hours
-    end_time = 1640995200  # Fixed timestamp for VCR consistency
-    start_time = end_time - 86400  # 24 hours earlier
-
-    payload = {
-        "type": "fundingHistory",
-        "coin": "BTC",
-        "startTime": start_time,
-        "endTime": end_time,
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify fundingHistory response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are funding records, verify their structure
-            if len(data) > 0:
-                for funding in data:
-                    assert isinstance(funding, dict), "Each funding record should be a dict"
-                    assert "coin" in funding, "Each funding record should have a 'coin' field"
-                    assert "fundingRate" in funding, (
-                        "Each funding record should have a 'fundingRate' field"
-                    )
-                    assert "time" in funding, "Each funding record should have a 'time' field"
+    
+    args = GetHistoricalFundingRatesArgs(
+        symbol="BTC",
+        start_time=start_time,
+        end_time=end_time,
+    )
+    
+    funding_rates = await hl_api_for_test_env.get_historical_funding_rates(args)
+    
+    # Validate return type
+    assert isinstance(funding_rates, list), f"Expected list of funding rates, got {type(funding_rates)}"
+    
+    # Validate each funding rate (if any exist in the time range)
+    if len(funding_rates) > 0:
+        for i, funding_rate in enumerate(funding_rates):
+            assert isinstance(funding_rate, FundingRate), (
+                f"Funding rate {i} should be FundingRate model, got {type(funding_rate)}"
+            )
+            
+            # Validate core funding rate fields
+            assert hasattr(funding_rate, "symbol"), f"Funding rate {i} should have symbol attribute"
+            assert hasattr(funding_rate, "rate"), f"Funding rate {i} should have rate attribute"
+            assert hasattr(funding_rate, "timestamp"), f"Funding rate {i} should have timestamp attribute"
+            
+            # Validate data types
+            assert isinstance(funding_rate.rate, Decimal), (
+                f"Funding rate {i} rate should be Decimal, got {type(funding_rate.rate)}"
+            )
+            
+            # Validate symbol
+            assert funding_rate.symbol == "BTC", (
+                f"Funding rate {i} symbol should be 'BTC', got '{funding_rate.symbol}'"
+            )
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_spot_meta_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_market_data_integration(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with spotMeta type for spot trading assets."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "spotMeta"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify spotMeta response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are spot assets, verify their structure
-            if len(data) > 0:
-                for asset in data:
-                    assert isinstance(asset, dict), "Each spot asset should be a dict"
-                    # Note: Structure may vary, just verify it's a valid dict
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_spot_meta_and_asset_ctxs_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with spotMetaAndAssetCtxs type."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "spotMetaAndAssetCtxs"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[Any] = await response.json()
-
-            # Verify spotMetaAndAssetCtxs response structure
-            assert isinstance(data, list), "Response should be a list"
-            # Note: Structure may vary between spot meta and contexts
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_clearinghouse_state_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with clearinghouseState type.
-
-    Uses a public address for testing.
+    """Test HyperliquidAPI.get_market_data() method returns valid Candle internal models.
+    
+    This validates the complete pipeline:
+    - API method call (get_market_data)
+    - Request building (candleSnapshot endpoint)
+    - Response handling and validation
+    - Mapping to internal Candle models
     """
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Use a known public address (null address for testing)
-    payload = {"type": "clearinghouseState", "user": "0x0000000000000000000000000000000000000000"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: dict[str, Any] = await response.json()
-
-            # Verify clearinghouseState response structure
-            assert isinstance(data, dict), "Response should be a dict"
-            # Common fields in clearinghouse state
-            if "assetPositions" in data:
-                assert isinstance(data["assetPositions"], list), "Asset positions should be a list"
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_spot_clearinghouse_state_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with spotClearinghouseState type."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Use a known public address (null address for testing)
-    payload = {
-        "type": "spotClearinghouseState",
-        "user": "0x0000000000000000000000000000000000000000",
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: dict[str, Any] = await response.json()
-
-            # Verify spotClearinghouseState response structure
-            assert isinstance(data, dict), "Response should be a dict"
-            # Note: May be empty for null address, but should still be valid JSON
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_open_orders_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with openOrders type using a public address."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Use a known public address (null address for testing)
-    payload = {"type": "openOrders", "user": "0x0000000000000000000000000000000000000000"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify openOrders response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are orders, verify their structure
-            if len(data) > 0:
-                for order in data:
-                    assert isinstance(order, dict), "Each order should be a dict"
-                    assert "coin" in order, "Each order should have a 'coin' field"
-
-
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
-@pytest.mark.asyncio
-@pytest.mark.integration
-@pytest.mark.vcr
-async def test_hyperliquid_info_user_fills_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
-    custom_vcr_config: dict[str, Any],
-) -> None:
-    """Test Hyperliquid's public /info endpoint with userFills type using a public address."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Use a known public address (null address for testing)
-    payload = {"type": "userFills", "user": "0x0000000000000000000000000000000000000000"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify userFills response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are fills, verify their structure
-            if len(data) > 0:
-                for fill in data:
-                    assert isinstance(fill, dict), "Each fill should be a dict"
-                    assert "coin" in fill, "Each fill should have a 'coin' field"
+    from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+    
+    # Use fixed timestamps for VCR consistency
+    end_time = 1640995200  # Fixed timestamp
+    start_time = end_time - 3600  # 1 hour earlier
+    
+    args = GetMarketDataArgs(
+        symbol="BTC",
+        interval="1h",
+        start_time=start_time,
+        end_time=end_time,
+    )
+    
+    candles = await hl_api_for_test_env.get_market_data(args)
+    
+    # Validate return type
+    assert isinstance(candles, list), f"Expected list of candles, got {type(candles)}"
+    
+    # Validate each candle (if any exist in the time range)
+    if len(candles) > 0:
+        for i, candle in enumerate(candles):
+            assert isinstance(candle, Candle), f"Candle {i} should be Candle model, got {type(candle)}"
+            
+            # Validate core candle fields
+            assert hasattr(candle, "symbol"), f"Candle {i} should have symbol attribute"
+            assert hasattr(candle, "open"), f"Candle {i} should have open attribute"
+            assert hasattr(candle, "high"), f"Candle {i} should have high attribute"
+            assert hasattr(candle, "low"), f"Candle {i} should have low attribute"
+            assert hasattr(candle, "close"), f"Candle {i} should have close attribute"
+            assert hasattr(candle, "volume"), f"Candle {i} should have volume attribute"
+            assert hasattr(candle, "open_time"), f"Candle {i} should have open_time attribute"
+            
+            # Validate data types
+            assert isinstance(candle.open, Decimal), (
+                f"Candle {i} open should be Decimal, got {type(candle.open)}"
+            )
+            assert isinstance(candle.high, Decimal), (
+                f"Candle {i} high should be Decimal, got {type(candle.high)}"
+            )
+            assert isinstance(candle.low, Decimal), (
+                f"Candle {i} low should be Decimal, got {type(candle.low)}"
+            )
+            assert isinstance(candle.close, Decimal), (
+                f"Candle {i} close should be Decimal, got {type(candle.close)}"
+            )
+            assert isinstance(candle.volume, Decimal), (
+                f"Candle {i} volume should be Decimal, got {type(candle.volume)}"
+            )
+            
+            # Validate positive values
+            assert candle.open > Decimal("0"), (
+                f"Candle {i} open should be positive, got {candle.open}"
+            )
+            assert candle.high > Decimal("0"), (
+                f"Candle {i} high should be positive, got {candle.high}"
+            )
+            assert candle.low > Decimal("0"), (
+                f"Candle {i} low should be positive, got {candle.low}"
+            )
+            assert candle.close > Decimal("0"), (
+                f"Candle {i} close should be positive, got {candle.close}"
+            )
+            assert candle.volume >= Decimal("0"), (
+                f"Candle {i} volume should be non-negative, got {candle.volume}"
+            )
+            
+            # Validate OHLC relationships
+            assert candle.high >= candle.open, (
+                f"Candle {i} high {candle.high} should be >= open {candle.open}"
+            )
+            assert candle.high >= candle.close, (
+                f"Candle {i} high {candle.high} should be >= close {candle.close}"
+            )
+            assert candle.low <= candle.open, (
+                f"Candle {i} low {candle.low} should be <= open {candle.open}"
+            )
+            assert candle.low <= candle.close, (
+                f"Candle {i} low {candle.low} should be <= close {candle.close}"
+            )
+            
+            # Validate symbol
+            assert candle.symbol == "BTC", f"Candle {i} symbol should be 'BTC', got '{candle.symbol}'"
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_user_funding_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_ticker_nonexistent_symbol(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with userFunding type using a public address."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-
-    # Use a known public address (null address for testing)
-    payload = {"type": "userFunding", "user": "0x0000000000000000000000000000000000000000"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify userFunding response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are funding records, verify their structure
-            if len(data) > 0:
-                for funding in data:
-                    assert isinstance(funding, dict), "Each funding record should be a dict"
+    """Test HyperliquidAPI.get_ticker() with non-existent symbol returns None."""
+    ticker = await hl_api_for_test_env.get_ticker("NONEXISTENT")
+    
+    # Should return None for non-existent symbols
+    assert ticker is None, f"Expected None for non-existent symbol, got {ticker}"
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/public"], indirect=True)
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hyperliquid_info_perp_dexs_public_endpoint(
-    active_hl_config: ExchangeSpecificConfig,
+async def test_hl_get_order_book_nonexistent_symbol(
+    hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test Hyperliquid's public /info endpoint with perpDexs type for perpetual DEX info."""
-    base_url = str(active_hl_config.active_api_base_url).rstrip("/")
-    url = f"{base_url}/info"
-    payload = {"type": "perpDexs"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            assert response.status == 200, f"Expected status 200, got {response.status}"
-
-            data: list[dict[str, Any]] = await response.json()
-
-            # Verify perpDexs response structure
-            assert isinstance(data, list), "Response should be a list"
-
-            # If there are DEX entries, verify their structure
-            if len(data) > 0:
-                for dex in data:
-                    assert isinstance(dex, dict), "Each DEX entry should be a dict"
-                    # Basic structure validation - actual fields may vary
+    """Test HyperliquidAPI.get_order_book() with non-existent symbol returns None."""
+    order_book = await hl_api_for_test_env.get_order_book("NONEXISTENT")
+    
+    # Should return None for non-existent symbols
+    assert order_book is None, f"Expected None for non-existent symbol, got {order_book}"
