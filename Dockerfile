@@ -37,6 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     nodejs \
     npm \
+    zsh \
+    git \
+    fonts-powerline \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install the built wheel
@@ -45,6 +48,13 @@ RUN pip install --no-cache-dir *.whl && rm *.whl
 
 # Install additional runtime dependencies not in wheel
 RUN pip install --no-cache-dir uvloop
+
+RUN curl -fsSL https://bodo.run/yek.sh | bash
+
+# The --unattended flag prevents it from trying to chsh or start a zsh session
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+# Use sed to set the agnoster theme in the .zshrc file
+RUN sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' ~/.zshrc
 
 # Create necessary directories
 RUN mkdir -p /app/data/state_backups /app/logs /app/config
@@ -56,6 +66,15 @@ COPY cyberdelta ./cyberdelta
 # Create non-root user
 RUN useradd -m -u 1000 trader && \
     chown -R trader:trader /app
+
+# Copy the .zshrc and .oh-my-zsh config from root to the new user's home directory
+# and set the correct ownership for all app and config files.
+RUN cp /root/.zshrc /home/trader/.zshrc && \
+    cp -r /root/.oh-my-zsh /home/trader/.oh-my-zsh && \
+    chown -R trader:trader /app /home/trader/.zshrc /home/trader/.oh-my-zsh
+
+# <<< MODIFIED: Set zsh as the default shell for the 'trader' user
+RUN usermod -s /bin/zsh trader
 
 # Switch to non-root user
 USER trader
