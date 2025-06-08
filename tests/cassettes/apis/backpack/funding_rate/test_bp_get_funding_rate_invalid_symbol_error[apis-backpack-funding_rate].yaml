@@ -1,0 +1,44 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/funding?symbol=INVALID_SYMBOL_PERP
+  response:
+    body:
+      string: not found
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '9'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Sun, 08 Jun 2025 20:22:26 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 efff942f5fbfeab2d6cc3eafc9a95662.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - C3W01jVRxsDxmrGO_OfyO6JBpCWziOGnBqoD2Uxmr5SnmTFj0E7ODA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 404
+      message: Not Found
+version: 1

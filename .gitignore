@@ -54,7 +54,7 @@ coverage.xml
 *.cover
 
 # VCR Cassettes - recorded HTTP interactions
-tests/cassettes/
+# tests/cassettes/
 
 # Secrets - IMPORTANT: Never commit secrets!
 secrets.yaml

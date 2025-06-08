@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: POST
+    uri: https://api.hyperliquid.xyz/info
+  response:
+    body:
+      string: '[{"coin":"BTC","side":"A","px":"106250.0","sz":"0.00053","time":1749414185330,"hash":"0x79223813a0a7e49e3cbe04251c0b3b01e90002192611e5e437e7f1dae8c5949c","tid":510890428162441,"users":["0x9bfcb4b03aae037a2a314b13d9ac9c1b60cfa2cd","0x2fcdd6fa3fbc82a99a25968ed98c5092ede5ad6f"]},{"coin":"BTC","side":"A","px":"106250.0","sz":"0.00212","time":1749414185014,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":199405688040447,"users":["0x9bfcb4b03aae037a2a314b13d9ac9c1b60cfa2cd","0x66df89e75f292be1897e9e3dc742acff4fea857f"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00053","time":1749414179415,"hash":"0x112935d5d74878847a3f04251c0aeb01af0090cbc08c021ce07fd3bac70e67b3","tid":344185203230753,"users":["0x2fcdd6fa3fbc82a99a25968ed98c5092ede5ad6f","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00014","time":1749414178008,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":810332141919526,"users":["0xb4096b8ae0c76ee9a2dfdf1e6427bd2ca3608cb5","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00035","time":1749414176106,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":615447639959794,"users":["0x60711262aabc7ebdd9cea3bdc710ae2a304bccc8","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00033","time":1749414173067,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":377271421331807,"users":["0x3bb32e260511874126a59785abf23df96a139c6b","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00231","time":1749414171042,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":423252993728465,"users":["0xc8116a8778191e351067c64bc9b80196ad3cf6e0","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00034","time":1749414171042,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":382935425200592,"users":["0x183d0567c33e7591c22540e45d2f74730b42a0ca","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.00035","time":1749414168193,"hash":"0x6781daeab1d14bf54ef304251c0a6701ea0065df5b42519c3062b965670be011","tid":1054695567079977,"users":["0xc1b1dcddc73844e6b1b985eea6bbde7047bc4e85","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]},{"coin":"BTC","side":"B","px":"106251.0","sz":"0.13496","time":1749414167921,"hash":"0x25727039121e350e87f204251c0a6402013600f058545dfb4b995fbc260445f2","tid":260843148931349,"users":["0xf573ada34e15d34fe32066754da10c5edd685f03","0x7469cbaedb847ddac296b6f7c857e3127f239be8"]}]'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2762'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 08 Jun 2025 20:23:07 GMT
+      Server:
+      - nginx/1.22.1
+      Vary:
+      - origin
+      - access-control-request-method
+      - access-control-request-headers
+      Via:
+      - 1.1 ba321a618e817037ce8e0d09e9005b46.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 815tlVRn7JBC6Y5bf3Aeu909pZi0_aGpudTWGMIpmWhYsaqioLoRdg==
+      X-Amz-Cf-Pop:
+      - LIM50-P1
+      X-Cache:
+      - Miss from cloudfront
+    status:
+      code: 200
+      message: OK
+version: 1

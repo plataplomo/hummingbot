@@ -1,0 +1,44 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/depth?limit=20&symbol=NOTREAL_USDC
+  response:
+    body:
+      string: '{"code":"INVALID_CLIENT_REQUEST","message":"Invalid market symbol"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '67'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Sun, 08 Jun 2025 20:22:32 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 75b9f2865c5e2067cee854ecd02814a8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - YqetuMbVaPgSrYFwTrS6RSQ1Xs-GpHhTFXbV6Z5IGWx6Coul7gK9NA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: Bad Request
+version: 1

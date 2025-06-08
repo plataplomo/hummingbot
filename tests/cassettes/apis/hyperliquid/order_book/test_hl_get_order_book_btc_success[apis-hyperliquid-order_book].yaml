@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: POST
+    uri: https://api.hyperliquid.xyz/info
+  response:
+    body:
+      string: '{"coin":"BTC","time":1749414170228,"levels":[[{"px":"106250.0","sz":"3.51349","n":11},{"px":"106248.0","sz":"0.0988","n":3},{"px":"106247.0","sz":"0.29622","n":5},{"px":"106246.0","sz":"0.06487","n":3},{"px":"106245.0","sz":"0.11775","n":2},{"px":"106244.0","sz":"0.245","n":2},{"px":"106243.0","sz":"0.50834","n":3},{"px":"106242.0","sz":"0.09611","n":2},{"px":"106241.0","sz":"0.21177","n":2},{"px":"106239.0","sz":"0.11765","n":1},{"px":"106238.0","sz":"1.84558","n":3},{"px":"106237.0","sz":"2.40773","n":6},{"px":"106236.0","sz":"0.64619","n":3},{"px":"106235.0","sz":"1.89719","n":6},{"px":"106234.0","sz":"1.60049","n":2},{"px":"106233.0","sz":"0.97924","n":4},{"px":"106232.0","sz":"2.16879","n":3},{"px":"106231.0","sz":"1.83146","n":5},{"px":"106230.0","sz":"3.49714","n":5},{"px":"106229.0","sz":"2.3465","n":6}],[{"px":"106251.0","sz":"5.10081","n":23},{"px":"106252.0","sz":"2.27993","n":3},{"px":"106253.0","sz":"3.76485","n":9},{"px":"106254.0","sz":"0.56046","n":2},{"px":"106255.0","sz":"0.98926","n":4},{"px":"106256.0","sz":"0.2343","n":5},{"px":"106257.0","sz":"0.00021","n":2},{"px":"106258.0","sz":"1.40137","n":7},{"px":"106259.0","sz":"0.50908","n":4},{"px":"106260.0","sz":"3.0283","n":15},{"px":"106261.0","sz":"1.60723","n":6},{"px":"106262.0","sz":"0.83589","n":3},{"px":"106263.0","sz":"0.59626","n":3},{"px":"106264.0","sz":"0.13181","n":3},{"px":"106265.0","sz":"0.55774","n":3},{"px":"106266.0","sz":"0.38173","n":3},{"px":"106267.0","sz":"1.41612","n":7},{"px":"106268.0","sz":"1.32036","n":3},{"px":"106269.0","sz":"10.1434","n":7},{"px":"106270.0","sz":"3.68828","n":15}]]}'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1608'
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 08 Jun 2025 20:22:50 GMT
+      Server:
+      - nginx/1.22.1
+      Vary:
+      - origin
+      - access-control-request-method
+      - access-control-request-headers
+      Via:
+      - 1.1 d56500b57ee9fd16ecec33b0f5720c28.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - fZQHkzLiD48dqvIephqhNoDgSeF4Q0mDB9TLNCn_WQ1q6Ld2gF9F1g==
+      X-Amz-Cf-Pop:
+      - LIM50-P1
+      X-Cache:
+      - Miss from cloudfront
+    status:
+      code: 200
+      message: OK
+version: 1
