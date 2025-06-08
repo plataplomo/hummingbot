@@ -663,23 +663,36 @@ class BackpackMarketDataService:
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            if not isinstance(raw_data, dict | list):  # Backpack is dict, HL can be list
+            if not isinstance(raw_data, list):  # /api/v1/fundingRates returns a list
                 raise APIError(
-                    f"Funding_rate data for {symbol} is not a dict or list: {type(raw_data)}",
+                    f"Funding_rate data for {symbol} is not a list: {type(raw_data)}",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
 
-            raw_funding_rate_model: BackpackRawFundingRate = (
-                self._response_handler.handle_get_funding_rate_response(
+            # /api/v1/fundingRates returns a list, so we use the historical handler
+            raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
+                self._response_handler.handle_get_historical_funding_rates_response(
                     raw_data,
                     symbol,
                     status_code,
                     headers,
                 )
             )
-            internal_funding_rate = self._mapper.transform_raw_funding_rate_to_internal(
-                raw_funding_rate_model,  # Removed symbol_override=symbol as mapper does not take it
+            
+            # For get_funding_rate (single), return the most recent rate (first in list)
+            if not raw_funding_interval_rates:
+                raise APIError(
+                    f"No funding rate data available for {symbol}",
+                    APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+            
+            # Transform the first funding rate to internal model
+            raw_funding_rate_model = raw_funding_interval_rates[0]
+            internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
+                raw_funding_rate_model,
+                symbol=symbol,
             )
             logger.debug(
                 f"[{self._exchange_name}] Mapped funding_rate for {symbol}: "

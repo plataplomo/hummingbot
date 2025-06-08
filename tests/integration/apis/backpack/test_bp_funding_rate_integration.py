@@ -84,8 +84,8 @@ async def test_bp_get_funding_rate_sol_perp_success(
             f"Timestamp should be datetime, got {type(funding_rate.timestamp)}"
         )
         # Should be a reasonable timestamp (after 2020)
-        from datetime import datetime
-        min_date = datetime(2020, 1, 1)
+        from datetime import UTC, datetime
+        min_date = datetime(2020, 1, 1, tzinfo=UTC)
         assert funding_rate.timestamp > min_date, (
             f"Timestamp seems too old: {funding_rate.timestamp}"
         )

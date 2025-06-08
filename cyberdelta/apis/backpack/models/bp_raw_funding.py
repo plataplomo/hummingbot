@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # Removed direct imports from cyberdelta.utils.parsing
 from cyberdelta.apis.backpack.models.bp_common_raw_types import (
     RawBpFundingRateTimestamp,
+    RawBpIsoTimestampString,
     RawBpNonEmptyStringMax64,
     RawBpParsableFiniteDecimalString,
 )
@@ -78,25 +79,21 @@ class BackpackRawFundingIntervalRate(BaseModel):
     """Pydantic model for a single raw funding interval rate object from Backpack API.
 
     Validates objects from the list returned by `/api/v1/fundingRates` (Backpack REST API).
+    The API returns:
+    - "fundingRate": "-0.000015513" (maps to rate field)
+    - "intervalEndTimestamp": "2025-06-09T00:00:00" (maps to time field)
+    - "symbol": "SOL_USDC_PERP"
 
     Attributes:
-        symbol (str): The trading symbol (e.g., 'SOL_USDC').
+        symbol (str): The trading symbol (e.g., 'SOL_USDC_PERP').
         rate (str): The funding rate for the interval, validated as parsable to a finite decimal.
-        time (int): The timestamp for the funding interval (Unix epoch in seconds or ms -
-                      needs to match API). OpenAPI specifies integer for time.
+        time (str): The timestamp for the funding interval as ISO datetime string.
 
     """
 
-    symbol: RawBpNonEmptyStringMax64 = Field(...)
-    rate: RawBpParsableFiniteDecimalString = Field(...)
-    # Assuming time is a Unix timestamp in seconds or milliseconds as per typical API practice.
-    # Backpack's OpenAPI schema for FundingIntervalRate just says "integer" for time.
-    # RawBpFundingRateTimestamp might be too specific if this timestamp has
-    # different constraints. For now, let's use a simple int and assume it's validated
-    # by being parsable. If specific validation (like range) is needed, a new common
-    # type or validator here would be good.
-    time: int = Field(...)
+    symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
+    rate: RawBpParsableFiniteDecimalString = Field(..., alias="fundingRate")
+    time: RawBpIsoTimestampString = Field(..., alias="intervalEndTimestamp")
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    # No populate_by_name needed if field names match JSON keys directly.
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
     # No @field_validator methods here; validation is by the common raw types.

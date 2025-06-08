@@ -5,40 +5,50 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/funding?symbol=SOL_USDC
+    uri: https://api.backpack.exchange/api/v1/fundingRates?symbol=SOL_USDC
   response:
     body:
-      string: not found
+      string: '[]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
       Connection:
       - keep-alive
       Content-Length:
-      - '9'
+      - '2'
       Content-Type:
-      - text/plain; charset=utf-8
+      - application/json; charset=utf-8
       Date:
-      - Sun, 08 Jun 2025 20:22:25 GMT
+      - Sun, 08 Jun 2025 20:50:06 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 5343e28419a407f9ee6b620572471578.cloudfront.net (CloudFront)
+      - 1.1 59ba94822e89d588c9376627a36c3ed4.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - SqBVx83sqj82v8sRB-ECOaQkoCiAT9TLl5e2p_SHtLvzUIEcxlAv9w==
+      - O-WlNPxw47EzsPUQujSZHRtUWxy_Px-9rEXk3ZF1UTWPq_Zz9dVL3Q==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
-      - Error from cloudfront
+      - Miss from cloudfront
       X-Content-Type-Options:
       - nosniff
       X-Frame-Options:
       - SAMEORIGIN
       X-XSS-Protection:
       - 1; mode=block
+      x-current-page:
+      - '1'
+      x-page-count:
+      - '1'
+      x-page-size:
+      - '100'
+      x-total:
+      - '0'
     status:
-      code: 404
-      message: Not Found
+      code: 200
+      message: OK
 version: 1

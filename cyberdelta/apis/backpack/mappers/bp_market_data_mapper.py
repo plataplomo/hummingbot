@@ -322,8 +322,8 @@ class BackpackMarketDataMapper:
             if funding_rate is None:
                 raise TransformationError("funding_rate is required")
 
-            # Parse timestamp (time is an int, convert to datetime)
-            timestamp = datetime.fromtimestamp(raw_funding.time / 1000, tz=UTC)
+            # Parse timestamp (time is now an ISO datetime string)
+            timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
 
             # Create BP-specific details
             details = BackpackFundingDetails()
