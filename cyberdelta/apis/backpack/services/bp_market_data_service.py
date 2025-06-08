@@ -633,7 +633,7 @@ class BackpackMarketDataService:
         try:
             # Core operational logic
             params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
-            endpoint_path = "/api/v1/funding"  # Define endpoint path in service
+            endpoint_path = "/api/v1/fundingRates"  # Define endpoint path in service
             logger.debug(
                 f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
                 f"{endpoint_path} with params: {params}",

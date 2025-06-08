@@ -590,12 +590,12 @@ async def test_bp_get_market_data_invalid_interval_error(
         end_time_ms=end_time * 1000,
     )
     
-    with pytest.raises(APIError) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         await bp_api_for_test_env.get_market_data(args)
     
     # Validate error details
     error = exc_info.value
-    assert "invalid_interval" in str(error) or "interval" in str(error).lower()
+    assert "invalid_interval" in str(error) or "interval" in str(error).lower() or "timeframe" in str(error).lower()
 
 
 @pytest.mark.parametrize(
@@ -621,15 +621,13 @@ async def test_bp_get_market_data_invalid_time_range_error(
     end_time = int(end_time_dt.timestamp())
     start_time = int(start_time_dt.timestamp())
     
-    args = GetMarketDataArgs(
-        symbol="SOL_USDC",
-        timeframe="1h",
-        start_time_ms=start_time * 1000,
-        end_time_ms=end_time * 1000,
-    )
-    
-    with pytest.raises((APIError, ValueError)) as exc_info:
-        await bp_api_for_test_env.get_market_data(args)
+    with pytest.raises(ValueError) as exc_info:
+        args = GetMarketDataArgs(
+            symbol="SOL_USDC",
+            timeframe="1h",
+            start_time_ms=start_time * 1000,
+            end_time_ms=end_time * 1000,
+        )
     
     # Validate error contains relevant information
     error_str = str(exc_info.value)

@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetFundingRateParams
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -34,8 +35,9 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
         symbol = "SOL-PERP"
-        mock_endpoint_path = "/api/v1/funding"
-        mock_params = {"symbol": symbol}
+        mock_endpoint_path = "/api/v1/fundingRates"
+        mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
+        mock_params = mock_params_model.model_dump()
         raw_time_str = "2023-10-27T10:00:00Z"
         mock_raw_response_content = {
             "symbol": symbol,
@@ -64,7 +66,7 @@ class TestBackpackMarketDataServiceFunding:
             bp_details=BackpackFundingDetails(),
         )
 
-        mock_request_builder.build_get_funding_rate_params.return_value = mock_params
+        mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -110,10 +112,11 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_funding_rate when HTTP client returns None content."""
         symbol = "SOL-PERP"
-        mock_endpoint_path = "/api/v1/funding"
-        mock_params = {"symbol": symbol}
+        mock_endpoint_path = "/api/v1/fundingRates"
+        mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
+        mock_params = mock_params_model.model_dump()
 
-        mock_request_builder.build_get_funding_rate_params.return_value = mock_params
+        mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -147,10 +150,11 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_funding_rate handles validation error from response handler."""
         symbol = "SOL-PERP"
-        mock_params = {"symbol": symbol}
+        mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
+        mock_params = mock_params_model.model_dump()
         mock_raw_response = {"invalid": "funding_rate_data"}
 
-        mock_request_builder.build_get_funding_rate_params.return_value = mock_params
+        mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -175,10 +179,11 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_funding_rate handles unexpected exception."""
         symbol = "SOL-PERP"
-        mock_params = {"symbol": symbol}
+        mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
+        mock_params = mock_params_model.model_dump()
         mock_raw_response = {"symbol": symbol, "rate": "0.001"}
 
-        mock_request_builder.build_get_funding_rate_params.return_value = mock_params
+        mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_funding_rate_response.side_effect = Exception(
             "Unexpected error",
