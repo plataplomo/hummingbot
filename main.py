@@ -388,39 +388,6 @@ async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
     logger.debug("Signal handlers registered.")
 
 
-async def _start_main_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
-    """Start main application tasks."""
-    main_tasks: list[asyncio.Task[Any]] = []
-
-    logger.info("Loading initial state...")
-    await app_state["portfolio_tracker"].load_state()
-    # Fetch initial balances/positions AFTER loading state
-    await app_state["portfolio_tracker"].initialize_portfolio()
-
-    logger.info("Starting background component tasks...")
-    # Start data streams and processing
-    main_tasks.append(
-        asyncio.create_task(
-            app_state["data_handler"].start_connections(),
-            name="DataHandler_start_connections",
-        ),
-    )
-    # Start signal queue processing
-    main_tasks.append(
-        asyncio.create_task(
-            app_state["signal_queue"].run(cancellation_token), name="SignalQueue_run"
-        ),
-    )
-    # Add other component run loops if needed
-
-    # Start the engine (now ready to receive data and forward signals)
-    logger.info("Starting Trading Engine...")
-    # engine.run() # This would block if run directly
-    # asyncio.run(engine.run_async())  # asyncio.run cannot be called when a loop is running
-    app_state["engine"].start()  # Call the synchronous start method
-    logger.info("Engine started. Entering main monitoring loop.")
-
-    return main_tasks
 
 
 async def _wire_components(app_state: dict[str, Any]) -> None:
@@ -541,6 +508,7 @@ async def main() -> None:
     """Main application entry point."""
     global cancellation_token
     app_state: dict[str, Any] = {}
+    main_tasks: list[asyncio.Task[Any]] = []  # Initialize to avoid unbound variable
 
     # Parse arguments and load configuration
     args = _parse_arguments()
