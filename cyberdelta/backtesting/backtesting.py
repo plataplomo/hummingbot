@@ -145,6 +145,7 @@ class BacktestEngine:
         """Ensure the DataFrame has a proper DatetimeIndex."""
         # Robust check and conversion for DatetimeIndex
         # NOTE: pandas type stubs are incomplete; some type errors here are non-actionable.
+        import pandas as pd
         if not isinstance(data.index, pd.DatetimeIndex):
             self.logger.warning(
                 f"Data index type is {type(data.index)}, not DatetimeIndex. Attempting conversion.",
@@ -152,12 +153,17 @@ class BacktestEngine:
             try:
                 original_index_name = getattr(data.index, "name", None)
                 converted_index = pd.to_datetime(data.index, errors="coerce")
-                if hasattr(converted_index, "isna") and converted_index.isna().any():
-                    num_failed = converted_index.isna().sum()
-                    self.logger.error(f"Failed to parse {num_failed} index values as datetime.")
-                    failed_examples = data.index[converted_index.isna()].tolist()[:5]
-                    self.logger.error(f"Examples of failed index values: {failed_examples}")
-                    raise ValueError("Failed to convert all index values to datetime objects.")
+                # Check for NaT values in the converted index
+                import pandas as pd
+                if isinstance(converted_index, pd.DatetimeIndex):
+                    # Use pandas.isna() function instead of method to avoid typing issues
+                    na_mask = pd.isna(converted_index)
+                    if na_mask.any():
+                        num_failed = int(na_mask.sum())
+                        self.logger.error(f"Failed to parse {num_failed} index values as datetime.")
+                        failed_examples = data.index[na_mask].tolist()[:5]
+                        self.logger.error(f"Examples of failed index values: {failed_examples}")
+                        raise ValueError("Failed to convert all index values to datetime objects.")
                 data.index = converted_index
                 if original_index_name is not None:
                     data.index.name = original_index_name
@@ -471,7 +477,7 @@ class BacktestEngine:
         self.results_handler.add_trade(trade)
 
     def _record_equity_point(
-        self, idx: datetime | pd.Timestamp | str | int, current_capital: Decimal
+        self, idx: datetime | str | int, current_capital: Decimal
     ) -> None:
         """Record equity point at current timestamp."""
         if not self.results_handler:
@@ -481,11 +487,13 @@ class BacktestEngine:
         try:
             if isinstance(idx, datetime):
                 timestamp_dt = idx
-            elif isinstance(idx, pd.Timestamp):
-                timestamp_dt = idx.to_pydatetime()
             else:
                 # Handle str and int cases by converting to datetime
-                timestamp_dt = pd.to_datetime(idx).to_pydatetime()
+                converted = pd.to_datetime(idx)
+                if hasattr(converted, "to_pydatetime"):
+                    timestamp_dt = converted.to_pydatetime()
+                else:
+                    timestamp_dt = converted
         except Exception:
             self.logger.error(f"Could not parse index as datetime: {idx}")
             return

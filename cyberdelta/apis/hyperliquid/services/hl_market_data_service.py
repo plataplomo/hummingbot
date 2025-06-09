@@ -401,7 +401,10 @@ class HyperliquidMarketDataService:
             )
 
             if raw_response_content_parsed is None:
-                logger.info(f"[{self._exchange_name}] No content received for l2Book for {symbol} (likely nonexistent symbol). Status: {status_code}")
+                logger.info(
+                f"[{self._exchange_name}] No content received for l2Book for {symbol} "
+                f"(likely nonexistent symbol). Status: {status_code}"
+            )
                 # Return None for nonexistent symbols (no order book data available)
                 return None
 

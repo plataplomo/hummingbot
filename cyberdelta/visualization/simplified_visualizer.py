@@ -12,16 +12,16 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from matplotlib.backends.backend_pdf import PdfPages
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from matplotlib.dates import DateFormatter, MonthLocator
+from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
+
+if TYPE_CHECKING:
+    pass
 
 from cyberdelta.core.models import OrderSide, SignalType, Trade, TradeSignal
 from cyberdelta.monitoring.simplified_performance_tracker import (
@@ -181,8 +181,15 @@ class SimpleVisualizer:
 
     def _format_xaxis_date(self, fig: Figure, ax: Axes) -> None:
         """Formats the x-axis for date plotting."""
-        ax.xaxis.set_major_locator(MonthLocator(bymonthday=1))
-        ax.xaxis.set_major_formatter(DateFormatter("%b-%Y"))
+        # Import matplotlib components with Any typing for untyped calls
+        import matplotlib.dates as mdates
+        
+        month_locator_cls: Any = mdates.MonthLocator
+        date_formatter_cls: Any = mdates.DateFormatter
+        locator = month_locator_cls(bymonthday=1)
+        formatter = date_formatter_cls("%b-%Y")
+        ax.xaxis.set_major_locator(locator)
+        ax.xaxis.set_major_formatter(formatter)
         fig.autofmt_xdate()
 
     def _finalize_plot(self, fig: Figure, ax: Axes, plot_name: str, save: bool, show: bool) -> None:
@@ -811,7 +818,9 @@ class SimpleVisualizer:
             fig, ax = plt.subplots(figsize=(12, 8))
             ax.imshow(img)
             ax.axis("off")
-            pdf.savefig(fig)
+            from typing import Any
+            savefig_method: Any = pdf.savefig
+            savefig_method(fig)
             plt.close(fig)
 
     def _add_summary_page_to_pdf(self, pdf: "PdfPages") -> None:
@@ -830,7 +839,9 @@ class SimpleVisualizer:
             va="center",
             transform=ax.transAxes,
         )
-        pdf.savefig(fig)
+        from typing import Any
+        savefig_method: Any = pdf.savefig
+        savefig_method(fig)
         plt.close(fig)
 
     def _generate_summary_text(self) -> str:

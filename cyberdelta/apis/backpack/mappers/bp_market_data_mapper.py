@@ -204,7 +204,8 @@ class BackpackMarketDataMapper:
                 if price is not None and size is not None:
                     asks.append((price, size))
 
-            # Sort bids in descending order (highest price first) and asks in ascending order (lowest price first)
+            # Sort bids in descending order (highest price first) and asks in ascending order
+            # (lowest price first)
             bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
             asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
 
@@ -312,7 +313,8 @@ class BackpackMarketDataMapper:
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
-            # Determine side from is_buyer_maker: if buyer is maker, then this trade is a sell (taker sold to maker)
+            # Determine side from is_buyer_maker: if buyer is maker, then this trade is a sell
+            # (taker sold to maker)
             # If buyer is not maker, then this trade is a buy (taker bought from maker)
             side = OrderSide.SELL if raw_trade.is_buyer_maker else OrderSide.BUY
 
@@ -424,6 +426,8 @@ class BackpackMarketDataMapper:
 
             # Parse timestamp (time is now an ISO datetime string)
             timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
+            if timestamp is None:
+                raise ValueError("Funding rate timestamp cannot be None")
 
             # Create BP-specific details
             details = BackpackFundingDetails()
@@ -599,7 +603,8 @@ class BackpackMarketDataMapper:
                 if price is not None and size is not None:
                     asks.append((price, size))
 
-            # Sort bids in descending order (highest price first) and asks in ascending order (lowest price first)
+            # Sort bids in descending order (highest price first) and asks in ascending order
+            # (lowest price first)
             bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
             asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
 

@@ -616,143 +616,111 @@ class BackpackMarketDataService:
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Retrieves the current funding rate for a specific symbol."""
-        # Service Input Parameter Validation
-        frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "get_funding_rate"
-
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-
-        # Initialize context for error handling
-        raw_data: ParsedJsonResponse | None = None
-        status_code: int = 0
-        raw_response_content: str | None = None
-
+        self._validate_funding_rate_symbol(symbol)
+        
         try:
-            # Core operational logic
-            params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
-            endpoint_path = "/api/v1/fundingRates"  # Define endpoint path in service
-            logger.debug(
-                f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
-                f"{endpoint_path} with params: {params}",
-            )
-
-            response_tuple = await self._http_client_requester(
-                method="GET",
-                endpoint=endpoint_path,
-                params=params.model_dump(),
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            raw_data, status_code, headers = response_tuple
-
-            if raw_data is not None:
-                raw_response_content = str(raw_data)
-
-            logger.debug(
-                f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})",
-            )
-
-            if raw_data is None:
-                raise APIError(
-                    f"No data for funding_rate {symbol}, status: {status_code}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(raw_data, list):  # /api/v1/fundingRates returns a list
-                raise APIError(
-                    f"Funding_rate data for {symbol} is not a list: {type(raw_data)}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            # /api/v1/fundingRates returns a list, so we use the historical handler
-            raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
-                self._response_handler.handle_get_historical_funding_rates_response(
-                    raw_data,
-                    symbol,
-                    status_code,
-                    headers,
-                )
-            )
-
-            # For get_funding_rate (single), return the most recent rate (first in list)
-            if not raw_funding_interval_rates:
-                raise APIError(
-                    f"No funding rate data available for {symbol}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            # Transform the first funding rate to internal model
-            raw_funding_rate_model = raw_funding_interval_rates[0]
-            internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
-                raw_funding_rate_model,
-                symbol=symbol,
-            )
-            logger.debug(
-                f"[{self._exchange_name}] Mapped funding_rate for {symbol}: "
-                f"{internal_funding_rate}",
-            )
-            return internal_funding_rate
-
+            raw_funding_interval_rates = await self._fetch_funding_rate_data(symbol)
+            return self._process_funding_rate_response(raw_funding_interval_rates, symbol)
         except APIError:
-            # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
+        except Exception as e:
+            self._handle_funding_rate_error(e, symbol)
+            raise
+
+    def _validate_funding_rate_symbol(self, symbol: str) -> None:
+        """Validate symbol for funding rate request."""
+        if not symbol:
+            raise ValueError("'symbol' must be a non-empty string.")
+
+    async def _fetch_funding_rate_data(self, symbol: str) -> list[BackpackRawFundingIntervalRate]:
+        """Fetch funding rate data from the API."""
+        params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
+        endpoint_path = "/api/v1/fundingRates"
+        
+        logger.debug(
+            f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
+            f"{endpoint_path} with params: {params}",
+        )
+
+        response_tuple = await self._http_client_requester(
+            method="GET",
+            endpoint=endpoint_path,
+            params=params.model_dump(),
+            is_signed=False,
+            endpoint_group="public",
+            request_weight=1,
+        )
+        raw_data, status_code, headers = response_tuple
+
+        logger.debug(
+            f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} "
+            f"(Status: {status_code}, Headers: {headers})",
+        )
+
+        if raw_data is None:
+            raise APIError(
+                f"No data for funding_rate {symbol}, status: {status_code}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
+        if not isinstance(raw_data, list):
+            raise APIError(
+                f"Funding_rate data for {symbol} is not a list: {type(raw_data)}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
+
+        return self._response_handler.handle_get_historical_funding_rates_response(
+            raw_data, symbol, status_code, headers,
+        )
+
+    def _process_funding_rate_response(
+        self, raw_funding_interval_rates: list[BackpackRawFundingIntervalRate], symbol: str
+    ) -> FundingRate:
+        """Process funding rate response and return internal model."""
+        if not raw_funding_interval_rates:
+            raise APIError(
+                f"No funding rate data available for {symbol}",
+                APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        raw_funding_rate_model = raw_funding_interval_rates[0]
+        internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
+            raw_funding_rate_model, symbol=symbol,
+        )
+        logger.debug(
+            f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}",
+        )
+        return internal_funding_rate
+
+    def _handle_funding_rate_error(self, error: Exception, symbol: str) -> None:
+        """Handle funding rate errors."""
+        if isinstance(error, TransformationError | ValidationError | ValueError | TypeError):
+            error_type = type(error).__name__
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}",
+                f"[{self._exchange_name}] get_funding_rate: {error_type} for {symbol}: {error}",
                 exc_info=True,
             )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}",
-                exc_info=True,
+            is_response_error = isinstance(error, TransformationError | ValidationError)
+            error_code = (
+                APIErrorCode.INVALID_RESPONSE.value if is_response_error 
+                else APIErrorCode.UNKNOWN.value
             )
             raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Internal data validation failed.",
-                original_exception=e_val,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
+                code=error_code,
+                message=f"Failed to process funding rate data: {error_type}",
+                original_exception=error,
+            ) from error
+        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
+                f"[{self._exchange_name}] get_funding_rate: Unexpected error for {symbol}: {error}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected
+                original_exception=error,
+            ) from error
 
     def _validate_funding_rates_symbols(self, symbols: list[str], current_method: str) -> None:
         """Validate symbols for get_funding_rates."""
