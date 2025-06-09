@@ -38,20 +38,28 @@ def test_timestamp() -> str:
 
 def create_raw_ticker(
     symbol: str = "SOL-USDC",
-    price: str | None = "100.50",
-    bid: str | None = "100.25",
-    ask: str | None = "100.75",
-    volume: str | None = "1000.0",
-    time: str = "2024-01-15T10:30:00Z",
+    first_price: str = "100.00",
+    last_price: str = "100.50",
+    high: str = "101.00",
+    low: str = "99.50",
+    price_change: str = "0.50",
+    price_change_percent: str = "0.50",
+    volume: str = "1000.0",
+    quote_volume: str = "100500.0",
+    trades: str = "500",
 ) -> BackpackRawTicker:
     """Create BackpackRawTicker instances for robustness testing."""
     return BackpackRawTicker(
         symbol=symbol,
-        price=price,
-        bid=bid,
-        ask=ask,
+        firstPrice=first_price,
+        lastPrice=last_price,
+        high=high,
+        low=low,
+        priceChange=price_change,
+        priceChangePercent=price_change_percent,
         volume=volume,
-        time=time,
+        quoteVolume=quote_volume,
+        trades=trades,
     )
 
 
@@ -365,11 +373,15 @@ class TestErrorHandlingAndRecovery:
         # Test ticker with minimal data
         minimal_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
-            price=None,  # Missing price
-            bid=None,  # Missing bid
-            ask=None,  # Missing ask
-            volume=None,  # Missing volume
-            time=test_timestamp,
+            first_price="0.0",
+            last_price="0.0",
+            high="0.0",
+            low="0.0",
+            price_change="0.0",
+            price_change_percent="0.0",
+            volume="0.0",
+            quote_volume="0.0",
+            trades="0",
         )
 
         result = mapper.transform_raw_ticker_to_internal(minimal_ticker)

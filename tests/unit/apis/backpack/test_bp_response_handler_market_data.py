@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -35,11 +35,12 @@ class TestHandleGetTickerResponse:
         )
         assert isinstance(ticker, BackpackRawTicker)
         assert ticker.symbol == symbol_spot
-        assert ticker.price == "140.50"
-        assert ticker.bid == "140.49"
-        assert ticker.ask == "140.51"
+        assert ticker.first_price == "140.00"
+        assert ticker.last_price == "140.50"
+        assert ticker.high == "141.00"
+        assert ticker.low == "139.50"
         assert ticker.volume == "500000.0"
-        assert ticker.time == 1678886400000
+        assert ticker.trades == "1250"
 
     def test_invalid_top_level_type(self, symbol_spot: str) -> None:
         """Test ticker response with wrong top-level type."""
@@ -59,11 +60,15 @@ class TestHandleGetTickerResponse:
         """Test ticker response missing required field."""
         raw_data = {
             # Missing 'symbol' field (required)
-            "price": "140.50",
-            "bid": "140.49",
-            "ask": "140.51",
+            "firstPrice": "140.00",
+            "lastPrice": "140.50",
+            "high": "141.00",
+            "low": "139.50",
+            "priceChange": "0.50",
+            "priceChangePercent": "0.36",
             "volume": "500000.0",
-            "time": 1678886400000,
+            "quoteVolume": "70250000.0",
+            "trades": "1250",
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
@@ -81,11 +86,15 @@ class TestHandleGetTickerResponse:
         """Test ticker response with invalid price format."""
         raw_data = {
             "symbol": symbol_spot,
-            "price": "invalid_price",
-            "bid": "140.49",
-            "ask": "140.51",
+            "firstPrice": "140.00",
+            "lastPrice": "invalid_price",
+            "high": "141.00",
+            "low": "139.50",
+            "priceChange": "0.50",
+            "priceChangePercent": "0.36",
             "volume": "500000.0",
-            "time": 1678886400000,
+            "quoteVolume": "70250000.0",
+            "trades": "1250",
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_ticker_response(
@@ -101,11 +110,15 @@ class TestHandleGetTickerResponse:
         """Test that extra fields in ticker response cause ValidationError due to extra='forbid'."""
         raw_data = {
             "symbol": symbol_spot,
-            "price": "140.50",
-            "bid": "140.49",
-            "ask": "140.51",
+            "firstPrice": "140.00",
+            "lastPrice": "140.50",
+            "high": "141.00",
+            "low": "139.50",
+            "priceChange": "0.50",
+            "priceChangePercent": "0.36",
             "volume": "500000.0",
-            "time": 1678886400000,
+            "quoteVolume": "70250000.0",
+            "trades": "1250",
             "extraField": "should_be_ignored",
         }
         with pytest.raises(APIError) as exc_info:
@@ -197,26 +210,26 @@ class TestHandleGetRecentTradesResponse:
 
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
-        trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
+        trades: list[BackpackRawRecentTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
             cast("RawJsonResponse", valid_raw_recent_trades),
             symbol_spot,
             200,
             {},
         )
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawTrade)
-        assert trades[0].symbol == symbol_spot
-        assert trades[0].id == "1001"
+        assert isinstance(trades[0], BackpackRawRecentTrade)
+        assert trades[0].id == 1001
         assert trades[0].price == "141.00"
         assert trades[0].quantity == "1.5"
-        assert trades[0].time == 1678886402000
-        assert trades[0].order_id == "order123"
+        assert trades[0].quote_quantity == "211.50"
+        assert trades[0].timestamp == 1678886402000
+        assert trades[0].is_buyer_maker is False
 
-        assert isinstance(trades[1], BackpackRawTrade)
-        assert trades[1].id == "1002"
+        assert isinstance(trades[1], BackpackRawRecentTrade)
+        assert trades[1].id == 1002
         assert trades[1].price == "141.01"
         assert trades[1].quantity == "0.5"
-        assert trades[1].time == 1678886403000
+        assert trades[1].timestamp == 1678886403000
 
     def test_empty_trades_list(self, symbol_spot: str) -> None:
         """Test handling empty recent trades response."""
@@ -237,12 +250,12 @@ class TestHandleGetRecentTradesResponse:
     ) -> None:
         """Test that invalid trade items are skipped with warning."""
         valid_trade = {
-            "symbol": symbol_spot,
+            "id": 1001,
+            "isBuyerMaker": False,
             "price": "141.00",
-            "qty": "1.5",
-            "time": 1678886402000,
-            "id": "1001",
-            "orderId": "order123",
+            "quantity": "1.5",
+            "quoteQuantity": "211.50",
+            "timestamp": 1678886402000,
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
@@ -252,7 +265,7 @@ class TestHandleGetRecentTradesResponse:
             {},
         )
         assert len(trades) == 1  # Only valid trade processed
-        assert trades[0].id == "1001"
+        assert trades[0].id == 1001
 
         # Check that warning was logged
         log_found = any(
@@ -263,12 +276,12 @@ class TestHandleGetRecentTradesResponse:
     def test_validation_error_missing_field(self, symbol_spot: str) -> None:
         """Test recent trades response with missing required field."""
         invalid_trade = {
-            "symbol": symbol_spot,
+            "id": 1001,
+            "isBuyerMaker": False,
             "price": "141.00",
-            # Missing 'qty' field
-            "time": 1678886402000,
-            "id": "1001",
-            "orderId": "order123",
+            # Missing 'quantity' field
+            "quoteQuantity": "211.50",
+            "timestamp": 1678886402000,
         }
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
@@ -441,11 +454,11 @@ class TestHandleGetHistoricalTradesResponse:
         """Test that invalid historical trade items are skipped with warning."""
         valid_trade = {
             "id": "1001",
+            "orderId": "histOrderA",
             "symbol": symbol_spot,
             "price": "135.00",
             "qty": "2.0",
             "time": 1678880000000,
-            "orderId": "histOrderA",
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         trades = BackpackResponseHandler.handle_get_historical_trades_response(
@@ -466,12 +479,12 @@ class TestHandleGetHistoricalTradesResponse:
     def test_validation_error_missing_field(self, symbol_spot: str) -> None:
         """Test historical trades response with missing required field."""
         invalid_trade = {
-            "id": "1001",
-            "symbol": symbol_spot,
+            "id": 1001,
+            "isBuyerMaker": True,
             # Missing 'price' field
-            "qty": "2.0",
-            "time": 1678880000000,
-            "orderId": "histOrderA",
+            "quantity": "2.0",
+            "quoteQuantity": "270.00",
+            "timestamp": 1678880000000,
         }
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
@@ -508,11 +521,15 @@ class TestMarketDataEdgeCases:
         """Test ticker response with zero/null values."""
         raw_data = {
             "symbol": symbol_spot,
-            "price": "0.0",
-            "bid": "0.0",
-            "ask": "0.0",
+            "firstPrice": "0.0",
+            "lastPrice": "0.0",
+            "high": "0.0",
+            "low": "0.0",
+            "priceChange": "0.0",
+            "priceChangePercent": "0.0",
             "volume": "0.0",
-            "time": 0,
+            "quoteVolume": "0.0",
+            "trades": "0",
         }
         ticker = BackpackResponseHandler.handle_get_ticker_response(
             cast("RawJsonResponse", raw_data),
@@ -520,9 +537,9 @@ class TestMarketDataEdgeCases:
             200,
             {},
         )
-        assert ticker.price == "0.0"
+        assert ticker.last_price == "0.0"
         assert ticker.volume == "0.0"
-        assert ticker.time == 0
+        assert ticker.trades == "0"
 
     def test_order_book_with_single_level(self, symbol_spot: str) -> None:
         """Test order book response with single bid/ask level."""

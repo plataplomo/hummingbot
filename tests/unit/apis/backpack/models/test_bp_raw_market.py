@@ -182,11 +182,15 @@ def valid_ticker() -> dict[str, Any]:
     """Return valid ticker for testing."""
     return {
         "symbol": "BTC_USDC",
-        "price": "50000.0",
-        "bid": "49999.0",
-        "ask": "50001.0",
+        "firstPrice": "49000.0",
+        "lastPrice": "50000.0",
+        "high": "51000.0",
+        "low": "48000.0",
+        "priceChange": "1000.0",
+        "priceChangePercent": "2.04",
         "volume": "123.456",
-        "time": 1234567890,
+        "quoteVolume": "6172800.0",
+        "trades": "1250",
     }
 
 
@@ -194,16 +198,17 @@ def test_BackpackRawTicker_happy_path() -> None:
     """Test BackpackRawTicker happy path."""
     obj = BackpackRawTicker.model_validate(valid_ticker())
     assert obj.symbol == "BTC_USDC"
-    assert obj.price == "50000.0"
-    assert obj.bid == "49999.0"
-    assert obj.ask == "50001.0"
+    assert obj.last_price == "50000.0"
+    assert obj.first_price == "49000.0"
+    assert obj.high == "51000.0"
+    assert obj.low == "48000.0"
     assert obj.volume == "123.456"
-    assert obj.time == 1234567890
+    assert obj.trades == "1250"
 
 
 def test_BackpackRawTicker_missing_required_fields() -> None:
     """Test BackpackRawTicker missing required fields."""
-    for field in ["symbol", "time"]:
+    for field in ["symbol", "firstPrice"]:
         p: dict[str, Any] = valid_ticker().copy()
         del p[field]
         with pytest.raises(ValidationError):
@@ -213,11 +218,11 @@ def test_BackpackRawTicker_missing_required_fields() -> None:
 def test_BackpackRawTicker_wrong_type_fields() -> None:
     """Test BackpackRawTicker wrong type fields."""
     p: dict[str, Any] = valid_ticker().copy()
-    p["price"] = [50000.0]
+    p["lastPrice"] = [50000.0]
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
     p = valid_ticker().copy()
-    p["time"] = "notanint"
+    p["trades"] = 123
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
 
@@ -225,7 +230,7 @@ def test_BackpackRawTicker_wrong_type_fields() -> None:
 def test_BackpackRawTicker_invalid_format_fields() -> None:
     """Test BackpackRawTicker invalid format fields."""
     p: dict[str, Any] = valid_ticker().copy()
-    p["price"] = "1..0"
+    p["lastPrice"] = "1..0"
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
     p = valid_ticker().copy()
@@ -234,9 +239,9 @@ def test_BackpackRawTicker_invalid_format_fields() -> None:
         BackpackRawTicker.model_validate(p)
     # Scientific notation is allowed (project policy)
     p = valid_ticker().copy()
-    p["price"] = "1e6"
+    p["lastPrice"] = "1e6"
     obj = BackpackRawTicker.model_validate(p)
-    assert obj.price == "1e6"
+    assert obj.last_price == "1e6"
 
 
 def test_BackpackRawTicker_extra_field() -> None:
@@ -250,28 +255,27 @@ def test_BackpackRawTicker_extra_field() -> None:
 def test_BackpackRawTicker_optional_fields_all_none() -> None:
     """Test BackpackRawTicker optional fields all none."""
     p: dict[str, Any] = valid_ticker().copy()
-    for f in ["price", "bid", "ask", "volume"]:
-        p[f] = None
+    # All fields in the new model are required, so this test is no longer applicable
+    # Just validate the model with all fields present
     obj = BackpackRawTicker.model_validate(p)
-    for f in ["price", "bid", "ask", "volume"]:
-        assert getattr(obj, f, "__notset__") is None
+    assert obj.symbol == "BTC_USDC"
 
 
 def test_BackpackRawTicker_optional_fields_omitted() -> None:
     """Test BackpackRawTicker optional fields omitted."""
+    # All fields in the new model are required, so this test is no longer applicable
+    # Test that required fields cannot be omitted
     p: dict[str, Any] = valid_ticker().copy()
-    for f in ["price", "bid", "ask", "volume"]:
-        p.pop(f, None)
-    obj = BackpackRawTicker.model_validate(p)
-    for f in ["price", "bid", "ask", "volume"]:
-        assert getattr(obj, f, "__notset__") is None
+    del p["volume"]
+    with pytest.raises(ValidationError):
+        BackpackRawTicker.model_validate(p)
 
 
 def test_BackpackRawTicker_corruption_cases() -> None:
     """Test BackpackRawTicker corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_ticker().copy()
-    p["bid"] = "notanumber"
+    p["lastPrice"] = "notanumber"
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
     # Null required
@@ -285,7 +289,7 @@ def test_BackpackRawTicker_corruption_cases() -> None:
     obj = BackpackRawTicker.model_validate(p)
     assert "BTC_USDC" in obj.symbol
     # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "time": 1234567890'
+    bad_json = '{"symbol": "BTC_USDC", "firstPrice": "49000.0"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
 
@@ -297,19 +301,24 @@ def test_BackpackRawTicker_real_json_example() -> None:
     """
     payload = {
         "symbol": "ETH_USDC",
-        "price": "0.00000001",
-        "bid": "0.00000000",
-        "ask": "99999999.99999999",
+        "firstPrice": "0.00000001",
+        "lastPrice": "0.00000002",
+        "high": "99999999.99999999",
+        "low": "0.00000001",
+        "priceChange": "0.00000001",
+        "priceChangePercent": "100.0",
         "volume": "123456789.123456789",
-        "time": 9223372036854775807,
+        "quoteVolume": "12345.67",
+        "trades": "9999",
     }
     obj = BackpackRawTicker.model_validate(payload)
     assert obj.symbol == "ETH_USDC"
-    assert obj.price == "0.00000001"
-    assert obj.bid == "0.00000000"
-    assert obj.ask == "99999999.99999999"
+    assert obj.first_price == "0.00000001"
+    assert obj.last_price == "0.00000002"
+    assert obj.high == "99999999.99999999"
+    assert obj.low == "0.00000001"
     assert obj.volume == "123456789.123456789"
-    assert obj.time == 9223372036854775807
+    assert obj.trades == "9999"
 
 
 def test_BackpackRawTicker_corruption_null_symbol() -> None:
@@ -321,25 +330,25 @@ def test_BackpackRawTicker_corruption_null_symbol() -> None:
 
 
 def test_BackpackRawTicker_corruption_binary_price() -> None:
-    """Should fail: binary data for 'price'."""
+    """Should fail: binary data for 'lastPrice'."""
     p = valid_ticker().copy()
-    p["price"] = b"\x00\x01"
+    p["lastPrice"] = b"\x00\x01"
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
 
 
-def test_BackpackRawTicker_corruption_nested_bid() -> None:
-    """Should fail: nested object for 'bid'."""
+def test_BackpackRawTicker_corruption_nested_high() -> None:
+    """Should fail: nested object for 'high'."""
     p = valid_ticker().copy()
-    p["bid"] = {"foo": "bar"}
+    p["high"] = {"foo": "bar"}
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
 
 
-def test_BackpackRawTicker_corruption_list_ask() -> None:
-    """Should fail: list for 'ask'."""
+def test_BackpackRawTicker_corruption_list_low() -> None:
+    """Should fail: list for 'low'."""
     p = valid_ticker().copy()
-    p["ask"] = ["50001.0"]
+    p["low"] = ["48001.0"]
     with pytest.raises(ValidationError):
         BackpackRawTicker.model_validate(p)
 

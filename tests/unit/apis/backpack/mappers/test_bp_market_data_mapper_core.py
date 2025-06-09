@@ -54,20 +54,28 @@ def test_timestamp_ms() -> int:
 
 def create_raw_ticker(
     symbol: str = "SOL-USDC",
-    price: str | None = "100.50",
-    bid: str | None = "100.25",
-    ask: str | None = "100.75",
-    volume: str | None = "1000.0",
-    time: str = "2024-01-15T10:30:00Z",
+    first_price: str = "100.00",
+    last_price: str = "100.50",
+    high: str = "101.00",
+    low: str = "99.50",
+    price_change: str = "0.50",
+    price_change_percent: str = "0.50",
+    volume: str = "1000.0",
+    quote_volume: str = "100500.0",
+    trades: str = "500",
 ) -> BackpackRawTicker:
     """Create BackpackRawTicker instances for testing ticker transformations."""
     return BackpackRawTicker(
         symbol=symbol,
-        price=price,
-        bid=bid,
-        ask=ask,
+        first_price=first_price,
+        last_price=last_price,
+        high=high,
+        low=low,
+        price_change=price_change,
+        price_change_percent=price_change_percent,
         volume=volume,
-        time=time,
+        quote_volume=quote_volume,
+        trades=trades,
     )
 
 
@@ -128,14 +136,14 @@ def create_raw_funding_rate(
 
 def create_raw_funding_interval_rate(
     symbol: str = "SOL-USDC",
-    rate: str = "0.0001",
-    time: int = 1705314600000,
+    funding_rate: str = "0.0001",
+    interval_end_timestamp: str = "2024-01-15T10:30:00",
 ) -> BackpackRawFundingIntervalRate:
     """Create BackpackRawFundingIntervalRate instances for testing interval rate transformations."""
     return BackpackRawFundingIntervalRate(
         symbol=symbol,
-        rate=rate,
-        time=time,
+        rate=funding_rate,
+        time=interval_end_timestamp,
     )
 
 
@@ -204,7 +212,7 @@ class TestTickerTransformation:
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with symbol override."""
-        raw_ticker = create_raw_ticker(symbol="SOL-USDC", time=test_timestamp)
+        raw_ticker = create_raw_ticker(symbol="SOL-USDC")
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override="BTC-USDC")
 
@@ -216,14 +224,18 @@ class TestTickerTransformation:
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with None values for optional fields."""
-        # Create ticker with None values by constructing directly
+        # Create ticker with minimal values by constructing directly
         raw_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
-            price=None,
-            bid=None,
-            ask=None,
-            volume=None,
-            time=test_timestamp,
+            first_price="0.0",
+            last_price="0.0",
+            high="0.0",
+            low="0.0",
+            price_change="0.0",
+            price_change_percent="0.0",
+            volume="0.0",
+            quote_volume="0.0",
+            trades="0",
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)

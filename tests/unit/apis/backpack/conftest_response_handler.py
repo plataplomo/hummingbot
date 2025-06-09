@@ -40,11 +40,15 @@ def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
     """Return valid raw ticker for testing."""
     return {
         "symbol": symbol_spot,
-        "price": "140.50",
-        "bid": "140.49",
-        "ask": "140.51",
+        "firstPrice": "140.00",
+        "lastPrice": "140.50",
+        "high": "141.00",
+        "low": "139.50",
+        "priceChange": "0.50",
+        "priceChangePercent": "0.36",
         "volume": "500000.0",
-        "time": 1678886400000,
+        "quoteVolume": "70250000.0",
+        "trades": "1250",
     }
 
 
@@ -63,12 +67,12 @@ def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
 def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
     """Return valid raw trade item for testing."""
     return {
-        "symbol": symbol_spot,
+        "id": 1001,
+        "isBuyerMaker": False,
         "price": "141.00",
-        "qty": "1.5",
-        "time": 1678886402000,
-        "id": "1001",
-        "orderId": "order123",
+        "quantity": "1.5",
+        "quoteQuantity": "211.50",
+        "timestamp": 1678886402000,
     }
 
 
@@ -77,11 +81,11 @@ def valid_raw_recent_trades(valid_raw_trade_item: dict[str, Any]) -> list[dict[s
     """Return valid raw recent trades for testing."""
     item1 = valid_raw_trade_item.copy()
     item2 = valid_raw_trade_item.copy()
-    item2["id"] = "1002"
+    item2["id"] = 1002
     item2["price"] = "141.01"
-    item2["qty"] = "0.5"
-    item2["time"] = 1678886403000
-    item2["orderId"] = "order124"
+    item2["quantity"] = "0.5"
+    item2["quoteQuantity"] = "70.505"
+    item2["timestamp"] = 1678886403000
     return [item1, item2]
 
 
@@ -125,19 +129,19 @@ def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
     """Return valid raw historical trades for testing."""
     trade1 = {
         "id": "1001",
+        "orderId": "histOrderA",
         "symbol": symbol_spot,
         "price": "135.00",
         "qty": "2.0",
         "time": 1678880000000,
-        "orderId": "histOrderA",
     }
     trade2 = {
         "id": "1002",
+        "orderId": "histOrderB",
         "symbol": symbol_spot,
         "price": "135.10",
         "qty": "1.0",
         "time": 1678880100000,
-        "orderId": "histOrderB",
     }
     return [trade1, trade2]
 
