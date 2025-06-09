@@ -5,7 +5,7 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748894998&interval=1h&limit=100&startTime=1748808598&symbol=INVALID_SYMBOL
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748898276&interval=1h&limit=100&startTime=1748811876&symbol=INVALID_SYMBOL
   response:
     body:
       string: '{"code":"INVALID_SYMBOL","message":"Invalid symbol"}'
@@ -19,15 +19,15 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 20:09:58 GMT
+      - Mon, 09 Jun 2025 21:04:36 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 27d71dc3d0b3472a4cb212223d5edffc.cloudfront.net (CloudFront)
+      - 1.1 26e40a330b4c3cc9642637f33b3feec4.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - wtmWphzWGlDQ4uT-JNwrcJDOoijIIvh4T5BAXMsixREKYHsVE-mLFw==
+      - slnZmhaCq12ieLlFG29T_VNpKPyuUZb4e6R82gEH9F1722uVVyizjQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

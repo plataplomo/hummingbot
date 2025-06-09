@@ -428,6 +428,18 @@ class HyperliquidResponseHandler:
     ) -> HyperliquidRawOrderBookResponse:
         """Validates the /info response for l2Book."""
         context = f"info (l2 book for {symbol})"
+        
+        # Handle None response (no order book data available)
+        if raw_response_content is None:
+            logger.info(f"No order book data available for {symbol}, returning empty order book")
+            # Return a minimal empty order book with proper structure
+            empty_order_book = {
+                "coin": symbol,
+                "levels": [[], []],  # [bids, asks] - both empty lists
+                "time": 0  # zero timestamp for empty book
+            }
+            return HyperliquidRawOrderBookResponse.model_validate(empty_order_book)
+        
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol}. "
@@ -528,6 +540,22 @@ class HyperliquidResponseHandler:
     ) -> HyperliquidRawCandleSnapshot:
         """Validates the /info response for candle_snapshot."""
         context = f"info (candle snapshot for {symbol})"
+        
+        # Handle empty list response (no candle data available)
+        if isinstance(raw_response_content, list) and len(raw_response_content) == 0:
+            logger.info(f"Empty candle data for {symbol} {interval}, returning empty snapshot")
+            # Return a minimal empty candle snapshot with proper OHLCV structure
+            empty_snapshot = {
+                "t": [],  # timestamps
+                "o": [],  # open prices
+                "h": [],  # high prices  
+                "l": [],  # low prices
+                "c": [],  # close prices
+                "v": [],  # volumes
+                "s": "ok"  # status
+            }
+            return HyperliquidRawCandleSnapshot.model_validate(empty_snapshot)
+        
         if not isinstance(raw_response_content, dict):
             logger.error(
                 f"Unexpected {context} format for {symbol} {interval}. "

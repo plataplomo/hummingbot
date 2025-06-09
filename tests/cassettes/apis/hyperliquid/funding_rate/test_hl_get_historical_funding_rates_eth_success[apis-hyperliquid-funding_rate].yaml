@@ -21,7 +21,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Mon, 09 Jun 2025 20:10:33 GMT
+      - Mon, 09 Jun 2025 21:05:09 GMT
       Server:
       - nginx/1.22.1
       Vary:
@@ -29,9 +29,9 @@ interactions:
       - access-control-request-method
       - access-control-request-headers
       Via:
-      - 1.1 8753a5890eda67f9db56cde3f25f5a28.cloudfront.net (CloudFront)
+      - 1.1 b168a8fa55fcb1a61f8a56eeaacf4d70.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - oYIV3-QLs7f5FIMVPBSqTc2LzDSpDTcJUbwNbcYvPK6Rn2S82-gv3Q==
+      - sA_-3CIhvZMfl4vDfaCUm4dl_kRoq_hRN7dyrWHWw4rnyPvHknJiVA==
       X-Amz-Cf-Pop:
       - LIM50-P1
       X-Cache:

@@ -5,12 +5,10 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748895000&interval=1h&limit=100&startTime=1748808600&symbol=SOL_USDC
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748898278&interval=1h&limit=100&startTime=1748811878&symbol=SOL_USDC
   response:
     body:
-      string: '[{"close":"156.99","end":"2025-06-01 22:00:00","high":"157.3","low":"155.7","open":"155.76","quoteVolume":"275262.8264","start":"2025-06-01
-        21:00:00","trades":"1284","volume":"1758.41"},{"close":"157.28","end":"2025-06-01
-        23:00:00","high":"157.46","low":"156.5","open":"156.97","quoteVolume":"286357.5597","start":"2025-06-01
+      string: '[{"close":"157.28","end":"2025-06-01 23:00:00","high":"157.46","low":"156.5","open":"156.97","quoteVolume":"286357.5597","start":"2025-06-01
         22:00:00","trades":"1509","volume":"1824.13"},{"close":"157.8","end":"2025-06-02
         00:00:00","high":"157.98","low":"157.05","open":"157.29","quoteVolume":"299165.2631","start":"2025-06-01
         23:00:00","trades":"1587","volume":"1898.11"},{"close":"157.91","end":"2025-06-02
@@ -55,7 +53,9 @@ interactions:
         20:00:00","high":"153.75","low":"151.85","open":"153.3","quoteVolume":"562823.1433","start":"2025-06-02
         19:00:00","trades":"14413","volume":"3690.65"},{"close":"154.39","end":"2025-06-02
         21:00:00","high":"154.6","low":"153","open":"153.02","quoteVolume":"699571.7395","start":"2025-06-02
-        20:00:00","trades":"11502","volume":"4538.8"}]'
+        20:00:00","trades":"11502","volume":"4538.8"},{"close":"155.49","end":"2025-06-02
+        22:00:00","high":"155.57","low":"154.32","open":"154.4","quoteVolume":"408319.4544","start":"2025-06-02
+        21:00:00","trades":"6979","volume":"2635.35"}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -66,7 +66,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 20:10:00 GMT
+      - Mon, 09 Jun 2025 21:04:38 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Transfer-Encoding:
@@ -75,9 +75,9 @@ interactions:
       - Accept-Encoding
       - Origin
       Via:
-      - 1.1 75b9f2865c5e2067cee854ecd02814a8.cloudfront.net (CloudFront)
+      - 1.1 4c7f37929c014d92eee65d58255828da.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - Q03IwFxasVt3Yqgg25JfwEpNU__7YLtvdwzz9xgPmknbQDfP8LBIKQ==
+      - JhHsdCcJTiLPiFTVaSVlASBjwqcvEX8XUxHZQNcc72DYpk6Gwa6GLg==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -89,7 +89,7 @@ interactions:
       X-XSS-Protection:
       - 1; mode=block
       content-length:
-      - '4463'
+      - '4464'
     status:
       code: 200
       message: OK
@@ -99,12 +99,10 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748895000&interval=1h&limit=100&startTime=1748808600&symbol=BTC_USDC
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748898278&interval=1h&limit=100&startTime=1748811878&symbol=BTC_USDC
   response:
     body:
-      string: '[{"close":"105562.8","end":"2025-06-01 22:00:00","high":"105562.8","low":"104982.1","open":"105006.5","quoteVolume":"627776.184221","start":"2025-06-01
-        21:00:00","trades":"527","volume":"5.96532"},{"close":"105563.5","end":"2025-06-01
-        23:00:00","high":"105801.9","low":"105483.4","open":"105565.3","quoteVolume":"112982.047056","start":"2025-06-01
+      string: '[{"close":"105563.5","end":"2025-06-01 23:00:00","high":"105801.9","low":"105483.4","open":"105565.3","quoteVolume":"112982.047056","start":"2025-06-01
         22:00:00","trades":"189","volume":"1.0695"},{"close":"105687.1","end":"2025-06-02
         00:00:00","high":"105906","low":"105542.6","open":"105546.6","quoteVolume":"64396.443364","start":"2025-06-01
         23:00:00","trades":"133","volume":"0.60881"},{"close":"105479.2","end":"2025-06-02
@@ -149,7 +147,9 @@ interactions:
         20:00:00","high":"104569.6","low":"104100","open":"104418.1","quoteVolume":"246412.307326","start":"2025-06-02
         19:00:00","trades":"6045","volume":"2.36151"},{"close":"104947.3","end":"2025-06-02
         21:00:00","high":"105038.8","low":"104482.9","open":"104482.9","quoteVolume":"522864.727059","start":"2025-06-02
-        20:00:00","trades":"5270","volume":"4.98841"}]'
+        20:00:00","trades":"5270","volume":"4.98841"},{"close":"104965","end":"2025-06-02
+        22:00:00","high":"105169.9","low":"104679.5","open":"104951.9","quoteVolume":"329025.439339","start":"2025-06-02
+        21:00:00","trades":"1346","volume":"3.1365"}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -160,7 +160,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 20:10:01 GMT
+      - Mon, 09 Jun 2025 21:04:39 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Transfer-Encoding:
@@ -169,9 +169,9 @@ interactions:
       - Accept-Encoding
       - Origin
       Via:
-      - 1.1 75b9f2865c5e2067cee854ecd02814a8.cloudfront.net (CloudFront)
+      - 1.1 4c7f37929c014d92eee65d58255828da.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - tTiZgzwFr4S_bqwbevzaGeYvioCLF0me2LhUepOC0C8tFivYI4VuCQ==
+      - KlyOEjEVqGfSOt-IVJuuxzr5fSOYPj2cslTWSMHbNMWulb2geCHrqQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -183,7 +183,7 @@ interactions:
       X-XSS-Protection:
       - 1; mode=block
       content-length:
-      - '4686'
+      - '4684'
     status:
       code: 200
       message: OK

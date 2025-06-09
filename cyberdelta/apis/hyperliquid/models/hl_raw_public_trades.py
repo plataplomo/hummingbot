@@ -47,6 +47,7 @@ from pydantic import (
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
+    RawNonNegativeInt,
     RawPositiveFiniteDecimalStr,
     RawSideStr,
     RawTimestampMsInt,
@@ -70,6 +71,8 @@ class HyperliquidRawPublicTrade(BaseModel):
         sz (RawPositiveFiniteDecimalStr): Size of the trade.
         time (RawTimestampMsInt): Timestamp of the trade event (epoch ms).
         hash (RawTradeHashStringHL): Unique trade hash.
+        tid (RawNonNegativeInt): Trade ID.
+        users (list[str]): List of user addresses involved in the trade.
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")
@@ -78,6 +81,8 @@ class HyperliquidRawPublicTrade(BaseModel):
     sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
     time: RawTimestampMsInt = Field(..., alias="time")
     hash: RawTradeHashStringHL = Field(..., alias="hash")
+    tid: RawNonNegativeInt = Field(..., alias="tid")
+    users: list[str] = Field(..., alias="users")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

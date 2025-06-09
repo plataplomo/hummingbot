@@ -8,7 +8,7 @@ interactions:
     uri: https://api.hyperliquid.xyz/info
   response:
     body:
-      string: '[{"coin":"ETH","side":"A","px":"2581.3","sz":"2.0","time":1749499847575,"hash":"0xc54affdf6d2f8b8427ab04252ce55d019e008ac0b62a70e70d8277281fdd4f7d","tid":398768990427149,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x115e5fd325b9afebf3e07a2759f70d9dc49b9319"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"0.7325","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":967535265937071,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0xf05359fe3426248c3eb48ca9474160dc4510b99d"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"8.0","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":676912987472660,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x82b409e6c2e617929cf22bd7e4b08564c207abc1"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"1.6399","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":815799783061017,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x793660578d2628b0ec7e0e2b5c75a4847ae80706"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"1.5","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":814752207752709,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x3074aa6e98a0740b6e1d5fab04e640c317723d22"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"7.7299","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":468647995471145,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0xaf2825f73a90cf08baf2577818826b79e3faca9b"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"0.2597","time":1749499847075,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":878111447782084,"users":["0x2bda2d1f2707601a2949e64f9707ad21b03b57a3","0xaf2825f73a90cf08baf2577818826b79e3faca9b"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.8619","time":1749499846811,"hash":"0xb6ae999c88e3e57ae12c04252ce555020156003bae1c64c777d51e37c75f86b5","tid":494828767300533,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x30734f80c55ab54e9568795405f259e28bc1f2a2"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.1747","time":1749499846369,"hash":"0x5d69b3c2742e4b307bbc04252ce5500201fd00db82092d09e710d9e66bcba89d","tid":62855282539204,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x799e8e2c795b5d608abc6c360651d181c6179a73"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.021","time":1749499846369,"hash":"0x5d69b3c2742e4b307bbc04252ce5500201fd00db82092d09e710d9e66bcba89d","tid":1013374657717830,"users":["0x744cf47e88d9d0847544f0ac2fa7575cf5925f79","0x799e8e2c795b5d608abc6c360651d181c6179a73"]}]'
+      string: '[{"coin":"ETH","side":"A","px":"2607.2","sz":"37.2336","time":1749503125789,"hash":"0x1a976fb5b8239a9889d904252d8a7f020171001a3e728ee828adebdb737658c7","tid":1016119335555427,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0xb2a3eb761fc048d58ab16894291d64f4e026dca8"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"0.0158","time":1749503125306,"hash":"0xc6bd6cc5c767a31db20404252d8a7902016a00c7c2fd6b22211dcc64af25a847","tid":1007837957371350,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0xe5b47537929e6f37501879d8162daad588a6cff7"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"2.4065","time":1749503125306,"hash":"0xb09b0031410108bb15b304252d8a790201100059ddc76f4da501c7964dd5f4ba","tid":863477023713396,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0xb15982700b543c26116ab9f5c93b21d69dd16b79"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"1.0217","time":1749503125038,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":532411785292995,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x7f59d2e24b0ee23ba9c123838a3057e994fcfaba"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"2.0","time":1749503124488,"hash":"0x026a81dcc37484aeccb004252d8a6e02026100a114c782d9c050543b7cc556cf","tid":958368895238400,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x370b003c13aa6761a5dd6ba0acff29b7a1ebe11b"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"0.6454","time":1749503124434,"hash":"0x6809955361f55888847904252d8a6d01dd00d92cd3c6ca44016716b278626531","tid":138366046135512,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x31dea2516beee92135b96f464eeec3cf292a13f2"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"1.4045","time":1749503124089,"hash":"0x6d8017838fc38012cc8704252d8a690202690065cbce7129650bd44a9bb2d325","tid":186236668432559,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x53f3eef7c7e8962e221628f63f7172494627a774"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"7.4471","time":1749503124089,"hash":"0x6d8017838fc38012cc8704252d8a690202690065cbce7129650bd44a9bb2d325","tid":98206907486674,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x53f3eef7c7e8962e221628f63f7172494627a774"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"18.1464","time":1749503124089,"hash":"0xca0ac3f268bc375a85de04252d8a6902026800a251b6d74dcbc501e87798e28a","tid":263131802102271,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x53f3eef7c7e8962e221628f63f7172494627a774"]},{"coin":"ETH","side":"A","px":"2607.2","sz":"1.2156","time":1749503124089,"hash":"0xca0ac3f268bc375a85de04252d8a6902026800a251b6d74dcbc501e87798e28a","tid":795471688646620,"users":["0x7b7f72a28fe109fa703eeed7984f2a8a68fedee2","0x53f3eef7c7e8962e221628f63f7172494627a774"]}]'
     headers:
       Access-Control-Allow-Origin:
       - '*'
@@ -17,11 +17,11 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '2721'
+      - '2731'
       Content-Type:
       - application/json
       Date:
-      - Mon, 09 Jun 2025 20:10:48 GMT
+      - Mon, 09 Jun 2025 21:05:25 GMT
       Server:
       - nginx/1.22.1
       Vary:
@@ -29,9 +29,9 @@ interactions:
       - access-control-request-method
       - access-control-request-headers
       Via:
-      - 1.1 397871ae913f1796ba76aca08571de36.cloudfront.net (CloudFront)
+      - 1.1 b168a8fa55fcb1a61f8a56eeaacf4d70.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - EfedYWgf0_l3wW-JdzzMDWqOil2mYBUQ0NX-FwZ98s7ZRouE0h3oUw==
+      - 85ccE8doRHu2yByVK4Z0gvwb7TM3oasoBPxqDRxHpnedj223M4jIqw==
       X-Amz-Cf-Pop:
       - LIM50-P1
       X-Cache:
