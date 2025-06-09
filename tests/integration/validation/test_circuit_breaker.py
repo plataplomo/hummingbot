@@ -583,10 +583,10 @@ def mock_config_with_exchanges() -> AppSettings:
                 exchanges_data = full_config_data["exchanges"]
                 if not isinstance(exchanges_data, dict):
                     raise KeyError("Exchanges data is not a dict")
-                
+
                 if exchange_name_from_key not in exchanges_data:
                     raise KeyError(f"Exchange {exchange_name_from_key} not found")
-                
+
                 exchange_data = exchanges_data[exchange_name_from_key]
                 if not isinstance(exchange_data, dict):
                     raise KeyError(f"Exchange {exchange_name_from_key} data is not a dict")

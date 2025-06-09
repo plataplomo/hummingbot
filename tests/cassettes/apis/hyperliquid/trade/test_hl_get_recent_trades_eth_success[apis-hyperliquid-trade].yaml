@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: POST
+    uri: https://api.hyperliquid.xyz/info
+  response:
+    body:
+      string: '[{"coin":"ETH","side":"A","px":"2581.3","sz":"2.0","time":1749499847575,"hash":"0xc54affdf6d2f8b8427ab04252ce55d019e008ac0b62a70e70d8277281fdd4f7d","tid":398768990427149,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x115e5fd325b9afebf3e07a2759f70d9dc49b9319"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"0.7325","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":967535265937071,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0xf05359fe3426248c3eb48ca9474160dc4510b99d"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"8.0","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":676912987472660,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x82b409e6c2e617929cf22bd7e4b08564c207abc1"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"1.6399","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":815799783061017,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x793660578d2628b0ec7e0e2b5c75a4847ae80706"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"1.5","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":814752207752709,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0x3074aa6e98a0740b6e1d5fab04e640c317723d22"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"7.7299","time":1749499847075,"hash":"0xbc4f81cdff794b9754cd04252ce55801bd00747477eef1ff3f82409a560c5dd0","tid":468647995471145,"users":["0x435c7e0d9aac635fbcaa9dd20e935a41de2ba3f5","0xaf2825f73a90cf08baf2577818826b79e3faca9b"]},{"coin":"ETH","side":"B","px":"2581.4","sz":"0.2597","time":1749499847075,"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","tid":878111447782084,"users":["0x2bda2d1f2707601a2949e64f9707ad21b03b57a3","0xaf2825f73a90cf08baf2577818826b79e3faca9b"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.8619","time":1749499846811,"hash":"0xb6ae999c88e3e57ae12c04252ce555020156003bae1c64c777d51e37c75f86b5","tid":494828767300533,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x30734f80c55ab54e9568795405f259e28bc1f2a2"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.1747","time":1749499846369,"hash":"0x5d69b3c2742e4b307bbc04252ce5500201fd00db82092d09e710d9e66bcba89d","tid":62855282539204,"users":["0x4fb31d5ffaa08be2128cb14485584d76eebef173","0x799e8e2c795b5d608abc6c360651d181c6179a73"]},{"coin":"ETH","side":"A","px":"2581.3","sz":"0.021","time":1749499846369,"hash":"0x5d69b3c2742e4b307bbc04252ce5500201fd00db82092d09e710d9e66bcba89d","tid":1013374657717830,"users":["0x744cf47e88d9d0847544f0ac2fa7575cf5925f79","0x799e8e2c795b5d608abc6c360651d181c6179a73"]}]'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2721'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 09 Jun 2025 20:10:48 GMT
+      Server:
+      - nginx/1.22.1
+      Vary:
+      - origin
+      - access-control-request-method
+      - access-control-request-headers
+      Via:
+      - 1.1 397871ae913f1796ba76aca08571de36.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - EfedYWgf0_l3wW-JdzzMDWqOil2mYBUQ0NX-FwZ98s7ZRouE0h3oUw==
+      X-Amz-Cf-Pop:
+      - LIM50-P1
+      X-Cache:
+      - Miss from cloudfront
+    status:
+      code: 200
+      message: OK
+version: 1

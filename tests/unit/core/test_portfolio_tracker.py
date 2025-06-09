@@ -67,6 +67,7 @@ def pt_config() -> PortfolioTrackerConfig:
         initial_positions=[],
     )
 
+
 def _get_mock_price_data() -> dict[str, Decimal]:
     """Get mock price data for testing."""
     return {
@@ -102,10 +103,10 @@ def _create_mock_get_ticker_side_effect(
 ) -> Callable[[str], Awaitable[Ticker | None]]:
     """Create mock get_ticker side effect function."""
     prices = _get_mock_price_data()
-    
+
     async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
         mock_logger.debug(f"SIDE_EFFECT: Called with symbol: '{symbol}'")
-        
+
         # Parse symbol
         parts = symbol.split("-")
         if len(parts) != 2:
@@ -113,28 +114,28 @@ def _create_mock_get_ticker_side_effect(
             return None
         base, quote = parts
         now = datetime.now(UTC)
-        
+
         # Try direct pairs
         price = _handle_direct_pairs(base, quote, prices)
         if price is not None:
             mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
             return Ticker(symbol=symbol, timestamp=now, price=price)
-        
+
         # Try inverse pairs
         price = _handle_inverse_pairs(base, quote, prices)
         if price is not None:
             mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
             return Ticker(symbol=symbol, timestamp=now, price=price)
-        
+
         # Try USD/USDC pairs
         price = _handle_usd_usdc_pairs(base, quote)
         if price is not None:
             mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
             return Ticker(symbol=symbol, timestamp=now, price=price)
-        
+
         mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
         return None
-    
+
     return mock_get_ticker_side_effect
 
 
@@ -163,7 +164,7 @@ class TestPortfolioTracker:
         hyperliquid_client = AsyncMock(spec=ExchangeAPI)
         backpack_client = AsyncMock(spec=ExchangeAPI)
         clients = [hyperliquid_client, backpack_client]
-        
+
         # Create and assign side effect
         side_effect = _create_mock_get_ticker_side_effect(mock_logger)
         _setup_client_mocks(clients, side_effect)

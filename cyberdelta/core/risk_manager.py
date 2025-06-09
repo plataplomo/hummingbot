@@ -1303,7 +1303,7 @@ class RiskManager:
         )
         if calculated_size_usd_validated is None:
             return None
-        
+
         calculated_size_usd = calculated_size_usd_validated
 
         # Check constraints

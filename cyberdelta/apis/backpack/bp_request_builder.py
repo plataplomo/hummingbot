@@ -483,7 +483,7 @@ class BackpackRequestBuilder:
         # Convert millisecond timestamps to seconds as required by Backpack API
         start_time_seconds = None if start_time_ms is None else start_time_ms // 1000
         end_time_seconds = None if end_time_ms is None else end_time_ms // 1000
-        
+
         return BackpackRawGetHistoricalFundingRatesParams(
             symbol=BackpackRequestBuilder.format_symbol(symbol),
             startTime=start_time_seconds,
@@ -702,7 +702,7 @@ class BackpackRequestBuilder:
         # Convert millisecond timestamps to seconds as required by Backpack API
         start_time_seconds = None if start_time_ms is None else start_time_ms // 1000
         end_time_seconds = None if end_time_ms is None else end_time_ms // 1000
-        
+
         return BackpackRawGetMarketDataParams(
             symbol=formatted_symbol,
             interval=timeframe_str,

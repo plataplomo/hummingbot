@@ -21,7 +21,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
@@ -117,7 +117,7 @@ class BackpackResponseHandler:
         symbol: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> list[BackpackRawTrade]:
+    ) -> list[BackpackRawRecentTrade]:
         """Validate the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol}) - Status: {status_code}"
         if not isinstance(raw_response_content, list):
@@ -127,14 +127,14 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        validated_items: list[BackpackRawTrade] = []
+        validated_items: list[BackpackRawRecentTrade] = []
         for item in raw_response_content:
             # Ensure item is a dict before validating
             if not isinstance(item, dict):
                 logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
                 continue
             try:
-                validated_items.append(BackpackRawTrade.model_validate(item))
+                validated_items.append(BackpackRawRecentTrade.model_validate(item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,

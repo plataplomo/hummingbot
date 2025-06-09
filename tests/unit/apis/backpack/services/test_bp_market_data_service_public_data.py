@@ -467,7 +467,7 @@ class TestBackpackMarketDataServicePublicData:
         ]
         mock_headers_from_client = {
             "Content-Type": "application/json",
-            "X-RateLimit-Remaining": "100"
+            "X-RateLimit-Remaining": "100",
         }
 
         mock_request_builder.build_get_recent_trades_params.return_value = mock_params

@@ -221,6 +221,58 @@ sequenceDiagram
 
 ---
 
+## Update: Trade Model Inconsistency Discovery
+
+### Backpack Trade Model Split
+
+During ticker implementation, we discovered Backpack has **two different trade models** for similar data:
+
+#### BackpackRawTrade (User/Historical Trades)
+Used for endpoints: `/api/v1/orderHistory`, `/wapi/v1/history/fills`
+```python
+class BackpackRawTrade(BaseModel):
+    id: str                    # String ID
+    order_id: str              # Links to specific order
+    symbol: str                # Trading pair included
+    price: str
+    quantity: str
+    time: timestamp            # Uses 'time' field
+```
+
+#### BackpackRawRecentTrade (Public Market Trades) 
+Used for endpoint: `/api/v1/trades` (recent public trades)
+```python
+class BackpackRawRecentTrade(BaseModel):
+    id: int                    # Integer ID (not string!)
+    is_buyer_maker: bool       # Trade direction indicator
+    price: str
+    quantity: str
+    quote_quantity: str        # Additional volume metric
+    timestamp: timestamp       # Uses 'timestamp' field (not 'time'!)
+    # Note: No symbol field - implied from request
+    # Note: No order_id - anonymous public trades
+```
+
+### Hyperliquid Trade Consistency
+
+In contrast, Hyperliquid uses **consistent structures** across trade endpoints:
+- Same field names and types
+- Same ID format (always strings)
+- Same timestamp field naming
+- Clear separation between user fills and public trades
+
+### Impact on Architecture
+
+This inconsistency required:
+1. Creating separate raw models for the same conceptual data
+2. Different transformation logic in mappers
+3. Additional complexity in service layer
+4. More comprehensive testing scenarios
+
+**Lesson**: API design consistency matters. Hyperliquid's uniform approach reduces implementation complexity and potential bugs.
+
+---
+
 ## Detailed Comparison Analysis
 
 ### Order Identification Systems
@@ -862,3 +914,16 @@ The primary opportunities lie in **enhancement features** rather than **architec
 5. Performance optimization for WebSocket event processing
 
 **Architecture Grade**: **A** - Excellent foundation with clear enhancement path
+
+### Updated Assessment (Post-Trade Model Discovery)
+
+The discovery of Backpack's trade model inconsistency reinforces our architectural strength:
+
+| Aspect | Assessment | Notes |
+|--------|------------|-------|
+| **Adaptability** | ✅ Excellent | Successfully handled multiple model variants |
+| **Abstraction** | ✅ Excellent | Internal models hide exchange inconsistencies |
+| **Maintainability** | ✅ Good | Clear separation prevents cross-contamination |
+| **API Quality** | ❌ Backpack, ✅ Hyperliquid | Design consistency varies significantly |
+
+**Key Insight**: Our architecture proves its robustness by successfully accommodating even poorly designed API inconsistencies without breaking the overall system design.

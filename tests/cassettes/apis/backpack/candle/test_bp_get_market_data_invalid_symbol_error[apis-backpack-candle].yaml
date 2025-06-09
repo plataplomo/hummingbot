@@ -1,0 +1,44 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748894998&interval=1h&limit=100&startTime=1748808598&symbol=INVALID_SYMBOL
+  response:
+    body:
+      string: '{"code":"INVALID_SYMBOL","message":"Invalid symbol"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '52'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 09 Jun 2025 20:09:58 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 27d71dc3d0b3472a4cb212223d5edffc.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - wtmWphzWGlDQ4uT-JNwrcJDOoijIIvh4T5BAXMsixREKYHsVE-mLFw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: Bad Request
+version: 1

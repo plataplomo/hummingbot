@@ -357,8 +357,6 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
         raise
 
 
-
-
 async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
     """Set up signal handling for graceful shutdown."""
     loop = asyncio.get_running_loop()
@@ -388,8 +386,6 @@ async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
     logger.debug("Signal handlers registered.")
 
 
-
-
 async def _wire_components(app_state: dict[str, Any]) -> None:
     """Wire components according to the new architecture."""
     logger.info("Wiring components...")
@@ -412,12 +408,10 @@ async def _wire_components(app_state: dict[str, Any]) -> None:
     logger.debug("Component wiring complete.")
 
 
-
-
 async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
     """Start background component tasks."""
     main_tasks: list[asyncio.Task[Any]] = []
-    
+
     logger.info("Loading initial state...")
     await app_state["portfolio_tracker"].load_state()
     # Fetch initial balances/positions AFTER loading state
@@ -434,11 +428,10 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
     # Start signal queue processing
     main_tasks.append(
         asyncio.create_task(
-            app_state["signal_queue"].run(cancellation_token), 
-            name="SignalQueue_run"
+            app_state["signal_queue"].run(cancellation_token), name="SignalQueue_run"
         ),
     )
-    
+
     return main_tasks
 
 
@@ -485,7 +478,7 @@ async def _handle_shutdown_and_cleanup(
 ) -> None:
     """Handle shutdown sequence and cleanup background tasks."""
     global cancellation_token
-    
+
     logger.info("Main loop terminated or error occurred. Ensuring shutdown...")
     if not cancellation_token.is_set():
         logger.warning("Shutdown not initiated by signal handler, triggering now.")
@@ -494,7 +487,7 @@ async def _handle_shutdown_and_cleanup(
 
     # Wait for component tasks launched by main to finish
     await _cleanup_tasks(main_tasks)
-    
+
     if main_tasks:
         # Check if all tasks completed successfully
         _, pending = await asyncio.wait(main_tasks, timeout=0)
@@ -532,9 +525,9 @@ async def main() -> None:
         await shutdown(app_state)
         sys.exit(1)
 
-    # Wire components  
+    # Wire components
     await _wire_components(app_state)
-    
+
     # Add and enable strategies in the Engine
     for strategy in strategies:
         app_state["engine"].add_strategy(strategy)

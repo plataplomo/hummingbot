@@ -643,12 +643,12 @@ class PerformanceVisualizer:
         )
 
     def _apply_dashboard_layout(
-        self, 
-        fig: go.Figure, 
-        height: int, 
-        width: int, 
-        trade_data: pd.DataFrame | None = None, 
-        funding_data: pd.DataFrame | None = None
+        self,
+        fig: go.Figure,
+        height: int,
+        width: int,
+        trade_data: pd.DataFrame | None = None,
+        funding_data: pd.DataFrame | None = None,
     ) -> None:
         """Apply final layout settings to the dashboard."""
         fig.update_layout(

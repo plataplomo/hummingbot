@@ -74,17 +74,17 @@ def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> d
         "isInternal": False,
         "transactionHash": "0xhash123",
     }
-    
+
     # Map snake_case kwargs to the correct field names
     field_mapping = {
         "withdrawal_id": "id",
-        "to_address": "toAddress", 
+        "to_address": "toAddress",
         "created_at": "createdAt",
         "is_internal": "isInternal",
         "transaction_hash": "transactionHash",
         "client_id": "clientId",
     }
-    
+
     # Apply mapped kwargs, removing original snake_case keys
     filtered_kwargs: dict[str, str | int | float | bool | None] = {}
     for key, value in kwargs.items():
@@ -92,7 +92,7 @@ def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> d
             defaults[field_mapping[key]] = value
         else:
             filtered_kwargs[key] = value
-    
+
     # Update with remaining kwargs
     defaults.update(filtered_kwargs)
     return defaults
@@ -114,7 +114,7 @@ def create_raw_withdrawal_response(
     """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations."""
     # Create base data with defaults
     raw_data = _create_base_withdrawal_data(**kwargs)
-    
+
     # Add optional fields
     optional_fields = {
         "clientId": kwargs.get("client_id"),

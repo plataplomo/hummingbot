@@ -1,0 +1,42 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: POST
+    uri: https://api.hyperliquid.xyz/info
+  response:
+    body:
+      string: '[]'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 09 Jun 2025 20:10:32 GMT
+      Server:
+      - nginx/1.22.1
+      Vary:
+      - origin
+      - access-control-request-method
+      - access-control-request-headers
+      Via:
+      - 1.1 6a8bde05883e3a529e47f40f0d9e7aaa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 3alYMcvk_ZrevhQwOx6DhicONZ0wJzWjQRw234H-vP3B7z3sRKmTdQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P1
+      X-Cache:
+      - Miss from cloudfront
+    status:
+      code: 200
+      message: OK
+version: 1

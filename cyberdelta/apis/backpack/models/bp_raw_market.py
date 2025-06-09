@@ -113,14 +113,22 @@ class BackpackRawMarket(BaseModel):
 
 
 class BackpackRawTicker(BaseModel):
-    """Raw model for a ticker update from the Backpack API (REST /api/v1/ticker)."""
+    """Raw model for a ticker update from the Backpack API (REST /api/v1/ticker).
+
+    This model matches the actual 24-hour ticker statistics returned by the API,
+    containing OHLCV data, price changes, and trade counts.
+    """
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="price")
-    bid: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="bid")
-    ask: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="ask")
-    volume: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="volume")
-    time: RawBpFlexibleTimestamp = Field(..., alias="time")
+    first_price: RawBpParsableFiniteDecimalString = Field(..., alias="firstPrice")
+    last_price: RawBpParsableFiniteDecimalString = Field(..., alias="lastPrice")
+    high: RawBpParsableFiniteDecimalString = Field(..., alias="high")
+    low: RawBpParsableFiniteDecimalString = Field(..., alias="low")
+    price_change: RawBpParsableFiniteDecimalString = Field(..., alias="priceChange")
+    price_change_percent: RawBpParsableFiniteDecimalString = Field(..., alias="priceChangePercent")
+    volume: RawBpParsableFiniteDecimalString = Field(..., alias="volume")
+    quote_volume: RawBpParsableFiniteDecimalString = Field(..., alias="quoteVolume")
+    trades: RawBpNonEmptyStringMax64 = Field(..., alias="trades")
 
     model_config = ConfigDict(
         populate_by_name=True,

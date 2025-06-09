@@ -98,9 +98,7 @@ async def mock_aiohttp_client_session() -> AsyncMock:
 
 
 def _create_mock_receive_behavior(
-    mock_conn: AsyncMock, 
-    receive_sequence: Iterable[Any] | None,
-    block_indefinitely: bool
+    mock_conn: AsyncMock, receive_sequence: Iterable[Any] | None, block_indefinitely: bool
 ) -> Callable[[], Awaitable[WSMessage]]:
     """Create the mock receive behavior for a WebSocket connection."""
     seq_iterator = iter(receive_sequence) if receive_sequence else None
@@ -116,26 +114,29 @@ def _create_mock_receive_behavior(
             except StopIteration as e_stop:
                 mock_conn.closed = True
                 raise TimeoutError("Mocked receive sequence exhausted, timing out.") from e_stop
-        
+
         if block_indefinitely:
             # Block indefinitely when receive_sequence is None or exhausted
             future: asyncio.Future[WSMessage] = asyncio.Future()
             return await future  # This will block forever unless cancelled
-        
+
         # Only mark as closed if not blocking indefinitely
         mock_conn.closed = True
         raise TimeoutError("Mocked receive timeout")
-    
+
     return mock_receive_internal
 
 
 def _setup_ping_pong_behavior(mock_conn: AsyncMock, ping_pong_passthrough: bool) -> None:
     """Setup ping/pong behavior for mock WebSocket connection."""
     if ping_pong_passthrough:
+
         async def mock_ping() -> None:
             pass
+
         async def mock_pong() -> None:
             pass
+
         mock_conn.ping = AsyncMock(side_effect=mock_ping)
         mock_conn.pong = AsyncMock(side_effect=mock_pong)
 
@@ -149,12 +150,11 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         receive_sequence: Iterable[Any] | None = None,
         ping_pong_passthrough: bool = False,
         block_indefinitely: bool = False,
-        spec_arg: type[aiohttp.ClientWebSocketResponse]
-        | None = aiohttp.ClientWebSocketResponse,
+        spec_arg: type[aiohttp.ClientWebSocketResponse] | None = aiohttp.ClientWebSocketResponse,
     ) -> AsyncMock:
         mock_conn = AsyncMock(spec=spec_arg)
         mock_conn.closed = closed
-        
+
         # Setup receive behavior
         mock_receive_func = _create_mock_receive_behavior(
             mock_conn, receive_sequence, block_indefinitely
@@ -162,7 +162,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         mock_conn.receive = AsyncMock(side_effect=mock_receive_func)
         mock_conn.__aiter__ = MagicMock(return_value=mock_conn)
 
-        # Create anext behavior  
+        # Create anext behavior
         async def anext_for_mock() -> WSMessage:
             result = await mock_conn.receive()
             # Mock returns Any but we know it's WSMessage based on our test setup
@@ -177,7 +177,7 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
         mock_conn.pong = AsyncMock()
         mock_conn.close = AsyncMock(return_value=True)
         mock_conn.exception = MagicMock(return_value=None)
-        
+
         # Setup ping/pong behavior if needed
         _setup_ping_pong_behavior(mock_conn, ping_pong_passthrough)
 
@@ -352,11 +352,13 @@ class TestWebSocketManager:
         finally:
             await retry_manager.close()
 
+
 def _create_task_capture_side_effect(
     original_create_task: Callable[..., asyncio.Task[Any]],
-    created_tasks_map: dict[str, asyncio.Task[Any]]
+    created_tasks_map: dict[str, asyncio.Task[Any]],
 ) -> Callable[..., asyncio.Task[Any]]:
     """Create side effect for capturing created tasks."""
+
     def side_effect_for_create_task_capture(
         coro: Coroutine[Any, Any, Any],
         *args_capture: object,
@@ -369,6 +371,7 @@ def _create_task_capture_side_effect(
         if name:
             created_tasks_map[name] = task
         return task
+
     return side_effect_for_create_task_capture
 
 
@@ -383,7 +386,7 @@ def _setup_test_close_environment(
 
     created_tasks_map: dict[str, asyncio.Task[Any]] = {}
     original_asyncio_create_task = asyncio.tasks.create_task
-    
+
     capturing_task_factory = MagicMock(
         side_effect=_create_task_capture_side_effect(
             original_asyncio_create_task, created_tasks_map
@@ -399,7 +402,7 @@ def _setup_test_close_environment(
         session=None,
         task_factory=capturing_task_factory,
     )
-    
+
     return local_ws_manager, created_tasks_map, local_exchange_name
 
 
@@ -432,7 +435,7 @@ def _verify_tasks_created(
     """Verify that expected tasks were created."""
     listener_task_name = f"{local_exchange_name}_ws_listen"
     ping_task_name = f"{local_exchange_name}_ws_ping"
-    
+
     assert listener_task_name in created_tasks_map
     listener_task_for_close = created_tasks_map[listener_task_name]
 
@@ -442,7 +445,7 @@ def _verify_tasks_created(
         ping_task_for_close = created_tasks_map[ping_task_name]
     else:  # pragma: no cover
         assert ping_task_name not in created_tasks_map
-        
+
     return listener_task_for_close, ping_task_for_close
 
 
@@ -488,13 +491,13 @@ async def _cleanup_test_tasks(
     """Clean up test tasks."""
     if local_ws_manager.is_connected:
         await local_ws_manager.close()
-    
+
     tasks_to_cancel = [
         (connection_establishment_task, "connection_establishment_task"),
         (listener_task_for_close, "listener_task_for_close"),
         (ping_task_for_close, "ping_task_for_close"),
     ]
-    
+
     for task, _ in tasks_to_cancel:
         if task and not task.done():
             task.cancel()
@@ -522,7 +525,7 @@ class TestWebSocketManagerTaskManagement:
             default_ws_manager_config,
             mock_ws_connection_factory,
         )
-        
+
         actual_mock_ws_conn = mock_aiohttp_session_ws_connect_method.return_value
         connection_establishment_task: asyncio.Task[Any] | None = None
         listener_task_for_close: asyncio.Task[Any] | None = None
@@ -533,19 +536,22 @@ class TestWebSocketManagerTaskManagement:
             connection_establishment_task = await _establish_connection_and_verify(
                 local_ws_manager, mock_aiohttp_session_ws_connect_method
             )
-            
+
             # Verify tasks were created
             listener_task_for_close, ping_task_for_close = _verify_tasks_created(
                 created_tasks_map, local_exchange_name, default_ws_manager_config
             )
-            
+
             # Assert that connection happened once during setup
             mock_aiohttp_session_ws_connect_method.assert_called_once()
-            
+
             # Perform close and verify
             await _perform_close_and_verify(
-                local_ws_manager, mock_aiohttp_session_ws_connect_method, actual_mock_ws_conn,
-                listener_task_for_close, ping_task_for_close
+                local_ws_manager,
+                mock_aiohttp_session_ws_connect_method,
+                actual_mock_ws_conn,
+                listener_task_for_close,
+                ping_task_for_close,
             )
 
         finally:
@@ -622,15 +628,13 @@ class TestWebSocketManagerTaskManagement:
 
         # Setup test components
         test_case_logger = _setup_listen_test_logger()
-        
+
         (
             dynamic_ws_connect_side_effect,
             _,
-        ) = _create_dynamic_ws_connect_side_effect(
-            mock_ws_connection_factory, test_case_logger
-        )
+        ) = _create_dynamic_ws_connect_side_effect(mock_ws_connection_factory, test_case_logger)
         mock_aiohttp_session_ws_connect_method.side_effect = dynamic_ws_connect_side_effect
-        
+
         (
             manager,
             mock_user_message_handler,
@@ -638,7 +642,7 @@ class TestWebSocketManagerTaskManagement:
         ) = _setup_listen_test_manager(
             default_ws_manager_config, test_case_logger, mock_create_task
         )
-        
+
         listener_task_name_listen_test = "listen_reconnect_test_ws_listen"
 
         try:
@@ -665,9 +669,12 @@ class TestWebSocketManagerTaskManagement:
                 _verify_log_messages(mock_logger_patch)
 
                 # Verify sleep calls
-                _verify_sleep_calls(mock_sleep, default_ws_manager_config.model_copy(
-                    update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01}
-                ))
+                _verify_sleep_calls(
+                    mock_sleep,
+                    default_ws_manager_config.model_copy(
+                        update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01}
+                    ),
+                )
 
                 # Verify connection attempts
                 assert mock_aiohttp_session_ws_connect_method.call_count == 2
@@ -779,7 +786,7 @@ def _create_dynamic_ws_connect_side_effect(
         closed=True,
     )
     second_connection_mock.exception = MagicMock(return_value=None)
-    
+
     connect_attempt_count = 0
 
     async def dynamic_ws_connect_side_effect(*args: object, **kwargs: object) -> AsyncMock:
@@ -803,7 +810,7 @@ def _create_dynamic_ws_connect_side_effect(
             f"Returning second_connection_mock.",
         )
         return second_connection_mock
-    
+
     return dynamic_ws_connect_side_effect, second_connection_mock
 
 
@@ -825,7 +832,7 @@ def _setup_listen_test_manager(
         on_connected_callback=dummy_on_connected_callback,
         session=None,
     )
-    
+
     created_tasks_map_listen_test: dict[str, asyncio.Task[Any]] = {}
     original_asyncio_create_task_listen_test = asyncio.tasks.create_task
 
@@ -843,14 +850,14 @@ def _setup_listen_test_manager(
         return task
 
     mock_create_task.side_effect = side_effect_for_create_task_capture_listen_test
-    
+
     return manager, mock_user_message_handler, created_tasks_map_listen_test
 
 
 def _verify_log_messages(mock_logger_patch: MagicMock) -> None:
     """Verify expected log messages are present."""
     found_first_attempt_fail_log = False
-    
+
     # Check warnings first
     for call_args in mock_logger_patch.warning.call_args_list:
         logged_message = str(call_args)
@@ -860,7 +867,7 @@ def _verify_log_messages(mock_logger_patch: MagicMock) -> None:
         ):
             found_first_attempt_fail_log = True
             break
-    
+
     # Check errors if not found in warnings
     if not found_first_attempt_fail_log:
         for call_args in mock_logger_patch.error.call_args_list:
@@ -871,7 +878,7 @@ def _verify_log_messages(mock_logger_patch: MagicMock) -> None:
             ):
                 found_first_attempt_fail_log = True
                 break
-    
+
     assert found_first_attempt_fail_log, (
         f"Expected log for first connection attempt failing with 'Cannot connect to "
         f"host' not found. Warnings: {mock_logger_patch.warning.call_args_list}, "
@@ -890,9 +897,7 @@ def _verify_sleep_calls(mock_sleep: AsyncMock, test_config: WebSocketManagerConf
     found_test_sleep = False
 
     effective_min_retry_sleep = 1.0
-    effective_max_retry_sleep = (
-        1.0 + abs(test_config.reconnect_delay * 0.2 * 0.5) + 0.01
-    )
+    effective_max_retry_sleep = 1.0 + abs(test_config.reconnect_delay * 0.2 * 0.5) + 0.01
 
     for call_item in mock_sleep.call_args_list:
         args, _ = call_item
@@ -906,9 +911,7 @@ def _verify_sleep_calls(mock_sleep: AsyncMock, test_config: WebSocketManagerConf
         f"Expected a retry sleep (approx {effective_min_retry_sleep}-"
         f"{effective_max_retry_sleep}s). Calls: {mock_sleep.call_args_list}"
     )
-    assert found_test_sleep, (
-        f"Expected a test sleep (0.05s). Calls: {mock_sleep.call_args_list}"
-    )
+    assert found_test_sleep, f"Expected a test sleep (0.05s). Calls: {mock_sleep.call_args_list}"
 
 
 async def _handle_restarted_listen_task(

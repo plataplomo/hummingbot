@@ -163,6 +163,7 @@ class OrderBook(BaseModel):
         # Type narrowing after validation - we know level_raw is list|tuple with length 2
         # Cast to the appropriate type after validation
         from typing import cast
+
         level_sequence = cast(list[object] | tuple[object, ...], level_raw)
         price_raw = level_sequence[0]
         quantity_raw = level_sequence[1]

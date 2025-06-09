@@ -49,7 +49,6 @@ HttpClientRequesterSig = Callable[
 
 class BackpackTradingService:
     """Service class for Backpack trading operations. Returns Internal Domain Models."""
-    
 
     def __init__(
         self,

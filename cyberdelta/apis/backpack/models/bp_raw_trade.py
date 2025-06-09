@@ -75,6 +75,36 @@ class BackpackRawTrade(BaseModel):
     )
 
 
+class BackpackRawRecentTrade(BaseModel):
+    """Pydantic model for a raw recent trade from `/api/v1/trades` endpoint.
+
+    This model matches the actual API response structure for recent public trades,
+    which differs from the historical trade fills structure.
+
+    Attributes:
+        id (int): Trade ID.
+        is_buyer_maker (bool): Whether the buyer was the maker.
+        price (str): Execution price (as string).
+        quantity (str): Executed quantity (as string).
+        quote_quantity (str): Quote asset quantity (as string).
+        timestamp (int | str | float): Execution timestamp in milliseconds.
+    """
+
+    id: RawBpNonNegativeInt = Field(..., alias="id")
+    is_buyer_maker: RawBpStrictBool = Field(..., alias="isBuyerMaker")
+    price: RawBpParsableFiniteDecimalString = Field(..., alias="price")
+    quantity: RawBpParsableFiniteDecimalString = Field(..., alias="quantity")
+    quote_quantity: RawBpParsableFiniteDecimalString = Field(..., alias="quoteQuantity")
+    timestamp: RawBpFlexibleTimestamp = Field(..., alias="timestamp")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        validate_by_name=True,
+        frozen=True,
+    )
+
+
 class BackpackRawTradeEvent(BaseModel):
     """Pydantic model for a raw trade event from the Backpack WebSocket stream (`trade`).
 

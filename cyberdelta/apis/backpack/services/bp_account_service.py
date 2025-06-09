@@ -68,7 +68,6 @@ class BackpackAccountService:
     _mapper: BackpackAccountDataMapper
     _authenticator: IAuthenticator | None
     _exchange_name: str
-    
 
     def __init__(
         self,

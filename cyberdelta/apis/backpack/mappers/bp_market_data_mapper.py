@@ -36,6 +36,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
+    BackpackRawRecentTrade,
     BackpackRawTrade,
     BackpackRawTradeEvent,
 )
@@ -44,6 +45,7 @@ from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails, FundingRate
+from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -102,28 +104,62 @@ class BackpackMarketDataMapper:
             # Use symbol override if provided, otherwise use raw ticker symbol
             symbol = symbol_override or raw_ticker.symbol
 
-            # Parse core ticker fields using parsing utilities
-            last_price = parse_decimal_value(raw_ticker.price, allow_none=True, field_name="price")
-            bid_price = parse_decimal_value(raw_ticker.bid, allow_none=True, field_name="bid")
-            ask_price = parse_decimal_value(raw_ticker.ask, allow_none=True, field_name="ask")
+            # Parse core ticker fields using new model structure
+            last_price = parse_decimal_value(
+                raw_ticker.last_price, allow_none=False, field_name="lastPrice"
+            )
             volume_24h = parse_decimal_value(
-                raw_ticker.volume,
-                allow_none=True,
-                field_name="volume",
+                raw_ticker.volume, allow_none=False, field_name="volume"
             )
 
-            # Parse timestamp
-            timestamp = parse_datetime_utc(raw_ticker.time, field_name="time")
-            if timestamp is None:
-                timestamp = datetime.now(UTC)
+            # Parse extension fields for BackpackTickerDetails
+            first_price = parse_decimal_value(
+                raw_ticker.first_price, allow_none=False, field_name="firstPrice"
+            )
+            high_price = parse_decimal_value(raw_ticker.high, allow_none=False, field_name="high")
+            low_price = parse_decimal_value(raw_ticker.low, allow_none=False, field_name="low")
+            price_change = parse_decimal_value(
+                raw_ticker.price_change, allow_none=False, field_name="priceChange"
+            )
+            price_change_percent = parse_decimal_value(
+                raw_ticker.price_change_percent, allow_none=False, field_name="priceChangePercent"
+            )
+            quote_volume = parse_decimal_value(
+                raw_ticker.quote_volume, allow_none=False, field_name="quoteVolume"
+            )
+
+            # Parse trade count
+            trades_count = None
+            if raw_ticker.trades:
+                try:
+                    trades_count = int(raw_ticker.trades)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Failed to parse trades count '{raw_ticker.trades}' for {symbol}"
+                    )
+
+            # Generate timestamp since API doesn't provide it
+            timestamp = datetime.now(UTC)
+
+            # Create Backpack-specific extension details
+            bp_details = BackpackTickerDetails(
+                first_price=first_price,
+                high=high_price,
+                low=low_price,
+                price_change=price_change,
+                price_change_percent=price_change_percent,
+                quote_volume=quote_volume,
+                trades=trades_count,
+            )
 
             return Ticker(
                 symbol=symbol,
                 timestamp=timestamp,
-                price=last_price,
-                bid=bid_price,
-                ask=ask_price,
+                price=last_price,  # Map lastPrice to core price field
+                bid=None,  # Not available from Backpack ticker endpoint
+                ask=None,  # Not available from Backpack ticker endpoint
                 volume=volume_24h,
+                bp_details=bp_details,
             )
 
         except Exception as e:
@@ -167,6 +203,10 @@ class BackpackMarketDataMapper:
 
                 if price is not None and size is not None:
                     asks.append((price, size))
+
+            # Sort bids in descending order (highest price first) and asks in ascending order (lowest price first)
+            bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
+            asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_book.timestamp, field_name="timestamp")
@@ -235,6 +275,66 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(f"Failed to transform BackpackRawTrade to Trade: {e}") from e
+
+    @staticmethod
+    def transform_raw_recent_trade_to_internal(
+        raw_trade: BackpackRawRecentTrade, symbol: str
+    ) -> Trade:
+        """Transform a BackpackRawRecentTrade to an Internal Trade model.
+
+        Args:
+            raw_trade: Validated raw recent trade data from Backpack
+            symbol: Symbol for the trade (not included in recent trade response)
+
+        Returns:
+            Trade: Internal domain model with populated fields and BP details
+
+        Raises:
+            TransformationError: If transformation fails
+
+        """
+        try:
+            # Parse trade fields
+            price = parse_decimal_value(raw_trade.price, allow_none=False, field_name="price")
+            if price is None:
+                raise TransformationError("price is required for trade")
+
+            quantity = parse_decimal_value(
+                raw_trade.quantity,
+                allow_none=False,
+                field_name="quantity",
+            )
+            if quantity is None:
+                raise TransformationError("quantity is required for trade")
+
+            # Parse timestamp
+            executed_at = parse_datetime_utc(raw_trade.timestamp, field_name="timestamp")
+            if executed_at is None:
+                executed_at = datetime.now(UTC)
+
+            # Determine side from is_buyer_maker: if buyer is maker, then this trade is a sell (taker sold to maker)
+            # If buyer is not maker, then this trade is a buy (taker bought from maker)
+            side = OrderSide.SELL if raw_trade.is_buyer_maker else OrderSide.BUY
+
+            # Create BP-specific details
+            details = BackpackTradeDetails()
+
+            return Trade(
+                id=str(raw_trade.id),  # Convert int ID to string
+                symbol=symbol,
+                executed_at=executed_at,
+                side=side,
+                order_id="",  # Not available in recent trades response
+                exchange=ExchangeName.BACKPACK.value,
+                price=price,
+                quantity=quantity,
+                bp_details=details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform BackpackRawRecentTrade to Trade: {e}"
+            ) from e
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
@@ -498,6 +598,10 @@ class BackpackMarketDataMapper:
 
                 if price is not None and size is not None:
                     asks.append((price, size))
+
+            # Sort bids in descending order (highest price first) and asks in ascending order (lowest price first)
+            bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
+            asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
 
             # Parse timestamp from event_time
             timestamp = parse_datetime_utc(raw_depth.event_time, field_name="event_time")

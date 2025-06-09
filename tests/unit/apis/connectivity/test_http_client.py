@@ -445,7 +445,7 @@ class TestHttpClient:
         # Verify the authenticator was called with the original parameters
         prepare_request_mock_signed.assert_called_once_with(
             method="POST",
-            path="/signed_action", 
+            path="/signed_action",
             params=original_params,
             data=original_data,
             headers=expected_headers_for_auth_prep,

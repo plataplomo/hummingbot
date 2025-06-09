@@ -453,20 +453,20 @@ def active_hl_secrets() -> PrivateKeyAuthSecrets:
 @pytest.fixture
 def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
     """Environment-aware ExchangeSpecificConfig fixture for Backpack.
-    
+
     Uses test configuration from test_config.yaml. Backpack always uses mainnet.
     """
     return test_app_settings.exchanges["backpack"]
 
 
-@pytest.fixture 
+@pytest.fixture
 def active_bp_secrets(test_secrets_config: SecretsConfig) -> Any:
     """Environment-aware ApiKeyAuthSecrets fixture for Backpack.
-    
+
     Uses test secrets from test_secrets.yaml.
     """
     from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-    
+
     secrets = test_secrets_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
         pytest.fail("Backpack secrets in test_secrets.yaml are not ApiKeyAuthSecrets type.")

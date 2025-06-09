@@ -29,7 +29,8 @@ class Ticker(BaseModel):
     """Represents an immutable, validated snapshot of the latest ticker data for a symbol.
 
     Provides core price (last, bid, ask) and volume information, ensuring data integrity
-    through strict validation and Decimal usage for financial precision.
+    through strict validation and Decimal usage for financial precision. Supports
+    exchange-specific extension slots for preserving additional ticker data.
 
     Attributes:
         symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
@@ -38,6 +39,8 @@ class Ticker(BaseModel):
         bid: Best bid price. Must be non-negative if provided.
         ask: Best ask price. Must be non-negative if provided.
         volume: Trading volume (e.g., 24h). Must be non-negative if provided.
+        hl_details: Hyperliquid-specific ticker enrichment (optional).
+        bp_details: Backpack-specific ticker enrichment (optional).
 
     Configuration:
         - `frozen=True`: Guarantees immutability.
@@ -53,6 +56,8 @@ class Ticker(BaseModel):
     bid: Decimal | None = Field(default=None, ge=Decimal("0"))
     ask: Decimal | None = Field(default=None, ge=Decimal("0"))
     volume: Decimal | None = Field(default=None, ge=Decimal("0"))
+    hl_details: HyperliquidTickerDetails | None = Field(default=None)
+    bp_details: BackpackTickerDetails | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
@@ -144,3 +149,42 @@ class Ticker(BaseModel):
                 )
                 return None
         return None  # Return None if bid or ask is None or non-finite
+
+
+class HyperliquidTickerDetails(BaseModel):
+    """Hyperliquid-specific ticker enrichment fields for extension slot on Ticker.
+
+    Fields:
+        mid_price_source (Optional[str]): Source of the mid-price calculation (e.g., 'allMids')
+    """
+
+    mid_price_source: str | None = Field(default=None)
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+
+class BackpackTickerDetails(BaseModel):
+    """Backpack-specific ticker enrichment fields for extension slot on Ticker.
+
+    Preserves the rich 24-hour ticker statistics provided by Backpack's REST API
+    that are not part of the core ticker model.
+
+    Fields:
+        first_price (Optional[Decimal]): Opening price (24h ago)
+        high (Optional[Decimal]): Highest price in 24h
+        low (Optional[Decimal]): Lowest price in 24h
+        price_change (Optional[Decimal]): Absolute price change (lastPrice - firstPrice)
+        price_change_percent (Optional[Decimal]): Percentage change
+        quote_volume (Optional[Decimal]): Quote asset volume (24h)
+        trades (Optional[int]): Number of trades (24h)
+    """
+
+    first_price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    high: Decimal | None = Field(default=None, ge=Decimal("0"))
+    low: Decimal | None = Field(default=None, ge=Decimal("0"))
+    price_change: Decimal | None = Field(default=None)  # Can be negative
+    price_change_percent: Decimal | None = Field(default=None)  # Can be negative
+    quote_volume: Decimal | None = Field(default=None, ge=Decimal("0"))
+    trades: int | None = Field(default=None, ge=0)
+
+    model_config = ConfigDict(extra="ignore", frozen=True)

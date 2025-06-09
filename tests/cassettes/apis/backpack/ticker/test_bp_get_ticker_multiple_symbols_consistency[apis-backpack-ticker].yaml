@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC
+  response:
+    body:
+      string: '{"firstPrice":"154.75","high":"157.04","lastPrice":"156.4","low":"149.68","priceChange":"1.65","priceChangePercent":"0.010662","quoteVolume":"10525369.2388","symbol":"SOL_USDC","trades":"53070","volume":"68372.29"}'
+    headers:
+      Age:
+      - '3'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '214'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 09 Jun 2025 20:10:19 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 13bdfe51c955b72c24c041717e9e9508.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - QEbvyNAIpMfX5L-o3IGJ4j9QjjYW0pl2_gM98NGv8jXt_OQWZertKA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC
+  response:
+    body:
+      string: '{"firstPrice":"106353.7","high":"108836.8","lastPrice":"108748","low":"105380.6","priceChange":"2394.3","priceChangePercent":"0.022513","quoteVolume":"9711236.592379","symbol":"BTC_USDC","trades":"51604","volume":"90.74441"}'
+    headers:
+      Age:
+      - '2'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '224'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 09 Jun 2025 20:10:20 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 13bdfe51c955b72c24c041717e9e9508.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - j1ZQ2STz2kjyHzyV16s_ImMKYh5UPee6oGhzaYenxVdcYaKuYCyusQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -25,7 +25,6 @@ from cyberdelta.apis.backpack.bp_response_handler import (
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
 )
 
 # Assuming BackpackRawKline is for individual klines, used in lists
@@ -39,7 +38,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 
 # Assuming BackpackRawTrade is for individual trades, used in lists
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Import ParsedJsonResponse
 
 # Base API error models
@@ -85,7 +84,6 @@ class BackpackMarketDataService:
     _response_handler: BackpackResponseHandler
     _mapper: BackpackMarketDataMapper
     _exchange_name: str
-    
 
     def __init__(
         self,
@@ -494,7 +492,7 @@ class BackpackMarketDataService:
         headers: dict[str, str],
     ) -> list[Trade]:
         """Process and transform recent trades response."""
-        raw_trade_models: list[BackpackRawTrade] = (
+        raw_trade_models: list[BackpackRawRecentTrade] = (
             self._response_handler.handle_get_recent_trades_response(
                 raw_data_list,
                 symbol,
@@ -505,7 +503,7 @@ class BackpackMarketDataService:
         internal_trades: list[Trade] = []
         for raw_model in raw_trade_models:
             try:
-                trade = self._mapper.transform_raw_trade_to_internal(raw_model)
+                trade = self._mapper.transform_raw_recent_trade_to_internal(raw_model, symbol)
                 internal_trades.append(trade)
             except (ValidationError, ValueError) as e_map_item:
                 raw_data_str = (
@@ -679,7 +677,7 @@ class BackpackMarketDataService:
                     headers,
                 )
             )
-            
+
             # For get_funding_rate (single), return the most recent rate (first in list)
             if not raw_funding_interval_rates:
                 raise APIError(
@@ -687,7 +685,7 @@ class BackpackMarketDataService:
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Transform the first funding rate to internal model
             raw_funding_rate_model = raw_funding_interval_rates[0]
             internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(

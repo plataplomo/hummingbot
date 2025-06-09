@@ -121,13 +121,16 @@ class RealTimeDashboard:
                                                 html.Label("Time Range:", className="fw-bold"),
                                                 dcc.RadioItems(
                                                     id="time-range-selector",
-                                                    options=cast(Any, [
-                                                        {"label": "1 Hour", "value": "1h"},
-                                                        {"label": "1 Day", "value": "1d"},
-                                                        {"label": "1 Week", "value": "1w"},
-                                                        {"label": "1 Month", "value": "1m"},
-                                                        {"label": "All Time", "value": "all"},
-                                                    ]),
+                                                    options=cast(
+                                                        Any,
+                                                        [
+                                                            {"label": "1 Hour", "value": "1h"},
+                                                            {"label": "1 Day", "value": "1d"},
+                                                            {"label": "1 Week", "value": "1w"},
+                                                            {"label": "1 Month", "value": "1m"},
+                                                            {"label": "All Time", "value": "all"},
+                                                        ],
+                                                    ),
                                                     value="1d",
                                                     inline=True,
                                                 ),

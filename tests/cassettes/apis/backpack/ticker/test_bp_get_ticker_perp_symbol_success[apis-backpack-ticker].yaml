@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"154.68","high":"157","lastPrice":"156.32","low":"149.62","priceChange":"1.64","priceChangePercent":"0.010603","quoteVolume":"59593662.6372","symbol":"SOL_USDC_PERP","trades":"50360","volume":"387346.83"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '218'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 09 Jun 2025 20:10:21 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d57b2a5738f58b3120f0223cecca8c6c.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - UYSuUS_la7ytLqsBrTqdFpBlLl33m4htOAeda5y9j2IxKfSTXv0BLg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

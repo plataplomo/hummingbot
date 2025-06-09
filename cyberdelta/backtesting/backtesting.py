@@ -645,7 +645,7 @@ class StrategyAdapter(BacktestStrategy):
         # Handle synchronous results - narrow the type
         if isinstance(signal_or_coro, TradeSignal | list):
             return signal_or_coro
-        
+
         # If it's not a recognized type, return None
         return None
 
@@ -656,7 +656,7 @@ class StrategyAdapter(BacktestStrategy):
         # Type check to ensure we have a coroutine
         if not asyncio.iscoroutine(signal_or_coro):
             return None
-            
+
         try:
             # Check if a loop is already running
             loop = asyncio.get_running_loop()
@@ -845,7 +845,7 @@ class StrategyAdapter(BacktestStrategy):
             timestamp_raw = current_data.index[-1]
         else:
             timestamp_raw = pd.Timestamp.utcnow()
-            
+
         # Convert to datetime
         if isinstance(timestamp_raw, pd.Timestamp):
             timestamp = timestamp_raw.to_pydatetime()
@@ -860,7 +860,7 @@ class StrategyAdapter(BacktestStrategy):
             except (ValueError, TypeError):
                 # If conversion fails, use current time as fallback
                 timestamp = pd.Timestamp.utcnow().to_pydatetime()
-            
+
         return timestamp
 
     def _convert_single_signal(
