@@ -474,14 +474,20 @@ async def test_hl_get_ticker_performance_consistency(
         pass
     else:
         # Check if price variations are within reasonable bounds for live market data
-        min_price = min(prices)
-        max_price = max(prices)
+        # DEFENSIVE CHECK: Runtime check for None values before operations.
+        if any(price is None for price in prices):
+            pytest.fail("Some prices are None, cannot perform price variation analysis")
+
+        # Type narrowing after None check - we know all prices are Decimal now
+        valid_prices = [price for price in prices if price is not None]
+        min_price = min(valid_prices)
+        max_price = max(valid_prices)
         price_range = max_price - min_price
-        avg_price = sum(prices) / len(prices)
-        
+        avg_price = sum(valid_prices) / Decimal(len(valid_prices))
+
         # Allow up to 0.1% price variation for live market data
         max_allowed_variation = avg_price * Decimal("0.001")
-        
+
         assert price_range <= max_allowed_variation, (
             f"Price variation {price_range} exceeds allowed tolerance {max_allowed_variation}. "
             f"Prices: {unique_prices}. This may indicate live API calls during high volatility."

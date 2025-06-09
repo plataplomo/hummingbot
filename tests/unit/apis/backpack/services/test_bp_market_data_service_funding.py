@@ -151,7 +151,6 @@ class TestBackpackMarketDataServiceFunding:
         """Test get_funding_rate handles validation error from response handler."""
         symbol = "SOL-PERP"
         mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
-        mock_params = mock_params_model.model_dump()
         mock_raw_response = {"invalid": "funding_rate_data"}
 
         mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
@@ -180,7 +179,6 @@ class TestBackpackMarketDataServiceFunding:
         """Test get_funding_rate handles unexpected exception."""
         symbol = "SOL-PERP"
         mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
-        mock_params = mock_params_model.model_dump()
         mock_raw_response = {"symbol": symbol, "rate": "0.001"}
 
         mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model

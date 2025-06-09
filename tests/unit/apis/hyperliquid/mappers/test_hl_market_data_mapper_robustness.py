@@ -235,6 +235,8 @@ class TestBoundaryValueConditions:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=1,
+            users=["0xuser1"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(zero_price_trade)
@@ -331,6 +333,8 @@ class TestUnicodeAndEncodingSupport:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash=unicode_hash,
+            tid=1,
+            users=["0xuser1"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(unicode_trade)
@@ -390,6 +394,8 @@ class TestPerformanceAndMemory:
                 sz=f"{1 + i * 0.001:.6f}",
                 time=int(datetime.now(UTC).timestamp() * 1000) - (i * 100),
                 hash=f"0x{'a' * 58}{i:06d}",  # Unique 64-char hashes
+                tid=i,
+                users=[f"0xuser{i}"],
             )
             large_trade_batch.append(trade)
 
@@ -447,6 +453,8 @@ class TestErrorRecoveryScenarios:
                 sz="1.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
                 hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                tid=1,
+                users=["0xuser1"],
             ),
             # Invalid trade (zero price)
             HyperliquidRawPublicTrade(
@@ -456,6 +464,8 @@ class TestErrorRecoveryScenarios:
                 sz="1.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
                 hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcde1",
+                tid=2,
+                users=["0xuser2"],
             ),
             # Another valid trade
             HyperliquidRawPublicTrade(
@@ -465,6 +475,8 @@ class TestErrorRecoveryScenarios:
                 sz="2.0",
                 time=int(datetime.now(UTC).timestamp() * 1000),
                 hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcde2",
+                tid=3,
+                users=["0xuser3"],
             ),
         ]
 
@@ -535,6 +547,8 @@ class TestErrorRecoveryScenarios:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=1,
+            users=["0xuser1"],
         )
 
         # Mock the _map_side_to_internal method to raise an error for unknown sides

@@ -104,6 +104,8 @@ def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
         sz="1.5",
         time=int(datetime.now(UTC).timestamp() * 1000 - 3000),  # 3 seconds ago
         hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        tid=12345,
+        users=["0x1234567890abcdef"],
     )
 
 
@@ -117,6 +119,8 @@ def hyperliquid_raw_public_trade_sell_fixture() -> HyperliquidRawPublicTrade:
         sz="0.02",
         time=int(datetime.now(UTC).timestamp() * 1000 - 1500),  # 1.5 seconds ago
         hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        tid=12346,
+        users=["0xfedcba0987654321"],
     )
 
 
@@ -331,6 +335,8 @@ class TestTransformRawPublicTradeToInternal:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         # Mock the static method on the class
@@ -357,6 +363,8 @@ class TestTransformRawPublicTradeToInternal:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -376,6 +384,8 @@ class TestTransformRawPublicTradeToInternal:
             sz="0.000000001",  # Very small positive quantity (effectively zero)
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -393,6 +403,8 @@ class TestTransformRawPublicTradeToInternal:
             sz="1.987654321098765",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -414,6 +426,8 @@ class TestTransformRawPublicTradeToInternal:
             sz="1.0",
             time=specific_time_ms,
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -501,6 +515,8 @@ class TestTransformRawTrades:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12346,
+            users=["0xfedcba0987654321"],
         )
 
         raw_trades = [
@@ -535,6 +551,8 @@ class TestTransformRawTrades:
             sz="1.0",
             time=int(datetime.now(UTC).timestamp() * 1000),
             hash="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            tid=12345,
+            users=["0x1234567890abcdef"],
         )
 
         # Store the original method
@@ -661,6 +679,8 @@ class TestOrderBookAndTradeIntegration:
                 sz=f"{1 + i * 0.01:.2f}",
                 time=int(datetime.now(UTC).timestamp() * 1000) - (i * 1000),
                 hash=f"0x{'a' * 60}{i:04d}",  # 64-char hash
+                tid=i,
+                users=[f"0x{'b' * 60}{i:04d}"],
             )
             raw_trades.append(raw_trade)
 

@@ -293,7 +293,8 @@ async def test_bp_get_market_data_chronological_ordering(
                     f"Candle {i} open_time should be datetime, got {type(current_candle.open_time)}"
                 )
                 assert isinstance(next_candle.open_time, datetime), (
-                    f"Candle {i + 1} open_time should be datetime, got {type(next_candle.open_time)}"
+                    f"Candle {i + 1} open_time should be datetime, "
+                    f"got {type(next_candle.open_time)}"
                 )
 
                 # For 1h interval, timestamps should be 1 hour apart
@@ -517,14 +518,13 @@ async def test_bp_get_market_data_invalid_interval_error(
     end_time = int(end_time_dt.timestamp())
     start_time = int(start_time_dt.timestamp())
 
-    args = GetMarketDataArgs(
-        symbol="SOL_USDC",
-        timeframe="invalid_interval",
-        start_time_ms=start_time * 1000,
-        end_time_ms=end_time * 1000,
-    )
-
     with pytest.raises(ValueError) as exc_info:
+        args = GetMarketDataArgs(
+            symbol="SOL_USDC",
+            timeframe="invalid_interval",
+            start_time_ms=start_time * 1000,
+            end_time_ms=end_time * 1000,
+        )
         await bp_api_for_test_env.get_market_data(args)
 
     # Validate error details
@@ -564,6 +564,7 @@ async def test_bp_get_market_data_invalid_time_range_error(
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
         )
+        await bp_api_for_test_env.get_market_data(args)
 
     # Validate error contains relevant information
     error_str = str(exc_info.value)

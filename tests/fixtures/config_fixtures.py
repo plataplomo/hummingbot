@@ -36,7 +36,7 @@ from cyberdelta.config.config_models import (
     StrategyParamsHLPerpBPSpot,
 )
 from cyberdelta.config.secrets_manager import SecretsManager
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -460,7 +460,7 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
 
 
 @pytest.fixture
-def active_bp_secrets(test_secrets_config: SecretsConfig) -> Any:
+def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
     """Environment-aware ApiKeyAuthSecrets fixture for Backpack.
 
     Uses test secrets from test_secrets.yaml.

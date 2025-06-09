@@ -113,8 +113,7 @@ class TestBoundaryValueHandling:
         # Test maximum precision supported by Decimal
         max_precision_price = "100.123456789012345678901234567890"
         raw_ticker = create_raw_ticker(
-            price=max_precision_price,
-            time=test_timestamp,
+            last_price=max_precision_price,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -132,9 +131,8 @@ class TestBoundaryValueHandling:
         large_volume = "999999999999999999.999999"
 
         raw_ticker = create_raw_ticker(
-            price=large_price,
+            last_price=large_price,
             volume=large_volume,
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -152,9 +150,8 @@ class TestBoundaryValueHandling:
         small_volume = "0.000000000000000001"
 
         raw_ticker = create_raw_ticker(
-            price=small_price,
+            last_price=small_price,
             volume=small_volume,
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -170,18 +167,15 @@ class TestBoundaryValueHandling:
         """Test handling of zero and negative values where applicable."""
         # Test zero values
         raw_ticker_zero = create_raw_ticker(
-            price="0",
-            bid="0",
-            ask="0",
+            last_price="0",
             volume="0",
-            time=test_timestamp,
         )
 
         result_zero = mapper.transform_raw_ticker_to_internal(raw_ticker_zero)
 
         assert result_zero.price == Decimal("0")
-        assert result_zero.bid == Decimal("0")
-        assert result_zero.ask == Decimal("0")
+        assert result_zero.bid is None  # Not available from Backpack ticker endpoint
+        assert result_zero.ask is None  # Not available from Backpack ticker endpoint
         assert result_zero.volume == Decimal("0")
 
     def test_massive_order_book_levels(
@@ -218,7 +212,6 @@ class TestBoundaryValueHandling:
         max_trade_id = "a" * 64
         raw_trade = create_raw_trade(
             id=max_trade_id,
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_trade_to_internal(raw_trade)
@@ -229,7 +222,6 @@ class TestBoundaryValueHandling:
         max_symbol = "A" * 32  # Reasonable maximum symbol length
         raw_ticker = create_raw_ticker(
             symbol=max_symbol,
-            time=test_timestamp,
         )
 
         result_ticker = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -257,7 +249,6 @@ class TestUnicodeAndEncodingSupport:
         for symbol in unicode_symbols:
             raw_ticker = create_raw_ticker(
                 symbol=symbol,
-                time=test_timestamp,
             )
 
             result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -278,7 +269,6 @@ class TestUnicodeAndEncodingSupport:
         for trade_id in unicode_trade_ids:
             raw_trade = create_raw_trade(
                 id=trade_id,
-                time=test_timestamp,
             )
 
             result = mapper.transform_raw_trade_to_internal(raw_trade)
@@ -293,7 +283,6 @@ class TestUnicodeAndEncodingSupport:
         mixed_symbol = "SOL-USDC_测试_🚀_ABC_123"
         raw_ticker = create_raw_ticker(
             symbol=mixed_symbol,
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -316,7 +305,6 @@ class TestUnicodeAndEncodingSupport:
         for symbol in special_symbols:
             raw_ticker = create_raw_ticker(
                 symbol=symbol,
-                time=test_timestamp,
             )
 
             result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -332,7 +320,7 @@ class TestErrorHandlingAndRecovery:
         test_timestamp: str,
     ) -> None:
         """Test recovery from malformed decimal values."""
-        raw_ticker = create_raw_ticker(time=test_timestamp)
+        raw_ticker = create_raw_ticker()
 
         # Mock parse_decimal_value to simulate malformed data
         with patch(
@@ -373,14 +361,14 @@ class TestErrorHandlingAndRecovery:
         # Test ticker with minimal data
         minimal_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
-            first_price="0.0",
-            last_price="0.0",
+            firstPrice="0.0",
+            lastPrice="0.0",
             high="0.0",
             low="0.0",
-            price_change="0.0",
-            price_change_percent="0.0",
+            priceChange="0.0",
+            priceChangePercent="0.0",
             volume="0.0",
-            quote_volume="0.0",
+            quoteVolume="0.0",
             trades="0",
         )
 
@@ -417,7 +405,7 @@ class TestErrorHandlingAndRecovery:
         test_timestamp: str,
     ) -> None:
         """Test that transformation errors preserve context information."""
-        raw_ticker = create_raw_ticker(time=test_timestamp)
+        raw_ticker = create_raw_ticker()
 
         # Create a specific error with context
         original_error = ValueError("Specific parsing error with context")
@@ -449,8 +437,7 @@ class TestPerformanceAndMemoryConsiderations:
         for i in range(100):
             ticker = create_raw_ticker(
                 symbol=f"SYMBOL{i:03d}-USDC",
-                price=f"{100 + i * 0.01:.2f}",
-                time=test_timestamp,
+                last_price=f"{100 + i * 0.01:.2f}",
             )
             tickers.append(ticker)
 
@@ -502,19 +489,17 @@ class TestPerformanceAndMemoryConsiderations:
         # that could cause issues in concurrent scenarios
 
         # Create multiple different data objects
-        ticker1 = create_raw_ticker(symbol="BTC-USDC", price="50000.00", time=test_timestamp)
-        ticker2 = create_raw_ticker(symbol="ETH-USDC", price="3000.00", time=test_timestamp)
+        ticker1 = create_raw_ticker(symbol="BTC-USDC", last_price="50000.00")
+        ticker2 = create_raw_ticker(symbol="ETH-USDC", last_price="3000.00")
         trade1 = create_raw_trade(
             id="trade1",
             symbol="SOL-USDC",
             price="100.00",
-            time=test_timestamp,
         )
         trade2 = create_raw_trade(
             id="trade2",
             symbol="DOGE-USDC",
             price="0.50",
-            time=test_timestamp,
         )
 
         # Transform in interleaved pattern
@@ -562,7 +547,7 @@ class TestDataConsistencyAndValidation:
         expected_datetime = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
         # Test multiple data types with same timestamp
-        ticker = create_raw_ticker(time=fixed_timestamp)
+        ticker = create_raw_ticker()
         trade = create_raw_trade(time=fixed_timestamp)
         order_book = create_raw_order_book(timestamp=fixed_timestamp)
 
@@ -584,11 +569,8 @@ class TestDataConsistencyAndValidation:
         high_precision_value = "123.123456789012345"
 
         ticker = create_raw_ticker(
-            price=high_precision_value,
-            bid=high_precision_value,
-            ask=high_precision_value,
+            last_price=high_precision_value,
             volume=high_precision_value,
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(ticker)
@@ -596,6 +578,6 @@ class TestDataConsistencyAndValidation:
         # All decimal fields should maintain the same precision
         expected_decimal = Decimal(high_precision_value)
         assert result.price == expected_decimal
-        assert result.bid == expected_decimal
-        assert result.ask == expected_decimal
+        assert result.bid is None  # Not available from Backpack ticker endpoint
+        assert result.ask is None  # Not available from Backpack ticker endpoint
         assert result.volume == expected_decimal

@@ -544,6 +544,8 @@ class TestHyperliquidMarketDataServicePublicData:
             sz="0.5",
             time=1672531201000,  # ms
             hash="0xhash1",
+            tid=1,
+            users=["0xuser1", "0xuser2"],
         )
         mock_raw_trade_2 = HyperliquidRawPublicTrade(
             coin=symbol_to_find,
@@ -552,6 +554,8 @@ class TestHyperliquidMarketDataServicePublicData:
             sz="0.2",
             time=1672531202000,  # ms
             hash="0xhash2",
+            tid=2,
+            users=["0xuser3", "0xuser4"],
         )
         mock_raw_response_content: list[RawJsonResponse] = [
             mock_raw_trade_1.model_dump(),

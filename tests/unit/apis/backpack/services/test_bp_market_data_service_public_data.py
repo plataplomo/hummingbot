@@ -141,11 +141,15 @@ class TestBackpackMarketDataServicePublicData:
 
         mock_raw_ticker = BackpackRawTicker(
             symbol=symbol,
-            price="100.0",
+            firstPrice="99.0",
+            lastPrice="100.0",
+            high="101.0",
+            low="99.0",
+            priceChange="1.0",
+            priceChangePercent="1.01",
             volume="1000.0",
-            bid="99.9",
-            ask="100.1",
-            time=mock_timestamp_int,
+            quoteVolume="100000.0",
+            trades="50",
         )
         mock_internal_ticker = Ticker(
             symbol=symbol,

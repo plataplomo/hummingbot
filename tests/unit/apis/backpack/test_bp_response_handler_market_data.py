@@ -210,11 +210,13 @@ class TestHandleGetRecentTradesResponse:
 
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
-        trades: list[BackpackRawRecentTrade] = BackpackResponseHandler.handle_get_recent_trades_response(
-            cast("RawJsonResponse", valid_raw_recent_trades),
-            symbol_spot,
-            200,
-            {},
+        trades: list[BackpackRawRecentTrade] = (
+            BackpackResponseHandler.handle_get_recent_trades_response(
+                cast("RawJsonResponse", valid_raw_recent_trades),
+                symbol_spot,
+                200,
+                {},
+            )
         )
         assert len(trades) == 2
         assert isinstance(trades[0], BackpackRawRecentTrade)

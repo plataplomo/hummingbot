@@ -67,14 +67,14 @@ def create_raw_ticker(
     """Create BackpackRawTicker instances for testing ticker transformations."""
     return BackpackRawTicker(
         symbol=symbol,
-        first_price=first_price,
-        last_price=last_price,
+        firstPrice=first_price,
+        lastPrice=last_price,
         high=high,
         low=low,
-        price_change=price_change,
-        price_change_percent=price_change_percent,
+        priceChange=price_change,
+        priceChangePercent=price_change_percent,
         volume=volume,
-        quote_volume=quote_volume,
+        quoteVolume=quote_volume,
         trades=trades,
     )
 
@@ -142,8 +142,8 @@ def create_raw_funding_interval_rate(
     """Create BackpackRawFundingIntervalRate instances for testing interval rate transformations."""
     return BackpackRawFundingIntervalRate(
         symbol=symbol,
-        rate=funding_rate,
-        time=interval_end_timestamp,
+        fundingRate=funding_rate,
+        intervalEndTimestamp=interval_end_timestamp,
     )
 
 
@@ -189,11 +189,8 @@ class TestTickerTransformation:
         """Test successful transformation of BackpackRawTicker to internal Ticker."""
         raw_ticker = create_raw_ticker(
             symbol="SOL-USDC",
-            price="100.50",
-            bid="100.25",
-            ask="100.75",
+            last_price="100.50",
             volume="1000.0",
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -201,10 +198,11 @@ class TestTickerTransformation:
         assert isinstance(result, Ticker)
         assert result.symbol == "SOL-USDC"
         assert result.price == Decimal("100.50")
-        assert result.bid == Decimal("100.25")
-        assert result.ask == Decimal("100.75")
+        assert result.bid is None  # Not available from Backpack ticker endpoint
+        assert result.ask is None  # Not available from Backpack ticker endpoint
         assert result.volume == Decimal("1000.0")
-        assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
+        # Timestamp is generated since API doesn't provide it
+        assert result.timestamp is not None
 
     def test_transform_raw_ticker_with_symbol_override(
         self,
@@ -227,14 +225,14 @@ class TestTickerTransformation:
         # Create ticker with minimal values by constructing directly
         raw_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
-            first_price="0.0",
-            last_price="0.0",
+            firstPrice="0.0",
+            lastPrice="0.0",
             high="0.0",
             low="0.0",
-            price_change="0.0",
-            price_change_percent="0.0",
+            priceChange="0.0",
+            priceChangePercent="0.0",
             volume="0.0",
-            quote_volume="0.0",
+            quoteVolume="0.0",
             trades="0",
         )
 
@@ -258,24 +256,22 @@ class TestTickerTransformation:
         # Create a valid raw ticker first
         raw_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
-            price="100.50",
-            bid="100.25",
-            ask="100.75",
+            firstPrice="99.50",
+            lastPrice="100.50",
+            high="101.00",
+            low="99.00",
+            priceChange="1.00",
+            priceChangePercent="1.01",
             volume="1000.0",
-            time="2024-01-15T10:30:00Z",
+            quoteVolume="100500.0",
+            trades="50",
         )
 
-        # Mock parse_datetime_utc to return None for timestamp parsing
-        with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
-        ) as mock_parse:
-            mock_parse.return_value = None
+        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
-            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
-
-            assert isinstance(result, Ticker)
-            assert result.timestamp == mock_now
-            mock_datetime.now.assert_called_once_with(UTC)
+        assert isinstance(result, Ticker)
+        assert result.timestamp == mock_now
+        mock_datetime.now.assert_called_once_with(UTC)
 
     def test_transform_raw_ticker_transformation_error(
         self,
@@ -283,7 +279,7 @@ class TestTickerTransformation:
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid ticker but patch parsing to cause error
-        raw_ticker = create_raw_ticker(price="100.50")
+        raw_ticker = create_raw_ticker(last_price="100.50")
 
         # This test relies on the actual transformation logic to cause an error
         # We'll use an invalid decimal that passes basic validation but fails transformation
@@ -305,18 +301,13 @@ class TestTickerTransformation:
     ) -> None:
         """Test ticker transformation with extreme decimal values."""
         raw_ticker = create_raw_ticker(
-            price="0.000001",  # Very small price
-            bid="999999.999999",  # Very large bid
-            ask="1000000.000001",  # Very large ask
+            last_price="0.000001",  # Very small price
             volume="0.000000001",  # Very small volume
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert result.price == Decimal("0.000001")
-        assert result.bid == Decimal("999999.999999")
-        assert result.ask == Decimal("1000000.000001")
         assert result.volume == Decimal("0.000000001")
 
     def test_transform_raw_ticker_with_zero_values(
@@ -326,18 +317,13 @@ class TestTickerTransformation:
     ) -> None:
         """Test ticker transformation with zero values."""
         raw_ticker = create_raw_ticker(
-            price="0",
-            bid="0",
-            ask="0",
+            last_price="0",
             volume="0",
-            time=test_timestamp,
         )
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert result.price == Decimal("0")
-        assert result.bid == Decimal("0")
-        assert result.ask == Decimal("0")
         assert result.volume == Decimal("0")
 
 
@@ -672,8 +658,8 @@ class TestFundingRateTransformation:
         """Test successful transformation of BackpackRawFundingIntervalRate to FundingRate."""
         raw_funding = create_raw_funding_interval_rate(
             symbol="SOL-USDC",
-            rate="0.0001",
-            time=1705314600000,
+            funding_rate="0.0001",
+            interval_end_timestamp="2024-01-15T10:30:00",
         )
 
         result = mapper.transform_raw_funding_interval_rate_to_internal(raw_funding, "SOL-USDC")
