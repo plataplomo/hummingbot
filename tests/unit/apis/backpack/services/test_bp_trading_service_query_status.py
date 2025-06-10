@@ -8,10 +8,16 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+    BackpackRawGetOpenOrdersParams,
+)
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetAllOpenOrdersArgs, GetOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetAllOpenOrdersArgs,
+    GetOrderArgs,
+)
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
@@ -131,7 +137,7 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_open_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
         mock_endpoint_path = "/api/v1/orders"
-        mock_params = {"symbol": symbol}
+        mock_params = BackpackRawGetOpenOrdersParams(symbol=symbol)
 
         mock_request_builder.build_get_open_orders_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, MagicMock())
@@ -150,7 +156,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params=mock_params,
+                params=mock_params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -614,7 +620,7 @@ class TestBackpackTradingServiceQueryStatus:
     ) -> None:
         """Test get_all_open_orders successfully retrieves all open orders."""
         mock_endpoint_path = "/api/v1/orders"
-        mock_params = None  # No symbol filter for all orders
+        mock_params = BackpackRawGetOpenOrdersParams(symbol=None)  # No symbol filter for all orders
         mock_raw_response_content = [
             {
                 "id": "order_1",
@@ -741,7 +747,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params=mock_params,
+                params=mock_params.model_dump(),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,

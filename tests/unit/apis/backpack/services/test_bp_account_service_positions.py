@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawMmfFunction,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetPositionsParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -429,7 +430,9 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions with specific symbol parameter."""
         symbol = "BTC_USDC"
-        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = []
 
@@ -472,7 +475,9 @@ class TestBackpackAccountServicePositions:
             cumulativeInterest="0.0",
         )
 
-        mock_request_builder.build_get_positions_params.return_value = {"symbol": symbol}
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([mock_raw_position.model_dump()], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
         mock_mapper.transform_raw_position_to_internal.side_effect = (

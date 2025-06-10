@@ -8,6 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+    BackpackRawGetOpenOrdersParams,
+    BackpackRawGetOrderParams,
+)
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -72,7 +76,9 @@ class TestBackpackTradingServiceAccountMisc:
         )
         mock_custom_result = "custom_mapper_result"
 
-        mock_request_builder.build_get_open_orders_params.return_value = {"symbol": symbol}
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = ([{"id": "123"}], 200, {})
         mock_response_handler.handle_get_open_orders_response.return_value = [mock_raw_order]
         mock_order_mapper.transform_raw_order_to_internal.return_value = mock_custom_result
@@ -132,7 +138,9 @@ class TestBackpackTradingServiceAccountMisc:
             origin="API",
         )
 
-        mock_request_builder.build_get_open_orders_params.return_value = {"symbol": symbol}
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = ([{"id": "123"}], 200, {})
         mock_response_handler.handle_get_open_orders_response.return_value = [mock_raw_order]
 
@@ -251,10 +259,9 @@ class TestBackpackTradingServiceAccountMisc:
             origin="API",
         )
 
-        mock_request_builder.build_get_order_params.return_value = {
-            "symbol": symbol,
-            "orderId": order_id,
-        }
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = ({"id": order_id}, 200, {})
         mock_response_handler.handle_get_order_status_response.return_value = mock_raw_order
 
@@ -398,7 +405,9 @@ class TestBackpackTradingServiceAccountMisc:
         symbol = "SOL_USDC"
 
         # 1. Test getting open orders
-        mock_request_builder.build_get_open_orders_params.return_value = {"symbol": symbol}
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = ([], 200, {})
         mock_response_handler.handle_get_open_orders_response.return_value = []
 

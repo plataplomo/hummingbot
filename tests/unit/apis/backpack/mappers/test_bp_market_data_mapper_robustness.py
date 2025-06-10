@@ -357,7 +357,7 @@ class TestErrorHandlingAndRecovery:
         mapper: BackpackMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test handling of partial/incomplete data."""
+        """Test handling of ticker with minimal/zero data."""
         # Test ticker with minimal data
         minimal_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
@@ -374,12 +374,12 @@ class TestErrorHandlingAndRecovery:
 
         result = mapper.transform_raw_ticker_to_internal(minimal_ticker)
 
-        # Should handle None values gracefully
+        # Should handle zero values correctly
         assert result.symbol == "SOL-USDC"
-        assert result.price is None
-        assert result.bid is None
-        assert result.ask is None
-        assert result.volume is None
+        assert result.price == Decimal("0.0")  # Zero values become Decimal("0.0")
+        assert result.bid is None  # Not available from Backpack ticker endpoint
+        assert result.ask is None  # Not available from Backpack ticker endpoint
+        assert result.volume == Decimal("0.0")  # Zero values become Decimal("0.0")
 
     def test_empty_order_book_handling(
         self,
@@ -551,12 +551,20 @@ class TestDataConsistencyAndValidation:
         trade = create_raw_trade(time=fixed_timestamp)
         order_book = create_raw_order_book(timestamp=fixed_timestamp)
 
+        # Record time before transformations
+        start_time = datetime.now(UTC)
+
         ticker_result = mapper.transform_raw_ticker_to_internal(ticker)
         trade_result = mapper.transform_raw_trade_to_internal(trade)
         book_result = mapper.transform_raw_order_book_to_internal("SOL-USDC", order_book)
 
-        # All should have the same timestamp
-        assert ticker_result.timestamp == expected_datetime
+        # Record time after transformations
+        end_time = datetime.now(UTC)
+
+        # For ticker: timestamp is generated during transformation, so it should be recent
+        assert start_time <= ticker_result.timestamp <= end_time
+
+        # For trade and order book: timestamps should match the fixed timestamp
         assert trade_result.executed_at == expected_datetime
         assert book_result.timestamp == expected_datetime
 

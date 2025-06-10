@@ -198,6 +198,8 @@ def valid_raw_public_trade() -> dict[str, Any]:
         "sz": "0.1",
         "time": 1678889400000,
         "hash": "0xtradeHashValid",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef"],
     }
 
 

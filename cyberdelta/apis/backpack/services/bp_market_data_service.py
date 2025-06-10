@@ -617,7 +617,7 @@ class BackpackMarketDataService:
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Retrieves the current funding rate for a specific symbol."""
         self._validate_funding_rate_symbol(symbol)
-        
+
         try:
             raw_funding_interval_rates = await self._fetch_funding_rate_data(symbol)
             return self._process_funding_rate_response(raw_funding_interval_rates, symbol)
@@ -636,7 +636,7 @@ class BackpackMarketDataService:
         """Fetch funding rate data from the API."""
         params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
         endpoint_path = "/api/v1/fundingRates"
-        
+
         logger.debug(
             f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
             f"{endpoint_path} with params: {params}",
@@ -671,7 +671,10 @@ class BackpackMarketDataService:
             )
 
         return self._response_handler.handle_get_historical_funding_rates_response(
-            raw_data, symbol, status_code, headers,
+            raw_data,
+            symbol,
+            status_code,
+            headers,
         )
 
     def _process_funding_rate_response(
@@ -686,7 +689,8 @@ class BackpackMarketDataService:
 
         raw_funding_rate_model = raw_funding_interval_rates[0]
         internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
-            raw_funding_rate_model, symbol=symbol,
+            raw_funding_rate_model,
+            symbol=symbol,
         )
         logger.debug(
             f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}",
@@ -703,7 +707,8 @@ class BackpackMarketDataService:
             )
             is_response_error = isinstance(error, TransformationError | ValidationError)
             error_code = (
-                APIErrorCode.INVALID_RESPONSE.value if is_response_error 
+                APIErrorCode.INVALID_RESPONSE.value
+                if is_response_error
                 else APIErrorCode.UNKNOWN.value
             )
             raise APIError(

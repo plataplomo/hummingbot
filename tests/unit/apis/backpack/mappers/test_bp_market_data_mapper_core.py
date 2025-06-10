@@ -221,8 +221,8 @@ class TestTickerTransformation:
         mapper: BackpackMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test ticker transformation with None values for optional fields."""
-        # Create ticker with minimal values by constructing directly
+        """Test ticker transformation with zero values for optional fields."""
+        # Create ticker with zero values by constructing directly
         raw_ticker = BackpackRawTicker(
             symbol="SOL-USDC",
             firstPrice="0.0",
@@ -238,10 +238,11 @@ class TestTickerTransformation:
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
-        assert result.price is None
-        assert result.bid is None
-        assert result.ask is None
-        assert result.volume is None
+        # Zero values should be converted to Decimal("0.0"), not None
+        assert result.price == Decimal("0.0")
+        assert result.bid is None  # Not available from Backpack ticker endpoint
+        assert result.ask is None  # Not available from Backpack ticker endpoint
+        assert result.volume == Decimal("0.0")
 
     @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_ticker_with_none_timestamp(
@@ -452,8 +453,12 @@ class TestOrderBookTransformation:
 
         result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
 
-        assert result.bids[0] == (Decimal("0.000001"), Decimal("999999999.999999"))
+        # Bids should be sorted by price descending (highest price first)
+        assert result.bids[0] == (Decimal("99999.999999"), Decimal("0.000001"))
+        assert result.bids[1] == (Decimal("0.000001"), Decimal("999999999.999999"))
+        # Asks should be sorted by price ascending (lowest price first)
         assert result.asks[0] == (Decimal("1000000.000001"), Decimal("0.000000001"))
+        assert result.asks[1] == (Decimal("1000001.000001"), Decimal("1000000000.0"))
 
     def test_transform_raw_order_book_with_unicode_symbol(
         self,

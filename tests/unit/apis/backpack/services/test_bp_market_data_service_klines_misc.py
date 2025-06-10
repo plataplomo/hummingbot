@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetTickerParams
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -336,7 +337,9 @@ class TestBackpackMarketDataServiceKlinesMisc:
         )
 
         # Test behavior that uses the mapper to verify it was set correctly
-        mock_request_builder.build_get_ticker_params.return_value = {"symbol": "TEST"}
+        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
+            symbol="TEST"
+        )
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
 
@@ -365,7 +368,9 @@ class TestBackpackMarketDataServiceKlinesMisc:
         )
 
         # Test behavior that uses the mapper to verify it's working
-        mock_request_builder.build_get_ticker_params.return_value = {"symbol": "TEST"}
+        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
+            symbol="TEST"
+        )
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
 

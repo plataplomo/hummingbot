@@ -183,7 +183,7 @@ class SimpleVisualizer:
         """Formats the x-axis for date plotting."""
         # Import matplotlib components with Any typing for untyped calls
         import matplotlib.dates as mdates
-        
+
         month_locator_cls: Any = mdates.MonthLocator
         date_formatter_cls: Any = mdates.DateFormatter
         locator = month_locator_cls(bymonthday=1)
@@ -819,6 +819,7 @@ class SimpleVisualizer:
             ax.imshow(img)
             ax.axis("off")
             from typing import Any
+
             savefig_method: Any = pdf.savefig
             savefig_method(fig)
             plt.close(fig)
@@ -840,6 +841,7 @@ class SimpleVisualizer:
             transform=ax.transAxes,
         )
         from typing import Any
+
         savefig_method: Any = pdf.savefig
         savefig_method(fig)
         plt.close(fig)

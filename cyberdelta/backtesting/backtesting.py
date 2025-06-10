@@ -146,6 +146,7 @@ class BacktestEngine:
         # Robust check and conversion for DatetimeIndex
         # NOTE: pandas type stubs are incomplete; some type errors here are non-actionable.
         import pandas as pd
+
         if not isinstance(data.index, pd.DatetimeIndex):
             self.logger.warning(
                 f"Data index type is {type(data.index)}, not DatetimeIndex. Attempting conversion.",
@@ -155,6 +156,7 @@ class BacktestEngine:
                 converted_index = pd.to_datetime(data.index, errors="coerce")
                 # Check for NaT values in the converted index
                 import pandas as pd
+
                 if isinstance(converted_index, pd.DatetimeIndex):
                     # Use pandas.isna() function instead of method to avoid typing issues
                     na_mask = pd.isna(converted_index)
@@ -476,9 +478,7 @@ class BacktestEngine:
 
         self.results_handler.add_trade(trade)
 
-    def _record_equity_point(
-        self, idx: datetime | str | int, current_capital: Decimal
-    ) -> None:
+    def _record_equity_point(self, idx: datetime | str | int, current_capital: Decimal) -> None:
         """Record equity point at current timestamp."""
         if not self.results_handler:
             return

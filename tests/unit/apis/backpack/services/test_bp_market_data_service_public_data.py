@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawOrderBook,
     BackpackRawTicker,
 )
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetOrderBookParams
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -408,10 +409,9 @@ class TestBackpackMarketDataServicePublicData:
         depth = 5
 
         # Arrange: Configure the mocks to trigger unexpected exception
-        mock_request_builder.build_get_order_book_params.return_value = {
-            "symbol": symbol,
-            "limit": depth,
-        }
+        mock_request_builder.build_get_order_book_params.return_value = (
+            BackpackRawGetOrderBookParams(symbol=symbol, limit=depth)
+        )
         mock_http_client_requester.return_value = ({"mock": "response"}, 200, {})
         mock_response_handler.handle_get_order_book_response.side_effect = Exception(
             "Unexpected error",

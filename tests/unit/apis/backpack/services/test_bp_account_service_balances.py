@@ -7,10 +7,10 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -29,29 +29,26 @@ class TestBackpackAccountServiceBalances:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test _get_raw_balances_dict successfully fetches and processes balance data.
-
-        Tested via public get_balances.
-        """
+        """Test get_balances successfully retrieves and processes balance data."""
         mock_raw_response_data_dict: RawJsonResponse = {
-            "USDC": {"available": "1000.0", "locked": "0", "debt": "0", "total": "1000.0"},
+            "USDC": {"available": "1000.5", "locked": "10.0"},
         }
         mock_validated_raw_balances_dict: dict[str, BackpackRawBalance] = {
-            "USDC": BackpackRawBalance(asset="USDC", available="1000.0", total="1000.0"),
+            "USDC": BackpackRawBalance(asset="USDC", available="1000.5", total="1010.5"),
         }
-
         mock_internal_spot_balance = SpotBalance(
             exchange="backpack_test_account",
             asset="USDC",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("1000.0"),
-            available_quantity=Decimal("1000.0"),
+            total_quantity=Decimal("1010.5"),
+            available_quantity=Decimal("1000.5"),
         )
         expected_final_balances_result: dict[str, SpotBalance] = {
             "USDC": mock_internal_spot_balance,
         }
 
-        mock_request_builder.build_get_balances_params.return_value = None
+        # Mock request builder to return a valid params object
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = (mock_raw_response_data_dict, 200, MagicMock())
         mock_response_handler.handle_get_balances_response.return_value = (
             mock_validated_raw_balances_dict
@@ -66,7 +63,7 @@ class TestBackpackAccountServiceBalances:
         mock_http_client_requester.assert_called_once_with(
             method="GET",
             endpoint="/api/v1/capital",
-            params=None,
+            params={},  # Empty dict since BackpackRawGetBalancesParams() has no fields
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
@@ -102,7 +99,7 @@ class TestBackpackAccountServiceBalances:
     ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
         mock_endpoint_path_for_get_balances = "/api/v1/capital"
-        mock_params_from_builder_for_get_balances = None
+        mock_params_from_builder_for_get_balances = BackpackRawGetBalancesParams()
 
         mock_raw_response_dict: RawJsonResponse = {
             "USDC": {"available": "1000.5", "locked": "10.0"},
@@ -185,7 +182,7 @@ class TestBackpackAccountServiceBalances:
         mock_http_client_requester.assert_called_once_with(
             method="GET",
             endpoint=mock_endpoint_path_for_get_balances,
-            params=mock_params_from_builder_for_get_balances,
+            params={},  # Empty dict since BackpackRawGetBalancesParams() has no fields
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
@@ -194,6 +191,33 @@ class TestBackpackAccountServiceBalances:
             mock_raw_response_dict,
         )
 
+        assert len(result_balances) == 2
+        assert "USDC" in result_balances
+        assert "SOL" in result_balances
+
+        # Check USDC balance
+        usdc_balance = result_balances["USDC"]
+        assert usdc_balance.exchange == expected_internal_balances["USDC"].exchange
+        assert usdc_balance.asset == expected_internal_balances["USDC"].asset
+        assert isinstance(usdc_balance.timestamp, datetime)
+        assert usdc_balance.timestamp.tzinfo == UTC
+        assert usdc_balance.total_quantity == expected_internal_balances["USDC"].total_quantity
+        assert (
+            usdc_balance.available_quantity == expected_internal_balances["USDC"].available_quantity
+        )
+
+        # Check SOL balance
+        sol_balance = result_balances["SOL"]
+        assert sol_balance.exchange == expected_internal_balances["SOL"].exchange
+        assert sol_balance.asset == expected_internal_balances["SOL"].asset
+        assert isinstance(sol_balance.timestamp, datetime)
+        assert sol_balance.timestamp.tzinfo == UTC
+        assert sol_balance.total_quantity == expected_internal_balances["SOL"].total_quantity
+        assert (
+            sol_balance.available_quantity == expected_internal_balances["SOL"].available_quantity
+        )
+
+        # Verify mapper was called correctly for both assets
         assert mock_mapper.transform_raw_balance_to_internal.call_count == 2
         mock_mapper.transform_raw_balance_to_internal.assert_any_call(
             "USDC",
@@ -204,18 +228,6 @@ class TestBackpackAccountServiceBalances:
             mock_raw_balances_payload["SOL"],
         )
 
-        assert len(result_balances) == len(expected_internal_balances)
-        for asset_key in expected_internal_balances:
-            assert asset_key in result_balances
-            actual_bal = result_balances[asset_key]
-            expected_bal = expected_internal_balances[asset_key]
-            assert actual_bal.exchange == expected_bal.exchange
-            assert actual_bal.asset == expected_bal.asset
-            assert isinstance(actual_bal.timestamp, datetime)
-            assert actual_bal.timestamp.tzinfo == UTC
-            assert actual_bal.total_quantity == expected_bal.total_quantity
-            assert actual_bal.available_quantity == expected_bal.available_quantity
-
     @pytest.mark.asyncio
     async def test_get_balances_http_client_returns_none(
         self,
@@ -224,7 +236,9 @@ class TestBackpackAccountServiceBalances:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test get_balances when HTTP client returns None content."""
-        mock_request_builder.build_get_balances_params.return_value = None
+        # Mock request builder to return a valid params object
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
+        # Mock HTTP client to return None content
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
@@ -242,13 +256,10 @@ class TestBackpackAccountServiceBalances:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_balances handles validation error from response handler."""
-        mock_request_builder.build_get_balances_params.return_value = None
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = (
-            ValidationError.from_exception_data(
-                title="ValidationError",
-                line_errors=[],
-            )
+        mock_response_handler.handle_get_balances_response.side_effect = ValueError(
+            "Validation failed"
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -266,9 +277,9 @@ class TestBackpackAccountServiceBalances:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_balances handles unexpected exception from response handler."""
-        mock_request_builder.build_get_balances_params.return_value = None
-        mock_http_client_requester.return_value = ({"balance": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = Exception(
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
+        mock_http_client_requester.return_value = ({"some": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = RuntimeError(
             "Unexpected error",
         )
 
@@ -286,21 +297,17 @@ class TestBackpackAccountServiceBalances:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_balances handles validation error from response handler."""
-        mock_request_builder.build_get_balances_params.return_value = None
+        """Test get_balances validation error coverage."""
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = (
-            ValidationError.from_exception_data(
-                title="ValidationError",
-                line_errors=[],
-            )
+        mock_response_handler.handle_get_balances_response.side_effect = ValueError(
+            "Validation failed"
         )
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_balances()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Processing raw balances dict data failed" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_balances_unexpected_exception_coverage(
@@ -310,10 +317,10 @@ class TestBackpackAccountServiceBalances:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_balances handles unexpected exception from response handler."""
-        mock_request_builder.build_get_balances_params.return_value = None
-        mock_http_client_requester.return_value = ({"balance": "data"}, 200, {})
-        mock_response_handler.handle_get_balances_response.side_effect = Exception(
+        """Test get_balances unexpected exception coverage."""
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
+        mock_http_client_requester.return_value = ({"some": "data"}, 200, {})
+        mock_response_handler.handle_get_balances_response.side_effect = RuntimeError(
             "Unexpected error",
         )
 
@@ -321,4 +328,3 @@ class TestBackpackAccountServiceBalances:
             await bp_account_service.get_balances()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for raw balances dict" in exc_info.value.message

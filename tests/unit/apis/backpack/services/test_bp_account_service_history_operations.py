@@ -44,32 +44,37 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test successful fetching of order history."""
+        """Test get_order_history successfully retrieves and processes order history."""
         symbol = "SOL_USDC"
-        limit = 5
-        start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
-        end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
+        limit = 10
+        start_time = datetime(2023, 1, 1, tzinfo=UTC)
+        end_time = datetime(2023, 1, 2, tzinfo=UTC)
 
-        mock_built_params = {
-            "symbol": symbol,
-            "limit": limit,
-            "startTime": int(start_time.timestamp() * 1000),
-        }
+        # Import the proper model
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetOrderHistoryParams,
+        )
+
+        mock_built_params = BackpackRawGetOrderHistoryParams(
+            symbol=symbol,
+            limit=limit,
+            orderId=None,
+            clientId=None,
+        )
         mock_raw_order_data = {
             "id": "orderHist123",
             "symbol": symbol,
+            "status": "FILLED",
+            "timeInForce": "GTC",
             "side": "buy",
             "orderType": "LIMIT",
             "quantity": "10",
             "price": "100",
-            "status": "FILLED",
-            "createdAt": int(start_time.timestamp() * 1000),
-            "timeInForce": "GTC",
+            "createdAt": 1234567890000,
         }
         mock_raw_response_list: list[dict[str, Any]] = [mock_raw_order_data]
         mock_status_code = 200
         mock_headers: dict[str, str] = {}
-
         mock_validated_raw_orders = [BackpackRawOrder.model_validate(mock_raw_order_data)]
 
         expected_internal_order = Order(
@@ -126,7 +131,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.assert_called_once_with(
             method="GET",
             endpoint="/api/v1/history/orders",
-            params=mock_built_params,
+            params=mock_built_params.model_dump(),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
@@ -177,7 +182,11 @@ class TestBackpackAccountServiceHistoryOperations:
     ) -> None:
         """Test get_order_history handles APIError from response_handler."""
         symbol = "SOL_USDC"
-        mock_built_params = {"symbol": symbol}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetOrderHistoryParams,
+        )
+
+        mock_built_params = BackpackRawGetOrderHistoryParams(symbol=symbol)
         mock_raw_response_list: list[dict[str, Any]] = [{"invalid": "order"}]
         mock_status_code = 200
 
@@ -209,7 +218,11 @@ class TestBackpackAccountServiceHistoryOperations:
     ) -> None:
         """Test get_order_history handles APIError from mapper."""
         symbol = "SOL_USDC"
-        mock_built_params = {"symbol": symbol}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetOrderHistoryParams,
+        )
+
+        mock_built_params = BackpackRawGetOrderHistoryParams(symbol=symbol)
         mock_raw_order_data = {
             "id": "orderHist123",
             "symbol": symbol,
@@ -253,7 +266,11 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 10
 
-        mock_params = {"symbol": symbol, "limit": limit}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetOrderHistoryParams,
+        )
+
+        mock_params = BackpackRawGetOrderHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_order_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -416,7 +433,12 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-        mock_params = {"symbol": symbol, "limit": limit}
+        # Import the proper model
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetTradeHistoryParams,
+        )
+
+        mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_raw_trade_data = {
             "id": "trade_123",
             "orderId": "order_123",
@@ -465,7 +487,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.assert_called_once_with(
             method="GET",
             endpoint="/api/v1/history/fills",
-            params=mock_params,
+            params=mock_params.model_dump(),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
@@ -502,7 +524,11 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-        mock_params = {"symbol": symbol, "limit": limit}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetTradeHistoryParams,
+        )
+
+        mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, {})
 
@@ -526,16 +552,17 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-        mock_params = {"symbol": symbol, "limit": limit}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetTradeHistoryParams,
+        )
+
+        mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_raw_response = [{"invalid": "trade"}]
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_trade_history_response.side_effect = (
-            ValidationError.from_exception_data(
-                title="ValidationError",
-                line_errors=[],
-            )
+        mock_response_handler.handle_get_trade_history_response.side_effect = ValueError(
+            "Validation failed"
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -557,7 +584,11 @@ class TestBackpackAccountServiceHistoryOperations:
         """Test get_trade_history when unexpected exception occurs."""
         symbol = "SOL_USDC"
 
-        mock_params = {"symbol": symbol}
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+            BackpackRawGetTradeHistoryParams,
+        )
+
+        mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol)
         mock_raw_response = [{"id": "order_123"}]
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params

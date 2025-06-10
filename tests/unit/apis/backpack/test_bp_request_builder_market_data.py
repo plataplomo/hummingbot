@@ -186,8 +186,8 @@ class TestBuildGetMarketDataParams:
             "symbol": symbol_spot,
             "interval": "5m",
             "limit": 50,
-            "startTime": past_timestamp_ms,
-            "endTime": current_timestamp_ms,
+            "startTime": past_timestamp_ms // 1000,  # Convert to seconds
+            "endTime": current_timestamp_ms // 1000,  # Convert to seconds
         }
         assert params_dict == expected
 

@@ -11,6 +11,7 @@ import pytest
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetAccountInfoParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -117,7 +118,11 @@ class TestBackpackAccountServiceAccountInfo:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test get_account_info when HTTP client returns None content."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        # Mock request builder to return a valid params object
+        mock_request_builder.build_get_account_info_params.return_value = (
+            BackpackRawGetAccountInfoParams()
+        )
+        # Mock HTTP client to return None content
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:

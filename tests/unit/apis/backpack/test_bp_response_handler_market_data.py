@@ -565,12 +565,12 @@ class TestMarketDataEdgeCases:
     def test_trades_with_precision_values(self, symbol_spot: str) -> None:
         """Test trades response with high precision decimal values."""
         trade_item = {
-            "symbol": symbol_spot,
+            "id": 12345,
+            "isBuyerMaker": False,
             "price": "141.123456789",
-            "qty": "1.000000001",
-            "time": 1678886402000,
-            "id": "precision_test",
-            "orderId": "order_precision",
+            "quantity": "1.000000001",
+            "quoteQuantity": "141.123456930",
+            "timestamp": 1678886402000,
         }
         raw_data = [trade_item]
         trades = BackpackResponseHandler.handle_get_recent_trades_response(
