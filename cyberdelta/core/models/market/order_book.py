@@ -145,7 +145,7 @@ class OrderBook(BaseModel):
 
         # Pyright struggles to track types precisely when iterating over 'v: object'.
         # Runtime checks below ensure safety, but ignores are needed for static analysis.
-        for index, level_raw in enumerate(v):  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        for index, level_raw in enumerate(v):
             validated_level = cls._validate_single_level(level_raw, field_name, index)
             validated_levels.append(validated_level)
 

@@ -75,8 +75,8 @@ class IntegratedFundingData:
     secondary_available: bool
     tertiary_available: bool
     confidence_score: float
-    source_data: dict[SourceType, FundingData] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    source_data: dict[SourceType, FundingData] = field(default_factory=lambda: {})
+    metadata: dict[str, Any] = field(default_factory=lambda: {})
 
     def get_age(self) -> float:
         """Get the age of the integrated data in seconds.
@@ -165,7 +165,7 @@ class FundingRatePrediction:
     confidence: float
     method: str
     confidence_factors: ConfidenceFactors | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=lambda: {})
 
 
 @dataclass
@@ -182,7 +182,7 @@ class HistoricalTrade:
     position_size: float
     side: str  # "LONG" or "SHORT"
     is_complete: bool
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=lambda: {})
 
 
 class ArbitrageOpportunity(BaseModel):

@@ -433,7 +433,7 @@ class HyperliquidResponseHandler:
         if raw_response_content is None:
             logger.info(f"No order book data available for {symbol}, returning empty order book")
             # Return a minimal empty order book with proper structure
-            empty_order_book = {
+            empty_order_book: dict[str, str | list[list[Any]] | int] = {
                 "coin": symbol,
                 "levels": [[], []],  # [bids, asks] - both empty lists
                 "time": 0,  # zero timestamp for empty book
@@ -545,7 +545,7 @@ class HyperliquidResponseHandler:
         if isinstance(raw_response_content, list) and len(raw_response_content) == 0:
             logger.info(f"Empty candle data for {symbol} {interval}, returning empty snapshot")
             # Return a minimal empty candle snapshot with proper OHLCV structure
-            empty_snapshot = {
+            empty_snapshot: dict[str, str | list[Any]] = {
                 "t": [],  # timestamps
                 "o": [],  # open prices
                 "h": [],  # high prices

@@ -121,7 +121,9 @@ class Order(BaseModel):
     )
     strategy_name: str | None = Field(None, description="Optional strategy identifier.")
     signal_id: str | None = Field(None, description="Optional signal identifier.")
-    trades: list[Trade] = Field(default_factory=list, description="List of associated trade fills.")
+    trades: list[Trade] = Field(
+        default_factory=lambda: [], description="List of associated trade fills."
+    )
 
     # --- Extension Slots ---
     hl_details: HyperliquidOrderDetails | None = Field(default=None)

@@ -263,10 +263,10 @@ class Engine:
             # Cast to ensure proper typing for pandas operations
             # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
             idx_typed = cast(int, idx)
-            row_typed = row
+            row_typed = cast(pd.Series[Any], row)
 
             # Extract timestamp and convert to datetime
-            timestamp_raw = row_typed.get("timestamp")
+            timestamp_raw: Any = row_typed.get("timestamp")
             if timestamp_raw is None:
                 logger.warning(f"Row {idx_typed}: Missing timestamp, skipping")
                 continue
@@ -275,10 +275,10 @@ class Engine:
             try:
                 # Use pandas to_datetime for robust conversion
                 # Note: pd.to_datetime has complex overloads, cast result for clarity
-                pd_timestamp_result = pd.to_datetime(timestamp_raw, utc=True)
+                pd_timestamp_result = cast(pd.Timestamp, pd.to_datetime(timestamp_raw, utc=True))
                 # Convert to standard datetime if it's a pandas Timestamp
                 if hasattr(pd_timestamp_result, "to_pydatetime"):
-                    timestamp = cast(pd.Timestamp, pd_timestamp_result).to_pydatetime()
+                    timestamp = cast(datetime, pd_timestamp_result.to_pydatetime())
                 else:
                     timestamp = cast(datetime, pd_timestamp_result)
             except Exception as e:
@@ -290,8 +290,8 @@ class Engine:
             try:
                 # Cast the to_dict result to ensure proper typing
                 # Note: pandas to_dict has complex overloads, cast for clarity
-                row_dict_result = row_typed.to_dict()
-                row_dict = cast(dict[str, Any], row_dict_result)
+                row_dict_result = cast(dict[str, Any], row_typed.to_dict())
+                row_dict = row_dict_result
 
                 # Ensure conversion from string for precision
                 open_p = Decimal(str(row_dict["open"]))
