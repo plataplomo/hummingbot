@@ -11,7 +11,6 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
 )
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetFundingRateParams
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
@@ -247,7 +246,9 @@ class TestBackpackMarketDataServiceFunding:
         ]
         mock_headers_from_client = MagicMock()
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = (
+            mock_params_model
+        )
         mock_http_client_requester.return_value = (
             mock_raw_response_content_list,
             200,
@@ -325,7 +326,9 @@ class TestBackpackMarketDataServiceFunding:
         mock_params = {"symbol": symbol, "startTime": expected_start_time_s, "limit": limit}
         mock_params_model.model_dump.return_value = mock_params
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = (
+            mock_params_model
+        )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -373,7 +376,9 @@ class TestBackpackMarketDataServiceFunding:
         mock_params_model.model_dump.return_value = mock_params
         mock_raw_response = [{"invalid": "funding_rate_data"}]
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = (
+            mock_params_model
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -404,7 +409,9 @@ class TestBackpackMarketDataServiceFunding:
         mock_params_model.model_dump.return_value = mock_params
         mock_raw_response = [{"symbol": symbol, "rate": "0.001"}]
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = (
+            mock_params_model
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_historical_funding_rates_response.side_effect = Exception(
             "Unexpected error",
@@ -443,7 +450,9 @@ class TestBackpackMarketDataServiceFunding:
             intervalEndTimestamp="2023-10-27T10:00:00Z",
         )
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = (
+            mock_params_model
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_historical_funding_rates_response.return_value = [
             mock_raw_funding_interval_rate

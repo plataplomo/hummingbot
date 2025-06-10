@@ -175,12 +175,14 @@ class TestSetupLogging:
             assert len(root_logger.handlers) == 2
 
             # Find the file handler
-            file_handler = None
+            file_handler: logging.FileHandler | None = None
             console_handler: logging.StreamHandler[Any] | None = None
             for handler in root_logger.handlers:
                 if isinstance(handler, logging.FileHandler):
                     file_handler = handler
-                elif isinstance(handler, logging.StreamHandler):
+                elif isinstance(handler, logging.StreamHandler) and not isinstance(
+                    handler, logging.FileHandler
+                ):
                     console_handler = handler
 
             assert file_handler is not None

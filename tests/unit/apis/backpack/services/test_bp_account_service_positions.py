@@ -188,7 +188,9 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions when HTTP client returns None content."""
         symbol = "SOL_USDC"
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
@@ -210,7 +212,9 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles validation error from response handler."""
         symbol = "SOL_USDC"
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = (
             ValidationError.from_exception_data(
@@ -234,7 +238,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles unexpected exception via public API."""
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
             "Unexpected error",
@@ -294,7 +300,9 @@ class TestBackpackAccountServicePositions:
             hl_details=None,
         )
 
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()  # No symbol filter
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
         mock_mapper.transform_raw_position_to_internal.return_value = expected_position
@@ -357,7 +365,9 @@ class TestBackpackAccountServicePositions:
             hl_details=None,
         )
 
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()  # No symbol filter
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_positions_response.return_value = mock_validated_positions
         mock_mapper.transform_raw_position_to_internal.return_value = expected_position
@@ -379,7 +389,9 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles validation error from response handler."""
         symbol = "SOL_USDC"
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = (
             ValidationError.from_exception_data(
@@ -403,7 +415,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles unexpected exception."""
-        mock_request_builder.build_get_positions_params.return_value = BackpackRawGetPositionsParams()
+        mock_request_builder.build_get_positions_params.return_value = (
+            BackpackRawGetPositionsParams()
+        )
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
             "Unexpected error",

@@ -1158,7 +1158,7 @@ class TestExecutionHandler:
         """Test execution flow when one leg fails and compensation is triggered."""
         # Setup configuration
         config_values = self._setup_failed_order_config()
-        mock_config.get.side_effect = lambda key, default=None: config_values.get(key, default)
+        mock_config.get.side_effect = lambda key: config_values.get(key, None)
 
         mock_portfolio_tracker.get_position.return_value = None
 
