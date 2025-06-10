@@ -165,7 +165,7 @@ class FundingRatePrediction:
     confidence: float
     method: str
     confidence_factors: ConfidenceFactors | None = None
-    metadata: dict[str, Any] = field(default_factory=lambda: {})
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -182,7 +182,7 @@ class HistoricalTrade:
     position_size: float
     side: str  # "LONG" or "SHORT"
     is_complete: bool
-    metadata: dict[str, Any] = field(default_factory=lambda: {})
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ArbitrageOpportunity(BaseModel):
