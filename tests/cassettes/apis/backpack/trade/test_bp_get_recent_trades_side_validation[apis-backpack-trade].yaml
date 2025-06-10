@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=10&symbol=SOL_USDC
   response:
     body:
-      string: '[{"id":357579463,"isBuyerMaker":true,"price":"157.47","quantity":"0.06","quoteQuantity":"9.4482","timestamp":1749503101886},{"id":357579462,"isBuyerMaker":true,"price":"157.5","quantity":"6","quoteQuantity":"945","timestamp":1749503101218},{"id":357579461,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579460,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579459,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579458,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579457,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579456,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579455,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579454,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464}]'
+      string: '[{"id":357594895,"isBuyerMaker":false,"price":"159.73","quantity":"16.69","quoteQuantity":"2665.8937","timestamp":1749522399112},{"id":357594894,"isBuyerMaker":false,"price":"159.72","quantity":"0.01","quoteQuantity":"1.5972","timestamp":1749522399112},{"id":357594893,"isBuyerMaker":false,"price":"159.7","quantity":"0.05","quoteQuantity":"7.985","timestamp":1749522399100},{"id":357594892,"isBuyerMaker":false,"price":"159.69","quantity":"0.05","quoteQuantity":"7.9845","timestamp":1749522399100},{"id":357594891,"isBuyerMaker":false,"price":"159.69","quantity":"7","quoteQuantity":"1117.83","timestamp":1749522399100},{"id":357594890,"isBuyerMaker":false,"price":"159.69","quantity":"0.3","quoteQuantity":"47.907","timestamp":1749522399100},{"id":357594889,"isBuyerMaker":false,"price":"159.67","quantity":"0.07","quoteQuantity":"11.1769","timestamp":1749522385225},{"id":357594888,"isBuyerMaker":true,"price":"159.59","quantity":"0.25","quoteQuantity":"39.8975","timestamp":1749522384302},{"id":357594887,"isBuyerMaker":true,"price":"159.59","quantity":"0.01","quoteQuantity":"1.5959","timestamp":1749522384302},{"id":357594886,"isBuyerMaker":true,"price":"159.6","quantity":"0.05","quoteQuantity":"7.98","timestamp":1749522384302}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '1224'
+      - '1236'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:05:03 GMT
+      - Tue, 10 Jun 2025 02:26:58 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 a95232657939f052320289c47cff1d7a.cloudfront.net (CloudFront)
+      - 1.1 281ab6dcad96e83fb0660b5fd39020e8.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - O9VoBtypcxA3pxlRoz1uE0iXWJ-Y1fPXH0xpBJEdrvYydwoTUI1CrQ==
+      - Kep3yAuZBwpoaEn6EGuhb5hmIUydqfRKCTjoqV2ATqK60u8DB0PZAg==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

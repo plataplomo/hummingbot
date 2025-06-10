@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetOpenOrdersParams,
+    BackpackRawGetOrderParams,
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.api_error import APIError
@@ -37,7 +38,6 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_open_orders successfully retrieves open orders."""
         symbol = "SOL_USDC"
         mock_endpoint_path = "/api/v1/orders"
-        mock_params = {"symbol": symbol}
         mock_raw_response_content = [
             {
                 "id": "12345",
@@ -97,7 +97,9 @@ class TestBackpackTradingServiceQueryStatus:
         ]
         mock_internal_orders = [MagicMock()]
 
-        mock_request_builder.build_get_open_orders_params.return_value = mock_params
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -114,7 +116,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params=mock_params,
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -137,9 +139,11 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_open_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
         mock_endpoint_path = "/api/v1/orders"
-        mock_params = BackpackRawGetOpenOrdersParams(symbol=symbol)
+        BackpackRawGetOpenOrdersParams(symbol=symbol)
 
-        mock_request_builder.build_get_open_orders_params.return_value = mock_params
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
@@ -156,7 +160,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params=mock_params.model_dump(),
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -174,10 +178,11 @@ class TestBackpackTradingServiceQueryStatus:
     ) -> None:
         """Test get_open_orders handles validation error from response handler."""
         symbol = "SOL_USDC"
-        mock_params = {"symbol": symbol}
         mock_raw_response = [{"invalid": "order_data"}]
 
-        mock_request_builder.build_get_open_orders_params.return_value = mock_params
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -202,10 +207,11 @@ class TestBackpackTradingServiceQueryStatus:
     ) -> None:
         """Test get_open_orders handles unexpected exception."""
         symbol = "SOL_USDC"
-        mock_params = {"symbol": symbol}
         mock_raw_response = [{"id": "123", "symbol": symbol}]
 
-        mock_request_builder.build_get_open_orders_params.return_value = mock_params
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_open_orders_response.side_effect = Exception(
             "Unexpected service failure",
@@ -229,7 +235,6 @@ class TestBackpackTradingServiceQueryStatus:
         symbol = "SOL_USDC"
         order_id = "12345"
         mock_endpoint_path = "/api/v1/order"
-        mock_params = {"symbol": symbol, "orderId": order_id}
         mock_raw_response_content = {
             "id": order_id,
             "clientId": "client_order_123",
@@ -285,7 +290,9 @@ class TestBackpackTradingServiceQueryStatus:
         )
         mock_internal_order = MagicMock()
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -304,7 +311,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=f"{mock_endpoint_path}/{order_id}",
-                params=mock_params,
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -328,9 +335,10 @@ class TestBackpackTradingServiceQueryStatus:
         symbol = "SOL_USDC"
         order_id = "12345"
         mock_endpoint_path = "/api/v1/order"
-        mock_params = {"symbol": symbol, "orderId": order_id}
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
@@ -346,7 +354,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=f"{mock_endpoint_path}/{order_id}",
-                params=mock_params,
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -365,10 +373,11 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_order_status handles validation error from response handler."""
         symbol = "SOL_USDC"
         order_id = "12345"
-        mock_params = {"symbol": symbol, "orderId": order_id}
         mock_raw_response = {"invalid": "order_data"}
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -396,10 +405,11 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_order_status handles unexpected exception."""
         symbol = "SOL_USDC"
         order_id = "12345"
-        mock_params = {"symbol": symbol, "orderId": order_id}
         mock_raw_response = {"id": order_id, "symbol": symbol}
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_order_status_response.side_effect = Exception(
             "Unexpected service failure",
@@ -424,8 +434,9 @@ class TestBackpackTradingServiceQueryStatus:
         symbol = "SOL_USDC"
         order_id = "nonexistent_order"
 
-        mock_params = {"symbol": symbol, "orderId": order_id}
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (None, 404, {})
 
         with pytest.raises(APIError) as exc_info:
@@ -449,7 +460,6 @@ class TestBackpackTradingServiceQueryStatus:
         order_id = "12345"
         client_order_id = "client_order_123"
         mock_endpoint_path = "/api/v1/order"
-        mock_params = {"symbol": symbol}
         mock_raw_response_content = {
             "id": order_id,
             "clientId": client_order_id,
@@ -505,7 +515,9 @@ class TestBackpackTradingServiceQueryStatus:
         )
         mock_internal_order = MagicMock()
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -528,7 +540,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=f"{mock_endpoint_path}/{order_id}",
-                params=mock_params,
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -552,9 +564,10 @@ class TestBackpackTradingServiceQueryStatus:
         symbol = "SOL_USDC"
         order_id = "12345"
         mock_endpoint_path = "/api/v1/order"
-        mock_params = {"symbol": symbol}
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
@@ -573,7 +586,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=f"{mock_endpoint_path}/{order_id}",
-                params=mock_params,
+                params={"symbol": symbol},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -592,10 +605,11 @@ class TestBackpackTradingServiceQueryStatus:
         """Test get_order handles validation error from response handler."""
         symbol = "SOL_USDC"
         order_id = "12345"
-        mock_params = {"symbol": symbol}
         mock_raw_response = {"invalid": "order_data"}
 
-        mock_request_builder.build_get_order_params.return_value = mock_params
+        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
+            symbol=symbol
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -620,7 +634,7 @@ class TestBackpackTradingServiceQueryStatus:
     ) -> None:
         """Test get_all_open_orders successfully retrieves all open orders."""
         mock_endpoint_path = "/api/v1/orders"
-        mock_params = BackpackRawGetOpenOrdersParams(symbol=None)  # No symbol filter for all orders
+        BackpackRawGetOpenOrdersParams(symbol=None)  # No symbol filter for all orders
         mock_raw_response_content = [
             {
                 "id": "order_1",
@@ -730,7 +744,9 @@ class TestBackpackTradingServiceQueryStatus:
         ]
         mock_internal_orders = [MagicMock(), MagicMock()]
 
-        mock_request_builder.build_get_open_orders_params.return_value = mock_params
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=None)
+        )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
             mock_status_code,
@@ -747,7 +763,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params=mock_params.model_dump(),
+                params={"symbol": None},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,

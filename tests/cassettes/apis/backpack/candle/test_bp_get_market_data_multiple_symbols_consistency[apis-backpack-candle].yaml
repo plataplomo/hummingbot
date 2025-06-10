@@ -5,20 +5,10 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748898278&interval=1h&limit=100&startTime=1748811878&symbol=SOL_USDC
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748917591&interval=1h&limit=100&startTime=1748831191&symbol=SOL_USDC
   response:
     body:
-      string: '[{"close":"157.28","end":"2025-06-01 23:00:00","high":"157.46","low":"156.5","open":"156.97","quoteVolume":"286357.5597","start":"2025-06-01
-        22:00:00","trades":"1509","volume":"1824.13"},{"close":"157.8","end":"2025-06-02
-        00:00:00","high":"157.98","low":"157.05","open":"157.29","quoteVolume":"299165.2631","start":"2025-06-01
-        23:00:00","trades":"1587","volume":"1898.11"},{"close":"157.91","end":"2025-06-02
-        01:00:00","high":"158.27","low":"157.33","open":"157.8","quoteVolume":"521801.1814","start":"2025-06-02
-        00:00:00","trades":"2448","volume":"3308.8"},{"close":"158.19","end":"2025-06-02
-        02:00:00","high":"159","low":"157.9","open":"157.9","quoteVolume":"558086.2522","start":"2025-06-02
-        01:00:00","trades":"1791","volume":"3519.09"},{"close":"156.91","end":"2025-06-02
-        03:00:00","high":"158.31","low":"156.74","open":"158.12","quoteVolume":"359958.9813","start":"2025-06-02
-        02:00:00","trades":"2273","volume":"2286.85"},{"close":"155.57","end":"2025-06-02
-        04:00:00","high":"156.99","low":"155.46","open":"156.92","quoteVolume":"368812.0664","start":"2025-06-02
+      string: '[{"close":"155.57","end":"2025-06-02 04:00:00","high":"156.99","low":"155.46","open":"156.92","quoteVolume":"368812.0664","start":"2025-06-02
         03:00:00","trades":"1933","volume":"2363.2"},{"close":"155.34","end":"2025-06-02
         05:00:00","high":"156.26","low":"155.21","open":"155.54","quoteVolume":"254971.5261","start":"2025-06-02
         04:00:00","trades":"1227","volume":"1636.34"},{"close":"155.41","end":"2025-06-02
@@ -55,7 +45,17 @@ interactions:
         21:00:00","high":"154.6","low":"153","open":"153.02","quoteVolume":"699571.7395","start":"2025-06-02
         20:00:00","trades":"11502","volume":"4538.8"},{"close":"155.49","end":"2025-06-02
         22:00:00","high":"155.57","low":"154.32","open":"154.4","quoteVolume":"408319.4544","start":"2025-06-02
-        21:00:00","trades":"6979","volume":"2635.35"}]'
+        21:00:00","trades":"6979","volume":"2635.35"},{"close":"156.31","end":"2025-06-02
+        23:00:00","high":"156.9","low":"155.48","open":"155.49","quoteVolume":"583180.6104","start":"2025-06-02
+        22:00:00","trades":"8007","volume":"3732.73"},{"close":"156.9","end":"2025-06-03
+        00:00:00","high":"157.29","low":"156.27","open":"156.33","quoteVolume":"902441.7292","start":"2025-06-02
+        23:00:00","trades":"12468","volume":"5753.25"},{"close":"158.96","end":"2025-06-03
+        01:00:00","high":"159.07","low":"156.49","open":"156.9","quoteVolume":"672151.7222","start":"2025-06-03
+        00:00:00","trades":"4134","volume":"4254.1"},{"close":"162.1","end":"2025-06-03
+        02:00:00","high":"162.33","low":"158.96","open":"158.96","quoteVolume":"900397.7739","start":"2025-06-03
+        01:00:00","trades":"3338","volume":"5616.77"},{"close":"160.01","end":"2025-06-03
+        03:00:00","high":"162.47","low":"159.82","open":"162.05","quoteVolume":"747806.5159","start":"2025-06-03
+        02:00:00","trades":"2777","volume":"4633.65"}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -66,7 +66,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:38 GMT
+      - Tue, 10 Jun 2025 02:26:31 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Transfer-Encoding:
@@ -75,9 +75,9 @@ interactions:
       - Accept-Encoding
       - Origin
       Via:
-      - 1.1 4c7f37929c014d92eee65d58255828da.cloudfront.net (CloudFront)
+      - 1.1 42f34cc29143ced2bc45346515811014.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - JhHsdCcJTiLPiFTVaSVlASBjwqcvEX8XUxHZQNcc72DYpk6Gwa6GLg==
+      - QCQT6ZfhoZn3Jpgt_uTLqGQ3HSwgg07q_QDJUoOfYB0X4zcdVoMnwQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -89,7 +89,7 @@ interactions:
       X-XSS-Protection:
       - 1; mode=block
       content-length:
-      - '4464'
+      - '4469'
     status:
       code: 200
       message: OK
@@ -99,20 +99,10 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748898278&interval=1h&limit=100&startTime=1748811878&symbol=BTC_USDC
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748917591&interval=1h&limit=100&startTime=1748831191&symbol=BTC_USDC
   response:
     body:
-      string: '[{"close":"105563.5","end":"2025-06-01 23:00:00","high":"105801.9","low":"105483.4","open":"105565.3","quoteVolume":"112982.047056","start":"2025-06-01
-        22:00:00","trades":"189","volume":"1.0695"},{"close":"105687.1","end":"2025-06-02
-        00:00:00","high":"105906","low":"105542.6","open":"105546.6","quoteVolume":"64396.443364","start":"2025-06-01
-        23:00:00","trades":"133","volume":"0.60881"},{"close":"105479.2","end":"2025-06-02
-        01:00:00","high":"105765.3","low":"105479.2","open":"105687.1","quoteVolume":"28965.147025","start":"2025-06-02
-        00:00:00","trades":"150","volume":"0.27434"},{"close":"105440.9","end":"2025-06-02
-        02:00:00","high":"105691.8","low":"105399.1","open":"105479.2","quoteVolume":"503173.885058","start":"2025-06-02
-        01:00:00","trades":"680","volume":"4.7696"},{"close":"105084.3","end":"2025-06-02
-        03:00:00","high":"105443.6","low":"105084.3","open":"105440.9","quoteVolume":"114035.853151","start":"2025-06-02
-        02:00:00","trades":"243","volume":"1.08314"},{"close":"104911.3","end":"2025-06-02
-        04:00:00","high":"105084.3","low":"104609.2","open":"105081.8","quoteVolume":"235690.179791","start":"2025-06-02
+      string: '[{"close":"104911.3","end":"2025-06-02 04:00:00","high":"105084.3","low":"104609.2","open":"105081.8","quoteVolume":"235690.179791","start":"2025-06-02
         03:00:00","trades":"339","volume":"2.2476"},{"close":"104783.9","end":"2025-06-02
         05:00:00","high":"105009.4","low":"104755.7","open":"104873.9","quoteVolume":"16155.679703","start":"2025-06-02
         04:00:00","trades":"53","volume":"0.15396"},{"close":"104888.9","end":"2025-06-02
@@ -149,7 +139,17 @@ interactions:
         21:00:00","high":"105038.8","low":"104482.9","open":"104482.9","quoteVolume":"522864.727059","start":"2025-06-02
         20:00:00","trades":"5270","volume":"4.98841"},{"close":"104965","end":"2025-06-02
         22:00:00","high":"105169.9","low":"104679.5","open":"104951.9","quoteVolume":"329025.439339","start":"2025-06-02
-        21:00:00","trades":"1346","volume":"3.1365"}]'
+        21:00:00","trades":"1346","volume":"3.1365"},{"close":"105734.4","end":"2025-06-02
+        23:00:00","high":"105863.7","low":"105084.2","open":"105084.3","quoteVolume":"299946.899775","start":"2025-06-02
+        22:00:00","trades":"633","volume":"2.84266"},{"close":"105903.5","end":"2025-06-03
+        00:00:00","high":"105983","low":"105614.1","open":"105752.9","quoteVolume":"213457.616239","start":"2025-06-02
+        23:00:00","trades":"5710","volume":"2.01627"},{"close":"106301.4","end":"2025-06-03
+        01:00:00","high":"106434.3","low":"105805.7","open":"105903.6","quoteVolume":"224890.952928","start":"2025-06-03
+        00:00:00","trades":"539","volume":"2.11784"},{"close":"106540","end":"2025-06-03
+        02:00:00","high":"106541.9","low":"106189","open":"106355","quoteVolume":"238974.180558","start":"2025-06-03
+        01:00:00","trades":"372","volume":"2.24688"},{"close":"105678.9","end":"2025-06-03
+        03:00:00","high":"106551.7","low":"105656.1","open":"106535.5","quoteVolume":"282901.515901","start":"2025-06-03
+        02:00:00","trades":"379","volume":"2.66091"}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -160,7 +160,7 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:39 GMT
+      - Tue, 10 Jun 2025 02:26:32 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Transfer-Encoding:
@@ -169,9 +169,9 @@ interactions:
       - Accept-Encoding
       - Origin
       Via:
-      - 1.1 4c7f37929c014d92eee65d58255828da.cloudfront.net (CloudFront)
+      - 1.1 42f34cc29143ced2bc45346515811014.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - KlyOEjEVqGfSOt-IVJuuxzr5fSOYPj2cslTWSMHbNMWulb2geCHrqQ==
+      - 8qi3IFtdrIAq8G-7FItaXWmWZvlCjhCTy2yFNt6n2Gcw1Aq0RkNzyQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -183,7 +183,7 @@ interactions:
       X-XSS-Protection:
       - 1; mode=block
       content-length:
-      - '4684'
+      - '4683'
     status:
       code: 200
       message: OK

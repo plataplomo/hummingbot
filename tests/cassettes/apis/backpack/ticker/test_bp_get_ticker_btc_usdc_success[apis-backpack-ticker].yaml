@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC
   response:
     body:
-      string: '{"firstPrice":"106269.1","high":"108908.1","lastPrice":"108892.5","low":"105380.6","priceChange":"2623.4","priceChangePercent":"0.024686","quoteVolume":"9881309.002091","symbol":"BTC_USDC","trades":"53513","volume":"92.30601"}'
+      string: '{"firstPrice":"105709.3","high":"110672.6","lastPrice":"109683.7","low":"105380.6","priceChange":"3974.4","priceChangePercent":"0.037597","quoteVolume":"11786192.981495","symbol":"BTC_USDC","trades":"56143","volume":"109.42388"}'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '226'
+      - '228'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:55 GMT
+      - Tue, 10 Jun 2025 02:26:50 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 32e243b58ee6b5223a0e6dc4865b9bc8.cloudfront.net (CloudFront)
+      - 1.1 9d3f44e07fe0bf2749a2bc7bdc8a7a02.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - b6uSlG0cDChFQbZroSC0AQSWdlvL_6rrfOqaSS674xjSPjHIntL1PA==
+      - SzilGFrd7JTN99VmoIM2rBEODIEXN_jVFth7SIOUPXktBWl8ODnf7A==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

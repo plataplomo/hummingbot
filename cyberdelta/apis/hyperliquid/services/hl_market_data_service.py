@@ -401,12 +401,14 @@ class HyperliquidMarketDataService:
             )
 
             if raw_response_content_parsed is None:
-                logger.info(
-                    f"[{self._exchange_name}] No content received for l2Book for {symbol} "
-                    f"(likely nonexistent symbol). Status: {status_code}"
+                raise APIError(
+                    message=(
+                        f"No content received from HTTP client for l2Book for {symbol}, "
+                        f"status: {status_code}"
+                    ),
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
                 )
-                # Return None for nonexistent symbols (no order book data available)
-                return None
 
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
                 raw_response_content_parsed,

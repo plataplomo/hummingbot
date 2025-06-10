@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,7 +10,10 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetTickerParams
+from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+    BackpackRawGetMarketDataParams,
+    BackpackRawGetTickerParams,
+)
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -33,11 +37,10 @@ class TestBackpackMarketDataServiceKlinesMisc:
     ) -> None:
         """Test get_market_data successfully retrieves and processes kline data."""
         symbol = "SOL_USDC"
-        timeframe = "1m"
+        timeframe: Literal["1m"] = "1m"
         limit = 2
 
         # Mock data
-        mock_params = {"symbol": symbol, "interval": timeframe, "limit": limit}
         mock_raw_kline_data = [
             [
                 1678886400,  # int
@@ -73,7 +76,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
         ]
         mock_headers_from_client = MagicMock()
 
-        mock_request_builder.build_get_market_data_params.return_value = mock_params
+        mock_request_builder.build_get_market_data_params.return_value = (
+            BackpackRawGetMarketDataParams(
+                symbol=symbol, interval=timeframe, limit=limit, startTime=None, endTime=None
+            )
+        )
 
         mock_http_client_requester.return_value = (
             mock_raw_kline_data,  # Raw list of lists
@@ -101,7 +108,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint="/api/v1/klines",
-                params=mock_params,
+                params={"symbol": symbol, "interval": timeframe, "limit": limit},
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
@@ -128,13 +135,16 @@ class TestBackpackMarketDataServiceKlinesMisc:
     ) -> None:
         """Test get_market_data when HTTP client returns None content."""
         symbol = "SOL_USDC"
-        timeframe = "1h"
+        timeframe: Literal["1h"] = "1h"
         limit = 100
 
         # Mock data
-        mock_params = {"symbol": symbol, "interval": timeframe, "limit": limit}
 
-        mock_request_builder.build_get_market_data_params.return_value = mock_params
+        mock_request_builder.build_get_market_data_params.return_value = (
+            BackpackRawGetMarketDataParams(
+                symbol=symbol, interval=timeframe, limit=limit, startTime=None, endTime=None
+            )
+        )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -156,7 +166,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint="/api/v1/klines",
-                params=mock_params,
+                params={"symbol": symbol, "interval": timeframe, "limit": limit},
                 is_signed=False,
                 endpoint_group="public",
                 request_weight=1,
@@ -174,11 +184,14 @@ class TestBackpackMarketDataServiceKlinesMisc:
     ) -> None:
         """Test get_market_data handles validation error from response handler."""
         symbol = "SOL_USDC"
-        timeframe = "1m"
-        mock_params = {"symbol": symbol, "interval": timeframe, "limit": 100}
+        timeframe: Literal["1m"] = "1m"
         mock_raw_response = [["invalid", "kline_data"]]
 
-        mock_request_builder.build_get_market_data_params.return_value = mock_params
+        mock_request_builder.build_get_market_data_params.return_value = (
+            BackpackRawGetMarketDataParams(
+                symbol=symbol, interval=timeframe, limit=100, startTime=None, endTime=None
+            )
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
@@ -204,11 +217,14 @@ class TestBackpackMarketDataServiceKlinesMisc:
     ) -> None:
         """Test get_market_data handles unexpected exception."""
         symbol = "SOL_USDC"
-        timeframe = "1m"
-        mock_params = {"symbol": symbol, "interval": timeframe, "limit": 100}
+        timeframe: Literal["1m"] = "1m"
         mock_raw_response = [[1678886400, "100.0"]]
 
-        mock_request_builder.build_get_market_data_params.return_value = mock_params
+        mock_request_builder.build_get_market_data_params.return_value = (
+            BackpackRawGetMarketDataParams(
+                symbol=symbol, interval=timeframe, limit=100, startTime=None, endTime=None
+            )
+        )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_market_data_response.side_effect = Exception(
             "Unexpected error",
@@ -231,7 +247,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
     ) -> None:
         """Test get_market_data with start and end time parameters."""
         symbol = "SOL_USDC"
-        timeframe = "5m"
+        timeframe: Literal["5m"] = "5m"
         limit = 10
         start_time_ms = 1678880000000
         end_time_ms = 1678886400000
@@ -261,7 +277,15 @@ class TestBackpackMarketDataServiceKlinesMisc:
         ]
         mock_validated_klines_raw = [BackpackRawKline.model_validate(mock_raw_kline_data[0])]
 
-        mock_request_builder.build_get_market_data_params.return_value = mock_params
+        mock_request_builder.build_get_market_data_params.return_value = (
+            BackpackRawGetMarketDataParams(
+                symbol=symbol,
+                interval=timeframe,
+                limit=limit,
+                startTime=start_time_ms,
+                endTime=end_time_ms,
+            )
+        )
         mock_http_client_requester.return_value = (mock_raw_kline_data, 200, {})
         mock_response_handler.handle_get_market_data_response.return_value = (
             mock_validated_klines_raw

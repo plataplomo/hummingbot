@@ -39,10 +39,16 @@ async def test_hl_get_order_book_btc_success(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
-async def test_hl_get_order_book_nonexistent_symbol_returns_none(
+async def test_hl_get_order_book_nonexistent_symbol_raises_api_error(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test HyperliquidAPI.get_order_book() with non-existent symbol returns None."""
-    order_book = await hl_api_for_test_env.get_order_book("NONEXISTENT")
-    assert order_book is None, f"Expected None for non-existent symbol, got {order_book}"
+    """Test HyperliquidAPI.get_order_book() with non-existent symbol raises APIError."""
+    from cyberdelta.apis.models.api_error import APIError
+    from cyberdelta.apis.models.api_error_codes import APIErrorCode
+    
+    with pytest.raises(APIError) as exc_info:
+        await hl_api_for_test_env.get_order_book("NONEXISTENT")
+    
+    assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+    assert "No content received from HTTP client for l2Book" in exc_info.value.message

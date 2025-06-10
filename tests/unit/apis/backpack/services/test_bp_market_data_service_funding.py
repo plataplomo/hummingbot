@@ -9,7 +9,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_funding import (
+    BackpackRawFundingIntervalRate,
+    BackpackRawFundingRate,
+)
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetFundingRateParams
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.models.api_error import APIError
@@ -38,31 +41,26 @@ class TestBackpackMarketDataServiceFunding:
         mock_endpoint_path = "/api/v1/fundingRates"
         mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
         mock_params = mock_params_model.model_dump()
-        raw_time_str = "2023-10-27T10:00:00Z"
-        mock_raw_response_content = {
-            "symbol": symbol,
-            "rate": "0.0001",
-            "markPrice": "100.0",
-            "indexPrice": "99.0",
-            "time": raw_time_str,
-        }
+        raw_time_str = "2023-10-27T10:00:00"
+        mock_raw_response_content = [
+            {
+                "symbol": symbol,
+                "fundingRate": "0.0001",
+                "intervalEndTimestamp": raw_time_str,
+            }
+        ]
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
 
-        mock_raw_funding_rate = BackpackRawFundingRate(
+        mock_raw_funding_interval_rate = BackpackRawFundingIntervalRate(
             symbol=symbol,
-            rate="0.0001",
-            markPrice="100.0",
-            indexPrice="99.0",
-            time=raw_time_str,
+            fundingRate="0.0001",
+            intervalEndTimestamp=raw_time_str,
         )
         expected_internal_funding_rate = FundingRate(
             symbol=symbol,
             timestamp=datetime.fromisoformat(raw_time_str.replace("Z", "+00:00")),
             funding_rate=Decimal("0.0001"),
-            mark_price=Decimal("100.0"),
-            index_price=Decimal("99.0"),
-            next_funding_time=datetime.fromisoformat(raw_time_str.replace("Z", "+00:00")),
             bp_details=BackpackFundingDetails(),
         )
 
@@ -72,10 +70,12 @@ class TestBackpackMarketDataServiceFunding:
             mock_status_code,
             mock_headers_from_client,
         )
-        mock_response_handler.handle_get_funding_rate_response.return_value = mock_raw_funding_rate
+        mock_response_handler.handle_get_historical_funding_rates_response.return_value = [
+            mock_raw_funding_interval_rate
+        ]
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_raw_funding_rate_to_internal.return_value = (
+            mock_mapper.transform_raw_funding_interval_rate_to_internal.return_value = (
                 expected_internal_funding_rate
             )
             result_funding_rate = await backpack_market_data_service.get_funding_rate(symbol)
@@ -91,14 +91,15 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint_group="public",
                 request_weight=1,
             )
-            mock_response_handler.handle_get_funding_rate_response.assert_called_once_with(
+            mock_response_handler.handle_get_historical_funding_rates_response.assert_called_once_with(
                 mock_raw_response_content,
                 symbol,
                 mock_status_code,
                 mock_headers_from_client,
             )
-            mock_mapper.transform_raw_funding_rate_to_internal.assert_called_once_with(
-                mock_raw_funding_rate,
+            mock_mapper.transform_raw_funding_interval_rate_to_internal.assert_called_once_with(
+                mock_raw_funding_interval_rate,
+                symbol=symbol,
             )
             assert result_funding_rate == expected_internal_funding_rate
 
@@ -137,8 +138,8 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint_group="public",
                 request_weight=1,
             )
-            mock_response_handler.handle_get_funding_rate_response.assert_not_called()
-            mock_mapper.transform_raw_funding_rate_to_internal.assert_not_called()
+            mock_response_handler.handle_get_historical_funding_rates_response.assert_not_called()
+            mock_mapper.transform_raw_funding_interval_rate_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_validation_error(
@@ -151,22 +152,22 @@ class TestBackpackMarketDataServiceFunding:
         """Test get_funding_rate handles validation error from response handler."""
         symbol = "SOL-PERP"
         mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
-        mock_raw_response = {"invalid": "funding_rate_data"}
+        mock_raw_response = [{"invalid": "funding_rate_data"}]
 
         mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawFundingRate.model_validate({"invalid": "data"})
+            BackpackRawFundingIntervalRate.model_validate({"invalid": "data"})
         except ValidationError as e:
-            mock_response_handler.handle_get_funding_rate_response.side_effect = e
+            mock_response_handler.handle_get_historical_funding_rates_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
             await backpack_market_data_service.get_funding_rate(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed." in exc_info.value.message
+        assert "Failed to process funding rate data: ValidationError" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_unexpected_exception(
@@ -179,11 +180,11 @@ class TestBackpackMarketDataServiceFunding:
         """Test get_funding_rate handles unexpected exception."""
         symbol = "SOL-PERP"
         mock_params_model = BackpackRawGetFundingRateParams(symbol=symbol)
-        mock_raw_response = {"symbol": symbol, "rate": "0.001"}
+        mock_raw_response = [{"symbol": symbol, "rate": "0.001"}]
 
         mock_request_builder.build_get_funding_rate_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_funding_rate_response.side_effect = Exception(
+        mock_response_handler.handle_get_historical_funding_rates_response.side_effect = Exception(
             "Unexpected error",
         )
 
@@ -210,41 +211,50 @@ class TestBackpackMarketDataServiceFunding:
         expected_end_time_s = end_time_ms // 1000
         limit = 10
         mock_endpoint_path = "/api/v1/funding/history"
+        mock_params_model = MagicMock()
         mock_params = {
             "symbol": symbol,
-            "startTime": start_time_ms,
-            "endTime": end_time_ms,
+            "startTime": expected_start_time_s,
+            "endTime": expected_end_time_s,
             "limit": limit,
         }
+        mock_params_model.model_dump.return_value = mock_params
         raw_time_1 = "2023-10-27T10:00:00Z"
         raw_time_2 = "2023-10-28T10:00:00Z"
         mock_raw_response_content_list = [
             {
                 "symbol": symbol,
-                "rate": "0.0001",
-                "markPrice": "100.0",
-                "indexPrice": "99.0",
-                "time": raw_time_1,
+                "fundingRate": "0.0001",
+                "intervalEndTimestamp": raw_time_1,
             },
             {
                 "symbol": symbol,
-                "rate": "0.0002",
-                "markPrice": "101.0",
-                "indexPrice": "100.0",
-                "time": raw_time_2,
+                "fundingRate": "0.0002",
+                "intervalEndTimestamp": raw_time_2,
             },
         ]
-        mock_validated_funding_rates_raw = mock_raw_response_content_list
+        mock_raw_funding_interval_rates = [
+            BackpackRawFundingIntervalRate(
+                symbol=symbol,
+                fundingRate="0.0001",
+                intervalEndTimestamp=raw_time_1,
+            ),
+            BackpackRawFundingIntervalRate(
+                symbol=symbol,
+                fundingRate="0.0002",
+                intervalEndTimestamp=raw_time_2,
+            ),
+        ]
         mock_headers_from_client = MagicMock()
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (
             mock_raw_response_content_list,
             200,
             mock_headers_from_client,
         )
         mock_response_handler.handle_get_historical_funding_rates_response.return_value = (
-            mock_validated_funding_rates_raw
+            mock_raw_funding_interval_rates
         )
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -292,7 +302,7 @@ class TestBackpackMarketDataServiceFunding:
 
             # Assert calls to mapper
             assert mock_mapper.transform_raw_funding_interval_rate_to_internal.call_count == len(
-                mock_validated_funding_rates_raw,
+                mock_raw_funding_interval_rates,
             )
 
             assert len(result) == len(mock_internal_funding_rates)
@@ -311,9 +321,11 @@ class TestBackpackMarketDataServiceFunding:
         expected_start_time_s = start_time_ms // 1000
         limit = 5
         mock_endpoint_path = "/api/v1/funding/history"
-        mock_params = {"symbol": symbol, "startTime": start_time_ms, "limit": limit}
+        mock_params_model = MagicMock()
+        mock_params = {"symbol": symbol, "startTime": expected_start_time_s, "limit": limit}
+        mock_params_model.model_dump.return_value = mock_params
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -356,15 +368,17 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_historical_funding_rates handles validation error from response handler."""
         symbol = "SOL-PERP"
+        mock_params_model = MagicMock()
         mock_params = {"symbol": symbol, "limit": 10}
+        mock_params_model.model_dump.return_value = mock_params
         mock_raw_response = [{"invalid": "funding_rate_data"}]
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawFundingRate.model_validate({"invalid": "data"})
+            BackpackRawFundingIntervalRate.model_validate({"invalid": "data"})
         except ValidationError as e:
             mock_response_handler.handle_get_historical_funding_rates_response.side_effect = e
 
@@ -385,10 +399,12 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_historical_funding_rates handles unexpected exception."""
         symbol = "SOL-PERP"
+        mock_params_model = MagicMock()
         mock_params = {"symbol": symbol, "limit": 10}
+        mock_params_model.model_dump.return_value = mock_params
         mock_raw_response = [{"symbol": symbol, "rate": "0.001"}]
 
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_historical_funding_rates_response.side_effect = Exception(
             "Unexpected error",
@@ -411,22 +427,27 @@ class TestBackpackMarketDataServiceFunding:
     ) -> None:
         """Test get_historical_funding_rates with only symbol parameter."""
         symbol = "SOL-PERP"
+        mock_params_model = MagicMock()
         mock_params = {"symbol": symbol}
+        mock_params_model.model_dump.return_value = mock_params
         mock_raw_response = [
             {
                 "symbol": symbol,
-                "rate": "0.0001",
-                "markPrice": "100.0",
-                "indexPrice": "99.0",
-                "time": "2023-10-27T10:00:00Z",
+                "fundingRate": "0.0001",
+                "intervalEndTimestamp": "2023-10-27T10:00:00Z",
             },
         ]
-
-        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_historical_funding_rates_response.return_value = (
-            mock_raw_response
+        mock_raw_funding_interval_rate = BackpackRawFundingIntervalRate(
+            symbol=symbol,
+            fundingRate="0.0001",
+            intervalEndTimestamp="2023-10-27T10:00:00Z",
         )
+
+        mock_request_builder.build_get_historical_funding_rates_params.return_value = mock_params_model
+        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        mock_response_handler.handle_get_historical_funding_rates_response.return_value = [
+            mock_raw_funding_interval_rate
+        ]
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             mock_internal_funding_rates = [MagicMock(spec=FundingRate)]

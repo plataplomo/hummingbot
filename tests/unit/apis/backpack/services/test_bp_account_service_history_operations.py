@@ -561,9 +561,13 @@ class TestBackpackAccountServiceHistoryOperations:
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_trade_history_response.side_effect = ValueError(
-            "Validation failed"
-        )
+        # Create a ValidationError by trying to validate invalid data
+        try:
+            from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+
+            BackpackRawTrade.model_validate({"invalid": "data"})
+        except ValidationError as e:
+            mock_response_handler.handle_get_trade_history_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
@@ -633,7 +637,9 @@ class TestBackpackAccountServiceHistoryOperations:
             available_quantity=Decimal("100.0"),
         )
 
-        mock_request_builder.build_get_balances_params.return_value = None
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
+
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = (
             {"USDC": {"available": "100.0", "total": "100.0"}},
             200,
@@ -660,6 +666,8 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test constructor creates default mapper when none provided by testing behavior."""
+        from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
+
         service = BackpackAccountService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
@@ -670,7 +678,7 @@ class TestBackpackAccountServiceHistoryOperations:
         )
 
         # Test behavior that would require a mapper
-        mock_request_builder.build_get_balances_params.return_value = None
+        mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = (
             {"USDC": {"available": "100.0", "total": "100.0"}},
             200,

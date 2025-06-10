@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=SOL_USDC
   response:
     body:
-      string: '[{"id":357579463,"isBuyerMaker":true,"price":"157.47","quantity":"0.06","quoteQuantity":"9.4482","timestamp":1749503101886},{"id":357579462,"isBuyerMaker":true,"price":"157.5","quantity":"6","quoteQuantity":"945","timestamp":1749503101218},{"id":357579461,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579460,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464},{"id":357579459,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464}]'
+      string: '[{"id":357594895,"isBuyerMaker":false,"price":"159.73","quantity":"16.69","quoteQuantity":"2665.8937","timestamp":1749522399112},{"id":357594894,"isBuyerMaker":false,"price":"159.72","quantity":"0.01","quoteQuantity":"1.5972","timestamp":1749522399112},{"id":357594893,"isBuyerMaker":false,"price":"159.7","quantity":"0.05","quoteQuantity":"7.985","timestamp":1749522399100},{"id":357594892,"isBuyerMaker":false,"price":"159.69","quantity":"0.05","quoteQuantity":"7.9845","timestamp":1749522399100},{"id":357594891,"isBuyerMaker":false,"price":"159.69","quantity":"7","quoteQuantity":"1117.83","timestamp":1749522399100}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '609'
+      - '621'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:05:02 GMT
+      - Tue, 10 Jun 2025 02:26:58 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 13bdfe51c955b72c24c041717e9e9508.cloudfront.net (CloudFront)
+      - 1.1 3fc3bd13aa87a17977461ca83c01c070.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - xMFRfi1mTYMqLTsrcr8puAkvzlvIEoV2NiGBj1Ytr0-cIZSR1SKfhg==
+      - as4AhJOD4zwS0Q-uML2Tl5JHEUzT0hU1h0YXZcycorIQfyrGWhHjHg==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

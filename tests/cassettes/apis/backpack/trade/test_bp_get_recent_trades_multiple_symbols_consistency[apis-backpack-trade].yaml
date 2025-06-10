@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=SOL_USDC
   response:
     body:
-      string: '[{"id":357579465,"isBuyerMaker":true,"price":"157.47","quantity":"6","quoteQuantity":"944.82","timestamp":1749503103661},{"id":357579464,"isBuyerMaker":true,"price":"157.47","quantity":"0.24","quoteQuantity":"37.7928","timestamp":1749503103661},{"id":357579463,"isBuyerMaker":true,"price":"157.47","quantity":"0.06","quoteQuantity":"9.4482","timestamp":1749503101886},{"id":357579462,"isBuyerMaker":true,"price":"157.5","quantity":"6","quoteQuantity":"945","timestamp":1749503101218},{"id":357579461,"isBuyerMaker":false,"price":"157.5","quantity":"0.25","quoteQuantity":"39.375","timestamp":1749503100464}]'
+      string: '[{"id":357594895,"isBuyerMaker":false,"price":"159.73","quantity":"16.69","quoteQuantity":"2665.8937","timestamp":1749522399112},{"id":357594894,"isBuyerMaker":false,"price":"159.72","quantity":"0.01","quoteQuantity":"1.5972","timestamp":1749522399112},{"id":357594893,"isBuyerMaker":false,"price":"159.7","quantity":"0.05","quoteQuantity":"7.985","timestamp":1749522399100},{"id":357594892,"isBuyerMaker":false,"price":"159.69","quantity":"0.05","quoteQuantity":"7.9845","timestamp":1749522399100},{"id":357594891,"isBuyerMaker":false,"price":"159.69","quantity":"7","quoteQuantity":"1117.83","timestamp":1749522399100}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '607'
+      - '621'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:05:05 GMT
+      - Tue, 10 Jun 2025 02:27:00 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
+      - 1.1 5343e28419a407f9ee6b620572471578.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - VGYXYl5OLRPZ-Gp5D08IJ7QwhOrWykonvVj5FBCZq8-omM5TYheYOw==
+      - PBU4zaQ0OsRu0ug9yZEZmXnX8UXn-uc8JxwlmXIDwkH3AAJkMJhxoA==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -52,7 +52,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=BTC_USDC
   response:
     body:
-      string: '[{"id":8282434,"isBuyerMaker":true,"price":"108892","quantity":"0.0002","quoteQuantity":"21.7784","timestamp":1749503105431},{"id":8282433,"isBuyerMaker":true,"price":"108892.1","quantity":"0.0002","quoteQuantity":"21.77842","timestamp":1749503105431},{"id":8282432,"isBuyerMaker":true,"price":"108902.9","quantity":"0.0002","quoteQuantity":"21.78058","timestamp":1749503105244},{"id":8282431,"isBuyerMaker":true,"price":"108903","quantity":"0.0002","quoteQuantity":"21.7806","timestamp":1749503105244},{"id":8282430,"isBuyerMaker":true,"price":"108902.6","quantity":"0.00237","quoteQuantity":"258.099162","timestamp":1749503100453}]'
+      string: '[{"id":8289216,"isBuyerMaker":true,"price":"109717.4","quantity":"0.00132","quoteQuantity":"144.826968","timestamp":1749522417393},{"id":8289215,"isBuyerMaker":true,"price":"109723.5","quantity":"0.0002","quoteQuantity":"21.9447","timestamp":1749522417393},{"id":8289214,"isBuyerMaker":true,"price":"109723.5","quantity":"0.0002","quoteQuantity":"21.9447","timestamp":1749522417393},{"id":8289213,"isBuyerMaker":true,"price":"109723.6","quantity":"0.00101","quoteQuantity":"110.820836","timestamp":1749522417393},{"id":8289212,"isBuyerMaker":false,"price":"109725.4","quantity":"0.00011","quoteQuantity":"12.069794","timestamp":1749522417379}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -61,19 +61,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '633'
+      - '643'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:05:05 GMT
+      - Tue, 10 Jun 2025 02:27:01 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
+      - 1.1 5343e28419a407f9ee6b620572471578.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - QtjFbgQKAZtn62Jnw-WplcfNa-g9xhBySg05GZK6xf4_DfoMvRQDjA==
+      - GwhhoQEqWsKShThQFFq7j1JgjiGLp2SqdmfatXIbutKrqxoz5J1aTQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

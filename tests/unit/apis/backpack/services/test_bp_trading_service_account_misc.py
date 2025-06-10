@@ -376,7 +376,9 @@ class TestBackpackTradingServiceAccountMisc:
             ),
         ]
 
-        mock_request_builder.build_get_open_orders_params.return_value = None
+        mock_request_builder.build_get_open_orders_params.return_value = (
+            BackpackRawGetOpenOrdersParams(symbol=None)
+        )
         mock_http_client_requester.return_value = ([{"id": "order_1"}, {"id": "order_2"}], 200, {})
         mock_response_handler.handle_get_open_orders_response.return_value = mock_raw_orders
 

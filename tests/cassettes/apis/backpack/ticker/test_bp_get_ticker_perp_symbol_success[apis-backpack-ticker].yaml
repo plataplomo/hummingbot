@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC_PERP
   response:
     body:
-      string: '{"firstPrice":"154.41","high":"157.55","lastPrice":"157.42","low":"149.62","priceChange":"3.01","priceChangePercent":"0.019494","quoteVolume":"60068411.1682","symbol":"SOL_USDC_PERP","trades":"50996","volume":"390269.55"}'
+      string: '{"firstPrice":"152.2","high":"161.79","lastPrice":"159.65","low":"149.62","priceChange":"7.45","priceChangePercent":"0.048949","quoteVolume":"67897161.0211","symbol":"SOL_USDC_PERP","trades":"57088","volume":"436362.16"}'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '221'
+      - '220'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:56 GMT
+      - Tue, 10 Jun 2025 02:26:52 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 8fe936c1a7450212994ef4bd39c970d0.cloudfront.net (CloudFront)
+      - 1.1 94d34b5f3784762378f4530207128fe6.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - Ry10p_nlxdO9jTfHY_XEVG39UVPO9OU7gnJLWXZeJ3f4JvpASkIlYQ==
+      - 8RGDXhU_uYkqPZOBOdbEDB4HNRGIkUwHwh99d6Askj9RoNstOSLsUg==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

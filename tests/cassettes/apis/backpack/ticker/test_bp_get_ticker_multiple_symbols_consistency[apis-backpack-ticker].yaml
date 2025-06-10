@@ -8,10 +8,10 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC
   response:
     body:
-      string: '{"firstPrice":"154.46","high":"157.59","lastPrice":"157.59","low":"149.68","priceChange":"3.13","priceChangePercent":"0.020264","quoteVolume":"10624599.6533","symbol":"SOL_USDC","trades":"53461","volume":"68994.72"}'
+      string: '{"firstPrice":"152.26","high":"161.88","lastPrice":"159.67","low":"149.68","priceChange":"7.41","priceChangePercent":"0.048667","quoteVolume":"10973825.2578","symbol":"SOL_USDC","trades":"59678","volume":"70626.96"}'
     headers:
       Age:
-      - '45'
+      - '13'
       Alt-Svc:
       - h3=":443"; ma=86400
       Cache-Control:
@@ -23,15 +23,15 @@ interactions:
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:13 GMT
+      - Tue, 10 Jun 2025 02:26:40 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 42f34cc29143ced2bc45346515811014.cloudfront.net (CloudFront)
+      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - ZV_IriPg2krhqTb_cyMh2YfmLjIaCShpUwEnsznHjcquFJ5X4vl0OA==
+      - yespNrSgUq1iNFVhYWNbAXoeLhrd3cf6tU8i3IYUhHOBtGQvOa6w1w==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
@@ -54,10 +54,10 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC
   response:
     body:
-      string: '{"firstPrice":"106269.1","high":"108908.1","lastPrice":"108892.5","low":"105380.6","priceChange":"2623.4","priceChangePercent":"0.024686","quoteVolume":"9881309.002091","symbol":"BTC_USDC","trades":"53513","volume":"92.30601"}'
+      string: '{"firstPrice":"105709.3","high":"110672.6","lastPrice":"109683.7","low":"105380.6","priceChange":"3974.4","priceChangePercent":"0.037597","quoteVolume":"11786192.981495","symbol":"BTC_USDC","trades":"56143","volume":"109.42388"}'
     headers:
       Age:
-      - '3'
+      - '4'
       Alt-Svc:
       - h3=":443"; ma=86400
       Cache-Control:
@@ -65,19 +65,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '226'
+      - '228'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:55 GMT
+      - Tue, 10 Jun 2025 02:26:50 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 42f34cc29143ced2bc45346515811014.cloudfront.net (CloudFront)
+      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - nGOVvlH-iGif1n1noGebTq6jHwMjuqtcwtvYI7FPPxEv7t94R5no-Q==
+      - tkBUVP5rKJ6-MWi8bBRtYQ8miYUNvAZTIDod65KwZZUk4FE2_6FOxA==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

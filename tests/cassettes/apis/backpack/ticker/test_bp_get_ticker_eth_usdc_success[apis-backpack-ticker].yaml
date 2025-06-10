@@ -8,7 +8,7 @@ interactions:
     uri: https://api.backpack.exchange/api/v1/ticker?symbol=ETH_USDC
   response:
     body:
-      string: '{"firstPrice":"2536.61","high":"2610","lastPrice":"2608.76","low":"2478.91","priceChange":"72.15","priceChangePercent":"0.028443","quoteVolume":"8922558.952637","symbol":"ETH_USDC","trades":"9647","volume":"3526.1252"}'
+      string: '{"firstPrice":"2501.46","high":"2727.24","lastPrice":"2689.8","low":"2478.91","priceChange":"188.34","priceChangePercent":"0.075292","quoteVolume":"10451549.698528","symbol":"ETH_USDC","trades":"10572","volume":"4063.1111"}'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -17,19 +17,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '218'
+      - '223'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:55 GMT
+      - Tue, 10 Jun 2025 02:26:51 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 94d34b5f3784762378f4530207128fe6.cloudfront.net (CloudFront)
+      - 1.1 9d3f44e07fe0bf2749a2bc7bdc8a7a02.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - d14R_LJ_t9iG6ugZ3_5eEz9yG7y3HejSLJ7VElMYn6dixkWb2AUJIw==
+      - oXf4FathMKZNjlNXhXN1qboN82Z0UqJgvQ2BM5sdnIt4KdabGDYNVQ==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:

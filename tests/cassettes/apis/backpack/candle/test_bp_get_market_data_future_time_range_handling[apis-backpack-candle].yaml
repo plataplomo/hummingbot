@@ -5,11 +5,11 @@ interactions:
       User-Agent:
       - CyberDeltaEngine-Test-Suite/1.0
     method: GET
-    uri: https://api.backpack.exchange/api/v1/klines?endTime=1748988277&interval=1h&limit=100&startTime=1748984677&symbol=SOL_USDC
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749007589&interval=1h&limit=100&startTime=1749003989&symbol=SOL_USDC
   response:
     body:
-      string: '[{"close":"155.94","end":"2025-06-03 23:00:00","high":"156.45","low":"154.56","open":"154.93","quoteVolume":"320742.0763","start":"2025-06-03
-        22:00:00","trades":"2220","volume":"2062.91"}]'
+      string: '[{"close":"156.64","end":"2025-06-04 04:00:00","high":"157.55","low":"156.1","open":"156.14","quoteVolume":"508690.1341","start":"2025-06-04
+        03:00:00","trades":"1668","volume":"3239.97"}]'
     headers:
       Alt-Svc:
       - h3=":443"; ma=86400
@@ -18,19 +18,19 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '188'
+      - '187'
       Content-Type:
       - application/json; charset=utf-8
       Date:
-      - Mon, 09 Jun 2025 21:04:37 GMT
+      - Tue, 10 Jun 2025 02:26:30 GMT
       Strict-Transport-Security:
       - max-age=31536000
       Vary:
       - Origin
       Via:
-      - 1.1 78634a9a457c5133b7453092072a792e.cloudfront.net (CloudFront)
+      - 1.1 59ba94822e89d588c9376627a36c3ed4.cloudfront.net (CloudFront)
       X-Amz-Cf-Id:
-      - prwnkE-4DSxMaN7mOWb9Fv0ENqXvEWKt4v8Wd5pW7TmIRUcWTTGZZA==
+      - d3g5cJoPd3VPhmgNA7VdwuJgdTvYiaZjRZ0OIkn_I6PcFZPuzhqq1w==
       X-Amz-Cf-Pop:
       - LIM50-P2
       X-Cache:
