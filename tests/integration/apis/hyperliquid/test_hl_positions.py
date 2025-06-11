@@ -1,7 +1,7 @@
-"""Integration tests for Hyperliquid private positions endpoints.
+"""Integration tests for Hyperliquid positions endpoints.
 
 This module focuses specifically on testing the DerivativePosition model pipeline
-through Hyperliquid's private /info endpoint with EIP-712 authentication.
+through Hyperliquid's /info endpoint with user address authentication.
 Tests validate complete data transformation from API responses to DerivativePosition instances.
 
 Model Focus: DerivativePosition
@@ -36,10 +36,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/positions"], indirect=True
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/positions"], indirect=True
 )
-class TestHyperliquidPositionsPrivate:
-    """Comprehensive private positions integration tests for DerivativePosition model validation."""
+class TestHyperliquidPositions:
+    """Comprehensive positions integration tests for DerivativePosition model validation."""
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

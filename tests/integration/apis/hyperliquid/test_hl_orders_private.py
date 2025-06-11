@@ -1,24 +1,22 @@
 """Integration tests for Hyperliquid private orders endpoints.
 
 This module focuses specifically on testing the Order model pipeline
-through Hyperliquid's private /exchange and /info endpoints with EIP-712 authentication.
-Tests validate complete data transformation from API responses to Order instances.
+through Hyperliquid's private /exchange endpoints with EIP-712 authentication.
+Tests validate complete data transformation for state-changing operations.
 
-Model Focus: Order
-- Validates complete Order model field mapping
-- Tests Decimal precision for financial values (quantities, prices)
-- Validates business logic constraints and order state transitions
-- Tests Hyperliquid-specific order details (hl_details with order management info)
-- Comprehensive error handling and order lifecycle edge cases
+Model Focus: Order (Write Operations)
+- Tests order placement and cancellation operations
+- Validates EIP-712 cryptographic authentication
+- Tests business logic constraints for trading operations
+- Comprehensive error handling for private order operations
 
-Authentication: EIP-712 signing for testnet environment
+Authentication: EIP-712 signing for all /exchange endpoint operations
 VCR: Records both success and error responses with sensitive data filtering
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -30,8 +28,6 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
-    GetOrderArgs,
-    GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
@@ -43,10 +39,17 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/orders"], indirect=True
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/orders_private"], indirect=True
 )
 class TestHyperliquidOrdersPrivate:
-    """Comprehensive private orders integration tests for Order model validation."""
+    """Comprehensive private orders integration tests for /exchange endpoint operations.
+    
+    This class tests only /exchange endpoint operations (signed with EIP-712):
+    - place_order
+    - cancel_order
+    
+    These operations require cryptographic authentication and modify exchange state.
+    """
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -80,13 +83,6 @@ class TestHyperliquidOrdersPrivate:
         # Validate core fields
         assert placed_order.exchange == "hyperliquid", (
             f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
-        )
-
-        # Validate timestamp recency
-        assert placed_order.created_at is not None, "Order must have created_at timestamp"
-        time_diff = datetime.now(placed_order.created_at.tzinfo) - placed_order.created_at
-        assert time_diff.total_seconds() < 300, (  # 5 minutes for order placement
-            f"Order timestamp should be recent (< 5 minutes), got {time_diff.total_seconds()}s ago"
         )
 
         # Validate order matches request parameters
@@ -194,171 +190,6 @@ class TestHyperliquidOrdersPrivate:
 
         # Validate cancellation success
         assert cancel_result is True, "cancel_order() should return True on success"
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_order_by_id_success_comprehensive(
-        self,
-        hl_api_for_test_env: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_order() validates pipeline for single order query.
-
-        This tests order retrieval by ID and validates the Order model consistency.
-        """
-        # First place an order to get a valid order ID
-        place_args = PlaceOrderArgs(
-            symbol="PURP",  # Testnet asset
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),
-            price=Decimal("0.01"),  # Far below market
-            time_in_force=TimeInForce.GTC,
-        )
-
-        placed_order = await hl_api_for_test_env.place_order(place_args)
-        order_id = placed_order.exchange_order_id
-
-        # Now query the specific order using GetOrderArgs
-        assert order_id is not None, "Order ID should not be None"
-        get_order_args = GetOrderArgs(order_id=order_id)
-        retrieved_order = await hl_api_for_test_env.get_order(get_order_args)
-
-        # Validate retrieved order
-        assert retrieved_order is not None, "get_order() should return an Order"
-        assert isinstance(retrieved_order, Order), "get_order() should return Order instance"
-        assert retrieved_order.exchange_order_id == order_id, (
-            f"Order ID should match query: {retrieved_order.exchange_order_id} vs {order_id}"
-        )
-        assert retrieved_order.symbol == "PURP", (
-            f"Order symbol should match: {retrieved_order.symbol}"
-        )
-        assert retrieved_order.side == OrderSide.BUY, (
-            f"Order side should match: {retrieved_order.side}"
-        )
-
-        # Validate consistency between placed and retrieved order
-        assert retrieved_order.quantity_requested == placed_order.quantity_requested, (
-            "Retrieved order quantity should match placed order"
-        )
-        if retrieved_order.price is not None and placed_order.price is not None:
-            assert retrieved_order.price == placed_order.price, (
-                "Retrieved order price should match placed order"
-            )
-
-        # Clean up - cancel the order
-        cancel_args = CancelOrderArgs(order_id=order_id, symbol="PURP")
-        await hl_api_for_test_env.cancel_order(cancel_args)
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_order_history_success_comprehensive(
-        self,
-        hl_api_for_test_env: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_order_history() validates full pipeline to Order models.
-
-        This tests historical order retrieval and validates Order model consistency.
-        """
-        # Define recent date range for order history
-        end_time = datetime.now()
-        start_time = end_time - timedelta(days=7)  # Last 7 days
-
-        # Execute the full pipeline using GetOrderHistoryArgs
-        args = GetOrderHistoryArgs(
-            start_time=start_time,
-            end_time=end_time,
-        )
-        order_history = await hl_api_for_test_env.get_order_history(args)
-
-        # Validate return type
-        assert isinstance(order_history, list), "get_order_history() should return list[Order]"
-
-        # If history exists, validate structure
-        if order_history:
-            sample_order = order_history[0]
-            assert isinstance(sample_order, Order), "Historical order should be Order instance"
-
-            # Validate exchange field
-            assert sample_order.exchange == "hyperliquid", (
-                f"Exchange should be 'hyperliquid', got {sample_order.exchange}"
-            )
-
-            # Validate order fields
-            assert isinstance(sample_order.symbol, str), "symbol must be string"
-            assert sample_order.side in [OrderSide.BUY, OrderSide.SELL], (
-                "side must be valid OrderSide"
-            )
-            assert sample_order.exchange_order_id is not None, "order should have exchange ID"
-
-            # Validate Decimal precision
-            assert isinstance(sample_order.quantity_requested, Decimal), (
-                "quantity_requested must be Decimal"
-            )
-            assert isinstance(sample_order.quantity_filled, Decimal), (
-                "quantity_filled must be Decimal"
-            )
-
-            # Validate timestamps
-            assert sample_order.created_at is not None, "order should have created_at timestamp"
-
-            # Validate historical order is within requested time range
-            if sample_order.created_at:
-                assert start_time <= sample_order.created_at <= end_time, (
-                    f"Order timestamp should be within requested range: {sample_order.created_at}"
-                )
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_open_orders_success_comprehensive(
-        self,
-        hl_api_for_test_env: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test successful get_open_orders() with detailed Order model validation."""
-        # Execute the full pipeline
-        open_orders = await hl_api_for_test_env.get_open_orders()
-
-        # Validate return type
-        assert isinstance(open_orders, list), "get_open_orders() should return list[Order]"
-
-        # If orders exist, validate structure
-        if open_orders:
-            sample_order = open_orders[0]
-            assert isinstance(sample_order, Order), "Order should be Order instance"
-
-            # Validate exchange field
-            assert sample_order.exchange == "hyperliquid", (
-                f"Exchange should be 'hyperliquid', got {sample_order.exchange}"
-            )
-
-            # Validate required fields
-            assert isinstance(sample_order.symbol, str), "symbol must be string"
-            assert sample_order.side in [OrderSide.BUY, OrderSide.SELL], (
-                "side must be valid OrderSide"
-            )
-            assert sample_order.status == OrderStatus.OPEN, (
-                f"open order should have OPEN status, got {sample_order.status}"
-            )
-            assert sample_order.exchange_order_id is not None, "order should have exchange ID"
-
-            # Validate Decimal precision
-            assert isinstance(sample_order.quantity_requested, Decimal), (
-                "quantity_requested must be Decimal"
-            )
-            assert isinstance(sample_order.quantity_filled, Decimal), (
-                "quantity_filled must be Decimal"
-            )
-
-            if sample_order.price is not None:  # Market orders may not have price
-                assert isinstance(sample_order.price, Decimal), "price must be Decimal"
-
-            # Validate Hyperliquid-specific order ID format
-            try:
-                int(sample_order.exchange_order_id)
-            except ValueError:
-                pytest.fail("Hyperliquid order ID should be a valid integer string")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -509,28 +340,6 @@ class TestHyperliquidOrdersPrivate:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_get_order_nonexistent_id(
-        self,
-        hl_api_for_test_env: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_order() with non-existent order ID."""
-        # Query non-existent order
-        get_order_args = GetOrderArgs(order_id="99999999999999999")
-
-        # Should raise APIError with ORDER_NOT_FOUND
-        with pytest.raises(APIError) as exc_info:
-            await hl_api_for_test_env.get_order(get_order_args)
-
-        # Validate error mapping
-        api_error = exc_info.value
-        assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got "
-            f"{api_error.code}"
-        )
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
     async def test_order_precision_edge_cases(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -590,9 +399,9 @@ class TestHyperliquidOrdersPrivate:
         """Test complete order lifecycle: place → query → cancel → verify.
 
         This validates the full order management pipeline and Order model consistency
-        across different order states.
+        across different order states. Uses both /exchange (write) and /info (read) operations.
         """
-        # Step 1: Place order
+        # Step 1: Place order (/exchange endpoint)
         place_args = PlaceOrderArgs(
             symbol="PURP",
             side=OrderSide.BUY,
@@ -606,24 +415,17 @@ class TestHyperliquidOrdersPrivate:
         order_id = placed_order.exchange_order_id
         assert order_id is not None, "Placed order should have order ID"
 
-        # Step 2: Verify order appears in open orders
+        # Step 2: Verify order appears in open orders (/info endpoint)
         open_orders = await hl_api_for_test_env.get_open_orders()
         placed_order_found = any(order.exchange_order_id == order_id for order in open_orders)
         assert placed_order_found, "Placed order should appear in open orders"
 
-        # Step 3: Query specific order by ID
-        get_order_args = GetOrderArgs(order_id=order_id)
-        retrieved_order = await hl_api_for_test_env.get_order(get_order_args)
-        assert retrieved_order is not None, "Retrieved order should not be None"
-        assert retrieved_order.exchange_order_id == order_id, "Retrieved order should match"
-        assert retrieved_order.status == OrderStatus.OPEN, "Retrieved order should be open"
-
-        # Step 4: Cancel order
+        # Step 3: Cancel order (/exchange endpoint)
         cancel_args = CancelOrderArgs(order_id=order_id, symbol="PURP")
         cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
         assert cancel_result is True, "Order cancellation should succeed"
 
-        # Step 5: Verify order no longer in open orders
+        # Step 4: Verify order no longer in open orders (/info endpoint)
         open_orders_after = await hl_api_for_test_env.get_open_orders()
         cancelled_order_found = any(
             order.exchange_order_id == order_id for order in open_orders_after

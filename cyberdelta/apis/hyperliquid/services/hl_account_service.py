@@ -155,7 +155,7 @@ class HyperliquidAccountService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=payload_dict,
-                is_signed=True,
+                is_signed=False,
             )
             logger.debug(
                 f"[{self._exchange_name}] Raw user state response for clearinghouse_state: "
@@ -571,7 +571,7 @@ class HyperliquidAccountService:
             method="POST",
             endpoint=endpoint_path,
             data=payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
 
         raw_response_content = str(raw_data) if raw_data is not None else None
@@ -750,7 +750,7 @@ class HyperliquidAccountService:
             method="POST",
             endpoint=endpoint_path,
             data=payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
 
         raw_response_content = str(raw_response_list) if raw_response_list is not None else None
@@ -861,7 +861,7 @@ class HyperliquidAccountService:
             method="POST",
             endpoint=endpoint_path,
             data=payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
 
         raw_response_content = str(raw_data) if raw_data is not None else None

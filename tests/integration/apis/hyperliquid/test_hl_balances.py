@@ -1,7 +1,7 @@
-"""Integration tests for Hyperliquid private balances endpoints.
+"""Integration tests for Hyperliquid balances endpoints.
 
 This module focuses specifically on testing the SpotBalance model pipeline
-through Hyperliquid's private /info endpoint with EIP-712 authentication.
+through Hyperliquid's /info endpoint with user address authentication.
 Tests validate complete data transformation from API responses to SpotBalance instances.
 
 Model Focus: SpotBalance
@@ -36,10 +36,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/balances"], indirect=True
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/balances"], indirect=True
 )
-class TestHyperliquidBalancesPrivate:
-    """Comprehensive private balances integration tests for SpotBalance model validation."""
+class TestHyperliquidBalances:
+    """Comprehensive balances integration tests for SpotBalance model validation."""
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

@@ -1,7 +1,7 @@
-"""Integration tests for Hyperliquid private account summary endpoints.
+"""Integration tests for Hyperliquid account summary endpoints.
 
 This module focuses specifically on testing the MarginAccountSummary model pipeline
-through Hyperliquid's private /info endpoint with EIP-712 authentication.
+through Hyperliquid's /info endpoint with user address authentication.
 Tests validate complete data transformation from API responses to MarginAccountSummary instances.
 
 Model Focus: MarginAccountSummary
@@ -36,10 +36,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/account_summary"], indirect=True
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/account_summary"], indirect=True
 )
-class TestHyperliquidAccountSummaryPrivate:
-    """Comprehensive private account summary integration tests for MarginAccountSummary model.
+class TestHyperliquidAccountSummary:
+    """Comprehensive account summary integration tests for MarginAccountSummary model.
 
     Tests the integration between Hyperliquid API and our internal MarginAccountSummary model.
     """
