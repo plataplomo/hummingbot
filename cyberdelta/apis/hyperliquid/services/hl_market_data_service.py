@@ -40,7 +40,9 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
 )
 
 # Utilities
@@ -48,6 +50,7 @@ from cyberdelta.config.logging_config import get_logger
 
 # Internal Domain Models
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 
 logger = get_logger(__name__)
@@ -1428,3 +1431,119 @@ class HyperliquidMarketDataService:
             http_status=status_code if status_code != 0 else None,
             exchange_message=raw_response_content,
         ) from error
+
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Retrieve market metadata for all available markets.
+        
+        Uses Hyperliquid's /info endpoint with metaAndAssetCtxs to get
+        asset definitions and current contexts, then transforms them to
+        internal Market models.
+        
+        Returns:
+            List of Market objects with metadata for all available assets
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_markets"
+        
+        # Initialize context for error handling
+        status_code: int = 0
+        raw_response_content_str: str | None = None
+        
+        try:
+            # Get raw meta and asset contexts
+            raw_meta_and_asset_ctxs = await self.get_all_asset_contexts_raw()
+            
+            # Transform to internal Market models using mapper
+            markets = self._mapper.transform_raw_meta_and_asset_ctxs_to_markets(
+                raw_meta_and_asset_ctxs
+            )
+            
+            logger.debug(
+                f"[{self._exchange_name}] Transformed {len(markets)} markets from meta response"
+            )
+            
+            return markets
+            
+        except APIError:
+            # Re-raise APIErrors from get_all_asset_contexts_raw or mapper
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for markets: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_transform
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for markets: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
+                original_exception=e_unhandled,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content_str,
+            ) from e_unhandled
+
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Retrieve market metadata for a specific symbol.
+        
+        Gets all market metadata and filters for the requested symbol.
+        This is necessary because Hyperliquid doesn't have a single-market endpoint.
+        
+        Args:
+            args: Parameters for market metadata request including symbol.
+            
+        Returns:
+            Market object with metadata for the specified symbol
+            
+        Raises:
+            APIError: If symbol is not found or API request fails
+        """
+        symbol = args.symbol
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_market"
+        
+        # Service Input Parameter Validation is now handled by GetMarketArgs Pydantic model
+        
+        try:
+            # Get all markets and filter for the requested symbol
+            all_markets = await self.get_markets(GetMarketsArgs())
+            
+            # Find the specific market
+            for market in all_markets:
+                if market.symbol == symbol:
+                    logger.debug(
+                        f"[{self._exchange_name}] Found market metadata for {symbol}"
+                    )
+                    return market
+            
+            # Symbol not found
+            raise APIError(
+                message=f"Market {symbol} not found in available markets",
+                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+            )
+            
+        except APIError:
+            # Re-raise APIErrors (including SYMBOL_NOT_FOUND)
+            raise
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for {symbol}: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
+                original_exception=e_unhandled,
+            ) from e_unhandled

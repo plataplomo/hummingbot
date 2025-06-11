@@ -49,7 +49,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -68,7 +70,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market import Candle, OrderBook
+from cyberdelta.core.models.market import Candle, Market, OrderBook
 from cyberdelta.core.models.market.order import (
     CancelOrderResult,
     Order,
@@ -486,6 +488,14 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(args=args)
+
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Get market metadata for a specific symbol."""
+        return await self.market_data_service.get_market(args=args)
+
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Get market metadata for all available markets."""
+        return await self.market_data_service.get_markets(args=args)
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order."""

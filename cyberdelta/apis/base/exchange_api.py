@@ -45,6 +45,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
+from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
@@ -56,7 +57,9 @@ if TYPE_CHECKING:
         GetAllOpenOrdersArgs,
         GetFundingRatesArgs,
         GetHistoricalFundingRatesArgs,
+        GetMarketArgs,
         GetMarketDataArgs,
+        GetMarketsArgs,
         GetOrderArgs,
         GetOrderHistoryArgs,
         GetTradeHistoryArgs,
@@ -761,6 +764,42 @@ class ExchangeAPI(ABC):
             args: Parameters for market data request including symbol, timeframe,
                  limit, and optional time range constraints.
 
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Retrieve market metadata for a specific symbol.
+        
+        Returns market configuration including tick size, step size, trading limits,
+        and other market-specific rules required for order placement and validation.
+        
+        Args:
+            args: Parameters for market metadata request including symbol.
+            
+        Returns:
+            Market object containing validated market metadata.
+            
+        Raises:
+            APIError: If the API request fails or symbol is not found.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Retrieve market metadata for all available markets.
+        
+        Returns market configuration for all tradable symbols including tick sizes,
+        step sizes, trading limits, and other market-specific rules.
+        
+        Args:
+            args: Parameters for markets metadata request (currently no parameters).
+            
+        Returns:
+            List of Market objects containing validated market metadata.
+            
+        Raises:
+            APIError: If the API request fails.
         """
         raise NotImplementedError
 

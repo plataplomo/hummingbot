@@ -147,7 +147,20 @@ class BackpackMarketDetails(BaseModel):
 class HyperliquidMarketDetails(BaseModel):
     """Hyperliquid-specific market enrichment fields for extension slot on Market.
 
-    Fields for future Hyperliquid market-specific data.
+    Contains Hyperliquid-specific trading rules and current market state.
+    
+    Attributes:
+        max_leverage: Maximum leverage allowed for this asset (1-1000).
+        only_isolated: True if only isolated margin is allowed.
+        sz_decimals: Number of decimals for size/quantity precision (0-18).
+        mark_price: Current mark price (optional, from asset context).
+        funding_rate: Current funding rate (optional, from asset context).
     """
+
+    max_leverage: int = Field(ge=1, le=1000)
+    only_isolated: bool
+    sz_decimals: int = Field(ge=0, le=18)
+    mark_price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    funding_rate: Decimal | None = Field(default=None)
 
     model_config = ConfigDict(extra="ignore", frozen=True)

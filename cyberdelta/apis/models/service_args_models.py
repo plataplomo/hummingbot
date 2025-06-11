@@ -626,3 +626,39 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         if self.start_time and self.end_time and self.start_time >= self.end_time:
             raise ValueError("start_time must be before end_time if both are provided.")
         return self
+
+
+class GetMarketArgs(BaseModel):
+    """Encapsulates arguments for fetching a specific market's metadata.
+
+    This model centralizes validation for fetching market configuration including
+    tick sizes, step sizes, trading limits, and other market-specific rules.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
+        """Validate symbol is a non-empty string with max length 64."""
+        return validate_str_field(
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
+        )
+
+
+class GetMarketsArgs(BaseModel):
+    """Encapsulates arguments for fetching all available markets metadata.
+
+    This model provides a consistent interface for fetching market configuration
+    for all tradable symbols, even though most implementations require no parameters.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    # Currently no parameters needed, but model provides consistency and future extensibility
+    # Could potentially add filters like market_type, status, etc. in the future

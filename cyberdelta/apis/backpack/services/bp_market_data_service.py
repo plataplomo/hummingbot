@@ -48,7 +48,9 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
 )
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
@@ -1299,7 +1301,7 @@ class BackpackMarketDataService:
         )
         return internal_candles
 
-    async def get_market(self, symbol: str) -> Market:
+    async def get_market(self, args: GetMarketArgs) -> Market:
         """Retrieve market metadata for a specific symbol.
         
         Returns market metadata including tick size and trading rules for a single symbol.
@@ -1307,11 +1309,12 @@ class BackpackMarketDataService:
         precision information needed for order placement.
         
         Args:
-            symbol: The trading symbol (e.g., "SOL_USDC")
+            args: Parameters for market metadata request including symbol.
         
         Returns:
             Market internal domain model for the specified symbol
         """
+        symbol = args.symbol
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_market"
         
@@ -1431,12 +1434,15 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unhandled
 
-    async def get_markets(self) -> list[Market]:
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
         """Retrieve market metadata for all available markets.
         
         Returns market metadata including tick sizes and trading rules.
         This method provides access to the /api/v1/markets endpoint to get
         precision information needed for order placement.
+        
+        Args:
+            args: Parameters for markets metadata request (currently no parameters).
         
         Returns:
             List of Market internal domain models

@@ -30,6 +30,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
+    HyperliquidRawAssetDefinition,
+    HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
@@ -40,7 +42,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market import Candle, Market
+from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -645,3 +648,118 @@ class HyperliquidMarketDataMapper:
                 return []
             return trades[:limit]
         return trades
+
+    @staticmethod
+    def transform_raw_meta_and_asset_ctxs_to_markets(
+        raw_meta_and_asset_ctxs: HyperliquidRawMetaAndAssetCtxsResponse,
+    ) -> list[Market]:
+        """Transform raw meta and asset contexts to internal Market models.
+        
+        Args:
+            raw_meta_and_asset_ctxs: Raw response containing asset definitions and contexts
+            
+        Returns:
+            List of Market objects with metadata for all assets
+            
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            markets: list[Market] = []
+            
+            # Create lookup dictionary for asset contexts by name
+            asset_ctx_lookup = {ctx.name: ctx for ctx in raw_meta_and_asset_ctxs.asset_ctxs}
+            
+            # Transform each asset definition from meta
+            for asset_def in raw_meta_and_asset_ctxs.meta.universe:
+                try:
+                    # Get corresponding asset context (optional)
+                    asset_ctx = asset_ctx_lookup.get(asset_def.name)
+                    
+                    market = HyperliquidMarketDataMapper._create_market_from_asset_definition(
+                        asset_def, asset_ctx
+                    )
+                    markets.append(market)
+                    
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to transform asset definition {asset_def.name} to Market: {e}"
+                    )
+                    continue
+                    
+            return markets
+            
+        except Exception as e:
+            logger.error(f"Failed to transform meta and asset contexts to markets: {e}")
+            raise TransformationError(f"Failed to transform meta and asset contexts: {e}") from e
+
+    @staticmethod
+    def _create_market_from_asset_definition(
+        asset_def: HyperliquidRawAssetDefinition,
+        asset_ctx: HyperliquidRawAssetCtx | None = None,
+    ) -> Market:
+        """Create a Market model from Hyperliquid asset definition and context.
+        
+        Args:
+            asset_def: Asset definition with trading rules
+            asset_ctx: Optional asset context with current pricing data
+            
+        Returns:
+            Market object with available metadata
+        """
+        # Calculate step_size from sz_decimals
+        step_size = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
+        
+        # For Hyperliquid perpetuals, we'll use reasonable defaults for tick size
+        # since it's not explicitly provided in their meta response
+        # Most crypto perpetuals use similar precision to their step size
+        tick_size = step_size  # Default assumption - can be refined with actual market data
+        
+        # Create Hyperliquid-specific details using proper typed model
+        hl_details = HyperliquidMarketDetails(
+            max_leverage=asset_def.max_leverage,
+            only_isolated=asset_def.only_isolated,
+            sz_decimals=asset_def.sz_decimals,
+            mark_price=parse_decimal_value(asset_ctx.mark_px) if asset_ctx else None,
+            funding_rate=parse_decimal_value(asset_ctx.funding) if asset_ctx else None,
+        )
+        
+        # Create market with available information
+        market = Market(
+            symbol=asset_def.name,
+            base_symbol=asset_def.name,  # For perps, symbol equals base
+            quote_symbol="USD",  # Hyperliquid perps are USD-settled
+            market_type="Perpetual",
+            tick_size=tick_size,
+            step_size=step_size,
+            min_price=None,  # Not specified in Hyperliquid meta
+            max_price=None,  # Not specified in Hyperliquid meta
+            min_quantity=step_size,  # Minimum is typically one step
+            max_quantity=None,  # Not specified in Hyperliquid meta
+            status="Active",  # Assume active if in meta response
+            created_at=None,  # Not provided in meta response
+            bp_details=None,  # Not applicable
+            hl_details=hl_details,  # Properly typed Hyperliquid details
+        )
+        
+        return market
+        
+    @staticmethod
+    def transform_single_asset_to_market(
+        asset_def: HyperliquidRawAssetDefinition,
+        asset_ctx: HyperliquidRawAssetCtx | None = None,
+    ) -> Market:
+        """Transform a single asset definition to Market model.
+        
+        Convenience method for transforming individual assets.
+        
+        Args:
+            asset_def: Asset definition from meta response
+            asset_ctx: Optional asset context data
+            
+        Returns:
+            Market object for the specified asset
+        """
+        return HyperliquidMarketDataMapper._create_market_from_asset_definition(
+            asset_def, asset_ctx
+        )

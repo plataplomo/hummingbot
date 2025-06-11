@@ -46,7 +46,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -369,13 +371,13 @@ class BackpackAPI(ExchangeAPI):
         """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(args=args)
 
-    async def get_market(self, symbol: str) -> Market:
+    async def get_market(self, args: GetMarketArgs) -> Market:
         """Get market metadata for a specific symbol."""
-        return await self.market_data_service.get_market(symbol=symbol)
+        return await self.market_data_service.get_market(args=args)
 
-    async def get_markets(self) -> list[Market]:
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
         """Get market metadata for all available markets."""
-        return await self.market_data_service.get_markets()
+        return await self.market_data_service.get_markets(args=args)
 
     # --- Account Methods --- #
 
