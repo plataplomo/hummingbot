@@ -118,7 +118,8 @@ class TestHyperliquidBalancesPrivate:
                 else 0
             )
 
-            # Crypto typically has 8-18 decimal places, but our internal precision should be reasonable
+            # Crypto typically has 8-18 decimal places, but our internal precision should be
+            # reasonable
             assert total_precision <= 18, (
                 f"total_quantity precision too high: {total_precision} decimals"
             )
@@ -263,7 +264,7 @@ class TestHyperliquidBalancesPrivate:
                         )
                         # Check if retry-after information is preserved
                         if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, (int, float)), (
+                            assert isinstance(e.retry_after, int | float), (
                                 "retry_after should be numeric if present"
                             )
                     else:
@@ -358,8 +359,9 @@ class TestHyperliquidBalancesPrivate:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: dict[str, Any] = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _i, result in enumerate(successful_results[1:], 1):
                 # Balance amounts might differ slightly due to timing, but structure should be same
                 assert set(first_result.keys()) == set(result.keys()), (
-                    f"Concurrent results should have same assets: {first_result.keys()} vs {result.keys()}"
+                    f"Concurrent results should have same assets: {first_result.keys()} vs "
+                    f"{result.keys()}"
                 )

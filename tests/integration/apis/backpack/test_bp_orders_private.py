@@ -357,7 +357,8 @@ class TestBackpackOrdersPrivate:
         # Validate error mapping
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value, (
-            f"BackpackErrorMapper should map insufficient funds to INSUFFICIENT_FUNDS, got {api_error.code}"
+            f"BackpackErrorMapper should map insufficient funds to INSUFFICIENT_FUNDS, got "
+            f"{api_error.code}"
         )
         assert isinstance(api_error.message, str), "Error message should be string"
         assert len(api_error.message) > 0, "Error message should not be empty"
@@ -411,7 +412,8 @@ class TestBackpackOrdersPrivate:
         # Validate error mapping
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"BackpackErrorMapper should map order not found to ORDER_NOT_FOUND, got {api_error.code}"
+            f"BackpackErrorMapper should map order not found to ORDER_NOT_FOUND, got "
+            f"{api_error.code}"
         )
 
         # Check for common Backpack order not found phrases
@@ -624,7 +626,7 @@ class TestBackpackOrdersPrivate:
             order_flags = getattr(bp_details, "order_flags", None)
             if order_flags is not None:
                 # Order flags should be reasonable
-                assert isinstance(order_flags, (int, str)), "order_flags should be int or string"
+                assert isinstance(order_flags, int | str), "order_flags should be int or string"
 
         # Clean up
         if placed_order.exchange_order_id:

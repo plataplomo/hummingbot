@@ -523,7 +523,7 @@ class TestBackpackAccountSummaryPrivate:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: MarginAccountSummary = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _i, result in enumerate(successful_results[1:], 1):
                 # Equity values might differ slightly due to timing, but should be very close
                 equity_diff: Decimal = abs(first_result.total_equity - result.total_equity)
                 assert equity_diff <= Decimal("0.01"), (

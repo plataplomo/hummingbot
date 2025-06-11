@@ -39,7 +39,10 @@ pytestmark = pytest.mark.integration
     "custom_vcr_cassette_dir", ["apis/hyperliquid/private/account_summary"], indirect=True
 )
 class TestHyperliquidAccountSummaryPrivate:
-    """Comprehensive private account summary integration tests for MarginAccountSummary model validation."""
+    """Comprehensive private account summary integration tests for MarginAccountSummary model.
+
+    Tests the integration between Hyperliquid API and our internal MarginAccountSummary model.
+    """
 
     @pytest.mark.vcr
     async def test_get_account_summary_success_comprehensive(
@@ -100,7 +103,8 @@ class TestHyperliquidAccountSummaryPrivate:
                 "total_initial_margin_required must be Decimal if present"
             )
             assert account_summary.total_initial_margin_required >= Decimal("0"), (
-                f"total_initial_margin_required must be non-negative, got {account_summary.total_initial_margin_required}"
+                f"total_initial_margin_required must be non-negative, got "
+                f"{account_summary.total_initial_margin_required}"
             )
 
         if account_summary.total_maintenance_margin_required is not None:
@@ -108,7 +112,8 @@ class TestHyperliquidAccountSummaryPrivate:
                 "total_maintenance_margin_required must be Decimal if present"
             )
             assert account_summary.total_maintenance_margin_required >= Decimal("0"), (
-                f"total_maintenance_margin_required must be non-negative, got {account_summary.total_maintenance_margin_required}"
+                f"total_maintenance_margin_required must be non-negative, got "
+                f"{account_summary.total_maintenance_margin_required}"
             )
 
         # Validate exchange-specific details if present
@@ -125,10 +130,12 @@ class TestHyperliquidAccountSummaryPrivate:
 
             # Validate non-negative constraints
             assert hl_details.cross_maintenance_margin_used >= Decimal("0"), (
-                f"cross_maintenance_margin_used must be non-negative, got {hl_details.cross_maintenance_margin_used}"
+                f"cross_maintenance_margin_used must be non-negative, got "
+                f"{hl_details.cross_maintenance_margin_used}"
             )
             assert hl_details.isolated_maintenance_margin_used >= Decimal("0"), (
-                f"isolated_maintenance_margin_used must be non-negative, got {hl_details.isolated_maintenance_margin_used}"
+                f"isolated_maintenance_margin_used must be non-negative, got "
+                f"{hl_details.isolated_maintenance_margin_used}"
             )
 
             # Validate total margin usage makes sense
@@ -139,7 +146,8 @@ class TestHyperliquidAccountSummaryPrivate:
             if account_summary.total_maintenance_margin_required is not None:
                 # Total margin used should be <= total equity (can't use more than you have)
                 assert total_margin_used <= account_summary.total_equity, (
-                    f"Total margin used ({total_margin_used}) should not exceed total equity ({account_summary.total_equity})"
+                    f"Total margin used ({total_margin_used}) should not exceed total equity "
+                    f"({account_summary.total_equity})"
                 )
 
     @pytest.mark.vcr
@@ -175,7 +183,8 @@ class TestHyperliquidAccountSummaryPrivate:
         if account_summary.total_initial_margin_required is not None:
             # Should be zero or very small for empty account
             assert account_summary.total_initial_margin_required <= Decimal("1.0"), (
-                f"Empty account should have minimal initial margin, got {account_summary.total_initial_margin_required}"
+                f"Empty account should have minimal initial margin, got "
+                f"{account_summary.total_initial_margin_required}"
             )
 
     @pytest.mark.vcr
@@ -247,7 +256,8 @@ class TestHyperliquidAccountSummaryPrivate:
             )
             assert margin_diff <= Decimal("0.01"), (
                 f"Margin calculation inconsistency: cross+isolated={total_maintenance_used}, "
-                f"total_required={account_summary.total_maintenance_margin_required}, diff={margin_diff}"
+                f"total_required={account_summary.total_maintenance_margin_required}, "
+                f"diff={margin_diff}"
             )
 
         # Available equity should be total equity minus used margin (approximately)
@@ -297,7 +307,8 @@ class TestHyperliquidAccountSummaryPrivate:
             ) and account_summary.total_initial_margin_required < Decimal("0.01"):
                 # Small margin should be properly represented
                 assert account_summary.total_initial_margin_required.is_finite(), (
-                    f"Small margin should be finite: {account_summary.total_initial_margin_required}"
+                    f"Small margin should be finite: "
+                    f"{account_summary.total_initial_margin_required}"
                 )
 
         # Test precision consistency across fields
@@ -380,7 +391,8 @@ class TestHyperliquidAccountSummaryPrivate:
             if total_margin_ratio > Decimal("0.8"):  # High leverage scenario
                 available_ratio = account_summary.available_equity / account_summary.total_equity
                 assert available_ratio <= Decimal("0.5"), (
-                    f"High leverage should reduce available equity significantly: {available_ratio:.4f}"
+                    f"High leverage should reduce available equity significantly: "
+                    f"{available_ratio:.4f}"
                 )
 
     @pytest.mark.vcr
@@ -427,9 +439,10 @@ class TestHyperliquidAccountSummaryPrivate:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: MarginAccountSummary = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _i, result in enumerate(successful_results[1:], 1):
                 # Equity values might differ slightly due to timing, but should be very close
                 equity_diff: Decimal = abs(first_result.total_equity - result.total_equity)
                 assert equity_diff <= Decimal("0.01"), (
-                    f"Concurrent results should have similar equity: {first_result.total_equity} vs {result.total_equity}"
+                    f"Concurrent results should have similar equity: "
+                    f"{first_result.total_equity} vs {result.total_equity}"
                 )

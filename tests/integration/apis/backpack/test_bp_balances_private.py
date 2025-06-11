@@ -137,16 +137,18 @@ class TestBackpackBalancesPrivate:
                         "bp_details.open_order_quantity must be Decimal"
                     )
                     assert bp_details.open_order_quantity >= Decimal("0"), (
-                        f"open_order_quantity must be non-negative, got {bp_details.open_order_quantity}"
+                        f"open_order_quantity must be non-negative, got "
+                        f"{bp_details.open_order_quantity}"
                     )
 
-                    # Validate locked quantity logic: total - available should approximately equal locked
+                    # Validate locked quantity logic: total - available should approximately
+                    # equal locked
                     locked_quantity = balance.total_quantity - balance.available_quantity
                     if locked_quantity > Decimal("0"):
                         # Open order quantity should contribute to locked amount
                         assert bp_details.open_order_quantity <= locked_quantity, (
-                            f"open_order_quantity ({bp_details.open_order_quantity}) should not exceed "
-                            f"locked quantity ({locked_quantity})"
+                            f"open_order_quantity ({bp_details.open_order_quantity}) should not "
+                            f"exceed locked quantity ({locked_quantity})"
                         )
 
     @pytest.mark.vcr
@@ -249,7 +251,7 @@ class TestBackpackBalancesPrivate:
                         )
                         # Check if retry-after information is preserved
                         if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, (int, float)), (
+                            assert isinstance(e.retry_after, int | float), (
                                 "retry_after should be numeric if present"
                             )
                     else:
@@ -341,7 +343,8 @@ class TestBackpackBalancesPrivate:
                     # If there are open orders, available should be less than total
                     if bp_details.open_order_quantity > Decimal("0"):
                         assert balance.available_quantity <= balance.total_quantity, (
-                            f"Available quantity should be <= total when open orders exist for {asset_symbol}"
+                            f"Available quantity should be <= total when open orders exist for "
+                            f"{asset_symbol}"
                         )
 
     @pytest.mark.vcr
@@ -386,10 +389,11 @@ class TestBackpackBalancesPrivate:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: dict[str, Any] = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _i, result in enumerate(successful_results[1:], 1):
                 # Balance amounts should be very similar for concurrent calls
                 assert set(first_result.keys()) == set(result.keys()), (
-                    f"Concurrent results should have same assets: {first_result.keys()} vs {result.keys()}"
+                    f"Concurrent results should have same assets: {first_result.keys()} vs "
+                    f"{result.keys()}"
                 )
 
                 # Check that balances are consistent across concurrent calls

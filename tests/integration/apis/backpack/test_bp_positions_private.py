@@ -41,6 +41,139 @@ pytestmark = pytest.mark.integration
 class TestBackpackPositionsPrivate:
     """Comprehensive private positions integration tests for DerivativePosition model validation."""
 
+    def _validate_position_core_fields(self, position: DerivativePosition, index: int) -> None:
+        """Validate core fields of a DerivativePosition."""
+        # Validate model type
+        assert isinstance(position, DerivativePosition), (
+            f"Position {index} should be DerivativePosition instance, got {type(position)}"
+        )
+
+        # Validate core fields
+        assert position.exchange == "backpack", (
+            f"Position.exchange should be 'backpack', got {position.exchange}"
+        )
+
+        # Validate symbol format (Backpack uses symbols like "SOL-PERP", "BTC-PERP")
+        assert isinstance(position.symbol, str), f"Position {index} symbol must be string"
+        assert len(position.symbol) > 0, f"Position {index} symbol cannot be empty"
+        assert len(position.symbol) <= 20, f"Position {index} symbol should be reasonable length"
+
+        # Backpack typically uses PERP suffix for perpetual contracts
+        if "PERP" in position.symbol.upper():
+            assert "-" in position.symbol, (
+                f"Position {index} PERP symbol should have dash separator"
+            )
+
+        # Validate timestamp recency
+        assert position.timestamp is not None, f"Position {index} must have timestamp"
+        time_diff = datetime.now(position.timestamp.tzinfo) - position.timestamp
+        assert time_diff.total_seconds() < 3600, (
+            f"Position {index} timestamp should be recent (< 1 hour), got "
+            f"{time_diff.total_seconds()}s ago"
+        )
+
+    def _validate_position_decimal_fields(self, position: DerivativePosition, index: int) -> None:
+        """Validate Decimal fields of a DerivativePosition."""
+        # Validate Decimal precision and types
+        assert isinstance(position.size, Decimal), (
+            f"Position {index} size must be Decimal, got {type(position.size)}"
+        )
+        assert isinstance(position.entry_price, Decimal), (
+            f"Position {index} entry_price must be Decimal, got {type(position.entry_price)}"
+        )
+        assert isinstance(position.mark_price, Decimal), (
+            f"Position {index} mark_price must be Decimal, got {type(position.mark_price)}"
+        )
+        assert isinstance(position.unrealized_pnl, Decimal), (
+            f"Position {index} unrealized_pnl must be Decimal, got {type(position.unrealized_pnl)}"
+        )
+        assert isinstance(position.realized_pnl, Decimal), (
+            f"Position {index} realized_pnl must be Decimal, got {type(position.realized_pnl)}"
+        )
+
+    def _validate_position_prices(self, position: DerivativePosition, index: int) -> None:
+        """Validate price fields and relationships of a DerivativePosition."""
+        # Validate position size (can be positive, negative, but not zero for active positions)
+        if position.size != Decimal("0"):
+            # Non-zero positions should have valid entry and mark prices
+            if position.entry_price is not None:
+                assert position.entry_price > Decimal("0"), (
+                    f"Position {index} with non-zero size should have positive entry_price, got "
+                    f"{position.entry_price}"
+                )
+            if position.mark_price is not None:
+                assert position.mark_price > Decimal("0"), (
+                    f"Position {index} with non-zero size should have positive mark_price, got "
+                    f"{position.mark_price}"
+                )
+
+        # Validate price relationships and reasonableness
+        if (
+            position.entry_price is not None
+            and position.entry_price > Decimal("0")
+            and position.mark_price is not None
+            and position.mark_price > Decimal("0")
+        ):
+            # Prices should be in reasonable range (not negative, not astronomically high)
+            assert position.entry_price < Decimal("1000000"), (
+                f"Position {index} entry_price seems unreasonably high: {position.entry_price}"
+            )
+            assert position.mark_price < Decimal("1000000"), (
+                f"Position {index} mark_price seems unreasonably high: {position.mark_price}"
+            )
+
+    def _validate_position_pnl(self, position: DerivativePosition, index: int) -> None:
+        """Validate PnL calculations of a DerivativePosition."""
+        # Validate PnL calculations make sense
+        if (
+            position.size != Decimal("0")
+            and position.entry_price is not None
+            and position.entry_price > Decimal("0")
+            and position.mark_price is not None
+            and position.mark_price > Decimal("0")
+        ):
+            # Calculate expected unrealized PnL and validate it's reasonable
+            expected_pnl_direction = (position.mark_price - position.entry_price) * position.size
+
+            # PnL direction should match calculation (allowing for fees and other factors)
+            if (
+                abs(expected_pnl_direction) > Decimal("0.01")
+                and position.unrealized_pnl is not None
+            ):  # Only check if significant
+                pnl_direction_matches = (
+                    expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
+                ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
+                assert pnl_direction_matches, (
+                    f"Position {index} PnL direction mismatch: expected "
+                    f"{expected_pnl_direction > 0}, got "
+                    f"unrealized_pnl={position.unrealized_pnl}"
+                )
+
+    def _validate_backpack_specific_details(self, position: DerivativePosition, index: int) -> None:
+        """Validate Backpack-specific details of a DerivativePosition."""
+        # Validate exchange-specific details if present
+        if position.bp_details:
+            bp_details = position.bp_details
+
+            # Validate Backpack-specific position fields
+            initial_margin_req = getattr(bp_details, "initial_margin_requirement", None)
+            if initial_margin_req is not None:
+                assert isinstance(initial_margin_req, Decimal), (
+                    f"Position {index} initial_margin_requirement must be Decimal"
+                )
+                assert initial_margin_req >= Decimal("0"), (
+                    f"Position {index} initial_margin_requirement must be non-negative"
+                )
+
+            maintenance_margin_req = getattr(bp_details, "maintenance_margin_requirement", None)
+            if maintenance_margin_req is not None:
+                assert isinstance(maintenance_margin_req, Decimal), (
+                    f"Position {index} maintenance_margin_requirement must be Decimal"
+                )
+                assert maintenance_margin_req >= Decimal("0"), (
+                    f"Position {index} maintenance_margin_requirement must be non-negative"
+                )
+
     @pytest.mark.vcr
     async def test_get_positions_success_comprehensive(
         self,
@@ -65,114 +198,11 @@ class TestBackpackPositionsPrivate:
 
         # Comprehensive validation of each position
         for i, position in enumerate(positions):
-            # Validate model type
-            assert isinstance(position, DerivativePosition), (
-                f"Position {i} should be DerivativePosition instance, got {type(position)}"
-            )
-
-            # Validate core fields
-            assert position.exchange == "backpack", (
-                f"Position.exchange should be 'backpack', got {position.exchange}"
-            )
-
-            # Validate symbol format (Backpack uses symbols like "SOL-PERP", "BTC-PERP")
-            assert isinstance(position.symbol, str), f"Position {i} symbol must be string"
-            assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
-            assert len(position.symbol) <= 20, f"Position {i} symbol should be reasonable length"
-
-            # Backpack typically uses PERP suffix for perpetual contracts
-            if "PERP" in position.symbol.upper():
-                assert "-" in position.symbol, (
-                    f"Position {i} PERP symbol should have dash separator"
-                )
-
-            # Validate timestamp recency
-            assert position.timestamp is not None, f"Position {i} must have timestamp"
-            time_diff = datetime.now(position.timestamp.tzinfo) - position.timestamp
-            assert time_diff.total_seconds() < 3600, (
-                f"Position {i} timestamp should be recent (< 1 hour), got {time_diff.total_seconds()}s ago"
-            )
-
-            # Validate Decimal precision and types
-            assert isinstance(position.size, Decimal), (
-                f"Position {i} size must be Decimal, got {type(position.size)}"
-            )
-            assert isinstance(position.entry_price, Decimal), (
-                f"Position {i} entry_price must be Decimal, got {type(position.entry_price)}"
-            )
-            assert isinstance(position.mark_price, Decimal), (
-                f"Position {i} mark_price must be Decimal, got {type(position.mark_price)}"
-            )
-            assert isinstance(position.unrealized_pnl, Decimal), (
-                f"Position {i} unrealized_pnl must be Decimal, got {type(position.unrealized_pnl)}"
-            )
-            assert isinstance(position.realized_pnl, Decimal), (
-                f"Position {i} realized_pnl must be Decimal, got {type(position.realized_pnl)}"
-            )
-
-            # Validate position size (can be positive, negative, but not zero for active positions)
-            if position.size != Decimal("0"):
-                # Non-zero positions should have valid entry and mark prices
-                assert position.entry_price > Decimal("0"), (
-                    f"Position {i} with non-zero size should have positive entry_price, got {position.entry_price}"
-                )
-                assert position.mark_price > Decimal("0"), (
-                    f"Position {i} with non-zero size should have positive mark_price, got {position.mark_price}"
-                )
-
-            # Validate price relationships and reasonableness
-            if position.entry_price > Decimal("0") and position.mark_price > Decimal("0"):
-                # Prices should be in reasonable range (not negative, not astronomically high)
-                assert position.entry_price < Decimal("1000000"), (
-                    f"Position {i} entry_price seems unreasonably high: {position.entry_price}"
-                )
-                assert position.mark_price < Decimal("1000000"), (
-                    f"Position {i} mark_price seems unreasonably high: {position.mark_price}"
-                )
-
-            # Validate PnL calculations make sense
-            if (
-                position.size != Decimal("0")
-                and position.entry_price > Decimal("0")
-                and position.mark_price > Decimal("0")
-            ):
-                # Calculate expected unrealized PnL and validate it's reasonable
-                expected_pnl_direction = (
-                    position.mark_price - position.entry_price
-                ) * position.size
-
-                # PnL direction should match calculation (allowing for fees and other factors)
-                if abs(expected_pnl_direction) > Decimal("0.01"):  # Only check if significant
-                    pnl_direction_matches = (
-                        expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
-                    ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
-                    assert pnl_direction_matches, (
-                        f"Position {i} PnL direction mismatch: expected {expected_pnl_direction > 0}, "
-                        f"got unrealized_pnl={position.unrealized_pnl}"
-                    )
-
-            # Validate exchange-specific details if present
-            if position.bp_details:
-                bp_details = position.bp_details
-
-                # Validate Backpack-specific position fields
-                initial_margin_req = getattr(bp_details, "initial_margin_requirement", None)
-                if initial_margin_req is not None:
-                    assert isinstance(initial_margin_req, Decimal), (
-                        f"Position {i} initial_margin_requirement must be Decimal"
-                    )
-                    assert initial_margin_req >= Decimal("0"), (
-                        f"Position {i} initial_margin_requirement must be non-negative"
-                    )
-
-                maintenance_margin_req = getattr(bp_details, "maintenance_margin_requirement", None)
-                if maintenance_margin_req is not None:
-                    assert isinstance(maintenance_margin_req, Decimal), (
-                        f"Position {i} maintenance_margin_requirement must be Decimal"
-                    )
-                    assert maintenance_margin_req >= Decimal("0"), (
-                        f"Position {i} maintenance_margin_requirement must be non-negative"
-                    )
+            self._validate_position_core_fields(position, i)
+            self._validate_position_decimal_fields(position, i)
+            self._validate_position_prices(position, i)
+            self._validate_position_pnl(position, i)
+            self._validate_backpack_specific_details(position, i)
 
     @pytest.mark.vcr
     async def test_get_positions_empty_account(
@@ -421,7 +451,8 @@ class TestBackpackPositionsPrivate:
 
             # For zero positions, unrealized PnL should typically be zero
             if position.size == Decimal("0") and position.unrealized_pnl is not None:
-                # Note: There might be edge cases where closed positions still show small unrealized PnL
+                # Note: There might be edge cases where closed positions still show small
+                # unrealized PnL
                 # due to funding or other factors, so we check for reasonable values
                 assert abs(position.unrealized_pnl) < Decimal("1.0"), (
                     f"Zero position should have minimal unrealized PnL: {position.unrealized_pnl}"
@@ -515,10 +546,11 @@ class TestBackpackPositionsPrivate:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: list[DerivativePosition] = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _i, result in enumerate(successful_results[1:], 1):
                 # Position counts should be the same for concurrent calls
                 assert len(first_result) == len(result), (
-                    f"Concurrent results should have same position count: {len(first_result)} vs {len(result)}"
+                    f"Concurrent results should have same position count: {len(first_result)} vs "
+                    f"{len(result)}"
                 )
 
                 # If there are positions, validate consistency
@@ -537,5 +569,6 @@ class TestBackpackPositionsPrivate:
                         second_size = second_positions[symbol].size
                         size_diff = abs(first_size - second_size)
                         assert size_diff <= Decimal("0.0001"), (
-                            f"Position sizes should be consistent for {symbol}: {first_size} vs {second_size}"
+                            f"Position sizes should be consistent for {symbol}: {first_size} vs "
+                            f"{second_size}"
                         )

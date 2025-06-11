@@ -422,7 +422,8 @@ class TestHyperliquidOrdersPrivate:
         # Validate error mapping
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value, (
-            f"HyperliquidErrorMapper should map insufficient balance to INSUFFICIENT_FUNDS, got {api_error.code}"
+            f"HyperliquidErrorMapper should map insufficient balance to INSUFFICIENT_FUNDS, got "
+            f"{api_error.code}"
         )
         assert isinstance(api_error.message, str), "Error message should be string"
         assert len(api_error.message) > 0, "Error message should not be empty"
@@ -486,7 +487,8 @@ class TestHyperliquidOrdersPrivate:
         # Validate error mapping
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got {api_error.code}"
+            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got "
+            f"{api_error.code}"
         )
 
         # Check for common Hyperliquid order not found phrases
@@ -513,7 +515,8 @@ class TestHyperliquidOrdersPrivate:
         # Validate error mapping
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got {api_error.code}"
+            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got "
+            f"{api_error.code}"
         )
 
     @pytest.mark.vcr

@@ -84,7 +84,8 @@ class TestHyperliquidPositionsPrivate:
             assert position.timestamp is not None, f"Position {i} must have timestamp"
             time_diff = datetime.now(position.timestamp.tzinfo) - position.timestamp
             assert time_diff.total_seconds() < 3600, (
-                f"Position {i} timestamp should be recent (< 1 hour), got {time_diff.total_seconds()}s ago"
+                f"Position {i} timestamp should be recent (< 1 hour), got "
+                f"{time_diff.total_seconds()}s ago"
             )
 
             # Validate Decimal precision and types
@@ -108,10 +109,12 @@ class TestHyperliquidPositionsPrivate:
             if position.size != Decimal("0"):
                 # Non-zero positions should have valid entry and mark prices
                 assert position.entry_price > Decimal("0"), (
-                    f"Position {i} with non-zero size should have positive entry_price, got {position.entry_price}"
+                    f"Position {i} with non-zero size should have positive entry_price, got "
+                    f"{position.entry_price}"
                 )
                 assert position.mark_price > Decimal("0"), (
-                    f"Position {i} with non-zero size should have positive mark_price, got {position.mark_price}"
+                    f"Position {i} with non-zero size should have positive mark_price, got "
+                    f"{position.mark_price}"
                 )
 
             # Validate price relationships and reasonableness
@@ -141,8 +144,9 @@ class TestHyperliquidPositionsPrivate:
                         expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
                     ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
                     assert pnl_direction_matches, (
-                        f"Position {i} PnL direction mismatch: expected {expected_pnl_direction > 0}, "
-                        f"got unrealized_pnl={position.unrealized_pnl}"
+                        f"Position {i} PnL direction mismatch: expected "
+                        f"{expected_pnl_direction > 0}, got "
+                        f"unrealized_pnl={position.unrealized_pnl}"
                     )
 
             # Validate exchange-specific details if present
@@ -154,7 +158,8 @@ class TestHyperliquidPositionsPrivate:
                     f"Position {i} leverage_type must be string"
                 )
                 assert hl_details.leverage_type in ["cross", "isolated"], (
-                    f"Position {i} leverage_type must be 'cross' or 'isolated', got {hl_details.leverage_type}"
+                    f"Position {i} leverage_type must be 'cross' or 'isolated', got "
+                    f"{hl_details.leverage_type}"
                 )
 
                 assert isinstance(hl_details.leverage_value, int), (
@@ -397,7 +402,8 @@ class TestHyperliquidPositionsPrivate:
 
             # For zero positions, unrealized PnL should typically be zero
             if position.size == Decimal("0") and position.unrealized_pnl is not None:
-                # Note: There might be edge cases where closed positions still show small unrealized PnL
+                # Note: There might be edge cases where closed positions still show small
+                # unrealized PnL
                 # due to funding or other factors, so we check for reasonable values
                 assert abs(position.unrealized_pnl) < Decimal("1.0"), (
                     f"Zero position should have minimal unrealized PnL: {position.unrealized_pnl}"
