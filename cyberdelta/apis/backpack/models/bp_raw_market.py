@@ -41,75 +41,72 @@ from .bp_common_raw_types import (
     RawBpDepthQuantityString,
     RawBpFlexibleTimestamp,
     RawBpNonEmptyStringMax64,
-    RawBpNonNegativeInt,
     RawBpOptionalFlexibleTimestamp,
     RawBpOptionalNonEmptyStringMax32,
     RawBpOptionalParsableFiniteDecimalString,
     RawBpParsableFiniteDecimalString,
     RawBpParsableNonNegativeFiniteDecimalString,
-    RawBpStringToNonNegativeFiniteDecimal,
 )
 
 # Get logger for the module
 logger = logging.getLogger(__name__)
 
 
-class BackpackRawMarket(BaseModel):
-    """Pydantic model for a raw market metadata object from `/api/v1/markets` (Backpack REST API).
+class BackpackRawPriceFilter(BaseModel):
+    """Price filter defining price rules for the order book."""
+    
+    min_price: RawBpParsableFiniteDecimalString = Field(..., alias="minPrice")
+    max_price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="maxPrice")
+    tick_size: RawBpParsableFiniteDecimalString = Field(..., alias="tickSize")
+    
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
-    Uses common raw types for field validation.
+
+class BackpackRawQuantityFilter(BaseModel):
+    """Quantity filter defining quantity rules for the order book."""
+    
+    min_quantity: RawBpParsableFiniteDecimalString = Field(..., alias="minQuantity")
+    max_quantity: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="maxQuantity")
+    step_size: RawBpParsableFiniteDecimalString = Field(..., alias="stepSize")
+    
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+
+class BackpackRawOrderBookFilters(BaseModel):
+    """Order book filters containing price and quantity rules."""
+    
+    price: BackpackRawPriceFilter = Field(..., alias="price")
+    quantity: BackpackRawQuantityFilter = Field(..., alias="quantity")
+    
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+
+class BackpackRawMarket(BaseModel):
+    """Pydantic model for a market metadata object from `/api/v1/markets` (Backpack REST API).
+    
+    This model correctly represents the Market schema from Backpack's OpenAPI spec,
+    containing market metadata WITHOUT order book data (bids/asks).
 
     Attributes:
-        symbol (str): Trading symbol.
-        base_asset (str): Base asset symbol.
-        quote_asset (str): Quote asset symbol.
-        quantity_precision (int): Quantity precision (non-negative).
-        price_precision (int): Price precision (non-negative).
-        min_trade_quantity (Decimal): Min trade quantity (non-negative decimal).
-        max_trade_quantity (Decimal): Max trade quantity (non-negative decimal).
-        min_trade_price (Decimal): Min trade price (non-negative decimal).
-        max_trade_price (Decimal): Max trade price (non-negative decimal).
-        min_order_book_quantity (Decimal): Min order book quantity (non-negative decimal).
-        bids (list[tuple[str, str]]): List of bids [price_str, quantity_str].
-                                       Validated as parsable to non-negative finite decimal.
-        asks (list[tuple[str, str]]): List of asks [price_str, quantity_str].
-                                       Validated as parsable to non-negative finite decimal.
-        last_update_time (int): Last update time (non-negative integer).
+        symbol (str): Trading symbol (e.g., "SOL_USDC").
+        base_symbol (str): Base asset symbol.
+        quote_symbol (str): Quote asset symbol.
+        market_type (str): Type of market (e.g., "Spot").
+        filters: Price and quantity rules including tickSize.
+        order_book_state (str): Current state of the order book.
+        created_at (str): Market creation timestamp.
 
     """
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    base_asset: RawBpNonEmptyStringMax64 = Field(..., alias="baseAsset")
-    quote_asset: RawBpNonEmptyStringMax64 = Field(..., alias="quoteAsset")
-
-    quantity_precision: RawBpNonNegativeInt = Field(..., alias="quantityPrecision")
-    price_precision: RawBpNonNegativeInt = Field(..., alias="pricePrecision")
-
-    min_trade_quantity: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="minTradeQuantity")
-    max_trade_quantity: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="maxTradeQuantity")
-    min_trade_price: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="minTradePrice")
-    max_trade_price: RawBpStringToNonNegativeFiniteDecimal = Field(..., alias="maxTradePrice")
-    min_order_book_quantity: RawBpStringToNonNegativeFiniteDecimal = Field(
-        ...,
-        alias="minOrderBookQuantity",
-    )
-
-    bids: list[
-        tuple[
-            RawBpParsableNonNegativeFiniteDecimalString,
-            RawBpParsableNonNegativeFiniteDecimalString,
-        ]
-    ] = Field(..., alias="bids")
-    asks: list[
-        tuple[
-            RawBpParsableNonNegativeFiniteDecimalString,
-            RawBpParsableNonNegativeFiniteDecimalString,
-        ]
-    ] = Field(..., alias="asks")
-
-    last_update_time: RawBpNonNegativeInt = Field(..., alias="lastUpdateTime")
+    base_symbol: RawBpNonEmptyStringMax64 = Field(..., alias="baseSymbol")
+    quote_symbol: RawBpNonEmptyStringMax64 = Field(..., alias="quoteSymbol")
+    market_type: RawBpNonEmptyStringMax64 = Field(..., alias="marketType")
+    filters: BackpackRawOrderBookFilters = Field(..., alias="filters")
+    order_book_state: RawBpNonEmptyStringMax64 = Field(..., alias="orderBookState")
+    created_at: RawBpNonEmptyStringMax64 = Field(..., alias="createdAt")
 
 
 class BackpackRawTicker(BaseModel):

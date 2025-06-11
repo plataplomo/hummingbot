@@ -164,6 +164,16 @@ class BackpackRawGetAccountInfoParams(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
+class BackpackRawGetMarketsParams(BaseModel):
+    """Query parameters for GET /api/v1/markets endpoint.
+
+    This model represents query parameters for retrieving markets metadata.
+    This endpoint typically requires no query parameters.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
 class BackpackRawGetOrderHistoryParams(BaseModel):
     """Query parameters for GET /api/v1/orderHistory endpoint.
 

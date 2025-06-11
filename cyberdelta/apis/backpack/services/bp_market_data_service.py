@@ -32,6 +32,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 
 # Singular Raw models specific to Backpack responses
 from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawMarket,
     BackpackRawOrderBook,
     # Removed non-existent BackpackRawAllTickers, BackpackRawRecentTrades
     BackpackRawTicker,
@@ -52,6 +53,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
+    Market,
     OrderBook,
     Ticker,
     Trade,
@@ -1296,6 +1298,140 @@ class BackpackMarketDataService:
             f"{symbol}@{timeframe}",
         )
         return internal_candles
+
+    async def get_markets(self) -> list[Market]:
+        """Retrieve market metadata for all available markets.
+        
+        Returns market metadata including tick sizes and trading rules.
+        This method provides access to the /api/v1/markets endpoint to get
+        precision information needed for order placement.
+        
+        Returns:
+            List of Market internal domain models
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_markets"
+        
+        # Initialize context for error handling
+        raw_data: ParsedJsonResponse | None = None
+        status_code: int = 0
+        raw_response_content: str | None = None
+        
+        try:
+            # Core operational logic following the established pattern
+            params = self._request_builder.build_get_markets_params()
+            endpoint_path = "/api/v1/markets"
+            logger.debug(
+                f"[{self._exchange_name}] Requesting markets metadata from {endpoint_path} "
+                f"with params: {params}",
+            )
+            
+            response_tuple = await self._http_client_requester(
+                method="GET",
+                endpoint=endpoint_path,
+                params=params.model_dump(),
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=1,
+            )
+            raw_data, status_code, headers = response_tuple
+            
+            if raw_data is not None:
+                raw_response_content = str(raw_data)
+            
+            logger.debug(
+                f"[{self._exchange_name}] Raw markets response: {raw_data!r} "
+                f"(Status: {status_code}, Headers: {headers})"
+            )
+            
+            if raw_data is None or not isinstance(raw_data, list):
+                raise APIError(
+                    f"Markets data returned invalid format (status: {status_code})",
+                    APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
+            
+            # Use response handler for validation (following architecture)
+            raw_markets_list: list[BackpackRawMarket] = (
+                self._response_handler.handle_get_markets_response(raw_data)
+            )
+            
+            # Transform raw models to internal domain models using mapper
+            markets_list: list[Market] = []
+            for raw_market_model in raw_markets_list:
+                try:
+                    internal_market = self._mapper.transform_raw_market_to_internal(
+                        raw_market_model
+                    )
+                    markets_list.append(internal_market)
+                except Exception as e:
+                    logger.warning(
+                        f"[{self._exchange_name}] Failed to transform market "
+                        f"{raw_market_model.symbol}: {e}"
+                    )
+                    continue
+            
+            logger.debug(
+                f"[{self._exchange_name}] Transformed {len(markets_list)} markets "
+                f"to internal models"
+            )
+            return markets_list
+            
+        except APIError:
+            # Re-raise APIErrors from _requester, ResponseHandler, etc.
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for markets: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except ValidationError as e_val:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for markets: {e_val}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=e_val,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_val
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for markets: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
+        except Exception as e_unhandled:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error "
+                f"for markets: {e_unhandled}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error occurred.",
+                original_exception=e_unhandled,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unhandled
 
     def _create_market_data_api_error(
         self,

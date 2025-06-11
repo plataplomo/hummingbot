@@ -37,7 +37,14 @@ from .bp_raw_api_request_payloads import (
 from .bp_raw_error import BackpackRawApiError
 from .bp_raw_funding import BackpackRawFundingRate, BackpackRawMarkPrice
 from .bp_raw_margin_functions import BackpackRawImfFunction, BackpackRawMmfFunction
-from .bp_raw_market import BackpackRawMarket, BackpackRawOpenInterest, BackpackRawTicker
+from .bp_raw_market import (
+    BackpackRawMarket,
+    BackpackRawOpenInterest,
+    BackpackRawOrderBookFilters,
+    BackpackRawPriceFilter,
+    BackpackRawQuantityFilter,
+    BackpackRawTicker,
+)
 from .bp_raw_order import BackpackRawOrder, BackpackRawOrderBook, BackpackRawOrderUpdate
 from .bp_raw_position import BackpackRawPosition, BackpackRawPositionUpdate
 from .bp_raw_query_params import (
@@ -47,6 +54,7 @@ from .bp_raw_query_params import (
     BackpackRawGetHistoricalFundingRatesParams,
     BackpackRawGetHistoricalTradesParams,
     BackpackRawGetMarketDataParams,
+    BackpackRawGetMarketsParams,
     BackpackRawGetOpenOrdersParams,
     BackpackRawGetOrderBookParams,
     BackpackRawGetOrderHistoryParams,
@@ -83,6 +91,9 @@ __all__ = [
     "BackpackRawMarket",
     "BackpackRawTicker",
     "BackpackRawOpenInterest",
+    "BackpackRawPriceFilter",
+    "BackpackRawQuantityFilter", 
+    "BackpackRawOrderBookFilters",
     # Transfer
     "BackpackRawWithdrawal",
     "BackpackRawDeposit",
@@ -117,6 +128,7 @@ __all__ = [
     "BackpackRawGetOrderHistoryParams",
     "BackpackRawGetTradeHistoryParams",
     "BackpackRawGetMarketDataParams",
+    "BackpackRawGetMarketsParams", 
     "BackpackRawGetHistoricalTradesParams",
     "BackpackRawGetOrderParams",
     # WebSocket Payloads

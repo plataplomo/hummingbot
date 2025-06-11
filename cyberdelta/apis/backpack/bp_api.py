@@ -67,7 +67,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market import Candle, OrderBook
+from cyberdelta.core.models.market import Candle, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
@@ -368,6 +368,10 @@ class BackpackAPI(ExchangeAPI):
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(args=args)
+
+    async def get_markets(self) -> list[Market]:
+        """Get market metadata for all available markets."""
+        return await self.market_data_service.get_markets()
 
     # --- Account Methods --- #
 

@@ -23,6 +23,7 @@ All transformation methods follow the standard pattern:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
@@ -31,6 +32,7 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
+    BackpackRawMarket,
     BackpackRawOrderBook,
     BackpackRawTicker,
     BackpackRawTickerEvent,
@@ -43,8 +45,9 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
-from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails, FundingRate
+from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -165,6 +168,77 @@ class BackpackMarketDataMapper:
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform BackpackRawTicker to Ticker: {e}",
+            ) from e
+
+    @staticmethod
+    def transform_raw_market_to_internal(raw_market: BackpackRawMarket) -> Market:
+        """Transform a BackpackRawMarket to an Internal Market model.
+
+        Args:
+            raw_market: Validated raw market data from Backpack
+
+        Returns:
+            Market: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+
+        """
+        try:
+            # Parse core market fields (required, won't be None since allow_none=False)
+            tick_size = cast(Decimal, parse_decimal_value(
+                raw_market.filters.price.tick_size, allow_none=False, field_name="tickSize"
+            ))
+            step_size = cast(Decimal, parse_decimal_value(
+                raw_market.filters.quantity.step_size, allow_none=False, field_name="stepSize"
+            ))
+            
+            # Parse optional price limits
+            min_price = parse_decimal_value(
+                raw_market.filters.price.min_price, allow_none=True, field_name="minPrice"
+            )
+            max_price = parse_decimal_value(
+                raw_market.filters.price.max_price, allow_none=True, field_name="maxPrice"
+            )
+            
+            # Parse optional quantity limits
+            min_quantity = parse_decimal_value(
+                raw_market.filters.quantity.min_quantity, allow_none=True, field_name="minQuantity"
+            )
+            max_quantity = parse_decimal_value(
+                raw_market.filters.quantity.max_quantity, allow_none=True, field_name="maxQuantity"
+            )
+
+            # Parse created_at timestamp
+            created_at = None
+            if raw_market.created_at:
+                created_at = parse_datetime_utc(raw_market.created_at, field_name="createdAt")
+
+            # Create Backpack-specific details
+            bp_details = BackpackMarketDetails(
+                order_book_state=raw_market.order_book_state,
+                created_at_raw=raw_market.created_at,
+            )
+
+            return Market(
+                symbol=raw_market.symbol,
+                base_symbol=raw_market.base_symbol,
+                quote_symbol=raw_market.quote_symbol,
+                market_type=raw_market.market_type,
+                tick_size=tick_size,
+                step_size=step_size,
+                min_price=min_price,
+                max_price=max_price,
+                min_quantity=min_quantity,
+                max_quantity=max_quantity,
+                status=raw_market.order_book_state,
+                created_at=created_at,
+                bp_details=bp_details,
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform BackpackRawMarket to Market: {e}",
             ) from e
 
     @staticmethod

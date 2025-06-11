@@ -18,7 +18,11 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingRate,
 )
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawMarket,
+    BackpackRawOrderBook,
+    BackpackRawTicker,
+)
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade
@@ -359,6 +363,33 @@ class BackpackResponseHandler:
                 context,
                 raw_response_content,
             ) from e
+
+    @staticmethod
+    def handle_get_markets_response(
+        raw_response_content: RawJsonResponse,
+    ) -> list[BackpackRawMarket]:
+        """Validate the raw response for the Get Markets endpoint."""
+        context = "markets"
+        if not isinstance(raw_response_content, list):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected list, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        
+        markets: list[BackpackRawMarket] = []
+        for i, market_data in enumerate(raw_response_content):
+            try:
+                market_model = BackpackRawMarket.model_validate(market_data)
+                markets.append(market_model)
+            except ValidationError as e:
+                raise BackpackResponseHandler._handle_validation_error(
+                    e,
+                    f"{context} item {i}",
+                    market_data,
+                ) from e
+        
+        return markets
 
     @staticmethod
     def handle_withdraw_response(

@@ -22,7 +22,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from freezegun import freeze_time
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -34,6 +33,7 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
@@ -42,32 +42,62 @@ from cyberdelta.core.models.market.ticker import Ticker
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
 
+logger = get_logger(__name__)
+
+
+async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
+    """Get the tick size (price precision) for a symbol using public API.
+
+    This function uses the public get_markets() method to fetch actual
+    tick size information from Backpack's API, ensuring tests use real
+    market data instead of hardcoded values.
+
+    Args:
+        api: BackpackAPI instance for getting market data
+        symbol: Trading symbol (e.g., "SOL_USDC")
+
+    Returns:
+        Decimal tick size for the symbol
+    """
+    try:
+        # Use the public API method to get market metadata
+        markets = await api.get_markets()
+        
+        # Find the market by symbol
+        for market in markets:
+            if market.symbol == symbol:
+                return market.tick_size
+        
+        logger.warning(f"Symbol {symbol} not found in markets, using default tick size")
+        return Decimal("0.01")  # Fallback default
+            
+    except Exception as e:
+        logger.warning(f"Failed to get tick size for {symbol}: {e}, using default")
+        return Decimal("0.01")  # Fallback default
+
 
 async def get_dynamic_test_price(
-    api: BackpackAPI, 
-    symbol: str, 
-    side: OrderSide, 
-    tolerance_percent: Decimal = Decimal("5")
+    api: BackpackAPI, symbol: str, side: OrderSide, tolerance_percent: Decimal = Decimal("5")
 ) -> Decimal:
     """Get a dynamic test price based on current market conditions.
-    
+
     This function fetches the current market price and calculates a test price
     that is far enough from market to avoid accidental fills, but close enough
     to be accepted by the exchange's price validation.
-    
+
     Args:
         api: BackpackAPI instance for getting market data
-        symbol: Trading symbol (e.g., "SOL_USDC")  
+        symbol: Trading symbol (e.g., "SOL_USDC")
         side: Order side (BUY or SELL)
         tolerance_percent: Percentage away from market price (default 5%)
-        
+
     Returns:
         Decimal price suitable for testing
     """
     try:
         # Get current market ticker
         ticker: Ticker = await api.get_ticker(symbol)
-        
+
         # Use last traded price, fall back to mid-price, then bid/ask
         market_price = None
         if ticker.price is not None:
@@ -80,10 +110,10 @@ async def get_dynamic_test_price(
             market_price = ticker.bid
         else:
             raise ValueError(f"Unable to determine market price for {symbol}")
-        
+
         # Calculate test price with tolerance
         tolerance_factor = tolerance_percent / Decimal("100")
-        
+
         if side == OrderSide.BUY:
             # For buy orders, normally use price below market to avoid fills
             # But if tolerance is negative, use price above market (for insufficient funds tests)
@@ -92,10 +122,15 @@ async def get_dynamic_test_price(
             # For sell orders, normally use price above market to avoid fills
             # But if tolerance is negative, use price below market
             test_price = market_price * (Decimal("1") + tolerance_factor)
-        
-        # Round to reasonable precision (4 decimal places for most pairs)
-        return test_price.quantize(Decimal("0.0001"))
-        
+
+        # Get the tick size for this symbol
+        tick_size = await get_symbol_tick_size(api, symbol)
+
+        # Round to the required tick size and normalize to remove trailing zeros
+        # This ensures we don't send something like "150.00" when "150" would work
+        quantized_price = test_price.quantize(tick_size)
+        return quantized_price.normalize()
+
     except Exception as e:
         # Fallback to a reasonable static price if dynamic pricing fails
         # This ensures tests don't completely break due to market data issues
@@ -103,8 +138,10 @@ async def get_dynamic_test_price(
             fallback_price = Decimal("150.0") if side == OrderSide.BUY else Decimal("170.0")
         else:
             fallback_price = Decimal("1.0") if side == OrderSide.BUY else Decimal("10.0")
-        
-        print(f"Warning: Dynamic pricing failed for {symbol}, using fallback price {fallback_price}: {e}")
+
+        logger.warning(
+            "Dynamic pricing failed for %s, using fallback price %s: %s", symbol, fallback_price, e
+        )
         return fallback_price
 
 
@@ -132,9 +169,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("3")  # 3% below market for buy order
+            tolerance_percent=Decimal("3"),  # 3% below market for buy order
         )
-        
+
         # Define order parameters with dynamic pricing
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -247,9 +284,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4")  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),  # 4% below market for buy order
         )
-        
+
         # First place an order
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -396,7 +433,7 @@ class TestBackpackOrdersPrivate:
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
 
-        # BackpackAPI construction succeeds but authenticator will be None due to invalid 
+        # BackpackAPI construction succeeds but authenticator will be None due to invalid
         # credentials
         bad_api = BackpackAPI(
             exchange_config=active_bp_config,
@@ -449,9 +486,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("-3")  # 3% above market (negative = higher price)
+            tolerance_percent=Decimal("-3"),  # 3% above market (negative = higher price)
         )
-        
+
         # Create order with unrealistically large quantity to trigger insufficient funds
         large_order_args = PlaceOrderArgs(
             symbol=symbol,
@@ -483,7 +520,8 @@ class TestBackpackOrdersPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with invalid symbol error."""
-        # Create order with non-existent symbol (still use reasonable price to avoid price validation errors)
+        # Create order with non-existent symbol
+        # Still use reasonable price to avoid price validation errors
         invalid_symbol_args = PlaceOrderArgs(
             symbol="INVALID_SYMBOL_XYZ",  # Non-existent symbol
             side=OrderSide.BUY,
@@ -555,9 +593,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4")  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),  # 4% below market for buy order
         )
-        
+
         # Test very small quantity order
         small_order_args = PlaceOrderArgs(
             symbol=symbol,
@@ -619,9 +657,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4")  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),  # 4% below market for buy order
         )
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
@@ -683,9 +721,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4")  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),  # 4% below market for buy order
         )
-        
+
         # Step 1: Place order
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -736,9 +774,9 @@ class TestBackpackOrdersPrivate:
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4")  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),  # 4% below market for buy order
         )
-        
+
         # Place an order to test Backpack-specific details
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -787,9 +825,7 @@ class TestBackpackOrdersPrivate:
 
         # Clean up
         if placed_order.exchange_order_id:
-            cancel_args = CancelOrderArgs(
-                order_id=placed_order.exchange_order_id, symbol=symbol
-            )
+            cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol=symbol)
             await bp_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr

@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetHistoricalFundingRatesParams,
     BackpackRawGetHistoricalTradesParams,
     BackpackRawGetMarketDataParams,
+    BackpackRawGetMarketsParams,
     BackpackRawGetOpenOrdersParams,
     BackpackRawGetOrderBookParams,
     BackpackRawGetOrderHistoryParams,
@@ -501,6 +502,17 @@ class BackpackRequestBuilder:
 
         """
         return BackpackRawGetAccountInfoParams()
+
+    @staticmethod
+    def build_get_markets_params() -> BackpackRawGetMarketsParams:
+        """Build parameters for the get_markets endpoint (GET /api/v1/markets).
+
+        Returns:
+            BackpackRawGetMarketsParams: The validated request parameters model.
+            This endpoint requires no query parameters, but returns a model for consistency.
+
+        """
+        return BackpackRawGetMarketsParams()
 
     @staticmethod
     def build_withdraw_payload(
