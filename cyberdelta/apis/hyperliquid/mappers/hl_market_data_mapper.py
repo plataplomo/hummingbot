@@ -43,8 +43,8 @@ from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, Market
-from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
+from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -708,7 +708,10 @@ class HyperliquidMarketDataMapper:
             Market object with available metadata
         """
         # Calculate step_size from sz_decimals
-        step_size = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
+        step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
+        if step_size_parsed is None:
+            raise TransformationError(f"Failed to parse step size for {asset_def.name}")
+        step_size = step_size_parsed
         
         # For Hyperliquid perpetuals, we'll use reasonable defaults for tick size
         # since it's not explicitly provided in their meta response

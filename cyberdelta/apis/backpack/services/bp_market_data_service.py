@@ -1332,8 +1332,8 @@ class BackpackMarketDataService:
             params = self._request_builder.build_get_market_params(symbol=symbol)
             endpoint_path = "/api/v1/market"
             logger.debug(
-                f"[{self._exchange_name}] Requesting market metadata for {symbol} from {endpoint_path} "
-                f"with params: {params}",
+                f"[{self._exchange_name}] Requesting market metadata for {symbol} from "
+                f"{endpoint_path} with params: {params}",
             )
             
             response_tuple = await self._http_client_requester(
