@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from freezegun import freeze_time
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -36,9 +37,75 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.ticker import Ticker
 
 # Mark all tests in this file as integration tests
 pytestmark = pytest.mark.integration
+
+
+async def get_dynamic_test_price(
+    api: BackpackAPI, 
+    symbol: str, 
+    side: OrderSide, 
+    tolerance_percent: Decimal = Decimal("5")
+) -> Decimal:
+    """Get a dynamic test price based on current market conditions.
+    
+    This function fetches the current market price and calculates a test price
+    that is far enough from market to avoid accidental fills, but close enough
+    to be accepted by the exchange's price validation.
+    
+    Args:
+        api: BackpackAPI instance for getting market data
+        symbol: Trading symbol (e.g., "SOL_USDC")  
+        side: Order side (BUY or SELL)
+        tolerance_percent: Percentage away from market price (default 5%)
+        
+    Returns:
+        Decimal price suitable for testing
+    """
+    try:
+        # Get current market ticker
+        ticker: Ticker = await api.get_ticker(symbol)
+        
+        # Use last traded price, fall back to mid-price, then bid/ask
+        market_price = None
+        if ticker.price is not None:
+            market_price = ticker.price
+        elif ticker.mid_price is not None:
+            market_price = ticker.mid_price
+        elif side == OrderSide.BUY and ticker.ask is not None:
+            market_price = ticker.ask
+        elif side == OrderSide.SELL and ticker.bid is not None:
+            market_price = ticker.bid
+        else:
+            raise ValueError(f"Unable to determine market price for {symbol}")
+        
+        # Calculate test price with tolerance
+        tolerance_factor = tolerance_percent / Decimal("100")
+        
+        if side == OrderSide.BUY:
+            # For buy orders, normally use price below market to avoid fills
+            # But if tolerance is negative, use price above market (for insufficient funds tests)
+            test_price = market_price * (Decimal("1") - tolerance_factor)
+        else:
+            # For sell orders, normally use price above market to avoid fills
+            # But if tolerance is negative, use price below market
+            test_price = market_price * (Decimal("1") + tolerance_factor)
+        
+        # Round to reasonable precision (4 decimal places for most pairs)
+        return test_price.quantize(Decimal("0.0001"))
+        
+    except Exception as e:
+        # Fallback to a reasonable static price if dynamic pricing fails
+        # This ensures tests don't completely break due to market data issues
+        if symbol == "SOL_USDC":
+            fallback_price = Decimal("150.0") if side == OrderSide.BUY else Decimal("170.0")
+        else:
+            fallback_price = Decimal("1.0") if side == OrderSide.BUY else Decimal("10.0")
+        
+        print(f"Warning: Dynamic pricing failed for {symbol}, using fallback price {fallback_price}: {e}")
+        return fallback_price
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/orders"], indirect=True)
@@ -56,15 +123,25 @@ class TestBackpackOrdersPrivate:
 
         This test validates the complete pipeline from Ed25519 authenticated request
         to fully validated Order model instances with all field constraints.
-        Uses far-from-market price to avoid fills during recording.
+        Uses dynamic pricing to avoid fills while staying within exchange tolerance.
         """
-        # Define order parameters (use far-from-market price to avoid fills)
+        # Get dynamic test price based on current market conditions
+        symbol = "SOL_USDC"  # Common Backpack trading pair
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("3")  # 3% below market for buy order
+        )
+        
+        # Define order parameters with dynamic pricing
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",  # Common Backpack trading pair
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),  # Small size for testing
-            price=Decimal("1.00"),  # Far below market price to avoid fills
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -87,10 +164,10 @@ class TestBackpackOrdersPrivate:
         )
 
         # Validate order matches request parameters
-        assert placed_order.symbol == "SOL_USDC", (
+        assert placed_order.symbol == symbol, (
             f"Order symbol should match request, got {placed_order.symbol}"
         )
-        assert placed_order.side == OrderSide.BUY, (
+        assert placed_order.side == side, (
             f"Order side should match request, got {placed_order.side}"
         )
         assert placed_order.order_type == OrderType.LIMIT, (
@@ -112,8 +189,8 @@ class TestBackpackOrdersPrivate:
         assert placed_order.quantity_requested == Decimal("0.1"), (
             f"Order quantity should match request, got {placed_order.quantity_requested}"
         )
-        assert placed_order.price == Decimal("1.00"), (
-            f"Order price should match request, got {placed_order.price}"
+        assert placed_order.price == test_price, (
+            f"Order price should match request, got {placed_order.price}, expected {test_price}"
         )
 
         # Validate order status and lifecycle
@@ -163,13 +240,23 @@ class TestBackpackOrdersPrivate:
 
         This validates the complete order lifecycle: place → cancel → verify cancellation.
         """
+        # Get dynamic test price based on current market conditions
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")  # 4% below market for buy order
+        )
+        
         # First place an order
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("1.00"),  # Far below market
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -182,7 +269,7 @@ class TestBackpackOrdersPrivate:
         # Cancel the order
         cancel_args = CancelOrderArgs(
             order_id=order_id,
-            symbol="SOL_USDC",
+            symbol=symbol,
         )
 
         cancel_result = await bp_api_for_test_env.cancel_order(cancel_args)
@@ -355,13 +442,23 @@ class TestBackpackOrdersPrivate:
         This validates that our BackpackErrorMapper correctly maps Backpack's
         "INSUFFICIENT_FUNDS" error to our standardized APIErrorCode.
         """
+        # Get dynamic test price and use higher price to maximize required funds
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("-3")  # 3% above market (negative = higher price)
+        )
+        
         # Create order with unrealistically large quantity to trigger insufficient funds
         large_order_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("999999999.0"),  # Unrealistically large
-            price=Decimal("200.00"),  # High price to maximize required funds
+            price=test_price,  # Use dynamic price to avoid price validation errors
             time_in_force=TimeInForce.GTC,
         )
 
@@ -386,13 +483,13 @@ class TestBackpackOrdersPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with invalid symbol error."""
-        # Create order with non-existent symbol
+        # Create order with non-existent symbol (still use reasonable price to avoid price validation errors)
         invalid_symbol_args = PlaceOrderArgs(
             symbol="INVALID_SYMBOL_XYZ",  # Non-existent symbol
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("1.00"),
+            price=Decimal("100.00"),  # Reasonable price to avoid price validation issues
             time_in_force=TimeInForce.GTC,
         )
 
@@ -451,13 +548,23 @@ class TestBackpackOrdersPrivate:
         This validates handling of very small quantities, dust amounts,
         and precision edge cases that might occur in real trading.
         """
+        # Get dynamic test price for precision testing
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")  # 4% below market for buy order
+        )
+        
         # Test very small quantity order
         small_order_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.001"),  # Small quantity
-            price=Decimal("1.00"),
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -506,12 +613,21 @@ class TestBackpackOrdersPrivate:
         open_orders = await bp_api_for_test_env.get_open_orders()
 
         # Also place a test order to validate symbol format
+        symbol = "SOL_USDC"  # Standard Backpack format
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")  # 4% below market for buy order
+        )
+        
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",  # Standard Backpack format
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("1.00"),
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -560,13 +676,23 @@ class TestBackpackOrdersPrivate:
         This validates the full order management pipeline and Order model consistency
         across different order states.
         """
+        # Get dynamic test price based on current market conditions
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")  # 4% below market for buy order
+        )
+        
         # Step 1: Place order
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("1.00"),
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -580,7 +706,7 @@ class TestBackpackOrdersPrivate:
         assert placed_order_found, "Placed order should appear in open orders"
 
         # Step 3: Cancel order
-        cancel_args = CancelOrderArgs(order_id=order_id, symbol="SOL_USDC")
+        cancel_args = CancelOrderArgs(order_id=order_id, symbol=symbol)
         cancel_result = await bp_api_for_test_env.cancel_order(cancel_args)
         assert cancel_result is True, "Order cancellation should succeed"
 
@@ -603,13 +729,23 @@ class TestBackpackOrdersPrivate:
         This validates Backpack's order structure including exchange-specific fields
         and order management details.
         """
+        # Get dynamic test price based on current market conditions
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")  # 4% below market for buy order
+        )
+        
         # Place an order to test Backpack-specific details
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=Decimal("1.00"),
+            price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
 
@@ -652,7 +788,7 @@ class TestBackpackOrdersPrivate:
         # Clean up
         if placed_order.exchange_order_id:
             cancel_args = CancelOrderArgs(
-                order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+                order_id=placed_order.exchange_order_id, symbol=symbol
             )
             await bp_api_for_test_env.cancel_order(cancel_args)
 
