@@ -369,6 +369,10 @@ class BackpackAPI(ExchangeAPI):
         """Get historical market data (candlesticks) for a specific symbol."""
         return await self.market_data_service.get_market_data(args=args)
 
+    async def get_market(self, symbol: str) -> Market:
+        """Get market metadata for a specific symbol."""
+        return await self.market_data_service.get_market(symbol=symbol)
+
     async def get_markets(self) -> list[Market]:
         """Get market metadata for all available markets."""
         return await self.market_data_service.get_markets()

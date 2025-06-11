@@ -392,6 +392,46 @@ class BackpackResponseHandler:
         return markets
 
     @staticmethod
+    def handle_get_market_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawMarket:
+        """Validate the raw response for the Get Market endpoint.
+        
+        Args:
+            raw_response_content: The raw response data from the API.
+            symbol: The requested symbol for context in error messages.
+            status_code: HTTP status code of the response.
+            headers: HTTP response headers.
+            
+        Returns:
+            BackpackRawMarket: The validated market model.
+            
+        Raises:
+            APIError: If validation fails or response format is unexpected.
+        """
+        context = f"market for {symbol}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
+        
+        try:
+            market_model = BackpackRawMarket.model_validate(raw_response_content)
+            return market_model
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e,
+                context,
+                raw_response_content,
+            ) from e
+
+    @staticmethod
     def handle_withdraw_response(
         raw_response_content: RawJsonResponse,
     ) -> BackpackRawWithdrawalResponse:

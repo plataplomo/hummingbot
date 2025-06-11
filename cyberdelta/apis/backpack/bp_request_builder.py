@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetHistoricalFundingRatesParams,
     BackpackRawGetHistoricalTradesParams,
     BackpackRawGetMarketDataParams,
+    BackpackRawGetMarketParams,
     BackpackRawGetMarketsParams,
     BackpackRawGetOpenOrdersParams,
     BackpackRawGetOrderBookParams,
@@ -513,6 +514,19 @@ class BackpackRequestBuilder:
 
         """
         return BackpackRawGetMarketsParams()
+
+    @staticmethod
+    def build_get_market_params(symbol: str) -> BackpackRawGetMarketParams:
+        """Build parameters for the get_market endpoint (GET /api/v1/market).
+
+        Args:
+            symbol: The trading symbol (e.g., "SOL_USDC").
+
+        Returns:
+            BackpackRawGetMarketParams: The validated request parameters model.
+
+        """
+        return BackpackRawGetMarketParams(symbol=BackpackRequestBuilder.format_symbol(symbol))
 
     @staticmethod
     def build_withdraw_payload(

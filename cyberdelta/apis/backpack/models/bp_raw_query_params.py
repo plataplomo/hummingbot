@@ -174,6 +174,24 @@ class BackpackRawGetMarketsParams(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
+class BackpackRawGetMarketParams(BaseModel):
+    """Query parameters for GET /api/v1/market endpoint.
+
+    This model validates the query parameters for retrieving a specific market
+    by symbol from the Backpack API.
+
+    Attributes:
+        symbol: The trading symbol for the market (e.g., "SOL_USDC").
+                Must be a non-empty string with maximum 64 characters.
+                Required as a query parameter for this endpoint.
+
+    """
+
+    symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
 class BackpackRawGetOrderHistoryParams(BaseModel):
     """Query parameters for GET /api/v1/orderHistory endpoint.
 
