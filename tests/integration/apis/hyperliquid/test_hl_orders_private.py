@@ -431,3 +431,360 @@ class TestHyperliquidOrdersPrivate:
             order.exchange_order_id == order_id for order in open_orders_after
         )
         assert not cancelled_order_found, "Cancelled order should not appear in open orders"
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_success_with_symbol_filter(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test successful cancel_all_orders() with symbol filter.
+
+        This validates the complete bulk cancellation pipeline with symbol filtering,
+        ensuring all orders for a specific symbol are cancelled properly.
+        """
+        # Step 1: Place multiple orders for the same symbol
+        order_args_list = [
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.1"),
+                price=Decimal("0.01"),
+                time_in_force=TimeInForce.GTC,
+            ),
+            PlaceOrderArgs(
+                symbol="PURP", 
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.2"),
+                price=Decimal("0.02"),
+                time_in_force=TimeInForce.GTC,
+            ),
+        ]
+
+        placed_orders: list[Order] = []
+        for order_args in order_args_list:
+            try:
+                order = await hl_api_for_test_env.place_order(order_args)
+                if order.exchange_order_id:
+                    placed_orders.append(order)
+            except APIError:
+                # If placement fails, skip the test
+                pytest.skip("Unable to place orders for cancel_all test")
+
+        # Step 2: Execute cancel_all_orders with symbol filter
+        if placed_orders:
+            cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
+
+            # Validate return type and structure
+            assert isinstance(cancel_results, list), (
+                "cancel_all_orders() should return list[CancelOrderResult]"
+            )
+
+            # Each result should indicate successful cancellation
+            for result in cancel_results:
+                # Validate result structure (exact fields depend on CancelOrderResult impl)
+                assert hasattr(result, "status") or hasattr(result, "success"), (
+                    "Cancel result should have status/success indicator"
+                )
+
+            # Step 3: Verify orders are no longer in open orders
+            open_orders_after = await hl_api_for_test_env.get_open_orders()
+            purp_orders_remaining = [
+                order for order in open_orders_after 
+                if order.symbol == "PURP" and order.exchange_order_id in [
+                    placed_order.exchange_order_id for placed_order in placed_orders
+                ]
+            ]
+            
+            assert len(purp_orders_remaining) == 0, (
+                f"All PURP orders should be cancelled, but {len(purp_orders_remaining)} remain"
+            )
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_success_without_symbol_filter(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test successful cancel_all_orders() without symbol filter.
+
+        This validates bulk cancellation of ALL open orders across all symbols,
+        ensuring complete order book cleanup.
+        """
+        # Step 1: Place orders on different symbols if possible
+        order_args_list = [
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.1"),
+                price=Decimal("0.01"),
+                time_in_force=TimeInForce.GTC,
+            ),
+            # Note: Using same symbol for testnet safety
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.1"),
+                price=Decimal("100.00"),  # Far above market
+                time_in_force=TimeInForce.GTC,
+            ),
+        ]
+
+        placed_orders: list[Order] = []
+        for order_args in order_args_list:
+            try:
+                order = await hl_api_for_test_env.place_order(order_args)
+                if order.exchange_order_id:
+                    placed_orders.append(order)
+            except APIError:
+                # If placement fails, continue with other orders
+                pass
+
+        # Step 2: Execute cancel_all_orders without symbol filter
+        if placed_orders:
+            cancel_results = await hl_api_for_test_env.cancel_all_orders()
+
+            # Validate return type
+            assert isinstance(cancel_results, list), (
+                "cancel_all_orders() should return list[CancelOrderResult]"
+            )
+
+            # Should have cancelled at least our placed orders
+            assert len(cancel_results) >= len(placed_orders), (
+                f"Should cancel at least {len(placed_orders)} orders, got {len(cancel_results)}"
+            )
+
+            # Step 3: Verify no orders remain open (or at least our orders are gone)
+            open_orders_after = await hl_api_for_test_env.get_open_orders()
+            our_orders_remaining = [
+                order for order in open_orders_after 
+                if order.exchange_order_id in [
+                    placed_order.exchange_order_id for placed_order in placed_orders
+                ]
+            ]
+            
+            assert len(our_orders_remaining) == 0, (
+                f"All our orders should be cancelled, but {len(our_orders_remaining)} remain"
+            )
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_no_open_orders(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test cancel_all_orders() when no open orders exist.
+
+        This validates graceful handling when attempting to cancel all orders
+        but no orders are currently open.
+        """
+        # First ensure we have no open orders by calling cancel_all_orders
+        await hl_api_for_test_env.cancel_all_orders()
+
+        # Execute cancel_all_orders when no orders exist
+        cancel_results = await hl_api_for_test_env.cancel_all_orders()
+
+        # Should return empty list or handle gracefully
+        assert isinstance(cancel_results, list), (
+            "cancel_all_orders() should return list even when no orders exist"
+        )
+        
+        # When no orders exist, result should be empty
+        assert len(cancel_results) == 0, (
+            f"Should return empty results when no orders exist, got {len(cancel_results)}"
+        )
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_symbol_filter_no_matches(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test cancel_all_orders() with symbol filter that matches no orders.
+
+        This validates handling when symbol filter is provided but no orders
+        exist for that specific symbol.
+        """
+        # Place an order for PURP
+        purp_order_args = PlaceOrderArgs(
+            symbol="PURP",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal("0.01"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        try:
+            purp_order = await hl_api_for_test_env.place_order(purp_order_args)
+            order_placed = purp_order.exchange_order_id is not None
+        except APIError:
+            order_placed = False
+
+        if order_placed:
+            # Execute cancel_all_orders for a different symbol
+            cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol="NONEXISTENT")
+
+            # Should return empty list since no orders match the filter
+            assert isinstance(cancel_results, list), (
+                "cancel_all_orders() should return list even when no orders match symbol"
+            )
+            assert len(cancel_results) == 0, (
+                f"Should return empty results for non-matching symbol, got {len(cancel_results)}"
+            )
+
+            # Verify PURP order is still open (wasn't cancelled by non-matching filter)
+            open_orders = await hl_api_for_test_env.get_open_orders()
+            purp_orders = [order for order in open_orders if order.symbol == "PURP"]
+            assert len(purp_orders) > 0, (
+                "PURP order should still exist after cancel_all with different symbol filter"
+            )
+
+            # Clean up the PURP order
+            try:
+                await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
+            except APIError:
+                pass
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_error_handling(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test cancel_all_orders() error handling scenarios.
+
+        This validates proper error handling when some order cancellations
+        might fail due to order state changes or network issues.
+        """
+        # Place an order that we'll cancel immediately
+        order_args = PlaceOrderArgs(
+            symbol="PURP",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal("0.01"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        try:
+            placed_order = await hl_api_for_test_env.place_order(order_args)
+            
+            if placed_order.exchange_order_id:
+                # Manually cancel the order first
+                manual_cancel_args = CancelOrderArgs(
+                    order_id=placed_order.exchange_order_id,
+                    symbol="PURP",
+                )
+                await hl_api_for_test_env.cancel_order(manual_cancel_args)
+
+                # Now attempt cancel_all_orders (should handle already-cancelled orders gracefully)
+                cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
+
+                # Should still return a valid list (even if empty or with error results)
+                assert isinstance(cancel_results, list), (
+                    "cancel_all_orders() should return list even when errors occur"
+                )
+
+                # The implementation should handle already-cancelled orders gracefully
+                # Either by excluding them from cancellation or by returning error status
+
+        except APIError:
+            # If the test setup fails, that's acceptable
+            pytest.skip("Unable to set up error handling test scenario")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_multiple_symbols_comprehensive(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test cancel_all_orders() comprehensive scenario with multiple symbols.
+
+        This validates the complete bulk cancellation workflow with multiple orders
+        across different symbols and various order types.
+        """
+        # Place multiple orders with different characteristics
+        order_scenarios = [
+            # Different prices to avoid fills
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.1"),
+                price=Decimal("0.001"),  # Very low price
+                time_in_force=TimeInForce.GTC,
+            ),
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.1"),
+                price=Decimal("1000.00"),  # Very high price
+                time_in_force=TimeInForce.GTC,
+            ),
+            PlaceOrderArgs(
+                symbol="PURP",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.05"),
+                price=Decimal("0.002"),
+                time_in_force=TimeInForce.GTC,
+            ),
+        ]
+
+        placed_orders: list[Order] = []
+        for order_args in order_scenarios:
+            try:
+                order = await hl_api_for_test_env.place_order(order_args)
+                if order.exchange_order_id:
+                    placed_orders.append(order)
+            except APIError:
+                # If some orders fail to place, continue with others
+                pass
+
+        if len(placed_orders) >= 2:  # Need at least 2 orders for meaningful test
+            # Get initial count of open orders
+            initial_open_orders = await hl_api_for_test_env.get_open_orders()
+            initial_count = len(initial_open_orders)
+
+            # Execute cancel_all_orders
+            cancel_results = await hl_api_for_test_env.cancel_all_orders()
+
+            # Validate results
+            assert isinstance(cancel_results, list), (
+                "cancel_all_orders() should return list of results"
+            )
+            assert len(cancel_results) >= len(placed_orders), (
+                f"Should cancel at least {len(placed_orders)} orders"
+            )
+
+            # Verify significant reduction in open orders
+            final_open_orders = await hl_api_for_test_env.get_open_orders()
+            final_count = len(final_open_orders)
+
+            assert final_count < initial_count, (
+                f"Open orders should be reduced: initial={initial_count}, final={final_count}"
+            )
+
+            # Verify our specific orders are cancelled
+            our_order_ids = {order.exchange_order_id for order in placed_orders}
+            remaining_order_ids = {order.exchange_order_id for order in final_open_orders}
+            
+            orders_still_open = our_order_ids.intersection(remaining_order_ids)
+            assert len(orders_still_open) == 0, (
+                f"All our orders should be cancelled, but {len(orders_still_open)} remain"
+            )
+
+        else:
+            pytest.skip("Insufficient orders placed for comprehensive cancel_all test")

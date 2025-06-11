@@ -77,9 +77,12 @@ class TestHyperliquidOrders:
             
             # Validate retrieved order if it exists
             if retrieved_order is not None:
-                assert isinstance(retrieved_order, Order), "get_order() should return Order instance"
+                assert isinstance(retrieved_order, Order), (
+                    "get_order() should return Order instance"
+                )
                 assert retrieved_order.exchange_order_id == test_order_id, (
-                    f"Order ID should match query: {retrieved_order.exchange_order_id} vs {test_order_id}"
+                    f"Order ID should match query: {retrieved_order.exchange_order_id} vs "
+                    f"{test_order_id}"
                 )
                 
                 # Validate core order fields
