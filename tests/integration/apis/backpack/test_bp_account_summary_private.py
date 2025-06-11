@@ -527,7 +527,8 @@ class TestBackpackAccountSummaryPrivate:
                 # Equity values might differ slightly due to timing, but should be very close
                 equity_diff: Decimal = abs(first_result.total_equity - result.total_equity)
                 assert equity_diff <= Decimal("0.01"), (
-                    f"Concurrent results should have similar equity: {first_result.total_equity} vs {result.total_equity}"
+                    f"Concurrent results should have similar equity: "
+                    f"{first_result.total_equity} vs {result.total_equity}"
                 )
 
                 available_diff: Decimal = abs(

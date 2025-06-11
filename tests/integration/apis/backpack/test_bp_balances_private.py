@@ -118,7 +118,8 @@ class TestBackpackBalancesPrivate:
                 else 0
             )
 
-            # Crypto typically has 8-18 decimal places, but our internal precision should be reasonable
+            # Crypto typically has 8-18 decimal places, but our internal precision should be
+            # reasonable
             assert total_precision <= 18, (
                 f"total_quantity precision too high: {total_precision} decimals"
             )
