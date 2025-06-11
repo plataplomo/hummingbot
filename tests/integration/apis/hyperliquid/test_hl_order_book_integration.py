@@ -46,9 +46,9 @@ async def test_hl_get_order_book_nonexistent_symbol_raises_api_error(
     """Test HyperliquidAPI.get_order_book() with non-existent symbol raises APIError."""
     from cyberdelta.apis.models.api_error import APIError
     from cyberdelta.apis.models.api_error_codes import APIErrorCode
-    
+
     with pytest.raises(APIError) as exc_info:
         await hl_api_for_test_env.get_order_book("NONEXISTENT")
-    
+
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
     assert "No content received from HTTP client for l2Book" in exc_info.value.message

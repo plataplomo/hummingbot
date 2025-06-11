@@ -35,7 +35,9 @@ from cyberdelta.core.models.derivative_position import DerivativePosition
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/private/positions"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/positions"], indirect=True
+)
 class TestHyperliquidPositionsPrivate:
     """Comprehensive private positions integration tests for DerivativePosition model validation."""
 
@@ -55,7 +57,7 @@ class TestHyperliquidPositionsPrivate:
 
         # Validate container type
         assert isinstance(positions, list), "get_positions() should return list[DerivativePosition]"
-        
+
         # Test both empty and populated position scenarios
         if not positions:
             # Empty positions is valid for accounts with no open positions
@@ -72,7 +74,7 @@ class TestHyperliquidPositionsPrivate:
             assert position.exchange == "hyperliquid", (
                 f"Position.exchange should be 'hyperliquid', got {position.exchange}"
             )
-            
+
             # Validate symbol format (Hyperliquid uses asset names like "BTC", "ETH", "PURP")
             assert isinstance(position.symbol, str), f"Position {i} symbol must be string"
             assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
@@ -123,16 +125,21 @@ class TestHyperliquidPositionsPrivate:
                 )
 
             # Validate PnL calculations make sense
-            if position.size != Decimal("0") and position.entry_price > Decimal("0") and position.mark_price > Decimal("0"):
+            if (
+                position.size != Decimal("0")
+                and position.entry_price > Decimal("0")
+                and position.mark_price > Decimal("0")
+            ):
                 # Calculate expected unrealized PnL and validate it's reasonable
-                expected_pnl_direction = (position.mark_price - position.entry_price) * position.size
-                
+                expected_pnl_direction = (
+                    position.mark_price - position.entry_price
+                ) * position.size
+
                 # PnL direction should match calculation (allowing for fees and other factors)
                 if abs(expected_pnl_direction) > Decimal("0.01"):  # Only check if significant
                     pnl_direction_matches = (
-                        (expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")) or
-                        (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
-                    )
+                        expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
+                    ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
                     assert pnl_direction_matches, (
                         f"Position {i} PnL direction mismatch: expected {expected_pnl_direction > 0}, "
                         f"got unrealized_pnl={position.unrealized_pnl}"
@@ -141,7 +148,7 @@ class TestHyperliquidPositionsPrivate:
             # Validate exchange-specific details if present
             if position.hl_details:
                 hl_details = position.hl_details
-                
+
                 # Validate leverage information
                 assert isinstance(hl_details.leverage_type, str), (
                     f"Position {i} leverage_type must be string"
@@ -149,7 +156,7 @@ class TestHyperliquidPositionsPrivate:
                 assert hl_details.leverage_type in ["cross", "isolated"], (
                     f"Position {i} leverage_type must be 'cross' or 'isolated', got {hl_details.leverage_type}"
                 )
-                
+
                 assert isinstance(hl_details.leverage_value, int), (
                     f"Position {i} leverage_value must be int"
                 )
@@ -175,27 +182,33 @@ class TestHyperliquidPositionsPrivate:
 
         # Should return empty list
         assert isinstance(positions, list), "get_positions() should always return list"
-        
+
         # Empty list is valid for accounts with no positions
         if len(positions) == 0:
             return  # Test passes - no positions is valid
 
         # If positions exist, they should all be valid
         for position in positions:
-            assert isinstance(position, DerivativePosition), "All returned positions should be valid"
+            assert isinstance(position, DerivativePosition), (
+                "All returned positions should be valid"
+            )
 
     @pytest.mark.vcr
     async def test_get_positions_authentication_failure(
         self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],  # Factory function for creating API with custom secrets
+        hl_api_with_di: Callable[
+            ..., HyperliquidAPI
+        ],  # Factory function for creating API with custom secrets
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with invalid EIP-712 authentication."""
         # Create API with invalid EIP-712 private key
         invalid_secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr("0x0000000000000000000000000000000000000000000000000000000000000002"),
+            private_key=SecretStr(
+                "0x0000000000000000000000000000000000000000000000000000000000000002"
+            ),
         )
-        
+
         bad_api = hl_api_with_di(secrets=invalid_secrets)
 
         # Should raise authentication error
@@ -207,9 +220,7 @@ class TestHyperliquidPositionsPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     async def test_get_positions_large_position_handling(
@@ -223,7 +234,7 @@ class TestHyperliquidPositionsPrivate:
         precision loss or overflow issues.
         """
         positions = await hl_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for large position testing")
 
@@ -232,8 +243,10 @@ class TestHyperliquidPositionsPrivate:
             size_magnitude = abs(position.size)
             if size_magnitude > Decimal("1000"):  # Large position
                 # Should maintain precision for large positions
-                assert position.size.is_finite(), f"Large position size should be finite: {position.size}"
-                
+                assert position.size.is_finite(), (
+                    f"Large position size should be finite: {position.size}"
+                )
+
                 # PnL calculations should still be accurate
                 if position.unrealized_pnl is not None:
                     assert position.unrealized_pnl.is_finite(), (
@@ -245,12 +258,17 @@ class TestHyperliquidPositionsPrivate:
                     )
 
             # Test handling of high-value positions (price * size)
-            if (position.size != Decimal("0") and 
-                position.mark_price is not None and position.mark_price > Decimal("0")):
+            if (
+                position.size != Decimal("0")
+                and position.mark_price is not None
+                and position.mark_price > Decimal("0")
+            ):
                 notional_value = abs(position.size * position.mark_price)
                 if notional_value > Decimal("10000"):  # High notional value
                     # Should handle large notional values without precision issues
-                    assert notional_value.is_finite(), f"Large notional value should be finite: {notional_value}"
+                    assert notional_value.is_finite(), (
+                        f"Large notional value should be finite: {notional_value}"
+                    )
 
     @pytest.mark.vcr
     async def test_get_positions_precision_edge_cases(
@@ -264,7 +282,7 @@ class TestHyperliquidPositionsPrivate:
         and precision edge cases for position sizes and PnL.
         """
         positions = await hl_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for precision testing")
 
@@ -272,18 +290,27 @@ class TestHyperliquidPositionsPrivate:
             # Test very small position handling
             if abs(position.size) > Decimal("0") and abs(position.size) < Decimal("0.001"):
                 # Very small positions should maintain precision
-                assert position.size.is_finite(), f"Small position size should be finite: {position.size}"
-                
+                assert position.size.is_finite(), (
+                    f"Small position size should be finite: {position.size}"
+                )
+
                 # Should not have scientific notation issues
                 size_str = str(position.size)
                 if "E" in size_str.upper():
-                    assert "E-" in size_str.upper(), f"Scientific notation should be negative: {size_str}"
+                    assert "E-" in size_str.upper(), (
+                        f"Scientific notation should be negative: {size_str}"
+                    )
 
             # Test small PnL amounts
-            if (position.unrealized_pnl is not None and 
-                abs(position.unrealized_pnl) > Decimal("0") and abs(position.unrealized_pnl) < Decimal("0.01")):
+            if (
+                position.unrealized_pnl is not None
+                and abs(position.unrealized_pnl) > Decimal("0")
+                and abs(position.unrealized_pnl) < Decimal("0.01")
+            ):
                 # Small PnL should be properly represented
-                assert position.unrealized_pnl.is_finite(), f"Small PnL should be finite: {position.unrealized_pnl}"
+                assert position.unrealized_pnl.is_finite(), (
+                    f"Small PnL should be finite: {position.unrealized_pnl}"
+                )
 
     @pytest.mark.vcr
     async def test_get_positions_leverage_validation(
@@ -297,7 +324,7 @@ class TestHyperliquidPositionsPrivate:
         including cross vs isolated margin and leverage ratios.
         """
         positions = await hl_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for leverage testing")
 
@@ -307,7 +334,7 @@ class TestHyperliquidPositionsPrivate:
         for position in positions:
             if position.hl_details:
                 hl_details = position.hl_details
-                
+
                 # Categorize by leverage type
                 if hl_details.leverage_type == "cross":
                     cross_positions.append(position)
@@ -320,7 +347,7 @@ class TestHyperliquidPositionsPrivate:
                     assert hl_details.leverage_value >= 1, (
                         f"Leverage should be >= 1 for active position: {hl_details.leverage_value}"
                     )
-                    
+
                     # Max leverage validation (Hyperliquid typically allows up to 50x)
                     assert hl_details.leverage_value <= 50, (
                         f"Leverage seems too high: {hl_details.leverage_value}"
@@ -344,7 +371,7 @@ class TestHyperliquidPositionsPrivate:
         and handles edge cases like zero positions or extreme price movements.
         """
         positions = await hl_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for PnL testing")
 
@@ -377,5 +404,9 @@ class TestHyperliquidPositionsPrivate:
                 )
 
         # Validate total PnL is reasonable
-        assert total_unrealized_pnl.is_finite(), f"Total unrealized PnL should be finite: {total_unrealized_pnl}"
-        assert total_realized_pnl.is_finite(), f"Total realized PnL should be finite: {total_realized_pnl}"
+        assert total_unrealized_pnl.is_finite(), (
+            f"Total unrealized PnL should be finite: {total_unrealized_pnl}"
+        )
+        assert total_realized_pnl.is_finite(), (
+            f"Total realized PnL should be finite: {total_realized_pnl}"
+        )

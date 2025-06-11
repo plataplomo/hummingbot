@@ -35,7 +35,9 @@ from cyberdelta.core.models.margin_account import MarginAccountSummary
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/private/account_summary"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/private/account_summary"], indirect=True
+)
 class TestHyperliquidAccountSummaryPrivate:
     """Comprehensive private account summary integration tests for MarginAccountSummary model validation."""
 
@@ -112,7 +114,7 @@ class TestHyperliquidAccountSummaryPrivate:
         # Validate exchange-specific details if present
         if account_summary.hl_details:
             hl_details = account_summary.hl_details
-            
+
             # Validate Decimal fields in hl_details (HyperliquidMarginDetails)
             assert isinstance(hl_details.cross_maintenance_margin_used, Decimal), (
                 "hl_details.cross_maintenance_margin_used must be Decimal"
@@ -120,7 +122,7 @@ class TestHyperliquidAccountSummaryPrivate:
             assert isinstance(hl_details.isolated_maintenance_margin_used, Decimal), (
                 "hl_details.isolated_maintenance_margin_used must be Decimal"
             )
-            
+
             # Validate non-negative constraints
             assert hl_details.cross_maintenance_margin_used >= Decimal("0"), (
                 f"cross_maintenance_margin_used must be non-negative, got {hl_details.cross_maintenance_margin_used}"
@@ -130,7 +132,10 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
             # Validate total margin usage makes sense
-            total_margin_used = hl_details.cross_maintenance_margin_used + hl_details.isolated_maintenance_margin_used
+            total_margin_used = (
+                hl_details.cross_maintenance_margin_used
+                + hl_details.isolated_maintenance_margin_used
+            )
             if account_summary.total_maintenance_margin_required is not None:
                 # Total margin used should be <= total equity (can't use more than you have)
                 assert total_margin_used <= account_summary.total_equity, (
@@ -154,7 +159,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert isinstance(account_summary, MarginAccountSummary), (
             "get_account_summary() should always return MarginAccountSummary"
         )
-        
+
         # Even empty accounts should have valid structure
         assert account_summary.total_equity >= Decimal("0"), (
             "Empty account should still have non-negative total_equity"
@@ -176,15 +181,19 @@ class TestHyperliquidAccountSummaryPrivate:
     @pytest.mark.vcr
     async def test_get_account_summary_authentication_failure(
         self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],  # Factory function for creating API with custom secrets
+        hl_api_with_di: Callable[
+            ..., HyperliquidAPI
+        ],  # Factory function for creating API with custom secrets
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with invalid EIP-712 authentication."""
         # Create API with invalid EIP-712 private key
         invalid_secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr("0x0000000000000000000000000000000000000000000000000000000000000003"),
+            private_key=SecretStr(
+                "0x0000000000000000000000000000000000000000000000000000000000000003"
+            ),
         )
-        
+
         bad_api = hl_api_with_di(secrets=invalid_secrets)
 
         # Should raise authentication error
@@ -196,9 +205,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     async def test_get_account_summary_margin_calculation_consistency(
@@ -212,13 +219,13 @@ class TestHyperliquidAccountSummaryPrivate:
         and that cross/isolated margin values add up correctly.
         """
         account_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         assert account_summary is not None, "Account summary should not be None"
         if not account_summary.hl_details:
             pytest.skip("No Hyperliquid margin details for calculation testing")
 
         hl_details = account_summary.hl_details
-        
+
         # Validate margin calculations are finite and consistent
         assert hl_details.cross_maintenance_margin_used.is_finite(), (
             f"Cross margin should be finite: {hl_details.cross_maintenance_margin_used}"
@@ -231,11 +238,13 @@ class TestHyperliquidAccountSummaryPrivate:
         cross_margin = hl_details.cross_maintenance_margin_used or Decimal("0")
         isolated_margin = hl_details.isolated_maintenance_margin_used or Decimal("0")
         total_maintenance_used = cross_margin + isolated_margin
-        
+
         # If total_maintenance_margin_required is provided, it should be consistent
         if account_summary.total_maintenance_margin_required is not None:
             # Allow for small rounding differences
-            margin_diff = abs(total_maintenance_used - account_summary.total_maintenance_margin_required)
+            margin_diff = abs(
+                total_maintenance_used - account_summary.total_maintenance_margin_required
+            )
             assert margin_diff <= Decimal("0.01"), (
                 f"Margin calculation inconsistency: cross+isolated={total_maintenance_used}, "
                 f"total_required={account_summary.total_maintenance_margin_required}, diff={margin_diff}"
@@ -262,16 +271,18 @@ class TestHyperliquidAccountSummaryPrivate:
         and precision edge cases that might occur in real trading.
         """
         account_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         assert account_summary is not None, "Account summary should not be None"
-        
+
         # Test very small equity handling
-        if account_summary.total_equity > Decimal("0") and account_summary.total_equity < Decimal("1.0"):
+        if account_summary.total_equity > Decimal("0") and account_summary.total_equity < Decimal(
+            "1.0"
+        ):
             # Very small equity should maintain precision
             assert account_summary.total_equity.is_finite(), (
                 f"Small equity should be finite: {account_summary.total_equity}"
             )
-            
+
             # Should not have scientific notation issues
             equity_str = str(account_summary.total_equity)
             if "E" in equity_str.upper():
@@ -281,20 +292,33 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Test small margin amounts
         if account_summary.total_initial_margin_required is not None:
-            if (account_summary.total_initial_margin_required > Decimal("0") and 
-                account_summary.total_initial_margin_required < Decimal("0.01")):
+            if account_summary.total_initial_margin_required > Decimal(
+                "0"
+            ) and account_summary.total_initial_margin_required < Decimal("0.01"):
                 # Small margin should be properly represented
                 assert account_summary.total_initial_margin_required.is_finite(), (
                     f"Small margin should be finite: {account_summary.total_initial_margin_required}"
                 )
 
         # Test precision consistency across fields
-        equity_precision = len(str(account_summary.total_equity).split(".")[-1]) if "." in str(account_summary.total_equity) else 0
-        available_precision = len(str(account_summary.available_equity).split(".")[-1]) if "." in str(account_summary.available_equity) else 0
-        
+        equity_precision = (
+            len(str(account_summary.total_equity).split(".")[-1])
+            if "." in str(account_summary.total_equity)
+            else 0
+        )
+        available_precision = (
+            len(str(account_summary.available_equity).split(".")[-1])
+            if "." in str(account_summary.available_equity)
+            else 0
+        )
+
         # Financial precision should be reasonable (not excessive)
-        assert equity_precision <= 18, f"total_equity precision too high: {equity_precision} decimals"
-        assert available_precision <= 18, f"available_equity precision too high: {available_precision} decimals"
+        assert equity_precision <= 18, (
+            f"total_equity precision too high: {equity_precision} decimals"
+        )
+        assert available_precision <= 18, (
+            f"available_equity precision too high: {available_precision} decimals"
+        )
 
     @pytest.mark.vcr
     async def test_get_account_summary_leverage_scenarios(
@@ -308,13 +332,13 @@ class TestHyperliquidAccountSummaryPrivate:
         (cross vs isolated) and edge cases around high leverage usage.
         """
         account_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         assert account_summary is not None, "Account summary should not be None"
         if not account_summary.hl_details:
             pytest.skip("No Hyperliquid margin details for leverage testing")
 
         hl_details = account_summary.hl_details
-        
+
         # Test cross margin scenario
         if hl_details.cross_maintenance_margin_used > Decimal("0"):
             # Cross margin usage should be reasonable relative to total equity
@@ -322,33 +346,36 @@ class TestHyperliquidAccountSummaryPrivate:
             assert cross_ratio <= Decimal("1.0"), (
                 f"Cross margin ratio should be <= 100%: {cross_ratio:.4f}"
             )
-            
+
             # Cross margin should affect available equity
             assert account_summary.available_equity <= account_summary.total_equity, (
                 "Available equity should be reduced when cross margin is used"
             )
 
-        # Test isolated margin scenario  
+        # Test isolated margin scenario
         if hl_details.isolated_maintenance_margin_used > Decimal("0"):
             # Isolated margin usage should be reasonable
-            isolated_ratio = hl_details.isolated_maintenance_margin_used / account_summary.total_equity
+            isolated_ratio = (
+                hl_details.isolated_maintenance_margin_used / account_summary.total_equity
+            )
             assert isolated_ratio <= Decimal("1.0"), (
                 f"Isolated margin ratio should be <= 100%: {isolated_ratio:.4f}"
             )
 
         # Test combined margin usage
         total_margin_used = (
-            hl_details.cross_maintenance_margin_used + 
-            hl_details.isolated_maintenance_margin_used
+            hl_details.cross_maintenance_margin_used + hl_details.isolated_maintenance_margin_used
         )
-        
+
         if total_margin_used > Decimal("0"):
             # Total margin usage should not exceed total equity
             total_margin_ratio = total_margin_used / account_summary.total_equity
-            assert total_margin_ratio <= Decimal("1.2"), (  # Allow slight buffer for calculation differences
+            assert total_margin_ratio <= Decimal(
+                "1.2"
+            ), (  # Allow slight buffer for calculation differences
                 f"Total margin ratio should be reasonable: {total_margin_ratio:.4f}"
             )
-            
+
             # High margin usage should leave minimal available equity
             if total_margin_ratio > Decimal("0.8"):  # High leverage scenario
                 available_ratio = account_summary.available_equity / account_summary.total_equity
@@ -368,17 +395,17 @@ class TestHyperliquidAccountSummaryPrivate:
         and that the underlying clearinghouse state call handles concurrency properly.
         """
         import asyncio
-        
+
         # Make multiple concurrent calls
         tasks = [
             hl_api_for_test_env.get_account_summary(),
             hl_api_for_test_env.get_account_summary(),
             hl_api_for_test_env.get_account_summary(),
         ]
-        
+
         # Execute concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # All should succeed and return consistent data
         successful_results: list[MarginAccountSummary] = []
         for i, result in enumerate(results):
@@ -389,12 +416,14 @@ class TestHyperliquidAccountSummaryPrivate:
                 else:
                     pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
-                assert isinstance(result, MarginAccountSummary), f"Result {i} should be MarginAccountSummary"
+                assert isinstance(result, MarginAccountSummary), (
+                    f"Result {i} should be MarginAccountSummary"
+                )
                 successful_results.append(result)
-        
+
         # At least one should succeed
         assert len(successful_results) > 0, "At least one concurrent call should succeed"
-        
+
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: MarginAccountSummary = successful_results[0]

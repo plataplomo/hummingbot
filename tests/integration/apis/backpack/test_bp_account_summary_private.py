@@ -36,9 +36,7 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", 
-    ["apis/backpack/private/account_summary"], 
-    indirect=True
+    "custom_vcr_cassette_dir", ["apis/backpack/private/account_summary"], indirect=True
 )
 class TestBackpackAccountSummaryPrivate:
     """Comprehensive private account summary integration tests for MarginAccountSummary."""
@@ -118,11 +116,16 @@ class TestBackpackAccountSummaryPrivate:
         # Validate exchange-specific details if present
         if account_summary.bp_details:
             bp_details = account_summary.bp_details
-            
+
             # Validate Backpack-specific margin fields
-            decimal_fields = ["assets_value", "borrow_liability", "liabilities_value", 
-                            "locked_equity", "margin_fraction"]
-            
+            decimal_fields = [
+                "assets_value",
+                "borrow_liability",
+                "liabilities_value",
+                "locked_equity",
+                "margin_fraction",
+            ]
+
             for field_name in decimal_fields:
                 field_value = getattr(bp_details, field_name, None)
                 if field_value is not None:
@@ -170,7 +173,7 @@ class TestBackpackAccountSummaryPrivate:
         assert isinstance(account_summary, MarginAccountSummary), (
             "get_account_summary() should always return MarginAccountSummary"
         )
-        
+
         # Even empty accounts should have valid structure
         assert account_summary.total_equity >= Decimal("0"), (
             "Empty account should still have non-negative total_equity"
@@ -202,7 +205,7 @@ class TestBackpackAccountSummaryPrivate:
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
-        
+
         bad_api = bp_api_with_di(secrets=invalid_secrets)
 
         # Should raise authentication error
@@ -214,9 +217,7 @@ class TestBackpackAccountSummaryPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     async def test_get_account_summary_margin_calculation_consistency(
@@ -230,18 +231,18 @@ class TestBackpackAccountSummaryPrivate:
         and that Backpack-specific margin values add up correctly.
         """
         account_summary = await bp_api_for_test_env.get_account_summary()
-        
+
         if not account_summary.bp_details:
             pytest.skip("No Backpack margin details for calculation testing")
 
         bp_details = account_summary.bp_details
-        
+
         # Validate margin calculations are finite and consistent
         if bp_details.assets_value is not None:
             assert bp_details.assets_value.is_finite(), (
                 f"Assets value should be finite: {bp_details.assets_value}"
             )
-            
+
             # Assets value should be reasonable relative to total equity
             if account_summary.total_equity > Decimal("0"):
                 value_ratio = bp_details.assets_value / account_summary.total_equity
@@ -260,7 +261,7 @@ class TestBackpackAccountSummaryPrivate:
             assert bp_details.borrow_liability.is_finite(), (
                 f"Borrow liability should be finite: {bp_details.borrow_liability}"
             )
-            
+
             # Borrow liability should be part of total liabilities
             if bp_details.liabilities_value > Decimal("0"):
                 assert bp_details.borrow_liability <= bp_details.liabilities_value, (
@@ -269,15 +270,16 @@ class TestBackpackAccountSummaryPrivate:
                 )
 
         # Validate equity calculations: total_equity = assets - liabilities (approximately)
-        if (bp_details.assets_value is not None and 
-            bp_details.liabilities_value is not None and
-            account_summary.total_equity > Decimal("1")):  # Only check for significant amounts
-            
+        if (
+            bp_details.assets_value is not None
+            and bp_details.liabilities_value is not None
+            and account_summary.total_equity > Decimal("1")
+        ):  # Only check for significant amounts
             expected_equity = bp_details.assets_value - bp_details.liabilities_value
             equity_diff = abs(expected_equity - account_summary.total_equity)
             # 1% tolerance
             equity_tolerance = max(Decimal("1.0"), account_summary.total_equity * Decimal("0.01"))
-            
+
             assert equity_diff <= equity_tolerance, (
                 f"Equity calculation inconsistency: assets-liabilities={expected_equity}, "
                 f"total_equity={account_summary.total_equity}, diff={equity_diff}"
@@ -295,21 +297,21 @@ class TestBackpackAccountSummaryPrivate:
         makes sense relative to position risk and account equity.
         """
         account_summary = await bp_api_for_test_env.get_account_summary()
-        
+
         if not account_summary.bp_details or account_summary.bp_details.margin_fraction is None:
             pytest.skip("No margin fraction for validation testing")
 
         bp_details = account_summary.bp_details
         margin_fraction = bp_details.margin_fraction
-        
+
         assert margin_fraction is not None, "Margin fraction should not be None for this test"
-        
+
         # Validate margin fraction is finite and reasonable
         assert margin_fraction.is_finite(), f"Margin fraction should be finite: {margin_fraction}"
         assert margin_fraction >= Decimal("0"), (
             f"Margin fraction should be non-negative: {margin_fraction}"
         )
-        
+
         # Validate margin fraction relationships
         if account_summary.total_equity > Decimal("0"):
             # High margin fraction should correlate with low available equity
@@ -319,7 +321,7 @@ class TestBackpackAccountSummaryPrivate:
                     f"High margin fraction ({margin_fraction}) should result in "
                     f"low available equity ratio ({equity_ratio})"
                 )
-            
+
             # Low margin fraction should allow for more available equity
             elif margin_fraction < Decimal("0.2"):  # Low margin usage (<20%)
                 equity_ratio = account_summary.available_equity / account_summary.total_equity
@@ -329,14 +331,15 @@ class TestBackpackAccountSummaryPrivate:
                 )
 
         # Validate margin fraction against margin requirements if present
-        if (account_summary.total_maintenance_margin_required is not None and 
-            account_summary.total_equity > Decimal("0")):
-            
+        if (
+            account_summary.total_maintenance_margin_required is not None
+            and account_summary.total_equity > Decimal("0")
+        ):
             calculated_margin_fraction = (
                 account_summary.total_maintenance_margin_required / account_summary.total_equity
             )
             margin_diff = abs(margin_fraction - calculated_margin_fraction)
-            
+
             # Allow for some difference due to different calculation methods
             assert margin_diff <= Decimal("0.1"), (
                 f"Margin fraction mismatch: reported={margin_fraction}, "
@@ -355,15 +358,16 @@ class TestBackpackAccountSummaryPrivate:
         and precision edge cases that might occur in real trading.
         """
         account_summary = await bp_api_for_test_env.get_account_summary()
-        
+
         # Test very small equity handling
-        if (account_summary.total_equity > Decimal("0") and 
-            account_summary.total_equity < Decimal("1.0")):
+        if account_summary.total_equity > Decimal("0") and account_summary.total_equity < Decimal(
+            "1.0"
+        ):
             # Very small equity should maintain precision
             assert account_summary.total_equity.is_finite(), (
                 f"Small equity should be finite: {account_summary.total_equity}"
             )
-            
+
             # Should not have scientific notation issues
             equity_str = str(account_summary.total_equity)
             if "E" in equity_str.upper():
@@ -373,8 +377,9 @@ class TestBackpackAccountSummaryPrivate:
 
         # Test small margin amounts
         if account_summary.total_initial_margin_required is not None:
-            if (account_summary.total_initial_margin_required > Decimal("0") and 
-                account_summary.total_initial_margin_required < Decimal("0.01")):
+            if account_summary.total_initial_margin_required > Decimal(
+                "0"
+            ) and account_summary.total_initial_margin_required < Decimal("0.01"):
                 # Small margin should be properly represented
                 assert account_summary.total_initial_margin_required.is_finite(), (
                     f"Small margin should be finite: "
@@ -382,12 +387,24 @@ class TestBackpackAccountSummaryPrivate:
                 )
 
         # Test precision consistency across fields
-        equity_precision = len(str(account_summary.total_equity).split(".")[-1]) if "." in str(account_summary.total_equity) else 0
-        available_precision = len(str(account_summary.available_equity).split(".")[-1]) if "." in str(account_summary.available_equity) else 0
-        
+        equity_precision = (
+            len(str(account_summary.total_equity).split(".")[-1])
+            if "." in str(account_summary.total_equity)
+            else 0
+        )
+        available_precision = (
+            len(str(account_summary.available_equity).split(".")[-1])
+            if "." in str(account_summary.available_equity)
+            else 0
+        )
+
         # Financial precision should be reasonable (not excessive)
-        assert equity_precision <= 18, f"total_equity precision too high: {equity_precision} decimals"
-        assert available_precision <= 18, f"available_equity precision too high: {available_precision} decimals"
+        assert equity_precision <= 18, (
+            f"total_equity precision too high: {equity_precision} decimals"
+        )
+        assert available_precision <= 18, (
+            f"available_equity precision too high: {available_precision} decimals"
+        )
 
     @pytest.mark.vcr
     async def test_get_account_summary_backpack_specific_fields(
@@ -401,12 +418,12 @@ class TestBackpackAccountSummaryPrivate:
         relationships to ensure they make sense together.
         """
         account_summary = await bp_api_for_test_env.get_account_summary()
-        
+
         if not account_summary.bp_details:
             pytest.skip("No Backpack details for field testing")
 
         bp_details = account_summary.bp_details
-        
+
         # Validate assets value field
         if bp_details.assets_value is not None:
             assert isinstance(bp_details.assets_value, Decimal), "assets_value should be Decimal"
@@ -415,13 +432,21 @@ class TestBackpackAccountSummaryPrivate:
 
         # Validate liability fields
         if bp_details.liabilities_value is not None:
-            assert isinstance(bp_details.liabilities_value, Decimal), "liabilities_value should be Decimal"
-            assert bp_details.liabilities_value >= Decimal("0"), "liabilities_value should be non-negative"
+            assert isinstance(bp_details.liabilities_value, Decimal), (
+                "liabilities_value should be Decimal"
+            )
+            assert bp_details.liabilities_value >= Decimal("0"), (
+                "liabilities_value should be non-negative"
+            )
             assert bp_details.liabilities_value.is_finite(), "liabilities_value should be finite"
 
         if bp_details.borrow_liability is not None:
-            assert isinstance(bp_details.borrow_liability, Decimal), "borrow_liability should be Decimal"
-            assert bp_details.borrow_liability >= Decimal("0"), "borrow_liability should be non-negative"
+            assert isinstance(bp_details.borrow_liability, Decimal), (
+                "borrow_liability should be Decimal"
+            )
+            assert bp_details.borrow_liability >= Decimal("0"), (
+                "borrow_liability should be non-negative"
+            )
             assert bp_details.borrow_liability.is_finite(), "borrow_liability should be finite"
 
         # Validate locked equity field
@@ -429,7 +454,7 @@ class TestBackpackAccountSummaryPrivate:
             assert isinstance(bp_details.locked_equity, Decimal), "locked_equity should be Decimal"
             assert bp_details.locked_equity >= Decimal("0"), "locked_equity should be non-negative"
             assert bp_details.locked_equity.is_finite(), "locked_equity should be finite"
-            
+
             # Locked equity relationship with available equity
             expected_available = account_summary.total_equity - bp_details.locked_equity
             if expected_available >= Decimal("0"):
@@ -441,12 +466,15 @@ class TestBackpackAccountSummaryPrivate:
                 )
 
         # Validate all fields are reasonable together
-        if (bp_details.assets_value is not None and 
-            bp_details.liabilities_value is not None and
-            bp_details.locked_equity is not None):
-            
+        if (
+            bp_details.assets_value is not None
+            and bp_details.liabilities_value is not None
+            and bp_details.locked_equity is not None
+        ):
             # All values should be reasonable relative to each other
-            total_values = bp_details.assets_value + bp_details.liabilities_value + bp_details.locked_equity
+            total_values = (
+                bp_details.assets_value + bp_details.liabilities_value + bp_details.locked_equity
+            )
             assert total_values < Decimal("1000000000"), (  # 1 billion limit for sanity
                 f"Combined values seem unreasonably high: {total_values}"
             )
@@ -463,17 +491,17 @@ class TestBackpackAccountSummaryPrivate:
         and that the underlying account summary API call handles concurrency properly.
         """
         import asyncio
-        
+
         # Make multiple concurrent calls
         tasks = [
             bp_api_for_test_env.get_account_summary(),
             bp_api_for_test_env.get_account_summary(),
             bp_api_for_test_env.get_account_summary(),
         ]
-        
+
         # Execute concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # All should succeed and return consistent data
         successful_results: list[MarginAccountSummary] = []
         for i, result in enumerate(results):
@@ -484,12 +512,14 @@ class TestBackpackAccountSummaryPrivate:
                 else:
                     pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
-                assert isinstance(result, MarginAccountSummary), f"Result {i} should be MarginAccountSummary"
+                assert isinstance(result, MarginAccountSummary), (
+                    f"Result {i} should be MarginAccountSummary"
+                )
                 successful_results.append(result)
-        
+
         # At least one should succeed
         assert len(successful_results) > 0, "At least one concurrent call should succeed"
-        
+
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: MarginAccountSummary = successful_results[0]
@@ -499,8 +529,10 @@ class TestBackpackAccountSummaryPrivate:
                 assert equity_diff <= Decimal("0.01"), (
                     f"Concurrent results should have similar equity: {first_result.total_equity} vs {result.total_equity}"
                 )
-                
-                available_diff: Decimal = abs(first_result.available_equity - result.available_equity)
+
+                available_diff: Decimal = abs(
+                    first_result.available_equity - result.available_equity
+                )
                 assert available_diff <= Decimal("0.01"), (
                     f"Concurrent results should have similar available equity: "
                     f"{first_result.available_equity} vs {result.available_equity}"

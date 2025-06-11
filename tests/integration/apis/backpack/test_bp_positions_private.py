@@ -35,7 +35,9 @@ from cyberdelta.core.models.derivative_position import DerivativePosition
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/positions"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/private/positions"], indirect=True
+)
 class TestBackpackPositionsPrivate:
     """Comprehensive private positions integration tests for DerivativePosition model validation."""
 
@@ -55,7 +57,7 @@ class TestBackpackPositionsPrivate:
 
         # Validate container type
         assert isinstance(positions, list), "get_positions() should return list[DerivativePosition]"
-        
+
         # Test both empty and populated position scenarios
         if not positions:
             # Empty positions is valid for accounts with no open positions
@@ -72,15 +74,17 @@ class TestBackpackPositionsPrivate:
             assert position.exchange == "backpack", (
                 f"Position.exchange should be 'backpack', got {position.exchange}"
             )
-            
+
             # Validate symbol format (Backpack uses symbols like "SOL-PERP", "BTC-PERP")
             assert isinstance(position.symbol, str), f"Position {i} symbol must be string"
             assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
             assert len(position.symbol) <= 20, f"Position {i} symbol should be reasonable length"
-            
+
             # Backpack typically uses PERP suffix for perpetual contracts
             if "PERP" in position.symbol.upper():
-                assert "-" in position.symbol, f"Position {i} PERP symbol should have dash separator"
+                assert "-" in position.symbol, (
+                    f"Position {i} PERP symbol should have dash separator"
+                )
 
             # Validate timestamp recency
             assert position.timestamp is not None, f"Position {i} must have timestamp"
@@ -127,16 +131,21 @@ class TestBackpackPositionsPrivate:
                 )
 
             # Validate PnL calculations make sense
-            if position.size != Decimal("0") and position.entry_price > Decimal("0") and position.mark_price > Decimal("0"):
+            if (
+                position.size != Decimal("0")
+                and position.entry_price > Decimal("0")
+                and position.mark_price > Decimal("0")
+            ):
                 # Calculate expected unrealized PnL and validate it's reasonable
-                expected_pnl_direction = (position.mark_price - position.entry_price) * position.size
-                
+                expected_pnl_direction = (
+                    position.mark_price - position.entry_price
+                ) * position.size
+
                 # PnL direction should match calculation (allowing for fees and other factors)
                 if abs(expected_pnl_direction) > Decimal("0.01"):  # Only check if significant
                     pnl_direction_matches = (
-                        (expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")) or
-                        (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
-                    )
+                        expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
+                    ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
                     assert pnl_direction_matches, (
                         f"Position {i} PnL direction mismatch: expected {expected_pnl_direction > 0}, "
                         f"got unrealized_pnl={position.unrealized_pnl}"
@@ -145,7 +154,7 @@ class TestBackpackPositionsPrivate:
             # Validate exchange-specific details if present
             if position.bp_details:
                 bp_details = position.bp_details
-                
+
                 # Validate Backpack-specific position fields
                 initial_margin_req = getattr(bp_details, "initial_margin_requirement", None)
                 if initial_margin_req is not None:
@@ -155,7 +164,7 @@ class TestBackpackPositionsPrivate:
                     assert initial_margin_req >= Decimal("0"), (
                         f"Position {i} initial_margin_requirement must be non-negative"
                     )
-                
+
                 maintenance_margin_req = getattr(bp_details, "maintenance_margin_requirement", None)
                 if maintenance_margin_req is not None:
                     assert isinstance(maintenance_margin_req, Decimal), (
@@ -180,19 +189,23 @@ class TestBackpackPositionsPrivate:
 
         # Should return empty list
         assert isinstance(positions, list), "get_positions() should always return list"
-        
+
         # Empty list is valid for accounts with no positions
         if len(positions) == 0:
             return  # Test passes - no positions is valid
 
         # If positions exist, they should all be valid
         for position in positions:
-            assert isinstance(position, DerivativePosition), "All returned positions should be valid"
+            assert isinstance(position, DerivativePosition), (
+                "All returned positions should be valid"
+            )
 
     @pytest.mark.vcr
     async def test_get_positions_authentication_failure(
         self,
-        bp_api_with_di: Callable[..., BackpackAPI],  # Factory function for creating API with custom secrets
+        bp_api_with_di: Callable[
+            ..., BackpackAPI
+        ],  # Factory function for creating API with custom secrets
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with invalid Ed25519 authentication."""
@@ -201,7 +214,7 @@ class TestBackpackPositionsPrivate:
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
-        
+
         bad_api = bp_api_with_di(secrets=invalid_secrets)
 
         # Should raise authentication error
@@ -213,9 +226,7 @@ class TestBackpackPositionsPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     async def test_get_positions_large_position_handling(
@@ -229,7 +240,7 @@ class TestBackpackPositionsPrivate:
         precision loss or overflow issues.
         """
         positions = await bp_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for large position testing")
 
@@ -238,8 +249,10 @@ class TestBackpackPositionsPrivate:
             size_magnitude = abs(position.size)
             if size_magnitude > Decimal("1000"):  # Large position
                 # Should maintain precision for large positions
-                assert position.size.is_finite(), f"Large position size should be finite: {position.size}"
-                
+                assert position.size.is_finite(), (
+                    f"Large position size should be finite: {position.size}"
+                )
+
                 # PnL calculations should still be accurate
                 if position.unrealized_pnl is not None:
                     assert position.unrealized_pnl.is_finite(), (
@@ -251,12 +264,17 @@ class TestBackpackPositionsPrivate:
                     )
 
             # Test handling of high-value positions (price * size)
-            if (position.size != Decimal("0") and 
-                position.mark_price is not None and position.mark_price > Decimal("0")):
+            if (
+                position.size != Decimal("0")
+                and position.mark_price is not None
+                and position.mark_price > Decimal("0")
+            ):
                 notional_value = abs(position.size * position.mark_price)
                 if notional_value > Decimal("10000"):  # High notional value
                     # Should handle large notional values without precision issues
-                    assert notional_value.is_finite(), f"Large notional value should be finite: {notional_value}"
+                    assert notional_value.is_finite(), (
+                        f"Large notional value should be finite: {notional_value}"
+                    )
 
     @pytest.mark.vcr
     async def test_get_positions_precision_edge_cases(
@@ -270,7 +288,7 @@ class TestBackpackPositionsPrivate:
         and precision edge cases for position sizes and PnL.
         """
         positions = await bp_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for precision testing")
 
@@ -278,18 +296,27 @@ class TestBackpackPositionsPrivate:
             # Test very small position handling
             if abs(position.size) > Decimal("0") and abs(position.size) < Decimal("0.001"):
                 # Very small positions should maintain precision
-                assert position.size.is_finite(), f"Small position size should be finite: {position.size}"
-                
+                assert position.size.is_finite(), (
+                    f"Small position size should be finite: {position.size}"
+                )
+
                 # Should not have scientific notation issues
                 size_str = str(position.size)
                 if "E" in size_str.upper():
-                    assert "E-" in size_str.upper(), f"Scientific notation should be negative: {size_str}"
+                    assert "E-" in size_str.upper(), (
+                        f"Scientific notation should be negative: {size_str}"
+                    )
 
             # Test small PnL amounts
-            if (position.unrealized_pnl is not None and 
-                abs(position.unrealized_pnl) > Decimal("0") and abs(position.unrealized_pnl) < Decimal("0.01")):
+            if (
+                position.unrealized_pnl is not None
+                and abs(position.unrealized_pnl) > Decimal("0")
+                and abs(position.unrealized_pnl) < Decimal("0.01")
+            ):
                 # Small PnL should be properly represented
-                assert position.unrealized_pnl.is_finite(), f"Small PnL should be finite: {position.unrealized_pnl}"
+                assert position.unrealized_pnl.is_finite(), (
+                    f"Small PnL should be finite: {position.unrealized_pnl}"
+                )
 
     @pytest.mark.vcr
     async def test_get_positions_backpack_specific_details(
@@ -303,14 +330,14 @@ class TestBackpackPositionsPrivate:
         margin requirements and exchange-specific fields.
         """
         positions = await bp_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for Backpack-specific testing")
 
         for position in positions:
             if position.bp_details:
                 bp_details = position.bp_details
-                
+
                 # Validate Backpack-specific margin fields if present
                 initial_margin_req = getattr(bp_details, "initial_margin_requirement", None)
                 if initial_margin_req is not None:
@@ -320,10 +347,13 @@ class TestBackpackPositionsPrivate:
                     assert initial_margin_req >= Decimal("0"), (
                         "initial_margin_requirement should be non-negative"
                     )
-                    
+
                     # Initial margin should be reasonable relative to position value
-                    if (position.size != Decimal("0") and 
-                        position.mark_price is not None and position.mark_price > Decimal("0")):
+                    if (
+                        position.size != Decimal("0")
+                        and position.mark_price is not None
+                        and position.mark_price > Decimal("0")
+                    ):
                         notional_value = abs(position.size * position.mark_price)
                         margin_ratio = initial_margin_req / notional_value
                         assert margin_ratio <= Decimal("1.0"), (
@@ -338,7 +368,7 @@ class TestBackpackPositionsPrivate:
                     assert maintenance_margin_req >= Decimal("0"), (
                         "maintenance_margin_requirement should be non-negative"
                     )
-                    
+
                     # Maintenance margin should be less than or equal to initial margin
                     if initial_margin_req is not None:
                         assert maintenance_margin_req <= initial_margin_req, (
@@ -351,9 +381,7 @@ class TestBackpackPositionsPrivate:
                     assert isinstance(cumulative_funding, Decimal), (
                         "cumulative_funding should be Decimal"
                     )
-                    assert cumulative_funding.is_finite(), (
-                        "cumulative_funding should be finite"
-                    )
+                    assert cumulative_funding.is_finite(), "cumulative_funding should be finite"
 
     @pytest.mark.vcr
     async def test_get_positions_pnl_consistency(
@@ -367,7 +395,7 @@ class TestBackpackPositionsPrivate:
         and handles edge cases like zero positions or extreme price movements.
         """
         positions = await bp_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for PnL testing")
 
@@ -400,8 +428,12 @@ class TestBackpackPositionsPrivate:
                 )
 
         # Validate total PnL is reasonable
-        assert total_unrealized_pnl.is_finite(), f"Total unrealized PnL should be finite: {total_unrealized_pnl}"
-        assert total_realized_pnl.is_finite(), f"Total realized PnL should be finite: {total_realized_pnl}"
+        assert total_unrealized_pnl.is_finite(), (
+            f"Total unrealized PnL should be finite: {total_unrealized_pnl}"
+        )
+        assert total_realized_pnl.is_finite(), (
+            f"Total realized PnL should be finite: {total_realized_pnl}"
+        )
 
     @pytest.mark.vcr
     async def test_get_positions_symbol_format_validation(
@@ -415,18 +447,18 @@ class TestBackpackPositionsPrivate:
         and are properly formatted.
         """
         positions = await bp_api_for_test_env.get_positions()
-        
+
         if not positions:
             pytest.skip("No positions for symbol validation testing")
 
         for position in positions:
             symbol = position.symbol
-            
+
             # Validate symbol format
             assert isinstance(symbol, str), "Symbol should be string"
             assert len(symbol) > 0, "Symbol should not be empty"
             assert symbol == symbol.strip(), "Symbol should not have leading/trailing whitespace"
-            
+
             # Backpack typically uses patterns like "SOL-PERP", "BTC-PERP"
             if "PERP" in symbol.upper():
                 # Perpetual contracts should have proper format
@@ -435,7 +467,7 @@ class TestBackpackPositionsPrivate:
                 assert len(parts) == 2, f"PERP symbol should have exactly one dash: {symbol}"
                 assert parts[1].upper() == "PERP", f"Second part should be PERP: {symbol}"
                 assert len(parts[0]) >= 2, f"Asset part should be at least 2 characters: {symbol}"
-                
+
             # Symbol should not contain invalid characters
             invalid_chars = ["<", ">", "&", "'", '"', "%"]
             for char in invalid_chars:
@@ -453,17 +485,17 @@ class TestBackpackPositionsPrivate:
         and that the underlying positions API call handles concurrency properly.
         """
         import asyncio
-        
+
         # Make multiple concurrent calls
         tasks = [
             bp_api_for_test_env.get_positions(),
             bp_api_for_test_env.get_positions(),
             bp_api_for_test_env.get_positions(),
         ]
-        
+
         # Execute concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # All should succeed and return consistent data
         successful_results: list[list[DerivativePosition]] = []
         for i, result in enumerate(results):
@@ -476,10 +508,10 @@ class TestBackpackPositionsPrivate:
             else:
                 assert isinstance(result, list), f"Result {i} should be list"
                 successful_results.append(result)
-        
+
         # At least one should succeed
         assert len(successful_results) > 0, "At least one concurrent call should succeed"
-        
+
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: list[DerivativePosition] = successful_results[0]
@@ -488,17 +520,17 @@ class TestBackpackPositionsPrivate:
                 assert len(first_result) == len(result), (
                     f"Concurrent results should have same position count: {len(first_result)} vs {len(result)}"
                 )
-                
+
                 # If there are positions, validate consistency
                 if first_result:
                     # Create symbol to position mapping for comparison
                     first_positions = {pos.symbol: pos for pos in first_result}
                     second_positions = {pos.symbol: pos for pos in result}
-                    
+
                     assert set(first_positions.keys()) == set(second_positions.keys()), (
                         "Concurrent results should have same symbols"
                     )
-                    
+
                     # Check position sizes are consistent (allowing for minor timing differences)
                     for symbol in first_positions.keys():
                         first_size = first_positions[symbol].size

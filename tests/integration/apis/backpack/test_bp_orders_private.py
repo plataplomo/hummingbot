@@ -71,9 +71,7 @@ class TestBackpackOrdersPrivate:
         placed_order = await bp_api_for_test_env.place_order(place_args)
 
         # Validate return type
-        assert isinstance(placed_order, Order), (
-            "place_order() should return Order instance"
-        )
+        assert isinstance(placed_order, Order), "place_order() should return Order instance"
 
         # Validate core fields
         assert placed_order.exchange == "backpack", (
@@ -121,9 +119,7 @@ class TestBackpackOrdersPrivate:
         assert placed_order.status in [OrderStatus.OPEN, OrderStatus.NEW], (
             f"Order should be open/new after placement, got {placed_order.status}"
         )
-        assert placed_order.exchange_order_id is not None, (
-            "Order should have exchange-generated ID"
-        )
+        assert placed_order.exchange_order_id is not None, "Order should have exchange-generated ID"
 
         # For new orders, quantity_filled should be 0
         assert placed_order.quantity_filled == Decimal("0"), (
@@ -177,7 +173,7 @@ class TestBackpackOrdersPrivate:
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
         order_id = placed_order.exchange_order_id
-        
+
         # Ensure order_id is not None before creating cancel args
         assert order_id is not None, "Order ID should not be None after placement"
 
@@ -215,16 +211,12 @@ class TestBackpackOrdersPrivate:
         order_history = await bp_api_for_test_env.get_order_history(args)
 
         # Validate return type
-        assert isinstance(order_history, list), (
-            "get_order_history() should return list[Order]"
-        )
+        assert isinstance(order_history, list), "get_order_history() should return list[Order]"
 
         # If history exists, validate structure
         if order_history:
             sample_order = order_history[0]
-            assert isinstance(sample_order, Order), (
-                "Historical order should be Order instance"
-            )
+            assert isinstance(sample_order, Order), "Historical order should be Order instance"
 
             # Validate exchange field
             assert sample_order.exchange == "backpack", (
@@ -236,9 +228,7 @@ class TestBackpackOrdersPrivate:
             assert sample_order.side in [OrderSide.BUY, OrderSide.SELL], (
                 "side must be valid OrderSide"
             )
-            assert sample_order.exchange_order_id is not None, (
-                "order should have exchange ID"
-            )
+            assert sample_order.exchange_order_id is not None, "order should have exchange ID"
 
             # Validate Decimal precision
             assert isinstance(sample_order.quantity_requested, Decimal), (
@@ -249,9 +239,7 @@ class TestBackpackOrdersPrivate:
             )
 
             # Validate timestamps
-            assert sample_order.created_at is not None, (
-                "order should have created_at timestamp"
-            )
+            assert sample_order.created_at is not None, "order should have created_at timestamp"
 
             # Validate historical order is within requested time range
             if sample_order.created_at:
@@ -270,9 +258,7 @@ class TestBackpackOrdersPrivate:
         open_orders = await bp_api_for_test_env.get_open_orders()
 
         # Validate return type
-        assert isinstance(open_orders, list), (
-            "get_open_orders() should return list[Order]"
-        )
+        assert isinstance(open_orders, list), "get_open_orders() should return list[Order]"
 
         # If orders exist, validate structure
         if open_orders:
@@ -292,9 +278,7 @@ class TestBackpackOrdersPrivate:
             assert sample_order.status == OrderStatus.OPEN, (
                 f"open order should have OPEN status, got {sample_order.status}"
             )
-            assert sample_order.exchange_order_id is not None, (
-                "order should have exchange ID"
-            )
+            assert sample_order.exchange_order_id is not None, "order should have exchange ID"
 
             # Validate Decimal precision
             assert isinstance(sample_order.quantity_requested, Decimal), (
@@ -310,7 +294,9 @@ class TestBackpackOrdersPrivate:
     @pytest.mark.vcr
     async def test_place_order_authentication_failure(
         self,
-        bp_api_with_di: Callable[..., BackpackAPI],  # Factory function for creating API with custom secrets
+        bp_api_with_di: Callable[
+            ..., BackpackAPI
+        ],  # Factory function for creating API with custom secrets
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with invalid Ed25519 authentication."""
@@ -319,7 +305,7 @@ class TestBackpackOrdersPrivate:
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
-        
+
         bad_api = bp_api_with_di(secrets=invalid_secrets)
 
         # Define order args
@@ -341,9 +327,7 @@ class TestBackpackOrdersPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     async def test_place_order_insufficient_funds(
@@ -429,12 +413,12 @@ class TestBackpackOrdersPrivate:
         assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
             f"BackpackErrorMapper should map order not found to ORDER_NOT_FOUND, got {api_error.code}"
         )
-        
+
         # Check for common Backpack order not found phrases
         message_lower = api_error.message.lower()
-        assert any(phrase in message_lower for phrase in [
-            "not found", "invalid", "does not exist"
-        ]), f"Error message should indicate order not found: {api_error.message}"
+        assert any(
+            phrase in message_lower for phrase in ["not found", "invalid", "does not exist"]
+        ), f"Error message should indicate order not found: {api_error.message}"
 
     @pytest.mark.vcr
     async def test_order_precision_edge_cases(
@@ -460,23 +444,25 @@ class TestBackpackOrdersPrivate:
         try:
             # Attempt to place small order
             placed_order = await bp_api_for_test_env.place_order(small_order_args)
-            
+
             # If successful, validate precision is maintained
             assert placed_order.quantity_requested == Decimal("0.001"), (
                 f"Small quantity precision should be maintained: {placed_order.quantity_requested}"
             )
-            
+
             # Validate that small quantities maintain proper decimal representation
             quantity_str = str(placed_order.quantity_requested)
             assert "E" not in quantity_str.upper() or "E-" in quantity_str.upper(), (
                 f"Scientific notation should be negative exponent if used: {quantity_str}"
             )
-            
+
             # Clean up
             if placed_order.exchange_order_id:
-                cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol="SOL_USDC")
+                cancel_args = CancelOrderArgs(
+                    order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+                )
                 await bp_api_for_test_env.cancel_order(cancel_args)
-                
+
         except APIError as e:
             # If exchange rejects due to minimum quantity, that's also valid behavior
             if "minimum" in e.message.lower() or "size" in e.message.lower():
@@ -497,7 +483,7 @@ class TestBackpackOrdersPrivate:
         """
         # Get open orders to test symbol formats
         open_orders = await bp_api_for_test_env.get_open_orders()
-        
+
         # Also place a test order to validate symbol format
         place_args = PlaceOrderArgs(
             symbol="SOL_USDC",  # Standard Backpack format
@@ -507,20 +493,20 @@ class TestBackpackOrdersPrivate:
             price=Decimal("1.00"),
             time_in_force=TimeInForce.GTC,
         )
-        
+
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Combine orders for symbol validation
         all_orders = open_orders + [placed_order]
-        
+
         for order in all_orders:
             symbol = order.symbol
-            
+
             # Validate symbol format
             assert isinstance(symbol, str), "Symbol should be string"
             assert len(symbol) > 0, "Symbol should not be empty"
             assert symbol == symbol.strip(), "Symbol should not have leading/trailing whitespace"
-            
+
             # Backpack typically uses patterns like "SOL_USDC", "BTC_USDC"
             if "_" in symbol:
                 # Spot trading pairs should have proper format
@@ -528,15 +514,17 @@ class TestBackpackOrdersPrivate:
                 assert len(parts) == 2, f"Trading pair should have exactly one underscore: {symbol}"
                 assert len(parts[0]) >= 2, f"Base asset should be at least 2 characters: {symbol}"
                 assert len(parts[1]) >= 3, f"Quote asset should be at least 3 characters: {symbol}"
-                
+
             # Symbol should not contain invalid characters
             invalid_chars = ["<", ">", "&", "'", '"', "%", " "]
             for char in invalid_chars:
                 assert char not in symbol, f"Symbol should not contain {char}: {symbol}"
-        
+
         # Clean up the test order
         if placed_order.exchange_order_id:
-            cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol="SOL_USDC")
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+            )
             await bp_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr
@@ -566,10 +554,7 @@ class TestBackpackOrdersPrivate:
 
         # Step 2: Verify order appears in open orders
         open_orders = await bp_api_for_test_env.get_open_orders()
-        placed_order_found = any(
-            order.exchange_order_id == order_id 
-            for order in open_orders
-        )
+        placed_order_found = any(order.exchange_order_id == order_id for order in open_orders)
         assert placed_order_found, "Placed order should appear in open orders"
 
         # Step 3: Cancel order
@@ -580,8 +565,7 @@ class TestBackpackOrdersPrivate:
         # Step 4: Verify order no longer in open orders
         open_orders_after = await bp_api_for_test_env.get_open_orders()
         cancelled_order_found = any(
-            order.exchange_order_id == order_id 
-            for order in open_orders_after
+            order.exchange_order_id == order_id for order in open_orders_after
         )
         assert not cancelled_order_found, "Cancelled order should not appear in open orders"
 
@@ -607,18 +591,20 @@ class TestBackpackOrdersPrivate:
         )
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Validate Backpack-specific order fields
         assert placed_order.exchange == "backpack", "Order should be from Backpack"
-        
+
         # Validate order ID format (Backpack specific)
         assert isinstance(placed_order.exchange_order_id, str), "Backpack order ID should be string"
         assert len(placed_order.exchange_order_id) > 0, "Order ID should not be empty"
-        
+
         # Validate time in force is preserved
         if hasattr(placed_order, "time_in_force"):
-            assert placed_order.time_in_force == TimeInForce.GTC, "Time in force should be preserved"
-        
+            assert placed_order.time_in_force == TimeInForce.GTC, (
+                "Time in force should be preserved"
+            )
+
         # Test with get_open_orders to see if bp_details are populated
         open_orders = await bp_api_for_test_env.get_open_orders()
         test_order = None
@@ -626,23 +612,25 @@ class TestBackpackOrdersPrivate:
             if order.exchange_order_id == placed_order.exchange_order_id:
                 test_order = order
                 break
-        
+
         if test_order and test_order.bp_details:
             bp_details = test_order.bp_details
-            
+
             # Validate Backpack-specific order details if present
             client_id = getattr(bp_details, "client_id", None)
             if client_id is not None:
                 assert isinstance(client_id, str), "client_id should be string"
-            
+
             order_flags = getattr(bp_details, "order_flags", None)
             if order_flags is not None:
                 # Order flags should be reasonable
                 assert isinstance(order_flags, (int, str)), "order_flags should be int or string"
-        
+
         # Clean up
         if placed_order.exchange_order_id:
-            cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol="SOL_USDC")
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+            )
             await bp_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr
@@ -658,23 +646,23 @@ class TestBackpackOrdersPrivate:
         # Test recent date range
         end_time = datetime.now()
         start_time = end_time - timedelta(days=1)  # Last 24 hours
-        
+
         args = GetOrderHistoryArgs(
             start_time=start_time,
             end_time=end_time,
             limit=10,
         )
-        
+
         recent_history = await bp_api_for_test_env.get_order_history(args)
         assert isinstance(recent_history, list), "Should return list"
-        
+
         # Validate orders are within date range
         for order in recent_history:
             if order.created_at:
                 assert start_time <= order.created_at <= end_time, (
                     f"Order should be within date range: {order.created_at}"
                 )
-        
+
         # Test longer date range
         long_start_time = end_time - timedelta(days=7)  # Last week
         long_args = GetOrderHistoryArgs(
@@ -682,10 +670,10 @@ class TestBackpackOrdersPrivate:
             end_time=end_time,
             limit=50,
         )
-        
+
         long_history = await bp_api_for_test_env.get_order_history(long_args)
         assert isinstance(long_history, list), "Should return list for longer range"
-        
+
         # Longer range should have >= orders from shorter range
         assert len(long_history) >= len(recent_history), (
             "Longer date range should include at least as many orders"

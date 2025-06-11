@@ -35,7 +35,9 @@ from cyberdelta.core.models.spot_balance import SpotBalance
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/balances"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/private/balances"], indirect=True
+)
 class TestBackpackBalancesPrivate:
     """Comprehensive private balances integration tests for SpotBalance model validation."""
 
@@ -55,7 +57,7 @@ class TestBackpackBalancesPrivate:
 
         # Validate container type
         assert isinstance(balances, dict), "get_balances() should return dict[str, SpotBalance]"
-        
+
         # Test both empty and populated balance scenarios
         if not balances:
             pytest.skip("No balances available in test environment for validation")
@@ -105,17 +107,29 @@ class TestBackpackBalancesPrivate:
             )
 
             # Validate Decimal precision (should have reasonable precision for crypto)
-            total_precision = len(str(balance.total_quantity).split(".")[-1]) if "." in str(balance.total_quantity) else 0
-            available_precision = len(str(balance.available_quantity).split(".")[-1]) if "." in str(balance.available_quantity) else 0
-            
+            total_precision = (
+                len(str(balance.total_quantity).split(".")[-1])
+                if "." in str(balance.total_quantity)
+                else 0
+            )
+            available_precision = (
+                len(str(balance.available_quantity).split(".")[-1])
+                if "." in str(balance.available_quantity)
+                else 0
+            )
+
             # Crypto typically has 8-18 decimal places, but our internal precision should be reasonable
-            assert total_precision <= 18, f"total_quantity precision too high: {total_precision} decimals"
-            assert available_precision <= 18, f"available_quantity precision too high: {available_precision} decimals"
+            assert total_precision <= 18, (
+                f"total_quantity precision too high: {total_precision} decimals"
+            )
+            assert available_precision <= 18, (
+                f"available_quantity precision too high: {available_precision} decimals"
+            )
 
             # Validate exchange-specific details if present
             if balance.bp_details:
                 bp_details = balance.bp_details
-                
+
                 # Validate Backpack-specific balance fields
                 if bp_details.open_order_quantity is not None:
                     assert isinstance(bp_details.open_order_quantity, Decimal), (
@@ -149,20 +163,30 @@ class TestBackpackBalancesPrivate:
 
         # Should return empty dict or dict with zero balances
         assert isinstance(balances, dict), "get_balances() should always return dict"
-        
+
         # If balances exist, they should all be valid (including zero balances)
         for asset_symbol, balance in balances.items():
-            assert isinstance(balance, SpotBalance), f"Even zero balance should be SpotBalance for {asset_symbol}"
-            
+            assert isinstance(balance, SpotBalance), (
+                f"Even zero balance should be SpotBalance for {asset_symbol}"
+            )
+
             # Zero balances should still follow constraints
-            assert balance.total_quantity >= Decimal("0"), "Zero balances should still be non-negative"
-            assert balance.available_quantity >= Decimal("0"), "Zero available should still be non-negative"
-            assert balance.total_quantity >= balance.available_quantity, "Zero balance logic should still hold"
+            assert balance.total_quantity >= Decimal("0"), (
+                "Zero balances should still be non-negative"
+            )
+            assert balance.available_quantity >= Decimal("0"), (
+                "Zero available should still be non-negative"
+            )
+            assert balance.total_quantity >= balance.available_quantity, (
+                "Zero balance logic should still hold"
+            )
 
     @pytest.mark.vcr
     async def test_get_balances_authentication_failure(
         self,
-        bp_api_with_di: Callable[..., BackpackAPI],  # Factory function for creating API with custom secrets
+        bp_api_with_di: Callable[
+            ..., BackpackAPI
+        ],  # Factory function for creating API with custom secrets
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with invalid Ed25519 authentication.
@@ -175,7 +199,7 @@ class TestBackpackBalancesPrivate:
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
-        
+
         bad_api = bp_api_with_di(secrets=invalid_secrets)
 
         # Should raise authentication error
@@ -187,11 +211,9 @@ class TestBackpackBalancesPrivate:
         assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
             f"Expected AUTHENTICATION_FAILED, got {error.code}"
         )
-        assert error.http_status in [401, 403], (
-            f"Expected 401/403 status, got {error.http_status}"
-        )
+        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
         assert len(error.message) > 0, "Error message should be descriptive"
-        
+
         # Validate exchange-specific error preservation
         assert error.exchange_code is not None, "Exchange error code should be preserved"
 
@@ -211,7 +233,7 @@ class TestBackpackBalancesPrivate:
             tasks: list[Any] = []
             for _ in range(5):
                 tasks.append(bp_api_for_test_env.get_balances())
-            
+
             # Most should succeed, but if rate limited, validate error handling
             results: list[dict[str, Any]] = []
             for i, task in enumerate(tasks):
@@ -231,7 +253,7 @@ class TestBackpackBalancesPrivate:
                             )
                     else:
                         raise  # Re-raise non-rate-limit errors
-                        
+
         except Exception as e:
             # If we can't trigger rate limiting in test environment, skip the test
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
@@ -248,7 +270,7 @@ class TestBackpackBalancesPrivate:
         and precision edge cases that might occur in real trading.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         if not balances:
             pytest.skip("No balances for precision testing")
 
@@ -259,18 +281,18 @@ class TestBackpackBalancesPrivate:
                 assert balance.total_quantity.is_finite(), (
                     f"Balance {balance.total_quantity} should be finite"
                 )
-                
+
                 # Check for dust handling (very small amounts)
                 if balance.total_quantity < Decimal("0.000001"):  # Less than 1 micro-unit
                     # Even dust amounts should be properly represented
                     assert str(balance.total_quantity) != "0E-0", (
                         "Dust balances should maintain proper decimal representation"
                     )
-                
+
                 # Validate precision consistency between total and available
                 total_str = str(balance.total_quantity)
                 available_str = str(balance.available_quantity)
-                
+
                 # Both should have reasonable precision representation
                 assert "E" not in total_str.upper() or "E-" in total_str.upper(), (
                     f"Scientific notation should be negative exponent if used: {total_str}"
@@ -291,14 +313,14 @@ class TestBackpackBalancesPrivate:
         and other exchange-specific fields.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         if not balances:
             pytest.skip("No balances for Backpack-specific testing")
 
         for asset_symbol, balance in balances.items():
             if balance.bp_details:
                 bp_details = balance.bp_details
-                
+
                 # Validate open order quantity if present
                 if bp_details.open_order_quantity is not None:
                     # Should be Decimal and non-negative
@@ -308,13 +330,13 @@ class TestBackpackBalancesPrivate:
                     assert bp_details.open_order_quantity >= Decimal("0"), (
                         f"open_order_quantity should be non-negative for {asset_symbol}"
                     )
-                    
+
                     # Open order quantity should make sense relative to total balance
                     assert bp_details.open_order_quantity <= balance.total_quantity, (
                         f"open_order_quantity ({bp_details.open_order_quantity}) cannot exceed "
                         f"total_quantity ({balance.total_quantity}) for {asset_symbol}"
                     )
-                    
+
                     # If there are open orders, available should be less than total
                     if bp_details.open_order_quantity > Decimal("0"):
                         assert balance.available_quantity <= balance.total_quantity, (
@@ -333,17 +355,17 @@ class TestBackpackBalancesPrivate:
         and that the underlying balance API call handles concurrency properly.
         """
         import asyncio
-        
+
         # Make multiple concurrent calls
         tasks = [
             bp_api_for_test_env.get_balances(),
             bp_api_for_test_env.get_balances(),
             bp_api_for_test_env.get_balances(),
         ]
-        
+
         # Execute concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # All should succeed and return consistent data
         successful_results: list[dict[str, Any]] = []
         for i, result in enumerate(results):
@@ -356,10 +378,10 @@ class TestBackpackBalancesPrivate:
             else:
                 assert isinstance(result, dict), f"Result {i} should be dict"
                 successful_results.append(result)
-        
+
         # At least one should succeed
         assert len(successful_results) > 0, "At least one concurrent call should succeed"
-        
+
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result: dict[str, Any] = successful_results[0]
@@ -368,7 +390,7 @@ class TestBackpackBalancesPrivate:
                 assert set(first_result.keys()) == set(result.keys()), (
                     f"Concurrent results should have same assets: {first_result.keys()} vs {result.keys()}"
                 )
-                
+
                 # Check that balances are consistent across concurrent calls
                 for asset in first_result.keys():
                     if asset in result:
@@ -395,10 +417,10 @@ class TestBackpackBalancesPrivate:
         try:
             # Attempt the call - in normal conditions this should succeed
             balances = await bp_api_for_test_env.get_balances()
-            
+
             # If successful, validate the response
             assert isinstance(balances, dict), "Successful response should be dict"
-            
+
         except APIError as e:
             # If we get a timeout or network error, validate it's properly classified
             if "timeout" in e.message.lower() or "connection" in e.message.lower():
@@ -423,7 +445,7 @@ class TestBackpackBalancesPrivate:
         precision loss or overflow issues.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         if not balances:
             pytest.skip("No balances for large balance testing")
 
@@ -434,12 +456,12 @@ class TestBackpackBalancesPrivate:
                 assert balance.total_quantity.is_finite(), (
                     f"Large balance should be finite: {balance.total_quantity}"
                 )
-                
+
                 # Available quantity should still be finite and reasonable
                 assert balance.available_quantity.is_finite(), (
                     f"Large available balance should be finite: {balance.available_quantity}"
                 )
-                
+
                 # Large balances should still follow business logic
                 assert balance.total_quantity >= balance.available_quantity, (
                     f"Large balance logic should still hold: total={balance.total_quantity}, "
