@@ -122,7 +122,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         Args:
             method: HTTP method (GET, POST, etc.)
-            path: API endpoint path
+            path: API endpoint path or full URL
 
         Returns:
             Instruction string for signing
@@ -132,24 +132,31 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         """
         method_upper = method.upper()
+        
+        # Extract path component if a full URL is provided
+        lookup_path = path
+        if path.startswith(("http://", "https://")):
+            from urllib.parse import urlparse
+            parsed_url = urlparse(path)
+            lookup_path = parsed_url.path
 
         # Try exact match first
-        if (method_upper, path) in self.INSTRUCTION_MAP:
-            return self.INSTRUCTION_MAP[(method_upper, path)]
+        if (method_upper, lookup_path) in self.INSTRUCTION_MAP:
+            return self.INSTRUCTION_MAP[(method_upper, lookup_path)]
 
         # Try to match path templates with variables
         for (map_method, map_path), instruction in self.INSTRUCTION_MAP.items():
             if map_method == method_upper:
                 # Handle paths with variables like /api/v1/order/{orderId}
                 # For now, simple prefix matching for common patterns
-                if map_path.endswith("/{orderId}") and path.startswith(map_path[:-10]):
+                if map_path.endswith("/{orderId}") and lookup_path.startswith(map_path[:-10]):
                     return instruction
-                elif map_path.endswith("/{id}") and path.startswith(map_path[:-5]):
+                elif map_path.endswith("/{id}") and lookup_path.startswith(map_path[:-5]):
                     return instruction
 
         # If no match found, raise error
         raise APIError(
-            f"Backpack instruction not found for {method_upper} {path}",
+            f"Backpack instruction not found for {method_upper} {lookup_path}",
             code=APIErrorCode.INVALID_REQUEST.value,
         )
 

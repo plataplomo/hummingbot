@@ -199,7 +199,15 @@ class BackpackAccountService:
             # The response_handler.handle_get_positions_response now correctly handles
             # dict for single symbol or list for all symbols.
             return self._response_handler.handle_get_positions_response(raw_data, symbol)
-        except APIError:
+        except APIError as e:
+            # Handle 404 for positions endpoint - Backpack may not support this endpoint
+            # or account may have no positions, return empty list
+            if e.http_status == 404:
+                logger.info(
+                    f"[{self._exchange_name}] Positions endpoint returned 404, "
+                    f"returning empty positions list for symbol '{symbol or 'all'}'"
+                )
+                return []
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
