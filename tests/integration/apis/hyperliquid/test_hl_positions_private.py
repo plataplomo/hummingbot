@@ -42,6 +42,7 @@ class TestHyperliquidPositionsPrivate:
     """Comprehensive private positions integration tests for DerivativePosition model validation."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -173,6 +174,7 @@ class TestHyperliquidPositionsPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_empty_account(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -199,6 +201,7 @@ class TestHyperliquidPositionsPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_authentication_failure(
         self,
         hl_api_with_di: Callable[
@@ -228,6 +231,7 @@ class TestHyperliquidPositionsPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_large_position_handling(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -276,6 +280,7 @@ class TestHyperliquidPositionsPrivate:
                     )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_precision_edge_cases(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -318,6 +323,7 @@ class TestHyperliquidPositionsPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_leverage_validation(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -365,6 +371,7 @@ class TestHyperliquidPositionsPrivate:
             assert len(isolated_positions) > 0, "Isolated positions should be properly categorized"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_pnl_consistency(
         self,
         hl_api_for_test_env: HyperliquidAPI,

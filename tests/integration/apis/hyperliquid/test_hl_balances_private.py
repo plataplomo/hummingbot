@@ -42,6 +42,7 @@ class TestHyperliquidBalancesPrivate:
     """Comprehensive private balances integration tests for SpotBalance model validation."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -134,6 +135,7 @@ class TestHyperliquidBalancesPrivate:
                 assert hasattr(balance, "hl_details"), "hl_details should be accessible"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_empty_account(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -167,6 +169,7 @@ class TestHyperliquidBalancesPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_authentication_failure(
         self,
         hl_api_with_di: Callable[
@@ -204,6 +207,7 @@ class TestHyperliquidBalancesPrivate:
         assert error.exchange_code is not None, "Exchange error code should be preserved"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_network_timeout(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -234,6 +238,7 @@ class TestHyperliquidBalancesPrivate:
                 raise
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_rate_limiting(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -275,6 +280,7 @@ class TestHyperliquidBalancesPrivate:
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_precision_edge_cases(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -318,6 +324,7 @@ class TestHyperliquidBalancesPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_concurrent_requests(
         self,
         hl_api_for_test_env: HyperliquidAPI,

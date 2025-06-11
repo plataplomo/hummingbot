@@ -45,6 +45,7 @@ class TestHyperliquidAccountSummaryPrivate:
     """
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -151,6 +152,7 @@ class TestHyperliquidAccountSummaryPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_empty_account(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -188,6 +190,7 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_authentication_failure(
         self,
         hl_api_with_di: Callable[
@@ -217,6 +220,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_margin_calculation_consistency(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -270,6 +274,7 @@ class TestHyperliquidAccountSummaryPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_precision_edge_cases(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -332,6 +337,7 @@ class TestHyperliquidAccountSummaryPrivate:
         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_leverage_scenarios(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -396,6 +402,7 @@ class TestHyperliquidAccountSummaryPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_concurrent_requests(
         self,
         hl_api_for_test_env: HyperliquidAPI,

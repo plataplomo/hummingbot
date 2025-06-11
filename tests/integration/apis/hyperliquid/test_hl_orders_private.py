@@ -49,6 +49,7 @@ class TestHyperliquidOrdersPrivate:
     """Comprehensive private orders integration tests for Order model validation."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -157,6 +158,7 @@ class TestHyperliquidOrdersPrivate:
             assert hasattr(placed_order, "hl_details"), "hl_details should be accessible"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_cancel_order_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -194,6 +196,7 @@ class TestHyperliquidOrdersPrivate:
         assert cancel_result is True, "cancel_order() should return True on success"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_order_by_id_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -248,6 +251,7 @@ class TestHyperliquidOrdersPrivate:
         await hl_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_order_history_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -306,6 +310,7 @@ class TestHyperliquidOrdersPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_open_orders_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -356,6 +361,7 @@ class TestHyperliquidOrdersPrivate:
                 pytest.fail("Hyperliquid order ID should be a valid integer string")
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_authentication_failure(
         self,
         hl_api_with_di: Callable[
@@ -395,6 +401,7 @@ class TestHyperliquidOrdersPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_insufficient_funds(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -435,6 +442,7 @@ class TestHyperliquidOrdersPrivate:
         ), f"Error message should indicate insufficient funds/balance: {api_error.message}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_invalid_symbol(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -464,6 +472,7 @@ class TestHyperliquidOrdersPrivate:
         ], f"Should map to symbol-related error code, got {api_error.code}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_cancel_nonexistent_order(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -499,6 +508,7 @@ class TestHyperliquidOrdersPrivate:
         ), f"Error message should indicate order not found: {api_error.message}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_order_nonexistent_id(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -520,6 +530,7 @@ class TestHyperliquidOrdersPrivate:
         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_precision_edge_cases(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -570,6 +581,7 @@ class TestHyperliquidOrdersPrivate:
                 raise
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_lifecycle_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,

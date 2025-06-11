@@ -175,6 +175,7 @@ class TestBackpackPositionsPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -205,6 +206,7 @@ class TestBackpackPositionsPrivate:
             self._validate_backpack_specific_details(position, i)
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_empty_account(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -231,6 +233,7 @@ class TestBackpackPositionsPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_authentication_failure(
         self,
         bp_api_with_di: Callable[
@@ -259,6 +262,7 @@ class TestBackpackPositionsPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_large_position_handling(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -307,6 +311,7 @@ class TestBackpackPositionsPrivate:
                     )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_precision_edge_cases(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -349,6 +354,7 @@ class TestBackpackPositionsPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_backpack_specific_details(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -414,6 +420,7 @@ class TestBackpackPositionsPrivate:
                     assert cumulative_funding.is_finite(), "cumulative_funding should be finite"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_pnl_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -467,6 +474,7 @@ class TestBackpackPositionsPrivate:
         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_symbol_format_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -505,6 +513,7 @@ class TestBackpackPositionsPrivate:
                 assert char not in symbol, f"Symbol should not contain {char}: {symbol}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_positions_concurrent_requests(
         self,
         bp_api_for_test_env: BackpackAPI,

@@ -46,6 +46,7 @@ class TestBackpackOrdersPrivate:
     """Comprehensive private orders integration tests for Order model validation."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -152,6 +153,7 @@ class TestBackpackOrdersPrivate:
             assert hasattr(placed_order, "bp_details"), "bp_details should be accessible"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_cancel_order_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -189,6 +191,7 @@ class TestBackpackOrdersPrivate:
         assert cancel_result is True, "cancel_order() should return True on success"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_order_history_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -248,6 +251,7 @@ class TestBackpackOrdersPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_open_orders_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -292,6 +296,7 @@ class TestBackpackOrdersPrivate:
                 assert isinstance(sample_order.price, Decimal), "price must be Decimal"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_authentication_failure(
         self,
         bp_api_with_di: Callable[
@@ -330,6 +335,7 @@ class TestBackpackOrdersPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_insufficient_funds(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -364,6 +370,7 @@ class TestBackpackOrdersPrivate:
         assert len(api_error.message) > 0, "Error message should not be empty"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_place_order_invalid_symbol(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -393,6 +400,7 @@ class TestBackpackOrdersPrivate:
         ], f"Should map to symbol-related error code, got {api_error.code}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_cancel_nonexistent_order(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -423,6 +431,7 @@ class TestBackpackOrdersPrivate:
         ), f"Error message should indicate order not found: {api_error.message}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_precision_edge_cases(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -473,6 +482,7 @@ class TestBackpackOrdersPrivate:
                 raise
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_symbol_format_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -530,6 +540,7 @@ class TestBackpackOrdersPrivate:
             await bp_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_lifecycle_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -572,6 +583,7 @@ class TestBackpackOrdersPrivate:
         assert not cancelled_order_found, "Cancelled order should not appear in open orders"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_backpack_specific_details(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -636,6 +648,7 @@ class TestBackpackOrdersPrivate:
             await bp_api_for_test_env.cancel_order(cancel_args)
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_order_history_date_range_validation(
         self,
         bp_api_for_test_env: BackpackAPI,

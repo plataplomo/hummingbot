@@ -42,6 +42,7 @@ class TestBackpackAccountSummaryPrivate:
     """Comprehensive private account summary integration tests for MarginAccountSummary."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -157,6 +158,7 @@ class TestBackpackAccountSummaryPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_empty_account(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -194,6 +196,7 @@ class TestBackpackAccountSummaryPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_authentication_failure(
         self,
         bp_api_with_di: Callable[..., BackpackAPI],  # Factory for API with custom secrets
@@ -220,6 +223,7 @@ class TestBackpackAccountSummaryPrivate:
         assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_margin_calculation_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -286,6 +290,7 @@ class TestBackpackAccountSummaryPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_margin_fraction_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -347,6 +352,7 @@ class TestBackpackAccountSummaryPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_precision_edge_cases(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -407,6 +413,7 @@ class TestBackpackAccountSummaryPrivate:
         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_backpack_specific_fields(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -480,6 +487,7 @@ class TestBackpackAccountSummaryPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_account_summary_concurrent_requests(
         self,
         bp_api_for_test_env: BackpackAPI,

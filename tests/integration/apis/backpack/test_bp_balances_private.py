@@ -42,6 +42,7 @@ class TestBackpackBalancesPrivate:
     """Comprehensive private balances integration tests for SpotBalance model validation."""
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_success_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -152,6 +153,7 @@ class TestBackpackBalancesPrivate:
                         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_empty_account(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -185,6 +187,7 @@ class TestBackpackBalancesPrivate:
             )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_authentication_failure(
         self,
         bp_api_with_di: Callable[
@@ -221,6 +224,7 @@ class TestBackpackBalancesPrivate:
         assert error.exchange_code is not None, "Exchange error code should be preserved"
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_rate_limiting(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -262,6 +266,7 @@ class TestBackpackBalancesPrivate:
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_precision_edge_cases(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -305,6 +310,7 @@ class TestBackpackBalancesPrivate:
                 )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_backpack_specific_details(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -348,6 +354,7 @@ class TestBackpackBalancesPrivate:
                         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_concurrent_requests(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -409,6 +416,7 @@ class TestBackpackBalancesPrivate:
                         )
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_network_timeout(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -439,6 +447,7 @@ class TestBackpackBalancesPrivate:
                 raise
 
     @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_get_balances_large_balance_handling(
         self,
         bp_api_for_test_env: BackpackAPI,
