@@ -204,16 +204,25 @@ tests/integration/apis/
 - ✅ **PRESERVE ALL AUTHENTICATION** - maintain Ed25519/EIP-712 testing patterns
 - ✅ **PRESERVE ALL ERROR HANDLING** - keep existing error scenario tests
 
+**PYTEST GUARANTEE:**
+- 🧪 **100% PYTEST USAGE** - All tests use pytest framework exclusively
+- 🧪 **PYTEST FIXTURES** - All shared setup uses pytest fixture patterns
+- 🧪 **PYTEST MARKERS** - All categorization uses pytest.mark decorators
+- 🧪 **PYTEST PARAMETRIZATION** - All test variations use @pytest.mark.parametrize
+- 🧪 **PYTEST ASSERTIONS** - All validations use standard pytest assertions
+- 🧪 **PYTEST DISCOVERY** - All tests follow pytest naming and organization conventions
+
 ### 2. **MIGRATION STRATEGY** - Full Restructure with Logic Preservation
 
 #### Phase 1: Infrastructure Setup (Week 1)
 
 **APPROACH: Create new structure while preserving ALL existing functionality**
 
-1. **Create shared utilities by extracting common patterns:**
+1. **Create shared pytest utilities by extracting common patterns:**
    ```python
    # tests/integration/apis/shared/conftest.py
    # ✅ EXTRACT and PRESERVE common fixtures from existing conftest.py files
+   # 🧪 100% PYTEST: All fixtures use pytest.fixture decorator
    import pytest
    from decimal import Decimal
    
@@ -226,12 +235,23 @@ tests/integration/apis/
    def perp_test_symbols():
        """Common perp symbols for testing."""
        return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]  # ✅ PRESERVE existing symbols
+   
+   @pytest.fixture
+   def precision_test_amounts():
+       """Test amounts for precision validation."""
+       return [
+           Decimal("0.00000001"),  # Dust
+           Decimal("0.1"),         # Small
+           Decimal("100"),         # Normal
+           Decimal("999999.99")    # Large
+       ]
    ```
 
-2. **Preserve and enhance VCR configuration:**
+2. **Preserve and enhance pytest VCR configuration:**
    ```python
    # tests/integration/apis/shared/vcr_helpers.py
    # ✅ PRESERVE ALL existing VCR filtering and configuration
+   # 🧪 100% PYTEST: All VCR integration uses pytest fixtures
    import pytest
    from pathlib import Path
    
@@ -243,9 +263,18 @@ tests/integration/apis/
        # ✅ PRESERVE existing dynamic directory logic
        test_file = Path(request.module.__file__)
        return str(test_file.parent.relative_to(Path("tests/integration/apis")))
+   
+   @pytest.fixture
+   def vcr_config():
+       """Common VCR configuration for all pytest tests."""
+       return {
+           "filter_headers": ["authorization", "x-api-key"],
+           "match_on": ["method", "scheme", "host", "port", "path", "query"],
+           "record_mode": "once",
+       }
    ```
 
-3. **Migrate test files while preserving ALL logic:**
+3. **Migrate test files to pytest-organized structure while preserving ALL logic:**
    ```python
    # Example migration: 
    # FROM: tests/integration/apis/backpack/test_bp_balances_private.py
@@ -254,19 +283,24 @@ tests/integration/apis/
    # ✅ PRESERVE: All existing imports, fixtures, VCR config, test methods
    # ✅ PRESERVE: All existing assertions and business logic  
    # ✅ PRESERVE: All existing error handling and edge cases
-   # ✅ ADD: Appropriate pytest markers for categorization
+   # 🧪 100% PYTEST: Add pytest markers, maintain pytest conventions
    
    import pytest  # Add if not present
    # ✅ PRESERVE: all existing imports exactly as they are
    
-   @pytest.mark.spot
-   @pytest.mark.requires_balance
-   @pytest.mark.positive_balance
+   @pytest.mark.spot                    # 🧪 PYTEST: Use pytest.mark for categorization
+   @pytest.mark.requires_balance        # 🧪 PYTEST: Use pytest.mark for safety
+   @pytest.mark.positive_balance        # 🧪 PYTEST: Use pytest.mark for balance type
    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/balances"], indirect=True)
-   class TestBpSpotBalancesPrivate:  # ✅ PRESERVE: all existing test logic
+   class TestBpSpotBalancesPrivate:     # 🧪 PYTEST: Follow pytest class naming
        # ✅ PRESERVE: every existing test method EXACTLY as written
        # ✅ PRESERVE: every existing assertion and validation
        # ✅ PRESERVE: every existing fixture usage
+       # 🧪 PYTEST: All test methods follow test_* naming convention
+       
+       def test_existing_method_name(self, existing_fixtures):  # 🧪 PYTEST: test_* naming
+           # ✅ PRESERVE: all existing test logic exactly as written
+           assert existing_assertion  # 🧪 PYTEST: standard assertions
    ```
 
 #### Phase 2: Exchange-Specific Migration (Weeks 2-3)
@@ -493,21 +527,22 @@ gantt
 
 ### 5. Test Quality Improvements
 
-#### 5.1 Pytest Test Organization
+#### 5.1 **100% PYTEST** Test Organization
 ```python
 # tests/integration/apis/backpack/spot/conftest.py
+# 🧪 100% PYTEST: All fixtures use pytest.fixture decorator
 import pytest
 from decimal import Decimal
 from cyberdelta.apis.backpack import BackpackApiClient
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # 🧪 PYTEST: Session-scoped fixture
 def bp_spot_client():
-    """Backpack spot trading client fixture."""
+    """Backpack spot trading client pytest fixture."""
     return BackpackApiClient()
 
-@pytest.fixture
+@pytest.fixture  # 🧪 PYTEST: Function-scoped fixture
 def bp_spot_test_config():
-    """Backpack spot test configuration."""
+    """Backpack spot test configuration pytest fixture."""
     return {
         "symbols": ["SOL_USDC", "BTC_USDC"],
         "min_order_size": Decimal("0.01"),
@@ -515,108 +550,112 @@ def bp_spot_test_config():
     }
 
 # tests/integration/apis/backpack/spot/balances/positive/test_bp_spot_balances_private.py
+# 🧪 100% PYTEST: All imports, decorators, and patterns follow pytest conventions
 import pytest
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
-@pytest.mark.spot
-@pytest.mark.positive_balance
-@pytest.mark.requires_balance
-class TestBackpackSpotBalancesPositive:
-    """Backpack spot balance tests requiring real balance."""
+@pytest.mark.spot                    # 🧪 PYTEST: Use pytest.mark for categorization
+@pytest.mark.positive_balance        # 🧪 PYTEST: Use pytest.mark for balance type
+@pytest.mark.requires_balance        # 🧪 PYTEST: Use pytest.mark for safety
+class TestBackpackSpotBalancesPositive:  # 🧪 PYTEST: Test* class naming
+    """Backpack spot balance pytest tests requiring real balance."""
     
-    @pytest.mark.vcr()
-    def test_get_spot_balances_with_funds(self, bp_spot_client):
+    @pytest.mark.vcr()               # 🧪 PYTEST: Use pytest.mark.vcr for VCR integration
+    def test_get_spot_balances_with_funds(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test retrieving spot balances when account has funds."""
         balances = bp_spot_client.get_spot_balances()
         for balance in balances:
-            assert_valid_spot_balance(balance)
+            assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
             # Verify we have actual balances
-            assert balance.total_quantity > Decimal("0")
+            assert balance.total_quantity > Decimal("0")  # 🧪 PYTEST: Standard assert
     
-    @pytest.mark.parametrize("asset", ["SOL", "USDC", "BTC"])
-    def test_withdraw_spot_balance(self, bp_spot_client, asset):
+    @pytest.mark.parametrize("asset", ["SOL", "USDC", "BTC"])  # 🧪 PYTEST: Parametrization
+    def test_withdraw_spot_balance(self, bp_spot_client, asset):  # 🧪 PYTEST: test_* naming
         """Test withdrawing spot balance (requires real funds)."""
         # This test requires actual balance to withdraw
         balance = bp_spot_client.get_spot_balance(asset)
-        assert_valid_spot_balance(balance)
+        assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
         if balance.available_quantity > Decimal("0.01"):
             # Test actual withdrawal
             pass
 
 # tests/integration/apis/backpack/spot/balances/zero/test_bp_spot_balances_zero.py
+# 🧪 100% PYTEST: All imports, decorators, and patterns follow pytest conventions
 import pytest
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
-@pytest.mark.spot
-@pytest.mark.zero_balance
-class TestBackpackSpotBalancesZero:
-    """Backpack spot balance tests for zero balance scenarios."""
+@pytest.mark.spot                    # 🧪 PYTEST: Use pytest.mark for categorization
+@pytest.mark.zero_balance            # 🧪 PYTEST: Use pytest.mark for balance type
+class TestBackpackSpotBalancesZero:  # 🧪 PYTEST: Test* class naming
+    """Backpack spot balance pytest tests for zero balance scenarios."""
     
-    @pytest.mark.vcr()
-    def test_get_spot_balances_zero_state(self, bp_spot_client):
+    @pytest.mark.vcr()               # 🧪 PYTEST: Use pytest.mark.vcr for VCR integration
+    def test_get_spot_balances_zero_state(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test retrieving balances when account has zero balance."""
         balances = bp_spot_client.get_spot_balances()
         for balance in balances:
-            assert_valid_spot_balance(balance)
+            assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
             # Zero balance tests expect empty or zero balances
-            assert balance.total_quantity >= Decimal("0")
+            assert balance.total_quantity >= Decimal("0")  # 🧪 PYTEST: Standard assert
     
-    def test_insufficient_balance_scenarios(self, bp_spot_client):
+    def test_insufficient_balance_scenarios(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test behavior with insufficient balance."""
         # Test edge cases without requiring real funds
         pass
 ```
 
-#### 5.2 Pytest Parameterized Test Patterns
+#### 5.2 **100% PYTEST** Parameterized Test Patterns
 ```python
 # tests/integration/apis/cross_exchange/test_spot_operations.py
+# 🧪 100% PYTEST: All cross-exchange tests use pure pytest patterns
 import pytest
 from decimal import Decimal
 
-@pytest.mark.integration
-class TestCrossExchangeSpotOperations:
-    """Cross-exchange spot operations test suite."""
+@pytest.mark.integration               # 🧪 PYTEST: Use pytest.mark for integration tests
+class TestCrossExchangeSpotOperations: # 🧪 PYTEST: Test* class naming
+    """Cross-exchange spot operations pytest test suite."""
     
-    @pytest.fixture(params=["backpack", "hyperliquid"])
-    def exchange_client(self, request):
-        """Parametrized exchange client fixture."""
+    @pytest.fixture(params=["backpack", "hyperliquid"])  # 🧪 PYTEST: Parametrized fixture
+    def exchange_client(self, request):  # 🧪 PYTEST: request fixture for parametrization
+        """Parametrized exchange client pytest fixture."""
         if request.param == "backpack":
             return BackpackApiClient()
         else:
             return HyperliquidApiClient()
     
-    @pytest.mark.parametrize("symbol,expected_precision", [
+    @pytest.mark.parametrize("symbol,expected_precision", [  # 🧪 PYTEST: Parametrization
         ("SOL_USDC", 8),
         ("BTC_USDC", 8),
         ("ETH_USDC", 8),
     ])
-    def test_spot_balance_precision(self, exchange_client, symbol, expected_precision):
+    def test_spot_balance_precision(self, exchange_client, symbol, expected_precision):  # 🧪 PYTEST: test_* naming
         """Test spot balance precision across exchanges and symbols."""
         balance = exchange_client.get_spot_balance(symbol.split("_")[0])
-        assert_valid_spot_balance(balance)
+        assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
         # Verify precision handling
-        assert str(balance.total_quantity).split('.')[-1].rstrip('0') <= expected_precision
+        assert str(balance.total_quantity).split('.')[-1].rstrip('0') <= expected_precision  # 🧪 PYTEST: Standard assert
     
-    @pytest.mark.parametrize("test_amount", [
+    @pytest.mark.parametrize("test_amount", [  # 🧪 PYTEST: Parametrization with ids
         pytest.param(Decimal("0.00000001"), id="dust"),
         pytest.param(Decimal("0.1"), id="small"),
         pytest.param(Decimal("100"), id="normal"),
         pytest.param(Decimal("999999.99"), id="large"),
     ])
-    def test_order_amount_handling(self, exchange_client, test_amount):
+    def test_order_amount_handling(self, exchange_client, test_amount):  # 🧪 PYTEST: test_* naming
         """Test order amount handling across different scales."""
-        # Test implementation
+        # 🧪 PYTEST: All test implementation uses standard pytest assertions
+        assert test_amount > Decimal("0")  # 🧪 PYTEST: Standard assert
 ```
 
-#### 5.3 Pytest Marks and Test Discovery
+#### 5.3 **100% PYTEST** Marks and Test Discovery
 ```toml
-# pyproject.toml configuration
+# pyproject.toml configuration - 🧪 100% PYTEST: All configuration uses pytest.ini_options
 [tool.pytest.ini_options]
-testpaths = ["tests/integration/apis"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
+testpaths = ["tests/integration/apis"]  # 🧪 PYTEST: Standard test discovery paths
+python_files = ["test_*.py"]           # 🧪 PYTEST: Standard test file naming
+python_classes = ["Test*"]             # 🧪 PYTEST: Standard test class naming
+python_functions = ["test_*"]          # 🧪 PYTEST: Standard test function naming
+markers = [                            # 🧪 PYTEST: Custom pytest markers
     "integration: Integration tests requiring external services",
     "spot: Spot trading specific tests", 
     "perp: Perpetual/derivatives trading specific tests",
@@ -627,34 +666,34 @@ markers = [
     "zero_balance: Tests with zero balance scenarios",
     "positive_balance: Tests requiring positive balance",
 ]
-addopts = [
-    "--strict-markers",
-    "--tb=short",
-    "--cov=cyberdelta",
-    "--cov-report=term-missing",
+addopts = [                            # 🧪 PYTEST: Standard pytest options
+    "--strict-markers",                # 🧪 PYTEST: Enforce marker definitions
+    "--tb=short",                      # 🧪 PYTEST: Short traceback format
+    "--cov=cyberdelta",                # 🧪 PYTEST: Coverage with pytest-cov
+    "--cov-report=term-missing",       # 🧪 PYTEST: Coverage reporting
 ]
-
-# Usage in tests
 ```
-```python
-@pytest.mark.spot
-@pytest.mark.vcr()
-class TestSpotBalances:
-    """Spot balance test suite."""
-    
-    @pytest.mark.requires_balance
-    def test_withdraw_spot_balance(self):
-        """Test spot balance withdrawal."""
-        pass
 
-@pytest.mark.perp
-@pytest.mark.vcr()
-class TestPerpPositions:
-    """Perpetual positions test suite."""
+**🧪 100% PYTEST Usage Examples:**
+```python
+@pytest.mark.spot                      # 🧪 PYTEST: pytest.mark decorator
+@pytest.mark.vcr()                     # 🧪 PYTEST: pytest.mark.vcr for VCR
+class TestSpotBalances:                # 🧪 PYTEST: Test* class naming
+    """Spot balance pytest test suite."""
     
-    def test_get_perp_positions(self):
+    @pytest.mark.requires_balance      # 🧪 PYTEST: pytest.mark for safety
+    def test_withdraw_spot_balance(self):  # 🧪 PYTEST: test_* function naming
+        """Test spot balance withdrawal."""
+        assert True  # 🧪 PYTEST: Standard assert
+
+@pytest.mark.perp                      # 🧪 PYTEST: pytest.mark decorator
+@pytest.mark.vcr()                     # 🧪 PYTEST: pytest.mark.vcr for VCR
+class TestPerpPositions:               # 🧪 PYTEST: Test* class naming
+    """Perpetual positions pytest test suite."""
+    
+    def test_get_perp_positions(self):  # 🧪 PYTEST: test_* function naming
         """Test retrieving perpetual positions."""
-        pass
+        assert True  # 🧪 PYTEST: Standard assert
 ```
 
 #### 5.4 VCR Cassette Organization
@@ -864,6 +903,15 @@ This refactoring plan delivers **comprehensive directory restructuring** while *
 - ✅ **Full Fixture Compatibility** - All bp_api_for_test_env, bp_api_with_di patterns maintained
 - ✅ **Authentication Preservation** - Ed25519/EIP-712 testing patterns unchanged
 - ✅ **Error Handling Preservation** - All existing error scenarios and edge cases maintained
+
+**PYTEST GUARANTEES:**
+- 🧪 **100% PYTEST FRAMEWORK** - All tests use pytest exclusively, no other testing frameworks
+- 🧪 **100% PYTEST FIXTURES** - All shared setup converted to @pytest.fixture decorators
+- 🧪 **100% PYTEST MARKERS** - All categorization uses @pytest.mark decorators
+- 🧪 **100% PYTEST PARAMETRIZATION** - All test variations use @pytest.mark.parametrize
+- 🧪 **100% PYTEST ASSERTIONS** - All validations use standard pytest assert statements
+- 🧪 **100% PYTEST DISCOVERY** - All tests follow pytest naming conventions (Test*, test_*)
+- 🧪 **100% PYTEST CONFIGURATION** - All settings in pyproject.toml [tool.pytest.ini_options]
 
 **ORGANIZATIONAL BENEFITS:**
 - 🎯 **Clear Structure** - Spot vs perp separation with positive/zero balance organization
