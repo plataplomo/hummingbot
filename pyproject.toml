@@ -93,6 +93,12 @@ markers = [
     "network: marks tests that require network access",
     "timing: marks tests that depend on timing/sleep operations",
     "vcr_cassette_dir: specify custom VCR cassette directory (usage: @pytest.mark.vcr_cassette_dir('api/backpack/public'))",
+    "spot: marks tests as spot trading specific tests",
+    "perp: marks tests as perpetual/derivatives trading specific tests",
+    "cross_exchange: marks tests as cross-exchange validation tests",
+    "requires_balance: marks tests requiring real money/balance (use with caution)",
+    "zero_balance: marks tests with zero balance scenarios (safe to run)",
+    "positive_balance: marks tests requiring positive balance",
 ]
 
 # Ruff configuration for linting

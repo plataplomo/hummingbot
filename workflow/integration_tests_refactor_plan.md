@@ -10,28 +10,38 @@ This document outlines a comprehensive plan to refactor the CyberDeltaEngine int
 
 ## Current State Analysis
 
-### 1. Current Test Organization Issues
+### 1. Current Test Structure (Strengths to Preserve)
 
-```mermaid
-graph TB
-    subgraph "Current Problems"
-        P1[Mixed Spot/Derivatives Tests<br/>• Orders test both types<br/>• No clear separation<br/>• Difficult to maintain]
-        P2[Scattered Functionality<br/>• Related tests in different files<br/>• No business domain grouping<br/>• Hard to find specific tests]
-        P3[Missing Cross-Exchange Tests<br/>• No consistency validation<br/>• Duplicate test logic<br/>• Limited arbitrage scenarios]
-        P4[Coverage Gaps<br/>• Missing spot-specific tests<br/>• Limited edge case coverage<br/>• No cross-market validation]
-    end
-    
-    subgraph "Impact"
-        I1[Maintenance Burden<br/>• Hard to update tests<br/>• Unclear test purpose<br/>• Technical debt]
-        I2[Quality Issues<br/>• Missing test scenarios<br/>• Inconsistent patterns<br/>• Limited coverage]
-        I3[Development Friction<br/>• Hard to find relevant tests<br/>• Unclear test organization<br/>• Slow iteration]
-    end
-    
-    P1 --> I1
-    P2 --> I2
-    P3 --> I3
-    P4 --> I1
+**EXISTING STRUCTURE ANALYSIS:**
 ```
+tests/integration/apis/
+├── backpack/
+│   ├── conftest.py ✅ (comprehensive fixtures)
+│   ├── test_bp_balances_private.py ✅ (positive balance tests)
+│   ├── test_bp_balances_zero_balance.py ✅ (zero balance tests)
+│   ├── test_bp_positions_private.py ✅ (perp position tests)
+│   ├── test_bp_positions_zero_balance.py ✅ (zero position tests)
+│   ├── test_bp_orders_private.py ❌ (mixed spot/perp)
+│   ├── test_bp_orders_zero_balance.py ❌ (mixed spot/perp)
+│   ├── test_bp_account_summary_private.py ✅ (account tests)
+│   ├── test_bp_account_summary_zero_balance.py ✅ (zero account)
+│   ├── test_bp_positive_balance.py ❌ (mixed functionality)
+│   └── [other integration tests] ✅
+└── hyperliquid/ ✅ (similar structure)
+```
+
+**CURRENT STRENGTHS (MUST PRESERVE):**
+- ✅ **VCR Configuration:** Comprehensive filtering, dynamic cassettes
+- ✅ **Fixture Architecture:** Session-scoped configs, real vs mocked APIs
+- ✅ **Test Quality:** Model validation, business logic, error scenarios
+- ✅ **Authentication:** Real Ed25519/EIP-712 testing
+- ✅ **Balance Separation:** Already has positive vs zero balance split
+
+**ISSUES TO ADDRESS:**
+- ❌ Mixed spot/perp tests in same files (orders, positive_balance)
+- ❌ No pytest markers for test categorization
+- ❌ Difficult to run only spot or only perp tests
+- ❌ No safety markers for balance requirements
 
 ### 2. Current File Analysis
 
@@ -67,18 +77,19 @@ graph TB
 | `test_hl_account_summary.py` | Cross-cutting | ✅ Account-level | `account/zero/` |
 | `test_hl_funding_rate_integration.py` | Perp | ✅ Perp-focused | `perp/funding/` |
 
-## Proposed Refactor Plan
+## Proposed Refactor Plan: **FULL RESTRUCTURE WITH LOGIC PRESERVATION**
 
-### 1. New Directory Structure
+### 1. **NEW DIRECTORY STRUCTURE** - Preserve All Logic & Configs
 
+**MIGRATE TO ORGANIZED STRUCTURE WHILE PRESERVING EVERYTHING:**
 ```
 tests/integration/apis/
-├── shared/                              # Shared utilities and base classes
+├── shared/                              # Shared utilities (preserve existing patterns)
 │   ├── __init__.py
-│   ├── base_test_classes.py            # Base classes for common patterns
-│   ├── validation_helpers.py           # Common validation logic
-│   ├── auth_fixtures.py                # Shared authentication fixtures
-│   └── vcr_helpers.py                  # VCR cassette utilities
+│   ├── base_test_classes.py            # Extract common patterns from existing tests
+│   ├── validation_helpers.py           # Preserve existing validation logic
+│   ├── auth_fixtures.py                # Move existing auth patterns here
+│   └── vcr_helpers.py                  # Preserve existing VCR configuration
 │
 ├── cross_exchange/                     # Cross-exchange validation tests
 │   ├── __init__.py
@@ -92,7 +103,7 @@ tests/integration/apis/
 │
 ├── backpack/
 │   ├── __init__.py
-│   ├── conftest.py                     # Backpack-specific fixtures
+│   ├── conftest.py                     # ✅ PRESERVE all existing fixtures
 │   ├── shared/                         # Backpack shared utilities
 │   │   ├── __init__.py
 │   │   └── bp_test_helpers.py
@@ -101,23 +112,23 @@ tests/integration/apis/
 │   │   ├── conftest.py
 │   │   ├── balances/
 │   │   │   ├── __init__.py
-│   │   │   ├── positive/              # Tests requiring actual balance
+│   │   │   ├── positive/              # ✅ MIGRATE test_bp_balances_private.py here
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── test_bp_spot_balances_private.py
+│   │   │   │   ├── test_bp_spot_balances_private.py  # ✅ PRESERVE all logic
 │   │   │   │   └── test_bp_spot_transfers.py
-│   │   │   └── zero/                  # Zero balance edge case tests
+│   │   │   └── zero/                  # ✅ MIGRATE test_bp_balances_zero_balance.py here
 │   │   │       ├── __init__.py
-│   │   │       ├── test_bp_spot_balances_zero.py
+│   │   │       ├── test_bp_spot_balances_zero.py     # ✅ PRESERVE all logic
 │   │   │       └── test_bp_spot_edge_cases.py
 │   │   ├── orders/
 │   │   │   ├── __init__.py
-│   │   │   ├── positive/              # Tests requiring balance to place orders
+│   │   │   ├── positive/              # ✅ MIGRATE spot parts of test_bp_orders_private.py
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── test_bp_spot_orders_private.py
+│   │   │   │   ├── test_bp_spot_orders_private.py    # ✅ PRESERVE all logic
 │   │   │   │   └── test_bp_spot_order_lifecycle.py
-│   │   │   └── zero/                  # Zero balance order tests
+│   │   │   └── zero/                  # ✅ MIGRATE spot parts of test_bp_orders_zero_balance.py
 │   │   │       ├── __init__.py
-│   │   │       ├── test_bp_spot_orders_zero.py
+│   │   │       ├── test_bp_spot_orders_zero.py       # ✅ PRESERVE all logic
 │   │   │       └── test_bp_spot_insufficient_funds.py
 │   │   ├── market_data/
 │   │   │   ├── __init__.py
@@ -133,27 +144,27 @@ tests/integration/apis/
 │   │   ├── conftest.py
 │   │   ├── positions/
 │   │   │   ├── __init__.py
-│   │   │   ├── positive/              # Tests requiring margin/balance
+│   │   │   ├── positive/              # ✅ MIGRATE test_bp_positions_private.py here
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── test_bp_perp_positions_private.py
+│   │   │   │   ├── test_bp_perp_positions_private.py # ✅ PRESERVE all logic
 │   │   │   │   └── test_bp_position_lifecycle.py
-│   │   │   └── zero/                  # Zero balance/position tests
+│   │   │   └── zero/                  # ✅ MIGRATE test_bp_positions_zero_balance.py here
 │   │   │       ├── __init__.py
-│   │   │       ├── test_bp_perp_positions_zero.py
+│   │   │       ├── test_bp_perp_positions_zero.py    # ✅ PRESERVE all logic
 │   │   │       └── test_bp_perp_edge_cases.py
 │   │   ├── orders/
 │   │   │   ├── __init__.py
-│   │   │   ├── positive/              # Tests requiring margin to place orders
+│   │   │   ├── positive/              # ✅ MIGRATE perp parts of test_bp_orders_private.py
 │   │   │   │   ├── __init__.py
-│   │   │   │   ├── test_bp_perp_orders_private.py
+│   │   │   │   ├── test_bp_perp_orders_private.py    # ✅ PRESERVE all logic
 │   │   │   │   └── test_bp_perp_order_lifecycle.py
-│   │   │   └── zero/                  # Zero margin order tests
+│   │   │   └── zero/                  # ✅ MIGRATE perp parts of test_bp_orders_zero_balance.py
 │   │   │       ├── __init__.py
-│   │   │       ├── test_bp_perp_orders_zero.py
+│   │   │       ├── test_bp_perp_orders_zero.py       # ✅ PRESERVE all logic
 │   │   │       └── test_bp_perp_insufficient_margin.py
 │   │   ├── funding/
 │   │   │   ├── __init__.py
-│   │   │   ├── test_bp_funding_rates.py
+│   │   │   ├── test_bp_funding_rates.py              # ✅ MIGRATE existing if present
 │   │   │   └── test_bp_funding_payments.py
 │   │   ├── margin/
 │   │   │   ├── __init__.py
@@ -172,234 +183,125 @@ tests/integration/apis/
 │   ├── account/                        # Account management tests
 │   │   ├── __init__.py
 │   │   ├── conftest.py
-│   │   ├── positive/                   # Tests requiring account balance
+│   │   ├── positive/                   # ✅ MIGRATE test_bp_account_summary_private.py
 │   │   │   ├── __init__.py
-│   │   │   ├── test_bp_account_summary_private.py
+│   │   │   ├── test_bp_account_summary_private.py    # ✅ PRESERVE all logic
 │   │   │   └── test_bp_portfolio_management.py
-│   │   └── zero/                       # Zero balance account tests
+│   │   └── zero/                       # ✅ MIGRATE test_bp_account_summary_zero_balance.py
 │   │       ├── __init__.py
-│   │       ├── test_bp_account_summary_zero.py
+│   │       ├── test_bp_account_summary_zero.py       # ✅ PRESERVE all logic
 │   │       └── test_bp_account_edge_cases.py
-│   ├── websockets/                     # WebSocket tests
-│   │   ├── __init__.py
-│   │   ├── conftest.py
-│   │   ├── test_bp_ws_connection.py
-│   │   ├── test_bp_ws_subscriptions.py
-│   │   └── test_bp_ws_error_recovery.py
-│   └── mappers/                        # Data mapper tests
-│       ├── __init__.py
-│       └── test_bp_trading_data_mapper_integration.py
+│   └── [websockets, mappers, etc.]     # ✅ MIGRATE all other existing files
 │
-└── hyperliquid/                        # Mirror structure for Hyperliquid
-    ├── __init__.py
-    ├── conftest.py
-    ├── shared/
-    │   ├── __init__.py
-    │   └── hl_test_helpers.py
-    ├── spot/
-    │   ├── __init__.py
-    │   ├── conftest.py
-    │   ├── balances/
-    │   │   ├── __init__.py
-    │   │   ├── positive/                   # Tests requiring actual balance
-    │   │   │   ├── __init__.py
-    │   │   │   ├── test_hl_spot_balances_private.py
-    │   │   │   ├── test_hl_spot_transfers.py
-    │   │   │   └── test_hl_spot_withdrawals.py
-    │   │   └── zero/                       # Zero balance edge case tests
-    │   │       ├── __init__.py
-    │   │       ├── test_hl_spot_balances_zero.py
-    │   │       └── test_hl_spot_edge_cases.py
-    │   ├── orders/
-    │   │   ├── __init__.py
-    │   │   ├── positive/                   # Tests requiring balance to place orders
-    │   │   │   ├── __init__.py
-    │   │   │   ├── test_hl_spot_orders_private.py
-    │   │   │   └── test_hl_spot_order_lifecycle.py
-    │   │   └── zero/                       # Zero balance order tests
-    │   │       ├── __init__.py
-    │   │       ├── test_hl_spot_orders_zero.py
-    │   │       └── test_hl_spot_insufficient_funds.py
-    │   ├── market_data/
-    │   │   ├── __init__.py
-    │   │   ├── test_hl_spot_tickers.py
-    │   │   ├── test_hl_spot_order_books.py
-    │   │   ├── test_hl_spot_trades.py
-    │   │   └── test_hl_spot_candles.py
-    │   └── strategies/
-    │       ├── __init__.py
-    │       └── test_hl_spot_arbitrage.py
-    ├── perp/
-    │   ├── __init__.py
-    │   ├── conftest.py
-    │   ├── positions/
-    │   │   ├── __init__.py
-    │   │   ├── positive/                   # Tests requiring margin/balance
-    │   │   │   ├── __init__.py
-    │   │   │   ├── test_hl_perp_positions_private.py
-    │   │   │   └── test_hl_position_lifecycle.py
-    │   │   └── zero/                       # Zero balance/position tests
-    │   │       ├── __init__.py
-    │   │       ├── test_hl_perp_positions_zero.py
-    │   │       └── test_hl_perp_edge_cases.py
-    │   ├── orders/
-    │   │   ├── __init__.py
-    │   │   ├── positive/                   # Tests requiring margin to place orders
-    │   │   │   ├── __init__.py
-    │   │   │   ├── test_hl_perp_orders_private.py
-    │   │   │   └── test_hl_perp_order_lifecycle.py
-    │   │   └── zero/                       # Zero margin order tests
-    │   │       ├── __init__.py
-    │   │       ├── test_hl_perp_orders_zero.py
-    │   │       └── test_hl_perp_insufficient_margin.py
-    │   ├── funding/
-    │   │   ├── __init__.py
-    │   │   ├── test_hl_funding_rates.py
-    │   │   └── test_hl_funding_payments.py
-    │   ├── margin/
-    │   │   ├── __init__.py
-    │   │   ├── test_hl_margin_calculations.py
-    │   │   └── test_hl_liquidation_scenarios.py
-    │   ├── market_data/
-    │   │   ├── __init__.py
-    │   │   ├── test_hl_perp_tickers.py
-    │   │   ├── test_hl_perp_order_books.py
-    │   │   ├── test_hl_perp_trades.py
-    │   │   └── test_hl_perp_candles.py
-    │   └── strategies/
-    │       ├── __init__.py
-    │       ├── test_hl_funding_arbitrage.py
-    │       └── test_hl_delta_neutral.py
-    ├── account/
-    │   ├── __init__.py
-    │   ├── conftest.py
-    │   ├── positive/                       # Tests requiring account balance
-    │   │   ├── __init__.py
-    │   │   ├── test_hl_account_summary_private.py
-    │   │   └── test_hl_portfolio_management.py
-    │   └── zero/                           # Zero balance account tests
-    │       ├── __init__.py
-    │       ├── test_hl_account_summary_zero.py
-    │       └── test_hl_account_edge_cases.py
-    └── websockets/
-        ├── __init__.py
-        ├── conftest.py
-        ├── test_hl_ws_connection.py
-        ├── test_hl_ws_subscriptions.py
-        └── test_hl_ws_error_recovery.py
+└── hyperliquid/                        # ✅ PRESERVE and reorganize all existing tests
+    └── [Mirror structure with all existing logic preserved]
 ```
 
-### 2. Test Refactoring Strategy
+**CRITICAL PRESERVATION REQUIREMENTS:**
+- ✅ **PRESERVE ALL TEST LOGIC** - every assertion, every validation, every business rule
+- ✅ **PRESERVE ALL VCR CONFIGURATIONS** - maintain existing cassette filtering and paths
+- ✅ **PRESERVE ALL FIXTURES** - keep bp_api_for_test_env, bp_api_with_di, etc.
+- ✅ **PRESERVE ALL AUTHENTICATION** - maintain Ed25519/EIP-712 testing patterns
+- ✅ **PRESERVE ALL ERROR HANDLING** - keep existing error scenario tests
+
+### 2. **MIGRATION STRATEGY** - Full Restructure with Logic Preservation
 
 #### Phase 1: Infrastructure Setup (Week 1)
-1. **Create shared pytest fixtures and utilities:**
+
+**APPROACH: Create new structure while preserving ALL existing functionality**
+
+1. **Create shared utilities by extracting common patterns:**
    ```python
    # tests/integration/apis/shared/conftest.py
+   # ✅ EXTRACT and PRESERVE common fixtures from existing conftest.py files
    import pytest
    from decimal import Decimal
    
    @pytest.fixture
    def spot_test_symbols():
        """Common spot trading symbols for testing."""
-       return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
+       return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]  # ✅ PRESERVE existing symbols
    
-   @pytest.fixture
-   def derivatives_test_symbols():
-       """Common derivatives symbols for testing."""
-       return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]
-   
-   @pytest.fixture
-   def precision_test_amounts():
-       """Test amounts for precision validation."""
-       return [
-           Decimal("0.00000001"),  # Dust
-           Decimal("0.1"),         # Small
-           Decimal("100"),         # Normal
-           Decimal("999999.99")    # Large
-       ]
+   @pytest.fixture  
+   def perp_test_symbols():
+       """Common perp symbols for testing."""
+       return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]  # ✅ PRESERVE existing symbols
    ```
 
-2. **Create pytest-style validation helpers:**
+2. **Preserve and enhance VCR configuration:**
    ```python
-   # tests/integration/apis/shared/validation_helpers.py
-   import pytest
-   from decimal import Decimal
-   from cyberdelta.core.models import SpotBalance, DerivativePosition, Order
-   
-   def assert_valid_spot_balance(balance: SpotBalance) -> None:
-       """Common spot balance assertions for pytest."""
-       assert isinstance(balance.total_quantity, Decimal)
-       assert balance.total_quantity >= Decimal("0")
-       assert balance.available_quantity >= Decimal("0")
-       assert balance.available_quantity <= balance.total_quantity
-       assert balance.exchange in ["backpack", "hyperliquid"]
-       
-   def assert_valid_derivative_position(position: DerivativePosition) -> None:
-       """Common derivative position assertions for pytest."""
-       assert isinstance(position.size, Decimal)
-       assert position.size.is_finite()
-       if position.size != Decimal("0"):
-           assert position.entry_price is not None
-           assert position.entry_price > Decimal("0")
-       
-   def assert_valid_order_lifecycle(order: Order) -> None:
-       """Common order lifecycle assertions for pytest."""
-       assert order.quantity_filled <= order.quantity_requested
-       if order.quantity_filled > Decimal("0"):
-           assert order.average_fill_price is not None
-           assert order.average_fill_price > Decimal("0")
-   ```
-
-3. **Setup pytest VCR fixtures:**
-   ```python
-   # tests/integration/apis/shared/vcr_fixtures.py
+   # tests/integration/apis/shared/vcr_helpers.py
+   # ✅ PRESERVE ALL existing VCR filtering and configuration
    import pytest
    from pathlib import Path
    
    @pytest.fixture
-   def vcr_cassette_dir(request, exchange_name):
-       """Dynamic VCR cassette directory based on test location."""
+   def vcr_cassette_dir(request, custom_vcr_cassette_dir=None):
+       """✅ PRESERVE existing VCR cassette directory logic."""
+       if custom_vcr_cassette_dir:
+           return custom_vcr_cassette_dir  # ✅ PRESERVE existing parametrized approach
+       # ✅ PRESERVE existing dynamic directory logic
        test_file = Path(request.module.__file__)
-       test_dir = test_file.parent.name  # e.g., 'balances', 'orders'
-       category = test_file.parent.parent.name  # e.g., 'spot', 'derivatives'
-       return f"{exchange_name}/{category}/{test_dir}"
-   
-   @pytest.fixture
-   def vcr_config():
-       """Common VCR configuration for all tests."""
-       return {
-           "filter_headers": ["authorization", "x-api-key"],
-           "match_on": ["method", "scheme", "host", "port", "path", "query"],
-           "record_mode": "once",
-       }
+       return str(test_file.parent.relative_to(Path("tests/integration/apis")))
    ```
 
-#### Phase 2: Exchange-Specific Refactoring (Weeks 2-3)
-
-**Backpack Refactoring:**
-1. **Split mixed tests:**
-   - `test_bp_orders_private.py` → `spot/orders/` + `derivatives/orders/`
-   - `test_bp_market_integration.py` → `spot/market_data/` + `derivatives/market_data/`
+3. **Migrate test files while preserving ALL logic:**
+   ```python
+   # Example migration: 
+   # FROM: tests/integration/apis/backpack/test_bp_balances_private.py
+   # TO:   tests/integration/apis/backpack/spot/balances/positive/test_bp_spot_balances_private.py
    
-2. **Enhance spot coverage:**
-   - Add comprehensive spot balance query tests
-   - Create spot-specific order lifecycle tests
-   - Add spot market data validation tests
+   # ✅ PRESERVE: All existing imports, fixtures, VCR config, test methods
+   # ✅ PRESERVE: All existing assertions and business logic  
+   # ✅ PRESERVE: All existing error handling and edge cases
+   # ✅ ADD: Appropriate pytest markers for categorization
+   
+   import pytest  # Add if not present
+   # ✅ PRESERVE: all existing imports exactly as they are
+   
+   @pytest.mark.spot
+   @pytest.mark.requires_balance
+   @pytest.mark.positive_balance
+   @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/balances"], indirect=True)
+   class TestBpSpotBalancesPrivate:  # ✅ PRESERVE: all existing test logic
+       # ✅ PRESERVE: every existing test method EXACTLY as written
+       # ✅ PRESERVE: every existing assertion and validation
+       # ✅ PRESERVE: every existing fixture usage
+   ```
 
-3. **Enhance derivatives coverage:**
-   - Add margin calculation validation tests
-   - Create funding payment tracking tests
-   - Add liquidation scenario tests
+#### Phase 2: Exchange-Specific Migration (Weeks 2-3)
 
-**Hyperliquid Refactoring:**
-1. **Enhance spot implementation:**
-   - Complete spot balance query tests (currently only transfers)
-   - Add spot order tests (currently derivatives-focused)
-   - Create comprehensive spot market data tests
+**Backpack Migration:**
+1. **Migrate existing files with FULL logic preservation:**
+   - **✅ MOVE** `test_bp_balances_private.py` → `spot/balances/positive/test_bp_spot_balances_private.py`
+   - **✅ MOVE** `test_bp_balances_zero_balance.py` → `spot/balances/zero/test_bp_spot_balances_zero.py`
+   - **✅ MOVE** `test_bp_positions_private.py` → `perp/positions/positive/test_bp_perp_positions_private.py`
+   - **✅ MOVE** `test_bp_positions_zero_balance.py` → `perp/positions/zero/test_bp_perp_positions_zero.py`
+   - **✅ PRESERVE** all existing VCR cassette paths and filtering
+   - **✅ PRESERVE** all existing fixture usage patterns
 
-2. **Split mixed tests:**
-   - `test_hl_orders_private.py` → `spot/orders/` + `derivatives/orders/`
-   - Split public/private test variants appropriately
+2. **Split mixed test files while preserving ALL logic:**
+   - **✅ ANALYZE** `test_bp_orders_private.py` to identify spot vs perp methods
+   - **✅ EXTRACT** spot order methods → `spot/orders/positive/test_bp_spot_orders_private.py`
+   - **✅ EXTRACT** perp order methods → `perp/orders/positive/test_bp_perp_orders_private.py`
+   - **✅ PRESERVE** every assertion, every validation, every error case
+   - **✅ PRESERVE** all VCR configurations and cassette organization
+
+3. **Migrate conftest.py files with enhancement:**
+   - **✅ PRESERVE** existing `tests/integration/apis/backpack/conftest.py` 
+   - **✅ ENHANCE** with spot/perp specific fixtures in subdirectories
+   - **✅ MAINTAIN** backward compatibility during migration
+
+**Hyperliquid Migration:**
+1. **Mirror Backpack approach with full preservation:**
+   - **✅ MIGRATE** all existing Hyperliquid test files to new structure
+   - **✅ PRESERVE** all existing authentication and VCR patterns
+   - **✅ ENHANCE** spot coverage while maintaining existing perp tests
+
+2. **Address existing gaps while preserving strengths:**
+   - **✅ PRESERVE** existing `test_hl_positions_private.py` functionality
+   - **✅ ENHANCE** `test_hl_balances_private.py` (currently transfer-focused only)
+   - **✅ PRESERVE** all existing business logic and error handling
 
 #### Phase 3: Cross-Exchange Testing (Week 4)
 
@@ -521,61 +423,59 @@ gantt
 ```
 
 **Tasks:**
-- [ ] Create `tests/integration/apis/shared/` structure
-- [ ] Implement `BaseSpotTest`, `BaseDerivativeTest`, `BaseCrossExchangeTest`
-- [ ] Create common validation helpers
-- [ ] Setup standardized VCR cassette organization
-- [ ] Create fixture utilities for authentication
+- [ ] Create `tests/integration/apis/shared/` structure **✅ PRESERVING** existing patterns
+- [ ] Extract common validation helpers **✅ FROM EXISTING** test methods
+- [ ] Setup standardized VCR cassette organization **✅ MAINTAINING** existing filtering
+- [ ] Create fixture utilities for authentication **✅ BASED ON** existing auth patterns
 
-#### Phase 2: Backpack Refactoring (Week 2)
+#### Phase 2: Backpack Migration (Week 2)
 ```mermaid
 gantt
-    title Phase 2: Backpack Refactoring
+    title Phase 2: Backpack Migration with Logic Preservation
     dateFormat  YYYY-MM-DD
-    section Backpack Tests
+    section Backpack Migration
     Create directory structure  :2025-12-09, 1d
-    Refactor spot tests        :2025-12-10, 2d
-    Refactor derivatives tests :2025-12-12, 2d
-    Add missing test coverage  :2025-12-14, 1d
+    Migrate spot tests         :2025-12-10, 2d
+    Migrate perp tests         :2025-12-12, 2d
+    Validate all logic preserved :2025-12-14, 1d
 ```
 
 **Tasks:**
 - [ ] Create `tests/integration/apis/backpack/` subdirectory structure with `positive/` and `zero/` folders
-- [ ] Split `test_bp_orders_private.py` into spot/perp variants with balance separation
-- [ ] Move `test_bp_balances_private.py` to `spot/balances/positive/` with `@pytest.mark.requires_balance`
-- [ ] Move `test_bp_balances_zero_balance.py` to `spot/balances/zero/` with `@pytest.mark.zero_balance`
-- [ ] Move `test_bp_positions_private.py` to `perp/positions/positive/` with `@pytest.mark.requires_balance`
-- [ ] Move `test_bp_positions_zero_balance.py` to `perp/positions/zero/` with `@pytest.mark.zero_balance`
-- [ ] Split `test_bp_positive_balance.py` into appropriate categories with proper marks
-- [ ] Add margin calculation tests
-- [ ] Add funding payment tracking tests
+- [ ] **✅ MIGRATE** `test_bp_balances_private.py` to `spot/balances/positive/` **PRESERVING ALL LOGIC**
+- [ ] **✅ MIGRATE** `test_bp_balances_zero_balance.py` to `spot/balances/zero/` **PRESERVING ALL LOGIC**
+- [ ] **✅ MIGRATE** `test_bp_positions_private.py` to `perp/positions/positive/` **PRESERVING ALL LOGIC**
+- [ ] **✅ MIGRATE** `test_bp_positions_zero_balance.py` to `perp/positions/zero/` **PRESERVING ALL LOGIC**
+- [ ] **✅ SPLIT** `test_bp_orders_private.py` into spot/perp variants **PRESERVING EVERY ASSERTION**
+- [ ] **✅ SPLIT** `test_bp_positive_balance.py` into appropriate categories **PRESERVING ALL VALIDATIONS**
+- [ ] **✅ VERIFY** all VCR cassettes still work with new structure
+- [ ] **✅ VERIFY** all fixtures continue to work exactly as before
 
-#### Phase 3: Hyperliquid Refactoring (Week 3)
+#### Phase 3: Hyperliquid Migration (Week 3)
 ```mermaid
 gantt
-    title Phase 3: Hyperliquid Refactoring
+    title Phase 3: Hyperliquid Migration with Logic Preservation
     dateFormat  YYYY-MM-DD
-    section Hyperliquid Tests
+    section Hyperliquid Migration
     Create directory structure  :2025-12-16, 1d
-    Enhance spot tests         :2025-12-17, 2d
-    Refactor derivatives tests :2025-12-19, 2d
-    Add missing test coverage  :2025-12-21, 1d
+    Migrate existing tests     :2025-12-17, 2d
+    Enhance spot coverage      :2025-12-19, 2d
+    Validate all logic preserved :2025-12-21, 1d
 ```
 
 **Tasks:**
 - [ ] Create `tests/integration/apis/hyperliquid/` subdirectory structure with `positive/` and `zero/` folders
-- [ ] Enhance `test_hl_balances_private.py` and move to `spot/balances/positive/` with `@pytest.mark.requires_balance`
-- [ ] Create comprehensive zero balance tests in `spot/balances/zero/` with `@pytest.mark.zero_balance`
-- [ ] Split order tests into spot/perp variants with balance separation
-- [ ] Move position tests to appropriate `positive/` and `zero/` folders with correct marks
-- [ ] Add comprehensive spot market data tests
-- [ ] Add spot order lifecycle tests
-- [ ] Enhance perpetual margin tests
+- [ ] **✅ MIGRATE** `test_hl_balances_private.py` to `spot/balances/positive/` **PRESERVING ALL LOGIC**
+- [ ] **✅ MIGRATE** `test_hl_positions_private.py` to `perp/positions/positive/` **PRESERVING ALL LOGIC**
+- [ ] **✅ MIGRATE** all existing Hyperliquid tests **MAINTAINING EXISTING FUNCTIONALITY**
+- [ ] **✅ ENHANCE** spot coverage **BUILDING ON** existing patterns
+- [ ] **✅ VERIFY** all existing authentication and error handling preserved
+- [ ] **✅ VERIFY** all VCR configurations continue to work
 
 #### Phase 4: Cross-Exchange Testing (Week 4)
 ```mermaid
 gantt
-    title Phase 4: Cross-Exchange Testing
+    title Phase 4: Cross-Exchange Testing - Building on Preserved Logic
     dateFormat  YYYY-MM-DD
     section Cross-Exchange
     Create consistency tests   :2025-12-23, 2d
@@ -585,11 +485,11 @@ gantt
 
 **Tasks:**
 - [ ] Create `tests/integration/apis/cross_exchange/` structure
-- [ ] Implement balance consistency tests
-- [ ] Implement order compatibility tests
-- [ ] Create arbitrage scenario tests
-- [ ] Add error code mapping validation
-- [ ] Create delta-neutral strategy tests
+- [ ] Implement balance consistency tests **✅ USING** preserved validation patterns
+- [ ] Implement order compatibility tests **✅ LEVERAGING** existing order logic
+- [ ] Create arbitrage scenario tests **✅ BUILDING ON** existing test infrastructure
+- [ ] Add error code mapping validation **✅ PRESERVING** existing error handling
+- [ ] Create delta-neutral strategy tests **✅ COMBINING** preserved spot and perp logic
 
 ### 5. Test Quality Improvements
 
@@ -956,21 +856,35 @@ def perp_position_params():
 
 ## Conclusion
 
-This refactoring plan addresses the current limitations in test organization while ensuring full pytest compatibility throughout. The proposed structure leverages pytest's powerful features including:
+This refactoring plan delivers **comprehensive directory restructuring** while **preserving ALL existing functionality**. The approach ensures:
 
-- Parametrized fixtures for cross-exchange testing
-- Custom marks for test categorization
-- Shared conftest.py files for common fixtures
-- VCR integration for deterministic testing
-- Clear test discovery patterns
+**PRESERVATION GUARANTEES:**
+- ✅ **100% Logic Preservation** - Every assertion, validation, and business rule maintained
+- ✅ **Complete VCR Compatibility** - All existing cassette filtering and organization preserved
+- ✅ **Full Fixture Compatibility** - All bp_api_for_test_env, bp_api_with_di patterns maintained
+- ✅ **Authentication Preservation** - Ed25519/EIP-712 testing patterns unchanged
+- ✅ **Error Handling Preservation** - All existing error scenarios and edge cases maintained
 
-The phased approach ensures minimal disruption while delivering immediate benefits through improved organization and gradual enhancement of test coverage.
+**ORGANIZATIONAL BENEFITS:**
+- 🎯 **Clear Structure** - Spot vs perp separation with positive/zero balance organization
+- 🎯 **Enhanced Discoverability** - Logical directory hierarchy for easy test location
+- 🎯 **Pytest Markers** - Comprehensive categorization for flexible test execution
+- 🎯 **Cross-Exchange Testing** - Foundation for arbitrage and consistency validation
+- 🎯 **Future Scalability** - Clear patterns for adding new exchanges and test types
+
+**IMPLEMENTATION APPROACH:**
+- 📁 **File Migration** - Move existing tests to appropriate directories maintaining all logic
+- 🏷️ **Marker Addition** - Add pytest markers for categorization without changing functionality  
+- 🔧 **Infrastructure Enhancement** - Extract common patterns while preserving existing behavior
+- ✅ **Continuous Validation** - Verify all existing functionality works throughout migration
+
+The phased approach ensures **zero functional regression** while delivering immediate organizational benefits and establishing foundation for enhanced cross-exchange testing capabilities.
 
 ---
 
 **Next Steps:**
-1. Review and approve this refactoring plan
-2. Begin Phase 1 implementation with pytest infrastructure
-3. Set up pytest coverage reporting with pytest-cov
-4. Configure pytest marks in pytest.ini
-5. Plan team training on pytest best practices and new test organization
+1. **Review and approve this preservation-focused refactoring plan**
+2. **Begin Phase 1 implementation - infrastructure setup with logic preservation**
+3. **Execute Phase 2 - Backpack migration with comprehensive validation**
+4. **Execute Phase 3 - Hyperliquid migration with functionality verification**
+5. **Execute Phase 4 - Cross-exchange testing building on preserved logic**
