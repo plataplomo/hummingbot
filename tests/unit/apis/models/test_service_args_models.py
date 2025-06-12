@@ -1535,8 +1535,8 @@ class TestGetMarketsArgs:
         args = GetMarketsArgs()
 
         # Verify the model has the expected configuration
-        assert args.model_config["extra"] == "forbid"
-        assert args.model_config["validate_assignment"] is True
+        assert args.model_config.get("extra") == "forbid"
+        assert args.model_config.get("validate_assignment") is True
 
     def test_model_repr_and_str(self) -> None:
         """Test that the model has reasonable string representations."""

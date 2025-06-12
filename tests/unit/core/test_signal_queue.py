@@ -407,9 +407,8 @@ async def test_clean_expired_signals_direct_patch(
             if key == "max_signal_queue_size":
                 return 100
             # Fallback for mock_storage (less ideal but for existing xfail structure)
-            if hasattr(mock_config, "mock_storage") and isinstance(mock_config.mock_storage, dict):
-                return mock_config.mock_storage.get(key, default)
-            return default
+            mock_storage: dict[str, object] = getattr(mock_config, "mock_storage", {})
+            return mock_storage.get(key, default)
 
         mock_config.get.side_effect = specific_get_for_cleanup_test
 

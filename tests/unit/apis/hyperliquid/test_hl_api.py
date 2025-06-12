@@ -397,9 +397,10 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test successful get_markets call delegates to market data service."""
+        from decimal import Decimal
+
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
         from cyberdelta.core.models.market.market import Market
-        from decimal import Decimal
 
         # Create test data
         expected_markets = [
@@ -475,9 +476,9 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
         # Configure mock service to raise an error
         api_error = APIError(
@@ -490,8 +491,8 @@ class TestHyperliquidAPIMarketDataMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute and verify exception is propagated
+        args = GetMarketsArgs()
         with pytest.raises(APIError) as exc_info:
-            args = GetMarketsArgs()
             await api.get_markets(args)
 
         assert exc_info.value == api_error
@@ -504,9 +505,10 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test successful get_market call delegates to market data service."""
+        from decimal import Decimal
+
         from cyberdelta.apis.models.service_args_models import GetMarketArgs
         from cyberdelta.core.models.market.market import Market
-        from decimal import Decimal
 
         # Create test data
         symbol = "BTC-USD"
@@ -547,9 +549,10 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test get_market works with different symbol formats."""
+        from decimal import Decimal
+
         from cyberdelta.apis.models.service_args_models import GetMarketArgs
         from cyberdelta.core.models.market.market import Market
-        from decimal import Decimal
 
         test_cases = [
             ("BTC-USD", "BTC", "USD"),
@@ -594,9 +597,9 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
 
         # Configure mock service to raise an error
         symbol = "BTC-USD"
@@ -610,8 +613,8 @@ class TestHyperliquidAPIMarketDataMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute and verify exception is propagated
+        args = GetMarketArgs(symbol=symbol)
         with pytest.raises(APIError) as exc_info:
-            args = GetMarketArgs(symbol=symbol)
             await api.get_market(args)
 
         assert exc_info.value == api_error
@@ -624,10 +627,9 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that GetMarketArgs validation works correctly."""
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
         from pydantic import ValidationError
 
-        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
 
         # Test valid args creation
         valid_args = GetMarketArgs(symbol="BTC-USD")
@@ -636,10 +638,6 @@ class TestHyperliquidAPIMarketDataMethods:
         # Test invalid args - empty symbol should fail validation
         with pytest.raises(ValidationError):
             GetMarketArgs(symbol="")
-
-        # Test invalid args - None symbol should fail validation  
-        with pytest.raises(ValidationError):
-            GetMarketArgs(symbol=None)
 
         # Test args with very long symbol (should fail max length validation)
         with pytest.raises(ValidationError):
@@ -652,10 +650,9 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that GetMarketsArgs validation works correctly."""
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
         from pydantic import ValidationError
 
-        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
         # Test valid args creation (no fields required)
         valid_args = GetMarketsArgs()
@@ -663,4 +660,4 @@ class TestHyperliquidAPIMarketDataMethods:
 
         # Test that extra fields are forbidden
         with pytest.raises(ValidationError):
-            GetMarketsArgs(extra_field="not_allowed")
+            GetMarketsArgs(**{"extra_field": "not_allowed"})

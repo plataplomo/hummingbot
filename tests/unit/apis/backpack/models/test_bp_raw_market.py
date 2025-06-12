@@ -24,18 +24,23 @@ def valid_market() -> dict[str, Any]:
     """Return valid market for testing."""
     return {
         "symbol": "BTC_USDC",
-        "baseAsset": "BTC",
-        "quoteAsset": "USDC",
-        "quantityPrecision": 8,
-        "pricePrecision": 2,
-        "minTradeQuantity": "0.0001",
-        "maxTradeQuantity": "1000.0",
-        "minTradePrice": "0.01",
-        "maxTradePrice": "1000000.0",
-        "minOrderBookQuantity": "0.0001",
-        "bids": [["49999.00", "0.5"], ["49998.50", "1.2"]],
-        "asks": [["50001.00", "0.3"], ["50001.50", "0.8"]],
-        "lastUpdateTime": 1678886400000,
+        "baseSymbol": "BTC",
+        "quoteSymbol": "USDC",
+        "marketType": "Spot",
+        "filters": {
+            "price": {
+                "minPrice": "0.01",
+                "maxPrice": "1000000.0",
+                "tickSize": "0.01"
+            },
+            "quantity": {
+                "minQuantity": "0.0001",
+                "maxQuantity": "1000.0",
+                "stepSize": "0.0001"
+            }
+        },
+        "orderBookState": "NORMAL",
+        "createdAt": "2024-01-01T00:00:00.000Z"
     }
 
 
@@ -43,13 +48,17 @@ def test_BackpackRawMarket_happy_path() -> None:
     """Test BackpackRawMarket happy path."""
     obj = BackpackRawMarket.model_validate(valid_market())
     assert obj.symbol == "BTC_USDC"
-    assert obj.base_asset == "BTC"
-    assert obj.quote_asset == "USDC"
+    assert obj.base_symbol == "BTC"
+    assert obj.quote_symbol == "USDC"
 
 
 def test_BackpackRawMarket_missing_required_fields() -> None:
     """Test BackpackRawMarket missing required fields."""
-    for field in ["symbol", "baseAsset", "quoteAsset"]:
+    required_fields = [
+        "symbol", "baseSymbol", "quoteSymbol", "marketType", 
+        "filters", "orderBookState", "createdAt"
+    ]
+    for field in required_fields:
         p: dict[str, Any] = valid_market().copy()
         del p[field]
         with pytest.raises(ValidationError):
@@ -133,8 +142,8 @@ def test_BackpackRawMarket_real_json_example() -> None:
     }
     obj = BackpackRawMarket.model_validate(payload)
     assert obj.symbol == "BTC_USDC"
-    assert obj.base_asset == "BTC"
-    assert obj.quote_asset == "USDC"
+    assert obj.base_symbol == "BTC"
+    assert obj.quote_symbol == "USDC"
 
 
 def test_BackpackRawMarket_corruption_null_symbol() -> None:

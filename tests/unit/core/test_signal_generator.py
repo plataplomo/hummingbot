@@ -305,12 +305,14 @@ class TestSignalGenerator:
             price_change = Decimal(str(i * 5))
 
             # Update side effects to return slightly different data each time
-            data_handler.get_latest_funding_rate.side_effect = (
-                lambda ex, sym, r=rate_change: get_funding_iter(ex, sym, r)
-            )
-            data_handler.get_latest_ticker.side_effect = (
-                lambda ex, sym, p=price_change: get_ticker_iter(ex, sym, p)
-            )
+            def _funding_side_effect(ex: str, sym: str, r: Decimal = rate_change) -> FundingRate | None:
+                return get_funding_iter(ex, sym, r)
+            
+            def _ticker_side_effect(ex: str, sym: str, p: Decimal = price_change) -> Ticker | None:
+                return get_ticker_iter(ex, sym, p)
+            
+            data_handler.get_latest_funding_rate.side_effect = _funding_side_effect
+            data_handler.get_latest_ticker.side_effect = _ticker_side_effect
 
             # Call the update function multiple times
             signal_generator.update_historical_data()
@@ -631,7 +633,7 @@ class TestSignalGenerator:
         signals = await signal_generator.generate_arbitrage_opportunities({})
 
         # Extract opportunities from generated signals (signals should contain opportunity metadata)
-        opportunities = []
+        opportunities: list[ArbitrageOpportunity] = []
         for signal in signals:
             if signal.metadata and "opportunity" in signal.metadata:
                 opportunities.append(signal.metadata["opportunity"])

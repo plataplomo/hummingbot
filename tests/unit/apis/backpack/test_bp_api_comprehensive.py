@@ -728,8 +728,8 @@ class TestBackpackAPIPublicBehavior:
     async def test_get_markets_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
         """Test successful retrieval of all markets metadata."""
         # Create mock markets list
-        mock_markets = []
-        for i, symbol in enumerate(["BTC_USDC", "ETH_USDC", "SOL_USDC"]):
+        mock_markets: list[MagicMock] = []
+        for symbol in ["BTC_USDC", "ETH_USDC", "SOL_USDC"]:
             market = MagicMock(spec=Market)
             market.symbol = symbol
             market.base_symbol = symbol.split("_")[0]
@@ -817,7 +817,10 @@ class TestBackpackAPIPublicBehavior:
         mock_market.symbol = "TEST_USDC"
 
         with patch.object(
-            backpack_api.market_data_service, "get_market", new_callable=AsyncMock, return_value=mock_market
+            backpack_api.market_data_service,
+            "get_market",
+            new_callable=AsyncMock,
+            return_value=mock_market,
         ) as mock_service_method:
             args = GetMarketArgs(symbol="TEST_USDC")
             result = await backpack_api.get_market(args)
@@ -838,7 +841,10 @@ class TestBackpackAPIPublicBehavior:
         mock_markets = [MagicMock(spec=Market)]
 
         with patch.object(
-            backpack_api.market_data_service, "get_markets", new_callable=AsyncMock, return_value=mock_markets
+            backpack_api.market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
+            return_value=mock_markets,
         ) as mock_service_method:
             args = GetMarketsArgs()
             result = await backpack_api.get_markets(args)

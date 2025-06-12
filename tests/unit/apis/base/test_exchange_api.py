@@ -23,7 +23,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -45,6 +47,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
@@ -146,6 +149,14 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
         """Get market data candles for the specified arguments."""
         return [MagicMock(spec=Candle)]
+
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Get market metadata for the specified symbol."""
+        return MagicMock(spec=Market)
+
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Get market metadata for all available markets."""
+        return [MagicMock(spec=Market)]
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Get account balances for all assets."""

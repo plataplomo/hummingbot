@@ -167,7 +167,7 @@ class TestBackpackRawGetPositionsParams:
         """Test that params are immutable."""
         params = BackpackRawGetPositionsParams()
         # Since there are no fields, we can't test assignment, but we can verify the model is frozen
-        assert params.model_config["frozen"] is True
+        assert params.model_config.get("frozen") is True
 
 
 class TestBackpackRawGetOpenOrdersParams:
