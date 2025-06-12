@@ -186,13 +186,19 @@ class BackpackMarketDataMapper:
         """
         try:
             # Parse core market fields (required, won't be None since allow_none=False)
-            tick_size = cast(Decimal, parse_decimal_value(
-                raw_market.filters.price.tick_size, allow_none=False, field_name="tickSize"
-            ))
-            step_size = cast(Decimal, parse_decimal_value(
-                raw_market.filters.quantity.step_size, allow_none=False, field_name="stepSize"
-            ))
-            
+            tick_size = cast(
+                Decimal,
+                parse_decimal_value(
+                    raw_market.filters.price.tick_size, allow_none=False, field_name="tickSize"
+                ),
+            )
+            step_size = cast(
+                Decimal,
+                parse_decimal_value(
+                    raw_market.filters.quantity.step_size, allow_none=False, field_name="stepSize"
+                ),
+            )
+
             # Parse optional price limits
             min_price = parse_decimal_value(
                 raw_market.filters.price.min_price, allow_none=True, field_name="minPrice"
@@ -200,7 +206,7 @@ class BackpackMarketDataMapper:
             max_price = parse_decimal_value(
                 raw_market.filters.price.max_price, allow_none=True, field_name="maxPrice"
             )
-            
+
             # Parse optional quantity limits
             min_quantity = parse_decimal_value(
                 raw_market.filters.quantity.min_quantity, allow_none=True, field_name="minQuantity"

@@ -28,19 +28,11 @@ def valid_market() -> dict[str, Any]:
         "quoteSymbol": "USDC",
         "marketType": "Spot",
         "filters": {
-            "price": {
-                "minPrice": "0.01",
-                "maxPrice": "1000000.0",
-                "tickSize": "0.01"
-            },
-            "quantity": {
-                "minQuantity": "0.0001",
-                "maxQuantity": "1000.0",
-                "stepSize": "0.0001"
-            }
+            "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+            "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.0001"},
         },
         "orderBookState": "NORMAL",
-        "createdAt": "2024-01-01T00:00:00.000Z"
+        "createdAt": "2024-01-01T00:00:00.000Z",
     }
 
 
@@ -55,8 +47,13 @@ def test_BackpackRawMarket_happy_path() -> None:
 def test_BackpackRawMarket_missing_required_fields() -> None:
     """Test BackpackRawMarket missing required fields."""
     required_fields = [
-        "symbol", "baseSymbol", "quoteSymbol", "marketType", 
-        "filters", "orderBookState", "createdAt"
+        "symbol",
+        "baseSymbol",
+        "quoteSymbol",
+        "marketType",
+        "filters",
+        "orderBookState",
+        "createdAt",
     ]
     for field in required_fields:
         p: dict[str, Any] = valid_market().copy()

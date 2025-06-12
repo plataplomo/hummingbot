@@ -62,15 +62,15 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
     try:
         # Use the public API method to get market metadata
         markets = await api.get_markets()
-        
+
         # Find the market by symbol
         for market in markets:
             if market.symbol == symbol:
                 return market.tick_size
-        
+
         logger.warning(f"Symbol {symbol} not found in markets, using default tick size")
         return Decimal("0.01")  # Fallback default
-            
+
     except Exception as e:
         logger.warning(f"Failed to get tick size for {symbol}: {e}, using default")
         return Decimal("0.01")  # Fallback default

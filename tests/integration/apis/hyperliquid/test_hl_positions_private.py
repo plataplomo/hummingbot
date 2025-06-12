@@ -40,13 +40,13 @@ pytestmark = pytest.mark.integration
 )
 class TestHyperliquidPositionsPrivate:
     """Comprehensive private position integration tests for /exchange endpoint operations.
-    
-    This class tests only /exchange endpoint operations (signed with EIP-712) that affect 
+
+    This class tests only /exchange endpoint operations (signed with EIP-712) that affect
     positions:
     - Position-affecting order operations (place_order that opens/modifies positions)
     - Position closure operations
     - Leverage management operations (when implemented)
-    
+
     These operations require cryptographic authentication and modify position state.
     """
 
@@ -80,7 +80,7 @@ class TestHyperliquidPositionsPrivate:
 
         # Get positions to validate position was created/modified
         positions = await hl_api_for_test_env.get_positions()
-        
+
         # Find the position for the traded asset
         purp_position = None
         for position in positions:
@@ -93,7 +93,7 @@ class TestHyperliquidPositionsPrivate:
             assert isinstance(purp_position, DerivativePosition), (
                 "Position should be DerivativePosition instance"
             )
-            
+
             # Validate core position fields
             assert purp_position.exchange == "hyperliquid", (
                 f"Position.exchange should be 'hyperliquid', got {purp_position.exchange}"
@@ -101,7 +101,7 @@ class TestHyperliquidPositionsPrivate:
             assert purp_position.symbol == "PURP", (
                 f"Position symbol should match traded asset, got {purp_position.symbol}"
             )
-            
+
             # Validate Decimal precision for financial fields
             assert isinstance(purp_position.size, Decimal), (
                 f"size must be Decimal, got {type(purp_position.size)}"
@@ -114,16 +114,15 @@ class TestHyperliquidPositionsPrivate:
                 assert isinstance(purp_position.unrealized_pnl, Decimal), (
                     f"unrealized_pnl must be Decimal, got {type(purp_position.unrealized_pnl)}"
                 )
-            
+
             # Validate business logic constraints
             assert purp_position.size != Decimal("0"), (
                 f"Position size should be non-zero after opening trade, got {purp_position.size}"
             )
-            assert (
-                purp_position.entry_price is not None 
-                and purp_position.entry_price > Decimal("0")
+            assert purp_position.entry_price is not None and purp_position.entry_price > Decimal(
+                "0"
             ), f"entry_price must be positive, got {purp_position.entry_price}"
-            
+
             # Validate position side matches order side
             if purp_position.size > Decimal("0"):
                 assert placed_order.side == OrderSide.BUY, (
@@ -139,7 +138,7 @@ class TestHyperliquidPositionsPrivate:
             # Place opposite order to close position
             close_side = OrderSide.SELL if purp_position.size > Decimal("0") else OrderSide.BUY
             close_quantity = abs(purp_position.size)
-            
+
             close_args = PlaceOrderArgs(
                 symbol="PURP",
                 side=close_side,
@@ -147,7 +146,7 @@ class TestHyperliquidPositionsPrivate:
                 quantity=close_quantity,
                 time_in_force=TimeInForce.IOC,
             )
-            
+
             try:
                 await hl_api_for_test_env.place_order(close_args)
             except APIError:
@@ -191,7 +190,7 @@ class TestHyperliquidPositionsPrivate:
                 OrderSide.SELL if purp_position_after_open.size > Decimal("0") else OrderSide.BUY
             )
             close_quantity = abs(purp_position_after_open.size)
-            
+
             close_args = PlaceOrderArgs(
                 symbol="PURP",
                 side=close_side,
@@ -254,7 +253,7 @@ class TestHyperliquidPositionsPrivate:
         # Check for common margin-related error phrases
         message_lower = api_error.message.lower()
         assert any(
-            phrase in message_lower 
+            phrase in message_lower
             for phrase in ["insufficient", "margin", "balance", "risk", "limit"]
         ), f"Error message should indicate margin/risk issue: {api_error.message}"
 
@@ -315,7 +314,7 @@ class TestHyperliquidPositionsPrivate:
                         quantity=abs(purp_position.size),
                         time_in_force=TimeInForce.IOC,
                     )
-                    
+
                     try:
                         await hl_api_for_test_env.place_order(close_args)
                     except APIError:
@@ -407,11 +406,11 @@ class TestHyperliquidPositionsPrivate:
             assert purp_position.size > Decimal("0.1"), (
                 f"Position should reflect accumulated size: {purp_position.size}"
             )
-            
+
             # Validate decimal precision maintained
             assert isinstance(purp_position.size, Decimal), "Size must remain Decimal"
             assert isinstance(purp_position.entry_price, Decimal), "Entry price must remain Decimal"
-            
+
             # Step 4: Clean up - close entire position
             close_args = PlaceOrderArgs(
                 symbol="PURP",

@@ -305,12 +305,14 @@ class TestSignalGenerator:
             price_change = Decimal(str(i * 5))
 
             # Update side effects to return slightly different data each time
-            def _funding_side_effect(ex: str, sym: str, r: Decimal = rate_change) -> FundingRate | None:
+            def _funding_side_effect(
+                ex: str, sym: str, r: Decimal = rate_change
+            ) -> FundingRate | None:
                 return get_funding_iter(ex, sym, r)
-            
+
             def _ticker_side_effect(ex: str, sym: str, p: Decimal = price_change) -> Ticker | None:
                 return get_ticker_iter(ex, sym, p)
-            
+
             data_handler.get_latest_funding_rate.side_effect = _funding_side_effect
             data_handler.get_latest_ticker.side_effect = _ticker_side_effect
 

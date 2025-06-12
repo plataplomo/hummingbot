@@ -37,19 +37,17 @@ from cyberdelta.core.models.market.order import Order
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/orders"], indirect=True
-)
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/orders"], indirect=True)
 class TestHyperliquidOrders:
     """Comprehensive order info integration tests for Order model validation.
-    
+
     This class tests /info (read) operations only:
-    
+
     /info endpoint (unsigned, user address in body):
     - get_order_by_id
-    - get_order_history  
+    - get_order_history
     - get_open_orders
-    
+
     Note: /exchange endpoint tests (place_order, cancel_order) are excluded
     as they require authenticated operations and are tested separately.
     """
@@ -69,12 +67,12 @@ class TestHyperliquidOrders:
         # Use a known order ID from test data/cassettes for consistent testing
         # This ID should exist in the VCR cassettes for reproducible tests
         test_order_id = "123456789"  # This should be updated with actual test order ID
-        
+
         get_order_args = GetOrderArgs(order_id=test_order_id)
-        
+
         try:
             retrieved_order = await hl_api_for_test_env.get_order(get_order_args)
-            
+
             # Validate retrieved order if it exists
             if retrieved_order is not None:
                 assert isinstance(retrieved_order, Order), (
@@ -84,13 +82,13 @@ class TestHyperliquidOrders:
                     f"Order ID should match query: {retrieved_order.exchange_order_id} vs "
                     f"{test_order_id}"
                 )
-                
+
                 # Validate core order fields
                 assert isinstance(retrieved_order.symbol, str), "symbol must be string"
                 assert retrieved_order.side in [OrderSide.BUY, OrderSide.SELL], (
                     "side must be valid OrderSide"
                 )
-                
+
                 # Validate Decimal precision for financial fields
                 assert isinstance(retrieved_order.quantity_requested, Decimal), (
                     "quantity_requested must be Decimal"
@@ -98,10 +96,10 @@ class TestHyperliquidOrders:
                 assert isinstance(retrieved_order.quantity_filled, Decimal), (
                     "quantity_filled must be Decimal"
                 )
-                
+
                 if retrieved_order.price is not None:
                     assert isinstance(retrieved_order.price, Decimal), "price must be Decimal"
-                    
+
         except APIError:
             # If order doesn't exist, that's expected for this test case
             # The test validates the error handling path
@@ -217,7 +215,6 @@ class TestHyperliquidOrders:
             except ValueError:
                 pytest.fail("Hyperliquid order ID should be a valid integer string")
 
-
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_order_nonexistent_id(
@@ -239,4 +236,3 @@ class TestHyperliquidOrders:
             f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got "
             f"{api_error.code}"
         )
-

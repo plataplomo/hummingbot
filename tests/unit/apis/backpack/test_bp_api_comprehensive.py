@@ -706,9 +706,7 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         # Mock service to raise APIError
-        api_error = APIError(
-            message="Market not found", code=APIErrorCode.SYMBOL_NOT_FOUND.value
-        )
+        api_error = APIError(message="Market not found", code=APIErrorCode.SYMBOL_NOT_FOUND.value)
 
         with patch.object(
             backpack_api.market_data_service,
@@ -717,10 +715,10 @@ class TestBackpackAPIPublicBehavior:
             side_effect=api_error,
         ):
             args = GetMarketArgs(symbol="INVALID_SYMBOL")
-            
+
             with pytest.raises(APIError) as exc_info:
                 await backpack_api.get_market(args)
-            
+
             assert exc_info.value == api_error
             assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
 
@@ -797,10 +795,10 @@ class TestBackpackAPIPublicBehavior:
             side_effect=api_error,
         ):
             args = GetMarketsArgs()
-            
+
             with pytest.raises(APIError) as exc_info:
                 await backpack_api.get_markets(args)
-            
+
             assert exc_info.value == api_error
             assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
 

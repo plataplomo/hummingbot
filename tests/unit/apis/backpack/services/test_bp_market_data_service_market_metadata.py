@@ -43,21 +43,17 @@ class TestBackpackMarketDataServiceMarketMetadata:
             "quoteSymbol": "USDC",
             "marketType": "Spot",
             "filters": {
-                "price": {
-                    "minPrice": "0.01",
-                    "maxPrice": "100000.00",
-                    "tickSize": "0.01"
-                },
+                "price": {"minPrice": "0.01", "maxPrice": "100000.00", "tickSize": "0.01"},
                 "quantity": {
                     "minQuantity": "0.001",
                     "maxQuantity": "10000.00",
-                    "stepSize": "0.001"
-                }
+                    "stepSize": "0.001",
+                },
             },
             "orderBookState": "NORMAL",
-            "createdAt": "2024-01-01T00:00:00.000Z"
+            "createdAt": "2024-01-01T00:00:00.000Z",
         }
-        
+
         mock_validated_market_raw = BackpackRawMarket.model_validate(mock_raw_market_data)
         mock_headers_from_client = {"X-Test-Header": "value"}
 
@@ -227,6 +223,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             from cyberdelta.apis.models.api_error import TransformationError
+
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
                 "Failed to transform market data"
             )
@@ -254,9 +251,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             symbol=symbol
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_market_response.side_effect = Exception(
-            "Unexpected error"
-        )
+        mock_response_handler.handle_get_market_response.side_effect = Exception("Unexpected error")
 
         with pytest.raises(APIError) as exc_info:
             args = GetMarketArgs(symbol=symbol)
@@ -282,19 +277,15 @@ class TestBackpackMarketDataServiceMarketMetadata:
                 "quoteSymbol": "USDC",
                 "marketType": "Spot",
                 "filters": {
-                    "price": {
-                        "minPrice": "0.01",
-                        "maxPrice": "100000.00",
-                        "tickSize": "0.01"
-                    },
+                    "price": {"minPrice": "0.01", "maxPrice": "100000.00", "tickSize": "0.01"},
                     "quantity": {
                         "minQuantity": "0.001",
                         "maxQuantity": "10000.00",
-                        "stepSize": "0.001"
-                    }
+                        "stepSize": "0.001",
+                    },
                 },
                 "orderBookState": "NORMAL",
-                "createdAt": "2024-01-01T00:00:00.000Z"
+                "createdAt": "2024-01-01T00:00:00.000Z",
             },
             {
                 "symbol": "ETH_USDC",
@@ -302,22 +293,18 @@ class TestBackpackMarketDataServiceMarketMetadata:
                 "quoteSymbol": "USDC",
                 "marketType": "Spot",
                 "filters": {
-                    "price": {
-                        "minPrice": "0.01",
-                        "maxPrice": "10000.00",
-                        "tickSize": "0.01"
-                    },
+                    "price": {"minPrice": "0.01", "maxPrice": "10000.00", "tickSize": "0.01"},
                     "quantity": {
                         "minQuantity": "0.001",
                         "maxQuantity": "1000.00",
-                        "stepSize": "0.001"
-                    }
+                        "stepSize": "0.001",
+                    },
                 },
                 "orderBookState": "NORMAL",
-                "createdAt": "2024-01-01T00:00:00.000Z"
-            }
+                "createdAt": "2024-01-01T00:00:00.000Z",
+            },
         ]
-        
+
         mock_validated_markets_raw = [
             BackpackRawMarket.model_validate(market) for market in mock_raw_markets_data
         ]
@@ -470,6 +457,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             from cyberdelta.apis.models.api_error import TransformationError
+
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
                 "Failed to transform markets data"
             )
@@ -516,7 +504,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
     ) -> None:
         """Test get_markets properly propagates APIError from HTTP client."""
         mock_request_builder.build_get_markets_params.return_value = BackpackRawGetMarketsParams()
-        
+
         # Create an APIError that would come from the HTTP client
         api_error = APIError("Service unavailable", APIErrorCode.SERVICE_UNAVAILABLE.value)
         mock_http_client_requester.side_effect = api_error
@@ -541,11 +529,11 @@ class TestBackpackMarketDataServiceMarketMetadata:
     ) -> None:
         """Test get_market properly propagates APIError from HTTP client."""
         symbol = "BTC_USDC"
-        
+
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
             symbol=symbol
         )
-        
+
         # Create an APIError that would come from the HTTP client
         api_error = APIError("Symbol not found", APIErrorCode.SYMBOL_NOT_FOUND.value)
         mock_http_client_requester.side_effect = api_error

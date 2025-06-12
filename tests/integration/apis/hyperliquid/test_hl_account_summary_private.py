@@ -46,14 +46,14 @@ pytestmark = pytest.mark.integration
 )
 class TestHyperliquidAccountSummaryPrivate:
     """Comprehensive private account summary integration tests for /exchange operations.
-    
-    This class tests only /exchange endpoint operations (signed with EIP-712) that affect 
+
+    This class tests only /exchange endpoint operations (signed with EIP-712) that affect
     account summaries:
     - Account-affecting order operations (large orders that impact margin calculations)
     - Leverage management operations (when implemented)
     - Margin configuration operations (when implemented)
     - Risk management operations (when implemented)
-    
+
     These operations require cryptographic authentication and modify account state.
     """
 
@@ -72,7 +72,7 @@ class TestHyperliquidAccountSummaryPrivate:
         """
         # Get initial account summary to establish baseline
         initial_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         # Validate initial account summary structure
         assert isinstance(initial_summary, MarginAccountSummary), (
             "Account summary should be MarginAccountSummary instance"
@@ -144,6 +144,7 @@ class TestHyperliquidAccountSummaryPrivate:
         # Clean up - cancel the order to restore account state
         try:
             from cyberdelta.apis.models.service_args_models import CancelOrderArgs
+
             cancel_args = CancelOrderArgs(
                 order_id=placed_order.exchange_order_id,
                 symbol="PURP",
@@ -236,7 +237,7 @@ class TestHyperliquidAccountSummaryPrivate:
         """
         # Get current account summary to understand available margin
         current_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         # Calculate an order size that would likely exceed available margin
         # Use a multiplier approach based on available equity
         if current_summary is not None and current_summary.available_equity > Decimal("0"):
@@ -271,7 +272,7 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Verify account summary remains consistent after failed operation
         post_error_summary = await hl_api_for_test_env.get_account_summary()
-        
+
         # Account summary should be unchanged after failed operation
         if current_summary is not None and post_error_summary is not None:
             assert post_error_summary.total_equity == current_summary.total_equity, (
@@ -310,7 +311,7 @@ class TestHyperliquidAccountSummaryPrivate:
             assert isinstance(field_value, Decimal), (
                 f"{field_name} must be Decimal, got {type(field_value)}"
             )
-            
+
             # Validate no scientific notation in string representation (unless appropriate)
             field_str = str(field_value)
             if "E" in field_str.upper():
@@ -324,16 +325,16 @@ class TestHyperliquidAccountSummaryPrivate:
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.000001"),  # Very small quantity
-            price=Decimal("0.000001"),     # Very small price
+            price=Decimal("0.000001"),  # Very small price
             time_in_force=TimeInForce.GTC,
         )
 
         try:
             precision_order = await hl_api_for_test_env.place_order(precision_order_args)
-            
+
             # Get updated summary after precision order
             precision_summary = await hl_api_for_test_env.get_account_summary()
-            
+
             # Validate precision is maintained in updated summary
             precision_fields = []
             if precision_summary is not None:
@@ -341,11 +342,11 @@ class TestHyperliquidAccountSummaryPrivate:
                     ("total_equity", precision_summary.total_equity),
                     ("available_equity", precision_summary.available_equity),
                     (
-                        "total_initial_margin_required", 
-                        precision_summary.total_initial_margin_required
+                        "total_initial_margin_required",
+                        precision_summary.total_initial_margin_required,
                     ),
                 ]
-            
+
             for field_name, field_value in precision_fields:
                 assert isinstance(field_value, Decimal), (
                     f"{field_name} must remain Decimal after precision operations"
@@ -354,6 +355,7 @@ class TestHyperliquidAccountSummaryPrivate:
             # Clean up precision order
             try:
                 from cyberdelta.apis.models.service_args_models import CancelOrderArgs
+
                 if precision_order.exchange_order_id is not None:
                     cancel_args = CancelOrderArgs(
                         order_id=precision_order.exchange_order_id,
@@ -391,7 +393,7 @@ class TestHyperliquidAccountSummaryPrivate:
             assert baseline.available_equity <= baseline.total_equity, (
                 "Baseline: Available equity should not exceed total equity"
             )
-        
+
         # Execute a series of operations and validate consistency at each step
         operations = [
             # Operation 1: Place a limit order (should affect available equity)
@@ -406,42 +408,43 @@ class TestHyperliquidAccountSummaryPrivate:
         ]
 
         placed_orders: list[Order] = []
-        
+
         for i, operation in enumerate(operations):
             try:
                 # Execute operation
                 order = await hl_api_for_test_env.place_order(operation)
                 placed_orders.append(order)
-                
+
                 # Get account summary after operation
                 post_op_summary = await hl_api_for_test_env.get_account_summary()
-                
+
                 # Validate consistency constraints
                 if post_op_summary is not None:
                     assert post_op_summary.available_equity <= post_op_summary.total_equity, (
-                        f"Operation {i+1}: Available equity should not exceed total equity"
+                        f"Operation {i + 1}: Available equity should not exceed total equity"
                     )
                     assert post_op_summary.available_equity >= Decimal("0"), (
-                        f"Operation {i+1}: Available equity should be non-negative"
+                        f"Operation {i + 1}: Available equity should be non-negative"
                     )
                     assert isinstance(post_op_summary.total_equity, Decimal), (
-                        f"Operation {i+1}: total_equity must remain Decimal"
+                        f"Operation {i + 1}: total_equity must remain Decimal"
                     )
-                    
+
                     # Validate account summary structure integrity
                     assert post_op_summary.exchange == "hyperliquid", (
-                        f"Operation {i+1}: Exchange should remain consistent"
+                        f"Operation {i + 1}: Exchange should remain consistent"
                     )
 
             except APIError as e:
                 # If any operation fails, that's acceptable - we're testing consistency
-                pytest.skip(f"Operation {i+1} failed: {e.message}")
+                pytest.skip(f"Operation {i + 1} failed: {e.message}")
 
         # Clean up all placed orders
         for order in placed_orders:
             if order.exchange_order_id:
                 try:
                     from cyberdelta.apis.models.service_args_models import CancelOrderArgs
+
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
                         symbol="PURP",

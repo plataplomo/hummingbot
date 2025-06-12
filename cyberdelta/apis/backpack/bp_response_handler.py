@@ -376,7 +376,7 @@ class BackpackResponseHandler:
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         markets: list[BackpackRawMarket] = []
         for i, market_data in enumerate(raw_response_content):
             try:
@@ -388,7 +388,7 @@ class BackpackResponseHandler:
                     f"{context} item {i}",
                     market_data,
                 ) from e
-        
+
         return markets
 
     @staticmethod
@@ -399,16 +399,16 @@ class BackpackResponseHandler:
         headers: Mapping[str, str],
     ) -> BackpackRawMarket:
         """Validate the raw response for the Get Market endpoint.
-        
+
         Args:
             raw_response_content: The raw response data from the API.
             symbol: The requested symbol for context in error messages.
             status_code: HTTP status code of the response.
             headers: HTTP response headers.
-            
+
         Returns:
             BackpackRawMarket: The validated market model.
-            
+
         Raises:
             APIError: If validation fails or response format is unexpected.
         """
@@ -420,7 +420,7 @@ class BackpackResponseHandler:
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
-        
+
         try:
             market_model = BackpackRawMarket.model_validate(raw_response_content)
             return market_model

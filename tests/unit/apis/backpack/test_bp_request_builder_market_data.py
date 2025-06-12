@@ -8,6 +8,8 @@ from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetHistoricalTradesParams,
     BackpackRawGetMarketDataParams,
+    BackpackRawGetMarketParams,
+    BackpackRawGetMarketsParams,
     BackpackRawGetOrderBookParams,
     BackpackRawGetRecentTradesParams,
     BackpackRawGetTickerParams,
@@ -295,3 +297,79 @@ class TestBuildGetHistoricalTradesParams:
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == expected_params
+
+
+class TestBuildGetMarketsParams:
+    """Tests for build_get_markets_params method."""
+
+    def test_build_get_markets_params_basic(self) -> None:
+        """Test build_get_markets_params returns valid model."""
+        params = BackpackRequestBuilder.build_get_markets_params()
+        assert isinstance(params, BackpackRawGetMarketsParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        # This endpoint requires no query parameters
+        assert params_dict == {}
+
+    def test_build_get_markets_params_empty_params(self) -> None:
+        """Test build_get_markets_params returns empty params dict."""
+        params = BackpackRequestBuilder.build_get_markets_params()
+        assert isinstance(params, BackpackRawGetMarketsParams)
+        # Should be a valid model but with no required fields
+        assert params is not None
+
+
+class TestBuildGetMarketParams:
+    """Tests for build_get_market_params method."""
+
+    def test_build_get_market_params_basic(self, symbol_spot: str) -> None:
+        """Test build_get_market_params with spot symbol."""
+        params = BackpackRequestBuilder.build_get_market_params(symbol_spot)
+        assert isinstance(params, BackpackRawGetMarketParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        assert params_dict == {"symbol": symbol_spot}
+
+    def test_build_get_market_params_perp_symbol(self, symbol_perp: str) -> None:
+        """Test build_get_market_params with perp symbol."""
+        params = BackpackRequestBuilder.build_get_market_params(symbol_perp)
+        assert isinstance(params, BackpackRawGetMarketParams)
+        expected_symbol = symbol_perp.replace("-", "_").upper()
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        assert params_dict == {"symbol": expected_symbol}
+
+    def test_build_get_market_params_formats_symbol(self) -> None:
+        """Test build_get_market_params formats symbol correctly."""
+        params = BackpackRequestBuilder.build_get_market_params("SOL-USDC")
+        assert isinstance(params, BackpackRawGetMarketParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        assert params_dict == {"symbol": "SOL_USDC"}
+
+    @pytest.mark.parametrize(
+        "input_symbol, expected_symbol",
+        [
+            ("sol-usdc", "SOL_USDC"),
+            ("BTC-PERP", "BTC_PERP"),
+            ("eth_usdt", "ETH_USDT"),
+            ("AVAX_USDC", "AVAX_USDC"),
+            ("link-perp", "LINK_PERP"),
+        ],
+    )
+    def test_build_get_market_params_parametrized(
+        self,
+        input_symbol: str,
+        expected_symbol: str,
+    ) -> None:
+        """Test build_get_market_params with various symbol formats."""
+        params = BackpackRequestBuilder.build_get_market_params(input_symbol)
+        assert isinstance(params, BackpackRawGetMarketParams)
+        params_dict = params.model_dump(by_alias=True, exclude_none=True)
+        assert params_dict == {"symbol": expected_symbol}
+
+    def test_build_get_market_params_symbol_consistency(self) -> None:
+        """Test build_get_market_params symbol formatting consistency."""
+        # Test that the method uses the same format_symbol logic as other methods
+        test_symbols = ["BTC_USDC", "ETH-USDT", "sol_perp", "AVAX-PERP"]
+        for symbol in test_symbols:
+            params = BackpackRequestBuilder.build_get_market_params(symbol)
+            expected_formatted = BackpackRequestBuilder.format_symbol(symbol)
+            params_dict = params.model_dump(by_alias=True, exclude_none=True)
+            assert params_dict["symbol"] == expected_formatted

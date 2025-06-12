@@ -178,6 +178,229 @@ def create_raw_kline(
     return BackpackRawKline.model_validate(kline_data)
 
 
+def create_raw_market(
+    symbol: str = "SOL_USDC",
+    base_symbol: str = "SOL",
+    quote_symbol: str = "USDC",
+    market_type: str = "Spot",
+    tick_size: str = "0.01",
+    step_size: str = "0.01",
+    min_price: str = "0.001",
+    max_price: str = "1000000.0",
+    min_quantity: str = "0.0001",
+    max_quantity: str = "1000000.0",
+    order_book_state: str = "NORMAL",
+    created_at: str = "2024-01-01T00:00:00.000Z",
+) -> BackpackRawMarket:
+    """Create BackpackRawMarket instances for testing market transformations."""
+    return BackpackRawMarket(
+        symbol=symbol,
+        baseSymbol=base_symbol,
+        quoteSymbol=quote_symbol,
+        marketType=market_type,
+        filters={
+            "price": {
+                "minPrice": min_price,
+                "maxPrice": max_price,
+                "tickSize": tick_size,
+            },
+            "quantity": {
+                "minQuantity": min_quantity,
+                "maxQuantity": max_quantity,
+                "stepSize": step_size,
+            },
+        },
+        orderBookState=order_book_state,
+        createdAt=created_at,
+    )
+
+
+class TestMarketTransformation:
+    """Test cases for market transformation functionality."""
+
+    def test_transform_raw_market_to_internal_happy_path(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test successful transformation of BackpackRawMarket to internal Market."""
+        raw_market = create_raw_market(
+            symbol="SOL_USDC",
+            base_symbol="SOL",
+            quote_symbol="USDC",
+            market_type="Spot",
+            tick_size="0.01",
+            step_size="0.01",
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        assert isinstance(result, Market)
+        assert result.symbol == "SOL_USDC"
+        assert result.base_symbol == "SOL"
+        assert result.quote_symbol == "USDC"
+        assert result.market_type == "Spot"
+        assert result.tick_size == Decimal("0.01")
+        assert result.step_size == Decimal("0.01")
+        assert result.status == "NORMAL"  # maps from order_book_state
+        assert result.bp_details is not None
+
+    def test_transform_raw_market_with_all_optional_fields(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test market transformation with all optional fields populated."""
+        raw_market = create_raw_market(
+            min_price="0.001",
+            max_price="10000.0",
+            min_quantity="0.1",
+            max_quantity="1000.0",
+            created_at="2024-01-15T10:30:00.000Z",
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        assert result.min_price == Decimal("0.001")
+        assert result.max_price == Decimal("10000.0")
+        assert result.min_quantity == Decimal("0.1")
+        assert result.max_quantity == Decimal("1000.0")
+        assert result.created_at == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
+
+    def test_transform_raw_market_with_extreme_values(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test market transformation with extreme decimal values."""
+        raw_market = create_raw_market(
+            tick_size="0.000001",  # Very small tick
+            step_size="0.000000001",  # Very small step
+            min_price="0.000000001",  # Very small min price
+            max_price="999999999.999999",  # Very large max price
+            min_quantity="0.000000001",  # Very small min quantity
+            max_quantity="999999999999.999999",  # Very large max quantity
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        assert result.tick_size == Decimal("0.000001")
+        assert result.step_size == Decimal("0.000000001")
+        assert result.min_price == Decimal("0.000000001")
+        assert result.max_price == Decimal("999999999.999999")
+        assert result.min_quantity == Decimal("0.000000001")
+        assert result.max_quantity == Decimal("999999999999.999999")
+
+    def test_transform_raw_market_with_none_optional_fields(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test market transformation with None optional fields."""
+        # Create market without optional fields by modifying the raw model
+        raw_market = create_raw_market()
+        # Remove optional fields from filters
+        raw_market.filters["price"]["minPrice"] = None
+        raw_market.filters["price"]["maxPrice"] = None
+        raw_market.filters["quantity"]["minQuantity"] = None
+        raw_market.filters["quantity"]["maxQuantity"] = None
+        raw_market.created_at = None
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        assert result.min_price is None
+        assert result.max_price is None
+        assert result.min_quantity is None
+        assert result.max_quantity is None
+        assert result.created_at is None
+
+    def test_transform_raw_market_backpack_details(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test that Backpack-specific details are properly created."""
+        raw_market = create_raw_market(
+            order_book_state="HALTED",
+            created_at="2024-01-15T10:30:00.000Z",
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        from cyberdelta.core.models.market.market import BackpackMarketDetails
+
+        assert isinstance(result.bp_details, BackpackMarketDetails)
+        assert result.bp_details.order_book_state == "HALTED"
+        assert result.bp_details.created_at_raw == "2024-01-15T10:30:00.000Z"
+        # hl_details should be None for Backpack markets
+        assert result.hl_details is None
+
+    def test_transform_raw_market_perp_type(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test market transformation with perpetual contract type."""
+        raw_market = create_raw_market(
+            symbol="SOL_USDC_PERP",
+            market_type="Perpetual",
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        assert result.symbol == "SOL_USDC_PERP"
+        assert result.market_type == "Perpetual"
+
+    def test_transform_raw_market_transformation_error(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test that transformation errors are properly wrapped."""
+        raw_market = create_raw_market()
+
+        # Mock parse_decimal_value to raise an error for tick_size
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+        ) as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
+
+            with pytest.raises(
+                TransformationError,
+                match="Failed to transform BackpackRawMarket to Market",
+            ):
+                mapper.transform_raw_market_to_internal(raw_market)
+
+    def test_transform_raw_market_invalid_timestamp(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test market transformation with invalid timestamp."""
+        raw_market = create_raw_market(created_at="invalid-timestamp")
+
+        # Mock parse_datetime_utc to return None for invalid timestamp
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
+        ) as mock_parse:
+            mock_parse.return_value = None
+
+            result = mapper.transform_raw_market_to_internal(raw_market)
+
+            # Should handle gracefully with None timestamp
+            assert result.created_at is None
+
+    def test_transform_raw_market_symbol_consistency(
+        self,
+        mapper: BackpackMarketDataMapper,
+    ) -> None:
+        """Test that symbol parsing is consistent with base/quote symbols."""
+        raw_market = create_raw_market(
+            symbol="BTC_USDC",
+            base_symbol="BTC",
+            quote_symbol="USDC",
+        )
+
+        result = mapper.transform_raw_market_to_internal(raw_market)
+
+        # Symbol should match the combination of base_quote
+        assert result.symbol == "BTC_USDC"
+        assert result.base_symbol == "BTC"
+        assert result.quote_symbol == "USDC"
+
+
 class TestTickerTransformation:
     """Test cases for ticker transformation functionality."""
 

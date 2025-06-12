@@ -91,8 +91,13 @@ class Market(BaseModel):
         return dt
 
     @field_validator(
-        "tick_size", "step_size", "min_price", "max_price", "min_quantity", "max_quantity", 
-        mode="before"
+        "tick_size",
+        "step_size",
+        "min_price",
+        "max_price",
+        "min_quantity",
+        "max_quantity",
+        mode="before",
     )
     @classmethod
     def validate_and_parse_decimal_fields(
@@ -114,10 +119,10 @@ class Market(BaseModel):
 
         """
         field_name = info.field_name if info.field_name is not None else "unknown_field"
-        
+
         # tick_size and step_size are required, others are optional
         allow_none = field_name not in ("tick_size", "step_size")
-        
+
         parsed_decimal = parse_decimal_value(v, allow_none=allow_none, field_name=field_name)
 
         # Ensure non-None results are finite
@@ -148,7 +153,7 @@ class HyperliquidMarketDetails(BaseModel):
     """Hyperliquid-specific market enrichment fields for extension slot on Market.
 
     Contains Hyperliquid-specific trading rules and current market state.
-    
+
     Attributes:
         max_leverage: Maximum leverage allowed for this asset (1-1000).
         only_isolated: True if only isolated margin is allowed.

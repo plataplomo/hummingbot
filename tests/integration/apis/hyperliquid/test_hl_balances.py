@@ -35,9 +35,7 @@ from cyberdelta.core.models.spot_balance import SpotBalance
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/balances"], indirect=True
-)
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/balances"], indirect=True)
 class TestHyperliquidBalances:
     """Comprehensive balances integration tests for SpotBalance model validation."""
 

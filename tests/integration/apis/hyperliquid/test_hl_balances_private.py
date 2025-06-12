@@ -6,7 +6,7 @@ Tests validate complete data transformation for balance state-changing operation
 
 Model Focus: SpotBalance (Write Operations)
 - Tests L2 USD transfer operations
-- Tests token withdrawal operations  
+- Tests token withdrawal operations
 - Tests ETH withdrawal operations
 - Validates EIP-712 cryptographic authentication
 - Comprehensive error handling for balance management operations
@@ -41,12 +41,12 @@ pytestmark = pytest.mark.integration
 )
 class TestHyperliquidBalancesPrivate:
     """Comprehensive private balance integration tests for /exchange endpoint operations.
-    
+
     This class tests only /exchange endpoint operations (signed with EIP-712) that affect balances:
     - L2 USD transfer operations (between accounts on Hyperliquid L2)
     - Token withdrawal operations (to L1 addresses)
     - ETH withdrawal operations (to L1 addresses)
-    
+
     These operations require cryptographic authentication and modify balance state.
     """
 
@@ -138,7 +138,7 @@ class TestHyperliquidBalancesPrivate:
     # ==============================================================================
     # FUTURE IMPLEMENTATION TESTS (Currently commented out due to NotImplementedError)
     # ==============================================================================
-    # 
+    #
     # The following tests are structured and ready for when the transfer/withdrawal
     # operations are fully implemented in HyperliquidAccountService. They can be
     # uncommented and activated once the NotImplementedError is removed.
@@ -163,7 +163,7 @@ class TestHyperliquidBalancesPrivate:
     #         if balance.asset == "USDC":
     #             initial_usdc_balance = balance
     #             break
-    #     
+    #
     #     # Define transfer parameters
     #     transfer_args = TransferArgs(
     #         asset="USDC",
@@ -230,7 +230,7 @@ class TestHyperliquidBalancesPrivate:
     #             break
     #
     #     # Skip if insufficient balance for withdrawal
-    #     if (initial_usdc_balance is None or 
+    #     if (initial_usdc_balance is None or
     #         initial_usdc_balance.available_balance < Decimal("5.0")):
     #         pytest.skip("Insufficient USDC balance for withdrawal test")
     #
@@ -447,7 +447,7 @@ class TestHyperliquidBalancesPrivate:
         assert hasattr(hl_api_for_test_env, "transfer"), "API should have transfer method"
         assert callable(hl_api_for_test_env.transfer), "transfer should be callable"
 
-        # Verify withdraw method exists and has correct signature  
+        # Verify withdraw method exists and has correct signature
         assert hasattr(hl_api_for_test_env, "withdraw"), "API should have withdraw method"
         assert callable(hl_api_for_test_env.withdraw), "withdraw should be callable"
 

@@ -2197,9 +2197,7 @@ class TestHyperliquidMarketDataServiceGetMarket:
         symbol = "BTC-USD"
 
         # Setup mock to raise APIError
-        api_error = APIError(
-            message="Failed to get markets", code=APIErrorCode.RATE_LIMITED.value
-        )
+        api_error = APIError(message="Failed to get markets", code=APIErrorCode.RATE_LIMITED.value)
 
         with patch.object(
             hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock

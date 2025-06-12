@@ -204,7 +204,7 @@ class TestBackpackBalancesPrivate:
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
 
-        # BackpackAPI construction succeeds but authenticator will be None due to invalid 
+        # BackpackAPI construction succeeds but authenticator will be None due to invalid
         # credentials
         bad_api = BackpackAPI(
             exchange_config=active_bp_config,

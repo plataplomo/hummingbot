@@ -132,11 +132,12 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         """
         method_upper = method.upper()
-        
+
         # Extract path component if a full URL is provided
         lookup_path = path
         if path.startswith(("http://", "https://")):
             from urllib.parse import urlparse
+
             parsed_url = urlparse(path)
             lookup_path = parsed_url.path
 

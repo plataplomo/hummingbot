@@ -8,7 +8,11 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawMarket,
+    BackpackRawOrderBook,
+    BackpackRawTicker,
+)
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -611,3 +615,203 @@ class TestMarketDataEdgeCases:
         assert len(klines) == 1
         assert klines[0].start_time_ms == 1678886400000
         assert klines[0].trade_count == 100
+
+
+class TestHandleGetMarketsResponse:
+    """Tests for BackpackResponseHandler.handle_get_markets_response."""
+
+    def test_valid_markets_list(self) -> None:
+        """Test handling a valid raw markets response."""
+        raw_data = [
+            {
+                "symbol": "SOL_USDC",
+                "base_symbol": "SOL",
+                "quote_symbol": "USDC",
+                "tick_size": "0.01",
+                "step_size": "0.01",
+            },
+            {
+                "symbol": "BTC_USDC",
+                "base_symbol": "BTC",
+                "quote_symbol": "USDC",
+                "tick_size": "0.01",
+                "step_size": "0.0001",
+            },
+        ]
+        markets = BackpackResponseHandler.handle_get_markets_response(
+            cast("RawJsonResponse", raw_data)
+        )
+        assert isinstance(markets, list)
+        assert len(markets) == 2
+        assert all(isinstance(market, BackpackRawMarket) for market in markets)
+        assert markets[0].symbol == "SOL_USDC"
+        assert markets[0].base_symbol == "SOL"
+        assert markets[0].quote_symbol == "USDC"
+        assert markets[1].symbol == "BTC_USDC"
+
+    def test_empty_markets_list(self) -> None:
+        """Test handling an empty markets list."""
+        raw_data: list[Any] = []
+        markets = BackpackResponseHandler.handle_get_markets_response(
+            cast("RawJsonResponse", raw_data)
+        )
+        assert isinstance(markets, list)
+        assert len(markets) == 0
+
+    def test_invalid_top_level_type(self) -> None:
+        """Test markets response with wrong top-level type."""
+        raw_data = {"not": "a_list"}
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_markets_response(cast("RawJsonResponse", raw_data))
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "expected list" in exc_info.value.message
+        assert "got dict" in exc_info.value.message
+
+    def test_validation_error_in_market_item(self) -> None:
+        """Test markets response with invalid market item."""
+        raw_data = [
+            {
+                "symbol": "SOL_USDC",
+                "base_symbol": "SOL",
+                "quote_symbol": "USDC",
+                "tick_size": "0.01",
+                "step_size": "0.01",
+            },
+            {
+                # Missing required fields
+                "symbol": "BTC_USDC"
+                # Missing base_symbol, quote_symbol, etc.
+            },
+        ]
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_markets_response(cast("RawJsonResponse", raw_data))
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Invalid markets item 1" in exc_info.value.message
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+
+    def test_large_markets_list(self) -> None:
+        """Test handling a large list of markets."""
+        raw_data = []
+        for i in range(100):
+            raw_data.append(
+                {
+                    "symbol": f"ASSET{i}_USDC",
+                    "base_symbol": f"ASSET{i}",
+                    "quote_symbol": "USDC",
+                    "tick_size": "0.01",
+                    "step_size": "0.01",
+                }
+            )
+
+        markets = BackpackResponseHandler.handle_get_markets_response(
+            cast("RawJsonResponse", raw_data)
+        )
+        assert len(markets) == 100
+        assert all(isinstance(market, BackpackRawMarket) for market in markets)
+        assert markets[0].symbol == "ASSET0_USDC"
+        assert markets[99].symbol == "ASSET99_USDC"
+
+
+class TestHandleGetMarketResponse:
+    """Tests for BackpackResponseHandler.handle_get_market_response."""
+
+    def test_valid_market(self, symbol_spot: str) -> None:
+        """Test handling a valid raw market response."""
+        raw_data = {
+            "symbol": symbol_spot,
+            "base_symbol": "SOL",
+            "quote_symbol": "USDC",
+            "tick_size": "0.01",
+            "step_size": "0.01",
+        }
+        market = BackpackResponseHandler.handle_get_market_response(
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
+        )
+        assert isinstance(market, BackpackRawMarket)
+        assert market.symbol == symbol_spot
+        assert market.base_symbol == "SOL"
+        assert market.quote_symbol == "USDC"
+        assert market.tick_size == "0.01"
+        assert market.step_size == "0.01"
+
+    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+        """Test market response with wrong top-level type."""
+        raw_data = ["not", "a", "dict"]
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_market_response(
+                cast("RawJsonResponse", raw_data), symbol_spot, 400, {}
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "expected dict" in exc_info.value.message
+        assert "got list" in exc_info.value.message
+        assert f"market for {symbol_spot}" in exc_info.value.message
+
+    def test_validation_error_missing_field(self, symbol_spot: str) -> None:
+        """Test market response missing required field."""
+        raw_data = {
+            "symbol": symbol_spot,
+            "base_symbol": "SOL",
+            # Missing required quote_symbol, tick_size, step_size
+        }
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_market_response(
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert f"Invalid market for {symbol_spot}" in exc_info.value.message
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+
+    def test_validation_error_invalid_field_type(self, symbol_spot: str) -> None:
+        """Test market response with invalid field type."""
+        raw_data = {
+            "symbol": symbol_spot,
+            "base_symbol": "SOL",
+            "quote_symbol": "USDC",
+            "tick_size": 0.01,  # Should be string
+            "step_size": "0.01",
+        }
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_market_response(
+                cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert f"Invalid market for {symbol_spot}" in exc_info.value.message
+        assert isinstance(exc_info.value.original_exception, ValidationError)
+
+    def test_market_with_all_optional_fields(self, symbol_spot: str) -> None:
+        """Test market response with all optional fields populated."""
+        raw_data = {
+            "symbol": symbol_spot,
+            "base_symbol": "SOL",
+            "quote_symbol": "USDC",
+            "tick_size": "0.01",
+            "step_size": "0.01",
+            "min_price": "0.001",
+            "max_price": "10000.0",
+            "min_quantity": "0.1",
+            "max_quantity": "1000000.0",
+            "status": "TRADING",
+            "order_book_state": "NORMAL",
+        }
+        market = BackpackResponseHandler.handle_get_market_response(
+            cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
+        )
+        assert isinstance(market, BackpackRawMarket)
+        assert market.symbol == symbol_spot
+        assert market.min_price == "0.001"
+        assert market.max_price == "10000.0"
+        assert market.min_quantity == "0.1"
+        assert market.max_quantity == "1000000.0"
+        assert market.status == "TRADING"
+        assert market.order_book_state == "NORMAL"
+
+    def test_market_context_in_error_message(self) -> None:
+        """Test that error messages include market context."""
+        symbol = "TEST_SYMBOL"
+        raw_data = "not a dict"
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_market_response(
+                cast("RawJsonResponse", raw_data), symbol, 404, {}
+            )
+        assert f"market for {symbol}" in exc_info.value.message
+        assert exc_info.value.http_status == 404

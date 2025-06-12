@@ -43,11 +43,11 @@ pytestmark = pytest.mark.integration
 )
 class TestHyperliquidOrdersPrivate:
     """Comprehensive private orders integration tests for /exchange endpoint operations.
-    
+
     This class tests only /exchange endpoint operations (signed with EIP-712):
     - place_order
     - cancel_order
-    
+
     These operations require cryptographic authentication and modify exchange state.
     """
 
@@ -455,7 +455,7 @@ class TestHyperliquidOrdersPrivate:
                 time_in_force=TimeInForce.GTC,
             ),
             PlaceOrderArgs(
-                symbol="PURP", 
+                symbol="PURP",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.2"),
@@ -493,12 +493,13 @@ class TestHyperliquidOrdersPrivate:
             # Step 3: Verify orders are no longer in open orders
             open_orders_after = await hl_api_for_test_env.get_open_orders()
             purp_orders_remaining = [
-                order for order in open_orders_after 
-                if order.symbol == "PURP" and order.exchange_order_id in [
-                    placed_order.exchange_order_id for placed_order in placed_orders
-                ]
+                order
+                for order in open_orders_after
+                if order.symbol == "PURP"
+                and order.exchange_order_id
+                in [placed_order.exchange_order_id for placed_order in placed_orders]
             ]
-            
+
             assert len(purp_orders_remaining) == 0, (
                 f"All PURP orders should be cancelled, but {len(purp_orders_remaining)} remain"
             )
@@ -563,12 +564,12 @@ class TestHyperliquidOrdersPrivate:
             # Step 3: Verify no orders remain open (or at least our orders are gone)
             open_orders_after = await hl_api_for_test_env.get_open_orders()
             our_orders_remaining = [
-                order for order in open_orders_after 
-                if order.exchange_order_id in [
-                    placed_order.exchange_order_id for placed_order in placed_orders
-                ]
+                order
+                for order in open_orders_after
+                if order.exchange_order_id
+                in [placed_order.exchange_order_id for placed_order in placed_orders]
             ]
-            
+
             assert len(our_orders_remaining) == 0, (
                 f"All our orders should be cancelled, but {len(our_orders_remaining)} remain"
             )
@@ -595,7 +596,7 @@ class TestHyperliquidOrdersPrivate:
         assert isinstance(cancel_results, list), (
             "cancel_all_orders() should return list even when no orders exist"
         )
-        
+
         # When no orders exist, result should be empty
         assert len(cancel_results) == 0, (
             f"Should return empty results when no orders exist, got {len(cancel_results)}"
@@ -678,7 +679,7 @@ class TestHyperliquidOrdersPrivate:
 
         try:
             placed_order = await hl_api_for_test_env.place_order(order_args)
-            
+
             if placed_order.exchange_order_id:
                 # Manually cancel the order first
                 manual_cancel_args = CancelOrderArgs(
@@ -780,7 +781,7 @@ class TestHyperliquidOrdersPrivate:
             # Verify our specific orders are cancelled
             our_order_ids = {order.exchange_order_id for order in placed_orders}
             remaining_order_ids = {order.exchange_order_id for order in final_open_orders}
-            
+
             orders_still_open = our_order_ids.intersection(remaining_order_ids)
             assert len(orders_still_open) == 0, (
                 f"All our orders should be cancelled, but {len(orders_still_open)} remain"

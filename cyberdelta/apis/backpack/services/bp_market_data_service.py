@@ -1303,30 +1303,30 @@ class BackpackMarketDataService:
 
     async def get_market(self, args: GetMarketArgs) -> Market:
         """Retrieve market metadata for a specific symbol.
-        
+
         Returns market metadata including tick size and trading rules for a single symbol.
         This method provides access to the /api/v1/market endpoint to get
         precision information needed for order placement.
-        
+
         Args:
             args: Parameters for market metadata request including symbol.
-        
+
         Returns:
             Market internal domain model for the specified symbol
         """
         symbol = args.symbol
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_market"
-        
+
         # Service Input Parameter Validation
         if not symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        
+
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         raw_response_content: str | None = None
-        
+
         try:
             # Core operational logic following the established pattern
             params = self._request_builder.build_get_market_params(symbol=symbol)
@@ -1335,7 +1335,7 @@ class BackpackMarketDataService:
                 f"[{self._exchange_name}] Requesting market metadata for {symbol} from "
                 f"{endpoint_path} with params: {params}",
             )
-            
+
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
@@ -1345,39 +1345,37 @@ class BackpackMarketDataService:
                 request_weight=1,
             )
             raw_data, status_code, headers = response_tuple
-            
+
             if raw_data is not None:
                 raw_response_content = str(raw_data)
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Raw market response for {symbol}: {raw_data!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
-            
+
             if raw_data is None or not isinstance(raw_data, dict):
                 raise APIError(
                     f"Market for {symbol} returned invalid data (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Use response handler for validation (following architecture)
-            raw_market_model: BackpackRawMarket = (
-                self._response_handler.handle_get_market_response(
-                    raw_data,
-                    symbol,
-                    status_code,
-                    headers,
-                )
+            raw_market_model: BackpackRawMarket = self._response_handler.handle_get_market_response(
+                raw_data,
+                symbol,
+                status_code,
+                headers,
             )
-            
+
             # Transform raw model to internal domain model using mapper
             internal_market = self._mapper.transform_raw_market_to_internal(raw_market_model)
             logger.debug(
                 f"[{self._exchange_name}] Mapped internal market for {symbol}: {internal_market}",
             )
             return internal_market
-            
+
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
@@ -1436,25 +1434,25 @@ class BackpackMarketDataService:
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
         """Retrieve market metadata for all available markets.
-        
+
         Returns market metadata including tick sizes and trading rules.
         This method provides access to the /api/v1/markets endpoint to get
         precision information needed for order placement.
-        
+
         Args:
             args: Parameters for markets metadata request (currently no parameters).
-        
+
         Returns:
             List of Market internal domain models
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_markets"
-        
+
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
         raw_response_content: str | None = None
-        
+
         try:
             # Core operational logic following the established pattern
             params = self._request_builder.build_get_markets_params()
@@ -1463,7 +1461,7 @@ class BackpackMarketDataService:
                 f"[{self._exchange_name}] Requesting markets metadata from {endpoint_path} "
                 f"with params: {params}",
             )
-            
+
             response_tuple = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
@@ -1473,27 +1471,27 @@ class BackpackMarketDataService:
                 request_weight=1,
             )
             raw_data, status_code, headers = response_tuple
-            
+
             if raw_data is not None:
                 raw_response_content = str(raw_data)
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Raw markets response: {raw_data!r} "
                 f"(Status: {status_code}, Headers: {headers})"
             )
-            
+
             if raw_data is None or not isinstance(raw_data, list):
                 raise APIError(
                     f"Markets data returned invalid format (status: {status_code})",
                     APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Use response handler for validation (following architecture)
             raw_markets_list: list[BackpackRawMarket] = (
                 self._response_handler.handle_get_markets_response(raw_data)
             )
-            
+
             # Transform raw models to internal domain models using mapper
             markets_list: list[Market] = []
             for raw_market_model in raw_markets_list:
@@ -1508,13 +1506,13 @@ class BackpackMarketDataService:
                         f"{raw_market_model.symbol}: {e}"
                     )
                     continue
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Transformed {len(markets_list)} markets "
                 f"to internal models"
             )
             return markets_list
-            
+
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise

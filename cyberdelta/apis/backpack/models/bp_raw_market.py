@@ -54,36 +54,36 @@ logger = logging.getLogger(__name__)
 
 class BackpackRawPriceFilter(BaseModel):
     """Price filter defining price rules for the order book."""
-    
+
     min_price: RawBpParsableFiniteDecimalString = Field(..., alias="minPrice")
     max_price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="maxPrice")
     tick_size: RawBpParsableFiniteDecimalString = Field(..., alias="tickSize")
-    
+
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 class BackpackRawQuantityFilter(BaseModel):
     """Quantity filter defining quantity rules for the order book."""
-    
+
     min_quantity: RawBpParsableFiniteDecimalString = Field(..., alias="minQuantity")
     max_quantity: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="maxQuantity")
     step_size: RawBpParsableFiniteDecimalString = Field(..., alias="stepSize")
-    
+
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 class BackpackRawOrderBookFilters(BaseModel):
     """Order book filters containing price and quantity rules."""
-    
+
     price: BackpackRawPriceFilter = Field(..., alias="price")
     quantity: BackpackRawQuantityFilter = Field(..., alias="quantity")
-    
+
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
 class BackpackRawMarket(BaseModel):
     """Pydantic model for a market metadata object from `/api/v1/markets` (Backpack REST API).
-    
+
     This model correctly represents the Market schema from Backpack's OpenAPI spec,
     containing market metadata WITHOUT order book data (bids/asks).
 

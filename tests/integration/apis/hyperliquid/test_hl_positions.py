@@ -35,9 +35,7 @@ from cyberdelta.core.models.derivative_position import DerivativePosition
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/positions"], indirect=True
-)
+@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/positions"], indirect=True)
 class TestHyperliquidPositions:
     """Comprehensive positions integration tests for DerivativePosition model validation."""
 

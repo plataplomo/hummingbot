@@ -93,7 +93,7 @@ __all__ = [
     "BackpackRawTicker",
     "BackpackRawOpenInterest",
     "BackpackRawPriceFilter",
-    "BackpackRawQuantityFilter", 
+    "BackpackRawQuantityFilter",
     "BackpackRawOrderBookFilters",
     # Transfer
     "BackpackRawWithdrawal",
@@ -130,7 +130,7 @@ __all__ = [
     "BackpackRawGetTradeHistoryParams",
     "BackpackRawGetMarketDataParams",
     "BackpackRawGetMarketParams",
-    "BackpackRawGetMarketsParams", 
+    "BackpackRawGetMarketsParams",
     "BackpackRawGetHistoricalTradesParams",
     "BackpackRawGetOrderParams",
     # WebSocket Payloads
