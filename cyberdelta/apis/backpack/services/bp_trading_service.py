@@ -483,7 +483,7 @@ class BackpackTradingService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint,
-                params=params.model_dump(),
+                params=params.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -660,7 +660,7 @@ class BackpackTradingService:
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint,
-            params=params.model_dump(),
+            params=params.model_dump(by_alias=True, exclude_none=True),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,

@@ -982,7 +982,7 @@ class BackpackAccountService:
 
         try:
             # Core operational logic
-            endpoint_path = "/api/v1/history/orders"
+            endpoint_path = "/wapi/v1/history/orders"
             start_time_ms = int(args.start_time.timestamp() * 1000) if args.start_time else None
             end_time_ms = int(args.end_time.timestamp() * 1000) if args.end_time else None
 
@@ -1002,7 +1002,7 @@ class BackpackAccountService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params.model_dump(),
+                params=params.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,
@@ -1126,7 +1126,7 @@ class BackpackAccountService:
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
-            params=params.model_dump(),
+            params=params.model_dump(by_alias=True, exclude_none=True),
             is_signed=True,
             endpoint_group="private",
             request_weight=1,

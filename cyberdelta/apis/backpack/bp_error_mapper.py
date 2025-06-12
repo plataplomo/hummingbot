@@ -118,6 +118,16 @@ class BackpackErrorMapper(IErrorMapper):
                     f"Pydantic errors: {detailed_errors}. Original exception string: {e}. "
                     f"Falling back to heuristics.",
                 )
+
+        # If no error_data or parsing failed, delegate to string-based mapping
+        if error_body:
+            # Use the existing string mapping logic by calling map_string_error
+            # and extracting just the error code from the result
+            string_error_result = BackpackErrorMapper().map_string_error(
+                error_body, http_status=status_code
+            )
+            mapped_code = APIErrorCode(string_error_result.code)
+
         return mapped_code
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
@@ -143,6 +153,8 @@ class BackpackErrorMapper(IErrorMapper):
             "too many requests": APIErrorCode.RATE_LIMITED,
             "ratelimit exceeded": APIErrorCode.RATE_LIMITED,  # General catch for rate limits
             "invalid symbol": APIErrorCode.INVALID_SYMBOL,
+            "invalid market symbol": APIErrorCode.INVALID_SYMBOL,  # Specific Backpack message
+            'failed to parse "marketsymbol"': APIErrorCode.INVALID_SYMBOL,  # Alternative pattern
             "invalid quantity": APIErrorCode.INVALID_ORDER_SIZE,
             "invalid order": APIErrorCode.INVALID_REQUEST,
             "invalid price": APIErrorCode.INVALID_REQUEST,
