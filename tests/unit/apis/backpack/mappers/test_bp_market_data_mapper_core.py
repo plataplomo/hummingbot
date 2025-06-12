@@ -23,13 +23,17 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawMarket,
     BackpackRawOrderBook,
+    BackpackRawOrderBookFilters,
+    BackpackRawPriceFilter,
+    BackpackRawQuantityFilter,
     BackpackRawTicker,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
-from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -198,18 +202,18 @@ def create_raw_market(
         baseSymbol=base_symbol,
         quoteSymbol=quote_symbol,
         marketType=market_type,
-        filters={
-            "price": {
-                "minPrice": min_price,
-                "maxPrice": max_price,
-                "tickSize": tick_size,
-            },
-            "quantity": {
-                "minQuantity": min_quantity,
-                "maxQuantity": max_quantity,
-                "stepSize": step_size,
-            },
-        },
+        filters=BackpackRawOrderBookFilters(
+            price=BackpackRawPriceFilter(
+                minPrice=min_price,
+                maxPrice=max_price,
+                tickSize=tick_size,
+            ),
+            quantity=BackpackRawQuantityFilter(
+                minQuantity=min_quantity,
+                maxQuantity=max_quantity,
+                stepSize=step_size,
+            ),
+        ),
         orderBookState=order_book_state,
         createdAt=created_at,
     )
@@ -293,22 +297,36 @@ class TestMarketTransformation:
         mapper: BackpackMarketDataMapper,
     ) -> None:
         """Test market transformation with None optional fields."""
-        # Create market without optional fields by modifying the raw model
-        raw_market = create_raw_market()
-        # Remove optional fields from filters
-        raw_market.filters["price"]["minPrice"] = None
-        raw_market.filters["price"]["maxPrice"] = None
-        raw_market.filters["quantity"]["minQuantity"] = None
-        raw_market.filters["quantity"]["maxQuantity"] = None
-        raw_market.created_at = None
+        # Create market with None optional fields (only maxPrice and maxQuantity can be None)
+        raw_market = BackpackRawMarket(
+            symbol="SOL_USDC",
+            baseSymbol="SOL",
+            quoteSymbol="USDC",
+            marketType="Spot",
+            filters=BackpackRawOrderBookFilters(
+                price=BackpackRawPriceFilter(
+                    minPrice="0.001",  # Required field
+                    maxPrice=None,  # Optional field - can be None
+                    tickSize="0.01",  # Required field
+                ),
+                quantity=BackpackRawQuantityFilter(
+                    minQuantity="0.1",  # Required field
+                    maxQuantity=None,  # Optional field - can be None
+                    stepSize="0.01",  # Required field
+                ),
+            ),
+            orderBookState="NORMAL",
+            createdAt="2024-01-01T00:00:00.000Z",  # Required field
+        )
 
         result = mapper.transform_raw_market_to_internal(raw_market)
 
-        assert result.min_price is None
+        # Only maxPrice and maxQuantity should be None
+        assert result.min_price == Decimal("0.001")
         assert result.max_price is None
-        assert result.min_quantity is None
+        assert result.min_quantity == Decimal("0.1")
         assert result.max_quantity is None
-        assert result.created_at is None
+        assert result.created_at is not None  # created_at is required
 
     def test_transform_raw_market_backpack_details(
         self,

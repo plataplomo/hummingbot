@@ -625,17 +625,35 @@ class TestHandleGetMarketsResponse:
         raw_data = [
             {
                 "symbol": "SOL_USDC",
-                "base_symbol": "SOL",
-                "quote_symbol": "USDC",
-                "tick_size": "0.01",
-                "step_size": "0.01",
+                "baseSymbol": "SOL",
+                "quoteSymbol": "USDC",
+                "marketType": "Spot",
+                "filters": {
+                    "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                    "quantity": {
+                        "minQuantity": "0.0001",
+                        "maxQuantity": "1000.0",
+                        "stepSize": "0.01",
+                    },
+                },
+                "orderBookState": "NORMAL",
+                "createdAt": "2024-01-01T00:00:00.000Z",
             },
             {
                 "symbol": "BTC_USDC",
-                "base_symbol": "BTC",
-                "quote_symbol": "USDC",
-                "tick_size": "0.01",
-                "step_size": "0.0001",
+                "baseSymbol": "BTC",
+                "quoteSymbol": "USDC",
+                "marketType": "Spot",
+                "filters": {
+                    "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                    "quantity": {
+                        "minQuantity": "0.0001",
+                        "maxQuantity": "1000.0",
+                        "stepSize": "0.0001",
+                    },
+                },
+                "orderBookState": "NORMAL",
+                "createdAt": "2024-01-01T00:00:00.000Z",
             },
         ]
         markets = BackpackResponseHandler.handle_get_markets_response(
@@ -672,15 +690,24 @@ class TestHandleGetMarketsResponse:
         raw_data = [
             {
                 "symbol": "SOL_USDC",
-                "base_symbol": "SOL",
-                "quote_symbol": "USDC",
-                "tick_size": "0.01",
-                "step_size": "0.01",
+                "baseSymbol": "SOL",
+                "quoteSymbol": "USDC",
+                "marketType": "Spot",
+                "filters": {
+                    "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                    "quantity": {
+                        "minQuantity": "0.0001",
+                        "maxQuantity": "1000.0",
+                        "stepSize": "0.01",
+                    },
+                },
+                "orderBookState": "NORMAL",
+                "createdAt": "2024-01-01T00:00:00.000Z",
             },
             {
                 # Missing required fields
                 "symbol": "BTC_USDC"
-                # Missing base_symbol, quote_symbol, etc.
+                # Missing baseSymbol, quoteSymbol, marketType, filters, orderBookState, createdAt
             },
         ]
         with pytest.raises(APIError) as exc_info:
@@ -691,15 +718,24 @@ class TestHandleGetMarketsResponse:
 
     def test_large_markets_list(self) -> None:
         """Test handling a large list of markets."""
-        raw_data = []
+        raw_data: list[dict[str, Any]] = []
         for i in range(100):
             raw_data.append(
                 {
                     "symbol": f"ASSET{i}_USDC",
-                    "base_symbol": f"ASSET{i}",
-                    "quote_symbol": "USDC",
-                    "tick_size": "0.01",
-                    "step_size": "0.01",
+                    "baseSymbol": f"ASSET{i}",
+                    "quoteSymbol": "USDC",
+                    "marketType": "Spot",
+                    "filters": {
+                        "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                        "quantity": {
+                            "minQuantity": "0.0001",
+                            "maxQuantity": "1000.0",
+                            "stepSize": "0.01",
+                        },
+                    },
+                    "orderBookState": "NORMAL",
+                    "createdAt": "2024-01-01T00:00:00.000Z",
                 }
             )
 
@@ -719,10 +755,15 @@ class TestHandleGetMarketResponse:
         """Test handling a valid raw market response."""
         raw_data = {
             "symbol": symbol_spot,
-            "base_symbol": "SOL",
-            "quote_symbol": "USDC",
-            "tick_size": "0.01",
-            "step_size": "0.01",
+            "baseSymbol": "SOL",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.01"},
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
         }
         market = BackpackResponseHandler.handle_get_market_response(
             cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
@@ -731,8 +772,8 @@ class TestHandleGetMarketResponse:
         assert market.symbol == symbol_spot
         assert market.base_symbol == "SOL"
         assert market.quote_symbol == "USDC"
-        assert market.tick_size == "0.01"
-        assert market.step_size == "0.01"
+        assert market.filters.price.tick_size == "0.01"
+        assert market.filters.quantity.step_size == "0.01"
 
     def test_invalid_top_level_type(self, symbol_spot: str) -> None:
         """Test market response with wrong top-level type."""
@@ -750,8 +791,8 @@ class TestHandleGetMarketResponse:
         """Test market response missing required field."""
         raw_data = {
             "symbol": symbol_spot,
-            "base_symbol": "SOL",
-            # Missing required quote_symbol, tick_size, step_size
+            "baseSymbol": "SOL",
+            # Missing required quoteSymbol, marketType, filters, orderBookState, createdAt
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
@@ -763,12 +804,21 @@ class TestHandleGetMarketResponse:
 
     def test_validation_error_invalid_field_type(self, symbol_spot: str) -> None:
         """Test market response with invalid field type."""
-        raw_data = {
+        raw_data: dict[str, Any] = {
             "symbol": symbol_spot,
-            "base_symbol": "SOL",
-            "quote_symbol": "USDC",
-            "tick_size": 0.01,  # Should be string
-            "step_size": "0.01",
+            "baseSymbol": "SOL",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {
+                    "minPrice": "0.01",
+                    "maxPrice": "1000000.0",
+                    "tickSize": 0.01,  # Should be string
+                },
+                "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.01"},
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
@@ -782,27 +832,25 @@ class TestHandleGetMarketResponse:
         """Test market response with all optional fields populated."""
         raw_data = {
             "symbol": symbol_spot,
-            "base_symbol": "SOL",
-            "quote_symbol": "USDC",
-            "tick_size": "0.01",
-            "step_size": "0.01",
-            "min_price": "0.001",
-            "max_price": "10000.0",
-            "min_quantity": "0.1",
-            "max_quantity": "1000000.0",
-            "status": "TRADING",
-            "order_book_state": "NORMAL",
+            "baseSymbol": "SOL",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {"minPrice": "0.001", "maxPrice": "10000.0", "tickSize": "0.01"},
+                "quantity": {"minQuantity": "0.1", "maxQuantity": "1000000.0", "stepSize": "0.01"},
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
         }
         market = BackpackResponseHandler.handle_get_market_response(
             cast("RawJsonResponse", raw_data), symbol_spot, 200, {}
         )
         assert isinstance(market, BackpackRawMarket)
         assert market.symbol == symbol_spot
-        assert market.min_price == "0.001"
-        assert market.max_price == "10000.0"
-        assert market.min_quantity == "0.1"
-        assert market.max_quantity == "1000000.0"
-        assert market.status == "TRADING"
+        assert market.filters.price.min_price == "0.001"
+        assert market.filters.price.max_price == "10000.0"
+        assert market.filters.quantity.min_quantity == "0.1"
+        assert market.filters.quantity.max_quantity == "1000000.0"
         assert market.order_book_state == "NORMAL"
 
     def test_market_context_in_error_message(self) -> None:
