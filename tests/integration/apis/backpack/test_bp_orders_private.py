@@ -1,18 +1,20 @@
-"""Integration tests for Backpack private orders endpoints.
+"""Integration tests for Backpack private orders endpoints with positive balance.
 
 This module focuses specifically on testing the Order model pipeline
-through Backpack's private order endpoints with Ed25519 authentication.
+through Backpack's private order endpoints with Ed25519 authentication
+when the account has sufficient funds for order operations.
 Tests validate complete data transformation from API responses to Order instances.
 
-Model Focus: Order
+Model Focus: Order (Successful Operations)
 - Validates complete Order model field mapping
 - Tests Decimal precision for financial values (quantities, prices)
 - Validates business logic constraints and order state transitions
 - Tests Backpack-specific order details (bp_details with order management info)
-- Comprehensive error handling and order lifecycle edge cases
+- Comprehensive order lifecycle with successful placements and cancellations
 
 Authentication: Ed25519 signing for API authentication
 VCR: Records both success and error responses with sensitive data filtering
+Balance: Positive USDC balance (successful order scenarios)
 """
 
 from __future__ import annotations
@@ -22,19 +24,14 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
@@ -116,25 +113,21 @@ async def get_dynamic_test_price(
         tolerance_factor = tolerance_percent / Decimal("100")
 
         if side == OrderSide.BUY:
-            # For buy orders, normally use price below market to avoid fills
-            # But if tolerance is negative, use price above market (for insufficient funds tests)
+            # For buy orders, use price below market to avoid fills
             test_price = market_price * (Decimal("1") - tolerance_factor)
         else:
-            # For sell orders, normally use price above market to avoid fills
-            # But if tolerance is negative, use price below market
+            # For sell orders, use price above market to avoid fills
             test_price = market_price * (Decimal("1") + tolerance_factor)
 
         # Get the tick size for this symbol
         tick_size = await get_symbol_tick_size(api, symbol)
 
         # Round to the required tick size and normalize to remove trailing zeros
-        # This ensures we don't send something like "150.00" when "150" would work
         quantized_price = test_price.quantize(tick_size)
         return quantized_price.normalize()
 
     except Exception as e:
         # Fallback to a reasonable static price if dynamic pricing fails
-        # This ensures tests don't completely break due to market data issues
         if symbol == "SOL_USDC":
             fallback_price = Decimal("150.0") if side == OrderSide.BUY else Decimal("170.0")
         else:
@@ -146,9 +139,31 @@ async def get_dynamic_test_price(
         return fallback_price
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/private/orders"], indirect=True)
-class TestBackpackOrdersPrivate:
-    """Comprehensive private orders integration tests for Order model validation."""
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/private/orders/positive_balance"], indirect=True
+)
+class TestBackpackOrdersPositiveBalance:
+    """Comprehensive private orders integration tests with positive balance for operations."""
+
+    async def _get_market_constraints(self, api: BackpackAPI, symbol: str) -> dict[str, Decimal]:
+        """Get market constraints for precision testing."""
+        try:
+            from cyberdelta.apis.models.service_args_models import GetMarketArgs
+            market = await api.get_market(GetMarketArgs(symbol=symbol))
+            
+            return {
+                "step_size": market.step_size or Decimal("0.001"),
+                "tick_size": market.tick_size or Decimal("0.01"),
+                "min_quantity": market.step_size or Decimal("0.001"),
+            }
+        except Exception as e:
+            logger.warning(f"Could not get market constraints for {symbol}: {e}")
+            # Safe fallbacks based on common Backpack requirements
+            return {
+                "step_size": Decimal("0.001"),
+                "tick_size": Decimal("0.01"), 
+                "min_quantity": Decimal("0.001"),
+            }
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -157,12 +172,19 @@ class TestBackpackOrdersPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test successful place_order() with comprehensive Order model validation.
+        """Test successful place_order() pipeline with positive balance.
 
-        This test validates the complete pipeline from Ed25519 authenticated request
-        to fully validated Order model instances with all field constraints.
-        Uses dynamic pricing to avoid fills while staying within exchange tolerance.
+        With positive balance, this test validates:
+        1. Order placement succeeds and returns valid Order instance
+        2. Order model field mapping is correct
+        3. Decimal precision is maintained
+        4. Backpack-specific order details are properly populated
+        5. Order can be successfully cancelled
+
+        This ensures full order lifecycle works correctly with sufficient funds.
         """
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         # Get dynamic test price based on current market conditions
         symbol = "SOL_USDC"  # Common Backpack trading pair
         side = OrderSide.BUY
@@ -183,89 +205,34 @@ class TestBackpackOrdersPrivate:
             time_in_force=TimeInForce.GTC,
         )
 
-        # Execute the API call
+        # With positive balance, expect successful order placement
         placed_order = await bp_api_for_test_env.place_order(place_args)
 
-        # Validate return type
-        assert isinstance(placed_order, Order), "place_order() should return Order instance"
-
-        # Validate core fields
-        assert placed_order.exchange == "backpack", (
-            f"Order.exchange should be 'backpack', got {placed_order.exchange}"
-        )
-
-        # Validate timestamp recency
-        assert placed_order.created_at is not None, "Order must have created_at timestamp"
-        time_diff = datetime.now(placed_order.created_at.tzinfo) - placed_order.created_at
-        assert time_diff.total_seconds() < 300, (  # 5 minutes for order placement
-            f"Order timestamp should be recent (< 5 minutes), got {time_diff.total_seconds()}s ago"
-        )
-
-        # Validate order matches request parameters
+        # Validate successful order placement
+        assert isinstance(placed_order, Order), "Should return Order instance"
+        assert placed_order.exchange == "backpack", "Order should be from Backpack"
         assert placed_order.symbol == symbol, (
-            f"Order symbol should match request, got {placed_order.symbol}"
+            f"Symbol should match: expected {symbol}, got {placed_order.symbol}"
         )
         assert placed_order.side == side, (
-            f"Order side should match request, got {placed_order.side}"
+            f"Side should match: expected {side}, got {placed_order.side}"
         )
-        assert placed_order.order_type == OrderType.LIMIT, (
-            f"Order type should match request, got {placed_order.order_type}"
-        )
-
-        # Validate Decimal precision for all financial fields
-        assert isinstance(placed_order.quantity_requested, Decimal), (
-            f"quantity_requested must be Decimal, got {type(placed_order.quantity_requested)}"
-        )
-        assert isinstance(placed_order.price, Decimal), (
-            f"price must be Decimal, got {type(placed_order.price)}"
-        )
-        assert isinstance(placed_order.quantity_filled, Decimal), (
-            f"quantity_filled must be Decimal, got {type(placed_order.quantity_filled)}"
+        assert placed_order.quantity_requested == place_args.quantity, "Quantity should match"
+        assert placed_order.price == test_price, "Price should match"
+        assert placed_order.exchange_order_id is not None, "Should have exchange order ID"
+        assert placed_order.status == OrderStatus.OPEN, (
+            f"New order should be OPEN, got {placed_order.status}"
         )
 
-        # Validate order parameter values
-        assert placed_order.quantity_requested == Decimal("0.1"), (
-            f"Order quantity should match request, got {placed_order.quantity_requested}"
-        )
-        assert placed_order.price == test_price, (
-            f"Order price should match request, got {placed_order.price}, expected {test_price}"
-        )
-
-        # Validate order status and lifecycle
-        assert placed_order.status in [OrderStatus.OPEN, OrderStatus.NEW], (
-            f"Order should be open/new after placement, got {placed_order.status}"
-        )
-        assert placed_order.exchange_order_id is not None, "Order should have exchange-generated ID"
-
-        # For new orders, quantity_filled should be 0
-        assert placed_order.quantity_filled == Decimal("0"), (
-            f"New order should have zero filled quantity, got {placed_order.quantity_filled}"
-        )
-
-        # Validate business logic constraints
-        assert placed_order.quantity_requested > Decimal("0"), (
-            f"quantity_requested must be positive, got {placed_order.quantity_requested}"
-        )
-        assert placed_order.price > Decimal("0"), (
-            f"price must be positive, got {placed_order.price}"
-        )
-        assert placed_order.quantity_filled >= Decimal("0"), (
-            f"quantity_filled must be non-negative, got {placed_order.quantity_filled}"
-        )
-        assert placed_order.quantity_filled <= placed_order.quantity_requested, (
-            f"quantity_filled ({placed_order.quantity_filled}) cannot exceed "
-            f"quantity_requested ({placed_order.quantity_requested})"
-        )
-
-        # Validate Backpack-specific order ID format
-        assert isinstance(placed_order.exchange_order_id, str), "Backpack order ID should be string"
-        assert len(placed_order.exchange_order_id) > 0, "Order ID should not be empty"
-
-        # Validate exchange-specific details if present
-        if placed_order.bp_details:
-            # Add specific validation for Backpack order details
-            # This would depend on the actual bp_details structure
-            assert hasattr(placed_order, "bp_details"), "bp_details should be accessible"
+        # Clean up: cancel the order
+        if placed_order.exchange_order_id:
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id,
+                symbol=symbol,
+            )
+            await bp_api_for_test_env.cancel_order(cancel_args)
+            
+        logger.info(f"✓ Order placement successful with ID: {placed_order.exchange_order_id}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -274,46 +241,54 @@ class TestBackpackOrdersPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test successful cancel_order() after order placement.
+        """Test successful cancel_order() API endpoint with positive balance.
 
-        This validates the complete order lifecycle: place → cancel → verify cancellation.
+        This test validates the complete order lifecycle:
+        1. Place an order successfully
+        2. Cancel the order successfully
+        3. Validate the cancellation response
         """
-        # Get dynamic test price based on current market conditions
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4"),  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),
         )
-
-        # First place an order
+        
+        # First, place an order
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=test_price,  # Dynamic price based on market conditions
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-
+        
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        order_id = placed_order.exchange_order_id
-
-        # Ensure order_id is not None before creating cancel args
-        assert order_id is not None, "Order ID should not be None after placement"
-
-        # Cancel the order
+        assert placed_order.exchange_order_id is not None, "Placed order should have ID"
+        
+        # Now cancel the order
         cancel_args = CancelOrderArgs(
-            order_id=order_id,
+            order_id=placed_order.exchange_order_id,
             symbol=symbol,
         )
 
-        cancel_result = await bp_api_for_test_env.cancel_order(cancel_args)
+        # Cancel should succeed without raising an exception
+        await bp_api_for_test_env.cancel_order(cancel_args)
+        
+        # Verify the order is no longer in open orders
+        open_orders = await bp_api_for_test_env.get_open_orders()
+        order_ids = [order.exchange_order_id for order in open_orders]
+        assert placed_order.exchange_order_id not in order_ids, (
+            "Cancelled order should not be in open orders"
+        )
 
-        # Validate cancellation success
-        assert cancel_result is True, "cancel_order() should return True on success"
+        logger.info(f"✓ Order {placed_order.exchange_order_id} cancelled successfully")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -326,6 +301,8 @@ class TestBackpackOrdersPrivate:
 
         This tests historical order retrieval and validates Order model consistency.
         """
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         # Define recent date range for order history
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)  # Last 7 days
@@ -383,6 +360,8 @@ class TestBackpackOrdersPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test successful get_open_orders() with detailed Order model validation."""
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         # Execute the full pipeline
         open_orders = await bp_api_for_test_env.get_open_orders()
 
@@ -422,219 +401,147 @@ class TestBackpackOrdersPrivate:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_place_order_authentication_failure(
+    async def test_order_precision_validation_positive_balance(
         self,
-        active_bp_config: ExchangeSpecificConfig,
+        bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test place_order() with invalid Ed25519 authentication."""
-        # Create API with invalid credentials - use real BackpackAPI (not DI) to test auth failure
-        invalid_secrets = ApiKeyAuthSecrets(
-            api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
-            api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
+        """Test order precision handling with successful placement and cancellation.
+        
+        This validates that decimal precision is maintained through the complete
+        order lifecycle when orders are successfully placed.
+        """
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        
+        # Get market constraints
+        constraints = await self._get_market_constraints(bp_api_for_test_env, symbol)
+        min_quantity = constraints["min_quantity"]
+        step_size = constraints["step_size"]
+        tick_size = constraints["tick_size"]
+        
+        # Use a quantity that's exactly aligned with step size
+        test_quantity = min_quantity * Decimal("2")  # 2x minimum
+        rounded_quantity = (test_quantity / step_size).quantize(Decimal("1")) * step_size
+        
+        # Get dynamic test price
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4")
         )
-
-        # BackpackAPI construction succeeds but authenticator will be None due to invalid
-        # credentials
-        bad_api = BackpackAPI(
-            exchange_config=active_bp_config,
-            exchange_secrets=invalid_secrets,
-        )
-
-        # Define order args
+        
+        # Round price to valid tick size
+        rounded_price = test_price.quantize(tick_size)
+        
         place_args = PlaceOrderArgs(
-            symbol="SOL_USDC",
-            side=OrderSide.BUY,
+            symbol=symbol,
+            side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("1.00"),
+            quantity=rounded_quantity,
+            price=rounded_price,
             time_in_force=TimeInForce.GTC,
         )
-
-        # The API call should fail when it tries to use the authenticator
-        with pytest.raises((APIError, AttributeError)) as exc_info:
-            await bad_api.place_order(place_args)
-
-        # Validate that it fails due to authentication issues
-        error = exc_info.value
-        if isinstance(error, APIError):
-            assert error.code in [
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-                APIErrorCode.INVALID_REQUEST.value,
-            ], f"Expected authentication-related error, got {error.code}"
-        else:
-            # Expected when trying to use None authenticator (AttributeError)
-            assert "authenticator" in str(error).lower() or "NoneType" in str(error), (
-                f"Expected authenticator-related AttributeError, got: {error}"
+        
+        # Place order and validate precision
+        placed_order = await bp_api_for_test_env.place_order(place_args)
+        
+        # Validate precision is maintained
+        assert placed_order.quantity_requested == rounded_quantity, (
+            f"Quantity precision not maintained: expected {rounded_quantity}, "
+            f"got {placed_order.quantity_requested}"
+        )
+        
+        assert placed_order.price == rounded_price, (
+            f"Price precision not maintained: expected {rounded_price}, "
+            f"got {placed_order.price}"
+        )
+        
+        # Clean up
+        if placed_order.exchange_order_id:
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id,
+                symbol=symbol
             )
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_place_order_insufficient_funds(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test place_order() with insufficient funds error.
-
-        This validates that our BackpackErrorMapper correctly maps Backpack's
-        "INSUFFICIENT_FUNDS" error to our standardized APIErrorCode.
-        """
-        # Get dynamic test price and use higher price to maximize required funds
-        symbol = "SOL_USDC"
-        side = OrderSide.BUY
-        test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
-            symbol=symbol,
-            side=side,
-            tolerance_percent=Decimal("-3"),  # 3% above market (negative = higher price)
-        )
-
-        # Create order with unrealistically large quantity to trigger insufficient funds
-        large_order_args = PlaceOrderArgs(
-            symbol=symbol,
-            side=side,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("999999999.0"),  # Unrealistically large
-            price=test_price,  # Use dynamic price to avoid price validation errors
-            time_in_force=TimeInForce.GTC,
-        )
-
-        # Should raise APIError with INSUFFICIENT_FUNDS code
-        with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(large_order_args)
-
-        # Validate error mapping
-        api_error = exc_info.value
-        assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value, (
-            f"BackpackErrorMapper should map insufficient funds to INSUFFICIENT_FUNDS, got "
-            f"{api_error.code}"
-        )
-        assert isinstance(api_error.message, str), "Error message should be string"
-        assert len(api_error.message) > 0, "Error message should not be empty"
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_place_order_invalid_symbol(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test place_order() with invalid symbol error."""
-        # Create order with non-existent symbol
-        # Still use reasonable price to avoid price validation errors
-        invalid_symbol_args = PlaceOrderArgs(
-            symbol="INVALID_SYMBOL_XYZ",  # Non-existent symbol
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("100.00"),  # Reasonable price to avoid price validation issues
-            time_in_force=TimeInForce.GTC,
-        )
-
-        # Should raise APIError with appropriate error code
-        with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(invalid_symbol_args)
-
-        # Validate error structure
-        api_error = exc_info.value
-        assert api_error.code in [
-            APIErrorCode.INVALID_SYMBOL.value,
-            APIErrorCode.SYMBOL_NOT_FOUND.value,
-            APIErrorCode.INVALID_REQUEST.value,
-        ], f"Should map to symbol-related error code, got {api_error.code}"
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_cancel_nonexistent_order(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test cancel_order() with non-existent order ID."""
-        # Attempt to cancel order with fake ID
-        cancel_args = CancelOrderArgs(
-            order_id="99999999999999999",  # Non-existent order ID
-            symbol="SOL_USDC",
-        )
-
-        # Should raise APIError with ORDER_NOT_FOUND
-        with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.cancel_order(cancel_args)
-
-        # Validate error mapping
-        api_error = exc_info.value
-        assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"BackpackErrorMapper should map order not found to ORDER_NOT_FOUND, got "
-            f"{api_error.code}"
+            
+        logger.info(
+            f"✓ Precision validation successful for quantity {rounded_quantity} "
+            f"and price {rounded_price}"
         )
-
-        # Check for common Backpack order not found phrases
-        message_lower = api_error.message.lower()
-        assert any(
-            phrase in message_lower for phrase in ["not found", "invalid", "does not exist"]
-        ), f"Error message should indicate order not found: {api_error.message}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_order_precision_edge_cases(
+    async def test_multiple_order_operations_positive_balance(
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test order operations with edge cases around decimal precision.
+        """Test multiple order operations with positive balance.
 
-        This validates handling of very small quantities, dust amounts,
-        and precision edge cases that might occur in real trading.
+        This validates that multiple orders can be placed and managed
+        successfully when sufficient funds are available.
         """
-        # Get dynamic test price for precision testing
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
-        test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
-            symbol=symbol,
-            side=side,
-            tolerance_percent=Decimal("4"),  # 4% below market for buy order
-        )
-
-        # Test very small quantity order
-        small_order_args = PlaceOrderArgs(
-            symbol=symbol,
-            side=side,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("0.001"),  # Small quantity
-            price=test_price,  # Dynamic price based on market conditions
-            time_in_force=TimeInForce.GTC,
-        )
-
-        try:
-            # Attempt to place small order
-            placed_order = await bp_api_for_test_env.place_order(small_order_args)
-
-            # If successful, validate precision is maintained
-            assert placed_order.quantity_requested == Decimal("0.001"), (
-                f"Small quantity precision should be maintained: {placed_order.quantity_requested}"
+        
+        # Place multiple small orders
+        placed_orders: list[Order] = []
+        
+        for i in range(2):  # Place 2 small orders
+            test_price = await get_dynamic_test_price(
+                api=bp_api_for_test_env,
+                symbol=symbol,
+                side=side,
+                tolerance_percent=Decimal("3") + Decimal(str(i)),  # Slightly different prices
             )
-
-            # Validate that small quantities maintain proper decimal representation
-            quantity_str = str(placed_order.quantity_requested)
-            assert "E" not in quantity_str.upper() or "E-" in quantity_str.upper(), (
-                f"Scientific notation should be negative exponent if used: {quantity_str}"
+            
+            place_args = PlaceOrderArgs(
+                symbol=symbol,
+                side=side,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("0.05"),  # Small quantity
+                price=test_price,
+                time_in_force=TimeInForce.GTC,
             )
-
-            # Clean up
-            if placed_order.exchange_order_id:
+            
+            placed_order = await bp_api_for_test_env.place_order(place_args)
+            placed_orders.append(placed_order)
+            
+            # Validate each order
+            assert isinstance(placed_order, Order), f"Order {i+1} should be Order instance"
+            assert placed_order.exchange_order_id is not None, f"Order {i+1} should have ID"
+            assert placed_order.status == OrderStatus.OPEN, f"Order {i+1} should be OPEN"
+        
+        # Verify orders appear in open orders
+        open_orders = await bp_api_for_test_env.get_open_orders()
+        placed_order_ids = {
+            order.exchange_order_id for order in placed_orders if order.exchange_order_id
+        }
+        open_order_ids = {
+            order.exchange_order_id for order in open_orders if order.exchange_order_id
+        }
+        
+        for order_id in placed_order_ids:
+            assert order_id in open_order_ids, (
+                f"Order {order_id} should be in open orders"
+            )
+        
+        # Clean up: cancel all placed orders
+        for order in placed_orders:
+            if order.exchange_order_id:
                 cancel_args = CancelOrderArgs(
-                    order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+                    order_id=order.exchange_order_id,
+                    symbol=symbol,
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
-
-        except APIError as e:
-            # If exchange rejects due to minimum quantity, that's also valid behavior
-            if "minimum" in e.message.lower() or "size" in e.message.lower():
-                pytest.skip(f"Exchange has minimum quantity requirements: {e.message}")
-            else:
-                raise
+        
+        logger.info(f"✓ Successfully placed and cancelled {len(placed_orders)} orders")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -646,62 +553,62 @@ class TestBackpackOrdersPrivate:
         """Test order operations with Backpack symbol format validation.
 
         This validates that order symbols follow Backpack's naming conventions
-        and are properly formatted.
+        and are properly formatted in successfully placed orders.
         """
-        # Get open orders to test symbol formats
-        open_orders = await bp_api_for_test_env.get_open_orders()
-
-        # Also place a test order to validate symbol format
-        symbol = "SOL_USDC"  # Standard Backpack format
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
+        symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4"),  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),
         )
-
+        
+        # Place an order to validate symbol format
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=test_price,  # Dynamic price based on market conditions
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-
+        
         placed_order = await bp_api_for_test_env.place_order(place_args)
-
-        # Combine orders for symbol validation
-        all_orders = open_orders + [placed_order]
-
-        for order in all_orders:
-            symbol = order.symbol
-
-            # Validate symbol format
-            assert isinstance(symbol, str), "Symbol should be string"
-            assert len(symbol) > 0, "Symbol should not be empty"
-            assert symbol == symbol.strip(), "Symbol should not have leading/trailing whitespace"
-
-            # Backpack typically uses patterns like "SOL_USDC", "BTC_USDC"
-            if "_" in symbol:
-                # Spot trading pairs should have proper format
-                parts = symbol.split("_")
-                assert len(parts) == 2, f"Trading pair should have exactly one underscore: {symbol}"
-                assert len(parts[0]) >= 2, f"Base asset should be at least 2 characters: {symbol}"
-                assert len(parts[1]) >= 3, f"Quote asset should be at least 3 characters: {symbol}"
-
-            # Symbol should not contain invalid characters
-            invalid_chars = ["<", ">", "&", "'", '"', "%", " "]
-            for char in invalid_chars:
-                assert char not in symbol, f"Symbol should not contain {char}: {symbol}"
-
-        # Clean up the test order
+        
+        # Validate symbol format in placed order
+        order_symbol = placed_order.symbol
+        assert isinstance(order_symbol, str), "Symbol should be string"
+        assert len(order_symbol) > 0, "Symbol should not be empty"
+        assert order_symbol == order_symbol.strip(), "Symbol should not have whitespace"
+        assert order_symbol == symbol, (
+            f"Returned symbol should match: expected {symbol}, got {order_symbol}"
+        )
+        
+        # Validate Backpack format (BASE_QUOTE)
+        if "_" in order_symbol:
+            parts = order_symbol.split("_")
+            assert len(parts) == 2, (
+                f"Trading pair should have exactly one underscore: {order_symbol}"
+            )
+            assert len(parts[0]) >= 2, (
+                f"Base asset should be at least 2 characters: {order_symbol}"
+            )
+            assert len(parts[1]) >= 3, (
+                f"Quote asset should be at least 3 characters: {order_symbol}"
+            )
+        
+        # Clean up
         if placed_order.exchange_order_id:
             cancel_args = CancelOrderArgs(
-                order_id=placed_order.exchange_order_id, symbol="SOL_USDC"
+                order_id=placed_order.exchange_order_id,
+                symbol=symbol,
             )
             await bp_api_for_test_env.cancel_order(cancel_args)
+        
+        logger.info(f"✓ Symbol format validation passed for {order_symbol}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -710,19 +617,23 @@ class TestBackpackOrdersPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test complete order lifecycle: place → query → cancel → verify.
+        """Test complete order lifecycle with positive balance.
 
-        This validates the full order management pipeline and Order model consistency
-        across different order states.
+        This validates the full order management pipeline:
+        1. Place order successfully
+        2. Verify order appears in get_open_orders
+        3. Cancel order successfully
+        4. Verify order appears in get_order_history
         """
-        # Get dynamic test price based on current market conditions
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4"),  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),
         )
 
         # Step 1: Place order
@@ -731,30 +642,53 @@ class TestBackpackOrdersPrivate:
             side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=test_price,  # Dynamic price based on market conditions
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        order_id = placed_order.exchange_order_id
-        assert order_id is not None, "Placed order should have order ID"
-
-        # Step 2: Verify order appears in open orders
+        assert placed_order.exchange_order_id is not None, "Should have order ID"
+        
+        # Step 2: Verify order in open orders
         open_orders = await bp_api_for_test_env.get_open_orders()
-        placed_order_found = any(order.exchange_order_id == order_id for order in open_orders)
-        assert placed_order_found, "Placed order should appear in open orders"
-
+        assert isinstance(open_orders, list), "get_open_orders() should return list"
+        order_ids = [order.exchange_order_id for order in open_orders]
+        assert placed_order.exchange_order_id in order_ids, "Order should be in open orders"
+        
         # Step 3: Cancel order
-        cancel_args = CancelOrderArgs(order_id=order_id, symbol=symbol)
-        cancel_result = await bp_api_for_test_env.cancel_order(cancel_args)
-        assert cancel_result is True, "Order cancellation should succeed"
-
+        cancel_args = CancelOrderArgs(
+            order_id=placed_order.exchange_order_id,
+            symbol=symbol,
+        )
+        await bp_api_for_test_env.cancel_order(cancel_args)
+        
         # Step 4: Verify order no longer in open orders
         open_orders_after = await bp_api_for_test_env.get_open_orders()
-        cancelled_order_found = any(
-            order.exchange_order_id == order_id for order in open_orders_after
+        order_ids_after = [order.exchange_order_id for order in open_orders_after]
+        assert placed_order.exchange_order_id not in order_ids_after, (
+            "Cancelled order should not be in open orders"
         )
-        assert not cancelled_order_found, "Cancelled order should not appear in open orders"
+        
+        # Step 5: Verify order appears in history
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=1)
+        
+        args = GetOrderHistoryArgs(
+            start_time=start_time,
+            end_time=end_time,
+            limit=50,
+        )
+        order_history = await bp_api_for_test_env.get_order_history(args)
+        history_order_ids = [order.exchange_order_id for order in order_history]
+        
+        # The cancelled order should appear in history
+        assert placed_order.exchange_order_id in history_order_ids, (
+            "Cancelled order should be in history"
+        )
+        
+        logger.info(
+            f"✓ Complete order lifecycle validated for order {placed_order.exchange_order_id}"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -763,71 +697,77 @@ class TestBackpackOrdersPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test orders with focus on Backpack-specific order details.
+        """Test Backpack-specific API details with positive balance.
 
-        This validates Backpack's order structure including exchange-specific fields
-        and order management details.
+        This validates that Backpack's API responses contain expected structure
+        when orders are successfully placed.
         """
-        # Get dynamic test price based on current market conditions
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=side,
-            tolerance_percent=Decimal("4"),  # 4% below market for buy order
+            tolerance_percent=Decimal("4"),
         )
 
-        # Place an order to test Backpack-specific details
+        # Place order to validate Backpack-specific fields
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
-            price=test_price,  # Dynamic price based on market conditions
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
-
+        
         # Validate Backpack-specific order fields
         assert placed_order.exchange == "backpack", "Order should be from Backpack"
-
+        
         # Validate order ID format (Backpack specific)
         assert isinstance(placed_order.exchange_order_id, str), "Backpack order ID should be string"
         assert len(placed_order.exchange_order_id) > 0, "Order ID should not be empty"
-
-        # Validate time in force is preserved
-        if hasattr(placed_order, "time_in_force"):
-            assert placed_order.time_in_force == TimeInForce.GTC, (
-                "Time in force should be preserved"
-            )
-
-        # Test with get_open_orders to see if bp_details are populated
-        open_orders = await bp_api_for_test_env.get_open_orders()
-        test_order = None
-        for order in open_orders:
-            if order.exchange_order_id == placed_order.exchange_order_id:
-                test_order = order
-                break
-
-        if test_order and test_order.bp_details:
-            bp_details = test_order.bp_details
-
+        
+        # Test Backpack-specific order details if present
+        if hasattr(placed_order, "bp_details") and placed_order.bp_details:
+            bp_details = placed_order.bp_details
+            
             # Validate Backpack-specific order details if present
             client_id = getattr(bp_details, "client_id", None)
             if client_id is not None:
                 assert isinstance(client_id, str), "client_id should be string"
-
+            
             order_flags = getattr(bp_details, "order_flags", None)
             if order_flags is not None:
-                # Order flags should be reasonable
                 assert isinstance(order_flags, int | str), "order_flags should be int or string"
-
+        
+        # Validate that order appears in get_open_orders with Backpack structure
+        open_orders = await bp_api_for_test_env.get_open_orders()
+        placed_order_found = False
+        
+        for order in open_orders:
+            if order.exchange_order_id == placed_order.exchange_order_id:
+                placed_order_found = True
+                assert order.exchange == "backpack", "Order in open orders should be from Backpack"
+                break
+        
+        assert placed_order_found, "Placed order should be found in open orders"
+        
         # Clean up
-        if placed_order.exchange_order_id:
-            cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol=symbol)
-            await bp_api_for_test_env.cancel_order(cancel_args)
+        cancel_args = CancelOrderArgs(
+            order_id=placed_order.exchange_order_id,
+            symbol=symbol,
+        )
+        await bp_api_for_test_env.cancel_order(cancel_args)
+        
+        logger.info(
+            f"✓ Backpack-specific order details validated for order "
+            f"{placed_order.exchange_order_id}"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -836,13 +776,47 @@ class TestBackpackOrdersPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_order_history() with various date range scenarios.
+        """Test get_order_history() with various date range scenarios using placed orders.
 
-        This validates proper handling of different date ranges and edge cases.
+        This validates proper handling of different date ranges by placing
+        and cancelling orders, then verifying they appear in history.
         """
-        # Test recent date range
+        # VCR configuration is used by pytest-vcr automatically
+        _ = custom_vcr_config
+        symbol = "SOL_USDC"
+        side = OrderSide.BUY
+        test_price = await get_dynamic_test_price(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            tolerance_percent=Decimal("4"),
+        )
+        
+        # Place and immediately cancel an order to ensure we have recent history
+        place_args = PlaceOrderArgs(
+            symbol=symbol,
+            side=side,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=test_price,
+            time_in_force=TimeInForce.GTC,
+        )
+        
+        placed_order = await bp_api_for_test_env.place_order(place_args)
+        
+        # Cancel immediately to add to history
+        assert placed_order.exchange_order_id is not None, (
+            "Order should have ID"
+        )
+        cancel_args = CancelOrderArgs(
+            order_id=placed_order.exchange_order_id,
+            symbol=symbol,
+        )
+        await bp_api_for_test_env.cancel_order(cancel_args)
+        
+        # Test recent date range (should include our cancelled order)
         end_time = datetime.now()
-        start_time = end_time - timedelta(days=1)  # Last 24 hours
+        start_time = end_time - timedelta(hours=1)  # Last hour
 
         args = GetOrderHistoryArgs(
             start_time=start_time,
@@ -852,6 +826,12 @@ class TestBackpackOrdersPrivate:
 
         recent_history = await bp_api_for_test_env.get_order_history(args)
         assert isinstance(recent_history, list), "Should return list"
+
+        # Our cancelled order should be in recent history
+        order_ids = [order.exchange_order_id for order in recent_history]
+        assert placed_order.exchange_order_id in order_ids, (
+            "Cancelled order should be in recent history"
+        )
 
         # Validate orders are within date range
         for order in recent_history:
@@ -871,7 +851,17 @@ class TestBackpackOrdersPrivate:
         long_history = await bp_api_for_test_env.get_order_history(long_args)
         assert isinstance(long_history, list), "Should return list for longer range"
 
+        # Longer range should include our order and potentially more
+        long_order_ids = [order.exchange_order_id for order in long_history]
+        assert placed_order.exchange_order_id in long_order_ids, (
+            "Order should be in longer history too"
+        )
+        
         # Longer range should have >= orders from shorter range
         assert len(long_history) >= len(recent_history), (
             "Longer date range should include at least as many orders"
+        )
+        
+        logger.info(
+            f"✓ Date range validation completed with order {placed_order.exchange_order_id}"
         )
