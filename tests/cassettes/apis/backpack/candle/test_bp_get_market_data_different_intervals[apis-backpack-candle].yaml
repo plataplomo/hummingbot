@@ -1,0 +1,158 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749107442&interval=1m&limit=100&startTime=1749107142&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"close":"152.12","end":"2025-06-05 07:06:00","high":"152.23","low":"152.12","open":"152.23","quoteVolume":"9789.1247","start":"2025-06-05
+        07:05:00","trades":"49","volume":"64.33"},{"close":"152.3","end":"2025-06-05
+        07:07:00","high":"152.3","low":"152.13","open":"152.13","quoteVolume":"7861.652","start":"2025-06-05
+        07:06:00","trades":"49","volume":"51.65"},{"close":"152.35","end":"2025-06-05
+        07:08:00","high":"152.36","low":"152.31","open":"152.31","quoteVolume":"2579.1554","start":"2025-06-05
+        07:07:00","trades":"13","volume":"16.93"},{"close":"152.36","end":"2025-06-05
+        07:09:00","high":"152.38","low":"152.34","open":"152.34","quoteVolume":"2119.4608","start":"2025-06-05
+        07:08:00","trades":"7","volume":"13.91"},{"close":"152.32","end":"2025-06-05
+        07:10:00","high":"152.35","low":"152.32","open":"152.35","quoteVolume":"4248.8485","start":"2025-06-05
+        07:09:00","trades":"14","volume":"27.89"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '902'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:10:43 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 0ag0p2ZnkhP-igH6g9TMitK1n8sbcaFhFYw_zAITBfD8Q5xNzKHH3w==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749107442&interval=5m&limit=100&startTime=1749105642&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"close":"152.22","end":"2025-06-05 06:45:00","high":"152.52","low":"152.2","open":"152.51","quoteVolume":"76160.5482","start":"2025-06-05
+        06:40:00","trades":"321","volume":"499.67"},{"close":"152.19","end":"2025-06-05
+        06:50:00","high":"152.3","low":"152.19","open":"152.23","quoteVolume":"29797.2353","start":"2025-06-05
+        06:45:00","trades":"105","volume":"195.72"},{"close":"152.19","end":"2025-06-05
+        06:55:00","high":"152.3","low":"152.17","open":"152.18","quoteVolume":"32656.0671","start":"2025-06-05
+        06:50:00","trades":"95","volume":"214.52"},{"close":"152.26","end":"2025-06-05
+        07:00:00","high":"152.33","low":"152.2","open":"152.2","quoteVolume":"33698.1171","start":"2025-06-05
+        06:55:00","trades":"81","volume":"221.28"},{"close":"152.26","end":"2025-06-05
+        07:05:00","high":"152.32","low":"152.23","open":"152.26","quoteVolume":"17138.9223","start":"2025-06-05
+        07:00:00","trades":"60","volume":"112.55"},{"close":"152.32","end":"2025-06-05
+        07:10:00","high":"152.38","low":"152.12","open":"152.23","quoteVolume":"26598.2414","start":"2025-06-05
+        07:05:00","trades":"132","volume":"174.71"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:10:43 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      - Origin
+      Via:
+      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - rIFqIi5SupPvOUnfw6QAAiicscC8wzIOF3bMQ5kzCQpPc_uF0Y5qLQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '1097'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749107442&interval=1h&limit=100&startTime=1749103842&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"close":"152.48","end":"2025-06-05 08:00:00","high":"153.05","low":"152.12","open":"152.26","quoteVolume":"457716.8546","start":"2025-06-05
+        07:00:00","trades":"1805","volume":"2998.47"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '188'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:10:44 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d7d2d082ef2deeb97c85fa0ec32cc66e.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 9CV6AQrfHVC91mKHXYK5OrRynsW0AjadS1fjazJIWiCCgnULvyeWwQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

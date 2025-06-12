@@ -39,13 +39,14 @@ def mapper() -> BackpackAccountDataMapper:
 def create_raw_balance(
     asset: str = "USDC",
     available: str = "1000.0",
-    total: str = "1100.0",
+    locked: str = "50.0",
+    staked: str = "50.0",
 ) -> BackpackRawBalance:
     """Create BackpackRawBalance instances for testing."""
     return BackpackRawBalance(
-        asset=asset,
         available=available,
-        total=total,
+        locked=locked,
+        staked=staked,
     )
 
 
@@ -199,14 +200,14 @@ class TestBalanceTransformation:
         mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of BackpackRawBalance to SpotBalance."""
-        raw_balance = create_raw_balance(asset="USDC", available="900.0", total="1100.0")
+        raw_balance = create_raw_balance(asset="USDC", available="900.0", locked="100.0", staked="100.0")
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
         assert isinstance(result, SpotBalance)
         assert result.asset == "USDC"
         assert result.available_quantity == Decimal("900.0")
-        assert result.total_quantity == Decimal("1100.0")
+        assert result.total_quantity == Decimal("1100.0")  # 900 + 100 + 100
         assert result.exchange == ExchangeName.BACKPACK
         assert result.bp_details is not None
 
@@ -218,12 +219,12 @@ class TestBalanceTransformation:
         assets = ["BTC", "ETH", "SOL", "AVAX"]
 
         for asset in assets:
-            raw_balance = create_raw_balance(asset=asset, available="500.0", total="600.0")
+            raw_balance = create_raw_balance(asset=asset, available="500.0", locked="50.0", staked="50.0")
             result = mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
             assert result.asset == asset.upper()
             assert result.available_quantity == Decimal("500.0")
-            assert result.total_quantity == Decimal("600.0")
+            assert result.total_quantity == Decimal("600.0")  # 500 + 50 + 50
 
     def test_transform_raw_balance_missing_total_raises_error(
         self,
@@ -291,7 +292,8 @@ class TestBalanceTransformation:
         """Test balance transformation with boundary decimal values."""
         raw_balance = create_raw_balance(
             available="0.000001",  # Very small available
-            total="999999999.999999",  # Very large total
+            locked="500000000.0",    # Large locked
+            staked="499999999.999998",  # Large staked (total will be 999999999.999999)
         )
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
@@ -306,7 +308,8 @@ class TestBalanceTransformation:
         """Test balance transformation with high precision decimal values."""
         raw_balance = create_raw_balance(
             available="123.123456789012345",
-            total="456.987654321098765",
+            locked="200.0",
+            staked="133.864197532086420",  # Total will be 456.987654321098765
         )
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)

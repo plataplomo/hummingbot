@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: DELETE
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: the client request does not include the `Content-Type` header
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '61'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:11:20 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 a9d3afb5ec3e79d69b46871cc83d920a.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - uhlLkRiMeAzevl237f8afZq6Y63aoqyPiboh75Ha7-5cTpsTeXkMtw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 415
+      message: Unsupported Media Type
+version: 1

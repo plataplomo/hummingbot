@@ -338,25 +338,37 @@ class BackpackAccountDataMapper:
         """
         try:
             # Defensive parsing of numeric strings
-            parsed_total = parse_decimal_value(
-                raw.total,
-                allow_none=False,
-                field_name=f"{asset_symbol}_total",
-            )
             parsed_available = parse_decimal_value(
                 raw.available,
                 allow_none=False,
                 field_name=f"{asset_symbol}_available",
             )
+            parsed_locked = parse_decimal_value(
+                raw.locked,
+                allow_none=False,
+                field_name=f"{asset_symbol}_locked",
+            )
+            parsed_staked = parse_decimal_value(
+                raw.staked,
+                allow_none=False,
+                field_name=f"{asset_symbol}_staked",
+            )
 
-            if parsed_total is None:
-                raise TransformationError(
-                    f"Total quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
-                )
             if parsed_available is None:
                 raise TransformationError(
                     f"Available quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
                 )
+            if parsed_locked is None:
+                raise TransformationError(
+                    f"Locked quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
+                )
+            if parsed_staked is None:
+                raise TransformationError(
+                    f"Staked quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
+                )
+
+            # Calculate total = available + locked + staked
+            parsed_total = parsed_available + parsed_locked + parsed_staked
 
             bp_details = BackpackSpotBalanceDetails()
 

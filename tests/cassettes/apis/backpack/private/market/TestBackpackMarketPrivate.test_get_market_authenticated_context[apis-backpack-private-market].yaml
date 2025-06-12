@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=SOL_USDC
+  response:
+    body:
+      string: '{"baseSymbol":"SOL","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.03","maxMultiplier":"1.25","maxPrice":null,"meanMarkPriceBand":{"maxMultiplier":"1.15","minMultiplier":"0.9"},"meanPremiumBand":null,"minImpactMultiplier":"0.97","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.01","stepSize":"0.01"}},"fundingInterval":28800000,"fundingRateLowerBound":null,"fundingRateUpperBound":null,"imfFunction":null,"marketType":"SPOT","mmfFunction":null,"openInterestLimit":"0","orderBookState":"Open","quoteSymbol":"USDC","symbol":"SOL_USDC"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '702'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:11:04 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 75b9f2865c5e2067cee854ecd02814a8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 3RHr3Ni7Khx2TZH4kVGu-1Po0MrpyBlA7OIW4JE9RSSOz3ELbIlhuQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/positions
+  response:
+    body:
+      string: not found
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '9'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:11:29 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 499f8e746367647a1a77aa826b2426b2.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - QQJbuiygv3gGMV_fw5vGAZ6d2Mnmub2rr9feMgYrPbWlQ9_3zp9x6w==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 404
+      message: Not Found
+version: 1

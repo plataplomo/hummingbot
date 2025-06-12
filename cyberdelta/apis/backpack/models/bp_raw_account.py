@@ -87,28 +87,18 @@ class BackpackRawBalance(BaseModel):
     Use this model to validate and parse balance payloads received from the exchange.
 
     Attributes:
-        asset (str): Asset/currency symbol (e.g., 'USDC', 'BTC').
         available (str): Amount available for trading (as string).
-        total (str): Total balance (as string).
+        locked (str): Amount locked in orders (as string).
+        staked (str): Amount staked (as string).
 
     """
 
-    asset: str = Field(..., alias="asset", max_length=32)
     available: str = Field(..., alias="available", max_length=64)
-    total: str = Field(..., alias="total", max_length=64)
+    locked: str = Field(..., alias="locked", max_length=64)
+    staked: str = Field(..., alias="staked", max_length=64)
     model_config = ConfigDict(populate_by_name=True, extra="forbid", validate_by_name=True)
 
-    @field_validator("asset", mode="before", check_fields=False)
-    @classmethod
-    def validate_asset_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validates that the asset is a non-empty UTF-8 string of max 32 chars.
-
-        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
-        """
-        field_name = info.field_name or "asset"
-        return validate_str_field(v, field_name=field_name, max_length=32)
-
-    @field_validator("available", "total", mode="before", check_fields=False)
+    @field_validator("available", "locked", "staked", mode="before", check_fields=False)
     @classmethod
     def validate_decimal_string_format(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the value is a non-empty string representing a finite decimal.

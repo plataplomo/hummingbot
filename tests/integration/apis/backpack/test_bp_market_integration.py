@@ -239,6 +239,7 @@ async def test_bp_get_market_invalid_symbol_error(
     assert (
         "INVALID_SYMBOL" in str(error)
         or "symbol" in str(error).lower()
+        or "market" in str(error).lower()
         or "not found" in str(error).lower()
     )
 
@@ -263,6 +264,7 @@ async def test_bp_get_market_nonexistent_symbol_error(
         "NOTREAL_USDC" in str(error)
         or "not found" in str(error).lower()
         or "symbol" in str(error).lower()
+        or "market" in str(error).lower()
     )
 
 

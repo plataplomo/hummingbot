@@ -1,0 +1,54 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital
+  response:
+    body:
+      string: '{"USDC":{"available":"0","locked":"0","staked":"0"}}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '52'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:10:37 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 c4970e6612ae432bb51bdb2884874366.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - iZs0JzHtbWg2rtXxr0C1y8nehg9oSMtdY-x9lQs2uNriM-BCd1tPkg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

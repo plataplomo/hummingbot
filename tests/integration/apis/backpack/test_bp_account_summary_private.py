@@ -157,43 +157,9 @@ class TestBackpackAccountSummaryPrivate:
                     f"total_equity ({account_summary.total_equity})"
                 )
 
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_account_summary_empty_account(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_account_summary() with empty/new account.
-
-        This test validates behavior when account has minimal equity or is newly created.
-        Important for testing edge cases in margin account handling.
-        """
-        account_summary = await bp_api_for_test_env.get_account_summary()
-
-        # Should return valid MarginAccountSummary even for empty accounts
-        assert isinstance(account_summary, MarginAccountSummary), (
-            "get_account_summary() should always return MarginAccountSummary"
-        )
-
-        # Even empty accounts should have valid structure
-        assert account_summary.total_equity >= Decimal("0"), (
-            "Empty account should still have non-negative total_equity"
-        )
-        assert account_summary.available_equity >= Decimal("0"), (
-            "Empty account should still have non-negative available_equity"
-        )
-        assert account_summary.total_equity >= account_summary.available_equity, (
-            "Empty account equity logic should still hold"
-        )
-
-        # Empty account should have zero or minimal margin requirements
-        if account_summary.total_initial_margin_required is not None:
-            # Should be zero or very small for empty account
-            assert account_summary.total_initial_margin_required <= Decimal("1.0"), (
-                f"Empty account should have minimal initial margin, "
-                f"got {account_summary.total_initial_margin_required}"
-            )
+    # NOTE: Zero balance/empty account tests have been moved to:
+    # tests/integration/apis/backpack/test_bp_account_summary_zero_balance.py
+    # This file now focuses only on comprehensive testing with sufficient account balance.
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

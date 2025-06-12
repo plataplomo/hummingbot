@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/trades?limit=5&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"id":357816642,"isBuyerMaker":false,"price":"159.63","quantity":"0.14","quoteQuantity":"22.3482","timestamp":1749712271980},{"id":357816641,"isBuyerMaker":false,"price":"159.62","quantity":"0.14","quoteQuantity":"22.3468","timestamp":1749712271818},{"id":357816640,"isBuyerMaker":false,"price":"159.62","quantity":"0.14","quoteQuantity":"22.3468","timestamp":1749712271818},{"id":357816639,"isBuyerMaker":false,"price":"159.6","quantity":"2.72","quoteQuantity":"434.112","timestamp":1749712270595},{"id":357816638,"isBuyerMaker":false,"price":"159.6","quantity":"3.97","quoteQuantity":"633.612","timestamp":1749712270595}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '624'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:11:40 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 6747701ed2b07cab5dfc3cf803a949b2.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - Zo6KHGB_8pnnnkN2vWnD0mDOagoaz0XM7bBRTqxZeuXJzr-ObnTrng==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749107446&interval=1h&limit=100&startTime=1749103846&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"close":"152.48","end":"2025-06-05 08:00:00","high":"153.05","low":"152.12","open":"152.26","quoteVolume":"457716.8546","start":"2025-06-05
+        07:00:00","trades":"1805","volume":"2998.47"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '188'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:10:46 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 a4e187ad7e3902f1e97ad3db46a746aa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - KmG0EkOC15N_QXCXg8R_Y8QBi2fOd3rjvFgOqm5NbkFMmANkyrbbMQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

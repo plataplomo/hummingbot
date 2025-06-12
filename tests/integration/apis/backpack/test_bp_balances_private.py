@@ -152,39 +152,8 @@ class TestBackpackBalancesPrivate:
                             f"exceed locked quantity ({locked_quantity})"
                         )
 
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_balances_empty_account(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_balances() with empty/zero balance account.
-
-        This test validates behavior when account has no balances or all zero balances.
-        Important for testing edge cases in balance handling.
-        """
-        balances = await bp_api_for_test_env.get_balances()
-
-        # Should return empty dict or dict with zero balances
-        assert isinstance(balances, dict), "get_balances() should always return dict"
-
-        # If balances exist, they should all be valid (including zero balances)
-        for asset_symbol, balance in balances.items():
-            assert isinstance(balance, SpotBalance), (
-                f"Even zero balance should be SpotBalance for {asset_symbol}"
-            )
-
-            # Zero balances should still follow constraints
-            assert balance.total_quantity >= Decimal("0"), (
-                "Zero balances should still be non-negative"
-            )
-            assert balance.available_quantity >= Decimal("0"), (
-                "Zero available should still be non-negative"
-            )
-            assert balance.total_quantity >= balance.available_quantity, (
-                "Zero balance logic should still hold"
-            )
+    # NOTE: Empty account/zero balance tests moved to test_bp_balances_zero_balance.py
+    # This keeps positive balance tests separate from zero balance edge case tests
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

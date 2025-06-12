@@ -205,32 +205,9 @@ class TestBackpackPositionsPrivate:
             self._validate_position_pnl(position, i)
             self._validate_backpack_specific_details(position, i)
 
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_positions_empty_account(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_positions() with account that has no open positions.
-
-        This test validates behavior when account has no derivative positions.
-        Important for testing edge cases in position handling.
-        """
-        positions = await bp_api_for_test_env.get_positions()
-
-        # Should return empty list
-        assert isinstance(positions, list), "get_positions() should always return list"
-
-        # Empty list is valid for accounts with no positions
-        if len(positions) == 0:
-            return  # Test passes - no positions is valid
-
-        # If positions exist, they should all be valid
-        for position in positions:
-            assert isinstance(position, DerivativePosition), (
-                "All returned positions should be valid"
-            )
+    # NOTE: Zero balance/empty account tests have been moved to:
+    # tests/integration/apis/backpack/test_bp_positions_zero_balance.py
+    # This file now focuses only on comprehensive testing with sufficient account balance.
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

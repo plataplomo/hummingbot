@@ -1,0 +1,156 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account
+  response:
+    body:
+      string: '{"autoBorrowSettlements":true,"autoLend":true,"autoRealizePnl":true,"autoRepayBorrows":true,"borrowLimit":"2500000","futuresMakerFee":"1.9","futuresTakerFee":"4.5","leverageLimit":"50","limitOrders":0,"liquidating":false,"positionLimit":"2500000","spotMakerFee":"8","spotTakerFee":"10","triggerOrders":0}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '304'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:49:48 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d20f68507cbd4e84d17a7e1b013500e8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - KBmDCiY1ICbF-LnL5VPqImPKFih2gLew213f_btwXw1_Firi8ylGkw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital
+  response:
+    body:
+      string: '{"USDC":{"available":"0","locked":"0","staked":"0"}}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '52'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:49:48 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d20f68507cbd4e84d17a7e1b013500e8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 4jd0c6Qlm5edyHvxNQPA_HY4ztWwYr1xs_7BmVo6mjtPfDxZO6pF2A==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/positions
+  response:
+    body:
+      string: not found
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '9'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Thu, 12 Jun 2025 07:49:49 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d20f68507cbd4e84d17a7e1b013500e8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - cM78ILkmfYgkPvhgU3uM-YAAPmAKH-eX25kbKBdIXr6KWj-Ow5Bs0A==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 404
+      message: Not Found
+version: 1
