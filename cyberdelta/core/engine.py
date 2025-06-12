@@ -263,7 +263,7 @@ class Engine:
             # Cast to ensure proper typing for pandas operations
             # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
             idx_typed = cast(int, idx)
-            row_typed = cast(pd.Series[Any], row)
+            row_typed = row
 
             # Extract timestamp and convert to datetime
             timestamp_raw: Any = row_typed.get("timestamp")
@@ -278,7 +278,7 @@ class Engine:
                 pd_timestamp_result = cast(pd.Timestamp, pd.to_datetime(timestamp_raw, utc=True))
                 # Convert to standard datetime if it's a pandas Timestamp
                 if hasattr(pd_timestamp_result, "to_pydatetime"):
-                    timestamp = cast(datetime, pd_timestamp_result.to_pydatetime())
+                    timestamp = pd_timestamp_result.to_pydatetime()
                 else:
                     timestamp = cast(datetime, pd_timestamp_result)
             except Exception as e:

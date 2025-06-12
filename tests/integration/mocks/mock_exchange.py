@@ -26,7 +26,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -54,6 +56,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
@@ -1045,6 +1048,44 @@ class MockExchangeAPI(ExchangeAPI):
             timestamp=datetime.now(UTC),
             fee=Decimal("0.001"),  # Mock fee
         )
+
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Return mock market data for a specific symbol."""
+        self._check_error("get_market")
+        await self._simulate_latency()
+        
+        # Return a mock market for the requested symbol
+        return Market(
+            symbol=args.symbol,
+            base_symbol=args.symbol.split("_")[0] if "_" in args.symbol else args.symbol,
+            quote_symbol=args.symbol.split("_")[1] if "_" in args.symbol else "USD",
+            market_type="Spot",
+            tick_size=Decimal("0.01"),
+            step_size=Decimal("0.001"),
+            status="ACTIVE",
+        )
+
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Return mock markets data."""
+        self._check_error("get_markets")
+        await self._simulate_latency()
+        
+        # Return a few mock markets
+        mock_symbols = ["BTC_USD", "ETH_USD", "SOL_USD"]
+        markets = []
+        for symbol in mock_symbols:
+            base, quote = symbol.split("_")
+            market = Market(
+                symbol=symbol,
+                base_symbol=base,
+                quote_symbol=quote,
+                market_type="Spot",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="ACTIVE",
+            )
+            markets.append(market)
+        return markets
 
     # --- END OF ADDED PLACEHOLDERS ---
 

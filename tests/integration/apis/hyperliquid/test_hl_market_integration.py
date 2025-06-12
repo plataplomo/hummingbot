@@ -373,17 +373,20 @@ async def test_hl_get_markets_hyperliquid_specific_validation(
     for market in markets:
         # All Hyperliquid markets should be perpetual futures with USD quote
         assert market.quote_symbol == "USD", (
-            f"Expected USD quote for all Hyperliquid markets, got {market.quote_symbol} for {market.symbol}"
+            f"Expected USD quote for all Hyperliquid markets, got {market.quote_symbol} "
+            f"for {market.symbol}"
         )
 
         # Market type should indicate perpetual/futures
         assert market.market_type in ["Perpetual", "Future", "Perp"], (
-            f"Expected perpetual market type for Hyperliquid, got '{market.market_type}' for {market.symbol}"
+            f"Expected perpetual market type for Hyperliquid, got '{market.market_type}' "
+            f"for {market.symbol}"
         )
 
         # Base symbol should match the symbol for Hyperliquid's naming convention
         assert market.base_symbol == market.symbol, (
-            f"For Hyperliquid, base_symbol should equal symbol, got {market.base_symbol} vs {market.symbol}"
+            f"For Hyperliquid, base_symbol should equal symbol, got {market.base_symbol} "
+            f"vs {market.symbol}"
         )
 
         # Validate Hyperliquid-specific details if present
@@ -540,7 +543,8 @@ async def test_hl_market_business_logic_validation(
     # Validate Hyperliquid-specific symbol conventions
     # For Hyperliquid, the symbol is typically just the base asset name
     assert market.symbol == market.base_symbol, (
-        f"For Hyperliquid, symbol should equal base_symbol, got {market.symbol} vs {market.base_symbol}"
+        f"For Hyperliquid, symbol should equal base_symbol, got {market.symbol} "
+        f"vs {market.base_symbol}"
     )
 
     # Quote should always be USD for Hyperliquid
@@ -556,7 +560,8 @@ async def test_hl_market_business_logic_validation(
 
     if market.min_quantity is not None and market.max_quantity is not None:
         assert market.max_quantity > market.min_quantity, (
-            f"max_quantity ({market.max_quantity}) should be greater than min_quantity ({market.min_quantity})"
+            f"max_quantity ({market.max_quantity}) should be greater than "
+            f"min_quantity ({market.min_quantity})"
         )
 
     # Validate tick_size is reasonable for USD-denominated trading

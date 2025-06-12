@@ -112,7 +112,8 @@ async def test_bp_get_market_sol_usdc_success(
         )
         if market.min_quantity is not None:
             assert market.max_quantity >= market.min_quantity, (
-                f"max_quantity ({market.max_quantity}) should be >= min_quantity ({market.min_quantity})"
+                f"max_quantity ({market.max_quantity}) should be >= "
+                f"min_quantity ({market.min_quantity})"
             )
 
     # Validate status
@@ -337,7 +338,8 @@ async def test_bp_get_markets_success(
     common_pairs = {"SOL_USDC", "BTC_USDC", "ETH_USDC"}
     found_pairs = common_pairs.intersection(market_symbols)
     assert len(found_pairs) > 0, (
-        f"Expected to find at least one common pair from {common_pairs}, got symbols: {sorted(market_symbols)}"
+        f"Expected to find at least one common pair from {common_pairs}, "
+        f"got symbols: {sorted(market_symbols)}"
     )
 
 
@@ -491,7 +493,8 @@ async def test_bp_market_business_logic_validation(
             # Quote should match second part (excluding PERP suffix)
             expected_quote = parts[1] if not market.symbol.endswith("_PERP") else parts[1]
             assert market.quote_symbol == expected_quote, (
-                f"quote_symbol '{market.quote_symbol}' should match expected quote '{expected_quote}'"
+                f"quote_symbol '{market.quote_symbol}' should match "
+                f"expected quote '{expected_quote}'"
             )
 
     # Validate trading constraints make sense
@@ -502,7 +505,8 @@ async def test_bp_market_business_logic_validation(
 
     if market.min_quantity is not None and market.max_quantity is not None:
         assert market.max_quantity > market.min_quantity, (
-            f"max_quantity ({market.max_quantity}) should be greater than min_quantity ({market.min_quantity})"
+            f"max_quantity ({market.max_quantity}) should be greater than "
+            f"min_quantity ({market.min_quantity})"
         )
 
     # Validate tick_size is reasonable relative to potential prices

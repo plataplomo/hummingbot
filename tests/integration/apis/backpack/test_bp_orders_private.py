@@ -61,7 +61,8 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
     """
     try:
         # Use the public API method to get market metadata
-        markets = await api.get_markets()
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+        markets = await api.get_markets(GetMarketsArgs())
 
         # Find the market by symbol
         for market in markets:

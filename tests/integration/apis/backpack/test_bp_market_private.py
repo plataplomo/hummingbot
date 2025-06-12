@@ -99,13 +99,14 @@ class TestBackpackMarketPrivate:
 
         # Validate that we can make multiple authenticated requests without issues
         # (This tests rate limiting behavior)
-        for i, market in enumerate(markets[:3]):  # Test first 3 markets
+        for _i, market in enumerate(markets[:3]):  # Test first 3 markets
             individual_args = GetMarketArgs(symbol=market.symbol)
             individual_market = await bp_api_for_test_env.get_market(individual_args)
 
             assert individual_market is not None, f"Should retrieve market {market.symbol}"
             assert individual_market.symbol == market.symbol, (
-                f"Retrieved market symbol should match: {individual_market.symbol} vs {market.symbol}"
+                f"Retrieved market symbol should match: {individual_market.symbol} vs "
+                f"{market.symbol}"
             )
 
     @pytest.mark.vcr
@@ -237,16 +238,29 @@ class TestBackpackMarketPrivate:
         market = await bp_api_for_test_env.get_market(args)
 
         # Market should be immutable (frozen=True)
-        with pytest.raises(Exception):  # Should be ValidationError from Pydantic
+        from pydantic import ValidationError
+        
+        # Test immutability by trying to modify fields
+        try:
             market.symbol = "MODIFIED_SYMBOL"
+            # If we get here, the model is not properly frozen
+            pytest.fail("Market model should be immutable but allowed symbol modification")
+        except (ValidationError, AttributeError, TypeError):
+            pass  # This is expected - model should be frozen
 
-        with pytest.raises(Exception):  # Should be ValidationError from Pydantic
+        try:
             market.tick_size = Decimal("999.99")
+            pytest.fail("Market model should be immutable but allowed tick_size modification")
+        except (ValidationError, AttributeError, TypeError):
+            pass  # This is expected - model should be frozen
 
         # Nested details should also be immutable if present
         if market.bp_details is not None:
-            with pytest.raises(Exception):  # Should be ValidationError from Pydantic
+            try:
                 market.bp_details.order_book_state = "MODIFIED"
+                pytest.fail("Market bp_details should be immutable but allowed modification")
+            except (ValidationError, AttributeError, TypeError):
+                pass  # This is expected - nested model should be frozen
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
