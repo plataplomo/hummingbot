@@ -31,6 +31,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.core.models.spot_balance import SpotBalance
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class TestBackpackBalancesZeroBalance:
     @pytest.mark.vcr
     async def test_get_balances_authentication_failure(
         self,
-        bp_api_invalid_auth: BackpackAPI,
+        active_bp_config: ExchangeSpecificConfig,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with invalid Ed25519 authentication.
@@ -88,6 +89,22 @@ class TestBackpackBalancesZeroBalance:
         Tests that authentication failures are properly handled, even when
         testing with zero balance scenarios.
         """
+        # Import required for creating invalid secrets
+        from pydantic import SecretStr
+
+        from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+
+        # Create API with invalid credentials
+        invalid_secrets = ApiKeyAuthSecrets(
+            api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
+            api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
+        )
+
+        bp_api_invalid_auth = BackpackAPI(
+            exchange_config=active_bp_config,
+            exchange_secrets=invalid_secrets,
+        )
+
         with pytest.raises(APIError) as exc_info:
             await bp_api_invalid_auth.get_balances()
 
@@ -99,7 +116,7 @@ class TestBackpackBalancesZeroBalance:
 
         logger.info(f"✓ Authentication failure properly detected: {api_error.message}")
 
-    @pytest.mark.vcr  
+    @pytest.mark.vcr
     async def test_get_balances_rate_limiting(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -109,13 +126,15 @@ class TestBackpackBalancesZeroBalance:
 
         Safe to test with zero balance accounts - rate limiting applies regardless.
         """
-        tasks = []
+        tasks: list[Any] = []
         for _ in range(5):  # Create burst of requests
             tasks.append(bp_api_for_test_env.get_balances())
 
         # At least one should succeed, some might hit rate limits
         try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            results: list[dict[str, SpotBalance] | BaseException] = await asyncio.gather(
+                *tasks, return_exceptions=True
+            )
 
             successes = [r for r in results if isinstance(r, dict)]
             errors = [r for r in results if isinstance(r, Exception)]
@@ -137,9 +156,11 @@ class TestBackpackBalancesZeroBalance:
         except Exception as e:
             pytest.skip(f"Rate limiting test unstable in current environment: {e}")
 
+    @pytest.mark.vcr
     async def test_get_balances_zero_balance_structure(
         self,
         bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() structure validation with zero balance account.
 
@@ -164,27 +185,31 @@ class TestBackpackBalancesZeroBalance:
 
             # Backpack-specific details validation
             assert spot_balance.bp_details is not None
-            assert hasattr(spot_balance.bp_details, "available")
-            assert hasattr(spot_balance.bp_details, "locked")
-            assert hasattr(spot_balance.bp_details, "staked")
+            # Check for actual BackpackSpotBalanceDetails fields
+            assert hasattr(spot_balance.bp_details, "open_order_quantity")
+            assert hasattr(spot_balance.bp_details, "lend_quantity")
+            assert hasattr(spot_balance.bp_details, "collateral_weight")
 
             logger.info(f"✓ Structure valid for {asset_symbol} even with zero balance")
 
+    @pytest.mark.vcr
     async def test_get_balances_concurrent_requests_zero_balance(
         self,
         bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests with zero balance account.
 
         Tests thread safety and consistency of balance retrieval.
         """
         # Run multiple concurrent balance requests
-        concurrent_tasks = await asyncio.gather(
+        concurrent_results = await asyncio.gather(
             bp_api_for_test_env.get_balances(),
             bp_api_for_test_env.get_balances(),
             bp_api_for_test_env.get_balances(),
             return_exceptions=True,
         )
+        concurrent_tasks: list[dict[str, SpotBalance] | BaseException] = list(concurrent_results)
 
         # Filter out any exceptions (rate limiting, network issues)
         successful_results = [
@@ -216,9 +241,11 @@ class TestBackpackBalancesZeroBalance:
             f"✓ Concurrent balance requests consistent: {len(successful_results)} successful"
         )
 
+    @pytest.mark.vcr
     async def test_get_balances_network_timeout_zero_balance(
         self,
         bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() behavior with potential network timeouts.
 
@@ -247,7 +274,7 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() resilience to malformed or corrupted requests.
-        
+
         Tests how the API handles edge cases in request handling that might
         occur due to network issues or implementation bugs.
         """
@@ -263,46 +290,46 @@ class TestBackpackBalancesZeroBalance:
         # So we focus on testing the response processing edge cases
         logger.info("✓ Malformed request handling tested at API layer")
 
-    @pytest.mark.vcr  
+    @pytest.mark.vcr
     async def test_get_balances_error_response_parsing_zero_balance(
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() error response parsing and validation.
-        
+
         Ensures that error responses are properly parsed and mapped to correct error codes.
         """
         # Test with valid API but potentially triggering different error scenarios
         # (zero balance accounts might have different error behaviors)
-        
+
         try:
             balances = await bp_api_for_test_env.get_balances()
-            
+
             # Even with zero balance, should get valid structure
             assert isinstance(balances, dict)
-            
+
             # Validate each balance structure if any exist
             for asset, balance in balances.items():
                 assert isinstance(asset, str)
                 assert len(asset) > 0
                 assert balance.exchange == "backpack"
                 assert balance.asset == asset
-                
+
                 # Zero balance specific validations
                 assert balance.available_quantity >= Decimal("0")
                 assert balance.total_quantity >= Decimal("0")
                 assert balance.total_quantity >= balance.available_quantity
-                
+
                 logger.info(f"✓ Zero balance structure valid for {asset}")
-                
+
         except APIError as e:
             # If it fails, ensure error is properly structured
-            assert hasattr(e, 'code')
-            assert hasattr(e, 'message')
+            assert hasattr(e, "code")
+            assert hasattr(e, "message")
             assert e.code is not None
             assert e.message is not None
-            
+
             logger.info(f"✓ Error properly structured: {e.code} - {e.message}")
 
     @pytest.mark.vcr
@@ -312,34 +339,34 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() decimal precision handling with zero balances.
-        
+
         Validates that zero values are handled with proper decimal precision
         and don't cause floating point issues.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         for asset_symbol, spot_balance in balances.items():
             # Test decimal precision for zero balances
             assert isinstance(spot_balance.available_quantity, Decimal)
             assert isinstance(spot_balance.total_quantity, Decimal)
-            
+
             # Zero values should be exact
             if spot_balance.available_quantity == Decimal("0"):
                 assert str(spot_balance.available_quantity) == "0"
                 logger.info(f"✓ Zero available balance precise for {asset_symbol}")
-                
+
             if spot_balance.total_quantity == Decimal("0"):
                 assert str(spot_balance.total_quantity) == "0"
                 logger.info(f"✓ Zero total balance precise for {asset_symbol}")
-            
+
             # Test arithmetic operations don't break with zero
             total_value = spot_balance.total_quantity + Decimal("0")
             assert total_value == spot_balance.total_quantity
-            
+
             # Test comparison operations
             assert spot_balance.total_quantity >= Decimal("0")
             assert spot_balance.available_quantity <= spot_balance.total_quantity
-            
+
             logger.info(f"✓ Decimal operations stable for {asset_symbol}")
 
     @pytest.mark.vcr
@@ -349,15 +376,16 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() asset symbol validation and formatting.
-        
+
         Validates that asset symbols follow expected formats even with zero balances.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         # Expected asset patterns for Backpack
         import re
-        asset_pattern = re.compile(r'^[A-Z]{2,10}$')  # 2-10 uppercase letters
-        
+
+        asset_pattern = re.compile(r"^[A-Z]{2,10}$")  # 2-10 uppercase letters
+
         for asset_symbol, spot_balance in balances.items():
             # Validate asset symbol format
             assert isinstance(asset_symbol, str)
@@ -365,17 +393,17 @@ class TestBackpackBalancesZeroBalance:
             assert len(asset_symbol) <= 10
             assert asset_symbol.isupper()
             assert asset_pattern.match(asset_symbol), f"Asset {asset_symbol} doesn't match pattern"
-            
+
             # Validate consistency between key and balance object
             assert spot_balance.asset == asset_symbol
-            
+
             # Common Backpack assets validation
             known_assets = {"USDC", "SOL", "BTC", "ETH", "BONK", "JUP", "WIF"}
             if asset_symbol in known_assets:
                 logger.info(f"✓ Known asset {asset_symbol} properly formatted")
             else:
                 logger.info(f"✓ Unknown asset {asset_symbol} follows format rules")
-            
+
             # Validate no special characters
             assert asset_symbol.isalpha(), f"Asset {asset_symbol} should be alphabetic only"
 
@@ -386,45 +414,49 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() consistency across multiple calls.
-        
+
         Validates that balance queries return consistent results for zero balance accounts.
         """
         # Make multiple balance requests
-        balance_calls = []
+        balance_calls: list[dict[str, SpotBalance]] = []
         for i in range(3):
             try:
                 balances = await bp_api_for_test_env.get_balances()
                 balance_calls.append(balances)
-                logger.info(f"Balance call {i+1}: {len(balances)} assets")
+                logger.info(f"Balance call {i + 1}: {len(balances)} assets")
             except Exception as e:
-                logger.info(f"Balance call {i+1} failed: {e}")
-                balance_calls.append(None)
-        
+                logger.info(f"Balance call {i + 1} failed: {e}")
+                balance_calls.append({})  # Empty dict for failed calls
+
         # Filter successful calls
-        successful_calls = [call for call in balance_calls if call is not None]
-        
+        successful_calls = [call for call in balance_calls if call and isinstance(call, dict)]
+
         if len(successful_calls) >= 2:
             # Compare consistency between successful calls
             first_call = successful_calls[0]
-            
+
             for subsequent_call in successful_calls[1:]:
                 # Should have same assets
                 assert set(first_call.keys()) == set(subsequent_call.keys()), (
                     "Asset lists should be consistent between calls"
                 )
-                
+
                 # For zero balance accounts, values should be identical
                 for asset in first_call.keys():
                     first_balance = first_call[asset]
                     subsequent_balance = subsequent_call[asset]
-                    
+
                     # Zero balances should be exactly the same
-                    if (first_balance.total_quantity == Decimal("0") and 
-                        subsequent_balance.total_quantity == Decimal("0")):
-                        assert first_balance.available_quantity == subsequent_balance.available_quantity
+                    if first_balance.total_quantity == Decimal(
+                        "0"
+                    ) and subsequent_balance.total_quantity == Decimal("0"):
+                        assert (
+                            first_balance.available_quantity
+                            == subsequent_balance.available_quantity
+                        )
                         assert first_balance.total_quantity == subsequent_balance.total_quantity
                         logger.info(f"✓ Zero balance consistent for {asset}")
-            
+
             logger.info(f"✓ Consistency validated across {len(successful_calls)} calls")
         else:
             logger.info("✓ Insufficient successful calls for consistency testing")
@@ -436,46 +468,54 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() Backpack-specific field validation with zero balances.
-        
+
         Validates that Backpack-specific details are properly populated even for zero balances.
         """
         balances = await bp_api_for_test_env.get_balances()
-        
+
         for asset_symbol, spot_balance in balances.items():
             # Validate Backpack-specific details structure
             assert spot_balance.bp_details is not None, f"bp_details required for {asset_symbol}"
-            
+
             bp_details = spot_balance.bp_details
-            
-            # Validate required Backpack fields exist
-            required_fields = ["available", "locked", "staked"]
-            for field in required_fields:
+
+            # Validate Backpack-specific fields (actual model fields)
+            bp_fields = ["open_order_quantity", "lend_quantity", "collateral_weight"]
+            for field in bp_fields:
                 assert hasattr(bp_details, field), f"Missing field {field} for {asset_symbol}"
-                
+
                 field_value = getattr(bp_details, field)
-                assert isinstance(field_value, Decimal), f"Field {field} should be Decimal"
-                assert field_value >= Decimal("0"), f"Field {field} should be non-negative"
-                
-                # For zero balance accounts, most fields should be zero
-                if spot_balance.total_quantity == Decimal("0"):
-                    assert field_value == Decimal("0"), (
-                        f"Zero balance account should have zero {field} for {asset_symbol}"
+                # These fields are optional (can be None)
+                if field_value is not None:
+                    assert isinstance(field_value, Decimal), f"Field {field} should be Decimal"
+                    assert field_value >= Decimal("0"), f"Field {field} should be non-negative"
+
+                    # For zero balance accounts, most fields should be zero
+                    if spot_balance.total_quantity == Decimal("0"):
+                        assert field_value == Decimal("0"), (
+                            f"Zero balance account should have zero {field} for {asset_symbol}"
+                        )
+
+                    logger.info(f"✓ {field} = {field_value} for {asset_symbol}")
+                else:
+                    logger.info(f"✓ {field} = None for {asset_symbol} (allowed)")
+
+            # Validate field relationships if all fields are present
+            # Note: BackpackSpotBalanceDetails has different fields than raw balance
+            # The fields are: open_order_quantity, lend_quantity, collateral_weight
+            # Not: available, locked, staked
+
+            # For zero balance accounts, all optional fields should be zero or None
+            if spot_balance.total_quantity == Decimal("0"):
+                if bp_details.open_order_quantity is not None:
+                    assert bp_details.open_order_quantity == Decimal("0"), (
+                        f"Zero balance should have zero open orders for {asset_symbol}"
                     )
-                
-                logger.info(f"✓ {field} = {field_value} for {asset_symbol}")
-            
-            # Validate field relationships
-            total_calculated = bp_details.available + bp_details.locked + bp_details.staked
-            assert total_calculated == spot_balance.total_quantity, (
-                f"Calculated total ({total_calculated}) != reported total "
-                f"({spot_balance.total_quantity}) for {asset_symbol}"
-            )
-            
-            # Available quantity should match BP available
-            assert spot_balance.available_quantity == bp_details.available, (
-                f"Available quantity mismatch for {asset_symbol}"
-            )
-            
+                if bp_details.lend_quantity is not None:
+                    assert bp_details.lend_quantity == Decimal("0"), (
+                        f"Zero balance should have zero lending for {asset_symbol}"
+                    )
+
             logger.info(f"✓ Field relationships validated for {asset_symbol}")
 
     @pytest.mark.vcr
@@ -485,41 +525,41 @@ class TestBackpackBalancesZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() memory efficiency with zero balance data.
-        
+
         Validates that zero balance responses don't cause memory leaks or excessive allocation.
         """
         import gc
         import sys
-        
+
         # Get baseline memory usage
         gc.collect()
         initial_objects = len(gc.get_objects())
-        
+
         # Make multiple balance requests
         for i in range(5):
             try:
                 balances = await bp_api_for_test_env.get_balances()
-                
+
                 # Validate we got reasonable response
                 assert isinstance(balances, dict)
                 assert len(balances) <= 50  # Reasonable upper bound
-                
+
                 # Validate individual balance objects
                 for asset, balance in balances.items():
                     assert sys.getsizeof(balance) < 1000  # Reasonable size limit
-                    assert sys.getsizeof(asset) < 100     # Asset names should be small
-                
-                logger.info(f"Request {i+1}: {len(balances)} assets processed")
-                
+                    assert sys.getsizeof(asset) < 100  # Asset names should be small
+
+                logger.info(f"Request {i + 1}: {len(balances)} assets processed")
+
             except Exception as e:
-                logger.info(f"Request {i+1} failed: {e}")
-        
+                logger.info(f"Request {i + 1} failed: {e}")
+
         # Force garbage collection
         gc.collect()
         final_objects = len(gc.get_objects())
-        
+
         # Check for reasonable memory usage
         object_growth = final_objects - initial_objects
         assert object_growth < 1000, f"Excessive object growth: {object_growth}"
-        
+
         logger.info(f"✓ Memory efficiency validated: {object_growth} object growth")

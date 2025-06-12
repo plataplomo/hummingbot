@@ -11,7 +11,7 @@ Model Focus: DerivativePosition (Zero Balance Scenarios)
 - Validates model structure consistency even when no positions exist
 - Tests Backpack-specific response handling for empty accounts
 
-Authentication: Ed25519 signing for API authentication  
+Authentication: Ed25519 signing for API authentication
 VCR: Records both success and error responses with sensitive data filtering
 Balance: Zero balance/no positions (safe for CI/CD testing)
 """
@@ -82,4 +82,4 @@ class TestBackpackPositionsZeroBalance:
             )
 
             # Should have valid timestamp structure
-            assert position.timestamp is not None, f"Position {i} timestamp should be valid" 
+            assert position.timestamp is not None, f"Position {i} timestamp should be valid"

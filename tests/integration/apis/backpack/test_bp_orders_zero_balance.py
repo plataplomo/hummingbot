@@ -38,6 +38,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
 
 # Mark all tests in this file as integration tests
@@ -63,6 +64,7 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
     try:
         # Use the public API method to get market metadata
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
         markets = await api.get_markets(GetMarketsArgs())
 
         # Find the market by symbol
@@ -222,14 +224,14 @@ class TestBackpackOrdersZeroBalance:
     ) -> None:
         """Test cancel_order() API endpoint validation with $0 balance.
 
-        Since we cannot place orders with $0 balance, this test validates that 
+        Since we cannot place orders with $0 balance, this test validates that
         the cancel endpoint works correctly when called with a non-existent order ID,
         which should return an appropriate error response.
         """
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         symbol = "SOL_USDC"
-        
+
         # Try to cancel a non-existent order (since we can't place with $0 balance)
         cancel_args = CancelOrderArgs(
             order_id="99999999999999999",  # Non-existent order ID
@@ -246,7 +248,7 @@ class TestBackpackOrdersZeroBalance:
         assert isinstance(api_error, APIError), f"Expected APIError, got {type(api_error)}"
         assert api_error.code is not None, "Error should have a code"
         assert api_error.message is not None, "Error should have a message"
-        
+
         # Log the actual error for debugging
         logger.info(
             f"Cancel order error (expected): code={api_error.code}, message={api_error.message}"
@@ -401,7 +403,7 @@ class TestBackpackOrdersZeroBalance:
         """Test order management pipeline endpoints with $0 balance.
 
         With $0 balance, this validates that the order management endpoints
-        (get_open_orders, get_order_history) work correctly even when we 
+        (get_open_orders, get_order_history) work correctly even when we
         cannot place orders due to insufficient funds.
         """
         # VCR configuration is used by pytest-vcr automatically
@@ -409,11 +411,11 @@ class TestBackpackOrdersZeroBalance:
         # Step 1: Test get_open_orders endpoint
         open_orders = await bp_api_for_test_env.get_open_orders()
         assert isinstance(open_orders, list), "get_open_orders() should return list"
-        
+
         # Step 2: Test get_order_history endpoint
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)
-        
+
         args = GetOrderHistoryArgs(
             start_time=start_time,
             end_time=end_time,
@@ -421,7 +423,7 @@ class TestBackpackOrdersZeroBalance:
         )
         order_history = await bp_api_for_test_env.get_order_history(args)
         assert isinstance(order_history, list), "get_order_history() should return list"
-        
+
         # Step 3: Test that place_order fails with expected error for $0 balance
         symbol = "SOL_USDC"
         side = OrderSide.BUY
@@ -444,13 +446,13 @@ class TestBackpackOrdersZeroBalance:
         # Should fail with INSUFFICIENT_FUNDS
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.place_order(place_args)
-        
+
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value, (
             f"Expected INSUFFICIENT_FUNDS with $0 balance, got {api_error.code}: "
             f"{api_error.message}"
         )
-        
+
         logger.info(
             "✓ Order management endpoints validated successfully with $0 balance constraint"
         )
@@ -472,11 +474,11 @@ class TestBackpackOrdersZeroBalance:
         # Test get_open_orders for Backpack-specific structure
         open_orders = await bp_api_for_test_env.get_open_orders()
         assert isinstance(open_orders, list), "get_open_orders() should return list"
-        
+
         # Test get_order_history for Backpack-specific structure
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)
-        
+
         args = GetOrderHistoryArgs(
             start_time=start_time,
             end_time=end_time,
@@ -484,39 +486,39 @@ class TestBackpackOrdersZeroBalance:
         )
         order_history = await bp_api_for_test_env.get_order_history(args)
         assert isinstance(order_history, list), "get_order_history() should return list"
-        
+
         # Validate Backpack-specific fields in any existing orders
         all_orders = open_orders + order_history
-        
+
         if all_orders:
             sample_order = all_orders[0]
-            
+
             # Validate Backpack-specific order fields
             assert sample_order.exchange == "backpack", "Order should be from Backpack"
-            
+
             # Validate order ID format (Backpack specific)
             assert isinstance(sample_order.exchange_order_id, str), (
                 "Backpack order ID should be string"
             )
             assert len(sample_order.exchange_order_id) > 0, "Order ID should not be empty"
-            
+
             # Test Backpack-specific order details if present
             if hasattr(sample_order, "bp_details") and sample_order.bp_details:
                 bp_details = sample_order.bp_details
-                
+
                 # Validate Backpack-specific order details if present
                 client_id = getattr(bp_details, "client_id", None)
                 if client_id is not None:
                     assert isinstance(client_id, str), "client_id should be string"
-                
+
                 order_flags = getattr(bp_details, "order_flags", None)
                 if order_flags is not None:
                     assert isinstance(order_flags, int | str), "order_flags should be int or string"
-            
+
             logger.info("✓ Backpack-specific order details validated from existing orders")
         else:
             logger.info("✓ No existing orders found, but endpoints responded correctly")
-            
+
         # Test that place_order fails as expected with $0 balance
         symbol = "SOL_USDC"
         side = OrderSide.BUY
@@ -539,11 +541,11 @@ class TestBackpackOrdersZeroBalance:
         # Should fail with INSUFFICIENT_FUNDS, validating the error structure
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.place_order(place_args)
-        
+
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         assert "insufficient" in api_error.message.lower()
-        
+
         logger.info("✓ Backpack error handling validated correctly")
 
     @pytest.mark.vcr
@@ -607,18 +609,18 @@ class TestBackpackOrdersZeroBalance:
     ) -> None:
         """Test order symbol format validation with $0 balance.
 
-        This validates that order symbols from existing orders follow 
+        This validates that order symbols from existing orders follow
         Backpack's naming conventions and are properly formatted.
         """
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         # Get open orders to test symbol formats
         open_orders = await bp_api_for_test_env.get_open_orders()
-        
+
         # Get order history to test symbol formats
         end_time = datetime.now()
         start_time = end_time - timedelta(days=30)  # Last 30 days
-        
+
         args = GetOrderHistoryArgs(
             start_time=start_time,
             end_time=end_time,
@@ -657,9 +659,7 @@ class TestBackpackOrdersZeroBalance:
                 "endpoint availability."
             )
         else:
-            logger.info(
-                f"✓ Symbol format validation completed for {len(all_orders)} orders"
-            )
+            logger.info(f"✓ Symbol format validation completed for {len(all_orders)} orders")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -669,76 +669,92 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with extreme edge case parameters that should fail gracefully.
-        
+
         Tests edge cases like extremely small quantities, extreme prices, and boundary conditions.
         With zero balance, these should fail with appropriate error codes.
         """
         symbol = "SOL_USDC"
         current_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
+
         # Test cases with extreme parameters
-        extreme_test_cases = [
-                         {
-                 "name": "extremely_small_quantity",
-                 "args": PlaceOrderArgs(
-                     symbol=symbol,
-                     side=OrderSide.BUY,
-                     order_type=OrderType.LIMIT,
-                     quantity=Decimal("0.000001"),  # Extremely small
-                     price=current_price,
-                     time_in_force=TimeInForce.GTC,
-                 ),
-                 "expected_errors": [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.INVALID_ORDER_SIZE]
-             },
-                         {
-                 "name": "extremely_large_quantity",
-                 "args": PlaceOrderArgs(
-                     symbol=symbol,
-                     side=OrderSide.BUY,
-                     order_type=OrderType.LIMIT,
-                     quantity=Decimal("1000000"),  # Extremely large
-                     price=current_price,
-                     time_in_force=TimeInForce.GTC,
-                 ),
-                 "expected_errors": [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.INVALID_ORDER_SIZE]
-             },
-             {
-                 "name": "extremely_low_price",
-                 "args": PlaceOrderArgs(
-                     symbol=symbol,
-                     side=OrderSide.BUY,
-                     order_type=OrderType.LIMIT,
-                     quantity=Decimal("0.1"),
-                     price=Decimal("0.01"),  # Extremely low price
-                     time_in_force=TimeInForce.GTC,
-                 ),
-                 "expected_errors": [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.PRICE_OUT_OF_RANGE]
-             },
-             {
-                 "name": "extremely_high_price",
-                 "args": PlaceOrderArgs(
-                     symbol=symbol,
-                     side=OrderSide.BUY,
-                     order_type=OrderType.LIMIT,
-                     quantity=Decimal("0.1"),
-                     price=current_price * Decimal("1000"),  # 1000x current price
-                     time_in_force=TimeInForce.GTC,
-                 ),
-                 "expected_errors": [APIErrorCode.INSUFFICIENT_FUNDS, APIErrorCode.PRICE_OUT_OF_RANGE]
-             }
+        extreme_test_cases: list[dict[str, Any]] = [
+            {
+                "name": "extremely_small_quantity",
+                "args": PlaceOrderArgs(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("0.000001"),  # Extremely small
+                    price=current_price,
+                    time_in_force=TimeInForce.GTC,
+                ),
+                "expected_errors": [
+                    APIErrorCode.INSUFFICIENT_FUNDS.value,
+                    APIErrorCode.INVALID_ORDER_SIZE.value,
+                ],
+            },
+            {
+                "name": "extremely_large_quantity",
+                "args": PlaceOrderArgs(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1000000"),  # Extremely large
+                    price=current_price,
+                    time_in_force=TimeInForce.GTC,
+                ),
+                "expected_errors": [
+                    APIErrorCode.INSUFFICIENT_FUNDS.value,
+                    APIErrorCode.INVALID_ORDER_SIZE.value,
+                ],
+            },
+            {
+                "name": "extremely_low_price",
+                "args": PlaceOrderArgs(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("0.1"),
+                    price=Decimal("0.01"),  # Extremely low price
+                    time_in_force=TimeInForce.GTC,
+                ),
+                "expected_errors": [
+                    APIErrorCode.INSUFFICIENT_FUNDS.value,
+                    APIErrorCode.PRICE_OUT_OF_RANGE.value,
+                ],
+            },
+            {
+                "name": "extremely_high_price",
+                "args": PlaceOrderArgs(
+                    symbol=symbol,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("0.1"),
+                    price=current_price * Decimal("1000"),  # 1000x current price
+                    time_in_force=TimeInForce.GTC,
+                ),
+                "expected_errors": [
+                    APIErrorCode.INSUFFICIENT_FUNDS.value,
+                    APIErrorCode.PRICE_OUT_OF_RANGE.value,
+                ],
+            },
         ]
-        
+
         for test_case in extreme_test_cases:
+            args: PlaceOrderArgs = test_case["args"]
             with pytest.raises(APIError) as exc_info:
-                await bp_api_for_test_env.place_order(test_case["args"])
-            
+                await bp_api_for_test_env.place_order(args)
+
             api_error = exc_info.value
-            assert api_error.code in [code.value for code in test_case["expected_errors"]], (
+            expected_error_values = test_case["expected_errors"]
+            assert api_error.code in expected_error_values, (
                 f"Test {test_case['name']} expected one of {test_case['expected_errors']}, "
                 f"got {api_error.code}: {api_error.message}"
             )
-            
-            logger.info(f"✓ Extreme edge case '{test_case['name']}' properly rejected: {api_error.code}")
+
+            logger.info(
+                f"✓ Extreme edge case '{test_case['name']}' properly rejected: {api_error.code}"
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -748,22 +764,22 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with malformed or invalid data structures.
-        
-        Tests how the API handles malformed symbols, invalid enum values, and edge case combinations.
+
+        Tests how the API handles malformed symbols, invalid enum values, and edge cases.
         """
         current_price = await get_dynamic_test_price(bp_api_for_test_env, "SOL_USDC", OrderSide.BUY)
-        
+
         # Test malformed symbols
         malformed_symbol_cases = [
-            "SOL/USDC",     # Wrong separator
-            "sol_usdc",     # Lowercase
-            "SOL-USDC",     # Wrong separator
-            "SOLUSDC",      # No separator
-            "SOL_USD",      # Wrong quote currency
-            "",             # Empty string
+            "SOL/USDC",  # Wrong separator
+            "sol_usdc",  # Lowercase
+            "SOL-USDC",  # Wrong separator
+            "SOLUSDC",  # No separator
+            "SOL_USD",  # Wrong quote currency
+            "",  # Empty string
             "SOL_USDC_EXTRA",  # Too many parts
         ]
-        
+
         for malformed_symbol in malformed_symbol_cases:
             try:
                 place_args = PlaceOrderArgs(
@@ -774,23 +790,30 @@ class TestBackpackOrdersZeroBalance:
                     price=current_price,
                     time_in_force=TimeInForce.GTC,
                 )
-                
+
                 with pytest.raises(APIError) as exc_info:
                     await bp_api_for_test_env.place_order(place_args)
-                
+
                 api_error = exc_info.value
                 # Should get symbol-related error, not insufficient funds
                 assert api_error.code in [
                     APIErrorCode.INVALID_SYMBOL.value,
                     APIErrorCode.INVALID_REQUEST.value,
-                    APIErrorCode.EXCHANGE_SPECIFIC.value
-                ], f"Malformed symbol '{malformed_symbol}' should give symbol error, got {api_error.code}"
-                
-                logger.info(f"✓ Malformed symbol '{malformed_symbol}' properly rejected: {api_error.code}")
-                
+                    APIErrorCode.EXCHANGE_SPECIFIC.value,
+                ], (
+                    f"Malformed symbol '{malformed_symbol}' should give symbol error, "
+                    f"got {api_error.code}"
+                )
+
+                logger.info(
+                    f"✓ Malformed symbol '{malformed_symbol}' properly rejected: {api_error.code}"
+                )
+
             except Exception as e:
                 # Some malformed symbols might fail at Pydantic validation level
-                logger.info(f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}")
+                logger.info(
+                    f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}"
+                )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -800,13 +823,13 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with decimal precision edge cases.
-        
+
         Tests very high precision numbers, scientific notation edge cases, and rounding behaviors.
         """
         symbol = "SOL_USDC"
         base_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
-        precision_test_cases = [
+
+        precision_test_cases: list[dict[str, Any]] = [
             {
                 "name": "high_precision_quantity",
                 "args": PlaceOrderArgs(
@@ -816,7 +839,7 @@ class TestBackpackOrdersZeroBalance:
                     quantity=Decimal("0.123456789123456789"),  # Very high precision
                     price=base_price,
                     time_in_force=TimeInForce.GTC,
-                )
+                ),
             },
             {
                 "name": "high_precision_price",
@@ -827,7 +850,7 @@ class TestBackpackOrdersZeroBalance:
                     quantity=Decimal("0.1"),
                     price=base_price + Decimal("0.123456789123456789"),  # Very high precision
                     time_in_force=TimeInForce.GTC,
-                )
+                ),
             },
             {
                 "name": "scientific_notation_quantity",
@@ -838,24 +861,25 @@ class TestBackpackOrdersZeroBalance:
                     quantity=Decimal("1.23e-6"),  # Scientific notation
                     price=base_price,
                     time_in_force=TimeInForce.GTC,
-                )
-            }
+                ),
+            },
         ]
-        
+
         for test_case in precision_test_cases:
             with pytest.raises(APIError) as exc_info:
-                await bp_api_for_test_env.place_order(test_case["args"])
-            
+                args: PlaceOrderArgs = test_case["args"]
+                await bp_api_for_test_env.place_order(args)
+
             api_error = exc_info.value
             # Could be insufficient funds or precision-related error
-                         assert api_error.code in [
-                 APIErrorCode.INSUFFICIENT_FUNDS.value,
-                 APIErrorCode.INVALID_ORDER_SIZE.value,
-                 APIErrorCode.PRICE_OUT_OF_RANGE.value,
-                 APIErrorCode.PRECISION_ERROR.value,
-                 APIErrorCode.EXCHANGE_SPECIFIC.value
-             ], f"Precision test '{test_case['name']}' got unexpected error: {api_error.code}"
-            
+            assert api_error.code in [
+                APIErrorCode.INSUFFICIENT_FUNDS.value,
+                APIErrorCode.INVALID_ORDER_SIZE.value,
+                APIErrorCode.PRICE_OUT_OF_RANGE.value,
+                APIErrorCode.PRECISION_ERROR.value,
+                APIErrorCode.EXCHANGE_SPECIFIC.value,
+            ], f"Precision test '{test_case['name']}' got unexpected error: {api_error.code}"
+
             logger.info(f"✓ Precision edge case '{test_case['name']}' handled: {api_error.code}")
 
     @pytest.mark.vcr
@@ -866,55 +890,62 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent order operations to validate rate limiting and thread safety.
-        
+
         Tests multiple simultaneous order placement attempts with zero balance.
         Should handle concurrent requests gracefully.
         """
         import asyncio
-        
+
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
+
         # Create multiple order requests
-        order_tasks = []
+        order_tasks: list[Any] = []
         for i in range(5):
             place_args = PlaceOrderArgs(
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal(f"0.{i+1}"),  # Different quantities: 0.1, 0.2, etc.
+                quantity=Decimal(f"0.{i + 1}"),  # Different quantities: 0.1, 0.2, etc.
                 price=test_price + Decimal(str(i)),  # Slightly different prices
                 time_in_force=TimeInForce.GTC,
             )
             order_tasks.append(bp_api_for_test_env.place_order(place_args))
-        
+
         # Execute all requests concurrently
-        results = await asyncio.gather(*order_tasks, return_exceptions=True)
-        
+        results: list[Order | BaseException] = await asyncio.gather(
+            *order_tasks, return_exceptions=True
+        )
+
         # All should be APIError instances (insufficient funds)
         error_count = 0
         rate_limit_count = 0
         insufficient_funds_count = 0
-        
+
         for i, result in enumerate(results):
-            assert isinstance(result, APIError), f"Request {i} should return APIError, got {type(result)}"
-            
+            assert isinstance(result, APIError), (
+                f"Request {i} should return APIError, got {type(result)}"
+            )
+
             error_count += 1
             if result.code == APIErrorCode.RATE_LIMITED.value:
                 rate_limit_count += 1
             elif result.code == APIErrorCode.INSUFFICIENT_FUNDS.value:
                 insufficient_funds_count += 1
-            
+
             logger.info(f"Concurrent request {i}: {result.code}")
-        
+
         assert error_count == 5, f"Expected 5 errors, got {error_count}"
         assert insufficient_funds_count > 0, "At least one request should get insufficient funds"
-        
+
         # Rate limiting is acceptable in concurrent scenarios
         if rate_limit_count > 0:
             logger.info(f"✓ Rate limiting detected in {rate_limit_count}/5 concurrent requests")
-        
-        logger.info(f"✓ Concurrent operations handled: {insufficient_funds_count} insufficient funds, {rate_limit_count} rate limited")
+
+        logger.info(
+            f"✓ Concurrent operations handled: {insufficient_funds_count} insufficient funds, "
+            f"{rate_limit_count} rate limited"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -924,13 +955,13 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test complete order lifecycle simulation with zero balance.
-        
+
         Simulates realistic order workflow: place -> query status -> cancel -> history
         All operations should fail appropriately with zero balance.
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
+
         # Step 1: Try to place order (should fail with insufficient funds)
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -940,52 +971,54 @@ class TestBackpackOrdersZeroBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         with pytest.raises(APIError) as place_exc:
             await bp_api_for_test_env.place_order(place_args)
-        
+
         assert place_exc.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         logger.info("✓ Step 1: Order placement correctly failed with insufficient funds")
-        
+
         # Step 2: Try to cancel non-existent order (should fail gracefully)
         fake_order_id = "fake_order_12345"
         cancel_args = CancelOrderArgs(symbol=symbol, order_id=fake_order_id)
-        
+
         with pytest.raises(APIError) as cancel_exc:
             await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         # Should get order not found or similar error
         assert cancel_exc.value.code in [
             APIErrorCode.ORDER_NOT_FOUND.value,
             APIErrorCode.INVALID_REQUEST.value,
-            APIErrorCode.EXCHANGE_SPECIFIC.value
+            APIErrorCode.EXCHANGE_SPECIFIC.value,
         ]
-        logger.info(f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}")
-        
+        logger.info(
+            f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}"
+        )
+
         # Step 3: Query order history (should work but return empty/minimal results)
         history_args = GetOrderHistoryArgs(symbol=symbol, limit=10)
-        
+
         try:
             orders = await bp_api_for_test_env.get_order_history(history_args)
             # Should return empty list or minimal orders for zero balance account
             assert isinstance(orders, list)
             assert len(orders) <= 10  # Respects limit
             logger.info(f"✓ Step 3: Order history query succeeded, found {len(orders)} orders")
-            
+
         except APIError as history_exc:
             # Might fail with authentication or other error
             logger.info(f"✓ Step 3: Order history query failed appropriately: {history_exc.code}")
-        
+
         # Step 4: Query open orders (should work but return empty for zero balance)
         try:
             open_orders = await bp_api_for_test_env.get_open_orders(symbol)
             assert isinstance(open_orders, list)
             assert len(open_orders) == 0  # No open orders with zero balance
             logger.info("✓ Step 4: Open orders query succeeded, no open orders (expected)")
-            
+
         except APIError as open_exc:
             logger.info(f"✓ Step 4: Open orders query failed appropriately: {open_exc.code}")
-        
+
         logger.info("✓ Complete order lifecycle simulation completed with zero balance")
 
     @pytest.mark.vcr
@@ -996,12 +1029,12 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that error messages are properly formatted and informative.
-        
+
         Validates that error responses contain useful information for debugging and logging.
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -1010,37 +1043,37 @@ class TestBackpackOrdersZeroBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.place_order(place_args)
-        
+
         api_error = exc_info.value
-        
+
         # Validate error structure
-        assert hasattr(api_error, 'code'), "APIError should have error code"
-        assert hasattr(api_error, 'message'), "APIError should have error message"
+        assert hasattr(api_error, "code"), "APIError should have error code"
+        assert hasattr(api_error, "message"), "APIError should have error message"
         assert api_error.code is not None, "Error code should not be None"
         assert api_error.message is not None, "Error message should not be None"
-        
+
         # Validate message content
         error_message = str(api_error.message).lower()
         assert len(error_message) > 0, "Error message should not be empty"
         assert len(error_message) < 500, "Error message should be reasonably sized"
-        
+
         # Should contain relevant keywords for insufficient funds
         fund_keywords = ["insufficient", "balance", "fund", "not enough", "cannot"]
         contains_fund_keyword = any(keyword in error_message for keyword in fund_keywords)
-        
+
         if api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value:
             assert contains_fund_keyword, (
                 f"Insufficient funds error should contain relevant keywords. "
                 f"Message: '{api_error.message}'"
             )
-        
+
         # Validate error code is properly mapped
         assert isinstance(api_error.code, str), "Error code should be string"
         assert len(api_error.code) > 0, "Error code should not be empty"
-        
+
         logger.info(f"✓ Error validation passed: {api_error.code} - {api_error.message}")
 
     @pytest.mark.vcr
@@ -1051,12 +1084,12 @@ class TestBackpackOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test order operations under network timeout conditions.
-        
+
         Simulates timeout scenarios to ensure graceful handling.
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -1065,18 +1098,18 @@ class TestBackpackOrdersZeroBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         try:
             # Normal request (should get insufficient funds)
             with pytest.raises(APIError) as exc_info:
                 await bp_api_for_test_env.place_order(place_args)
-            
+
             assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
             logger.info("✓ Normal request completed (insufficient funds as expected)")
-            
-        except asyncio.TimeoutError:
+
+        except TimeoutError:
             logger.info("✓ Network timeout occurred - acceptable behavior")
-            
+
         except Exception as e:
             if "timeout" in str(e).lower():
                 logger.info(f"✓ Timeout-related error properly handled: {e}")
