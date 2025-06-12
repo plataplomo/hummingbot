@@ -19,7 +19,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -40,7 +42,7 @@ from cyberdelta.core.models import (
     Withdrawal,
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.core.models.market import Candle, FundingRate, OrderBook
+from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 
 pytestmark = pytest.mark.unit
@@ -663,6 +665,187 @@ class TestBackpackAPIPublicBehavior:
             await backpack_api.get_order_status(GetOrderArgs(order_id="order123", symbol=None))
 
         assert "'symbol' parameter is required" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_market_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+        """Test successful market metadata retrieval for a specific symbol."""
+        # Create mock market
+        mock_market = MagicMock(spec=Market)
+        mock_market.symbol = "BTC_USDC"
+        mock_market.base_symbol = "BTC"
+        mock_market.quote_symbol = "USDC"
+        mock_market.market_type = "Spot"
+        mock_market.tick_size = Decimal("0.01")
+        mock_market.step_size = Decimal("0.001")
+        mock_market.status = "Trading"
+
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        with patch.object(
+            backpack_api.market_data_service,
+            "get_market",
+            new_callable=AsyncMock,
+            return_value=mock_market,
+        ):
+            args = GetMarketArgs(symbol="BTC_USDC")
+            result = await backpack_api.get_market(args)
+
+            assert result == mock_market
+            assert result.symbol == "BTC_USDC"
+            assert result.base_symbol == "BTC"
+            assert result.quote_symbol == "USDC"
+            assert result.market_type == "Spot"
+
+    @pytest.mark.asyncio
+    async def test_get_market_api_error_propagation(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
+        """Test that APIError from market service is propagated correctly."""
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        # Mock service to raise APIError
+        api_error = APIError(
+            message="Market not found", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+        )
+
+        with patch.object(
+            backpack_api.market_data_service,
+            "get_market",
+            new_callable=AsyncMock,
+            side_effect=api_error,
+        ):
+            args = GetMarketArgs(symbol="INVALID_SYMBOL")
+            
+            with pytest.raises(APIError) as exc_info:
+                await backpack_api.get_market(args)
+            
+            assert exc_info.value == api_error
+            assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+
+    @pytest.mark.asyncio
+    async def test_get_markets_success(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+        """Test successful retrieval of all markets metadata."""
+        # Create mock markets list
+        mock_markets = []
+        for i, symbol in enumerate(["BTC_USDC", "ETH_USDC", "SOL_USDC"]):
+            market = MagicMock(spec=Market)
+            market.symbol = symbol
+            market.base_symbol = symbol.split("_")[0]
+            market.quote_symbol = symbol.split("_")[1]
+            market.market_type = "Spot"
+            market.tick_size = Decimal("0.01")
+            market.step_size = Decimal("0.001")
+            market.status = "Trading"
+            mock_markets.append(market)
+
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        with patch.object(
+            backpack_api.market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
+            return_value=mock_markets,
+        ):
+            args = GetMarketsArgs()
+            result = await backpack_api.get_markets(args)
+
+            assert result == mock_markets
+            assert len(result) == 3
+            assert all(isinstance(market, MagicMock) for market in result)
+            assert result[0].symbol == "BTC_USDC"
+            assert result[1].symbol == "ETH_USDC"
+            assert result[2].symbol == "SOL_USDC"
+
+    @pytest.mark.asyncio
+    async def test_get_markets_empty_list(self, bp_api_with_di: Callable[..., BackpackAPI]) -> None:
+        """Test handling of empty markets list."""
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        with patch.object(
+            backpack_api.market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            args = GetMarketsArgs()
+            result = await backpack_api.get_markets(args)
+
+            assert result == []
+            assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_markets_api_error_propagation(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
+        """Test that APIError from market service is propagated correctly."""
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        # Mock service to raise APIError
+        api_error = APIError(
+            message="Service unavailable", code=APIErrorCode.SERVICE_UNAVAILABLE.value
+        )
+
+        with patch.object(
+            backpack_api.market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
+            side_effect=api_error,
+        ):
+            args = GetMarketsArgs()
+            
+            with pytest.raises(APIError) as exc_info:
+                await backpack_api.get_markets(args)
+            
+            assert exc_info.value == api_error
+            assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
+
+    @pytest.mark.asyncio
+    async def test_get_market_delegates_to_service(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
+        """Test that get_market properly delegates to market_data_service."""
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        # Mock return value
+        mock_market = MagicMock(spec=Market)
+        mock_market.symbol = "TEST_USDC"
+
+        with patch.object(
+            backpack_api.market_data_service, "get_market", new_callable=AsyncMock, return_value=mock_market
+        ) as mock_service_method:
+            args = GetMarketArgs(symbol="TEST_USDC")
+            result = await backpack_api.get_market(args)
+
+            # Verify delegation
+            mock_service_method.assert_called_once_with(args=args)
+            assert result == mock_market
+
+    @pytest.mark.asyncio
+    async def test_get_markets_delegates_to_service(
+        self, bp_api_with_di: Callable[..., BackpackAPI]
+    ) -> None:
+        """Test that get_markets properly delegates to market_data_service."""
+        # Create API instance from factory
+        backpack_api = bp_api_with_di()
+
+        # Mock return value
+        mock_markets = [MagicMock(spec=Market)]
+
+        with patch.object(
+            backpack_api.market_data_service, "get_markets", new_callable=AsyncMock, return_value=mock_markets
+        ) as mock_service_method:
+            args = GetMarketsArgs()
+            result = await backpack_api.get_markets(args)
+
+            # Verify delegation
+            mock_service_method.assert_called_once_with(args=args)
+            assert result == mock_markets
 
     @pytest.mark.asyncio
     async def test_get_all_open_orders_success(

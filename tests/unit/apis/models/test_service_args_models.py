@@ -14,7 +14,13 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs, TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetMarketArgs,
+    GetMarketsArgs,
+    PlaceOrderArgs,
+    TransferArgs,
+    WithdrawArgs,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -1391,3 +1397,154 @@ class TestEdgeCasesAndBoundaryConditions:
                 time_in_force=TimeInForce.IOC,
             )
             assert args.side == side
+
+
+class TestGetMarketArgs:
+    """Test GetMarketArgs Pydantic model validation."""
+
+    def test_valid_symbol(self) -> None:
+        """Test valid symbol creation."""
+        args = GetMarketArgs(symbol="BTC-USDC")
+        assert args.symbol == "BTC-USDC"
+
+    def test_symbol_validation_empty_string(self) -> None:
+        """Test that empty string is rejected."""
+        with pytest.raises(ValidationError, match="String cannot be empty"):
+            GetMarketArgs(symbol="")
+
+    def test_symbol_validation_whitespace_only(self) -> None:
+        """Test that whitespace-only string is rejected."""
+        with pytest.raises(ValidationError, match="String cannot be empty"):
+            GetMarketArgs(symbol="   ")
+
+    def test_symbol_validation_too_long(self) -> None:
+        """Test that string longer than 64 characters is rejected."""
+        long_symbol = "A" * 65
+        with pytest.raises(ValidationError, match="String value too long"):
+            GetMarketArgs(symbol=long_symbol)
+
+    def test_symbol_validation_maximum_length(self) -> None:
+        """Test that 64-character string is accepted."""
+        max_length_symbol = "A" * 64
+        args = GetMarketArgs(symbol=max_length_symbol)
+        assert args.symbol == max_length_symbol
+
+    def test_symbol_validation_unicode_support(self) -> None:
+        """Test that Unicode characters are supported."""
+        unicode_symbol = "BTC-USDC_🚀"
+        args = GetMarketArgs(symbol=unicode_symbol)
+        assert args.symbol == unicode_symbol
+
+    def test_symbol_validation_special_characters(self) -> None:
+        """Test that special characters commonly used in symbols are supported."""
+        special_symbols = [
+            "BTC-USDC",
+            "BTC_USDC",
+            "BTC/USDC",
+            "BTC.USDC",
+            "BTC:USDC",
+        ]
+        for symbol in special_symbols:
+            args = GetMarketArgs(symbol=symbol)
+            assert args.symbol == symbol
+
+    def test_symbol_required_field(self) -> None:
+        """Test that symbol is a required field."""
+        with pytest.raises(ValidationError, match="Field required"):
+            GetMarketArgs()  # type: ignore[call-arg]
+
+    def test_symbol_wrong_type(self) -> None:
+        """Test that non-string types are rejected."""
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol=123)  # type: ignore[arg-type]
+
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol=None)  # type: ignore[arg-type]
+
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol=["BTC-USDC"])  # type: ignore[arg-type]
+
+    def test_extra_fields_forbidden(self) -> None:
+        """Test that extra fields are forbidden."""
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            GetMarketArgs(symbol="BTC-USDC", extra_field="not_allowed")  # type: ignore[call-arg]
+
+    def test_immutability_after_creation(self) -> None:
+        """Test that fields cannot be modified after creation."""
+        args = GetMarketArgs(symbol="BTC-USDC")
+
+        # Test validation on assignment
+        with pytest.raises(ValidationError):
+            args.symbol = ""
+
+        with pytest.raises(ValidationError):
+            args.symbol = "A" * 65
+
+    def test_model_validation_assignment(self) -> None:
+        """Test that validate_assignment=True works correctly."""
+        args = GetMarketArgs(symbol="BTC-USDC")
+
+        # Valid assignment should work
+        args.symbol = "ETH-USDC"
+        assert args.symbol == "ETH-USDC"
+
+
+class TestGetMarketsArgs:
+    """Test GetMarketsArgs Pydantic model validation."""
+
+    def test_empty_creation(self) -> None:
+        """Test creating with no arguments (default case)."""
+        args = GetMarketsArgs()
+        assert args is not None
+
+    def test_empty_dict_creation(self) -> None:
+        """Test creating from empty dictionary."""
+        args = GetMarketsArgs.model_validate({})
+        assert args is not None
+
+    def test_extra_fields_forbidden(self) -> None:
+        """Test that extra fields are forbidden."""
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            GetMarketsArgs(extra_field="not_allowed")  # type: ignore[call-arg]
+
+    def test_model_consistency(self) -> None:
+        """Test that the model provides consistent interface."""
+        args1 = GetMarketsArgs()
+        args2 = GetMarketsArgs()
+
+        # Should be equal (both empty)
+        assert args1.model_dump() == args2.model_dump()
+
+    def test_model_serialization(self) -> None:
+        """Test model serialization to dict."""
+        args = GetMarketsArgs()
+        data = args.model_dump()
+        assert isinstance(data, dict)
+        assert len(data) == 0  # No fields currently
+
+    def test_model_deserialization(self) -> None:
+        """Test model deserialization from dict."""
+        data: dict[str, object] = {}
+        args = GetMarketsArgs.model_validate(data)
+        assert args is not None
+
+    def test_future_extensibility(self) -> None:
+        """Test that the model can be extended in the future."""
+        # This test documents the intent for future extensibility
+        # Currently no parameters, but the model structure supports adding them
+        args = GetMarketsArgs()
+
+        # Verify the model has the expected configuration
+        assert args.model_config["extra"] == "forbid"
+        assert args.model_config["validate_assignment"] is True
+
+    def test_model_repr_and_str(self) -> None:
+        """Test that the model has reasonable string representations."""
+        args = GetMarketsArgs()
+
+        # Should not raise exceptions
+        repr_str = repr(args)
+        str_str = str(args)
+
+        assert "GetMarketsArgs" in repr_str
+        assert isinstance(str_str, str)

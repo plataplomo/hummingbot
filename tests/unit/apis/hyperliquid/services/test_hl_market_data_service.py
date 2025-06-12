@@ -44,11 +44,14 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
     GetMarketDataArgs,
+    GetMarketsArgs,
 )
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.market import Market
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
@@ -1908,3 +1911,368 @@ class TestHyperliquidMarketDataService:
         assert "Processing historical funding rate data failed" in exc_info.value.message
         # Verify mapper was called for both items (first succeeds, second fails)
         assert mock_hl_mapper.transform_raw_funding_history_item_to_internal.call_count == 2
+
+
+class TestHyperliquidMarketDataServiceGetMarkets:
+    """Test get_markets method."""
+
+    @pytest.mark.asyncio
+    async def test_get_markets_success(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test successful get_markets call."""
+        # Mock data
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
+            meta=HyperliquidRawMetaResponse(
+                universe=[
+                    HyperliquidRawAssetDefinition(
+                        name="BTC",
+                        szDecimals=5,
+                        maxLeverage=20,
+                        onlyIsolated=False,
+                    )
+                ]
+            ),
+            asset_ctxs=[
+                HyperliquidRawAssetCtx(
+                    name="BTC",
+                    funding="0.0001",
+                    markPx="50100",
+                    prevDayPx="50000",
+                    dayNtlVlm="1000000",
+                    impactPx="50098",
+                )
+            ],
+        )
+
+        mock_markets = [
+            Market(
+                symbol="BTC-USD",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            )
+        ]
+
+        # Setup mocks
+        with patch.object(
+            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+        ) as mock_get_contexts:
+            mock_get_contexts.return_value = mock_raw_response
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
+
+            # Execute
+            args = GetMarketsArgs()
+            result = await hyperliquid_market_data_service.get_markets(args)
+
+            # Verify
+            assert result == mock_markets
+            mock_get_contexts.assert_called_once()
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_called_once_with(
+                mock_raw_response
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_markets_api_error_propagation(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test that APIErrors from get_all_asset_contexts_raw are propagated."""
+        # Setup mock to raise APIError
+        api_error = APIError(
+            message="Failed to get asset contexts", code=APIErrorCode.RATE_LIMITED.value
+        )
+
+        with patch.object(
+            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+        ) as mock_get_contexts:
+            mock_get_contexts.side_effect = api_error
+
+            # Execute and verify exception
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketsArgs()
+                await hyperliquid_market_data_service.get_markets(args)
+
+            assert exc_info.value == api_error
+            mock_get_contexts.assert_called_once()
+            # Mapper should not be called if get_contexts fails
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_markets_transformation_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test handling of transformation errors from mapper."""
+        # Mock successful raw response
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
+            meta=HyperliquidRawMetaResponse(
+                universe=[
+                    HyperliquidRawAssetDefinition(
+                        name="BTC",
+                        szDecimals=5,
+                        maxLeverage=20,
+                        onlyIsolated=False,
+                    )
+                ]
+            ),
+            asset_ctxs=[
+                HyperliquidRawAssetCtx(
+                    name="BTC",
+                    funding="0.0001",
+                    markPx="50100",
+                    prevDayPx="50000",
+                    dayNtlVlm="1000000",
+                    impactPx="50098",
+                )
+            ],
+        )
+
+        # Setup mocks - raw response succeeds, transformation fails
+        with patch.object(
+            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+        ) as mock_get_contexts:
+            mock_get_contexts.return_value = mock_raw_response
+
+            # Make mapper raise TransformationError
+            from cyberdelta.apis.models.api_error import TransformationError
+
+            transformation_error = TransformationError("Failed to transform market data")
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.side_effect = (
+                transformation_error
+            )
+
+            # Execute and verify exception is converted to APIError
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketsArgs()
+                await hyperliquid_market_data_service.get_markets(args)
+
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "Failed to process/transform exchange data" in exc_info.value.message
+            mock_get_contexts.assert_called_once()
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_markets_empty_response(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test handling of empty markets response."""
+        # Mock empty raw response
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
+            meta=HyperliquidRawMetaResponse(universe=[]),
+            asset_ctxs=[],
+        )
+
+        mock_markets: list[Market] = []
+
+        # Setup mocks
+        with patch.object(
+            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+        ) as mock_get_contexts:
+            mock_get_contexts.return_value = mock_raw_response
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
+
+            # Execute
+            args = GetMarketsArgs()
+            result = await hyperliquid_market_data_service.get_markets(args)
+
+            # Verify empty list is returned
+            assert result == []
+            assert len(result) == 0
+            mock_get_contexts.assert_called_once()
+            mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_called_once()
+
+
+class TestHyperliquidMarketDataServiceGetMarket:
+    """Test get_market method."""
+
+    @pytest.mark.asyncio
+    async def test_get_market_success(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test successful get_market call."""
+        symbol = "BTC-USD"
+
+        # Mock markets from get_markets
+        mock_markets = [
+            Market(
+                symbol="BTC-USD",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            ),
+            Market(
+                symbol="ETH-USD",
+                base_symbol="ETH",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.01"),
+                status="Trading",
+            ),
+        ]
+
+        # Mock get_markets to return our test data
+        with patch.object(
+            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+        ) as mock_get_markets:
+            mock_get_markets.return_value = mock_markets
+
+            # Execute
+            args = GetMarketArgs(symbol=symbol)
+            result = await hyperliquid_market_data_service.get_market(args)
+
+            # Verify
+            assert result == mock_markets[0]  # Should return the BTC-USD market
+            assert result.symbol == symbol
+            mock_get_markets.assert_called_once_with(GetMarketsArgs())
+
+    @pytest.mark.asyncio
+    async def test_get_market_symbol_not_found(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_market when symbol is not found."""
+        symbol = "UNKNOWN-USD"
+
+        # Mock markets from get_markets (without the requested symbol)
+        mock_markets = [
+            Market(
+                symbol="BTC-USD",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            ),
+            Market(
+                symbol="ETH-USD",
+                base_symbol="ETH",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.01"),
+                status="Trading",
+            ),
+        ]
+
+        # Mock get_markets to return markets without the requested symbol
+        with patch.object(
+            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+        ) as mock_get_markets:
+            mock_get_markets.return_value = mock_markets
+
+            # Execute and verify exception
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketArgs(symbol=symbol)
+                await hyperliquid_market_data_service.get_market(args)
+
+            assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+            mock_get_markets.assert_called_once_with(GetMarketsArgs())
+
+    @pytest.mark.asyncio
+    async def test_get_market_get_markets_api_error(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_market when get_markets raises APIError."""
+        symbol = "BTC-USD"
+
+        # Setup mock to raise APIError
+        api_error = APIError(
+            message="Failed to get markets", code=APIErrorCode.RATE_LIMITED.value
+        )
+
+        with patch.object(
+            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+        ) as mock_get_markets:
+            mock_get_markets.side_effect = api_error
+
+            # Execute and verify exception is propagated
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketArgs(symbol=symbol)
+                await hyperliquid_market_data_service.get_market(args)
+
+            assert exc_info.value == api_error
+            mock_get_markets.assert_called_once_with(GetMarketsArgs())
+
+    @pytest.mark.asyncio
+    async def test_get_market_case_sensitive_matching(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test that symbol matching is case-sensitive."""
+        symbol = "btc-usd"  # lowercase
+
+        # Mock markets with uppercase symbols
+        mock_markets = [
+            Market(
+                symbol="BTC-USD",  # uppercase
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            ),
+        ]
+
+        # Mock get_markets to return uppercase symbols
+        with patch.object(
+            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+        ) as mock_get_markets:
+            mock_get_markets.return_value = mock_markets
+
+            # Execute and verify exception (case mismatch)
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketArgs(symbol=symbol)
+                await hyperliquid_market_data_service.get_market(args)
+
+            assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_market_empty_markets_list(
+        self,
+        hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_hl_mapper: MagicMock,
+    ) -> None:
+        """Test get_market when get_markets returns empty list."""
+        symbol = "BTC-USD"
+
+        # Mock empty markets list
+        mock_markets: list[Market] = []
+
+        # Mock get_markets to return empty list
+        with patch.object(
+            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+        ) as mock_get_markets:
+            mock_get_markets.return_value = mock_markets
+
+            # Execute and verify exception
+            with pytest.raises(APIError) as exc_info:
+                args = GetMarketArgs(symbol=symbol)
+                await hyperliquid_market_data_service.get_market(args)
+
+            assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
+            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+            mock_get_markets.assert_called_once_with(GetMarketsArgs())

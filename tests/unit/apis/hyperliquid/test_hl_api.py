@@ -153,6 +153,8 @@ def mock_hl_market_data_service() -> MagicMock:
     mock_service.get_funding_rates = AsyncMock()
     mock_service.get_market_data = AsyncMock()
     mock_service.get_historical_funding_rates = AsyncMock()
+    mock_service.get_market = AsyncMock()
+    mock_service.get_markets = AsyncMock()
     return mock_service
 
 
@@ -383,3 +385,282 @@ class TestHyperliquidAPIResourceManagement:
         # since HyperliquidAPI doesn't implement __aenter__/__aexit__
         assert api.exchange_name == "hyperliquid"
         await api.close()
+
+
+class TestHyperliquidAPIMarketDataMethods:
+    """Test market data methods in HyperliquidAPI."""
+
+    @pytest.mark.asyncio
+    async def test_get_markets_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_markets call delegates to market data service."""
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+        from cyberdelta.core.models.market.market import Market
+        from decimal import Decimal
+
+        # Create test data
+        expected_markets = [
+            Market(
+                symbol="BTC-USD",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            ),
+            Market(
+                symbol="ETH-USD",
+                base_symbol="ETH",
+                quote_symbol="USD",
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.01"),
+                status="Trading",
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_market_data_service.get_markets.return_value = expected_markets
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        args = GetMarketsArgs()
+        result = await api.get_markets(args)
+
+        # Verify
+        assert result == expected_markets
+        assert len(result) == 2
+        assert result[0].symbol == "BTC-USD"
+        assert result[1].symbol == "ETH-USD"
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_markets.assert_called_once_with(args=args)
+
+    @pytest.mark.asyncio
+    async def test_get_markets_empty_list(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test get_markets returns empty list when service returns empty list."""
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
+        # Configure mock service to return empty list
+        mock_hl_market_data_service.get_markets.return_value = []
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        args = GetMarketsArgs()
+        result = await api.get_markets(args)
+
+        # Verify
+        assert result == []
+        assert isinstance(result, list)
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_markets.assert_called_once_with(args=args)
+
+    @pytest.mark.asyncio
+    async def test_get_markets_service_error_propagation(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test that exceptions from market data service are propagated."""
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        # Configure mock service to raise an error
+        api_error = APIError(
+            message="Failed to fetch markets",
+            code=APIErrorCode.RATE_LIMITED.value
+        )
+        mock_hl_market_data_service.get_markets.side_effect = api_error
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute and verify exception is propagated
+        with pytest.raises(APIError) as exc_info:
+            args = GetMarketsArgs()
+            await api.get_markets(args)
+
+        assert exc_info.value == api_error
+        mock_hl_market_data_service.get_markets.assert_called_once_with(args=args)
+
+    @pytest.mark.asyncio
+    async def test_get_market_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_market call delegates to market data service."""
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
+        from cyberdelta.core.models.market.market import Market
+        from decimal import Decimal
+
+        # Create test data
+        symbol = "BTC-USD"
+        expected_market = Market(
+            symbol=symbol,
+            base_symbol="BTC",
+            quote_symbol="USD",
+            market_type="Perpetual",
+            tick_size=Decimal("0.01"),
+            step_size=Decimal("0.001"),
+            status="Trading",
+        )
+
+        # Configure mock service
+        mock_hl_market_data_service.get_market.return_value = expected_market
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        args = GetMarketArgs(symbol=symbol)
+        result = await api.get_market(args)
+
+        # Verify
+        assert result == expected_market
+        assert result.symbol == symbol
+        assert result.base_symbol == "BTC"
+        assert result.quote_symbol == "USD"
+        assert result.market_type == "Perpetual"
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_market.assert_called_once_with(args=args)
+
+    @pytest.mark.asyncio
+    async def test_get_market_with_different_symbols(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test get_market works with different symbol formats."""
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
+        from cyberdelta.core.models.market.market import Market
+        from decimal import Decimal
+
+        test_cases = [
+            ("BTC-USD", "BTC", "USD"),
+            ("ETH-USDC", "ETH", "USDC"),
+            ("SOL-USD", "SOL", "USD"),
+        ]
+
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        for symbol, base, quote in test_cases:
+            # Create expected market for this test case
+            expected_market = Market(
+                symbol=symbol,
+                base_symbol=base,
+                quote_symbol=quote,
+                market_type="Perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.001"),
+                status="Trading",
+            )
+
+            # Configure mock service for this symbol
+            mock_hl_market_data_service.get_market.return_value = expected_market
+
+            # Execute
+            args = GetMarketArgs(symbol=symbol)
+            result = await api.get_market(args)
+
+            # Verify
+            assert result == expected_market
+            assert result.symbol == symbol
+            assert result.base_symbol == base
+            assert result.quote_symbol == quote
+
+        # Verify service was called for each test case
+        assert mock_hl_market_data_service.get_market.call_count == len(test_cases)
+
+    @pytest.mark.asyncio
+    async def test_get_market_service_error_propagation(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test that exceptions from market data service are propagated."""
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        # Configure mock service to raise an error
+        symbol = "BTC-USD"
+        api_error = APIError(
+            message=f"Market {symbol} not found",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value
+        )
+        mock_hl_market_data_service.get_market.side_effect = api_error
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute and verify exception is propagated
+        with pytest.raises(APIError) as exc_info:
+            args = GetMarketArgs(symbol=symbol)
+            await api.get_market(args)
+
+        assert exc_info.value == api_error
+        mock_hl_market_data_service.get_market.assert_called_once_with(args=args)
+
+    @pytest.mark.asyncio
+    async def test_get_market_args_validation(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test that GetMarketArgs validation works correctly."""
+        from cyberdelta.apis.models.service_args_models import GetMarketArgs
+        from pydantic import ValidationError
+
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Test valid args creation
+        valid_args = GetMarketArgs(symbol="BTC-USD")
+        assert valid_args.symbol == "BTC-USD"
+
+        # Test invalid args - empty symbol should fail validation
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol="")
+
+        # Test invalid args - None symbol should fail validation  
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol=None)
+
+        # Test args with very long symbol (should fail max length validation)
+        with pytest.raises(ValidationError):
+            GetMarketArgs(symbol="A" * 65)  # Max length is 64
+
+    @pytest.mark.asyncio
+    async def test_get_markets_args_validation(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test that GetMarketsArgs validation works correctly."""
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+        from pydantic import ValidationError
+
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Test valid args creation (no fields required)
+        valid_args = GetMarketsArgs()
+        assert valid_args is not None
+
+        # Test that extra fields are forbidden
+        with pytest.raises(ValidationError):
+            GetMarketsArgs(extra_field="not_allowed")
