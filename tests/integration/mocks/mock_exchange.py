@@ -1053,7 +1053,7 @@ class MockExchangeAPI(ExchangeAPI):
         """Return mock market data for a specific symbol."""
         self._check_error("get_market")
         await self._simulate_latency()
-        
+
         # Return a mock market for the requested symbol
         return Market(
             symbol=args.symbol,
@@ -1069,10 +1069,10 @@ class MockExchangeAPI(ExchangeAPI):
         """Return mock markets data."""
         self._check_error("get_markets")
         await self._simulate_latency()
-        
+
         # Return a few mock markets
         mock_symbols = ["BTC_USD", "ETH_USD", "SOL_USD"]
-        markets = []
+        markets: list[Market] = []
         for symbol in mock_symbols:
             base, quote = symbol.split("_")
             market = Market(

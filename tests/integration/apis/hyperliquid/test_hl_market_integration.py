@@ -256,7 +256,7 @@ async def test_hl_get_markets_success(
     assert len(markets) > 0, "Should return at least some markets"
 
     # Validate each market
-    symbols_seen = set()
+    symbols_seen: set[str] = set()
     for market in markets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
