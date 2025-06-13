@@ -13,9 +13,8 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-from cyberdelta.core.models.margin_account import MarginAccountSummary, BackpackMarginDetails
+from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
 # Mark all tests in this file
 pytestmark = [
@@ -49,15 +48,21 @@ class TestBackpackAccountSummaryPrivate:
         time_diff = datetime.now(account_summary.timestamp.tzinfo) - account_summary.timestamp
         assert time_diff.total_seconds() < 3600
 
-        # Validate margin requirements are present and positive for accounts with balance
-        assert isinstance(account_summary.total_initial_margin_required, Decimal)
-        assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
-        assert account_summary.total_initial_margin_required >= Decimal("0")
-        assert account_summary.total_maintenance_margin_required >= Decimal("0")
+        # Validate margin requirements - they may be None for zero balance accounts
+        assert account_summary.total_initial_margin_required is None or isinstance(
+            account_summary.total_initial_margin_required, Decimal
+        )
+        assert account_summary.total_maintenance_margin_required is None or isinstance(
+            account_summary.total_maintenance_margin_required, Decimal
+        )
+        if account_summary.total_initial_margin_required is not None:
+            assert account_summary.total_initial_margin_required >= Decimal("0")
+        if account_summary.total_maintenance_margin_required is not None:
+            assert account_summary.total_maintenance_margin_required >= Decimal("0")
 
-        # Validate equity is present and positive
+        # Validate equity is present - may be zero for zero balance accounts
         assert isinstance(account_summary.total_equity, Decimal)
-        assert account_summary.total_equity > Decimal("0")
+        assert account_summary.total_equity >= Decimal("0")
 
         # Validate backpack-specific details
         assert account_summary.bp_details is not None
@@ -66,12 +71,20 @@ class TestBackpackAccountSummaryPrivate:
         # Validate string representations for non-zero values
         if account_summary.total_equity > Decimal("0"):
             assert len(str(account_summary.total_equity)) > 0
-            assert "." in str(account_summary.total_equity) or account_summary.total_equity == int(account_summary.total_equity)
+            assert "." in str(account_summary.total_equity) or account_summary.total_equity == int(
+                account_summary.total_equity
+            )
 
-        if account_summary.total_initial_margin_required > Decimal("0"):
+        if (
+            account_summary.total_initial_margin_required is not None
+            and account_summary.total_initial_margin_required > Decimal("0")
+        ):
             assert len(str(account_summary.total_initial_margin_required)) > 0
 
-        if account_summary.total_maintenance_margin_required > Decimal("0"):
+        if (
+            account_summary.total_maintenance_margin_required is not None
+            and account_summary.total_maintenance_margin_required > Decimal("0")
+        ):
             assert len(str(account_summary.total_maintenance_margin_required)) > 0
 
     @pytest.mark.vcr

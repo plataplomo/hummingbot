@@ -24,7 +24,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
@@ -116,17 +115,13 @@ async def get_dynamic_perp_test_price_zero(
 @pytest.fixture
 def bp_api_zero_balance_test_env(
     active_bp_config: ExchangeSpecificConfig,
+    active_bp_secrets: ApiKeyAuthSecrets,
 ) -> BackpackAPI:
     """Create BackpackAPI instance for zero balance testing."""
-    # Use test environment secrets that should have zero balance
-    test_secrets = ApiKeyAuthSecrets(
-        api_key=SecretStr("test_key_zero_balance"),
-        api_secret=SecretStr("test_secret_zero_balance"),
-    )
-
+    # Use real test environment secrets that have zero balance
     return BackpackAPI(
         exchange_config=active_bp_config,
-        exchange_secrets=test_secrets,
+        exchange_secrets=active_bp_secrets,
     )
 
 
