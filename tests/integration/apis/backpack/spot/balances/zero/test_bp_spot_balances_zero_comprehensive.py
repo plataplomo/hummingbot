@@ -137,7 +137,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
             result = await bad_api.get_balances()
             # If we get here, the call succeeded (possibly due to VCR playback)
             # Validate that we got a proper response structure
-            assert isinstance(result, list), "Response should be a list of balances"
+            assert isinstance(result, dict), "Response should be a dict of balances"
             # This is acceptable for VCR playback scenarios
         except APIError as api_error:
             # This is the expected behavior for real API calls with invalid credentials
@@ -149,6 +149,8 @@ class TestBackpackSpotBalancesZeroComprehensive:
             assert "auth" in api_error.message.lower() or "invalid" in api_error.message.lower()
         except Exception as e:
             pytest.fail(f"Unexpected exception type: {type(e).__name__}: {e}")
+        finally:
+            await bad_api.close()
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

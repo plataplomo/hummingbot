@@ -365,8 +365,9 @@ class HttpClient:
         request_params = (params or {}).copy()
         json_payload: dict[str, Any] | None = None
 
-        # Prepare JSON payload for non-GET/DELETE requests
-        if method.upper() not in ["GET", "DELETE"] and data is not None:
+        # Prepare JSON payload for non-GET requests
+        # Note: Some exchanges (like Backpack) require JSON bodies in DELETE requests
+        if method.upper() != "GET" and data is not None:
             json_payload = data
             # Log the actual JSON string for debugging
             import json
@@ -523,7 +524,7 @@ class HttpClient:
             full_url,
             params=request_params if request_params else None,
             json=json_payload
-            if method.upper() not in ["GET", "DELETE"] and json_payload is not None
+            if method.upper() != "GET" and json_payload is not None
             else None,
             data=None,
             headers=request_headers,

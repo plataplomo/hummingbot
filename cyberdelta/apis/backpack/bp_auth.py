@@ -235,9 +235,14 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 final_headers.update(headers)
             final_headers.update(auth_headers)
 
-            # Add Content-Type for POST/PUT if needed
-            if method.upper() in ["POST", "PUT"] and data and "Content-Type" not in final_headers:
-                final_headers["Content-Type"] = "application/json; charset=utf-8"
+            # Add Content-Type for requests with data payloads
+            if method.upper() in ["POST", "PUT", "DELETE"] and data:
+                # Check case-insensitively for existing Content-Type header
+                has_content_type = any(
+                    key.lower() == "content-type" for key in final_headers.keys()
+                )
+                if not has_content_type:
+                    final_headers["Content-Type"] = "application/json; charset=utf-8"
 
             # Convert to string mapping for Pydantic model
             final_headers_str = {k: str(v) for k, v in final_headers.items()}
