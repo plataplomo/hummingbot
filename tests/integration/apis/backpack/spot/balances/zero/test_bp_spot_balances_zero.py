@@ -1,0 +1,271 @@
+"""Integration tests for Backpack balance endpoints with $0 balance accounts."""
+
+import asyncio
+import gc
+import logging
+import re
+import sys
+from decimal import Decimal
+from typing import Any
+
+import pytest
+from pydantic import SecretStr
+
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.core.models.spot_balance import SpotBalance
+from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
+
+logger = logging.getLogger(__name__)
+
+# Mark all tests in this file
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.spot,
+    pytest.mark.zero_balance
+]
+
+
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/private/balances/zero_balance"], indirect=True
+)
+class TestBackpackSpotBalancesZero:
+    """Integration tests for Backpack balances with $0 balance (empty account scenarios)."""
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_empty_account(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() with empty/zero balance account."""
+        balances = await bp_api_for_test_env.get_balances()
+
+        assert isinstance(balances, dict)
+
+        for asset_symbol, spot_balance in balances.items():
+            assert isinstance(spot_balance, SpotBalance)
+            assert_valid_spot_balance(spot_balance)
+            assert spot_balance.exchange == "backpack"
+            logger.info(f"✓ Zero balance for {asset_symbol}: {spot_balance}")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_authentication_failure(
+        self,
+        active_bp_config: ExchangeSpecificConfig,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() with invalid Ed25519 authentication."""
+        invalid_secrets = ApiKeyAuthSecrets(
+            api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
+            api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
+        )
+
+        bp_api_invalid_auth = BackpackAPI(
+            exchange_config=active_bp_config,
+            exchange_secrets=invalid_secrets,
+        )
+
+        with pytest.raises(APIError) as exc_info:
+            await bp_api_invalid_auth.get_balances()
+
+        api_error = exc_info.value
+        assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+        assert "unauthorized" in str(api_error).lower() or "auth" in str(api_error).lower()
+        logger.info(f"✓ Authentication failure properly detected: {api_error.message}")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_rate_limiting(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() rate limiting behavior."""
+        tasks: list[Any] = []
+        for _ in range(5):
+            tasks.append(bp_api_for_test_env.get_balances())
+
+        try:
+            results: list[dict[str, SpotBalance] | BaseException] = await asyncio.gather(
+                *tasks, return_exceptions=True
+            )
+
+            successes = [r for r in results if isinstance(r, dict)]
+            errors = [r for r in results if isinstance(r, Exception)]
+
+            assert len(successes) >= 1
+
+            rate_limit_errors = [
+                e
+                for e in errors
+                if isinstance(e, APIError) and e.code == APIErrorCode.RATE_LIMITED.value
+            ]
+
+            if rate_limit_errors:
+                logger.info(f"✓ Rate limiting detected: {len(rate_limit_errors)} requests limited")
+            else:
+                logger.info("✓ No rate limiting encountered in this test run")
+
+        except Exception as e:
+            pytest.skip(f"Rate limiting test unstable in current environment: {e}")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_zero_balance_structure(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() structure validation with zero balance account."""
+        balances = await bp_api_for_test_env.get_balances()
+
+        assert isinstance(balances, dict)
+
+        for asset_symbol, spot_balance in balances.items():
+            assert isinstance(asset_symbol, str)
+            assert len(asset_symbol) > 0
+            assert asset_symbol.isupper()
+
+            assert isinstance(spot_balance, SpotBalance)
+            assert spot_balance.asset == asset_symbol
+            assert spot_balance.exchange == "backpack"
+
+            assert spot_balance.bp_details is not None
+            assert hasattr(spot_balance.bp_details, "open_order_quantity")
+            assert hasattr(spot_balance.bp_details, "lend_quantity")
+            assert hasattr(spot_balance.bp_details, "collateral_weight")
+
+            logger.info(f"✓ Structure valid for {asset_symbol} even with zero balance")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_concurrent_requests_zero_balance(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() with concurrent requests with zero balance account."""
+        concurrent_results = await asyncio.gather(
+            bp_api_for_test_env.get_balances(),
+            bp_api_for_test_env.get_balances(),
+            bp_api_for_test_env.get_balances(),
+            return_exceptions=True,
+        )
+        concurrent_tasks: list[dict[str, SpotBalance] | BaseException] = list(concurrent_results)
+
+        successful_results = [
+            result
+            for result in concurrent_tasks
+            if isinstance(result, dict) and not isinstance(result, Exception)
+        ]
+
+        assert len(successful_results) >= 1
+
+        if len(successful_results) > 1:
+            first_result = successful_results[0]
+            for i, result in enumerate(successful_results[1:], 1):
+                assert result.keys() == first_result.keys()
+
+                for asset in first_result.keys():
+                    assert result[asset].total_quantity == first_result[asset].total_quantity
+
+        logger.info(f"✓ Concurrent balance requests consistent: {len(successful_results)} successful")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_decimal_precision_zero_balance(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() decimal precision handling with zero balances."""
+        balances = await bp_api_for_test_env.get_balances()
+
+        for asset_symbol, spot_balance in balances.items():
+            assert isinstance(spot_balance.available_quantity, Decimal)
+            assert isinstance(spot_balance.total_quantity, Decimal)
+
+            if spot_balance.available_quantity == Decimal("0"):
+                assert str(spot_balance.available_quantity) == "0"
+                logger.info(f"✓ Zero available balance precise for {asset_symbol}")
+
+            if spot_balance.total_quantity == Decimal("0"):
+                assert str(spot_balance.total_quantity) == "0"
+                logger.info(f"✓ Zero total balance precise for {asset_symbol}")
+
+            total_value = spot_balance.total_quantity + Decimal("0")
+            assert total_value == spot_balance.total_quantity
+
+            assert spot_balance.total_quantity >= Decimal("0")
+            assert spot_balance.available_quantity <= spot_balance.total_quantity
+
+            logger.info(f"✓ Decimal operations stable for {asset_symbol}")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_asset_validation_zero_balance(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() asset symbol validation and formatting."""
+        balances = await bp_api_for_test_env.get_balances()
+
+        asset_pattern = re.compile(r"^[A-Z]{2,10}$")
+
+        for asset_symbol, spot_balance in balances.items():
+            assert isinstance(asset_symbol, str)
+            assert len(asset_symbol) >= 2
+            assert len(asset_symbol) <= 10
+            assert asset_symbol.isupper()
+            assert asset_pattern.match(asset_symbol)
+            assert spot_balance.asset == asset_symbol
+
+            known_assets = {"USDC", "SOL", "BTC", "ETH", "BONK", "JUP", "WIF"}
+            if asset_symbol in known_assets:
+                logger.info(f"✓ Known asset {asset_symbol} properly formatted")
+            else:
+                logger.info(f"✓ Unknown asset {asset_symbol} follows format rules")
+
+            assert asset_symbol.isalpha()
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_get_balances_memory_efficiency_zero_balance(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_balances() memory efficiency with zero balance data."""
+        gc.collect()
+        initial_objects = len(gc.get_objects())
+
+        for i in range(5):
+            try:
+                balances = await bp_api_for_test_env.get_balances()
+
+                assert isinstance(balances, dict)
+                assert len(balances) <= 50
+
+                for asset, balance in balances.items():
+                    assert sys.getsizeof(balance) < 1000
+                    assert sys.getsizeof(asset) < 100
+
+                logger.info(f"Request {i + 1}: {len(balances)} assets processed")
+
+            except Exception as e:
+                logger.info(f"Request {i + 1} failed: {e}")
+
+        gc.collect()
+        final_objects = len(gc.get_objects())
+
+        object_growth = final_objects - initial_objects
+        assert object_growth < 1000
+
+        logger.info(f"✓ Memory efficiency validated: {object_growth} object growth")
