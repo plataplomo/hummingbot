@@ -17,7 +17,6 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -28,6 +27,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
@@ -118,7 +118,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_authentication_failure(
         self,
-        bp_api_with_di: Callable[..., BackpackAPI],
+        active_bp_config: ExchangeSpecificConfig,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with invalid authentication credentials.
@@ -130,7 +130,10 @@ class TestBackpackSpotBalancesZeroComprehensive:
             api_secret=SecretStr("invalid_api_secret"),
         )
 
-        bad_api = bp_api_with_di(secrets=invalid_secrets)
+        bad_api = BackpackAPI(
+            exchange_config=active_bp_config,
+            exchange_secrets=invalid_secrets,
+        )
 
         # Try to get balances with invalid credentials
         try:
