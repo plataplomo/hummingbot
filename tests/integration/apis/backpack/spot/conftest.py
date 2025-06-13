@@ -6,11 +6,9 @@ from decimal import Decimal
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_api import BackpackAPI
-
 
 @pytest.fixture
-def bp_spot_test_config() -> dict[str, list[str] | Decimal]:
+def bp_spot_test_config() -> dict[str, list[str] | list[Decimal] | Decimal]:
     """Backpack spot test configuration."""
     return {
         "symbols": ["SOL_USDC", "BTC_USDC"],

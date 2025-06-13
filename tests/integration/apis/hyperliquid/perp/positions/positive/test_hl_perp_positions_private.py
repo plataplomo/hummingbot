@@ -36,7 +36,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.perp,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 

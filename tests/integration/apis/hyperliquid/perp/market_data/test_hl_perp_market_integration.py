@@ -26,7 +26,9 @@ from cyberdelta.core.models.market.market import Market
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -125,7 +127,9 @@ async def test_hl_get_perp_market_btc_success(
     assert market.bp_details is None, "bp_details should be None for Hyperliquid markets"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -148,7 +152,9 @@ async def test_hl_get_perp_market_eth_success(
     assert market.step_size <= Decimal("1"), f"ETH step_size seems too large: {market.step_size}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -168,7 +174,9 @@ async def test_hl_get_perp_market_sol_success(
     assert market.quote_symbol == "USD", f"Expected quote_symbol 'USD', got '{market.quote_symbol}'"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -186,7 +194,9 @@ async def test_hl_get_perp_market_nonexistent_symbol_returns_none(
         pass
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -204,7 +214,9 @@ async def test_hl_get_perp_market_invalid_symbol_handling(
         pass
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -276,7 +288,9 @@ async def test_hl_get_perp_markets_success(
     )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -284,7 +298,10 @@ async def test_hl_get_perp_markets_data_consistency(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test HyperliquidAPI.get_markets() returns consistent data structure across perpetual markets."""
+    """Test HyperliquidAPI.get_markets() returns consistent data structure.
+
+    Across perpetual markets.
+    """
     args = GetMarketsArgs()
     markets = await hl_api_for_test_env.get_markets(args)
 
@@ -311,7 +328,9 @@ async def test_hl_get_perp_markets_data_consistency(
             )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -357,7 +376,9 @@ async def test_hl_get_perp_markets_hyperliquid_specific_validation(
                 )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -411,7 +432,9 @@ async def test_hl_get_perp_markets_precision_validation(
                 )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -419,7 +442,10 @@ async def test_hl_get_perp_market_vs_get_markets_consistency(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test that get_market() and get_markets() return consistent data for the same perpetual symbol."""
+    """Test that get_market() and get_markets() return consistent data.
+
+    For the same perpetual symbol.
+    """
     markets_args = GetMarketsArgs()
     all_markets = await hl_api_for_test_env.get_markets(markets_args)
 
@@ -458,7 +484,9 @@ async def test_hl_get_perp_market_vs_get_markets_consistency(
         assert individual_market.hl_details.funding_rate == matching_market.hl_details.funding_rate
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr

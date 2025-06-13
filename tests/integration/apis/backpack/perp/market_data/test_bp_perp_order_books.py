@@ -4,7 +4,8 @@ These tests validate the complete data pipeline from BackpackAPI.get_order_book(
 to final OrderBook internal domain models using pytest-recording (VCR) for deterministic tests.
 
 Tests cover perpetual futures markets only:
-- Successful order book retrieval for valid perp symbols (SOL_USDC_PERP, BTC_USDC_PERP, ETH_USDC_PERP)
+- Successful order book retrieval for valid perp symbols (SOL_USDC_PERP, BTC_USDC_PERP,
+  ETH_USDC_PERP)
 - Order book structure validation (bids/asks)
 - Decimal precision and ordering validation
 - Perpetual-specific features (funding rates, mark price impact)
@@ -21,17 +22,15 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import OrderBook
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 
 
 class TestBackpackPerpOrderBooks:
     """Backpack perp order book integration tests."""
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_perp_order_book_success(
         self,
@@ -47,8 +46,12 @@ class TestBackpackPerpOrderBooks:
             f"Expected symbol 'SOL_USDC_PERP', got '{order_book.symbol}'"
         )
 
-        assert isinstance(order_book.bids, list), f"Bids should be list, got {type(order_book.bids)}"
-        assert len(order_book.bids) > 0, "Should have at least one bid for liquid SOL_USDC_PERP market"
+        assert isinstance(order_book.bids, list), (
+            f"Bids should be list, got {type(order_book.bids)}"
+        )
+        assert len(order_book.bids) > 0, (
+            "Should have at least one bid for liquid SOL_USDC_PERP market"
+        )
 
         first_bid = order_book.bids[0]
         assert isinstance(first_bid, tuple), f"Bid should be tuple, got {type(first_bid)}"
@@ -60,8 +63,12 @@ class TestBackpackPerpOrderBooks:
         assert bid_price > Decimal("0"), f"Bid price should be positive, got {bid_price}"
         assert bid_size > Decimal("0"), f"Bid size should be positive, got {bid_size}"
 
-        assert isinstance(order_book.asks, list), f"Asks should be list, got {type(order_book.asks)}"
-        assert len(order_book.asks) > 0, "Should have at least one ask for liquid SOL_USDC_PERP market"
+        assert isinstance(order_book.asks, list), (
+            f"Asks should be list, got {type(order_book.asks)}"
+        )
+        assert len(order_book.asks) > 0, (
+            "Should have at least one ask for liquid SOL_USDC_PERP market"
+        )
 
         first_ask = order_book.asks[0]
         assert isinstance(first_ask, tuple), f"Ask should be tuple, got {type(first_ask)}"
@@ -77,7 +84,9 @@ class TestBackpackPerpOrderBooks:
             f"Ask price {ask_price} should be higher than bid price {bid_price}"
         )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_perp_order_book_success(
         self,
@@ -88,7 +97,9 @@ class TestBackpackPerpOrderBooks:
         order_book = await bp_api_for_test_env.get_order_book("BTC_USDC_PERP")
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
-        assert order_book.symbol == "BTC_USDC_PERP", f"Expected symbol 'BTC_USDC_PERP', got '{order_book.symbol}'"
+        assert order_book.symbol == "BTC_USDC_PERP", (
+            f"Expected symbol 'BTC_USDC_PERP', got '{order_book.symbol}'"
+        )
 
         # BTC perp should have reasonable price levels
         if len(order_book.bids) > 0:
@@ -100,7 +111,9 @@ class TestBackpackPerpOrderBooks:
             assert ask_price > Decimal("1000"), f"BTC perp ask price seems too low: {ask_price}"
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_order_book_structure_validation(
         self,
@@ -128,7 +141,9 @@ class TestBackpackPerpOrderBooks:
                 next_price = order_book.asks[i + 1][0]
                 assert current_price <= next_price, f"Asks not sorted correctly in {symbol}"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_order_book_depth_and_liquidity(
         self,
@@ -136,7 +151,7 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order book depth and liquidity characteristics."""
-        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC_PERP", limit=100)
+        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC_PERP")
 
         assert isinstance(order_book, OrderBook), "Expected OrderBook"
         assert len(order_book.bids) > 0, "Should have bids"
@@ -155,11 +170,13 @@ class TestBackpackPerpOrderBooks:
             best_ask = order_book.asks[0][0]
             spread = best_ask - best_bid
             spread_bps = (spread / best_bid) * Decimal("10000")
-            
+
             # Reasonable spread for liquid perp markets
             assert spread_bps < Decimal("1000"), f"Spread seems too wide: {spread_bps} bps"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_order_book_leverage_impact(
         self,
@@ -178,7 +195,9 @@ class TestBackpackPerpOrderBooks:
             total_ask_size = sum(size for _, size in order_book.asks[:10])  # Top 10 levels
             assert total_ask_size > Decimal("1"), "Should have reasonable liquidity in top levels"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_order_book_invalid_perp_symbol_error(
         self,
@@ -192,7 +211,9 @@ class TestBackpackPerpOrderBooks:
         error = exc_info.value
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_order_book_precision_validation(
         self,
@@ -209,7 +230,9 @@ class TestBackpackPerpOrderBooks:
 
             # Test arithmetic operations for leverage calculations
             leveraged_size = bid_size * Decimal("10")  # 10x leverage
-            assert isinstance(leveraged_size, Decimal), "Leverage calculations should maintain Decimal type"
+            assert isinstance(leveraged_size, Decimal), (
+                "Leverage calculations should maintain Decimal type"
+            )
 
         # Test precision on all asks
         for ask_price, ask_size in order_book.asks:
@@ -218,4 +241,6 @@ class TestBackpackPerpOrderBooks:
 
             # Test arithmetic operations for margin calculations
             margin_requirement = ask_price * ask_size / Decimal("10")  # 10x leverage
-            assert isinstance(margin_requirement, Decimal), "Margin calculations should maintain Decimal type"
+            assert isinstance(margin_requirement, Decimal), (
+                "Margin calculations should maintain Decimal type"
+            )

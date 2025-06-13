@@ -10,11 +10,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.derivative_position import DerivativePosition
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.zero_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
 @pytest.mark.parametrize(
@@ -39,7 +35,7 @@ class TestBackpackPerpPositionsZero:
             assert len(positions) == 0
             return
 
-        for i, position in enumerate(positions):
+        for _, position in enumerate(positions):
             assert isinstance(position, DerivativePosition)
             assert position.exchange == "backpack"
             assert isinstance(position.symbol, str)

@@ -22,17 +22,15 @@ from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 
 
 class TestBackpackPerpTrades:
     """Backpack perp trade integration tests."""
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_perp_recent_trades_success(
         self,
@@ -46,7 +44,9 @@ class TestBackpackPerpTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
+                assert isinstance(trade, Trade), (
+                    f"Trade {i} should be Trade model, got {type(trade)}"
+                )
 
                 assert trade.symbol == "SOL_USDC_PERP", (
                     f"Trade {i} symbol should be 'SOL_USDC_PERP', got '{trade.symbol}'"
@@ -67,12 +67,13 @@ class TestBackpackPerpTrades:
                 )
 
                 # Perp trades often have specific size characteristics
-                if hasattr(trade, "side") and trade.side is not None:
-                    assert trade.side in [OrderSide.BUY, OrderSide.SELL], (
-                        f"Trade {i} side should be BUY or SELL, got {trade.side}"
-                    )
+                assert trade.side in [OrderSide.BUY, OrderSide.SELL], (
+                    f"Trade {i} side should be BUY or SELL, got {trade.side}"
+                )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_perp_recent_trades_success(
         self,
@@ -86,17 +87,25 @@ class TestBackpackPerpTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
+                assert isinstance(trade, Trade), (
+                    f"Trade {i} should be Trade model, got {type(trade)}"
+                )
                 assert trade.symbol == "BTC_USDC_PERP", (
                     f"Trade {i} symbol should be 'BTC_USDC_PERP', got '{trade.symbol}'"
                 )
 
                 # BTC perp prices should be in reasonable range
-                assert trade.price > Decimal("1000"), f"BTC perp trade price seems too low: {trade.price}"
-                assert trade.price < Decimal("1000000"), f"BTC perp trade price seems too high: {trade.price}"
+                assert trade.price > Decimal("1000"), (
+                    f"BTC perp trade price seems too low: {trade.price}"
+                )
+                assert trade.price < Decimal("1000000"), (
+                    f"BTC perp trade price seems too high: {trade.price}"
+                )
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_chronological_ordering(
         self,
@@ -121,7 +130,9 @@ class TestBackpackPerpTrades:
                             f"Trades not in reverse chronological order for {symbol}"
                         )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_leverage_characteristics(
         self,
@@ -147,10 +158,12 @@ class TestBackpackPerpTrades:
 
             # Perp markets often have larger individual trade sizes due to leverage
             if len(trades) > 10:
-                large_trade_ratio = large_trades / len(trades)
+                _ = large_trades / len(trades)
                 # This is market-dependent, but perp markets often have more large trades
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_side_distribution(
         self,
@@ -167,15 +180,14 @@ class TestBackpackPerpTrades:
             sell_volume = Decimal("0")
 
             for trade in trades:
-                if hasattr(trade, "side") and trade.side is not None:
-                    volume = trade.price * trade.quantity
-                    
-                    if trade.side == OrderSide.BUY:
-                        buy_trades += 1
-                        buy_volume += volume
-                    elif trade.side == OrderSide.SELL:
-                        sell_trades += 1
-                        sell_volume += volume
+                volume = trade.price * trade.quantity
+
+                if trade.side == OrderSide.BUY:
+                    buy_trades += 1
+                    buy_volume += volume
+                elif trade.side == OrderSide.SELL:
+                    sell_trades += 1
+                    sell_volume += volume
 
             total_sided_trades = buy_trades + sell_trades
             if total_sided_trades > 10:  # Only check if we have enough trades
@@ -191,7 +203,9 @@ class TestBackpackPerpTrades:
                         f"Buy volume ratio seems extreme: {buy_ratio}"
                     )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_size_analysis(
         self,
@@ -222,23 +236,32 @@ class TestBackpackPerpTrades:
             # In short time windows, price range shouldn't be too extreme
             if len(trades) > 10:
                 price_volatility = price_range / min_price
-                assert price_volatility < Decimal("0.5"), f"Price volatility seems extreme: {price_volatility}"
+                assert price_volatility < Decimal("0.5"), (
+                    f"Price volatility seems extreme: {price_volatility}"
+                )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_recent_trades_invalid_perp_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test BackpackAPI.get_recent_trades() with invalid perp symbol raises appropriate error."""
+        """Test BackpackAPI.get_recent_trades() with invalid perp symbol.
+
+        Raises appropriate error.
+        """
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_recent_trades("INVALID_PERP", limit=5)
 
         error = exc_info.value
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_precision_and_margin_calculations(
         self,
@@ -258,18 +281,24 @@ class TestBackpackPerpTrades:
                 margin_10x = notional / Decimal("10")  # 10x leverage
                 margin_20x = notional / Decimal("20")  # 20x leverage
 
-                assert isinstance(margin_10x, Decimal), "Margin calculation should maintain Decimal type"
-                assert isinstance(margin_20x, Decimal), "Margin calculation should maintain Decimal type"
+                assert isinstance(margin_10x, Decimal), (
+                    "Margin calculation should maintain Decimal type"
+                )
+                assert isinstance(margin_20x, Decimal), (
+                    "Margin calculation should maintain Decimal type"
+                )
                 assert margin_10x > margin_20x, "Lower leverage should require more margin"
 
                 # Test PnL calculations
                 price_move = trade.price * Decimal("0.01")  # 1% price move
                 pnl_10x = trade.quantity * price_move * Decimal("10")  # 10x leverage PnL
-                
+
                 assert isinstance(pnl_10x, Decimal), "PnL calculation should maintain Decimal type"
 
     @pytest.mark.parametrize("limit", [1, 5, 10, 25])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/perp/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_perp_trade_limit_parameter(
         self,

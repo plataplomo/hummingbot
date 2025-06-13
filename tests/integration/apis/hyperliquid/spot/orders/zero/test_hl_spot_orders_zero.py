@@ -18,25 +18,24 @@ VCR: Records both success and error responses with sensitive data filtering
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderStatus
 from cyberdelta.core.models.market.order import Order
 
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/spot/orders/zero"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/orders/zero"], indirect=True
+)
 class TestHyperliquidSpotOrdersZero:
     """Comprehensive spot order info integration tests for Order model validation.
 
@@ -60,7 +59,7 @@ class TestHyperliquidSpotOrdersZero:
     ) -> None:
         """Test spot order retrieval - currently not implemented in Hyperliquid API."""
         # Note: Hyperliquid currently doesn't support spot trading through their API
-        
+
         test_order_id = "123456789"
         get_order_args = GetOrderArgs(order_id=test_order_id)
 
@@ -89,7 +88,7 @@ class TestHyperliquidSpotOrdersZero:
             start_time=start_time,
             end_time=end_time,
         )
-        
+
         # Currently should return empty list or raise NotImplementedError
         try:
             order_history = await hl_api_for_test_env.get_order_history(args)
@@ -111,15 +110,17 @@ class TestHyperliquidSpotOrdersZero:
         try:
             open_orders = await hl_api_for_test_env.get_open_orders()
             assert isinstance(open_orders, list)
-            
+
             # Filter for spot orders (when implemented, spot orders would have different symbols)
-            spot_orders = [order for order in open_orders if "@" in order.symbol]  # Hypothetical spot format
-            
+            spot_orders = [
+                order for order in open_orders if "@" in order.symbol
+            ]  # Hypothetical spot format
+
             # Validate spot orders when they become available
             for order in spot_orders:
                 assert isinstance(order, Order)
                 assert order.exchange == "hyperliquid"
-                
+
         except (NotImplementedError, APIError):
             # Expected for now since spot trading isn't implemented
             pass
@@ -132,15 +133,15 @@ class TestHyperliquidSpotOrdersZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Placeholder test for future spot order query implementation.
-        
+
         When Hyperliquid adds spot trading support, this test file should be
         expanded with comprehensive spot order query tests.
         """
         # This test documents that spot order functionality is not yet available
         # but the infrastructure is ready for when it becomes available
-        
+
         # For now, verify that the API instance is properly configured
         assert hl_api_for_test_env is not None
         assert isinstance(hl_api_for_test_env, HyperliquidAPI)
-        
+
         pytest.skip("Spot order functionality not yet implemented in Hyperliquid API")

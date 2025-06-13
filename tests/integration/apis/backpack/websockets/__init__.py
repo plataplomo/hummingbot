@@ -1,1 +1,1 @@
-"""Backpack websocket integration tests."""
+""". package."""

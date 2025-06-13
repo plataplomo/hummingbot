@@ -22,7 +22,9 @@ from cyberdelta.core.models import Ticker
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -50,7 +52,9 @@ async def test_hl_get_perp_ticker_btc_success(
         assert ticker.volume >= Decimal("0"), f"Volume should be non-negative, got {ticker.volume}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -72,7 +76,9 @@ async def test_hl_get_perp_ticker_eth_success(
     assert ticker.price < Decimal("100000"), f"ETH price seems too high: {ticker.price}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -94,7 +100,9 @@ async def test_hl_get_perp_ticker_sol_success(
     assert ticker.price < Decimal("10000"), f"SOL price seems too high: {ticker.price}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -124,7 +132,9 @@ async def test_hl_get_perp_ticker_avax_success(
         pass
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -138,7 +148,9 @@ async def test_hl_get_perp_ticker_nonexistent_symbol_returns_none(
     assert ticker is None, f"Expected None for non-existent symbol, got {ticker}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -152,7 +164,9 @@ async def test_hl_get_perp_ticker_invalid_symbol_returns_none(
     assert ticker is None, f"Expected None for invalid symbol, got {ticker}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -170,7 +184,9 @@ async def test_hl_get_perp_ticker_empty_symbol_handling(
         pass
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -211,7 +227,9 @@ async def test_hl_get_perp_ticker_case_sensitivity(
         pass
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -243,7 +261,9 @@ async def test_hl_get_perp_ticker_precision_validation(
     assert half_price < ticker.price, "Half price should be less than original price"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -283,7 +303,9 @@ async def test_hl_get_perp_ticker_multiple_symbols_consistency(
         )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -314,7 +336,9 @@ async def test_hl_get_perp_ticker_symbol_normalization(
         )
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -356,7 +380,9 @@ async def test_hl_get_perp_ticker_price_sanity_checks(
         pytest.fail("Price arithmetic should not cause overflow or division errors")
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr

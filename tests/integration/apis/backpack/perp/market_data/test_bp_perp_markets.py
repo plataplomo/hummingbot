@@ -25,11 +25,7 @@ from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarkets
 from cyberdelta.core.models.market.market import Market
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/markets"], indirect=True)
@@ -53,7 +49,9 @@ class TestBackpackPerpMarkets:
         assert market.symbol == "SOL_USDC_PERP", (
             f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
         )
-        assert market.base_symbol == "SOL", f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
+        assert market.base_symbol == "SOL", (
+            f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
@@ -63,20 +61,25 @@ class TestBackpackPerpMarkets:
             f"market_type should be str, got {type(market.market_type)}"
         )
         assert len(market.market_type) > 0, "market_type should not be empty"
-        assert "perp" in market.market_type.lower() or market.market_type in ["Perpetual", "Future"], (
-            f"Expected perpetual market type, got '{market.market_type}'"
-        )
+        assert "perp" in market.market_type.lower() or market.market_type in [
+            "Perpetual",
+            "Future",
+        ], f"Expected perpetual market type, got '{market.market_type}'"
 
         # Validate tick size and step size for perp trading
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
         )
-        assert market.tick_size > Decimal("0"), f"tick_size should be positive, got {market.tick_size}"
+        assert market.tick_size > Decimal("0"), (
+            f"tick_size should be positive, got {market.tick_size}"
+        )
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal, got {type(market.step_size)}"
         )
-        assert market.step_size > Decimal("0"), f"step_size should be positive, got {market.step_size}"
+        assert market.step_size > Decimal("0"), (
+            f"step_size should be positive, got {market.step_size}"
+        )
 
         # Validate optional price limits
         if market.min_price is not None:
@@ -158,20 +161,29 @@ class TestBackpackPerpMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "BTC_USDC_PERP", f"Expected symbol 'BTC_USDC_PERP', got '{market.symbol}'"
-        assert market.base_symbol == "BTC", f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
+        assert market.symbol == "BTC_USDC_PERP", (
+            f"Expected symbol 'BTC_USDC_PERP', got '{market.symbol}'"
+        )
+        assert market.base_symbol == "BTC", (
+            f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
 
         # BTC perp should have reasonable tick and step sizes for leverage trading
-        assert market.tick_size <= Decimal("100"), f"BTC perp tick_size seems too large: {market.tick_size}"
-        assert market.step_size <= Decimal("1"), f"BTC perp step_size seems too large: {market.step_size}"
+        assert market.tick_size <= Decimal("100"), (
+            f"BTC perp tick_size seems too large: {market.tick_size}"
+        )
+        assert market.step_size <= Decimal("1"), (
+            f"BTC perp step_size seems too large: {market.step_size}"
+        )
 
         # Validate it's a perp market
-        assert "perp" in market.market_type.lower() or market.market_type in ["Perpetual", "Future"], (
-            f"Expected perpetual market type for BTC_USDC_PERP, got '{market.market_type}'"
-        )
+        assert "perp" in market.market_type.lower() or market.market_type in [
+            "Perpetual",
+            "Future",
+        ], f"Expected perpetual market type for BTC_USDC_PERP, got '{market.market_type}'"
 
     @pytest.mark.vcr()
     async def test_bp_get_market_eth_usdc_perp_success(
@@ -187,16 +199,21 @@ class TestBackpackPerpMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "ETH_USDC_PERP", f"Expected symbol 'ETH_USDC_PERP', got '{market.symbol}'"
-        assert market.base_symbol == "ETH", f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
+        assert market.symbol == "ETH_USDC_PERP", (
+            f"Expected symbol 'ETH_USDC_PERP', got '{market.symbol}'"
+        )
+        assert market.base_symbol == "ETH", (
+            f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
 
         # ETH perp market validation
-        assert "perp" in market.market_type.lower() or market.market_type in ["Perpetual", "Future"], (
-            f"Expected perpetual market type for ETH_USDC_PERP, got '{market.market_type}'"
-        )
+        assert "perp" in market.market_type.lower() or market.market_type in [
+            "Perpetual",
+            "Future",
+        ], f"Expected perpetual market type for ETH_USDC_PERP, got '{market.market_type}'"
 
     @pytest.mark.vcr()
     async def test_bp_get_market_invalid_perp_symbol_error(
@@ -252,7 +269,8 @@ class TestBackpackPerpMarkets:
 
         # Filter for perp markets only
         perp_markets = [
-            market for market in all_markets
+            market
+            for market in all_markets
             if market.symbol.endswith("_PERP") or "perp" in market.market_type.lower()
         ]
 
@@ -268,12 +286,14 @@ class TestBackpackPerpMarkets:
             symbols_seen.add(market.symbol)
 
             # Validate it's actually a perp market
-            assert (
-                market.symbol.endswith("_PERP") or "perp" in market.market_type.lower()
-            ), f"Should only include perp symbols: {market.symbol}"
+            assert market.symbol.endswith("_PERP") or "perp" in market.market_type.lower(), (
+                f"Should only include perp symbols: {market.symbol}"
+            )
 
             # Validate core fields are present and valid
-            assert isinstance(market.symbol, str), f"symbol should be str, got {type(market.symbol)}"
+            assert isinstance(market.symbol, str), (
+                f"symbol should be str, got {type(market.symbol)}"
+            )
             assert len(market.symbol) > 0, "symbol should not be empty"
 
             assert isinstance(market.base_symbol, str), (
@@ -290,12 +310,16 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for {market.symbol}"
             )
-            assert market.tick_size > Decimal("0"), f"tick_size should be positive for {market.symbol}"
+            assert market.tick_size > Decimal("0"), (
+                f"tick_size should be positive for {market.symbol}"
+            )
 
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for {market.symbol}"
             )
-            assert market.step_size > Decimal("0"), f"step_size should be positive for {market.symbol}"
+            assert market.step_size > Decimal("0"), (
+                f"step_size should be positive for {market.symbol}"
+            )
 
             # Validate status
             assert isinstance(market.status, str), f"status should be str for {market.symbol}"
@@ -324,11 +348,8 @@ class TestBackpackPerpMarkets:
         """Test BackpackAPI.get_markets() returns consistent data structure across perp markets."""
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
-        
-        perp_markets = [
-            market for market in all_markets
-            if market.symbol.endswith("_PERP")
-        ]
+
+        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
 
         assert len(perp_markets) > 1, "Need multiple perp markets for consistency testing"
 
@@ -359,29 +380,34 @@ class TestBackpackPerpMarkets:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test BackpackAPI.get_markets() ensures proper Decimal precision handling for perp markets."""
+        """Test BackpackAPI.get_markets() ensures proper Decimal precision handling.
+
+        For perp markets.
+        """
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
-        
-        perp_markets = [
-            market for market in all_markets
-            if market.symbol.endswith("_PERP")
-        ]
+
+        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
 
         for market in perp_markets:
             # Validate tick_size precision for perp trading
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for perp {market.symbol}"
             )
-            assert market.tick_size.is_finite(), f"tick_size should be finite for perp {market.symbol}"
+            assert market.tick_size.is_finite(), (
+                f"tick_size should be finite for perp {market.symbol}"
+            )
 
             # Validate step_size precision for perp trading
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for perp {market.symbol}"
             )
-            assert market.step_size.is_finite(), f"step_size should be finite for perp {market.symbol}"
+            assert market.step_size.is_finite(), (
+                f"step_size should be finite for perp {market.symbol}"
+            )
 
-            # Verify arithmetic operations work correctly with the Decimals for leverage calculations
+            # Verify arithmetic operations work correctly with the Decimals for
+            # leverage calculations
             doubled_tick = market.tick_size * Decimal("2")
             assert isinstance(doubled_tick, Decimal), (
                 f"Arithmetic with tick_size should maintain Decimal type for perp {market.symbol}"
@@ -402,13 +428,17 @@ class TestBackpackPerpMarkets:
                 assert isinstance(market.min_price, Decimal), (
                     f"min_price should be Decimal for perp {market.symbol}"
                 )
-                assert market.min_price.is_finite(), f"min_price should be finite for perp {market.symbol}"
+                assert market.min_price.is_finite(), (
+                    f"min_price should be finite for perp {market.symbol}"
+                )
 
             if market.max_price is not None:
                 assert isinstance(market.max_price, Decimal), (
                     f"max_price should be Decimal for perp {market.symbol}"
                 )
-                assert market.max_price.is_finite(), f"max_price should be finite for perp {market.symbol}"
+                assert market.max_price.is_finite(), (
+                    f"max_price should be finite for perp {market.symbol}"
+                )
 
     @pytest.mark.vcr()
     async def test_bp_get_market_vs_get_markets_consistency_perp(
@@ -420,11 +450,8 @@ class TestBackpackPerpMarkets:
         # Get all markets first
         markets_args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(markets_args)
-        
-        perp_markets = [
-            market for market in all_markets
-            if market.symbol.endswith("_PERP")
-        ]
+
+        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
 
         assert len(perp_markets) > 0, "Should have at least one perp market for consistency testing"
 
@@ -437,7 +464,9 @@ class TestBackpackPerpMarkets:
 
         # Find the matching market from the list
         matching_market = next((m for m in perp_markets if m.symbol == test_symbol), None)
-        assert matching_market is not None, f"Could not find perp market {test_symbol} in all_markets list"
+        assert matching_market is not None, (
+            f"Could not find perp market {test_symbol} in all_markets list"
+        )
 
         # Compare core fields for consistency
         assert individual_market.symbol == matching_market.symbol
@@ -472,7 +501,8 @@ class TestBackpackPerpMarkets:
             parts = base_symbol.split("_")
             if len(parts) == 2:  # base_quote format
                 assert market.base_symbol == parts[0], (
-                    f"base_symbol '{market.base_symbol}' should match first part of symbol '{parts[0]}'"
+                    f"base_symbol '{market.base_symbol}' should match first part of "
+                    f"symbol '{parts[0]}'"
                 )
                 assert market.quote_symbol == parts[1], (
                     f"quote_symbol '{market.quote_symbol}' should match second part '{parts[1]}'"
@@ -481,7 +511,8 @@ class TestBackpackPerpMarkets:
         # Validate trading constraints make sense for perp trading
         if market.min_price is not None and market.max_price is not None:
             assert market.max_price > market.min_price, (
-                f"max_price ({market.max_price}) should be greater than min_price ({market.min_price})"
+                f"max_price ({market.max_price}) should be greater than "
+                f"min_price ({market.min_price})"
             )
 
         if market.min_quantity is not None and market.max_quantity is not None:
@@ -501,8 +532,12 @@ class TestBackpackPerpMarkets:
             )
 
         # Step size should be reasonable for perp asset trading with leverage
-        assert market.step_size <= Decimal("1000"), f"step_size seems too large for perp: {market.step_size}"
-        assert market.step_size >= Decimal("0.000001"), f"step_size seems too small for perp: {market.step_size}"
+        assert market.step_size <= Decimal("1000"), (
+            f"step_size seems too large for perp: {market.step_size}"
+        )
+        assert market.step_size >= Decimal("0.000001"), (
+            f"step_size seems too small for perp: {market.step_size}"
+        )
 
     @pytest.mark.vcr()
     async def test_bp_perp_market_leverage_characteristics(
@@ -516,28 +551,36 @@ class TestBackpackPerpMarkets:
 
         # Test precision requirements for leverage calculations
         leverage_factors = [Decimal("2"), Decimal("5"), Decimal("10"), Decimal("20")]
-        
+
         for leverage in leverage_factors:
             # Test notional calculations
             test_quantity = Decimal("10.0")
             test_price = Decimal("150.0")  # Reasonable SOL price
-            
+
             notional = test_quantity * test_price
             margin_requirement = notional / leverage
-            
+
             assert isinstance(notional, Decimal), "Notional should be Decimal"
             assert isinstance(margin_requirement, Decimal), "Margin requirement should be Decimal"
             assert margin_requirement > Decimal("0"), "Margin requirement should be positive"
-            assert margin_requirement < notional, "Margin should be less than notional (leverage effect)"
+            assert margin_requirement < notional, (
+                "Margin should be less than notional (leverage effect)"
+            )
 
         # Test tick size precision for leverage scenarios
-        leverage_adjusted_tick = market.tick_size / Decimal("10")  # High precision for leveraged positions
-        assert isinstance(leverage_adjusted_tick, Decimal), "Leverage-adjusted calculations should maintain Decimal"
-        
+        leverage_adjusted_tick = market.tick_size / Decimal(
+            "10"
+        )  # High precision for leveraged positions
+        assert isinstance(leverage_adjusted_tick, Decimal), (
+            "Leverage-adjusted calculations should maintain Decimal"
+        )
+
         # Test that market constraints support reasonable leverage trading
         if market.min_quantity is not None:
             # Minimum quantity should allow reasonable position sizes for leverage
-            assert market.min_quantity <= Decimal("100"), "Min quantity should allow reasonable leveraged positions"
+            assert market.min_quantity <= Decimal("100"), (
+                "Min quantity should allow reasonable leveraged positions"
+            )
 
     @pytest.mark.vcr()
     async def test_bp_perp_market_funding_awareness(
@@ -551,18 +594,18 @@ class TestBackpackPerpMarkets:
 
         # Perp markets should have constraints suitable for funding rate periods
         # Funding typically occurs every 8 hours, so constraints should support this
-        
+
         # Test that tick size allows reasonable funding rate calculations
         # Funding rates are typically small percentages, so tick size precision matters
         funding_rate_example = Decimal("0.0001")  # 0.01% funding rate
         test_price = Decimal("150.0")
         funding_payment = test_price * funding_rate_example
-        
+
         # The tick size should be precise enough to handle funding calculations
         assert market.tick_size <= funding_payment or market.tick_size <= Decimal("0.01"), (
             f"Tick size {market.tick_size} might be too large for precise funding calculations"
         )
-        
+
         # Test market type indicates perpetual characteristics
         assert "perp" in market.market_type.lower() or "perpetual" in market.market_type.lower(), (
             f"Market type should indicate perpetual characteristics: {market.market_type}"

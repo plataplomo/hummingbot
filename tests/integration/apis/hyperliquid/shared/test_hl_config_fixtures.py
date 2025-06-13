@@ -4,9 +4,10 @@ This module verifies that the Hyperliquid API fixtures are working correctly
 with the test configuration system.
 """
 
-import pytest
 from collections.abc import Callable
 from typing import Any
+
+import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig

@@ -16,29 +16,24 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.spot,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 
@@ -66,7 +61,7 @@ class TestHyperliquidSpotOrdersPrivate:
         """Test spot order placement - currently not implemented in Hyperliquid API."""
         # Note: Hyperliquid currently doesn't support spot trading through their API
         # This test serves as a placeholder and documentation of this limitation
-        
+
         # Define spot order parameters (if supported in future)
         place_args = PlaceOrderArgs(
             symbol="USDC@0",  # Hypothetical spot trading pair format
@@ -90,7 +85,7 @@ class TestHyperliquidSpotOrdersPrivate:
     ) -> None:
         """Test spot order cancellation - currently not implemented in Hyperliquid API."""
         # Note: This is a placeholder for when spot trading is supported
-        
+
         cancel_args = CancelOrderArgs(
             order_id="12345",
             symbol="USDC@0",  # Hypothetical spot symbol format
@@ -108,15 +103,15 @@ class TestHyperliquidSpotOrdersPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Placeholder test for future spot order implementation.
-        
+
         When Hyperliquid adds spot trading support, this test file should be
         expanded with comprehensive spot order tests similar to the perp order tests.
         """
         # This test documents that spot order functionality is not yet available
         # but the infrastructure is ready for when it becomes available
-        
+
         # For now, verify that the API instance is properly configured
         assert hl_api_for_test_env is not None
         assert isinstance(hl_api_for_test_env, HyperliquidAPI)
-        
+
         pytest.skip("Spot order functionality not yet implemented in Hyperliquid API")

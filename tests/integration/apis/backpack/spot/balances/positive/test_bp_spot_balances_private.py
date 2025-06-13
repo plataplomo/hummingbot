@@ -22,7 +22,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.spot,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 
@@ -104,7 +104,7 @@ class TestBackpackSpotBalancesPrivate:
                 tasks.append(bp_api_for_test_env.get_balances())
 
             results: list[dict[str, Any]] = []
-            for i, task in enumerate(tasks):
+            for _, task in enumerate(tasks):
                 try:
                     result: dict[str, Any] = await task
                     results.append(result)
@@ -159,7 +159,7 @@ class TestBackpackSpotBalancesPrivate:
         if not balances:
             pytest.skip("No balances for Backpack-specific testing")
 
-        for asset_symbol, balance in balances.items():
+        for _, balance in balances.items():
             if balance.bp_details:
                 bp_details = balance.bp_details
 

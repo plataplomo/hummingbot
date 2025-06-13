@@ -24,11 +24,7 @@ from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarkets
 from cyberdelta.core.models.market.market import Market
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/markets"], indirect=True)
@@ -50,7 +46,9 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == "SOL_USDC", f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
-        assert market.base_symbol == "SOL", f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
+        assert market.base_symbol == "SOL", (
+            f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
@@ -68,12 +66,16 @@ class TestBackpackSpotMarkets:
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
         )
-        assert market.tick_size > Decimal("0"), f"tick_size should be positive, got {market.tick_size}"
+        assert market.tick_size > Decimal("0"), (
+            f"tick_size should be positive, got {market.tick_size}"
+        )
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal, got {type(market.step_size)}"
         )
-        assert market.step_size > Decimal("0"), f"step_size should be positive, got {market.step_size}"
+        assert market.step_size > Decimal("0"), (
+            f"step_size should be positive, got {market.step_size}"
+        )
 
         # Validate optional price limits
         if market.min_price is not None:
@@ -156,14 +158,20 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == "BTC_USDC", f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
-        assert market.base_symbol == "BTC", f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
+        assert market.base_symbol == "BTC", (
+            f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
 
         # BTC should have reasonable tick and step sizes for spot trading
-        assert market.tick_size <= Decimal("100"), f"BTC spot tick_size seems too large: {market.tick_size}"
-        assert market.step_size <= Decimal("1"), f"BTC spot step_size seems too large: {market.step_size}"
+        assert market.tick_size <= Decimal("100"), (
+            f"BTC spot tick_size seems too large: {market.tick_size}"
+        )
+        assert market.step_size <= Decimal("1"), (
+            f"BTC spot step_size seems too large: {market.step_size}"
+        )
 
     @pytest.mark.vcr()
     async def test_bp_get_market_eth_usdc_success(
@@ -180,7 +188,9 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == "ETH_USDC", f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
-        assert market.base_symbol == "ETH", f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
+        assert market.base_symbol == "ETH", (
+            f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
+        )
         assert market.quote_symbol == "USDC", (
             f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
         )
@@ -244,7 +254,8 @@ class TestBackpackSpotMarkets:
 
         # Filter for spot markets only
         spot_markets = [
-            market for market in all_markets
+            market
+            for market in all_markets
             if not market.symbol.endswith("_PERP") and "perp" not in market.market_type.lower()
         ]
 
@@ -260,10 +271,14 @@ class TestBackpackSpotMarkets:
             symbols_seen.add(market.symbol)
 
             # Validate it's actually a spot market
-            assert not market.symbol.endswith("_PERP"), f"Should not include perp symbols: {market.symbol}"
+            assert not market.symbol.endswith("_PERP"), (
+                f"Should not include perp symbols: {market.symbol}"
+            )
 
             # Validate core fields are present and valid
-            assert isinstance(market.symbol, str), f"symbol should be str, got {type(market.symbol)}"
+            assert isinstance(market.symbol, str), (
+                f"symbol should be str, got {type(market.symbol)}"
+            )
             assert len(market.symbol) > 0, "symbol should not be empty"
 
             assert isinstance(market.base_symbol, str), (
@@ -280,12 +295,16 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for {market.symbol}"
             )
-            assert market.tick_size > Decimal("0"), f"tick_size should be positive for {market.symbol}"
+            assert market.tick_size > Decimal("0"), (
+                f"tick_size should be positive for {market.symbol}"
+            )
 
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for {market.symbol}"
             )
-            assert market.step_size > Decimal("0"), f"step_size should be positive for {market.symbol}"
+            assert market.step_size > Decimal("0"), (
+                f"step_size should be positive for {market.symbol}"
+            )
 
             # Validate status
             assert isinstance(market.status, str), f"status should be str for {market.symbol}"
@@ -314,11 +333,8 @@ class TestBackpackSpotMarkets:
         """Test BackpackAPI.get_markets() returns consistent data structure across spot markets."""
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
-        
-        spot_markets = [
-            market for market in all_markets
-            if not market.symbol.endswith("_PERP")
-        ]
+
+        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
 
         assert len(spot_markets) > 1, "Need multiple spot markets for consistency testing"
 
@@ -349,27 +365,31 @@ class TestBackpackSpotMarkets:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test BackpackAPI.get_markets() ensures proper Decimal precision handling for spot markets."""
+        """Test BackpackAPI.get_markets() ensures proper Decimal precision handling.
+
+        For spot markets.
+        """
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
-        
-        spot_markets = [
-            market for market in all_markets
-            if not market.symbol.endswith("_PERP")
-        ]
+
+        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
 
         for market in spot_markets:
             # Validate tick_size precision
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for spot {market.symbol}"
             )
-            assert market.tick_size.is_finite(), f"tick_size should be finite for spot {market.symbol}"
+            assert market.tick_size.is_finite(), (
+                f"tick_size should be finite for spot {market.symbol}"
+            )
 
             # Validate step_size precision
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for spot {market.symbol}"
             )
-            assert market.step_size.is_finite(), f"step_size should be finite for spot {market.symbol}"
+            assert market.step_size.is_finite(), (
+                f"step_size should be finite for spot {market.symbol}"
+            )
 
             # Verify arithmetic operations work correctly with the Decimals
             doubled_tick = market.tick_size * Decimal("2")
@@ -385,13 +405,17 @@ class TestBackpackSpotMarkets:
                 assert isinstance(market.min_price, Decimal), (
                     f"min_price should be Decimal for spot {market.symbol}"
                 )
-                assert market.min_price.is_finite(), f"min_price should be finite for spot {market.symbol}"
+                assert market.min_price.is_finite(), (
+                    f"min_price should be finite for spot {market.symbol}"
+                )
 
             if market.max_price is not None:
                 assert isinstance(market.max_price, Decimal), (
                     f"max_price should be Decimal for spot {market.symbol}"
                 )
-                assert market.max_price.is_finite(), f"max_price should be finite for spot {market.symbol}"
+                assert market.max_price.is_finite(), (
+                    f"max_price should be finite for spot {market.symbol}"
+                )
 
     @pytest.mark.vcr()
     async def test_bp_get_market_vs_get_markets_consistency_spot(
@@ -403,11 +427,8 @@ class TestBackpackSpotMarkets:
         # Get all markets first
         markets_args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(markets_args)
-        
-        spot_markets = [
-            market for market in all_markets
-            if not market.symbol.endswith("_PERP")
-        ]
+
+        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
 
         assert len(spot_markets) > 0, "Should have at least one spot market for consistency testing"
 
@@ -420,7 +441,9 @@ class TestBackpackSpotMarkets:
 
         # Find the matching market from the list
         matching_market = next((m for m in spot_markets if m.symbol == test_symbol), None)
-        assert matching_market is not None, f"Could not find spot market {test_symbol} in all_markets list"
+        assert matching_market is not None, (
+            f"Could not find spot market {test_symbol} in all_markets list"
+        )
 
         # Compare core fields for consistency
         assert individual_market.symbol == matching_market.symbol
@@ -453,7 +476,8 @@ class TestBackpackSpotMarkets:
             parts = market.symbol.split("_")
             if len(parts) == 2:  # Simple base_quote format for spot
                 assert market.base_symbol == parts[0], (
-                    f"base_symbol '{market.base_symbol}' should match first part of symbol '{parts[0]}'"
+                    f"base_symbol '{market.base_symbol}' should match first part of "
+                    f"symbol '{parts[0]}'"
                 )
                 assert market.quote_symbol == parts[1], (
                     f"quote_symbol '{market.quote_symbol}' should match second part '{parts[1]}'"
@@ -462,7 +486,8 @@ class TestBackpackSpotMarkets:
         # Validate trading constraints make sense
         if market.min_price is not None and market.max_price is not None:
             assert market.max_price > market.min_price, (
-                f"max_price ({market.max_price}) should be greater than min_price ({market.min_price})"
+                f"max_price ({market.max_price}) should be greater than "
+                f"min_price ({market.min_price})"
             )
 
         if market.min_quantity is not None and market.max_quantity is not None:
@@ -482,5 +507,9 @@ class TestBackpackSpotMarkets:
             )
 
         # Step size should be reasonable for spot asset trading
-        assert market.step_size <= Decimal("1000"), f"step_size seems too large for spot: {market.step_size}"
-        assert market.step_size >= Decimal("0.000001"), f"step_size seems too small for spot: {market.step_size}"
+        assert market.step_size <= Decimal("1000"), (
+            f"step_size seems too large for spot: {market.step_size}"
+        )
+        assert market.step_size >= Decimal("0.000001"), (
+            f"step_size seems too small for spot: {market.step_size}"
+        )

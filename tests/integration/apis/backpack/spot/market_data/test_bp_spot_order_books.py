@@ -21,17 +21,15 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import OrderBook
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 
 
 class TestBackpackSpotOrderBooks:
     """Backpack spot order book integration tests."""
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_order_book_success(
         self,
@@ -43,9 +41,13 @@ class TestBackpackSpotOrderBooks:
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
 
-        assert order_book.symbol == "SOL_USDC", f"Expected symbol 'SOL_USDC', got '{order_book.symbol}'"
+        assert order_book.symbol == "SOL_USDC", (
+            f"Expected symbol 'SOL_USDC', got '{order_book.symbol}'"
+        )
 
-        assert isinstance(order_book.bids, list), f"Bids should be list, got {type(order_book.bids)}"
+        assert isinstance(order_book.bids, list), (
+            f"Bids should be list, got {type(order_book.bids)}"
+        )
         assert len(order_book.bids) > 0, "Should have at least one bid for liquid SOL_USDC market"
 
         first_bid = order_book.bids[0]
@@ -58,7 +60,9 @@ class TestBackpackSpotOrderBooks:
         assert bid_price > Decimal("0"), f"Bid price should be positive, got {bid_price}"
         assert bid_size > Decimal("0"), f"Bid size should be positive, got {bid_size}"
 
-        assert isinstance(order_book.asks, list), f"Asks should be list, got {type(order_book.asks)}"
+        assert isinstance(order_book.asks, list), (
+            f"Asks should be list, got {type(order_book.asks)}"
+        )
         assert len(order_book.asks) > 0, "Should have at least one ask for liquid SOL_USDC market"
 
         first_ask = order_book.asks[0]
@@ -75,7 +79,9 @@ class TestBackpackSpotOrderBooks:
             f"Ask price {ask_price} should be higher than bid price {bid_price}"
         )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_order_book_success(
         self,
@@ -86,7 +92,9 @@ class TestBackpackSpotOrderBooks:
         order_book = await bp_api_for_test_env.get_order_book("BTC_USDC")
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
-        assert order_book.symbol == "BTC_USDC", f"Expected symbol 'BTC_USDC', got '{order_book.symbol}'"
+        assert order_book.symbol == "BTC_USDC", (
+            f"Expected symbol 'BTC_USDC', got '{order_book.symbol}'"
+        )
 
         # BTC should have reasonable price levels
         if len(order_book.bids) > 0:
@@ -98,7 +106,9 @@ class TestBackpackSpotOrderBooks:
             assert ask_price > Decimal("1000"), f"BTC ask price seems too low: {ask_price}"
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_order_book_structure_validation(
         self,
@@ -126,7 +136,9 @@ class TestBackpackSpotOrderBooks:
                 next_price = order_book.asks[i + 1][0]
                 assert current_price <= next_price, f"Asks not sorted correctly in {symbol}"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_order_book_depth_levels(
         self,
@@ -134,7 +146,7 @@ class TestBackpackSpotOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order book depth and liquidity."""
-        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC", limit=100)
+        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC")
 
         assert isinstance(order_book, OrderBook), "Expected OrderBook"
         assert len(order_book.bids) > 0, "Should have bids"
@@ -147,7 +159,9 @@ class TestBackpackSpotOrderBooks:
         assert total_bid_volume > Decimal("0"), "Total bid volume should be positive"
         assert total_ask_volume > Decimal("0"), "Total ask volume should be positive"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_order_book_invalid_spot_symbol_error(
         self,
@@ -161,7 +175,9 @@ class TestBackpackSpotOrderBooks:
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/order_books"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_order_book_precision_validation(
         self,
@@ -178,7 +194,9 @@ class TestBackpackSpotOrderBooks:
 
             # Test arithmetic operations
             doubled_price = bid_price * Decimal("2")
-            assert isinstance(doubled_price, Decimal), "Price arithmetic should maintain Decimal type"
+            assert isinstance(doubled_price, Decimal), (
+                "Price arithmetic should maintain Decimal type"
+            )
 
         # Test precision on all asks
         for ask_price, ask_size in order_book.asks:
@@ -187,4 +205,6 @@ class TestBackpackSpotOrderBooks:
 
             # Test arithmetic operations
             doubled_price = ask_price * Decimal("2")
-            assert isinstance(doubled_price, Decimal), "Price arithmetic should maintain Decimal type"
+            assert isinstance(doubled_price, Decimal), (
+                "Price arithmetic should maintain Decimal type"
+            )

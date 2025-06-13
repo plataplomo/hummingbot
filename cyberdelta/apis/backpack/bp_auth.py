@@ -90,7 +90,6 @@ class BackpackEd25519Authenticator(IAuthenticator):
             ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
             ("GET", "/wapi/v1/history/pnl"): "pnlHistoryQueryAll",
             ("GET", "/wapi/v1/history/settlement"): "settlementHistoryQueryAll",
-
             # Borrow/Lend History endpoints (wapi)
             ("GET", "/wapi/v1/history/borrowLend"): "borrowHistoryQueryAll",
             ("GET", "/wapi/v1/history/borrowLend/positions"): "borrowPositionHistoryQueryAll",

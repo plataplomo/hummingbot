@@ -20,7 +20,9 @@ from cyberdelta.core.models.market.market import Market
 pytestmark = [pytest.mark.integration, pytest.mark.spot]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/market_data/private"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/spot/market_data/private"], indirect=True
+)
 class TestBackpackSpotMarketPrivate:
     """Integration tests for Spot Market model pipeline with authenticated context."""
 
@@ -79,7 +81,7 @@ class TestBackpackSpotMarketPrivate:
 
         # Test first 3 spot markets only
         spot_markets = [m for m in markets if "_USDC" in m.symbol and "PERP" not in m.symbol][:3]
-        
+
         for market in spot_markets:
             individual_args = GetMarketArgs(symbol=market.symbol)
             individual_market = await bp_api_for_test_env.get_market(individual_args)

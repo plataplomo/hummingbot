@@ -9,18 +9,13 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 
 logger = get_logger(__name__)
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.zero_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.account, pytest.mark.zero_balance]
 
 
 @pytest.mark.parametrize(
@@ -47,16 +42,16 @@ class TestBackpackAccountSummaryZero:
         assert time_diff.total_seconds() < 3600
 
         assert isinstance(account_summary.total_equity, Decimal)
-        assert isinstance(account_summary.initial_margin_requirement, Decimal)
-        assert isinstance(account_summary.maintenance_margin_requirement, Decimal)
+        assert isinstance(account_summary.total_initial_margin_required, Decimal)
+        assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
 
         assert account_summary.total_equity >= Decimal("0")
-        assert account_summary.initial_margin_requirement >= Decimal("0")
-        assert account_summary.maintenance_margin_requirement >= Decimal("0")
+        assert account_summary.total_initial_margin_required >= Decimal("0")
+        assert account_summary.total_maintenance_margin_required >= Decimal("0")
 
         if account_summary.total_equity == Decimal("0"):
-            assert account_summary.initial_margin_requirement == Decimal("0")
-            assert account_summary.maintenance_margin_requirement == Decimal("0")
+            assert account_summary.total_initial_margin_required == Decimal("0")
+            assert account_summary.total_maintenance_margin_required == Decimal("0")
 
         logger.info(f"Zero balance account summary: equity={account_summary.total_equity}")
 
@@ -71,22 +66,22 @@ class TestBackpackAccountSummaryZero:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary.total_equity, Decimal)
-        assert isinstance(account_summary.initial_margin_requirement, Decimal)
-        assert isinstance(account_summary.maintenance_margin_requirement, Decimal)
+        assert isinstance(account_summary.total_initial_margin_required, Decimal)
+        assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
 
         if account_summary.total_equity == Decimal("0"):
             assert str(account_summary.total_equity) == "0"
 
-        if account_summary.initial_margin_requirement == Decimal("0"):
-            assert str(account_summary.initial_margin_requirement) == "0"
+        if account_summary.total_initial_margin_required == Decimal("0"):
+            assert str(account_summary.total_initial_margin_required) == "0"
 
-        if account_summary.maintenance_margin_requirement == Decimal("0"):
-            assert str(account_summary.maintenance_margin_requirement) == "0"
+        if account_summary.total_maintenance_margin_required == Decimal("0"):
+            assert str(account_summary.total_maintenance_margin_required) == "0"
 
         equity_sum = (
-            account_summary.total_equity +
-            account_summary.initial_margin_requirement +
-            account_summary.maintenance_margin_requirement
+            account_summary.total_equity
+            + account_summary.total_initial_margin_required
+            + account_summary.total_maintenance_margin_required
         )
         assert equity_sum.is_finite()
 
@@ -101,8 +96,8 @@ class TestBackpackAccountSummaryZero:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert hasattr(account_summary, "total_equity")
-        assert hasattr(account_summary, "initial_margin_requirement")
-        assert hasattr(account_summary, "maintenance_margin_requirement")
+        assert hasattr(account_summary, "total_initial_margin_required")
+        assert hasattr(account_summary, "total_maintenance_margin_required")
         assert hasattr(account_summary, "exchange")
         assert hasattr(account_summary, "timestamp")
         assert hasattr(account_summary, "bp_details")

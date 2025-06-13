@@ -11,7 +11,9 @@ from cyberdelta.core.models import Trade
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -34,7 +36,9 @@ async def test_hl_get_perp_recent_trades_btc_success(
             assert isinstance(trade.quantity, Decimal) and trade.quantity > Decimal("0")
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr

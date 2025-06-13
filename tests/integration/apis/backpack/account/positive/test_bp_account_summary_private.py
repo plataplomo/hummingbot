@@ -21,7 +21,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.account,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 
@@ -38,7 +38,7 @@ class TestBackpackAccountSummaryPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test successful get_account_summary() with comprehensive MarginAccountSummary validation."""
+        """Test successful get_account_summary() with comprehensive validation."""
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
@@ -49,19 +49,22 @@ class TestBackpackAccountSummaryPrivate:
         assert time_diff.total_seconds() < 3600
 
         assert isinstance(account_summary.total_equity, Decimal)
-        assert isinstance(account_summary.initial_margin_requirement, Decimal)
-        assert isinstance(account_summary.maintenance_margin_requirement, Decimal)
+        assert isinstance(account_summary.total_initial_margin_required, Decimal)
+        assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
 
         assert account_summary.total_equity >= Decimal("0")
-        assert account_summary.initial_margin_requirement >= Decimal("0")
-        assert account_summary.maintenance_margin_requirement >= Decimal("0")
-        assert account_summary.initial_margin_requirement >= account_summary.maintenance_margin_requirement
+        assert account_summary.total_initial_margin_required >= Decimal("0")
+        assert account_summary.total_maintenance_margin_required >= Decimal("0")
+        assert (
+            account_summary.total_initial_margin_required
+            >= account_summary.total_maintenance_margin_required
+        )
 
         if account_summary.bp_details:
             bp_details = account_summary.bp_details
-            if bp_details.available_balance is not None:
-                assert isinstance(bp_details.available_balance, Decimal)
-                assert bp_details.available_balance >= Decimal("0")
+            if bp_details.assets_value is not None:
+                assert isinstance(bp_details.assets_value, Decimal)
+                assert bp_details.assets_value >= Decimal("0")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -106,19 +109,27 @@ class TestBackpackAccountSummaryPrivate:
         assert isinstance(account_summary, MarginAccountSummary)
 
         equity = account_summary.total_equity
-        initial_margin = account_summary.initial_margin_requirement
-        maintenance_margin = account_summary.maintenance_margin_requirement
+        initial_margin = account_summary.total_initial_margin_required
+        maintenance_margin = account_summary.total_maintenance_margin_required
 
         if equity > Decimal("0"):
-            initial_ratio = initial_margin / equity if initial_margin > Decimal("0") else Decimal("0")
-            maintenance_ratio = maintenance_margin / equity if maintenance_margin > Decimal("0") else Decimal("0")
+            initial_ratio = (
+                initial_margin / equity
+                if initial_margin and initial_margin > Decimal("0")
+                else Decimal("0")
+            )
+            maintenance_ratio = (
+                maintenance_margin / equity
+                if maintenance_margin and maintenance_margin > Decimal("0")
+                else Decimal("0")
+            )
 
             assert initial_ratio <= Decimal("1")
             assert maintenance_ratio <= Decimal("1")
             assert maintenance_ratio <= initial_ratio
 
-        available_margin = equity - initial_margin
+        available_margin = equity - (initial_margin or Decimal("0"))
         if available_margin > Decimal("0"):
             assert account_summary.bp_details is not None
-            if account_summary.bp_details and account_summary.bp_details.available_balance:
-                assert account_summary.bp_details.available_balance <= available_margin
+            if account_summary.bp_details and account_summary.bp_details.assets_value:
+                assert account_summary.bp_details.assets_value <= equity

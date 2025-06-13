@@ -245,7 +245,7 @@ class TestHyperliquidPositionsZeroComprehensive:
                     )
 
             # Test PnL precision
-            if position.unrealized_pnl != Decimal("0"):
+            if position.unrealized_pnl is not None and position.unrealized_pnl != Decimal("0"):
                 assert position.unrealized_pnl.is_finite(), (
                     f"Position {i} unrealized_pnl should be finite: {position.unrealized_pnl}"
                 )
@@ -260,9 +260,7 @@ class TestHyperliquidPositionsZeroComprehensive:
             ]:
                 if field_value != Decimal("0"):
                     precision = (
-                        len(str(field_value).split(".")[-1])
-                        if "." in str(field_value)
-                        else 0
+                        len(str(field_value).split(".")[-1]) if "." in str(field_value) else 0
                     )
                     assert precision <= 18, (
                         f"Position {i} {field_name} precision too high: {precision} decimals"
@@ -311,7 +309,7 @@ class TestHyperliquidPositionsZeroComprehensive:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result = successful_results[0]
-            for j, result in enumerate(successful_results[1:], 1):
+            for _, result in enumerate(successful_results[1:], 1):
                 # Position counts might differ slightly due to timing, but should be close
                 assert len(first_result) == len(result), (
                     f"Concurrent results should have same position count: "

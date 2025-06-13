@@ -17,10 +17,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websocket
-]
+pytestmark = [pytest.mark.integration, pytest.mark.websocket]
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,6 @@ from typing import Any, Protocol
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
 
@@ -31,17 +30,15 @@ class FreezerProtocol(Protocol):
 
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 
 
 class TestBackpackSpotCandles:
     """Backpack spot market candle integration tests."""
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_1h_candles_success(
         self,
@@ -49,7 +46,10 @@ class TestBackpackSpotCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() with SOL_USDC 1h interval returns valid Candle models."""
+        """Test BackpackAPI.get_market_data() with SOL_USDC 1h interval.
+
+        Returns valid Candle models.
+        """
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)
         start_time_dt = end_time_dt - timedelta(hours=1)
@@ -106,7 +106,9 @@ class TestBackpackSpotCandles:
                 assert candle.high > Decimal("0"), (
                     f"Candle {i} high should be positive, got {candle.high}"
                 )
-                assert candle.low > Decimal("0"), f"Candle {i} low should be positive, got {candle.low}"
+                assert candle.low > Decimal("0"), (
+                    f"Candle {i} low should be positive, got {candle.low}"
+                )
                 assert candle.close > Decimal("0"), (
                     f"Candle {i} close should be positive, got {candle.close}"
                 )
@@ -131,7 +133,9 @@ class TestBackpackSpotCandles:
                     f"Candle {i} symbol should be 'SOL_USDC', got '{candle.symbol}'"
                 )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_1h_candles_success(
         self,
@@ -139,7 +143,10 @@ class TestBackpackSpotCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() with BTC_USDC 1h interval returns valid Candle models."""
+        """Test BackpackAPI.get_market_data() with BTC_USDC 1h interval.
+
+        Returns valid Candle models.
+        """
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)
         start_time_dt = end_time_dt - timedelta(hours=1)
@@ -172,10 +179,14 @@ class TestBackpackSpotCandles:
                 assert candle.open > Decimal("1000"), f"BTC open price seems too low: {candle.open}"
                 assert candle.high > Decimal("1000"), f"BTC high price seems too low: {candle.high}"
                 assert candle.low > Decimal("1000"), f"BTC low price seems too low: {candle.low}"
-                assert candle.close > Decimal("1000"), f"BTC close price seems too low: {candle.close}"
+                assert candle.close > Decimal("1000"), (
+                    f"BTC close price seems too low: {candle.close}"
+                )
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_candle_multiple_symbols_consistency(
         self,

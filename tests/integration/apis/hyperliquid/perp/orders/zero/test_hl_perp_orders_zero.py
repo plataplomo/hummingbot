@@ -36,7 +36,9 @@ from cyberdelta.core.models.market.order import Order
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/zero"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/zero"], indirect=True
+)
 class TestHyperliquidPerpOrdersZero:
     """Comprehensive perpetual order info integration tests for Order model validation.
 
@@ -170,7 +172,10 @@ class TestHyperliquidPerpOrdersZero:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test successful get_open_orders() with detailed Order model validation for perpetual orders."""
+        """Test successful get_open_orders() with detailed Order model validation.
+
+        For perpetual orders.
+        """
         # Execute the full pipeline
         open_orders = await hl_api_for_test_env.get_open_orders()
 

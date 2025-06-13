@@ -22,17 +22,15 @@ from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 
 
 class TestBackpackSpotTrades:
     """Backpack spot trade integration tests."""
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_recent_trades_success(
         self,
@@ -46,7 +44,9 @@ class TestBackpackSpotTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
+                assert isinstance(trade, Trade), (
+                    f"Trade {i} should be Trade model, got {type(trade)}"
+                )
 
                 assert hasattr(trade, "symbol"), f"Trade {i} should have symbol attribute"
                 assert hasattr(trade, "price"), f"Trade {i} should have price attribute"
@@ -71,13 +71,15 @@ class TestBackpackSpotTrades:
                     f"Trade {i} symbol should be 'SOL_USDC', got '{trade.symbol}'"
                 )
 
-                if hasattr(trade, "executed_at") and trade.executed_at is not None:
-                    from datetime import datetime
-                    assert isinstance(trade.executed_at, datetime), (
-                        f"Trade {i} executed_at should be datetime, got {type(trade.executed_at)}"
-                    )
+                from datetime import datetime
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+                assert isinstance(trade.executed_at, datetime), (
+                    f"Trade {i} executed_at should be datetime, got {type(trade.executed_at)}"
+                )
+
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_recent_trades_success(
         self,
@@ -91,15 +93,25 @@ class TestBackpackSpotTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
-                assert trade.symbol == "BTC_USDC", f"Trade {i} symbol should be 'BTC_USDC', got '{trade.symbol}'"
+                assert isinstance(trade, Trade), (
+                    f"Trade {i} should be Trade model, got {type(trade)}"
+                )
+                assert trade.symbol == "BTC_USDC", (
+                    f"Trade {i} symbol should be 'BTC_USDC', got '{trade.symbol}'"
+                )
 
                 # BTC prices should be in reasonable range
-                assert trade.price > Decimal("1000"), f"BTC trade price seems too low: {trade.price}"
-                assert trade.price < Decimal("1000000"), f"BTC trade price seems too high: {trade.price}"
+                assert trade.price > Decimal("1000"), (
+                    f"BTC trade price seems too low: {trade.price}"
+                )
+                assert trade.price < Decimal("1000000"), (
+                    f"BTC trade price seems too high: {trade.price}"
+                )
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_trade_chronological_ordering(
         self,
@@ -124,7 +136,9 @@ class TestBackpackSpotTrades:
                             f"Trades not in reverse chronological order for {symbol}"
                         )
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_trade_side_validation(
         self,
@@ -139,15 +153,14 @@ class TestBackpackSpotTrades:
             sell_trades = 0
 
             for trade in trades:
-                if hasattr(trade, "side") and trade.side is not None:
-                    assert trade.side in [OrderSide.BUY, OrderSide.SELL], (
-                        f"Trade side should be BUY or SELL, got {trade.side}"
-                    )
-                    
-                    if trade.side == OrderSide.BUY:
-                        buy_trades += 1
-                    else:
-                        sell_trades += 1
+                assert trade.side in [OrderSide.BUY, OrderSide.SELL], (
+                    f"Trade side should be BUY or SELL, got {trade.side}"
+                )
+
+                if trade.side == OrderSide.BUY:
+                    buy_trades += 1
+                else:
+                    sell_trades += 1
 
             # In active markets, we expect both buy and sell trades
             total_sided_trades = buy_trades + sell_trades
@@ -155,7 +168,9 @@ class TestBackpackSpotTrades:
                 assert buy_trades > 0, "Should have some buy trades in active market"
                 assert sell_trades > 0, "Should have some sell trades in active market"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_trade_volume_analysis(
         self,
@@ -167,7 +182,7 @@ class TestBackpackSpotTrades:
 
         if len(trades) > 0:
             total_volume = Decimal("0")
-            trade_sizes = []
+            trade_sizes: list[Decimal] = []
 
             for trade in trades:
                 volume = trade.price * trade.quantity
@@ -183,21 +198,28 @@ class TestBackpackSpotTrades:
                 assert min_size > Decimal("0"), "Minimum trade size should be positive"
                 assert max_size >= min_size, "Maximum should be >= minimum"
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_get_recent_trades_invalid_spot_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test BackpackAPI.get_recent_trades() with invalid spot symbol raises appropriate error."""
+        """Test BackpackAPI.get_recent_trades() with invalid spot symbol.
+
+        Raises appropriate error.
+        """
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_recent_trades("INVALID_SPOT_SYMBOL", limit=5)
 
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()
 
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_trade_precision_validation(
         self,
@@ -214,15 +236,21 @@ class TestBackpackSpotTrades:
 
                 # Test arithmetic operations
                 volume = trade.price * trade.quantity
-                assert isinstance(volume, Decimal), "Volume calculation should maintain Decimal type"
+                assert isinstance(volume, Decimal), (
+                    "Volume calculation should maintain Decimal type"
+                )
                 assert volume > Decimal("0"), "Volume should be positive"
 
                 # Test precision preservation
                 doubled_price = trade.price * Decimal("2")
-                assert isinstance(doubled_price, Decimal), "Price arithmetic should maintain Decimal type"
+                assert isinstance(doubled_price, Decimal), (
+                    "Price arithmetic should maintain Decimal type"
+                )
 
     @pytest.mark.parametrize("limit", [1, 5, 10, 50])
-    @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True)
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_spot_trade_limit_parameter(
         self,

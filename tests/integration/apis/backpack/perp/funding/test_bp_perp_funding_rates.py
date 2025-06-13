@@ -21,13 +21,8 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 
-
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/funding"], indirect=True)

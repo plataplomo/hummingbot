@@ -110,7 +110,8 @@ class TestBackpackSpotBalancesZeroComprehensive:
 
             # For zero balance accounts, expect very small or zero amounts
             assert balance.total_quantity <= Decimal("1.0"), (
-                f"Zero balance account should have minimal total_quantity, got {balance.total_quantity}"
+                f"Zero balance account should have minimal total_quantity, "
+                f"got {balance.total_quantity}"
             )
 
     @pytest.mark.vcr
@@ -165,7 +166,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         if not balances:
             pytest.skip("No balances for precision testing")
 
-        for asset_symbol, balance in balances.items():
+        for _, balance in balances.items():
             # Test very small balance handling
             if balance.total_quantity > Decimal("0"):
                 # Validate that small balances maintain precision
@@ -255,7 +256,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         # If multiple succeed, they should have consistent data (within reasonable time window)
         if len(successful_results) > 1:
             first_result = successful_results[0]
-            for j, result in enumerate(successful_results[1:], 1):
+            for _, result in enumerate(successful_results[1:], 1):
                 # Balance amounts might differ slightly due to timing, but structure should be same
                 assert set(first_result.keys()) == set(result.keys()), (
                     f"Concurrent results should have same assets: {first_result.keys()} vs "

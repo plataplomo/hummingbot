@@ -21,14 +21,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetOrderHistoryArgs,
@@ -42,11 +40,7 @@ from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.zero_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 logger = get_logger(__name__)
 
@@ -55,6 +49,7 @@ async def get_perp_symbol_tick_size_zero(api: BackpackAPI, symbol: str) -> Decim
     """Get the tick size for a perp symbol (for zero balance testing)."""
     try:
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
         markets = await api.get_markets(GetMarketsArgs())
 
         for market in markets:
@@ -109,8 +104,10 @@ async def get_dynamic_perp_test_price_zero(
             fallback_price = Decimal("80.0") if side == OrderSide.BUY else Decimal("120.0")
 
         logger.warning(
-            "Dynamic pricing failed for perp %s (zero balance), using fallback price %s: %s", 
-            symbol, fallback_price, e
+            "Dynamic pricing failed for perp %s (zero balance), using fallback price %s: %s",
+            symbol,
+            fallback_price,
+            e,
         )
         return fallback_price
 
@@ -123,12 +120,12 @@ def bp_api_zero_balance_test_env(
     # Use test environment secrets that should have zero balance
     test_secrets = ApiKeyAuthSecrets(
         api_key=SecretStr("test_key_zero_balance"),
-        api_secret=SecretStr("test_secret_zero_balance"), 
+        api_secret=SecretStr("test_secret_zero_balance"),
     )
-    
+
     return BackpackAPI(
-        config=active_bp_config,
-        secrets=test_secrets,
+        exchange_config=active_bp_config,
+        exchange_secrets=test_secrets,
     )
 
 
@@ -144,11 +141,11 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test placing perp order with insufficient margin returns appropriate error."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.BUY
         )
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -164,12 +161,11 @@ class TestBackpackPerpOrdersZeroBalance:
 
         error = exc_info.value
         assert isinstance(error, APIError), f"Expected APIError, got {type(error)}"
-        
+
         # Error should indicate insufficient margin/balance
         error_msg = str(error).lower()
         assert any(
-            keyword in error_msg 
-            for keyword in ["insufficient", "margin", "balance", "funds"]
+            keyword in error_msg for keyword in ["insufficient", "margin", "balance", "funds"]
         ), f"Error message should indicate insufficient margin: {error}"
 
     @pytest.mark.vcr()
@@ -178,14 +174,14 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test placing large perp order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.BUY
         )
-        
+
         # Large quantity that would require significant margin
         large_quantity = Decimal("100.0")
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -200,7 +196,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         error = exc_info.value
         logger.info(f"Large perp order error (expected): {error}")
-        
+
         # Validate error structure
         assert hasattr(error, "error_code") or hasattr(error, "message"), (
             "Error should have error_code or message attribute"
@@ -212,7 +208,7 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test perp market order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -234,7 +230,7 @@ class TestBackpackPerpOrdersZeroBalance:
         """Test canceling non-existent perp order returns appropriate error."""
         symbol = "SOL_USDC_PERP"
         fake_order_id = "nonexistent_perp_order_123"
-        
+
         cancel_args = CancelOrderArgs(
             symbol=symbol,
             order_id=fake_order_id,
@@ -245,12 +241,11 @@ class TestBackpackPerpOrdersZeroBalance:
 
         error = exc_info.value
         assert isinstance(error, APIError), f"Expected APIError, got {type(error)}"
-        
+
         # Error should indicate order not found
         error_msg = str(error).lower()
         assert any(
-            keyword in error_msg 
-            for keyword in ["not found", "invalid", "order", "nonexistent"]
+            keyword in error_msg for keyword in ["not found", "invalid", "order", "nonexistent"]
         ), f"Error message should indicate order not found: {error}"
 
     @pytest.mark.vcr()
@@ -259,10 +254,10 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test getting perp order history with zero balance account."""
         symbol = "SOL_USDC_PERP"
-        
+
         end_time = datetime.now()
         start_time = end_time - timedelta(days=7)  # Last 7 days
-        
+
         history_args = GetOrderHistoryArgs(
             symbol=symbol,
             start_time=start_time,
@@ -272,9 +267,9 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # This should work even with zero balance (historical data access)
         orders = await bp_api_zero_balance_test_env.get_order_history(history_args)
-        
+
         assert isinstance(orders, list), f"Expected list of orders, got {type(orders)}"
-        
+
         # With zero balance account, order history might be empty
         for order in orders:
             assert isinstance(order, Order), f"Each item should be Order model, got {type(order)}"
@@ -286,11 +281,11 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test that perp order requests properly validate authentication."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.BUY
         )
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -305,7 +300,7 @@ class TestBackpackPerpOrdersZeroBalance:
             await bp_api_zero_balance_test_env.place_order(place_args)
 
         error = exc_info.value
-        
+
         # Should not be an authentication error, but a margin error
         error_msg = str(error).lower()
         assert "unauthorized" not in error_msg and "authentication" not in error_msg, (
@@ -318,11 +313,11 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test perp order precision validation even with zero margin."""
         symbol = "SOL_USDC_PERP"
-        
+
         # Test with very precise values
         precise_quantity = Decimal("0.123456789")
         precise_price = Decimal("123.456789")
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -346,14 +341,14 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test perp order validation against leverage limits with zero margin."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.BUY
         )
-        
+
         # Test quantity that would imply very high leverage
         high_leverage_quantity = Decimal("50.0")  # Large position
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -376,11 +371,11 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test perp short order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.SELL
         )
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.SELL,  # Short position
@@ -395,13 +390,12 @@ class TestBackpackPerpOrdersZeroBalance:
 
         error = exc_info.value
         assert isinstance(error, APIError), "Short perp order should fail with zero margin"
-        
+
         # Error should indicate margin issues
         error_msg = str(error).lower()
-        assert any(
-            keyword in error_msg 
-            for keyword in ["insufficient", "margin", "balance"]
-        ), f"Error should indicate margin issues for short: {error}"
+        assert any(keyword in error_msg for keyword in ["insufficient", "margin", "balance"]), (
+            f"Error should indicate margin issues for short: {error}"
+        )
 
     @pytest.mark.vcr()
     async def test_perp_order_time_in_force_validation_zero_margin(
@@ -409,11 +403,11 @@ class TestBackpackPerpOrdersZeroBalance:
     ) -> None:
         """Test perp order time in force validation with zero margin."""
         symbol = "SOL_USDC_PERP"
-        
+
         test_price = await get_dynamic_perp_test_price_zero(
             bp_api_zero_balance_test_env, symbol, OrderSide.BUY
         )
-        
+
         # Test different time in force options
         for tif in [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]:
             place_args = PlaceOrderArgs(

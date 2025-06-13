@@ -33,11 +33,7 @@ class FreezerProtocol(Protocol):
 
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.perp,
-    pytest.mark.vcr
-]
+pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 
 
 @pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/candles"], indirect=True)
@@ -51,7 +47,10 @@ class TestBackpackPerpCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() with SOL_USDC_PERP 1h interval returns valid Candle models."""
+        """Test BackpackAPI.get_market_data() with SOL_USDC_PERP 1h interval.
+
+        Returns valid Candle models.
+        """
         # Use dynamic timestamps that are recent but deterministic for VCR
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)  # 1 week ago
@@ -115,7 +114,9 @@ class TestBackpackPerpCandles:
                 assert candle.high > Decimal("0"), (
                     f"Candle {i} high should be positive, got {candle.high}"
                 )
-                assert candle.low > Decimal("0"), f"Candle {i} low should be positive, got {candle.low}"
+                assert candle.low > Decimal("0"), (
+                    f"Candle {i} low should be positive, got {candle.low}"
+                )
                 assert candle.close > Decimal("0"), (
                     f"Candle {i} close should be positive, got {candle.close}"
                 )
@@ -149,7 +150,10 @@ class TestBackpackPerpCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() with BTC_USDC_PERP 1h interval returns valid Candle models."""
+        """Test BackpackAPI.get_market_data() with BTC_USDC_PERP 1h interval.
+
+        Returns valid Candle models.
+        """
         # Use dynamic timestamps that are recent but deterministic for VCR
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)  # 1 week ago
@@ -184,10 +188,18 @@ class TestBackpackPerpCandles:
                 )
 
                 # BTC perp prices should be in reasonable range
-                assert candle.open > Decimal("1000"), f"BTC perp open price seems too low: {candle.open}"
-                assert candle.high > Decimal("1000"), f"BTC perp high price seems too low: {candle.high}"
-                assert candle.low > Decimal("1000"), f"BTC perp low price seems too low: {candle.low}"
-                assert candle.close > Decimal("1000"), f"BTC perp close price seems too low: {candle.close}"
+                assert candle.open > Decimal("1000"), (
+                    f"BTC perp open price seems too low: {candle.open}"
+                )
+                assert candle.high > Decimal("1000"), (
+                    f"BTC perp high price seems too low: {candle.high}"
+                )
+                assert candle.low > Decimal("1000"), (
+                    f"BTC perp low price seems too low: {candle.low}"
+                )
+                assert candle.close > Decimal("1000"), (
+                    f"BTC perp close price seems too low: {candle.close}"
+                )
 
     @pytest.mark.vcr()
     async def test_bp_get_market_data_eth_usdc_perp_1h_success(
@@ -196,7 +208,10 @@ class TestBackpackPerpCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() with ETH_USDC_PERP 1h interval returns valid Candle models."""
+        """Test BackpackAPI.get_market_data() with ETH_USDC_PERP 1h interval.
+
+        Returns valid Candle models.
+        """
         # Use dynamic timestamps that are recent but deterministic for VCR
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)  # 1 week ago
@@ -231,10 +246,18 @@ class TestBackpackPerpCandles:
                 )
 
                 # ETH perp prices should be in reasonable range
-                assert candle.open > Decimal("100"), f"ETH perp open price seems too low: {candle.open}"
-                assert candle.high > Decimal("100"), f"ETH perp high price seems too low: {candle.high}"
-                assert candle.low > Decimal("100"), f"ETH perp low price seems too low: {candle.low}"
-                assert candle.close > Decimal("100"), f"ETH perp close price seems too low: {candle.close}"
+                assert candle.open > Decimal("100"), (
+                    f"ETH perp open price seems too low: {candle.open}"
+                )
+                assert candle.high > Decimal("100"), (
+                    f"ETH perp high price seems too low: {candle.high}"
+                )
+                assert candle.low > Decimal("100"), (
+                    f"ETH perp low price seems too low: {candle.low}"
+                )
+                assert candle.close > Decimal("100"), (
+                    f"ETH perp close price seems too low: {candle.close}"
+                )
 
     @pytest.mark.vcr()
     async def test_bp_get_market_data_different_intervals_perp(
@@ -283,8 +306,12 @@ class TestBackpackPerpCandles:
                 # Validate structure if candles exist
                 if len(candles) > 0:
                     for candle in candles:
-                        assert isinstance(candle, Candle), f"Should be Candle for interval {interval}"
-                        assert candle.symbol == "SOL_USDC_PERP", f"Wrong symbol for interval {interval}"
+                        assert isinstance(candle, Candle), (
+                            f"Should be Candle for interval {interval}"
+                        )
+                        assert candle.symbol == "SOL_USDC_PERP", (
+                            f"Wrong symbol for interval {interval}"
+                        )
 
             except APIError:
                 # Some intervals might not be supported, which is acceptable
@@ -331,7 +358,8 @@ class TestBackpackPerpCandles:
                 if hasattr(current_candle, "open_time") and hasattr(next_candle, "open_time"):
                     # Check that timestamps are reasonable and consistent
                     assert isinstance(current_candle.open_time, datetime), (
-                        f"Candle {i} open_time should be datetime, got {type(current_candle.open_time)}"
+                        f"Candle {i} open_time should be datetime, "
+                        f"got {type(current_candle.open_time)}"
                     )
                     assert isinstance(next_candle.open_time, datetime), (
                         f"Candle {i + 1} open_time should be datetime, "
@@ -339,7 +367,9 @@ class TestBackpackPerpCandles:
                     )
 
                     # For 1h interval, timestamps should be 1 hour apart
-                    time_diff = abs((next_candle.open_time - current_candle.open_time).total_seconds())
+                    time_diff = abs(
+                        (next_candle.open_time - current_candle.open_time).total_seconds()
+                    )
                     # Allow some flexibility in ordering, but times should be reasonable
                     assert time_diff >= 3600, (
                         f"1h perp candles should be at least 1 hour apart: {time_diff} seconds"
@@ -422,7 +452,7 @@ class TestBackpackPerpCandles:
                     avg_price = (candle.high + candle.low) / Decimal("2")
                     notional_volume = candle.volume * avg_price
                     margin_requirement = notional_volume / leverage_factor
-                    
+
                     assert isinstance(notional_volume, Decimal), (
                         "Notional volume calculation should maintain Decimal type"
                     )
@@ -443,7 +473,10 @@ class TestBackpackPerpCandles:
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
     ) -> None:
-        """Test BackpackAPI.get_market_data() validates comprehensive OHLC relationships for perp."""
+        """Test BackpackAPI.get_market_data() validates comprehensive OHLC relationships.
+
+        For perp markets.
+        """
         # Use dynamic timestamps that are recent but deterministic for VCR
         now = datetime.now(UTC)
         end_time_dt = now - timedelta(days=7)  # 1 week ago
@@ -505,7 +538,8 @@ class TestBackpackPerpCandles:
 
                 if avg_price > Decimal("0"):
                     range_percentage = (price_range / avg_price) * Decimal("100")
-                    # For 1h perp candles, price range can be larger than spot due to leverage effects
+                    # For 1h perp candles, price range can be larger than spot due to
+                    # leverage effects
                     # but still shouldn't be extremely large
                     assert range_percentage < Decimal("100"), (
                         f"Perp candle {i}: price range seems unusually large: {range_percentage}%"
@@ -631,24 +665,24 @@ class TestBackpackPerpCandles:
         candles = await bp_api_for_test_env.get_market_data(args)
 
         if len(candles) > 0:
-            for i, candle in enumerate(candles):
+            for _, candle in enumerate(candles):
                 # Test that perp candles can handle funding-related calculations
                 # Funding typically occurs every 8 hours
-                
+
                 # Test funding rate calculations (typical range: -0.1% to +0.1%)
                 typical_funding_rate = Decimal("0.001")  # 0.1%
                 funding_payment = candle.close * typical_funding_rate
-                
+
                 assert isinstance(funding_payment, Decimal), (
                     "Funding payment calculation should maintain Decimal type"
                 )
-                
+
                 # Test that price precision supports funding calculations
                 min_funding = candle.close * Decimal("0.0001")  # 0.01% minimum
                 assert isinstance(min_funding, Decimal), (
                     "Minimum funding calculation should maintain Decimal type"
                 )
-                
+
                 # Validate funding payment is reasonable relative to price
                 if candle.close > Decimal("0"):
                     funding_percentage = (funding_payment / candle.close) * Decimal("100")
@@ -686,29 +720,33 @@ class TestBackpackPerpCandles:
 
         if len(candles) > 1:
             # Test volatility characteristics that might be amplified by leverage
-            price_changes = []
-            volumes = []
-            
+            price_changes: list[Decimal] = []
+            volumes: list[Decimal] = []
+
             for i in range(len(candles) - 1):
                 current = candles[i]
                 next_candle = candles[i + 1]
-                
+
                 # Calculate price change between candles
                 if current.close > Decimal("0"):
                     price_change = abs(next_candle.open - current.close) / current.close
                     price_changes.append(price_change)
-                    
+
                 volumes.append(current.volume)
-            
+
             if price_changes:
                 # Perp markets can have higher volatility due to leverage
                 max_change = max(price_changes)
                 avg_change = sum(price_changes) / len(price_changes)
-                
+
                 # These should be reasonable even with leverage effects
-                assert max_change < Decimal("0.5"), f"Maximum price change seems extreme: {max_change}"
-                assert avg_change < Decimal("0.1"), f"Average price change seems extreme: {avg_change}"
-            
+                assert max_change < Decimal("0.5"), (
+                    f"Maximum price change seems extreme: {max_change}"
+                )
+                assert avg_change < Decimal("0.1"), (
+                    f"Average price change seems extreme: {avg_change}"
+                )
+
             if volumes:
                 # Volume should be consistent across candles
                 total_volume = sum(volumes)

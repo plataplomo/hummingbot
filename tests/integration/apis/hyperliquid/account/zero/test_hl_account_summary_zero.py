@@ -38,7 +38,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
     "custom_vcr_cassette_dir", ["apis/hyperliquid/account/zero"], indirect=True
 )
 class TestHyperliquidAccountSummaryZero:
-    """Comprehensive account summary integration tests for MarginAccountSummary model with zero balance scenarios.
+    """Comprehensive account summary integration tests for MarginAccountSummary model.
+
+    With zero balance scenarios.
 
     Tests the integration between Hyperliquid API and our internal MarginAccountSummary model
     focusing on zero balance edge cases and empty account scenarios.

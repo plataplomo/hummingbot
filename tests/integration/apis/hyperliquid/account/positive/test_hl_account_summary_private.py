@@ -37,11 +37,7 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.requires_balance,
-    pytest.mark.positive_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
 
 
 @pytest.mark.parametrize(

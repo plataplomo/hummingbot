@@ -20,7 +20,9 @@ from cyberdelta.core.models.market.market import Market
 pytestmark = [pytest.mark.integration, pytest.mark.perp]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/backpack/perp/market_data/private"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/perp/market_data/private"], indirect=True
+)
 class TestBackpackPerpMarketPrivate:
     """Integration tests for Perpetual Market model pipeline with authenticated context."""
 
@@ -79,7 +81,7 @@ class TestBackpackPerpMarketPrivate:
 
         # Test first 3 perpetual markets only
         perp_markets = [m for m in markets if "-PERP" in m.symbol][:3]
-        
+
         for market in perp_markets:
             individual_args = GetMarketArgs(symbol=market.symbol)
             individual_market = await bp_api_for_test_env.get_market(individual_args)

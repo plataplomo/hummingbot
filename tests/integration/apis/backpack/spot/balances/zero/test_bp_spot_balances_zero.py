@@ -22,11 +22,7 @@ from tests.integration.apis.shared.validation_helpers import assert_valid_spot_b
 logger = logging.getLogger(__name__)
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.zero_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 
 @pytest.mark.parametrize(
@@ -169,13 +165,15 @@ class TestBackpackSpotBalancesZero:
 
         if len(successful_results) > 1:
             first_result = successful_results[0]
-            for i, result in enumerate(successful_results[1:], 1):
+            for _, result in enumerate(successful_results[1:], 1):
                 assert result.keys() == first_result.keys()
 
                 for asset in first_result.keys():
                     assert result[asset].total_quantity == first_result[asset].total_quantity
 
-        logger.info(f"✓ Concurrent balance requests consistent: {len(successful_results)} successful")
+        logger.info(
+            f"✓ Concurrent balance requests consistent: {len(successful_results)} successful"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

@@ -8,7 +8,7 @@ import pytest
 
 
 @pytest.fixture
-def hl_spot_test_config() -> dict[str, list[str] | Decimal]:
+def hl_spot_test_config() -> dict[str, list[str] | list[Decimal] | Decimal]:
     """Hyperliquid spot test configuration."""
     return {
         "symbols": ["ETH", "BTC", "USDC"],

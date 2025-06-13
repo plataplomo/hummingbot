@@ -14,7 +14,7 @@ def spot_test_symbols() -> list[str]:
     return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
 
 
-@pytest.fixture  
+@pytest.fixture
 def perp_test_symbols() -> list[str]:
     """Common perp symbols for testing."""
     return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]
@@ -25,9 +25,9 @@ def precision_test_amounts() -> list[Decimal]:
     """Test amounts for precision validation."""
     return [
         Decimal("0.00000001"),  # Dust
-        Decimal("0.1"),         # Small
-        Decimal("100"),         # Normal
-        Decimal("999999.99")    # Large
+        Decimal("0.1"),  # Small
+        Decimal("100"),  # Normal
+        Decimal("999999.99"),  # Large
     ]
 
 

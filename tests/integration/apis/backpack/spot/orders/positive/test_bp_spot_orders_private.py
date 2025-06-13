@@ -41,7 +41,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.spot,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 logger = get_logger(__name__)
@@ -64,6 +64,7 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
     try:
         # Use the public API method to get market metadata
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
         markets = await api.get_markets(GetMarketsArgs())
 
         # Find the market by symbol
@@ -154,8 +155,9 @@ class TestBackpackSpotOrdersPositiveBalance:
         """Get market constraints for precision testing."""
         try:
             from cyberdelta.apis.models.service_args_models import GetMarketArgs
+
             market = await api.get_market(GetMarketArgs(symbol=symbol))
-            
+
             return {
                 "step_size": market.step_size or Decimal("0.001"),
                 "tick_size": market.tick_size or Decimal("0.01"),
@@ -166,7 +168,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             # Safe fallbacks based on common Backpack requirements
             return {
                 "step_size": Decimal("0.001"),
-                "tick_size": Decimal("0.01"), 
+                "tick_size": Decimal("0.01"),
                 "min_quantity": Decimal("0.001"),
             }
 
@@ -236,7 +238,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 symbol=symbol,
             )
             await bp_api_for_test_env.cancel_order(cancel_args)
-            
+
         logger.info(f"✓ Order placement successful with ID: {placed_order.exchange_order_id}")
 
     @pytest.mark.vcr
@@ -263,7 +265,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             side=side,
             tolerance_percent=Decimal("4"),
         )
-        
+
         # First, place an order
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -273,10 +275,10 @@ class TestBackpackSpotOrdersPositiveBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         placed_order = await bp_api_for_test_env.place_order(place_args)
         assert placed_order.exchange_order_id is not None, "Placed order should have ID"
-        
+
         # Now cancel the order
         cancel_args = CancelOrderArgs(
             order_id=placed_order.exchange_order_id,
@@ -285,7 +287,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         # Cancel should succeed without raising an exception
         await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         # Verify the order is no longer in open orders
         open_orders = await bp_api_for_test_env.get_open_orders()
         order_ids = [order.exchange_order_id for order in open_orders]
@@ -412,7 +414,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test order precision handling with successful placement and cancellation.
-        
+
         This validates that decimal precision is maintained through the complete
         order lifecycle when orders are successfully placed.
         """
@@ -420,28 +422,25 @@ class TestBackpackSpotOrdersPositiveBalance:
         _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
-        
+
         # Get market constraints
         constraints = await self._get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
         tick_size = constraints["tick_size"]
-        
+
         # Use a quantity that's exactly aligned with step size
         test_quantity = min_quantity * Decimal("2")  # 2x minimum
         rounded_quantity = (test_quantity / step_size).quantize(Decimal("1")) * step_size
-        
+
         # Get dynamic test price
         test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
-            symbol=symbol,
-            side=side,
-            tolerance_percent=Decimal("4")
+            api=bp_api_for_test_env, symbol=symbol, side=side, tolerance_percent=Decimal("4")
         )
-        
+
         # Round price to valid tick size
         rounded_price = test_price.quantize(tick_size)
-        
+
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
@@ -450,29 +449,25 @@ class TestBackpackSpotOrdersPositiveBalance:
             price=rounded_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         # Place order and validate precision
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Validate precision is maintained
         assert placed_order.quantity_requested == rounded_quantity, (
             f"Quantity precision not maintained: expected {rounded_quantity}, "
             f"got {placed_order.quantity_requested}"
         )
-        
+
         assert placed_order.price == rounded_price, (
-            f"Price precision not maintained: expected {rounded_price}, "
-            f"got {placed_order.price}"
+            f"Price precision not maintained: expected {rounded_price}, got {placed_order.price}"
         )
-        
+
         # Clean up
         if placed_order.exchange_order_id:
-            cancel_args = CancelOrderArgs(
-                order_id=placed_order.exchange_order_id,
-                symbol=symbol
-            )
+            cancel_args = CancelOrderArgs(order_id=placed_order.exchange_order_id, symbol=symbol)
             await bp_api_for_test_env.cancel_order(cancel_args)
-            
+
         logger.info(
             f"✓ Precision validation successful for quantity {rounded_quantity} "
             f"and price {rounded_price}"
@@ -494,10 +489,10 @@ class TestBackpackSpotOrdersPositiveBalance:
         _ = custom_vcr_config
         symbol = "SOL_USDC"
         side = OrderSide.BUY
-        
+
         # Place multiple small orders
         placed_orders: list[Order] = []
-        
+
         for i in range(2):  # Place 2 small orders
             test_price = await get_dynamic_test_price(
                 api=bp_api_for_test_env,
@@ -505,7 +500,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 side=side,
                 tolerance_percent=Decimal("3") + Decimal(str(i)),  # Slightly different prices
             )
-            
+
             place_args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
@@ -514,15 +509,15 @@ class TestBackpackSpotOrdersPositiveBalance:
                 price=test_price,
                 time_in_force=TimeInForce.GTC,
             )
-            
+
             placed_order = await bp_api_for_test_env.place_order(place_args)
             placed_orders.append(placed_order)
-            
+
             # Validate each order
-            assert isinstance(placed_order, Order), f"Order {i+1} should be Order instance"
-            assert placed_order.exchange_order_id is not None, f"Order {i+1} should have ID"
-            assert placed_order.status == OrderStatus.OPEN, f"Order {i+1} should be OPEN"
-        
+            assert isinstance(placed_order, Order), f"Order {i + 1} should be Order instance"
+            assert placed_order.exchange_order_id is not None, f"Order {i + 1} should have ID"
+            assert placed_order.status == OrderStatus.OPEN, f"Order {i + 1} should be OPEN"
+
         # Verify orders appear in open orders
         open_orders = await bp_api_for_test_env.get_open_orders()
         placed_order_ids = {
@@ -531,12 +526,10 @@ class TestBackpackSpotOrdersPositiveBalance:
         open_order_ids = {
             order.exchange_order_id for order in open_orders if order.exchange_order_id
         }
-        
+
         for order_id in placed_order_ids:
-            assert order_id in open_order_ids, (
-                f"Order {order_id} should be in open orders"
-            )
-        
+            assert order_id in open_order_ids, f"Order {order_id} should be in open orders"
+
         # Clean up: cancel all placed orders
         for order in placed_orders:
             if order.exchange_order_id:
@@ -545,7 +538,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     symbol=symbol,
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         logger.info(f"✓ Successfully placed and cancelled {len(placed_orders)} orders")
 
     @pytest.mark.vcr
@@ -570,7 +563,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             side=side,
             tolerance_percent=Decimal("4"),
         )
-        
+
         # Place an order to validate symbol format
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -580,9 +573,9 @@ class TestBackpackSpotOrdersPositiveBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Validate symbol format in placed order
         order_symbol = placed_order.symbol
         assert isinstance(order_symbol, str), "Symbol should be string"
@@ -591,20 +584,18 @@ class TestBackpackSpotOrdersPositiveBalance:
         assert order_symbol == symbol, (
             f"Returned symbol should match: expected {symbol}, got {order_symbol}"
         )
-        
+
         # Validate Backpack format (BASE_QUOTE)
         if "_" in order_symbol:
             parts = order_symbol.split("_")
             assert len(parts) == 2, (
                 f"Trading pair should have exactly one underscore: {order_symbol}"
             )
-            assert len(parts[0]) >= 2, (
-                f"Base asset should be at least 2 characters: {order_symbol}"
-            )
+            assert len(parts[0]) >= 2, f"Base asset should be at least 2 characters: {order_symbol}"
             assert len(parts[1]) >= 3, (
                 f"Quote asset should be at least 3 characters: {order_symbol}"
             )
-        
+
         # Clean up
         if placed_order.exchange_order_id:
             cancel_args = CancelOrderArgs(
@@ -612,7 +603,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 symbol=symbol,
             )
             await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         logger.info(f"✓ Symbol format validation passed for {order_symbol}")
 
     @pytest.mark.vcr
@@ -653,31 +644,31 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
         assert placed_order.exchange_order_id is not None, "Should have order ID"
-        
+
         # Step 2: Verify order in open orders
         open_orders = await bp_api_for_test_env.get_open_orders()
         assert isinstance(open_orders, list), "get_open_orders() should return list"
         order_ids = [order.exchange_order_id for order in open_orders]
         assert placed_order.exchange_order_id in order_ids, "Order should be in open orders"
-        
+
         # Step 3: Cancel order
         cancel_args = CancelOrderArgs(
             order_id=placed_order.exchange_order_id,
             symbol=symbol,
         )
         await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         # Step 4: Verify order no longer in open orders
         open_orders_after = await bp_api_for_test_env.get_open_orders()
         order_ids_after = [order.exchange_order_id for order in open_orders_after]
         assert placed_order.exchange_order_id not in order_ids_after, (
             "Cancelled order should not be in open orders"
         )
-        
+
         # Step 5: Verify order appears in history
         end_time = datetime.now()
         start_time = end_time - timedelta(days=1)
-        
+
         args = GetOrderHistoryArgs(
             start_time=start_time,
             end_time=end_time,
@@ -685,12 +676,12 @@ class TestBackpackSpotOrdersPositiveBalance:
         )
         order_history = await bp_api_for_test_env.get_order_history(args)
         history_order_ids = [order.exchange_order_id for order in order_history]
-        
+
         # The cancelled order should appear in history
         assert placed_order.exchange_order_id in history_order_ids, (
             "Cancelled order should be in history"
         )
-        
+
         logger.info(
             f"✓ Complete order lifecycle validated for order {placed_order.exchange_order_id}"
         )
@@ -729,46 +720,46 @@ class TestBackpackSpotOrdersPositiveBalance:
         )
 
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Validate Backpack-specific order fields
         assert placed_order.exchange == "backpack", "Order should be from Backpack"
-        
+
         # Validate order ID format (Backpack specific)
         assert isinstance(placed_order.exchange_order_id, str), "Backpack order ID should be string"
         assert len(placed_order.exchange_order_id) > 0, "Order ID should not be empty"
-        
+
         # Test Backpack-specific order details if present
         if hasattr(placed_order, "bp_details") and placed_order.bp_details:
             bp_details = placed_order.bp_details
-            
+
             # Validate Backpack-specific order details if present
             client_id = getattr(bp_details, "client_id", None)
             if client_id is not None:
                 assert isinstance(client_id, str), "client_id should be string"
-            
+
             order_flags = getattr(bp_details, "order_flags", None)
             if order_flags is not None:
                 assert isinstance(order_flags, int | str), "order_flags should be int or string"
-        
+
         # Validate that order appears in get_open_orders with Backpack structure
         open_orders = await bp_api_for_test_env.get_open_orders()
         placed_order_found = False
-        
+
         for order in open_orders:
             if order.exchange_order_id == placed_order.exchange_order_id:
                 placed_order_found = True
                 assert order.exchange == "backpack", "Order in open orders should be from Backpack"
                 break
-        
+
         assert placed_order_found, "Placed order should be found in open orders"
-        
+
         # Clean up
         cancel_args = CancelOrderArgs(
             order_id=placed_order.exchange_order_id,
             symbol=symbol,
         )
         await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         logger.info(
             f"✓ Backpack-specific order details validated for order "
             f"{placed_order.exchange_order_id}"
@@ -796,7 +787,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             side=side,
             tolerance_percent=Decimal("4"),
         )
-        
+
         # Place and immediately cancel an order to ensure we have recent history
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -806,19 +797,17 @@ class TestBackpackSpotOrdersPositiveBalance:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         placed_order = await bp_api_for_test_env.place_order(place_args)
-        
+
         # Cancel immediately to add to history
-        assert placed_order.exchange_order_id is not None, (
-            "Order should have ID"
-        )
+        assert placed_order.exchange_order_id is not None, "Order should have ID"
         cancel_args = CancelOrderArgs(
             order_id=placed_order.exchange_order_id,
             symbol=symbol,
         )
         await bp_api_for_test_env.cancel_order(cancel_args)
-        
+
         # Test recent date range (should include our cancelled order)
         end_time = datetime.now()
         start_time = end_time - timedelta(hours=1)  # Last hour
@@ -861,12 +850,12 @@ class TestBackpackSpotOrdersPositiveBalance:
         assert placed_order.exchange_order_id in long_order_ids, (
             "Order should be in longer history too"
         )
-        
+
         # Longer range should have >= orders from shorter range
         assert len(long_history) >= len(recent_history), (
             "Longer date range should include at least as many orders"
         )
-        
+
         logger.info(
             f"✓ Date range validation completed with order {placed_order.exchange_order_id}"
         )

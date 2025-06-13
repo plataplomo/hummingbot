@@ -1,1 +1,1 @@
-"""Shared utilities for integration tests."""
+"""Shared integration test utilities."""

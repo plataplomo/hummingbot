@@ -12,7 +12,9 @@ from cyberdelta.core.models.market.candle import Candle
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -20,7 +22,10 @@ async def test_hl_get_perp_market_data_btc_1h_success(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test HyperliquidAPI.get_market_data() with BTC 1h interval returns valid perpetual Candle models."""
+    """Test HyperliquidAPI.get_market_data() with BTC 1h interval.
+
+    Returns valid perpetual Candle models.
+    """
     end_time = 1640995200
     start_time = end_time - 3600
 
@@ -58,7 +63,9 @@ async def test_hl_get_perp_market_data_btc_1h_success(
             assert candle.symbol == "BTC", f"Wrong symbol: {candle.symbol}"
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -66,7 +73,10 @@ async def test_hl_get_perp_market_data_eth_1h_success(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test HyperliquidAPI.get_market_data() with ETH 1h interval returns valid perpetual Candle models."""
+    """Test HyperliquidAPI.get_market_data() with ETH 1h interval.
+
+    Returns valid perpetual Candle models.
+    """
     end_time = 1640995200
     start_time = end_time - 3600
 

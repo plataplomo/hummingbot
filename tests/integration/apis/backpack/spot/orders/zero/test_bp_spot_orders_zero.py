@@ -42,11 +42,7 @@ from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.spot,
-    pytest.mark.zero_balance
-]
+pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 logger = get_logger(__name__)
 

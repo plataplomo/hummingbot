@@ -18,7 +18,6 @@ VCR: Records both success and error responses with sensitive data filtering
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -34,7 +33,9 @@ from cyberdelta.core.models.spot_balance import SpotBalance
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/spot/balances/zero"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/balances/zero"], indirect=True
+)
 @pytest.mark.spot
 @pytest.mark.zero_balance
 class TestHyperliquidSpotBalancesZero:

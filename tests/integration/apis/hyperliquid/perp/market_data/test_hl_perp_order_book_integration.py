@@ -11,7 +11,9 @@ from cyberdelta.core.models import OrderBook
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -36,7 +38,9 @@ async def test_hl_get_perp_order_book_btc_success(
     assert isinstance(ask_price, Decimal) and ask_price > bid_price
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True
+)
 @pytest.mark.perp
 @pytest.mark.asyncio
 @pytest.mark.vcr

@@ -8,7 +8,7 @@ import pytest
 
 
 @pytest.fixture
-def hl_perp_test_config() -> dict[str, list[str] | Decimal | int]:
+def hl_perp_test_config() -> dict[str, list[str] | list[Decimal] | Decimal | int]:
     """Hyperliquid perp test configuration."""
     return {
         "symbols": ["BTC-PERP", "ETH-PERP", "SOL-PERP"],

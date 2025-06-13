@@ -21,7 +21,9 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 
-@pytest.mark.parametrize("custom_vcr_cassette_dir", ["apis/hyperliquid/spot/market_data/market"], indirect=True)
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/market_data/market"], indirect=True
+)
 @pytest.mark.spot
 @pytest.mark.asyncio
 @pytest.mark.vcr

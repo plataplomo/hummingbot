@@ -1,7 +1,8 @@
 """Integration tests for Hyperliquid private perpetual orders endpoints.
 
 This module focuses specifically on testing the Order model pipeline
-through Hyperliquid's private /exchange endpoints with EIP-712 authentication for perpetual contracts.
+through Hyperliquid's private /exchange endpoints with EIP-712 authentication for
+perpetual contracts.
 Tests validate complete data transformation for state-changing operations.
 
 Model Focus: Order (Write Operations - Perpetual)
@@ -38,7 +39,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.perp,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 
@@ -48,7 +49,8 @@ pytestmark = [
 class TestHyperliquidPerpOrdersPrivate:
     """Comprehensive private perpetual orders integration tests for /exchange endpoint operations.
 
-    This class tests only /exchange endpoint operations (signed with EIP-712) for perpetual contracts:
+    This class tests only /exchange endpoint operations (signed with EIP-712) for
+    perpetual contracts:
     - place_order (perpetual contracts)
     - cancel_order (perpetual contracts)
     - cancel_all_orders (perpetual contracts)

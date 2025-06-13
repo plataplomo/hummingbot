@@ -21,7 +21,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.perp,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance
+    pytest.mark.positive_balance,
 ]
 
 
@@ -63,11 +63,7 @@ class TestBackpackPerpPositionsPrivate:
             if position.mark_price is not None:
                 assert position.mark_price > Decimal("0")
 
-        size_precision = (
-            len(str(position.size).split(".")[-1])
-            if "." in str(position.size)
-            else 0
-        )
+        size_precision = len(str(position.size).split(".")[-1]) if "." in str(position.size) else 0
         assert size_precision <= 18
 
         if position.entry_price is not None:
@@ -100,13 +96,13 @@ class TestBackpackPerpPositionsPrivate:
 
             if position.bp_details:
                 bp_details = position.bp_details
-                if bp_details.initial_margin is not None:
-                    assert isinstance(bp_details.initial_margin, Decimal)
-                    assert bp_details.initial_margin >= Decimal("0")
+                if bp_details.imf_base is not None:
+                    assert isinstance(bp_details.imf_base, Decimal)
+                    assert bp_details.imf_base >= Decimal("0")
 
-                if bp_details.maintenance_margin is not None:
-                    assert isinstance(bp_details.maintenance_margin, Decimal)
-                    assert bp_details.maintenance_margin >= Decimal("0")
+                if bp_details.mmf_base is not None:
+                    assert isinstance(bp_details.mmf_base, Decimal)
+                    assert bp_details.mmf_base >= Decimal("0")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -153,15 +149,30 @@ class TestBackpackPerpPositionsPrivate:
 
         for position in positions:
             if position.size != Decimal("0"):
-                assert position.unrealized_pnl.is_finite()
-                assert position.realized_pnl.is_finite()
+                if position.unrealized_pnl is not None:
+                    assert position.unrealized_pnl.is_finite()
+                if position.realized_pnl is not None:
+                    assert position.realized_pnl.is_finite()
 
-                total_pnl = position.unrealized_pnl + position.realized_pnl
-                assert total_pnl.is_finite()
+                if position.unrealized_pnl is not None and position.realized_pnl is not None:
+                    total_pnl = position.unrealized_pnl + position.realized_pnl
+                    assert total_pnl.is_finite()
 
-                if position.size > Decimal("0") and position.mark_price > position.entry_price:
+                if (
+                    position.size > Decimal("0")
+                    and position.mark_price is not None
+                    and position.entry_price is not None
+                    and position.mark_price > position.entry_price
+                    and position.unrealized_pnl is not None
+                ):
                     assert position.unrealized_pnl >= Decimal("0")
-                elif position.size < Decimal("0") and position.mark_price < position.entry_price:
+                elif (
+                    position.size < Decimal("0")
+                    and position.mark_price is not None
+                    and position.entry_price is not None
+                    and position.mark_price < position.entry_price
+                    and position.unrealized_pnl is not None
+                ):
                     assert position.unrealized_pnl >= Decimal("0")
 
     @pytest.mark.vcr
@@ -181,14 +192,14 @@ class TestBackpackPerpPositionsPrivate:
             if position.bp_details and position.size != Decimal("0"):
                 bp_details = position.bp_details
 
-                if bp_details.initial_margin is not None and bp_details.maintenance_margin is not None:
-                    assert bp_details.initial_margin >= bp_details.maintenance_margin
+                if bp_details.imf_base is not None and bp_details.mmf_base is not None:
+                    assert bp_details.imf_base >= bp_details.mmf_base
 
-                if bp_details.initial_margin is not None:
-                    assert bp_details.initial_margin > Decimal("0")
+                if bp_details.imf_factor is not None:
+                    assert bp_details.imf_factor >= Decimal("0")
 
-                if bp_details.maintenance_margin is not None:
-                    assert bp_details.maintenance_margin >= Decimal("0")
+                if bp_details.mmf_factor is not None:
+                    assert bp_details.mmf_factor >= Decimal("0")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -226,7 +237,9 @@ class TestBackpackPerpPositionsPrivate:
             for result in successful_results[1:]:
                 assert len(first_result) == len(result)
 
-                for j, (first_pos, second_pos) in enumerate(zip(first_result, result)):
+                for _, (first_pos, second_pos) in enumerate(
+                    zip(first_result, result, strict=False)
+                ):
                     assert first_pos.symbol == second_pos.symbol
                     size_diff = abs(first_pos.size - second_pos.size)
                     assert size_diff <= Decimal("0.00001")
@@ -247,13 +260,16 @@ class TestBackpackPerpPositionsPrivate:
         for position in positions:
             if abs(position.size) > Decimal("1000"):
                 assert position.size.is_finite()
-                assert position.entry_price > Decimal("0")
-                assert position.mark_price > Decimal("0")
+                if position.entry_price is not None:
+                    assert position.entry_price > Decimal("0")
+                if position.mark_price is not None:
+                    assert position.mark_price > Decimal("0")
 
-                notional_value = abs(position.size) * position.mark_price
-                assert notional_value.is_finite()
+                if position.mark_price is not None:
+                    notional_value = abs(position.size) * position.mark_price
+                    assert notional_value.is_finite()
 
-                if position.bp_details and position.bp_details.initial_margin:
-                    margin_ratio = position.bp_details.initial_margin / notional_value
-                    assert margin_ratio > Decimal("0")
-                    assert margin_ratio <= Decimal("1")
+                    if position.bp_details and position.bp_details.imf_base:
+                        margin_ratio = position.bp_details.imf_base / notional_value
+                        assert margin_ratio > Decimal("0")
+                        assert margin_ratio <= Decimal("1")

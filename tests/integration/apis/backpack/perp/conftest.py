@@ -8,7 +8,7 @@ import pytest
 
 
 @pytest.fixture
-def bp_perp_test_config() -> dict[str, list[str] | Decimal | int]:
+def bp_perp_test_config() -> dict[str, list[str] | list[Decimal] | Decimal | int]:
     """Backpack perp test configuration."""
     return {
         "symbols": ["SOL-PERP", "BTC-PERP", "ETH-PERP"],

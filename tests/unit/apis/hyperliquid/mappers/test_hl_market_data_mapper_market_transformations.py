@@ -5,7 +5,7 @@
 Comprehensive test suite for HyperliquidMarketDataMapper market transformation methods.
 Tests the new market-related transformation methods including:
 - Meta and asset contexts to markets transformation
-- Single asset to market transformation  
+- Single asset to market transformation
 - Error handling and validation for market transformations
 - Edge cases and boundary conditions
 - Data consistency and type validation
@@ -83,15 +83,15 @@ def create_meta_and_asset_ctxs_response(
             create_asset_definition("ETH-PERP"),
             create_asset_definition("BTC-PERP", max_leverage=100, sz_decimals=5),
         ]
-    
+
     if asset_ctxs is None:
         asset_ctxs = [
             create_asset_ctx("ETH-PERP"),
             create_asset_ctx("BTC-PERP", mark_px="65000.00"),
         ]
-    
+
     meta = HyperliquidRawMetaResponse(universe=asset_definitions)
-    
+
     return HyperliquidRawMetaAndAssetCtxsResponse(
         meta=meta,
         asset_ctxs=asset_ctxs,
@@ -107,12 +107,12 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
     ) -> None:
         """Test successful transformation of meta and asset contexts to markets."""
         raw_response = create_meta_and_asset_ctxs_response()
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         assert isinstance(markets, list)
         assert len(markets) == 2
-        
+
         # Check first market (ETH-PERP)
         eth_market = markets[0]
         assert isinstance(eth_market, Market)
@@ -126,7 +126,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         assert eth_market.min_quantity == Decimal("0.0001")
         assert eth_market.hl_details is not None
         assert eth_market.bp_details is None
-        
+
         # Check Hyperliquid-specific details
         assert isinstance(eth_market.hl_details, HyperliquidMarketDetails)
         assert eth_market.hl_details.max_leverage == 50
@@ -134,7 +134,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         assert eth_market.hl_details.sz_decimals == 4
         assert eth_market.hl_details.mark_price == Decimal("3000.50")
         assert eth_market.hl_details.funding_rate == Decimal("0.0001")
-        
+
         # Check second market (BTC-PERP)
         btc_market = markets[1]
         assert btc_market.symbol == "BTC-PERP"
@@ -159,21 +159,21 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
             create_asset_ctx("ETH-PERP"),
             # Missing context for MISSING-PERP
         ]
-        
+
         raw_response = create_meta_and_asset_ctxs_response(asset_definitions, asset_ctxs)
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         # Should still create markets, but missing context asset will have None values
         assert len(markets) == 2
-        
+
         eth_market = next(m for m in markets if m.symbol == "ETH-PERP")
         missing_market = next(m for m in markets if m.symbol == "MISSING-PERP")
-        
+
         # ETH market should have context data
         assert eth_market.hl_details is not None
         assert eth_market.hl_details.mark_price == Decimal("3000.50")
-        
+
         # Missing context market should have None for context-dependent fields
         assert missing_market.hl_details is not None
         assert missing_market.hl_details.mark_price is None
@@ -185,9 +185,9 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
     ) -> None:
         """Test transformation with empty universe."""
         raw_response = create_meta_and_asset_ctxs_response([], [])
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         assert isinstance(markets, list)
         assert len(markets) == 0
 
@@ -198,12 +198,12 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
     ) -> None:
         """Test transformation with one invalid asset definition."""
         valid_def = create_asset_definition("ETH-PERP")
-        
+
         asset_definitions = [valid_def]
         asset_ctxs = [create_asset_ctx("ETH-PERP")]
-        
+
         raw_response = create_meta_and_asset_ctxs_response(asset_definitions, asset_ctxs)
-        
+
         # Mock the _create_market_from_asset_definition to raise an error for one asset
         with patch(
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
@@ -211,13 +211,15 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         ):
             with caplog.at_level(logging.WARNING):
                 markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
             # Should return empty list due to error
             assert len(markets) == 0
-            
+
             # Should log warning for failed transformation
-            assert any("Failed to transform asset definition ETH-PERP" in record.message 
-                      for record in caplog.records)
+            assert any(
+                "Failed to transform asset definition ETH-PERP" in record.message
+                for record in caplog.records
+            )
 
     def test_transform_meta_and_asset_ctxs_transformation_error(
         self,
@@ -243,34 +245,26 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
             create_asset_definition("MINIMAL-PERP", max_leverage=1, sz_decimals=0),
         ]
         extreme_ctxs = [
-            create_asset_ctx(
-                "EXTREME-PERP", 
-                funding="0.999999", 
-                mark_px="999999999.999999999999"
-            ),
-            create_asset_ctx(
-                "MINIMAL-PERP", 
-                funding="-0.999999", 
-                mark_px="0.000000000001"
-            ),
+            create_asset_ctx("EXTREME-PERP", funding="0.999999", mark_px="999999999.999999999999"),
+            create_asset_ctx("MINIMAL-PERP", funding="-0.999999", mark_px="0.000000000001"),
         ]
-        
+
         raw_response = create_meta_and_asset_ctxs_response(extreme_definitions, extreme_ctxs)
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         assert len(markets) == 2
-        
+
         extreme_market = next(m for m in markets if m.symbol == "EXTREME-PERP")
         minimal_market = next(m for m in markets if m.symbol == "MINIMAL-PERP")
-        
+
         # Check extreme values are preserved
         assert extreme_market.hl_details is not None
         assert extreme_market.hl_details.max_leverage == 1000
         assert extreme_market.hl_details.sz_decimals == 18
         assert extreme_market.tick_size == Decimal("1e-18")
         assert extreme_market.hl_details.funding_rate == Decimal("0.999999")
-        
+
         assert minimal_market.hl_details is not None
         assert minimal_market.hl_details.max_leverage == 1
         assert minimal_market.hl_details.sz_decimals == 0
@@ -288,9 +282,9 @@ class TestCreateMarketFromAssetDefinition:
         """Test creating market from asset definition with context."""
         asset_def = create_asset_definition("SOL-PERP", max_leverage=75, sz_decimals=3)
         asset_ctx = create_asset_ctx("SOL-PERP", mark_px="100.50", funding="0.0002")
-        
+
         market = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
-        
+
         assert isinstance(market, Market)
         assert market.symbol == "SOL-PERP"
         assert market.base_symbol == "SOL-PERP"
@@ -302,7 +296,7 @@ class TestCreateMarketFromAssetDefinition:
         assert market.max_quantity is None
         assert market.status == "Active"
         assert market.created_at is None
-        
+
         # Check Hyperliquid details
         assert market.hl_details is not None
         assert market.hl_details.max_leverage == 75
@@ -318,14 +312,14 @@ class TestCreateMarketFromAssetDefinition:
     ) -> None:
         """Test creating market from asset definition without context."""
         asset_def = create_asset_definition("AVAX-PERP", max_leverage=25, sz_decimals=2)
-        
+
         market = mapper.transform_single_asset_to_market(asset_def, None)
-        
+
         assert isinstance(market, Market)
         assert market.symbol == "AVAX-PERP"
         assert market.tick_size == Decimal("0.01")  # 1e-2
         assert market.step_size == Decimal("0.01")
-        
+
         # Check Hyperliquid details without context
         assert market.hl_details is not None
         assert market.hl_details.max_leverage == 25
@@ -341,13 +335,13 @@ class TestCreateMarketFromAssetDefinition:
         asset_def = create_asset_definition(
             "INVALID-PERP", sz_decimals=18
         )  # Valid but will be mocked to fail
-        
+
         # Mock parse_decimal_value to return None for invalid sz_decimals
         with patch(
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.return_value = None
-            
+
             with pytest.raises(
                 TransformationError,
                 match="Failed to parse step size for INVALID-PERP",
@@ -364,7 +358,7 @@ class TestCreateMarketFromAssetDefinition:
         min_market = mapper.transform_single_asset_to_market(min_asset_def)
         assert min_market.tick_size == Decimal("1")
         assert min_market.step_size == Decimal("1")
-        
+
         # Test maximum reasonable value
         max_asset_def = create_asset_definition("MAX-PERP", sz_decimals=18)
         max_market = mapper.transform_single_asset_to_market(max_asset_def)
@@ -377,7 +371,7 @@ class TestCreateMarketFromAssetDefinition:
     ) -> None:
         """Test handling of malformed context data."""
         asset_def = create_asset_definition("MALFORMED-PERP")
-        
+
         # Create context with invalid mark_px that will fail parsing
         with patch(
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
@@ -389,12 +383,12 @@ class TestCreateMarketFromAssetDefinition:
                 if value.startswith("1e-"):  # Step size calculation
                     return Decimal(value)
                 return None  # Context data parsing fails
-            
+
             mock_parse.side_effect = mock_parse_side_effect
-            
+
             # Should still create market but with None context values
             market = mapper.transform_single_asset_to_market(asset_def, create_asset_ctx())
-            
+
             assert market.hl_details is not None
             assert market.hl_details.mark_price is None
             assert market.hl_details.funding_rate is None
@@ -405,9 +399,9 @@ class TestCreateMarketFromAssetDefinition:
     ) -> None:
         """Test market creation with only_isolated=True."""
         asset_def = create_asset_definition("ISOLATED-PERP", only_isolated=True)
-        
+
         market = mapper.transform_single_asset_to_market(asset_def)
-        
+
         assert market.hl_details is not None
         assert market.hl_details.only_isolated is True
 
@@ -422,9 +416,9 @@ class TestTransformSingleAssetToMarket:
         """Test transforming single asset with context."""
         asset_def = create_asset_definition("DOT-PERP")
         asset_ctx = create_asset_ctx("DOT-PERP")
-        
+
         market = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
-        
+
         assert isinstance(market, Market)
         assert market.symbol == "DOT-PERP"
         assert market.hl_details is not None
@@ -436,9 +430,9 @@ class TestTransformSingleAssetToMarket:
     ) -> None:
         """Test transforming single asset without context."""
         asset_def = create_asset_definition("ADA-PERP")
-        
+
         market = mapper.transform_single_asset_to_market(asset_def)
-        
+
         assert isinstance(market, Market)
         assert market.symbol == "ADA-PERP"
         assert market.hl_details is not None
@@ -450,7 +444,7 @@ class TestTransformSingleAssetToMarket:
     ) -> None:
         """Test that single asset transform delegates to internal method."""
         asset_def = create_asset_definition("LINK-PERP")
-        
+
         # Mock the internal method using the full path
         with patch(
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition"
@@ -458,7 +452,7 @@ class TestTransformSingleAssetToMarket:
             # Create a minimal valid market for the mock
             mock_market = Market(
                 symbol="LINK-PERP",
-                base_symbol="LINK-PERP", 
+                base_symbol="LINK-PERP",
                 quote_symbol="USD",
                 market_type="Perpetual",
                 tick_size=Decimal("0.0001"),
@@ -466,9 +460,9 @@ class TestTransformSingleAssetToMarket:
                 status="Active",
             )
             mock_internal.return_value = mock_market
-            
+
             result = mapper.transform_single_asset_to_market(asset_def)
-            
+
             # Should call internal method once with correct args
             mock_internal.assert_called_once_with(asset_def, None)
             assert result.symbol == "LINK-PERP"
@@ -485,23 +479,25 @@ class TestMarketTransformationErrorHandling:
         """Test error handling with corrupted asset definition data."""
         # This would typically be caught at the Pydantic validation level
         # but test mapper robustness
-        
+
         asset_definitions = [create_asset_definition("VALID-PERP")]
-        
+
         # Mock asset definition to raise an error during processing
         with patch(
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Corrupted asset definition"),
         ):
             raw_response = create_meta_and_asset_ctxs_response(asset_definitions, [])
-            
+
             with caplog.at_level(logging.WARNING):
                 markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-            
+
             # Should return empty list and log warning
             assert len(markets) == 0
-            assert any("Failed to transform asset definition VALID-PERP" in record.message 
-                      for record in caplog.records)
+            assert any(
+                "Failed to transform asset definition VALID-PERP" in record.message
+                for record in caplog.records
+            )
 
     def test_error_handling_with_none_asset_contexts(
         self,
@@ -510,15 +506,15 @@ class TestMarketTransformationErrorHandling:
         """Test error handling with None asset contexts list."""
         asset_definitions = [create_asset_definition("TEST-PERP")]
         meta = HyperliquidRawMetaResponse(universe=asset_definitions)
-        
+
         # Create response with None asset contexts
         raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=meta,
             asset_ctxs=[],  # Empty instead of None
         )
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         # Should still work, just without context data
         assert len(markets) == 1
         assert markets[0].symbol == "TEST-PERP"
@@ -533,21 +529,19 @@ class TestMarketTransformationErrorHandling:
         # Create large batch of assets
         asset_definitions: list[HyperliquidRawAssetDefinition] = []
         asset_ctxs: list[HyperliquidRawAssetCtx] = []
-        
+
         for i in range(50):
-            asset_definitions.append(
-                create_asset_definition(f"ASSET-{i}-PERP")
-            )
+            asset_definitions.append(create_asset_definition(f"ASSET-{i}-PERP"))
             asset_ctxs.append(create_asset_ctx(f"ASSET-{i}-PERP"))
-        
+
         raw_response = create_meta_and_asset_ctxs_response(asset_definitions, asset_ctxs)
-        
+
         # Should handle large batches without issues
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         # Should return all valid markets
         assert len(markets) == 50
-        
+
         # Verify all markets are properly created
         assert all(isinstance(market, Market) for market in markets)
         assert all(market.hl_details is not None for market in markets)
@@ -559,24 +553,19 @@ class TestMarketTransformationErrorHandling:
         """Test memory efficiency when processing large datasets."""
         # Create large dataset
         large_asset_definitions = [
-            create_asset_definition(f"LARGE-{i}-PERP", sz_decimals=i % 19)
-            for i in range(1000)
+            create_asset_definition(f"LARGE-{i}-PERP", sz_decimals=i % 19) for i in range(1000)
         ]
-        large_asset_ctxs = [
-            create_asset_ctx(f"LARGE-{i}-PERP")
-            for i in range(1000)
-        ]
-        
+        large_asset_ctxs = [create_asset_ctx(f"LARGE-{i}-PERP") for i in range(1000)]
+
         raw_response = create_meta_and_asset_ctxs_response(
-            large_asset_definitions, 
-            large_asset_ctxs
+            large_asset_definitions, large_asset_ctxs
         )
-        
+
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
-        
+
         # Should handle large dataset without memory issues
         assert len(markets) == 1000
-        
+
         # Verify all markets are properly created
         assert all(isinstance(market, Market) for market in markets)
         assert all(market.hl_details is not None for market in markets)
@@ -590,12 +579,12 @@ class TestMarketTransformationErrorHandling:
         # Test by calling the same transformation multiple times
         asset_def = create_asset_definition("THREAD-TEST-PERP")
         asset_ctx = create_asset_ctx("THREAD-TEST-PERP")
-        
+
         results: list[Market] = []
         for _ in range(10):
             result = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
             results.append(result)
-        
+
         # All results should be identical
         for result in results:
             assert result.symbol == "THREAD-TEST-PERP"
