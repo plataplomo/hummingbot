@@ -90,6 +90,7 @@ async def test_bp_get_funding_rate_sol_perp_success(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_btc_perp_success(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -118,6 +119,7 @@ async def test_bp_get_funding_rate_btc_perp_success(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_eth_perp_success(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -146,6 +148,7 @@ async def test_bp_get_funding_rate_eth_perp_success(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_sol_perp_success(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -206,6 +209,7 @@ async def test_bp_get_funding_rates_sol_perp_success(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_single_vs_multiple_symbols(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -250,6 +254,7 @@ async def test_bp_get_funding_rates_single_vs_multiple_symbols(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_chronological_ordering(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -293,6 +298,7 @@ async def test_bp_get_funding_rates_chronological_ordering(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_precision_validation(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -342,6 +348,7 @@ async def test_bp_get_funding_rates_precision_validation(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_spot_symbol_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -363,6 +370,7 @@ async def test_bp_get_funding_rate_spot_symbol_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_invalid_symbol_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -380,6 +388,7 @@ async def test_bp_get_funding_rate_invalid_symbol_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_nonexistent_symbol_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -401,6 +410,7 @@ async def test_bp_get_funding_rate_nonexistent_symbol_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rate_empty_symbol_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -418,6 +428,7 @@ async def test_bp_get_funding_rate_empty_symbol_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_invalid_args_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -444,6 +455,7 @@ async def test_bp_get_funding_rates_invalid_args_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_empty_symbols_error(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -467,6 +479,7 @@ async def test_bp_get_funding_rates_empty_symbols_error(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_large_limit_handling(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],
@@ -500,6 +513,7 @@ async def test_bp_get_funding_rates_large_limit_handling(
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.vcr
+@pytest.mark.asyncio
 async def test_bp_get_funding_rates_multiple_symbols_consistency(
     bp_api_for_test_env: BackpackAPI,
     custom_vcr_config: dict[str, Any],

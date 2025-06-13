@@ -99,6 +99,10 @@ markers = [
     "requires_balance: marks tests requiring real money/balance (use with caution)",
     "zero_balance: marks tests with zero balance scenarios (safe to run)",
     "positive_balance: marks tests requiring positive balance",
+    "account: marks tests as account management specific tests",
+    "shared: marks tests as shared/common functionality tests",
+    "websockets: marks tests as websocket specific tests",
+    "websocket: marks tests as websocket specific tests (variant)",
 ]
 
 # Ruff configuration for linting

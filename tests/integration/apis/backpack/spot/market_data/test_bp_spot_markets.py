@@ -32,6 +32,7 @@ class TestBackpackSpotMarkets:
     """Backpack spot market integration tests."""
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_sol_usdc_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -144,6 +145,7 @@ class TestBackpackSpotMarkets:
         assert market.hl_details is None, "hl_details should be None for Backpack markets"
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_btc_usdc_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -174,6 +176,7 @@ class TestBackpackSpotMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_eth_usdc_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -201,6 +204,7 @@ class TestBackpackSpotMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_invalid_spot_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -222,6 +226,7 @@ class TestBackpackSpotMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_nonexistent_spot_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -243,6 +248,7 @@ class TestBackpackSpotMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_spot_markets_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -325,6 +331,7 @@ class TestBackpackSpotMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_spot_markets_data_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -360,6 +367,7 @@ class TestBackpackSpotMarkets:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_spot_markets_precision_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -418,6 +426,7 @@ class TestBackpackSpotMarkets:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_vs_get_markets_consistency_spot(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -461,6 +470,7 @@ class TestBackpackSpotMarkets:
         assert individual_market.max_quantity == matching_market.max_quantity
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_spot_market_business_logic_validation(
         self,
         bp_api_for_test_env: BackpackAPI,

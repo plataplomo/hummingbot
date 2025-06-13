@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -142,8 +143,9 @@ class TestBackpackPerpOrdersPositiveBalance:
             }
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_place_and_cancel_perp_limit_order_success(
-        self, bp_api_for_test_env: BackpackAPI
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test placing and canceling a perp limit order with positive margin."""
         symbol = "SOL_USDC_PERP"  # Common Backpack perp trading pair
@@ -188,7 +190,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert cancellation_result is True, "Order cancellation should succeed"
 
     @pytest.mark.vcr()
-    async def test_perp_order_precision_edge_cases(self, bp_api_for_test_env: BackpackAPI) -> None:
+    @pytest.mark.asyncio
+    async def test_perp_order_precision_edge_cases(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
         """Test perp order precision handling with edge case values."""
         symbol = "SOL_USDC_PERP"
 
@@ -220,7 +223,8 @@ class TestBackpackPerpOrdersPositiveBalance:
             logger.info(f"Minimum size perp order failed as expected: {e}")
 
     @pytest.mark.vcr()
-    async def test_perp_leverage_order_calculations(self, bp_api_for_test_env: BackpackAPI) -> None:
+    @pytest.mark.asyncio
+    async def test_perp_leverage_order_calculations(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
         """Test perp order calculations with leverage considerations."""
         symbol = "SOL_USDC_PERP"
 
@@ -247,7 +251,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
     @pytest.mark.vcr()
-    async def test_get_perp_order_history_success(self, bp_api_for_test_env: BackpackAPI) -> None:
+    @pytest.mark.asyncio
+    async def test_get_perp_order_history_success(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
         """Test retrieving perp order history with positive balance."""
         symbol = "SOL_USDC_PERP"
 
@@ -275,8 +280,9 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Leverage is typically applied at the account/position level
 
     @pytest.mark.vcr()
-    async def test_perp_market_order_execution(self, bp_api_for_test_env: BackpackAPI) -> None:
-        """Test perp market order execution (small size to minimize impact)."""
+    @pytest.mark.asyncio
+    async def test_perp_market_order_execution(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+        """Test perp market order execution with margin available."""
         symbol = "SOL_USDC_PERP"
 
         # Use very small quantity for market order test
@@ -304,7 +310,8 @@ class TestBackpackPerpOrdersPositiveBalance:
             logger.info(f"Market perp order test failed (may be expected): {e}")
 
     @pytest.mark.vcr()
-    async def test_perp_order_concurrent_operations(self, bp_api_for_test_env: BackpackAPI) -> None:
+    @pytest.mark.asyncio
+    async def test_perp_order_concurrent_operations(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
         """Test concurrent perp order operations."""
         symbol = "SOL_USDC_PERP"
 
@@ -355,10 +362,11 @@ class TestBackpackPerpOrdersPositiveBalance:
             logger.info(f"Concurrent perp order test failed: {e}")
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_perp_order_funding_rate_awareness(
-        self, bp_api_for_test_env: BackpackAPI
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
-        """Test perp order placement with funding rate considerations."""
+        """Test perp order operations with funding rate considerations."""
         symbol = "SOL_USDC_PERP"
 
         try:
@@ -392,8 +400,9 @@ class TestBackpackPerpOrdersPositiveBalance:
             logger.info(f"Funding rate perp order test failed: {e}")
 
     @pytest.mark.vcr()
-    async def test_perp_order_margin_requirements(self, bp_api_for_test_env: BackpackAPI) -> None:
-        """Test perp order validation against margin requirements."""
+    @pytest.mark.asyncio
+    async def test_perp_order_margin_requirements(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+        """Test perp order margin requirements validation."""
         symbol = "SOL_USDC_PERP"
 
         # Test with larger quantity to test margin limits

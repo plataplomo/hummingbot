@@ -35,11 +35,11 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perpetual market retrieval with authenticated context."""
-        args = GetMarketArgs(symbol="SOL-PERP")
+        args = GetMarketArgs(symbol="SOL_USDC_PERP")
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == "SOL-PERP", f"Expected symbol 'SOL-PERP', got '{market.symbol}'"
+        assert market.symbol == "SOL_USDC_PERP", f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
 
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
@@ -80,7 +80,7 @@ class TestBackpackPerpMarketPrivate:
         assert len(markets) > 0, "Should return at least some markets"
 
         # Test first 3 perpetual markets only
-        perp_markets = [m for m in markets if "-PERP" in m.symbol][:3]
+        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol][:3]
 
         for market in perp_markets:
             individual_args = GetMarketArgs(symbol=market.symbol)
@@ -101,7 +101,7 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test authenticated perpetual market data is consistent."""
-        test_symbols = ["SOL-PERP", "BTC-PERP", "ETH-PERP"]
+        test_symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
 
         for symbol in test_symbols:
             try:
@@ -145,7 +145,7 @@ class TestBackpackPerpMarketPrivate:
         args = GetMarketsArgs()
         markets = await bp_api_for_test_env.get_markets(args)
 
-        perp_markets = [m for m in markets if "-PERP" in m.symbol]
+        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol]
 
         for market in perp_markets:
             assert not hasattr(market, "account_balance"), (

@@ -32,7 +32,7 @@ def spot_test_symbols() -> list[str]:
 @pytest.fixture
 def perp_test_symbols() -> list[str]:
     """Common perp symbols for testing."""
-    return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]
+    return ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
 
 
 @pytest.fixture

@@ -33,6 +33,7 @@ class TestBackpackPerpMarkets:
     """Backpack perp market integration tests."""
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_sol_usdc_perp_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -148,6 +149,7 @@ class TestBackpackPerpMarkets:
         assert market.hl_details is None, "hl_details should be None for Backpack markets"
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_btc_usdc_perp_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -186,6 +188,7 @@ class TestBackpackPerpMarkets:
         ], f"Expected perpetual market type for BTC_USDC_PERP, got '{market.market_type}'"
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_eth_usdc_perp_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -216,6 +219,7 @@ class TestBackpackPerpMarkets:
         ], f"Expected perpetual market type for ETH_USDC_PERP, got '{market.market_type}'"
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_invalid_perp_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -237,6 +241,7 @@ class TestBackpackPerpMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_nonexistent_perp_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -258,6 +263,7 @@ class TestBackpackPerpMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_perp_markets_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -340,6 +346,7 @@ class TestBackpackPerpMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_perp_markets_data_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -375,6 +382,7 @@ class TestBackpackPerpMarkets:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_perp_markets_precision_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -441,6 +449,7 @@ class TestBackpackPerpMarkets:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_vs_get_markets_consistency_perp(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -484,6 +493,7 @@ class TestBackpackPerpMarkets:
         assert individual_market.max_quantity == matching_market.max_quantity
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_perp_market_business_logic_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -540,6 +550,7 @@ class TestBackpackPerpMarkets:
         )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_perp_market_leverage_characteristics(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -583,6 +594,7 @@ class TestBackpackPerpMarkets:
             )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_perp_market_funding_awareness(
         self,
         bp_api_for_test_env: BackpackAPI,

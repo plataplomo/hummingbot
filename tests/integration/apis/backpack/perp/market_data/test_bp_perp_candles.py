@@ -41,6 +41,7 @@ class TestBackpackPerpCandles:
     """Backpack perp candle integration tests."""
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_sol_usdc_perp_1h_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -144,6 +145,7 @@ class TestBackpackPerpCandles:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_btc_usdc_perp_1h_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -202,6 +204,7 @@ class TestBackpackPerpCandles:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_eth_usdc_perp_1h_success(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -260,6 +263,7 @@ class TestBackpackPerpCandles:
                 )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_different_intervals_perp(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -318,6 +322,7 @@ class TestBackpackPerpCandles:
                 pass
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_chronological_ordering_perp(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -376,6 +381,7 @@ class TestBackpackPerpCandles:
                     )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_precision_validation_perp(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -467,6 +473,7 @@ class TestBackpackPerpCandles:
                     )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_ohlc_relationships_validation_perp(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -546,6 +553,7 @@ class TestBackpackPerpCandles:
                     )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_invalid_perp_symbol_error(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -579,6 +587,7 @@ class TestBackpackPerpCandles:
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_multiple_perp_symbols_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -637,6 +646,7 @@ class TestBackpackPerpCandles:
                     assert symbol.endswith("_PERP"), f"Should be perp symbol, got: {symbol}"
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_perp_funding_impact_awareness(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -691,6 +701,7 @@ class TestBackpackPerpCandles:
                     )
 
     @pytest.mark.vcr()
+    @pytest.mark.asyncio
     async def test_bp_get_market_data_perp_leverage_volatility_characteristics(
         self,
         bp_api_for_test_env: BackpackAPI,
