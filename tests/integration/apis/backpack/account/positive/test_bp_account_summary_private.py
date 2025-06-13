@@ -105,17 +105,20 @@ class TestBackpackAccountSummaryPrivate:
             exchange_secrets=invalid_secrets,
         )
 
-        with pytest.raises((APIError, AttributeError)) as exc_info:
-            await bad_api.get_account_summary()
+        try:
+            with pytest.raises((APIError, AttributeError)) as exc_info:
+                await bad_api.get_account_summary()
 
-        error = exc_info.value
-        if isinstance(error, APIError):
-            assert error.code in [
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-                APIErrorCode.INVALID_REQUEST.value,
-            ]
-        else:
-            assert "authenticator" in str(error).lower() or "NoneType" in str(error)
+            error = exc_info.value
+            if isinstance(error, APIError):
+                assert error.code in [
+                    APIErrorCode.AUTHENTICATION_FAILED.value,
+                    APIErrorCode.INVALID_REQUEST.value,
+                ]
+            else:
+                assert "authenticator" in str(error).lower() or "NoneType" in str(error)
+        finally:
+            await bad_api.close()
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

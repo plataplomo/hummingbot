@@ -7,10 +7,11 @@ Uses test configuration from tests/config/test_config.yaml.
 # Integration test fixtures for Backpack API
 # Uses test configuration from tests/config/test_config.yaml
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
@@ -149,21 +150,24 @@ def mock_bp_http_client() -> MagicMock:
     return mock_client
 
 
-@pytest.fixture
-def bp_api_for_test_env(
+@pytest_asyncio.fixture
+async def bp_api_for_test_env(
     active_bp_config: ExchangeSpecificConfig,
     active_bp_secrets: ApiKeyAuthSecrets,
-) -> BackpackAPI:
+) -> AsyncGenerator[BackpackAPI]:
     """Create BackpackAPI instance for integration tests.
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
     """
     # Let BackpackAPI create its own real components via factory
-    return BackpackAPI(
+    api = BackpackAPI(
         exchange_config=active_bp_config,
         exchange_secrets=active_bp_secrets,
     )
+    yield api
+    # Ensure proper cleanup
+    await api.close()
 
 
 @pytest.fixture
