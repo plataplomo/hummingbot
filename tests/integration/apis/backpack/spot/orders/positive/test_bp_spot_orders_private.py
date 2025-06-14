@@ -150,10 +150,10 @@ async def get_minimal_order_size(
 ) -> Decimal:
     """Calculate the minimal order size that fits within available balance.
 
-    With $1 USDC balance, calculate the maximum affordable quantity for the given price.
+    Gets actual account balance and market constraints to determine appropriate order size.
 
     Args:
-        api: BackpackAPI instance for getting market data
+        api: BackpackAPI instance for getting market data and balances
         symbol: Trading symbol (e.g., "SOL_USDC")
         side: Order side (BUY or SELL)
         price: Order price to calculate affordable quantity
@@ -162,25 +162,69 @@ async def get_minimal_order_size(
         Decimal quantity that represents the minimal affordable order size
     """
     try:
-        # For $1 USDC balance, calculate max affordable quantity
+        # Get actual account balances
+        balances = await api.get_balances()
+
+        # Get market information for constraints
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
+        markets = await api.get_markets(GetMarketsArgs())
+
+        # Find the market for this symbol
+        market = None
+        for m in markets:
+            if m.symbol == symbol:
+                market = m
+                break
+
+        if market is None:
+            logger.warning(f"Market {symbol} not found")
+            raise ValueError(f"Market {symbol} not found")
+
         if side == OrderSide.BUY and symbol == "SOL_USDC":
-            # Very conservative: use only $0.50 to ensure we have enough for fees
-            usable_balance = Decimal("0.20")
-            max_quantity = usable_balance / price
+            # For buying SOL with USDC, check USDC balance
+            usdc_balance = balances.get("USDC")
+            if usdc_balance is None or usdc_balance.available_quantity <= Decimal("0"):
+                logger.warning("No USDC balance available")
+                raise ValueError("No USDC balance available")
 
-            # Return very small quantity - much smaller than exchange minimum if needed
-            # The exchange will reject if below minimum, but at least we won't overspend
-            calculated_quantity = max_quantity.quantize(Decimal("0.01"), rounding="ROUND_DOWN")
+            # Calculate max quantity based on available balance
+            max_quantity = usdc_balance.available_quantity / price
 
-            # Ensure we don't go below some reasonable minimum
-            return max(Decimal("0.01"), calculated_quantity)
+            # Get the actual minimum quantity from market rules
+            min_quantity = market.min_quantity
+            if min_quantity is None:
+                # If no min_quantity specified, use step_size as minimum
+                min_quantity = market.step_size
 
-        # For other cases, use conservative minimum
-        return Decimal("0.01")
+            # Round up to the nearest step_size to ensure we meet exchange requirements
+            steps_needed = (min_quantity / market.step_size).quantize(
+                Decimal("1"), rounding="ROUND_UP"
+            )
+            actual_min_quantity = steps_needed * market.step_size
+
+            # Check if we can afford the actual minimum
+            if max_quantity >= actual_min_quantity:
+                return actual_min_quantity
+            else:
+                # If we can't afford minimum, something's wrong
+                raise ValueError(
+                    f"Balance ${usdc_balance.available_quantity} insufficient for "
+                    f"minimum order size {actual_min_quantity} at price ${price}"
+                )
+
+        # For other cases, calculate minimum based on market rules
+        min_quantity = market.min_quantity
+        if min_quantity is None:
+            min_quantity = market.step_size
+
+        # Round up to nearest step_size
+        steps_needed = (min_quantity / market.step_size).quantize(Decimal("1"), rounding="ROUND_UP")
+        return steps_needed * market.step_size
 
     except Exception as e:
         logger.warning(f"Failed to calculate minimal order size for {symbol}: {e}")
-        return Decimal("0.01")
+        raise
 
 
 @pytest.mark.parametrize(
