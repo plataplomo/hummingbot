@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@anthropic-ai/claude-code": "^1.0.22",
+    "@anthropic-ai/claude-code": "^1.0.24",
     "@types/bun": "latest"
   },
   "peerDependencies": {
