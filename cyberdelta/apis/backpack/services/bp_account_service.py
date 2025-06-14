@@ -10,8 +10,10 @@ and returns Internal Domain Models.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -21,15 +23,18 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    GetMaxBorrowQuantityArgs,
+    GetMaxOrderQuantityArgs,
+    GetMaxWithdrawalQuantityArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     TransferArgs,
@@ -43,7 +48,9 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
+from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.utils.parsing import parse_decimal_value
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
@@ -506,39 +513,196 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_account_info(self) -> MarginAccountSummary:
-        """Retrieves general account information or summary."""
-        # Service Input Parameter Validation
+    async def get_account_summary(self, subaccount_id: int | None = None) -> MarginAccountSummary:
+        """Get comprehensive account margin summary.
+
+        CONSISTENCY WITH HYPERLIQUID:
+        - Method name aligned with HyperliquidAccountService.get_account_summary()
+        - Same return type: MarginAccountSummary
+        - Same error handling patterns
+        - Enhanced with collateral data when available
+
+        Args:
+            subaccount_id: Optional subaccount ID (OpenAPI uint16, 0-65535)
+
+        Returns:
+            MarginAccountSummary with bp_details extension slot populated
+
+        Raises:
+            APIError: If account data cannot be retrieved
+        """
         frame = inspect.currentframe()
-        current_method = frame.f_code.co_name if frame is not None else "get_account_info"
+        current_method = frame.f_code.co_name if frame is not None else "get_account_summary"
 
-        # No input parameters to validate for this method
+        # Validate subaccount_id if provided (OpenAPI spec: uint16)
+        if subaccount_id is not None:
+            if subaccount_id < 0 or subaccount_id > 65535:
+                raise APIError(
+                    code=APIErrorCode.INVALID_REQUEST.value,
+                    message=f"Invalid subaccount_id: {subaccount_id}. Must be uint16 (0-65535).",
+                    http_status=400,
+                )
 
-        # Initialize context for error handling
+        logger.debug(
+            f"[{self._exchange_name}] Getting account summary for subaccount_id={subaccount_id}"
+        )
+
+        try:
+            # Try enhanced implementation with collateral endpoint
+            enhanced_summary = await self._get_enhanced_account_info(subaccount_id)
+            if enhanced_summary is not None:
+                logger.debug(
+                    f"[{self._exchange_name}] Enhanced account summary retrieved with "
+                    f"equity={enhanced_summary.total_equity}"
+                )
+                return enhanced_summary
+
+            # Fallback to basic implementation
+            logger.info(
+                f"[{self._exchange_name}] Collateral endpoint unavailable, "
+                "using basic account summary implementation"
+            )
+            return await self._get_basic_account_info(subaccount_id)
+
+        except APIError:
+            raise
+        except (ValueError, TypeError) as e_service_logic:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service logic error: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_REQUEST.value,
+                message="Invalid request parameters.",
+                original_exception=e_service_logic,
+                http_status=400,
+            ) from e_service_logic
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: "
+                f"Unexpected service failure: {e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=e_unexpected,
+            ) from e_unexpected
+
+    async def _get_enhanced_account_info(
+        self, subaccount_id: int | None = None
+    ) -> MarginAccountSummary | None:
+        """Enhanced account info using collateral endpoint.
+
+        Fetches comprehensive margin data from /api/v1/capital/collateral
+        with parallel fetching of positions data for complete account state.
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "_get_enhanced_account_info"
+
         status_code: int = 0
         raw_response_content: str | None = None
 
         try:
-            # Core operational logic
-            logger.debug(
-                f"[{self._exchange_name}] Fetching account info (summary, balances, positions).",
+            logger.debug(f"[{self._exchange_name}] Fetching enhanced account data with collateral.")
+
+            # Fetch collateral, settings, and positions data in parallel
+            collateral_task = self._get_raw_collateral_response(subaccount_id)
+            settings_task = self._get_raw_account_summary_obj()
+            positions_task = self._get_raw_positions_list()
+
+            raw_collateral, raw_settings, raw_positions_list = await asyncio.gather(
+                collateral_task, settings_task, positions_task, return_exceptions=False
             )
-            # Fetch raw components concurrently if desired, or sequentially.
-            # For simplicity and clarity, fetching sequentially here.
-            # Concurrency can be added with asyncio.gather if performance becomes an issue.
+
+            # Transform using enhanced mapper method
+            internal_summary = self._mapper.transform_enhanced_account_data_to_margin_summary(
+                raw_collateral=raw_collateral,
+                raw_settings=raw_settings,
+                raw_positions=raw_positions_list,
+            )
+
+            logger.debug(
+                f"[{self._exchange_name}] Enhanced account summary created with collateral data."
+            )
+            return internal_summary
+
+        except APIError as e:
+            # If collateral endpoint not available (404), return None for fallback
+            if e.http_status == 404:
+                logger.debug(
+                    f"[{self._exchange_name}] Collateral endpoint not available (404), "
+                    f"subaccount_id={subaccount_id}"
+                )
+                return None
+            # Re-raise other API errors
+            raise
+        except TransformationError as e_transform:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform enhanced "
+                f"data: {e_transform}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform enhanced collateral data.",
+                original_exception=e_transform,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_transform
+        except Exception as e_unexpected:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected enhanced account failure: "
+                f"{e_unexpected}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected enhanced account service failure.",
+                original_exception=e_unexpected,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_unexpected
+
+    async def _get_basic_account_info(
+        self, subaccount_id: int | None = None
+    ) -> MarginAccountSummary:
+        """Basic account info using legacy endpoints.
+
+        Falls back to original implementation when collateral endpoint
+        is unavailable or returns errors.
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "_get_basic_account_info"
+
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            if subaccount_id is not None:
+                logger.warning(
+                    f"[{self._exchange_name}] Subaccount filtering not supported in basic "
+                    f"implementation, ignoring subaccount_id={subaccount_id}"
+                )
+
+            logger.debug(
+                f"[{self._exchange_name}] Fetching basic account info "
+                f"(settings, balances, positions)."
+            )
+
+            # Original implementation: fetch components sequentially
             raw_settings = await self._get_raw_account_summary_obj()
             raw_balances_dict = await self._get_raw_balances_dict()
-            raw_positions_list = await self._get_raw_positions_list()  # Will be [] for Backpack
+            raw_positions_list = await self._get_raw_positions_list()
 
-            # Now pass all components to the mapper
+            # Transform using original mapper method
             internal_summary = self._mapper.transform_raw_account_summary_to_internal(
                 raw_settings=raw_settings,
                 spot_balances_raw=raw_balances_dict,
-                derivative_positions_raw=raw_positions_list,  # Expects list[BackpackRawPosition]
+                derivative_positions_raw=raw_positions_list,
             )
-            logger.debug(
-                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}",
-            )
+
+            logger.debug(f"[{self._exchange_name}] Basic account summary created successfully.")
             return internal_summary
 
         except APIError:
@@ -546,13 +710,13 @@ class BackpackAccountService:
             raise
         except TransformationError as e_transform:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"[{self._exchange_name}] {current_method}: Failed to transform basic "
                 f"data: {e_transform}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Failed to process/transform exchange data.",
+                message="Failed to process/transform basic account data.",
                 original_exception=e_transform,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
@@ -583,17 +747,260 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
+                f"[{self._exchange_name}] {current_method}: Unexpected basic account failure: "
                 f"{e_unexpected}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Unexpected basic account service failure.",
                 original_exception=e_unexpected,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+
+    async def _get_raw_collateral_response(
+        self, subaccount_id: int | None = None
+    ) -> BackpackRawCollateralResponse:
+        """Fetch raw collateral data from /api/v1/capital/collateral endpoint.
+
+        Args:
+            subaccount_id: Optional subaccount ID (uint16, 0-65535)
+
+        Returns:
+            Validated collateral response
+
+        Raises:
+            APIError: If endpoint call fails or validation fails
+        """
+        frame = inspect.currentframe()
+        current_method = (
+            frame.f_code.co_name if frame is not None else "_get_raw_collateral_response"
+        )
+
+        try:
+            # Build query parameters
+            query_params = self._request_builder.build_collateral_query_params(subaccount_id)
+
+            # Make HTTP request using the requester pattern
+            raw_data, status_code, headers = await self._http_client_requester(
+                method="GET",
+                endpoint="/api/v1/capital/collateral",
+                params=query_params.model_dump(by_alias=True, exclude_none=True),
+                is_signed=True,  # OpenAPI: Optional auth, but we'll use signed
+                endpoint_group="private",
+                request_weight=1,
+            )
+
+            # Validate response
+            return self._response_handler.handle_get_collateral_response(
+                raw_response_content=raw_data,
+                subaccount_id=subaccount_id,
+                status_code=status_code,
+                headers=headers,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to fetch collateral data: {e}",
+                exc_info=True,
+            )
+            raise
+
+    # --- Private Internal Limits Methods (INTERNAL USE ONLY) ---
+
+    async def _get_exchange_max_borrow_quantity(self, symbol: str) -> Decimal:
+        """PRIVATE: Fetches max borrow quantity from the exchange for validation.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+        This method is NOT exposed publicly to maintain exchange agnosticism.
+
+        Args:
+            symbol: Asset symbol to check borrow limits for
+
+        Returns:
+            Maximum borrow quantity as Decimal
+
+        Raises:
+            APIError: If endpoint call fails or validation fails
+        """
+        frame = inspect.currentframe()
+        current_method = (
+            frame.f_code.co_name if frame is not None else "_get_exchange_max_borrow_quantity"
+        )
+
+        try:
+            # Build query parameters
+            args = GetMaxBorrowQuantityArgs(symbol=symbol)
+            query_params = self._request_builder.build_max_borrow_quantity_params(args)
+
+            # Make HTTP request
+            raw_data, status_code, headers = await self._http_client_requester(
+                method="GET",
+                endpoint="/api/v1/account/limits/borrow",
+                params=query_params.model_dump(by_alias=True, exclude_none=True),
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+            )
+
+            # Validate response
+            raw_response = self._response_handler.handle_max_borrow_quantity_response(
+                raw_response_content=raw_data,
+                symbol=symbol,
+                status_code=status_code,
+                headers=headers,
+            )
+
+            # Parse and return Decimal value
+            max_quantity = parse_decimal_value(
+                raw_response.max_borrow_quantity, field_name="max_borrow_quantity", allow_none=False
+            )
+            if max_quantity is None:
+                raise APIError(
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    message="Missing max_borrow_quantity in response",
+                )
+
+            return max_quantity
+
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: "
+                f"Failed to fetch max borrow quantity: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _get_exchange_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
+        """PRIVATE: Fetches max order quantity from the exchange for validation.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+        This method is NOT exposed publicly to maintain exchange agnosticism.
+
+        Args:
+            args: Validated arguments for max order quantity request
+
+        Returns:
+            Maximum order quantity as Decimal
+
+        Raises:
+            APIError: If endpoint call fails or validation fails
+        """
+        frame = inspect.currentframe()
+        current_method = (
+            frame.f_code.co_name if frame is not None else "_get_exchange_max_order_quantity"
+        )
+
+        try:
+            # Build query parameters
+            query_params = self._request_builder.build_max_order_quantity_params(args)
+
+            # Make HTTP request
+            raw_data, status_code, headers = await self._http_client_requester(
+                method="GET",
+                endpoint="/api/v1/account/limits/order",
+                params=query_params.model_dump(by_alias=True, exclude_none=True),
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+            )
+
+            # Validate response
+            side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
+            raw_response = self._response_handler.handle_max_order_quantity_response(
+                raw_response_content=raw_data,
+                symbol=args.symbol,
+                side=side_str,
+                status_code=status_code,
+                headers=headers,
+            )
+
+            # Parse and return Decimal value
+            max_quantity = parse_decimal_value(
+                raw_response.max_order_quantity, field_name="max_order_quantity", allow_none=False
+            )
+            if max_quantity is None:
+                raise APIError(
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    message="Missing max_order_quantity in response",
+                )
+
+            return max_quantity
+
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: "
+                f"Failed to fetch max order quantity: {e}",
+                exc_info=True,
+            )
+            raise
+
+    async def _get_exchange_max_withdrawal_quantity(
+        self, args: GetMaxWithdrawalQuantityArgs
+    ) -> Decimal:
+        """PRIVATE: Fetches max withdrawal quantity from the exchange for validation.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+        This method is NOT exposed publicly to maintain exchange agnosticism.
+
+        Args:
+            args: Validated arguments for max withdrawal quantity request
+
+        Returns:
+            Maximum withdrawal quantity as Decimal
+
+        Raises:
+            APIError: If endpoint call fails or validation fails
+        """
+        frame = inspect.currentframe()
+        current_method = (
+            frame.f_code.co_name if frame is not None else "_get_exchange_max_withdrawal_quantity"
+        )
+
+        try:
+            # Build query parameters
+            query_params = self._request_builder.build_max_withdrawal_quantity_params(args)
+
+            # Make HTTP request
+            raw_data, status_code, headers = await self._http_client_requester(
+                method="GET",
+                endpoint="/api/v1/account/limits/withdrawal",
+                params=query_params.model_dump(by_alias=True, exclude_none=True),
+                is_signed=True,
+                endpoint_group="private",
+                request_weight=1,
+            )
+
+            # Validate response
+            raw_response = self._response_handler.handle_max_withdrawal_quantity_response(
+                raw_response_content=raw_data,
+                symbol=args.symbol,
+                status_code=status_code,
+                headers=headers,
+            )
+
+            # Parse and return Decimal value
+            max_quantity = parse_decimal_value(
+                raw_response.max_withdrawal_quantity,
+                field_name="max_withdrawal_quantity",
+                allow_none=False,
+            )
+            if max_quantity is None:
+                raise APIError(
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    message="Missing max_withdrawal_quantity in response",
+                )
+
+            return max_quantity
+
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: "
+                f"Failed to fetch max withdrawal quantity: {e}",
+                exc_info=True,
+            )
+            raise
 
     def _validate_account_types(self, args: TransferArgs, current_method: str) -> None:
         """Validate account types for transfer."""

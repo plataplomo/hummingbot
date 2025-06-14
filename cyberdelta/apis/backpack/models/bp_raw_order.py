@@ -194,54 +194,54 @@ class BackpackRawOrder(BaseModel):
         description="Origin of the last update. Alias: 'O'",
     )
 
-    # New fields from updated Backpack API response format
+    # New fields from updated Backpack API response format (all optional)
     quoteQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="quoteQuantity",
         description="Quote quantity for the order",
     )
     stopLossLimitPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="stopLossLimitPrice",
         description="Stop loss limit price",
     )
     stopLossTriggerBy: RawBpOptionalNonEmptyStringMax32 = Field(
-        None,
+        default=None,
         alias="stopLossTriggerBy",
         description="Stop loss trigger reference",
     )
     stopLossTriggerPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="stopLossTriggerPrice",
         description="Stop loss trigger price",
     )
     strategyId: RawBpOptionalNonEmptyStringMax64 = Field(
-        None,
+        default=None,
         alias="strategyId",
         description="Strategy identifier",
     )
     systemOrderType: RawBpOptionalNonEmptyStringMax32 = Field(
-        None,
+        default=None,
         alias="systemOrderType",
         description="System order type",
     )
     takeProfitLimitPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="takeProfitLimitPrice",
         description="Take profit limit price",
     )
     takeProfitTriggerBy: RawBpOptionalNonEmptyStringMax32 = Field(
-        None,
+        default=None,
         alias="takeProfitTriggerBy",
         description="Take profit trigger reference",
     )
     takeProfitTriggerPrice: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="takeProfitTriggerPrice",
         description="Take profit trigger price",
     )
     triggerQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
-        None,
+        default=None,
         alias="triggerQuantity",
         description="Trigger quantity",
     )

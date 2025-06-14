@@ -22,12 +22,12 @@ class TestBackpackAccountServiceAccountInfo:
     """Tests for the BackpackAccountService account info functionality."""
 
     @pytest.mark.asyncio
-    async def test_get_account_info_raw_success(
+    async def test_get_account_summary_raw_success(
         self,
         bp_account_service: BackpackAccountService,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test get_account_info successfully fetches and processes account info.
+        """Test get_account_summary successfully fetches and processes account info.
 
         Test by mocking its internal helper methods that perform raw data fetching.
         """
@@ -92,7 +92,7 @@ class TestBackpackAccountServiceAccountInfo:
             mock_mapper.transform_raw_account_summary_to_internal.return_value = (
                 mock_internal_margin_summary
             )
-            result = await bp_account_service.get_account_info()
+            result = await bp_account_service.get_account_summary()
 
         mock_get_summary_obj.assert_called_once_with()
         mock_get_balances_dict.assert_called_once_with()
@@ -111,106 +111,106 @@ class TestBackpackAccountServiceAccountInfo:
         assert result.bp_details == mock_internal_margin_summary.bp_details
 
     @pytest.mark.asyncio
-    async def test_get_account_info_http_client_returns_none(
+    async def test_get_account_summary_http_client_returns_none(
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
     ) -> None:
-        """Test get_account_info when HTTP client returns None content."""
+        """Test get_account_summary when HTTP client returns None content."""
         # Mock request builder to return a valid params object
-        mock_request_builder.build_get_account_info_params.return_value = (
+        mock_request_builder.build_get_account_summary_params.return_value = (
             BackpackRawGetAccountInfoParams()
         )
         # Mock HTTP client to return None content
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_account_info()
+            await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for raw account summary, status: 200" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_account_info_validation_error_via_public_api(
+    async def test_get_account_summary_validation_error_via_public_api(
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_account_info handles validation error from response handler."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        """Test get_account_summary handles validation error from response handler."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
             "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_account_info()
+            await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected error for raw account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_account_info_unexpected_exception_via_public_api(
+    async def test_get_account_summary_unexpected_exception_via_public_api(
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_account_info handles unexpected exception via public API."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        """Test get_account_summary handles unexpected exception via public API."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
             "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_account_info()
+            await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected error for raw account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_account_info_validation_error_coverage(
+    async def test_get_account_summary_validation_error_coverage(
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_account_info handles validation error from response handler."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        """Test get_account_summary handles validation error from response handler."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
             "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_account_info()
+            await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected error for raw account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_account_info_unexpected_exception_coverage(
+    async def test_get_account_summary_unexpected_exception_coverage(
         self,
         bp_account_service: BackpackAccountService,
         mock_http_client_requester: AsyncMock,
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_account_info handles unexpected exception."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        """Test get_account_summary handles unexpected exception."""
+        mock_request_builder.build_get_account_summary_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
             "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_account_info()
+            await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected error for raw account summary" in exc_info.value.message

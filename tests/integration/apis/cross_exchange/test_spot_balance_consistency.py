@@ -52,10 +52,10 @@ class TestCrossExchangeSpotBalanceConsistency:
                     decimal_places = len(available_str.split(".")[1].rstrip("0"))
                     assert decimal_places <= expected_precision
             else:
-                pytest.skip(f"Symbol {symbol} not available on {exchange_client.exchange}")
+                pytest.skip(f"Symbol {symbol} not available on {exchange_client.exchange_name}")
 
         except NotImplementedError:
-            pytest.skip(f"get_balances not implemented for {exchange_client.exchange}")
+            pytest.skip(f"get_balances not implemented for {exchange_client.exchange_name}")
 
     @pytest.mark.parametrize(
         "test_amount",
@@ -88,4 +88,4 @@ class TestCrossExchangeSpotBalanceConsistency:
                     assert ratio.is_finite()
 
         except NotImplementedError:
-            pytest.skip(f"get_balances not implemented for {exchange_client.exchange}")
+            pytest.skip(f"get_balances not implemented for {exchange_client.exchange_name}")

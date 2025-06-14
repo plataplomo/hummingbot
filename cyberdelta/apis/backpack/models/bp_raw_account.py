@@ -86,11 +86,12 @@ class BackpackRawBalance(BaseModel):
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
     Use this model to validate and parse balance payloads received from the exchange.
 
-    Attributes:
-        available (str): Amount available for trading (as string).
-        locked (str): Amount locked in orders (as string).
-        staked (str): Amount staked (as string).
+    According to the OpenAPI spec, the Balance schema contains:
+    - available: Funds available for use
+    - locked: Funds that are locked in open orders
+    - staked: Funds that are staked
 
+    The API returns: {"USDC": {"available": "0", "locked": "0", "staked": "0"}, ...}
     """
 
     available: str = Field(..., alias="available", max_length=64)

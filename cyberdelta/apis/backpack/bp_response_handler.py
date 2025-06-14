@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 
 # BackpackRawApiError import removed as validation is the focus here. Error mapping is separate.
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
@@ -18,6 +19,11 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingRate,
 )
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_limits import (
+    BackpackRawMaxBorrowQuantity,
+    BackpackRawMaxOrderQuantity,
+    BackpackRawMaxWithdrawalQuantity,
+)
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawMarket,
     BackpackRawOrderBook,
@@ -798,3 +804,120 @@ class BackpackResponseHandler:
                     item_raw,
                 ) from e
         return validated_rates
+
+    @staticmethod
+    def handle_get_collateral_response(
+        raw_response_content: RawJsonResponse,
+        subaccount_id: int | None,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawCollateralResponse:
+        """Validate the raw response for the Get Collateral endpoint.
+
+        (/api/v1/capital/collateral).
+        """
+        context = f"collateral data (subaccount_id={subaccount_id}) - Status: {status_code}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        try:
+            return BackpackRawCollateralResponse.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e,
+                context,
+                raw_response_content,
+            ) from e
+
+    # --- Account Limits Response Handlers (INTERNAL USE ONLY) ---
+
+    @staticmethod
+    def handle_max_borrow_quantity_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawMaxBorrowQuantity:
+        """Validate the raw response for the Max Borrow Quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        (/api/v1/account/limits/borrow).
+        """
+        context = f"max borrow quantity ({symbol}) - Status: {status_code}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        try:
+            return BackpackRawMaxBorrowQuantity.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e,
+                context,
+                raw_response_content,
+            ) from e
+
+    @staticmethod
+    def handle_max_order_quantity_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        side: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawMaxOrderQuantity:
+        """Validate the raw response for the Max Order Quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        (/api/v1/account/limits/order).
+        """
+        context = f"max order quantity ({symbol} {side}) - Status: {status_code}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        try:
+            return BackpackRawMaxOrderQuantity.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e,
+                context,
+                raw_response_content,
+            ) from e
+
+    @staticmethod
+    def handle_max_withdrawal_quantity_response(
+        raw_response_content: RawJsonResponse,
+        symbol: str,
+        status_code: int,
+        headers: Mapping[str, str],
+    ) -> BackpackRawMaxWithdrawalQuantity:
+        """Validate the raw response for the Max Withdrawal Quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        (/api/v1/account/limits/withdrawal).
+        """
+        context = f"max withdrawal quantity ({symbol}) - Status: {status_code}"
+        if not isinstance(raw_response_content, dict):
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+        try:
+            return BackpackRawMaxWithdrawalQuantity.model_validate(raw_response_content)
+        except ValidationError as e:
+            raise BackpackResponseHandler._handle_validation_error(
+                e,
+                context,
+                raw_response_content,
+            ) from e

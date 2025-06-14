@@ -465,6 +465,7 @@ class TestBackpackAccountServicePositions:
         symbol = "SOL_USDC"
         mock_raw_position = BackpackRawPosition(
             symbol=symbol,
+            subaccountId=0,  # Add missing required field
             breakEvenPrice="100.0",
             entryPrice="100.0",
             estLiquidationPrice="90.0",

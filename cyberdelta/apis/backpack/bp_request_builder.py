@@ -24,6 +24,7 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawRequestForQuoteRequest,
     BackpackRawUpdateAccountSettingsRequest,
 )
+from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralQueryParams
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetAccountInfoParams,
     BackpackRawGetBalancesParams,
@@ -41,6 +42,14 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetRecentTradesParams,
     BackpackRawGetTickerParams,
     BackpackRawGetTradeHistoryParams,
+    BackpackRawMaxBorrowQuantityParams,
+    BackpackRawMaxOrderQuantityParams,
+    BackpackRawMaxWithdrawalQuantityParams,
+)
+from cyberdelta.apis.models.service_args_models import (
+    GetMaxBorrowQuantityArgs,
+    GetMaxOrderQuantityArgs,
+    GetMaxWithdrawalQuantityArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
@@ -1040,3 +1049,85 @@ class BackpackRequestBuilder:
             request_data["expiryTimeMs"] = expiry_time_ms
 
         return BackpackRawRequestForQuoteRefreshRequest(**request_data)
+
+    @staticmethod
+    def build_collateral_query_params(
+        subaccount_id: int | None = None,
+    ) -> BackpackRawCollateralQueryParams:
+        """Build query parameters for collateral endpoint.
+
+        OpenAPI Spec: Only subaccountId is supported as optional parameter.
+
+        Args:
+            subaccount_id: Optional subaccount ID (uint16, 0-65535)
+
+        Returns:
+            Validated query parameters
+        """
+        return BackpackRawCollateralQueryParams(subaccountId=subaccount_id)
+
+    # --- Account Limits Request Builders (INTERNAL USE ONLY) ---
+
+    @staticmethod
+    def build_max_borrow_quantity_params(
+        args: GetMaxBorrowQuantityArgs,
+    ) -> BackpackRawMaxBorrowQuantityParams:
+        """Build query parameters for max borrow quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        Args:
+            args: Validated arguments for max borrow quantity request
+
+        Returns:
+            Validated query parameters for max borrow quantity endpoint
+        """
+        return BackpackRawMaxBorrowQuantityParams(symbol=args.symbol)
+
+    @staticmethod
+    def build_max_order_quantity_params(
+        args: GetMaxOrderQuantityArgs,
+    ) -> BackpackRawMaxOrderQuantityParams:
+        """Build query parameters for max order quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        Args:
+            args: Validated arguments for max order quantity request
+
+        Returns:
+            Validated query parameters for max order quantity endpoint
+        """
+        # Convert OrderSide to string for Backpack API
+        side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
+        price_str = str(args.price) if args.price is not None else None
+
+        return BackpackRawMaxOrderQuantityParams(
+            symbol=args.symbol,
+            side=side_str,
+            price=price_str,
+            reduceOnly=args.reduce_only,
+            autoBorrow=args.auto_borrow,
+            autoBorrowRepay=args.auto_borrow_repay,
+            autoLendRedeem=args.auto_lend_redeem,
+        )
+
+    @staticmethod
+    def build_max_withdrawal_quantity_params(
+        args: GetMaxWithdrawalQuantityArgs,
+    ) -> BackpackRawMaxWithdrawalQuantityParams:
+        """Build query parameters for max withdrawal quantity endpoint.
+
+        INTERNAL USE ONLY: For risk calculation validation and reconciliation.
+
+        Args:
+            args: Validated arguments for max withdrawal quantity request
+
+        Returns:
+            Validated query parameters for max withdrawal quantity endpoint
+        """
+        return BackpackRawMaxWithdrawalQuantityParams(
+            symbol=args.symbol,
+            autoBorrow=args.auto_borrow,
+            autoLendRedeem=args.auto_lend_redeem,
+        )

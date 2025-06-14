@@ -161,6 +161,63 @@ class BackpackEd25519Authenticator(IAuthenticator):
             code=APIErrorCode.INVALID_REQUEST.value,
         )
 
+    def _build_content_part(
+        self, method: str, params: dict[str, Any] | None, data: dict[str, Any] | None
+    ) -> str:
+        """Build content part for signing based on method and data."""
+        if method.upper() == "GET" and params:
+            filtered_params = {k: v for k, v in params.items() if v is not None}
+            if filtered_params:
+                return urllib.parse.urlencode(sorted(filtered_params.items()))
+        elif method.upper() in ["POST", "PUT", "DELETE"] and data:
+            filtered_data = {k: v for k, v in data.items() if v is not None}
+            if filtered_data:
+                stringified_data = {k: str(v_val) for k, v_val in filtered_data.items()}
+                return urllib.parse.urlencode(sorted(stringified_data.items()))
+        return ""
+
+    def _build_string_to_sign(
+        self, instruction_str: str, content_part_str: str, timestamp_ms: int, window_ms: int
+    ) -> str:
+        """Build the string to sign for authentication."""
+        sign_payload_parts = [f"instruction={instruction_str}"]
+        if content_part_str:
+            sign_payload_parts.append(content_part_str)
+        sign_payload_parts.append(f"timestamp={timestamp_ms}")
+        sign_payload_parts.append(f"window={window_ms}")
+        return "&".join(sign_payload_parts)
+
+    def _create_auth_headers(
+        self, timestamp_ms: int, window_ms: int, signature_b64: str
+    ) -> dict[str, str]:
+        """Create authentication headers."""
+        return {
+            "X-API-Key": self._api_key_b64,
+            "X-Timestamp": str(timestamp_ms),
+            "X-Window": str(window_ms),
+            "X-Signature": signature_b64,
+        }
+
+    def _merge_headers(
+        self,
+        headers: Mapping[str, Any] | None,
+        auth_headers: dict[str, str],
+        method: str,
+        data: dict[str, Any] | None,
+    ) -> dict[str, str]:
+        """Merge existing headers with auth headers and add Content-Type if needed."""
+        final_headers: dict[str, Any] = {}
+        if headers:
+            final_headers.update(headers)
+        final_headers.update(auth_headers)
+
+        if method.upper() in ["POST", "PUT", "DELETE"] and data:
+            has_content_type = any(key.lower() == "content-type" for key in final_headers.keys())
+            if not has_content_type:
+                final_headers["Content-Type"] = "application/json; charset=utf-8"
+
+        return {k: str(v) for k, v in final_headers.items()}
+
     async def prepare_request(
         self,
         method: str,
@@ -186,66 +243,20 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         """
         try:
-            # Get instruction for this endpoint
             instruction_str = self._get_instruction_for_endpoint(method, path)
-
-            # Generate timestamp and window
             timestamp_ms = int(time.time() * 1000)
-            window_ms = 5000  # 5 second window
+            window_ms = 5000
 
-            # Construct content part based on method
-            content_part_str = ""
-            if method.upper() == "GET" and params:
-                # Filter out None values and sort for consistency
-                filtered_params = {k: v for k, v in params.items() if v is not None}
-                if filtered_params:
-                    content_part_str = urllib.parse.urlencode(sorted(filtered_params.items()))
-            elif method.upper() in ["POST", "PUT", "DELETE"] and data:
-                # Filter out None values and convert to query string format for signing
-                filtered_data = {k: v for k, v in data.items() if v is not None}
-                if filtered_data:
-                    # Convert all values to strings for urlencode, as per query string requirements
-                    # Backpack API expects content part in query string format even for JSON bodies
-                    stringified_data = {k: str(v_val) for k, v_val in filtered_data.items()}
-                    content_part_str = urllib.parse.urlencode(sorted(stringified_data.items()))
+            content_part_str = self._build_content_part(method, params, data)
+            string_to_sign = self._build_string_to_sign(
+                instruction_str, content_part_str, timestamp_ms, window_ms
+            )
 
-            # Construct string to sign robustly to avoid double ampersands
-            sign_payload_parts = [f"instruction={instruction_str}"]
-            if content_part_str:  # Only add content_part_str if it's non-empty
-                sign_payload_parts.append(content_part_str)
-            sign_payload_parts.append(f"timestamp={timestamp_ms}")
-            sign_payload_parts.append(f"window={window_ms}")
-            string_to_sign = "&".join(sign_payload_parts)
-
-            # Sign the string using ED25519
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))
             signature_b64 = base64.b64encode(signature_bytes).decode("utf-8")
 
-            # Create authentication headers
-            auth_headers = {
-                "X-API-Key": self._api_key_b64,
-                "X-Timestamp": str(timestamp_ms),
-                "X-Window": str(window_ms),
-                "X-Signature": signature_b64,
-            }
-
-            # Merge with existing headers
-            final_headers: dict[str, Any] = {}
-            if headers:
-                final_headers.update(headers)
-            final_headers.update(auth_headers)
-
-            # Add Content-Type for requests with data payloads
-            if method.upper() in ["POST", "PUT", "DELETE"] and data:
-                # Check case-insensitively for existing Content-Type header
-                has_content_type = any(
-                    key.lower() == "content-type" for key in final_headers.keys()
-                )
-                if not has_content_type:
-                    final_headers["Content-Type"] = "application/json; charset=utf-8"
-
-            # Convert to string mapping for Pydantic model
-            final_headers_str = {k: str(v) for k, v in final_headers.items()}
+            auth_headers = self._create_auth_headers(timestamp_ms, window_ms, signature_b64)
+            final_headers_str = self._merge_headers(headers, auth_headers, method, data)
 
             return AuthenticatedRequestComponents(
                 headers=final_headers_str,

@@ -337,3 +337,67 @@ class BackpackRawGetOrderParams(BaseModel):
     symbol: RawBpNonEmptyStringMax64 = Field(alias="symbol")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
+# --- Account Limits Query Parameter Models (INTERNAL USE ONLY) ---
+
+
+class BackpackRawMaxBorrowQuantityParams(BaseModel):
+    """Query parameters for GET /api/v1/account/limits/borrow endpoint.
+
+    INTERNAL USE ONLY: This model is for risk calculation validation
+    and reconciliation purposes within BackpackAccountService.
+
+    Attributes:
+        symbol: The asset symbol to check borrowing limits for.
+    """
+
+    symbol: str = Field(..., alias="symbol")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class BackpackRawMaxOrderQuantityParams(BaseModel):
+    """Query parameters for GET /api/v1/account/limits/order endpoint.
+
+    INTERNAL USE ONLY: This model is for risk calculation validation
+    and reconciliation purposes within BackpackAccountService.
+
+    Attributes:
+        symbol: The trading symbol for the order.
+        side: The order side ("Bid" or "Ask").
+        price: Optional price for the order calculation.
+        reduce_only: Optional flag for reduce-only orders.
+        auto_borrow: Optional flag for auto-borrow feature.
+        auto_borrow_repay: Optional flag for auto-borrow repay feature.
+        auto_lend_redeem: Optional flag for auto-lend redeem feature.
+    """
+
+    symbol: str = Field(..., alias="symbol")
+    side: str = Field(..., alias="side")
+    price: str | None = Field(default=None, alias="price")
+    reduce_only: bool | None = Field(default=None, alias="reduceOnly")
+    auto_borrow: bool | None = Field(default=None, alias="autoBorrow")
+    auto_borrow_repay: bool | None = Field(default=None, alias="autoBorrowRepay")
+    auto_lend_redeem: bool | None = Field(default=None, alias="autoLendRedeem")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class BackpackRawMaxWithdrawalQuantityParams(BaseModel):
+    """Query parameters for GET /api/v1/account/limits/withdrawal endpoint.
+
+    INTERNAL USE ONLY: This model is for risk calculation validation
+    and reconciliation purposes within BackpackAccountService.
+
+    Attributes:
+        symbol: The asset symbol for withdrawal limits.
+        auto_borrow: Optional flag for auto-borrow feature.
+        auto_lend_redeem: Optional flag for auto-lend redeem feature.
+    """
+
+    symbol: str = Field(..., alias="symbol")
+    auto_borrow: bool | None = Field(default=None, alias="autoBorrow")
+    auto_lend_redeem: bool | None = Field(default=None, alias="autoLendRedeem")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)

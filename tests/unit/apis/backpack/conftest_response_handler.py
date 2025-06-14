@@ -150,19 +150,20 @@ def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
 def valid_raw_balance_item() -> dict[str, Any]:
     """Return valid raw balance item for testing."""
     return {
-        "asset": "SOL",
         "available": "10.5",
-        "total": "12.5",
+        "locked": "2.0",
+        "staked": "0",
     }
 
 
 @pytest.fixture
 def valid_raw_balances(valid_raw_balance_item: dict[str, Any]) -> dict[str, Any]:
     """Return valid raw balances for testing."""
-    usdc_item = valid_raw_balance_item.copy()
-    usdc_item["asset"] = "USDC"
-    usdc_item["available"] = "1000.0"
-    usdc_item["total"] = "1050.0"
+    usdc_item = {
+        "available": "1000.0",
+        "locked": "50.0",
+        "staked": "0",
+    }
     return {"SOL": valid_raw_balance_item, "USDC": usdc_item}
 
 

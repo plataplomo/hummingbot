@@ -41,17 +41,17 @@ class TestHandleGetBalancesResponse:
         assert "SOL" in balances
         sol_balance = balances["SOL"]
         assert isinstance(sol_balance, BackpackRawBalance)
-        assert sol_balance.asset == "SOL"
         assert sol_balance.available == "10.5"
-        assert sol_balance.total == "12.5"
+        assert sol_balance.locked == "2.0"
+        assert sol_balance.staked == "0"
 
         # Check USDC balance
         assert "USDC" in balances
         usdc_balance = balances["USDC"]
         assert isinstance(usdc_balance, BackpackRawBalance)
-        assert usdc_balance.asset == "USDC"
         assert usdc_balance.available == "1000.0"
-        assert usdc_balance.total == "1050.0"
+        assert usdc_balance.locked == "50.0"
+        assert usdc_balance.staked == "0"
 
     def test_empty_balances(self) -> None:
         """Test handling empty balances response."""
@@ -677,9 +677,9 @@ class TestAccountTradingEdgeCases:
         """Test balance response with zero amounts."""
         raw_data = {
             "ZERO": {
-                "asset": "ZERO",
                 "available": "0.0",
-                "total": "0.0",
+                "locked": "0.0",
+                "staked": "0.0",
             },
         }
         balances = BackpackResponseHandler.handle_get_balances_response(
@@ -687,7 +687,8 @@ class TestAccountTradingEdgeCases:
         )
         assert len(balances) == 1
         assert balances["ZERO"].available == "0.0"
-        assert balances["ZERO"].total == "0.0"
+        assert balances["ZERO"].locked == "0.0"
+        assert balances["ZERO"].staked == "0.0"
 
     def test_position_with_negative_values(self) -> None:
         """Test position response with negative values (short position)."""

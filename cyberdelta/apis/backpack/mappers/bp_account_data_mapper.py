@@ -30,6 +30,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPosition,
@@ -537,6 +538,137 @@ class BackpackAccountDataMapper:
                 exc_info=True,
             )
             raise TransformationError(f"Error transforming raw account summary: {e}") from e
+
+    @staticmethod
+    def transform_enhanced_account_data_to_margin_summary(
+        raw_collateral: BackpackRawCollateralResponse,
+        raw_settings: BackpackRawAccountSummary,
+        raw_positions: list[BackpackRawPosition],
+    ) -> MarginAccountSummary:
+        """Transform enhanced collateral data into internal MarginAccountSummary.
+
+        Uses comprehensive margin data from /api/v1/capital/collateral endpoint
+        to create a detailed MarginAccountSummary with enhanced bp_details.
+
+        Args:
+            raw_collateral: Validated collateral response from Backpack API
+            raw_settings: Validated account settings from Backpack API
+            raw_positions: List of validated derivative positions
+
+        Returns:
+            MarginAccountSummary: Enhanced account summary with collateral data
+
+        Raises:
+            TransformationError: If critical data cannot be parsed
+        """
+        try:
+            # Parse core equity fields from collateral response
+            total_equity = parse_decimal_value(
+                raw_collateral.net_equity, allow_none=False, field_name="net_equity"
+            )
+            if total_equity is None:
+                raise TransformationError("net_equity missing/invalid in collateral response")
+
+            available_equity = parse_decimal_value(
+                raw_collateral.net_equity_available,
+                allow_none=False,
+                field_name="net_equity_available",
+            )
+            if available_equity is None:
+                raise TransformationError(
+                    "net_equity_available missing/invalid in collateral response"
+                )
+
+            # Parse detailed collateral fields
+            assets_value = parse_decimal_value(raw_collateral.assets_value, allow_none=True)
+            liabilities_value = parse_decimal_value(
+                raw_collateral.liabilities_value, allow_none=True
+            )
+            locked_equity = parse_decimal_value(raw_collateral.net_equity_locked, allow_none=True)
+            borrow_liability = parse_decimal_value(raw_collateral.borrow_liability, allow_none=True)
+            unsettled_equity = parse_decimal_value(raw_collateral.unsettled_equity, allow_none=True)
+            margin_fraction = parse_decimal_value(raw_collateral.margin_fraction, allow_none=True)
+            net_exposure_futures = parse_decimal_value(
+                raw_collateral.net_exposure_futures, allow_none=True
+            )
+
+            # Parse margin factors
+            imf_value = parse_decimal_value(raw_collateral.imf, allow_none=True)
+            mmf_value = parse_decimal_value(raw_collateral.mmf, allow_none=True)
+
+            # Parse unrealized PnL
+            total_unrealized_pnl = parse_decimal_value(
+                raw_collateral.pnl_unrealized, allow_none=True
+            )
+
+            # Transform derivative positions
+            internal_derivative_positions = [
+                BackpackAccountDataMapper.transform_raw_position_to_internal(pos_raw)
+                for pos_raw in raw_positions
+            ]
+
+            # Calculate position notional from derivative positions
+            calculated_total_position_notional = Decimal("0.0")
+            calculated_total_unrealized_pnl_positions = Decimal("0.0")
+
+            for dp in internal_derivative_positions:
+                if dp.unrealized_pnl is not None:
+                    calculated_total_unrealized_pnl_positions += dp.unrealized_pnl
+                if (
+                    dp.entry_price is not None
+                    and dp.size.is_finite()
+                    and dp.entry_price.is_finite()
+                ):
+                    calculated_total_position_notional += abs(dp.size * dp.entry_price)
+
+            # Prepare collateral assets data for bp_details
+            collateral_assets_data: list[dict[str, str]] = []
+            for asset in raw_collateral.collateral:
+                collateral_assets_data.append(
+                    {
+                        "symbol": asset.symbol,
+                        "total_quantity": str(asset.total_quantity),
+                        "collateral_value": str(asset.collateral_value),
+                        "collateral_weight": str(asset.collateral_weight),
+                        "asset_mark_price": str(asset.asset_mark_price),
+                    }
+                )
+
+            # Create enhanced BackpackMarginDetails
+            bp_details = BackpackMarginDetails(
+                assets_value=assets_value,
+                liabilities_value=liabilities_value,
+                locked_equity=locked_equity,
+                borrow_liability=borrow_liability,
+                unsettled_equity=unsettled_equity,
+                margin_fraction=margin_fraction,
+                net_exposure_futures=net_exposure_futures,
+                imf_raw=str(raw_collateral.imf) if raw_collateral.imf else None,
+                mmf_raw=str(raw_collateral.mmf) if raw_collateral.mmf else None,
+                subaccount_id=None,  # Set if subaccount was used in request
+                collateral_assets=collateral_assets_data,
+                source_endpoint="collateral",
+            )
+
+            return MarginAccountSummary(
+                exchange=ExchangeName.BACKPACK.value,
+                timestamp=datetime.now(UTC),
+                total_equity=total_equity,
+                available_equity=available_equity,
+                total_initial_margin_required=imf_value,
+                total_maintenance_margin_required=mmf_value,
+                total_position_notional=calculated_total_position_notional,
+                total_unrealized_pnl=total_unrealized_pnl,
+                bp_details=bp_details,
+                hl_details=None,
+            )
+
+        except (ValidationError, TypeError, AttributeError, KeyError) as e:
+            logger.error(
+                f"[BackpackAccountDataMapper] Error transforming collateral data: {e}",
+                exc_info=True,
+            )
+            raise TransformationError(f"Error transforming collateral data: {e}") from e
 
     @staticmethod
     def transform_raw_transfer_to_internal(

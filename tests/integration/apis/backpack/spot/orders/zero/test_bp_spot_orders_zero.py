@@ -691,7 +691,8 @@ class TestBackpackOrdersZeroBalance:
                 "expected_errors": [
                     APIErrorCode.INSUFFICIENT_FUNDS.value,
                     APIErrorCode.INVALID_ORDER_SIZE.value,
-                    APIErrorCode.INVALID_REQUEST.value,  # API returns this for quantity below minimum
+                    # API returns this for quantity below minimum
+                    APIErrorCode.INVALID_REQUEST.value,
                 ],
             },
             {

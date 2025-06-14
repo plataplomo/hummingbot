@@ -37,7 +37,6 @@ def mapper() -> BackpackAccountDataMapper:
 
 
 def create_raw_balance(
-    asset: str = "USDC",
     available: str = "1000.0",
     locked: str = "50.0",
     staked: str = "50.0",
@@ -82,6 +81,7 @@ def create_raw_position(
 
     return BackpackRawPosition(
         symbol=symbol,
+        subaccountId=0,  # Add missing required field
         breakEvenPrice=break_even_price,
         entryPrice=entry_price,
         estLiquidationPrice=est_liquidation_price,
@@ -201,7 +201,7 @@ class TestBalanceTransformation:
     ) -> None:
         """Test successful transformation of BackpackRawBalance to SpotBalance."""
         raw_balance = create_raw_balance(
-            asset="USDC", available="900.0", locked="100.0", staked="100.0"
+            available="900.0", locked="100.0", staked="100.0"
         )
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
@@ -222,7 +222,7 @@ class TestBalanceTransformation:
 
         for asset in assets:
             raw_balance = create_raw_balance(
-                asset=asset, available="500.0", locked="50.0", staked="50.0"
+                available="500.0", locked="50.0", staked="50.0"
             )
             result = mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
@@ -609,9 +609,9 @@ class TestAccountSummaryTransformation:
         """Test account summary with multiple USD-like balances."""
         raw_summary = create_raw_account_summary()
         spot_balances = {
-            "USDC": create_raw_balance(asset="USDC", total="1000.0", available="900.0"),
-            "USDT": create_raw_balance(asset="USDT", total="500.0", available="450.0"),
-            "BTC": create_raw_balance(asset="BTC", total="2.0", available="1.8"),  # Non-USD
+            "USDC": create_raw_balance(available="900.0", locked="100.0", staked="0"),
+            "USDT": create_raw_balance(available="450.0", locked="50.0", staked="0"),
+            "BTC": create_raw_balance(available="1.8", locked="0.2", staked="0"),  # Non-USD
         }
 
         result = mapper.transform_raw_account_summary_to_internal(raw_summary, spot_balances, [])
@@ -626,7 +626,7 @@ class TestAccountSummaryTransformation:
     ) -> None:
         """Test account summary with multiple positions."""
         raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(total="1000.0", available="900.0")}
+        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
         positions = [
             create_raw_position(
                 symbol="SOL-USDC",
@@ -660,7 +660,7 @@ class TestAccountSummaryTransformation:
     ) -> None:
         """Test account summary when positions have None unrealized PnL."""
         raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(total="1000.0", available="900.0")}
+        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
 
         # Create a position where the raw data has no unrealized PnL (parsing to None)
         position = create_raw_position(
@@ -696,7 +696,7 @@ class TestAccountSummaryTransformation:
     ) -> None:
         """Test account summary when positions have zero size (which sets entry_price to None)."""
         raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(total="1000.0", available="900.0")}
+        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
 
         # Create position with zero size, which should result in None entry_price and no PnL
         position = create_raw_position(net_quantity="0.0", pnl_unrealized="0.0")
@@ -719,7 +719,7 @@ class TestErrorHandling:
 
     def test_edge_case_unicode_asset_names(self, mapper: BackpackAccountDataMapper) -> None:
         """Test transformation with Unicode asset names."""
-        raw_balance = create_raw_balance(asset="USDC🚀")
+        raw_balance = create_raw_balance()
 
         result = mapper.transform_raw_balance_to_internal("USDC🚀", raw_balance)
 

@@ -4,22 +4,32 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from _pytest.fixtures import FixtureRequest
 
 
 @pytest.fixture
 def vcr_cassette_dir(
-    request: pytest.FixtureRequest, custom_vcr_cassette_dir: str | None = None
+    request: FixtureRequest, custom_vcr_cassette_dir: str | None = None
 ) -> str:
     """Dynamic VCR cassette directory based on test location."""
     if custom_vcr_cassette_dir:
         return custom_vcr_cassette_dir
 
-    if request.module is None or request.module.__file__ is None:
+    # Access module from request object
+    module: Any = getattr(request, "module", None)
+    if module is None:
+        raise ValueError("Unable to determine test module")
+    
+    module_file: str | None = getattr(module, "__file__", None)
+    if module_file is None:
         raise ValueError("Unable to determine test module file path")
 
-    test_file = Path(request.module.__file__)
+    test_file = Path(module_file)
     return str(test_file.parent.relative_to(Path("tests/integration/apis")))
 
 

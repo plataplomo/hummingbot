@@ -7,7 +7,7 @@ instead of the old Config class.
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any, TextIO, cast
+from typing import Any, TextIO
 from unittest.mock import Mock, patch
 
 import pytest
@@ -183,7 +183,7 @@ class TestSetupLogging:
                 elif isinstance(handler, logging.StreamHandler) and not isinstance(
                     handler, logging.FileHandler
                 ):
-                    console_handler = cast(logging.StreamHandler[TextIO], handler)
+                    console_handler = handler
 
             assert file_handler is not None
             assert console_handler is not None

@@ -290,31 +290,33 @@ class TestBackpackTradingServiceOrderManagement:
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
 
-        mock_raw_order = BackpackRawOrder(
-            id="12345",
-            clientId=client_order_id,
-            relatedOrderId="order_123",
-            symbol=symbol,
-            side="Bid",
-            orderType=order_type.value,
-            quantity=str(quantity),
-            price=str(price),
-            executedQuantity="0",
-            executedQuoteQuantity="0",
-            triggerPrice="0",
-            avgFillPrice="0",
-            status="NEW",
-            timeInForce=time_in_force.value,
-            triggerBy="last",
-            reduceOnly=False,
-            postOnly=False,
-            selfTradePrevention="cn",
-            createdAt=1678886400000,
-            updatedAt=1678886400000,
-            triggeredAt=None,
-            expiryReason=None,
-            origin="API",
-        )
+        order_data = {
+            "id": "12345",
+            "clientId": client_order_id,
+            "relatedOrderId": "order_123",
+            "symbol": symbol,
+            "side": "Bid",
+            "orderType": order_type.value,
+            "quantity": str(quantity),
+            "price": str(price),
+            "executedQuantity": "0",
+            "executedQuoteQuantity": "0",
+            "triggerPrice": "0",
+            "avgFillPrice": "0",
+            "status": "NEW",
+            "timeInForce": time_in_force.value,
+            "triggerBy": "last",
+            "reduceOnly": False,
+            "postOnly": False,
+            "selfTradePrevention": "cn",
+            "createdAt": 1678886400000,
+            "updatedAt": 1678886400000,
+            "triggeredAt": None,
+            "expiryReason": None,
+            "origin": "API",
+        }
+
+        mock_raw_order = BackpackRawOrder.model_validate(order_data)
 
         # Mock a simple Order object result (the actual return type)
         mock_order_result = MagicMock()

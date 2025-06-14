@@ -47,7 +47,7 @@ class TestCrossExchangeDerivativePositionConsistency:
                     assert position.mark_price > Decimal("0")
 
         except NotImplementedError:
-            pytest.skip(f"get_positions not implemented for {exchange_client.exchange}")
+            pytest.skip(f"get_positions not implemented for {exchange_client.exchange_name}")
 
     @pytest.mark.parametrize("precision", [8, 10, 12])
     @pytest.mark.asyncio
@@ -73,4 +73,4 @@ class TestCrossExchangeDerivativePositionConsistency:
                         assert decimal_places <= precision
 
         except NotImplementedError:
-            pytest.skip(f"get_positions not implemented for {exchange_client.exchange}")
+            pytest.skip(f"get_positions not implemented for {exchange_client.exchange_name}")

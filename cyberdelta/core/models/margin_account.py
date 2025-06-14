@@ -193,19 +193,81 @@ class HyperliquidMarginDetails(BaseModel):
 
 
 class BackpackMarginDetails(BaseModel):
-    """Immutable exchange-specific details for a Backpack margin account summary."""
+    """Backpack-specific margin account enrichment data.
 
-    assets_value: Decimal | None = Field(default=None, ge=Decimal("0"))
-    borrow_liability: Decimal | None = Field(default=None, ge=Decimal("0"))
-    liabilities_value: Decimal | None = Field(default=None, ge=Decimal("0"))
-    locked_equity: Decimal | None = Field(default=None, ge=Decimal("0"))
-    margin_fraction: Decimal | None = Field(default=None, ge=Decimal("0"))
-    # Raw fields kept as strings if needed for specific signing/hashing, TBD
-    imf_raw: str | None = Field(default=None)
-    mmf_raw: str | None = Field(default=None)
+    Maps to OpenAPI MarginAccountSummary fields not covered in
+    core MarginAccountSummary. Provides Backpack-specific risk
+    and collateral data for enhanced trading decisions.
 
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
+    CONSISTENCY NOTE: Structure mirrors HyperliquidMarginDetails
+    but contains Backpack's unique collateral-based data.
+    """
+
+    # Enhanced equity breakdown (from OpenAPI MarginAccountSummary)
+    assets_value: Decimal | None = Field(
+        default=None, ge=Decimal("0"), description="Total value of all assets (assetsValue)"
+    )
+    liabilities_value: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Total value of all liabilities (liabilitiesValue)",
+    )
+    locked_equity: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Equity locked in orders/positions (netEquityLocked)",
+    )
+    borrow_liability: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Total borrowed amount liability (borrowLiability)",
+    )
+    unsettled_equity: Decimal | None = Field(
+        default=None, description="Equity pending settlement (unsettledEquity)"
+    )
+
+    # Risk metrics (from OpenAPI MarginAccountSummary)
+    margin_fraction: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Current margin utilization fraction (marginFraction, nullable)",
+    )
+    net_exposure_futures: Decimal | None = Field(
+        default=None, description="Net futures/perp exposure notional (netExposureFutures)"
+    )
+
+    # Raw margin factors for debugging (from OpenAPI)
+    imf_raw: str | None = Field(
+        default=None, description="Raw Initial Margin Fraction string from API (imf)"
+    )
+    mmf_raw: str | None = Field(
+        default=None, description="Raw Maintenance Margin Fraction string from API (mmf)"
+    )
+
+    # Subaccount information (from OpenAPI support)
+    subaccount_id: int | None = Field(
+        default=None, ge=0, le=65535, description="Subaccount ID used for this data (uint16)"
+    )
+
+    # Per-asset collateral breakdown (from OpenAPI Collateral array)
+    collateral_assets: list[dict[str, str]] | None = Field(
+        default=None,
+        exclude=True,
+        description="Detailed collateral breakdown by asset (internal use)",
+    )
+
+    # OpenAPI compliance metadata
+    source_endpoint: str | None = Field(
+        default=None,
+        exclude=True,
+        description="Source endpoint for debugging (collateral vs basic)",
+    )
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        frozen=True,  # Consistency with HyperliquidMarginDetails
+    )
 
     @field_validator(
         "assets_value",
@@ -213,6 +275,8 @@ class BackpackMarginDetails(BaseModel):
         "liabilities_value",
         "locked_equity",
         "margin_fraction",
+        "unsettled_equity",
+        "net_exposure_futures",
         mode="before",
     )
     @classmethod

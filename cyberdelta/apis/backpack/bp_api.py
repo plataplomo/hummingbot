@@ -408,8 +408,18 @@ class BackpackAPI(ExchangeAPI):
         return await self.market_data_service.get_funding_rates(args=args)
 
     async def get_account_summary(self) -> MarginAccountSummary:
-        """Get account summary information."""
-        return await self.account_service.get_account_info()
+        """Get comprehensive account margin information.
+
+        HYPERLIQUID CONSISTENCY:
+        - Same method name as HyperliquidAPI.get_account_summary()
+        - Same return type: MarginAccountSummary
+        - Enhanced with Backpack collateral data in bp_details extension slot
+        - Automatic fallback maintains compatibility
+
+        Returns:
+            MarginAccountSummary with bp_details populated when available
+        """
+        return await self.account_service.get_account_summary()
 
     async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types."""

@@ -34,7 +34,7 @@ class TestBackpackAccountServiceBalances:
             "USDC": {"available": "1000.5", "locked": "10.0"},
         }
         mock_validated_raw_balances_dict: dict[str, BackpackRawBalance] = {
-            "USDC": BackpackRawBalance(asset="USDC", available="1000.5", total="1010.5"),
+            "USDC": BackpackRawBalance(available="1000.5", locked="10.0", staked="0"),
         }
         mock_internal_spot_balance = SpotBalance(
             exchange="backpack_test_account",
@@ -119,8 +119,8 @@ class TestBackpackAccountServiceBalances:
         )
 
         mock_raw_balances_payload: dict[str, BackpackRawBalance] = {
-            "USDC": BackpackRawBalance(asset="USDC", available="1000.5", total="1010.5"),
-            "SOL": BackpackRawBalance(asset="SOL", available="50.2", total="50.7"),
+            "USDC": BackpackRawBalance(available="1000.5", locked="10.0", staked="0"),
+            "SOL": BackpackRawBalance(available="50.2", locked="0.5", staked="0"),
         }
         mock_response_handler.handle_get_balances_response.return_value = mock_raw_balances_payload
 

@@ -259,7 +259,8 @@ class TestBackpackPerpPositionsPrivate:
                 assert isinstance(positions, list)
 
             except Exception as e:
-                # If we can't create a position due to balance or API issues, mark as expected failure
+                # If we can't create a position due to balance or API issues,
+                # mark as expected failure
                 pytest.xfail(f"Cannot create test position due to: {e}")
 
         # Validate positions if we have any
@@ -311,18 +312,45 @@ class TestBackpackPerpPositionsPrivate:
         else:
             assert "authenticator" in str(error).lower() or "NoneType" in str(error)
 
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_bp_position_pnl_validation(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_positions() PnL calculation validation."""
-        # Get positions
+    def _validate_pnl_fields(self, position: DerivativePosition) -> None:
+        """Validate PnL fields are finite."""
+        if position.unrealized_pnl is not None:
+            assert position.unrealized_pnl.is_finite()
+        if position.realized_pnl is not None:
+            assert position.realized_pnl.is_finite()
+
+        if position.unrealized_pnl is not None and position.realized_pnl is not None:
+            total_pnl = position.unrealized_pnl + position.realized_pnl
+            assert total_pnl.is_finite()
+
+    def _validate_profitable_long_position(self, position: DerivativePosition) -> None:
+        """Validate profitable long position PnL."""
+        if (
+            position.size > Decimal("0")
+            and position.mark_price is not None
+            and position.entry_price is not None
+            and position.mark_price > position.entry_price
+            and position.unrealized_pnl is not None
+        ):
+            assert position.unrealized_pnl >= Decimal("0")
+
+    def _validate_profitable_short_position(self, position: DerivativePosition) -> None:
+        """Validate profitable short position PnL."""
+        if (
+            position.size < Decimal("0")
+            and position.mark_price is not None
+            and position.entry_price is not None
+            and position.mark_price < position.entry_price
+            and position.unrealized_pnl is not None
+        ):
+            assert position.unrealized_pnl >= Decimal("0")
+
+    async def _ensure_test_positions(
+        self, bp_api_for_test_env: BackpackAPI
+    ) -> list[DerivativePosition]:
+        """Ensure we have positions for testing, creating if necessary."""
         positions = await bp_api_for_test_env.get_positions()
 
-        # If no positions, try to create one
         if not positions:
             try:
                 await create_test_perp_position(bp_api_for_test_env)
@@ -334,33 +362,23 @@ class TestBackpackPerpPositionsPrivate:
         if not positions:
             pytest.skip("No positions available for PnL testing")
 
+        return positions
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_bp_position_pnl_validation(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test get_positions() PnL calculation validation."""
+        positions = await self._ensure_test_positions(bp_api_for_test_env)
+
         for position in positions:
             if position.size != Decimal("0"):
-                if position.unrealized_pnl is not None:
-                    assert position.unrealized_pnl.is_finite()
-                if position.realized_pnl is not None:
-                    assert position.realized_pnl.is_finite()
-
-                if position.unrealized_pnl is not None and position.realized_pnl is not None:
-                    total_pnl = position.unrealized_pnl + position.realized_pnl
-                    assert total_pnl.is_finite()
-
-                if (
-                    position.size > Decimal("0")
-                    and position.mark_price is not None
-                    and position.entry_price is not None
-                    and position.mark_price > position.entry_price
-                    and position.unrealized_pnl is not None
-                ):
-                    assert position.unrealized_pnl >= Decimal("0")
-                elif (
-                    position.size < Decimal("0")
-                    and position.mark_price is not None
-                    and position.entry_price is not None
-                    and position.mark_price < position.entry_price
-                    and position.unrealized_pnl is not None
-                ):
-                    assert position.unrealized_pnl >= Decimal("0")
+                self._validate_pnl_fields(position)
+                self._validate_profitable_long_position(position)
+                self._validate_profitable_short_position(position)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

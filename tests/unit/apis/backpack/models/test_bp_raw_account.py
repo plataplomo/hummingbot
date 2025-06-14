@@ -130,22 +130,22 @@ def test_BackpackRawAccount_extra_field() -> None:
 def valid_balance() -> dict[str, Any]:
     """Return valid balance for testing."""
     return {
-        "asset": "USDC",
         "available": "1000.0",
-        "total": "1000.0",
+        "locked": "0.0",
+        "staked": "0.0",
     }
 
 
 def test_BackpackRawBalance_happy_path() -> None:
     """Test BackpackRawBalance happy path."""
     obj = BackpackRawBalance.model_validate(valid_balance())
-    assert obj.asset == "USDC"
     assert obj.available == "1000.0"
-    assert obj.total == "1000.0"
+    assert obj.locked == "0.0"
+    assert obj.staked == "0.0"
 
 
 # Schema-driven: Required fields
-@pytest.mark.parametrize("missing_field", ["asset", "available", "total"])
+@pytest.mark.parametrize("missing_field", ["available", "locked", "staked"])
 def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
     """Test BackpackRawBalance missing required fields."""
     p: dict[str, Any] = valid_balance().copy()
@@ -189,11 +189,11 @@ def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pa
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("asset", ""),
-        ("asset", "   "),
-        ("asset", "USDC😀"),
-        ("asset", "USDC; DROP TABLE balances;"),
-        ("asset", "<img src=x onerror=alert(1)>"),
+        ("available", ""),
+        ("available", "   "),
+        ("available", "1000😀"),
+        ("available", "1000; DROP TABLE balances;"),
+        ("available", "<img src=x onerror=alert(1)>"),
     ],
 )
 def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> None:
@@ -229,7 +229,7 @@ def test_BackpackRawBalance_corruption_cases() -> None:
         # 2. Binary data instead of string
         ("total", b"\x00\x01", "binary data instead of string"),
         # 3. Nested object instead of string
-        ("asset", {"foo": "bar"}, "nested object instead of string"),
+        ("available", {"foo": "bar"}, "nested object instead of string"),
         # 4. List instead of string
         ("available", ["1000.0"], "list instead of string"),
         # 5. Integer instead of string for decimal field
@@ -237,13 +237,13 @@ def test_BackpackRawBalance_corruption_cases() -> None:
         # 6. Float instead of string for decimal field
         ("available", 1000.0, "float instead of string for decimal field"),
         # 7. Garbled unicode string
-        ("asset", "\udce2\udc28\udc00", "garbled unicode string"),
+        ("available", "\udce2\udc28\udc00", "garbled unicode string"),
         # 8. Overly large string (potential DoS)
-        ("asset", "A" * 10**7, "overly large string (potential DoS)"),
+        ("available", "A" * 10**7, "overly large string (potential DoS)"),
         # 9. Truncated JSON-like string
         ("available", '{"incomplete": ', "truncated JSON-like string"),
         # 10. SQL injection attempt
-        ("asset", "USDC'; DROP TABLE balances;--", "SQL injection attempt"),
+        ("available", "1000'; DROP TABLE balances;--", "SQL injection attempt"),
     ]
     for field, value, description in corruption_cases:
         p = base.copy()
@@ -319,20 +319,20 @@ def test_BackpackRawAccount_corruption_garbled_unicode_email() -> None:
 def test_BackpackRawBalance_real_json_example() -> None:
     """Validate BackpackRawBalance using a real JSON payload with edge values."""
     payload = {
-        "asset": "USDC_😀",
         "available": "0.00000001",
-        "total": "99999999.99999999",
+        "locked": "99999999.99999998",
+        "staked": "0.00000000",
     }
     obj = BackpackRawBalance.model_validate(payload)
-    assert obj.asset == "USDC_😀"
     assert obj.available == "0.00000001"
-    assert obj.total == "99999999.99999999"
+    assert obj.locked == "99999999.99999998"
+    assert obj.staked == "0.00000000"
 
 
-def test_BackpackRawBalance_corruption_null_asset() -> None:
-    """Should fail: null value for required 'asset'."""
+def test_BackpackRawBalance_corruption_null_available() -> None:
+    """Should fail: null value for required 'available'."""
     p = valid_balance().copy()
-    p["asset"] = None
+    p["available"] = None
     with pytest.raises(ValidationError):
         BackpackRawBalance.model_validate(p)
 
@@ -353,17 +353,17 @@ def test_BackpackRawBalance_corruption_nested_total() -> None:
         BackpackRawBalance.model_validate(p)
 
 
-def test_BackpackRawBalance_corruption_list_asset() -> None:
-    """Should fail: list for 'asset'."""
+def test_BackpackRawBalance_corruption_list_available() -> None:
+    """Should fail: list for 'available'."""
     p = valid_balance().copy()
-    p["asset"] = ["USDC"]
+    p["available"] = ["1000.0"]
     with pytest.raises(ValidationError):
         BackpackRawBalance.model_validate(p)
 
 
-def test_BackpackRawBalance_corruption_garbled_unicode_asset() -> None:
-    """Should fail: garbled unicode in 'asset'."""
+def test_BackpackRawBalance_corruption_garbled_unicode_available() -> None:
+    """Should fail: garbled unicode in 'available'."""
     p = valid_balance().copy()
-    p["asset"] = "USDC\udce2\udc28\udc00"
+    p["available"] = "1000.0\udce2\udc28\udc00"
     with pytest.raises(ValidationError):
         BackpackRawBalance.model_validate(p)

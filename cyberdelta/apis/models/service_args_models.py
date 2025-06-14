@@ -662,3 +662,38 @@ class GetMarketsArgs(BaseModel):
 
     # Currently no parameters needed, but model provides consistency and future extensibility
     # Could potentially add filters like market_type, status, etc. in the future
+
+
+# --- Account Limits Args Models (INTERNAL USE ONLY) ---
+
+
+class GetMaxBorrowQuantityArgs(BaseModel):
+    """Args for fetching max borrow quantity from exchange (INTERNAL VALIDATION)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+
+
+class GetMaxOrderQuantityArgs(BaseModel):
+    """Args for fetching max order quantity from exchange (INTERNAL VALIDATION)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+    side: OrderSide
+    price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    reduce_only: bool | None = Field(default=None)
+    auto_borrow: bool | None = Field(default=None)
+    auto_borrow_repay: bool | None = Field(default=None)
+    auto_lend_redeem: bool | None = Field(default=None)
+
+
+class GetMaxWithdrawalQuantityArgs(BaseModel):
+    """Args for fetching max withdrawal quantity from exchange (INTERNAL VALIDATION)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+    auto_borrow: bool | None = Field(default=None)
+    auto_lend_redeem: bool | None = Field(default=None)
