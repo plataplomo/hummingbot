@@ -523,9 +523,7 @@ class HttpClient:
             method,
             full_url,
             params=request_params if request_params else None,
-            json=json_payload
-            if method.upper() != "GET" and json_payload is not None
-            else None,
+            json=json_payload if method.upper() != "GET" and json_payload is not None else None,
             data=None,
             headers=request_headers,
             timeout=aiohttp.ClientTimeout(total=effective_timeout),

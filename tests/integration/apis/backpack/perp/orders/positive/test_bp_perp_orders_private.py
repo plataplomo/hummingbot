@@ -157,7 +157,7 @@ class TestBackpackPerpOrdersPositiveBalance:
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),  # Small test quantity
+            quantity=Decimal("0.01"),  # Small test quantity
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
@@ -191,7 +191,9 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_perp_order_precision_edge_cases(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_perp_order_precision_edge_cases(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test perp order precision handling with edge case values."""
         symbol = "SOL_USDC_PERP"
 
@@ -224,7 +226,9 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_perp_leverage_order_calculations(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_perp_leverage_order_calculations(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test perp order calculations with leverage considerations."""
         symbol = "SOL_USDC_PERP"
 
@@ -252,7 +256,9 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_get_perp_order_history_success(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_get_perp_order_history_success(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test retrieving perp order history with positive balance."""
         symbol = "SOL_USDC_PERP"
 
@@ -281,12 +287,14 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_perp_market_order_execution(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_perp_market_order_execution(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test perp market order execution with margin available."""
         symbol = "SOL_USDC_PERP"
 
         # Use very small quantity for market order test
-        small_quantity = Decimal("0.1")  # $0.1 worth at current prices
+        small_quantity = Decimal("0.01")
 
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -311,7 +319,9 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_perp_order_concurrent_operations(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_perp_order_concurrent_operations(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test concurrent perp order operations."""
         symbol = "SOL_USDC_PERP"
 
@@ -401,7 +411,9 @@ class TestBackpackPerpOrdersPositiveBalance:
 
     @pytest.mark.vcr()
     @pytest.mark.asyncio
-    async def test_perp_order_margin_requirements(self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]) -> None:
+    async def test_perp_order_margin_requirements(
+        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+    ) -> None:
         """Test perp order margin requirements validation."""
         symbol = "SOL_USDC_PERP"
 

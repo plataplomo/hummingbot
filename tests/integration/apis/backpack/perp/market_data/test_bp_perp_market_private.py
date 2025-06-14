@@ -39,7 +39,9 @@ class TestBackpackPerpMarketPrivate:
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == "SOL_USDC_PERP", f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
+        assert market.symbol == "SOL_USDC_PERP", (
+            f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
+        )
 
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"

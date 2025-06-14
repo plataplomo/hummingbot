@@ -43,8 +43,12 @@ class TestBackpackAccountSummaryZero:
 
         # For zero balance accounts, these fields may be None from the API
         assert isinstance(account_summary.total_equity, Decimal)
-        assert account_summary.total_initial_margin_required is None or isinstance(account_summary.total_initial_margin_required, Decimal)
-        assert account_summary.total_maintenance_margin_required is None or isinstance(account_summary.total_maintenance_margin_required, Decimal)
+        assert account_summary.total_initial_margin_required is None or isinstance(
+            account_summary.total_initial_margin_required, Decimal
+        )
+        assert account_summary.total_maintenance_margin_required is None or isinstance(
+            account_summary.total_maintenance_margin_required, Decimal
+        )
 
         assert account_summary.total_equity >= Decimal("0")
         if account_summary.total_initial_margin_required is not None:
@@ -54,8 +58,14 @@ class TestBackpackAccountSummaryZero:
 
         # With zero balance, margin requirements should be None or zero
         if account_summary.total_equity == Decimal("0"):
-            assert account_summary.total_initial_margin_required is None or account_summary.total_initial_margin_required == Decimal("0")
-            assert account_summary.total_maintenance_margin_required is None or account_summary.total_maintenance_margin_required == Decimal("0")
+            assert (
+                account_summary.total_initial_margin_required is None
+                or account_summary.total_initial_margin_required == Decimal("0")
+            )
+            assert (
+                account_summary.total_maintenance_margin_required is None
+                or account_summary.total_maintenance_margin_required == Decimal("0")
+            )
 
         logger.info(f"Zero balance account summary: equity={account_summary.total_equity}")
 
@@ -71,16 +81,26 @@ class TestBackpackAccountSummaryZero:
 
         assert isinstance(account_summary.total_equity, Decimal)
         # These fields may be None for zero balance accounts
-        assert account_summary.total_initial_margin_required is None or isinstance(account_summary.total_initial_margin_required, Decimal)
-        assert account_summary.total_maintenance_margin_required is None or isinstance(account_summary.total_maintenance_margin_required, Decimal)
+        assert account_summary.total_initial_margin_required is None or isinstance(
+            account_summary.total_initial_margin_required, Decimal
+        )
+        assert account_summary.total_maintenance_margin_required is None or isinstance(
+            account_summary.total_maintenance_margin_required, Decimal
+        )
 
         if account_summary.total_equity == Decimal("0"):
             assert str(account_summary.total_equity) in ["0", "0.0"]
 
-        if account_summary.total_initial_margin_required is not None and account_summary.total_initial_margin_required == Decimal("0"):
+        if (
+            account_summary.total_initial_margin_required is not None
+            and account_summary.total_initial_margin_required == Decimal("0")
+        ):
             assert str(account_summary.total_initial_margin_required) in ["0", "0.0"]
 
-        if account_summary.total_maintenance_margin_required is not None and account_summary.total_maintenance_margin_required == Decimal("0"):
+        if (
+            account_summary.total_maintenance_margin_required is not None
+            and account_summary.total_maintenance_margin_required == Decimal("0")
+        ):
             assert str(account_summary.total_maintenance_margin_required) in ["0", "0.0"]
 
         # Calculate sum only for non-None values
@@ -89,7 +109,7 @@ class TestBackpackAccountSummaryZero:
             equity_sum += account_summary.total_initial_margin_required
         if account_summary.total_maintenance_margin_required is not None:
             equity_sum += account_summary.total_maintenance_margin_required
-        
+
         assert equity_sum.is_finite()
 
     @pytest.mark.vcr

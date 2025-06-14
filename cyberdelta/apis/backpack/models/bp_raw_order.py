@@ -194,6 +194,58 @@ class BackpackRawOrder(BaseModel):
         description="Origin of the last update. Alias: 'O'",
     )
 
+    # New fields from updated Backpack API response format
+    quoteQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="quoteQuantity",
+        description="Quote quantity for the order",
+    )
+    stopLossLimitPrice: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="stopLossLimitPrice",
+        description="Stop loss limit price",
+    )
+    stopLossTriggerBy: RawBpOptionalNonEmptyStringMax32 = Field(
+        None,
+        alias="stopLossTriggerBy",
+        description="Stop loss trigger reference",
+    )
+    stopLossTriggerPrice: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="stopLossTriggerPrice",
+        description="Stop loss trigger price",
+    )
+    strategyId: RawBpOptionalNonEmptyStringMax64 = Field(
+        None,
+        alias="strategyId",
+        description="Strategy identifier",
+    )
+    systemOrderType: RawBpOptionalNonEmptyStringMax32 = Field(
+        None,
+        alias="systemOrderType",
+        description="System order type",
+    )
+    takeProfitLimitPrice: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="takeProfitLimitPrice",
+        description="Take profit limit price",
+    )
+    takeProfitTriggerBy: RawBpOptionalNonEmptyStringMax32 = Field(
+        None,
+        alias="takeProfitTriggerBy",
+        description="Take profit trigger reference",
+    )
+    takeProfitTriggerPrice: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="takeProfitTriggerPrice",
+        description="Take profit trigger price",
+    )
+    triggerQuantity: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
+        alias="triggerQuantity",
+        description="Trigger quantity",
+    )
+
     model_config = ConfigDict(extra="forbid", validate_by_name=True)
 
     @model_validator(mode="before")

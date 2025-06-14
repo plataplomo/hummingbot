@@ -145,6 +145,44 @@ async def get_dynamic_test_price(
         return fallback_price
 
 
+async def get_minimal_order_size(
+    api: BackpackAPI, symbol: str, side: OrderSide, price: Decimal
+) -> Decimal:
+    """Calculate the minimal order size that fits within available balance.
+
+    With $1 USDC balance, calculate the maximum affordable quantity for the given price.
+
+    Args:
+        api: BackpackAPI instance for getting market data
+        symbol: Trading symbol (e.g., "SOL_USDC")
+        side: Order side (BUY or SELL)
+        price: Order price to calculate affordable quantity
+
+    Returns:
+        Decimal quantity that represents the minimal affordable order size
+    """
+    try:
+        # For $1 USDC balance, calculate max affordable quantity
+        if side == OrderSide.BUY and symbol == "SOL_USDC":
+            # Very conservative: use only $0.50 to ensure we have enough for fees
+            usable_balance = Decimal("0.20")
+            max_quantity = usable_balance / price
+
+            # Return very small quantity - much smaller than exchange minimum if needed
+            # The exchange will reject if below minimum, but at least we won't overspend
+            calculated_quantity = max_quantity.quantize(Decimal("0.01"), rounding="ROUND_DOWN")
+
+            # Ensure we don't go below some reasonable minimum
+            return max(Decimal("0.01"), calculated_quantity)
+
+        # For other cases, use conservative minimum
+        return Decimal("0.01")
+
+    except Exception as e:
+        logger.warning(f"Failed to calculate minimal order size for {symbol}: {e}")
+        return Decimal("0.01")
+
+
 @pytest.mark.parametrize(
     "custom_vcr_cassette_dir", ["apis/backpack/spot/orders/positive"], indirect=True
 )
@@ -202,12 +240,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("3"),  # 3% below market for buy order
         )
 
-        # Define order parameters with dynamic pricing
+        # Calculate minimal affordable order size based on current balance
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
+        # Define order parameters with dynamic pricing and sizing
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),  # Small size for testing
+            quantity=minimal_quantity,  # Dynamic size based on available balance
             price=test_price,  # Dynamic price based on market conditions
             time_in_force=TimeInForce.GTC,
         )
@@ -266,12 +312,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("4"),
         )
 
+        # Calculate minimal affordable order size
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
         # First, place an order
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )

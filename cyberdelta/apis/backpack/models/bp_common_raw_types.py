@@ -26,11 +26,37 @@ BP_ORDER_SIDES = {"Bid", "Ask"}
 BP_EXTENDED_ORDER_SIDES = {"buy", "sell", "Bid", "Ask", "Buy", "Sell"}
 """Set of allowed Backpack order sides, including 'buy'/'sell' and initial caps."""
 
-BP_ORDER_TYPES = {"LIMIT", "MARKET", "STOP", "TRAILING_STOP", "TAKE_PROFIT"}
-"""Set of allowed Backpack order types."""
+BP_ORDER_TYPES = {
+    "LIMIT",
+    "MARKET",
+    "STOP",
+    "TRAILING_STOP",
+    "TAKE_PROFIT",
+    # Backpack API case variations (new format)
+    "Limit",
+    "Market",
+    "Stop",
+    "TrailingStop",
+    "TakeProfit",
+}
+"""Set of allowed Backpack order types (supports both uppercase and title case)."""
 
-BP_ORDER_STATUSES = {"NEW", "FILLED", "CANCELLED", "EXPIRED", "REJECTED", "PARTIALLY_FILLED"}
-"""Set of allowed Backpack order statuses."""
+BP_ORDER_STATUSES = {
+    "NEW",
+    "FILLED",
+    "CANCELLED",
+    "EXPIRED",
+    "REJECTED",
+    "PARTIALLY_FILLED",
+    # Backpack API case variations (new format)
+    "New",
+    "Filled",
+    "Cancelled",
+    "Expired",
+    "Rejected",
+    "PartiallyFilled",
+}
+"""Set of allowed Backpack order statuses (supports both uppercase and title case)."""
 
 BP_TRANSFER_STATUSES = {"pending", "completed", "failed", "cancelled"}
 """Set of allowed Backpack transfer (deposit/withdrawal) statuses."""
