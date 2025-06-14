@@ -90,6 +90,7 @@ class BackpackRawPosition(BaseModel):
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
     user_id: RawBpNonNegativeInt = Field(..., alias="userId")
     position_id: RawBpNonEmptyStringMax64 = Field(..., alias="positionId")
+    subaccount_id: RawBpNonNegativeInt = Field(..., alias="subaccountId")
     cumulative_interest: RawBpParsableFiniteDecimalString = Field(..., alias="cumulativeInterest")
 
     model_config = ConfigDict(

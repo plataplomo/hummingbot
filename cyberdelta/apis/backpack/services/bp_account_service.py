@@ -163,7 +163,7 @@ class BackpackAccountService:
 
     async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
         """Helper to fetch and validate raw current open positions list."""
-        endpoint_path = "/api/v1/positions"
+        endpoint_path = "/api/v1/position"
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
             f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "

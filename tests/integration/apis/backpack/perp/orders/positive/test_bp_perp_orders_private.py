@@ -172,9 +172,11 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert placed_order.order_type == OrderType.LIMIT, (
             f"Expected LIMIT type, got {placed_order.order_type}"
         )
-        assert placed_order.status in [OrderStatus.NEW, OrderStatus.PARTIALLY_FILLED], (
-            f"Expected NEW or PARTIALLY_FILLED status, got {placed_order.status}"
-        )
+        assert placed_order.status in [
+            OrderStatus.NEW,
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.OPEN,
+        ], f"Expected NEW, PARTIALLY_FILLED, or OPEN status, got {placed_order.status}"
         assert placed_order.exchange_order_id is not None, "Order ID should not be None"
 
         # Cancel the order

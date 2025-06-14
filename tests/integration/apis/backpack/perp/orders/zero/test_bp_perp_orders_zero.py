@@ -292,7 +292,7 @@ class TestBackpackPerpOrdersZeroBalance:
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=Decimal("10000000.0"),  # Large quantity to ensure margin error
             price=test_price,
             time_in_force=TimeInForce.IOC,
         )
