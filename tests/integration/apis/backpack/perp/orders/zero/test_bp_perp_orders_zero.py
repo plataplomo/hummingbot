@@ -32,9 +32,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
@@ -112,19 +110,6 @@ async def get_dynamic_perp_test_price_zero(
         return fallback_price
 
 
-@pytest.fixture
-def bp_api_zero_balance_test_env(
-    active_bp_config: ExchangeSpecificConfig,
-    active_bp_secrets: ApiKeyAuthSecrets,
-) -> BackpackAPI:
-    """Create BackpackAPI instance for zero balance testing."""
-    # Use real test environment secrets that have zero balance
-    return BackpackAPI(
-        exchange_config=active_bp_config,
-        exchange_secrets=active_bp_secrets,
-    )
-
-
 @pytest.mark.parametrize(
     "custom_vcr_cassette_dir", ["apis/backpack/perp/orders/zero"], indirect=True
 )
@@ -134,13 +119,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_place_perp_order_insufficient_margin_error(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test placing perp order with insufficient margin returns appropriate error."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
 
         place_args = PlaceOrderArgs(
@@ -154,7 +139,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Should raise APIError due to insufficient margin
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         assert isinstance(error, APIError), f"Expected APIError, got {type(error)}"
@@ -168,13 +153,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_place_large_perp_order_margin_error(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test placing large perp order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
 
         # Large quantity that would require significant margin
@@ -190,7 +175,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         logger.info(f"Large perp order error (expected): {error}")
@@ -203,7 +188,7 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_market_order_zero_margin_error(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test perp market order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
@@ -217,7 +202,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         assert isinstance(error, APIError), "Should raise APIError for market order with no margin"
@@ -225,7 +210,7 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_perp_order_error(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test canceling non-existent perp order returns appropriate error."""
         symbol = "SOL_USDC_PERP"
@@ -237,7 +222,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.cancel_order(cancel_args)
+            await bp_api_for_zero_balance_test.cancel_order(cancel_args)
 
         error = exc_info.value
         assert isinstance(error, APIError), f"Expected APIError, got {type(error)}"
@@ -251,7 +236,7 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_get_perp_order_history_zero_balance(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test getting perp order history with zero balance account."""
         symbol = "SOL_USDC_PERP"
@@ -267,7 +252,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         # This should work even with zero balance (historical data access)
-        orders = await bp_api_zero_balance_test_env.get_order_history(history_args)
+        orders = await bp_api_for_zero_balance_test.get_order_history(history_args)
 
         assert isinstance(orders, list), f"Expected list of orders, got {type(orders)}"
 
@@ -279,13 +264,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_order_authentication_validation(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test that perp order requests properly validate authentication."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
 
         place_args = PlaceOrderArgs(
@@ -299,7 +284,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Even with authentication, should fail due to insufficient margin
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
 
@@ -312,7 +297,7 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_order_precision_validation_zero_margin(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test perp order precision validation even with zero margin."""
         symbol = "SOL_USDC_PERP"
@@ -331,7 +316,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         # Even if it fails due to margin, the precision should be validated first
@@ -341,13 +326,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_order_leverage_limits_zero_margin(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test perp order leverage limit validation with zero margin."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
 
         # Test quantity that would imply very high leverage
@@ -363,7 +348,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         # Should fail due to margin requirements, not leverage limits per se
@@ -372,13 +357,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_short_order_zero_margin_error(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test perp short order with zero margin fails appropriately."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.SELL
+            bp_api_for_zero_balance_test, symbol, OrderSide.SELL
         )
 
         place_args = PlaceOrderArgs(
@@ -391,7 +376,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_zero_balance_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
         assert isinstance(error, APIError), "Short perp order should fail with zero margin"
@@ -405,13 +390,13 @@ class TestBackpackPerpOrdersZeroBalance:
     @pytest.mark.vcr()
     @pytest.mark.asyncio
     async def test_perp_order_time_in_force_validation_zero_margin(
-        self, bp_api_zero_balance_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self, bp_api_for_zero_balance_test: BackpackAPI, custom_vcr_config: dict[str, Any]
     ) -> None:
         """Test perp order time-in-force validation with zero margin."""
         symbol = "SOL_USDC_PERP"
 
         test_price = await get_dynamic_perp_test_price_zero(
-            bp_api_zero_balance_test_env, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
 
         # Test different time in force options
@@ -426,7 +411,7 @@ class TestBackpackPerpOrdersZeroBalance:
             )
 
             with pytest.raises(APIError) as exc_info:
-                await bp_api_zero_balance_test_env.place_order(place_args)
+                await bp_api_for_zero_balance_test.place_order(place_args)
 
             error = exc_info.value
             # Should fail due to margin, not time in force validation

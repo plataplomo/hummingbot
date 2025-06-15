@@ -12,6 +12,10 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from tests.integration.apis.backpack.shared.test_helpers import (
+    COMMON_PERP_SYMBOLS,
+    COMMON_SPOT_SYMBOLS,
+)
 
 # Mark all tests in this file
 pytestmark = [
@@ -32,11 +36,11 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_get_derivative_positions_empty(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving positions when none exist."""
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
         assert len(positions) == 0
@@ -46,11 +50,12 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_get_derivative_position_nonexistent_symbol(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving a position for a symbol with no position."""
-        positions = await bp_api_for_test_env.get_positions(symbol="BTC-PERP")
+        # BTC_USDC_PERP
+        positions = await bp_api_for_zero_balance_test.get_positions(symbol=COMMON_PERP_SYMBOLS[1])
 
         # Should return empty list for non-existent positions
         assert isinstance(positions, list)
@@ -60,7 +65,7 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_positions_after_closing_all(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test position state after closing all positions.
@@ -68,13 +73,13 @@ class TestBackpackPositionsZero:
         Simulates the state after all derivative positions have been
         closed out.
         """
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
         assert len(positions) == 0
 
         # Account summary should reflect no positions
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
         assert account_summary.total_position_notional == Decimal("0")
         assert account_summary.total_unrealized_pnl == Decimal("0")
 
@@ -82,7 +87,7 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_get_position_for_spot_symbol(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving position for a spot symbol (not derivative).
@@ -90,7 +95,8 @@ class TestBackpackPositionsZero:
         Spot symbols should not have derivative positions.
         """
         # Try to get position for spot symbol
-        positions = await bp_api_for_test_env.get_positions(symbol="SOL-USDC")
+        # SOL-USDC
+        positions = await bp_api_for_zero_balance_test.get_positions(symbol=COMMON_SPOT_SYMBOLS[0])
 
         # Should return empty list as spot pairs don't have positions
         assert isinstance(positions, list)
@@ -100,18 +106,24 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_new_account_no_positions(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test position state for a new account that has never traded derivatives."""
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
         assert len(positions) == 0
 
         # Try specific symbols
-        btc_positions = await bp_api_for_test_env.get_positions(symbol="BTC-PERP")
-        eth_positions = await bp_api_for_test_env.get_positions(symbol="ETH-PERP")
+        # BTC_USDC_PERP
+        btc_positions = await bp_api_for_zero_balance_test.get_positions(
+            symbol=COMMON_PERP_SYMBOLS[1]
+        )
+        # ETH_USDC_PERP
+        eth_positions = await bp_api_for_zero_balance_test.get_positions(
+            symbol=COMMON_PERP_SYMBOLS[2]
+        )
 
         assert isinstance(btc_positions, list)
         assert len(btc_positions) == 0
@@ -122,12 +134,12 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_positions_consistency_zero_state(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test consistency between empty positions and account metrics."""
-        positions = await bp_api_for_test_env.get_positions()
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        positions = await bp_api_for_zero_balance_test.get_positions()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # With no positions
         assert len(positions) == 0
@@ -148,7 +160,7 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_position_history_vs_current(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that historical positions don't appear as current positions.
@@ -156,7 +168,7 @@ class TestBackpackPositionsZero:
         Even if the account had positions in the past, current positions
         should be empty if all are closed.
         """
-        current_positions = await bp_api_for_test_env.get_positions()
+        current_positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert len(current_positions) == 0
 
@@ -167,12 +179,13 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_position_for_delisted_symbol(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving position for a delisted or invalid symbol."""
         # Try an invalid/delisted symbol
-        positions = await bp_api_for_test_env.get_positions(symbol="LUNA-PERP")
+        # Use a less common perp symbol that might not exist
+        positions = await bp_api_for_zero_balance_test.get_positions(symbol="DOGE_USDC_PERP")
 
         # Should return empty list for invalid symbols
         assert isinstance(positions, list)
@@ -182,20 +195,20 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_positions_after_liquidation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test position state after a liquidation event.
 
         After liquidation, positions should be closed and show as empty.
         """
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
         assert len(positions) == 0
 
         # Check account state
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # After liquidation, should have no positions
         assert account_summary.total_position_notional == Decimal("0")
@@ -210,7 +223,7 @@ class TestBackpackPositionsZero:
     @pytest.mark.asyncio
     async def test_position_epsilon_size(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that positions with epsilon (dust) size are treated as closed.
@@ -218,7 +231,7 @@ class TestBackpackPositionsZero:
         Sometimes positions are reduced to near-zero but not exactly zero.
         These should effectively be treated as closed.
         """
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         # Filter for any dust positions
         dust_threshold = Decimal("0.00001")

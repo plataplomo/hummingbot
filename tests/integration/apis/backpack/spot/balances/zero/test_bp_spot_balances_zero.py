@@ -35,11 +35,11 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_empty_account(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with empty/zero balance account."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         assert isinstance(balances, dict)
 
@@ -79,13 +79,13 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_rate_limiting(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() rate limiting behavior."""
         tasks: list[Any] = []
         for _ in range(5):
-            tasks.append(bp_api_for_test_env.get_balances())
+            tasks.append(bp_api_for_zero_balance_test.get_balances())
 
         try:
             results: list[dict[str, SpotBalance] | BaseException] = await asyncio.gather(
@@ -115,11 +115,11 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_zero_balance_structure(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() structure validation with zero balance account."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         assert isinstance(balances, dict)
 
@@ -143,14 +143,14 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_concurrent_requests_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests with zero balance account."""
         concurrent_results = await asyncio.gather(
-            bp_api_for_test_env.get_balances(),
-            bp_api_for_test_env.get_balances(),
-            bp_api_for_test_env.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
             return_exceptions=True,
         )
         concurrent_tasks: list[dict[str, SpotBalance] | BaseException] = list(concurrent_results)
@@ -179,11 +179,11 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_decimal_precision_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() decimal precision handling with zero balances."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         for asset_symbol, spot_balance in balances.items():
             assert isinstance(spot_balance.available_quantity, Decimal)
@@ -209,11 +209,11 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_asset_validation_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() asset symbol validation and formatting."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         asset_pattern = re.compile(r"^[A-Z]{2,10}$")
 
@@ -237,7 +237,7 @@ class TestBackpackSpotBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_memory_efficiency_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() memory efficiency with zero balance data."""
@@ -246,7 +246,7 @@ class TestBackpackSpotBalancesZero:
 
         for i in range(5):
             try:
-                balances = await bp_api_for_test_env.get_balances()
+                balances = await bp_api_for_zero_balance_test.get_balances()
 
                 assert isinstance(balances, dict)
                 assert len(balances) <= 50

@@ -103,6 +103,13 @@ markers = [
     "shared: marks tests as shared/common functionality tests",
     "websockets: marks tests as websocket specific tests",
     "websocket: marks tests as websocket specific tests (variant)",
+    "balances: marks tests as balance related tests",
+    "orders: marks tests as order related tests",
+    "positions: marks tests as position related tests",
+    "positive_orders: marks tests requiring positive balance for order operations",
+    "positive_positions: marks tests requiring positive balance for position operations",
+    "zero_orders: marks tests with zero order scenarios",
+    "zero_positions: marks tests with zero position scenarios",
 ]
 
 # Ruff configuration for linting

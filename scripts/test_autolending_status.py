@@ -52,12 +52,12 @@ async def test() -> None:
                 endpoint_group="private",
                 request_weight=1,
             )
-            
+
             if status_code == 200 and raw_data:
                 logger.info(f"   Raw response: {raw_data}")
                 auto_lend = raw_data.get("autoLend", None)
                 logger.info(f"   🎯 autoLend setting: {auto_lend}")
-                
+
                 # Show other relevant settings
                 logger.info(f"   autoBorrowSettlements: {raw_data.get('autoBorrowSettlements')}")
                 logger.info(f"   autoRepayBorrows: {raw_data.get('autoRepayBorrows')}")
@@ -69,13 +69,15 @@ async def test() -> None:
 
         logger.info("")
         logger.info("2. BALANCE COMPARISON:")
-        
+
         # 2. Get spot balances
         spot_balances = await api.get_balances()
         logger.info("   Spot Balances (/api/v1/capital):")
         for symbol, balance in spot_balances.items():
             if balance.total_quantity > 0 or symbol in ["USDC", "SOL"]:
-                logger.info(f"   {symbol}: total={balance.total_quantity}, available={balance.available_quantity}")
+                logger.info(
+                    f"   {symbol}: total={balance.total_quantity}, available={balance.available_quantity}"
+                )
 
         # 3. Get collateral data
         logger.info("\n   Collateral Data (/api/v1/capital/collateral):")
@@ -87,7 +89,7 @@ async def test() -> None:
             endpoint_group="private",
             request_weight=1,
         )
-        
+
         if status_code == 200 and raw_data and "collateral" in raw_data:
             for asset in raw_data["collateral"]:
                 symbol = asset.get("symbol")
@@ -99,7 +101,7 @@ async def test() -> None:
 
         logger.info("")
         logger.info("3. ANALYSIS:")
-        
+
         # Analyze the relationship
         if auto_lend is True:
             logger.info("   ✅ autoLend is ENABLED")

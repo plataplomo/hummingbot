@@ -953,17 +953,18 @@ class BackpackTradingService:
         if raw_data is not None:
             str(raw_data)
 
-        # Backpack's response for cancel all is a list of strings (order IDs that were cancelled)
+        # Backpack's response for cancel all is a list of order objects that were cancelled
         if raw_data is None or not isinstance(raw_data, list):
             return self._handle_invalid_cancel_all_response(raw_data, status_code, symbol)
 
-        # If raw_data is a list, it should be a list of successfully cancelled order IDs (strings)
+        # If raw_data is a list, it should be a list of order objects that were cancelled
         results: list[CancelOrderResult] = []
-        for cancelled_order_id_any in raw_data:
-            if isinstance(cancelled_order_id_any, str):
+        for cancelled_order_any in raw_data:
+            if isinstance(cancelled_order_any, str):
+                # Legacy support: order ID as string
                 results.append(
                     CancelOrderResult(
-                        order_id=cancelled_order_id_any,
+                        order_id=cancelled_order_any,
                         client_order_id=None,  # Backpack doesn't return this in cancel all
                         symbol=symbol,  # We assume all were for this symbol if provided
                         success=True,
@@ -971,10 +972,41 @@ class BackpackTradingService:
                         status=CancelOrderResultStatus.SUCCESS,
                     ),
                 )
+            elif isinstance(cancelled_order_any, dict):
+                # Handle order object response
+                order_id = cancelled_order_any.get("id", "unknown")
+                client_order_id = cancelled_order_any.get("clientId")
+                order_symbol = cancelled_order_any.get("symbol", symbol)
+                order_status = cancelled_order_any.get("status", "Unknown")
+
+                # Convert clientId to string if it's an integer
+                if isinstance(client_order_id, int):
+                    client_order_id = str(client_order_id)
+
+                success = order_status.lower() == "cancelled"
+                status = (
+                    CancelOrderResultStatus.SUCCESS if success else CancelOrderResultStatus.FAILED
+                )
+                message = (
+                    f"Order {order_status.lower()}."
+                    if success
+                    else f"Order not cancelled (status: {order_status})"
+                )
+
+                results.append(
+                    CancelOrderResult(
+                        order_id=str(order_id),
+                        client_order_id=client_order_id,
+                        symbol=order_symbol,
+                        success=success,
+                        message=message,
+                        status=status,
+                    ),
+                )
             else:  # Should not happen if API conforms
                 logger.warning(
                     f"[{self._exchange_name}] Unexpected item in cancel all orders "
-                    f"response list: {cancelled_order_id_any}",
+                    f"response list: {cancelled_order_any}",
                 )
 
         logger.info(

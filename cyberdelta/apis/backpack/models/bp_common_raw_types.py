@@ -423,8 +423,16 @@ def _validate_optional_non_empty_string_max_len(
         return None
     field_name = info.field_name or f"optional_raw_non_empty_string_max{max_length}_field"
 
-    if not isinstance(v, str):
-        raise ValueError(f"{field_name}: raw value must be a string")
+    # Special handling for clientId field: Backpack API can return integers
+    if field_name == "clientId" or field_name == "client_id":
+        if isinstance(v, int):
+            # Convert integer to string for clientId
+            v = str(v)
+        elif not isinstance(v, str):
+            raise ValueError(f"{field_name}: raw value must be a string or integer")
+    else:
+        if not isinstance(v, str):
+            raise ValueError(f"{field_name}: raw value must be a string")
 
     if not v.strip():  # Check for empty or whitespace-only string
         if field_name == "clientId" or field_name == "client_id":

@@ -21,6 +21,12 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models import BackpackOrderDetails, Order
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from tests.integration.apis.backpack.shared.test_helpers import (
+    DEFAULT_TEST_SYMBOL_SPOT,
+    generate_deterministic_client_order_id,
+    get_dynamic_test_price,
+    get_minimal_order_size,
+)
 
 # Mark all tests in this file
 pytestmark = [
@@ -86,7 +92,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving open orders for a specific symbol."""
-        symbol = "SOL-USDC"
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
         orders = await bp_api_for_test_env.get_all_open_orders(GetAllOpenOrdersArgs(symbol=symbol))
 
         assert isinstance(orders, list)
@@ -103,24 +109,32 @@ class TestBackpackOrdersPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test placing a limit buy order."""
+        """Test placing a limit buy order with dynamic pricing."""
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+
+        # Get dynamic test price and minimal order size
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+        )
+
         args = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),  # Low price to avoid immediate fill
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
         order = await bp_api_for_test_env.place_order(args)
 
         assert isinstance(order, Order)
         assert order.exchange == "backpack"
-        assert order.symbol == "SOL-USDC"
+        assert order.symbol == symbol
         assert order.side == OrderSide.BUY
         assert order.order_type == OrderType.LIMIT
-        assert order.quantity_requested == Decimal("0.1")
-        assert order.price == Decimal("50.0")
+        assert order.quantity_requested == test_quantity
+        assert order.price == test_price
         assert order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]
         assert order.time_in_force == TimeInForce.GTC
 
@@ -135,24 +149,32 @@ class TestBackpackOrdersPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test placing a limit sell order."""
+        """Test placing a limit sell order with dynamic pricing."""
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+
+        # Get dynamic test price and minimal order size
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.SELL, test_price
+        )
+
         args = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("200.0"),  # High price to avoid immediate fill
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
         order = await bp_api_for_test_env.place_order(args)
 
         assert isinstance(order, Order)
         assert order.exchange == "backpack"
-        assert order.symbol == "SOL-USDC"
+        assert order.symbol == symbol
         assert order.side == OrderSide.SELL
         assert order.order_type == OrderType.LIMIT
-        assert order.quantity_requested == Decimal("0.1")
-        assert order.price == Decimal("200.0")
+        assert order.quantity_requested == test_quantity
+        assert order.price == test_price
         assert order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]
 
     @pytest.mark.vcr
@@ -162,17 +184,27 @@ class TestBackpackOrdersPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test placing an order with a custom client order ID."""
-        import uuid
+        """Test placing an order with a custom client order ID and dynamic pricing."""
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
-        client_order_id = f"test_{uuid.uuid4().hex[:16]}"
+        # Generate deterministic client_order_id for VCR testing
+        # Backpack requires client_order_id to be convertible to integer
+        client_order_id = generate_deterministic_client_order_id(
+            test_name="test_place_order_with_client_order_id", symbol=symbol, side="BUY"
+        )
+
+        # Get dynamic test price and minimal order size
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+        )
 
         args = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
             client_order_id=client_order_id,
         )
@@ -190,12 +222,18 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling a specific order by ID."""
         # First create an order to cancel
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+        )
+
         args = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
         order = await bp_api_for_test_env.place_order(args)
@@ -219,28 +257,42 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling all open orders."""
         # Create multiple orders
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+
+        # Buy order
+        buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        buy_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, buy_price
+        )
+
         args1 = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),
+            quantity=buy_quantity,
+            price=buy_price,
             time_in_force=TimeInForce.GTC,
         )
         await bp_api_for_test_env.place_order(args1)
 
+        # Sell order
+        sell_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
+        sell_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.SELL, sell_price
+        )
+
         args2 = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("200.0"),
+            quantity=sell_quantity,
+            price=sell_price,
             time_in_force=TimeInForce.GTC,
         )
         await bp_api_for_test_env.place_order(args2)
 
-        # Cancel all orders
-        results = await bp_api_for_test_env.cancel_all_orders()
+        # Cancel all orders for this symbol (Backpack requires symbol parameter)
+        results = await bp_api_for_test_env.cancel_all_orders(symbol=symbol)
 
         assert isinstance(results, list)
         assert len(results) >= 2
@@ -256,15 +308,20 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test cancelling all orders for a specific symbol."""
-        symbol = "SOL-USDC"
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
-        # Create orders for the symbol
+        # Create orders for the symbol using dynamic pricing
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+        )
+
         args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
         await bp_api_for_test_env.place_order(args)
@@ -299,6 +356,7 @@ class TestBackpackOrdersPositive:
 
             # History should include various statuses
             assert order.status in [
+                OrderStatus.NEW,
                 OrderStatus.FILLED,
                 OrderStatus.CANCELED,
                 OrderStatus.EXPIRED,
@@ -313,13 +371,21 @@ class TestBackpackOrdersPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test placing a post-only order."""
+        """Test placing a post-only order with dynamic pricing."""
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+
+        # Get dynamic test price and minimal order size
+        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_order_size(
+            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+        )
+
         args = PlaceOrderArgs(
-            symbol="SOL-USDC",
+            symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
-            price=Decimal("50.0"),
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
             post_only=True,
         )

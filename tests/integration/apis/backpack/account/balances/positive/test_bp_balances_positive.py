@@ -230,25 +230,69 @@ class TestBackpackBalancesPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test that balances are consistent with account summary data."""
+        """Test that balances are consistent with account summary data.
+
+        Note: With auto-lending enabled, this test verifies that the enhanced
+        balance logic provides results consistent with account summary.
+        """
         # Get both balances and account summary
         balances = await bp_api_for_test_env.get_balances()
         account_summary = await bp_api_for_test_env.get_account_summary()
 
-        # Calculate total USD value from balances (simplified - only USDC/USDT)
-        total_usd_from_balances = Decimal("0")
-        for asset, balance in balances.items():
-            if asset in ["USDC", "USDT"]:
-                total_usd_from_balances += balance.total_quantity
+        # Check if auto-lending is active (balances have lend_quantity populated)
+        auto_lending_detected = any(
+            balance.bp_details
+            and balance.bp_details.lend_quantity
+            and balance.bp_details.lend_quantity > Decimal("0")
+            for balance in balances.values()
+        )
 
-        # If we have positions, account equity might differ from spot balances
-        # but should be in the same ballpark if no positions
-        if account_summary.total_position_notional == Decimal("0"):
-            # No positions, so equity should roughly equal USD balances
-            if total_usd_from_balances > Decimal("0"):
-                ratio = account_summary.total_equity / total_usd_from_balances
-                # Allow for some difference due to unsettled amounts, fees, etc.
-                assert Decimal("0.9") <= ratio <= Decimal("1.1"), (
-                    f"Large discrepancy between total equity ({account_summary.total_equity}) "
-                    f"and USD balances ({total_usd_from_balances})"
+        if auto_lending_detected:
+            # Auto-lending scenario: Compare total account values
+            # Calculate total value from all enhanced balances
+            total_balance_value = sum(
+                balance.total_quantity
+                for balance in balances.values()
+                if balance.asset in ["USDC", "USDT"]
+            )
+
+            # With auto-lending, the account equity should be close to the sum of all asset values
+            # Allow for reasonable variance due to:
+            # - Mark price fluctuations between spot and collateral endpoint calls
+            # - Small fees or unsettled amounts
+            # - Rounding differences in decimal calculations
+            if total_balance_value > Decimal("0"):
+                # For accounts with non-USD assets (like SOL), equity includes their USD value
+                # So equity will be higher than just USD balances
+                assert account_summary.total_equity >= total_balance_value * Decimal("0.9"), (
+                    f"Account equity ({account_summary.total_equity}) seems too low "
+                    f"compared to USD balances ({total_balance_value}) in auto-lending scenario"
                 )
+
+                # Log for debugging
+                print(
+                    f"Auto-lending detected - Account Equity: {account_summary.total_equity}, "
+                    f"USD Balances: {total_balance_value}"
+                )
+                for asset, balance in balances.items():
+                    if balance.total_quantity > Decimal("0"):
+                        lend_qty = balance.bp_details.lend_quantity if balance.bp_details else None
+                        print(f"  {asset}: {balance.total_quantity} (lent: {lend_qty})")
+        else:
+            # Normal scenario: Compare spot balances with account equity
+            total_usd_from_balances = Decimal("0")
+            for asset, balance in balances.items():
+                if asset in ["USDC", "USDT"]:
+                    total_usd_from_balances += balance.total_quantity
+
+            # If we have positions, account equity might differ from spot balances
+            # but should be in the same ballpark if no positions
+            if account_summary.total_position_notional == Decimal("0"):
+                # No positions, so equity should roughly equal USD balances
+                if total_usd_from_balances > Decimal("0"):
+                    ratio = account_summary.total_equity / total_usd_from_balances
+                    # Allow for some difference due to unsettled amounts, fees, etc.
+                    assert Decimal("0.9") <= ratio <= Decimal("1.1"), (
+                        f"Large discrepancy between total equity ({account_summary.total_equity}) "
+                        f"and USD balances ({total_usd_from_balances})"
+                    )

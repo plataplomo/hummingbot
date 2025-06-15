@@ -23,11 +23,11 @@ class TestBackpackPerpPositionsZero:
     @pytest.mark.asyncio
     async def test_get_positions_empty_account(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with empty account (no open positions)."""
-        positions = await bp_api_for_test_env.get_positions()
+        positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
 

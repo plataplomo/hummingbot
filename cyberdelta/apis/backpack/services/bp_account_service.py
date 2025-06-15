@@ -50,6 +50,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 
 if TYPE_CHECKING:
@@ -307,7 +308,13 @@ class BackpackAccountService:
             ) from e_unhandled
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Retrieves all spot balances from the account."""
+        """Retrieves all spot balances from the account.
+
+        Note: Handles Backpack's auto-lending feature where spot balances may show
+        zero when funds are auto-lent. When all spot balances are zero, this method
+        automatically fetches collateral data to provide complete balance information
+        including lent amounts in the bp_details extension slot.
+        """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_balances"
@@ -323,14 +330,10 @@ class BackpackAccountService:
             logger.info(f"[{self._exchange_name}] Getting account balances.")
             raw_balances_payload = await self._get_raw_balances_dict()
             internal_balances: dict[str, SpotBalance] = {}
-            # raw_balances_payload is dict[str, BackpackRawBalance],
-            # so raw_balance_model is BackpackRawBalance
+
+            # Transform basic spot balances
             for asset_symbol, raw_balance_model in raw_balances_payload.items():
                 try:
-                    # Ensure asset_symbol is str, as dict keys from JSON can be various types
-                    # if not strictly validated by Pydantic at an earlier stage.
-                    # However, raw_balances_payload keys are from response_handler,
-                    # which should ensure str keys.
                     internal_balances[asset_symbol] = (
                         self._mapper.transform_raw_balance_to_internal(
                             asset_symbol,
@@ -342,6 +345,39 @@ class BackpackAccountService:
                         f"[{self._exchange_name}] Skipping balance mapping for asset "
                         f"'{asset_symbol}' due to error: {e_map_item}. Raw: {raw_balance_model!r}",
                     )
+
+            # Check if auto-lending is potentially active (all spot balances are zero)
+            all_spot_balances_zero = all(
+                balance.total_quantity == Decimal("0") for balance in internal_balances.values()
+            )
+
+            if all_spot_balances_zero and len(internal_balances) > 0:
+                logger.info(
+                    f"[{self._exchange_name}] All spot balances are zero, checking collateral "
+                    "endpoint for auto-lending scenario."
+                )
+
+                try:
+                    # Fetch collateral data to get the complete picture
+                    raw_collateral = await self._get_raw_collateral_response()
+
+                    # Enhance balances with collateral information
+                    internal_balances = await self._enhance_balances_with_collateral(
+                        spot_balances=internal_balances,
+                        collateral_response=raw_collateral,
+                    )
+
+                    logger.debug(
+                        f"[{self._exchange_name}] Enhanced balances with collateral data for "
+                        f"auto-lending scenario."
+                    )
+                except APIError as e_collateral:
+                    # If collateral endpoint fails, log but continue with spot balances
+                    logger.warning(
+                        f"[{self._exchange_name}] Failed to fetch collateral data for balance "
+                        f"enhancement: {e_collateral}. Continuing with spot balances only."
+                    )
+
             logger.debug(
                 f"[{self._exchange_name}] Successfully mapped {len(internal_balances)} "
                 f"spot balances.",
@@ -401,6 +437,117 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+
+    async def _enhance_balances_with_collateral(
+        self,
+        spot_balances: dict[str, SpotBalance],
+        collateral_response: BackpackRawCollateralResponse,
+    ) -> dict[str, SpotBalance]:
+        """Enhance spot balances with collateral data for auto-lending scenario.
+
+        Args:
+            spot_balances: Original spot balances (likely all zeros with auto-lending)
+            collateral_response: Raw collateral response containing lent balances
+
+        Returns:
+            Enhanced spot balances with lend_quantity populated in bp_details
+        """
+        enhanced_balances = spot_balances.copy()
+
+        if not collateral_response.collateral:
+            return enhanced_balances
+
+        # Create a mapping of collateral data by symbol
+        collateral_by_symbol = {asset.symbol: asset for asset in collateral_response.collateral}
+
+        # Enhance existing spot balances with collateral data
+        for asset_symbol, spot_balance in spot_balances.items():
+            collateral_asset = collateral_by_symbol.get(asset_symbol)
+            if collateral_asset:
+                # Parse collateral amounts
+                from cyberdelta.utils.parsing import parse_decimal_value
+
+                total_quantity = parse_decimal_value(
+                    collateral_asset.total_quantity,
+                    allow_none=False,
+                    field_name=f"{asset_symbol}_collateral_total",
+                )
+                lend_quantity = parse_decimal_value(
+                    collateral_asset.lend_quantity,
+                    allow_none=False,
+                    field_name=f"{asset_symbol}_lend_quantity",
+                )
+                open_order_quantity = parse_decimal_value(
+                    collateral_asset.open_order_quantity,
+                    allow_none=True,
+                    field_name=f"{asset_symbol}_open_order_quantity",
+                ) or Decimal("0")
+
+                if total_quantity and total_quantity > Decimal("0"):
+                    # Create enhanced bp_details with lend_quantity
+                    from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
+
+                    enhanced_bp_details = BackpackSpotBalanceDetails(
+                        open_order_quantity=open_order_quantity,
+                        lend_quantity=lend_quantity,
+                    )
+
+                    # Create new SpotBalance with collateral data as the true balance
+                    # (spot + collateral, but spot is usually 0 in auto-lending scenario)
+                    true_total = spot_balance.total_quantity + total_quantity
+                    true_available = spot_balance.available_quantity + (
+                        total_quantity - open_order_quantity
+                    )
+
+                    enhanced_balances[asset_symbol] = SpotBalance(
+                        exchange=spot_balance.exchange,
+                        asset=spot_balance.asset,
+                        timestamp=spot_balance.timestamp,
+                        total_quantity=true_total,
+                        available_quantity=true_available,
+                        bp_details=enhanced_bp_details,
+                    )
+
+        # Add any assets that exist only in collateral (not in spot response)
+        for asset_symbol, collateral_asset in collateral_by_symbol.items():
+            if asset_symbol not in enhanced_balances:
+                from datetime import UTC, datetime
+
+                from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
+                from cyberdelta.utils.parsing import parse_decimal_value
+
+                total_quantity = parse_decimal_value(
+                    collateral_asset.total_quantity,
+                    allow_none=False,
+                    field_name=f"{asset_symbol}_collateral_total",
+                )
+                lend_quantity = parse_decimal_value(
+                    collateral_asset.lend_quantity,
+                    allow_none=False,
+                    field_name=f"{asset_symbol}_lend_quantity",
+                )
+                open_order_quantity = parse_decimal_value(
+                    collateral_asset.open_order_quantity,
+                    allow_none=True,
+                    field_name=f"{asset_symbol}_open_order_quantity",
+                ) or Decimal("0")
+
+                if total_quantity and total_quantity > Decimal("0"):
+                    enhanced_bp_details = BackpackSpotBalanceDetails(
+                        open_order_quantity=open_order_quantity,
+                        lend_quantity=lend_quantity,
+                    )
+
+                    enhanced_balances[asset_symbol] = SpotBalance(
+                        exchange=ExchangeName.BACKPACK,
+                        asset=asset_symbol.upper(),
+                        timestamp=datetime.now(UTC),
+                        total_quantity=total_quantity,
+                        available_quantity=total_quantity - open_order_quantity,
+                        bp_details=enhanced_bp_details,
+                    )
+
+        return enhanced_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Retrieves open derivative positions, optionally filtered by symbol."""

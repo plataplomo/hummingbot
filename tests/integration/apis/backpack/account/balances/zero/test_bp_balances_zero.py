@@ -34,11 +34,11 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_empty_or_zero(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving balances when all are zero or response is empty."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         assert isinstance(balances, dict)
 
@@ -66,12 +66,12 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_zero_asset(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving balance for an asset with guaranteed zero balance."""
         # Use an uncommon asset that likely has zero balance
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Get XRP balance if it exists
         balance = balances.get("XRP")
@@ -96,11 +96,11 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_dust_amounts(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test handling of dust amounts (very small balances)."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Look for any dust balances (very small but non-zero)
         dust_threshold = Decimal("0.00001")
@@ -121,11 +121,11 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_all_locked(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test balance retrieval when all funds are locked (zero available)."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Look for balances where everything is locked
         fully_locked = [
@@ -147,16 +147,16 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_after_withdrawal(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test balance state after a complete withdrawal.
 
-        Simulates checking balance after withdrawing all funds
-        from a specific asset.
+        Note: With auto-lending enabled, this test checks if balances that appear
+        zero in spot endpoint are properly detected and enhanced with collateral data.
         """
         # Check balance for an asset that was withdrawn
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
         balance = balances.get("SOL")
 
         # SOL might not be in the dict if balance is zero
@@ -167,56 +167,104 @@ class TestBackpackBalancesZero:
             assert isinstance(balance, SpotBalance)
             assert balance.asset == "SOL"
 
-            # After full withdrawal, balance should be zero
-            if balance.total_quantity == Decimal("0"):
+            # Check if auto-lending is detected (lend_quantity populated)
+            auto_lending_detected = (
+                balance.bp_details
+                and balance.bp_details.lend_quantity
+                and balance.bp_details.lend_quantity > Decimal("0")
+            )
+
+            if auto_lending_detected:
+                # Auto-lending scenario: balance should reflect lent amounts
+                assert balance.total_quantity > Decimal("0"), (
+                    "Expected positive balance when auto-lending is detected"
+                )
+                if balance.bp_details and balance.bp_details.lend_quantity:
+                    assert balance.bp_details.lend_quantity > Decimal("0"), (
+                        "Expected positive lend_quantity when auto-lending is detected"
+                    )
+                    # With auto-lending, lend_quantity should equal or be close to total_quantity
+                    assert balance.bp_details.lend_quantity <= balance.total_quantity
+            else:
+                # Standard withdrawal scenario: balance should be zero
+                assert balance.total_quantity == Decimal("0")
                 assert balance.available_quantity == Decimal("0")
 
-            # Check bp_details for consistency
-            if balance.bp_details:
-                if hasattr(balance.bp_details, "open_order_quantity"):
-                    # After full withdrawal, no open orders should exist
-                    if balance.bp_details.open_order_quantity is not None:
-                        assert balance.bp_details.open_order_quantity == Decimal("0")
-                if hasattr(balance.bp_details, "lend_quantity"):
-                    # After full withdrawal, no lending should exist
-                    if balance.bp_details.lend_quantity is not None:
-                        assert balance.bp_details.lend_quantity == Decimal("0")
+                # Check bp_details for consistency in zero balance scenario
+                if balance.bp_details:
+                    if hasattr(balance.bp_details, "open_order_quantity"):
+                        # After full withdrawal, no open orders should exist
+                        if balance.bp_details.open_order_quantity is not None:
+                            assert balance.bp_details.open_order_quantity == Decimal("0")
+                    if hasattr(balance.bp_details, "lend_quantity"):
+                        # After full withdrawal, no lending should exist
+                        if balance.bp_details.lend_quantity is not None:
+                            assert balance.bp_details.lend_quantity == Decimal("0")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_balances_new_account(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test balance retrieval for a new account with no deposits.
 
-        A completely new account might return an empty balance list
-        or a minimal set of zero balances.
+        Note: With auto-lending enabled, this test checks if the account has
+        auto-lent balances even when the spot endpoint shows zeros.
         """
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
-        # New account scenarios:
-        # 1. Empty list
-        # 2. List with common assets at zero
+        # Check if auto-lending is detected
+        auto_lending_detected = any(
+            balance.bp_details
+            and balance.bp_details.lend_quantity
+            and balance.bp_details.lend_quantity > Decimal("0")
+            for balance in balances.values()
+        )
 
-        if len(balances) == 0:
-            # Valid for new account
-            assert balances == {}
-        else:
-            # Should only have zero balances
+        if auto_lending_detected:
+            # Auto-lending scenario: Account has been enhanced with collateral data
             total_balance = sum(b.total_quantity for b in balances.values())
-            assert total_balance == Decimal("0"), "New account should have zero total balance"
+            assert total_balance > Decimal("0"), (
+                "Expected positive total balance when auto-lending is detected"
+            )
+
+            # Verify lend quantities are populated for enhanced balances
+            lent_balances = [
+                b
+                for b in balances.values()
+                if (
+                    b.bp_details
+                    and b.bp_details.lend_quantity
+                    and b.bp_details.lend_quantity > Decimal("0")
+                )
+            ]
+            assert len(lent_balances) > 0, (
+                "Expected at least one balance with lend_quantity when auto-lending detected"
+            )
+        else:
+            # New account scenarios:
+            # 1. Empty list
+            # 2. List with common assets at zero
+
+            if len(balances) == 0:
+                # Valid for new account
+                assert balances == {}
+            else:
+                # Should only have zero balances
+                total_balance = sum(b.total_quantity for b in balances.values())
+                assert total_balance == Decimal("0"), "New account should have zero total balance"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_balances_precision_edge_cases(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test balance precision handling for very small amounts."""
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         for balance in balances.values():
             # Test that very small balances maintain precision
@@ -237,24 +285,58 @@ class TestBackpackBalancesZero:
     @pytest.mark.asyncio
     async def test_get_balances_consistency_zero_equity(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test consistency between zero balances and account summary."""
-        balances = await bp_api_for_test_env.get_balances()
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        """Test consistency between balances and account summary.
 
-        # Calculate total from balances
-        total_usd_value = Decimal("0")
-        for asset, balance in balances.items():
-            if asset in ["USDC", "USDT"]:
-                total_usd_value += balance.total_quantity
+        Note: With auto-lending enabled, this test verifies that enhanced balances
+        are consistent with account equity even when spot endpoint shows zeros.
+        """
+        balances = await bp_api_for_zero_balance_test.get_balances()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
-        # If balances are zero, equity should also be zero (or very close)
-        if total_usd_value == Decimal("0"):
-            # Account with no USD balances and no positions should have zero equity
-            if account_summary.total_position_notional == Decimal("0"):
-                assert account_summary.total_equity <= Decimal("0.01"), (
-                    f"Expected near-zero equity for account with no balances, "
-                    f"but got {account_summary.total_equity}"
+        # Check if auto-lending is detected
+        auto_lending_detected = any(
+            balance.bp_details
+            and balance.bp_details.lend_quantity
+            and balance.bp_details.lend_quantity > Decimal("0")
+            for balance in balances.values()
+        )
+
+        if auto_lending_detected:
+            # Auto-lending scenario: Account should have positive equity
+            assert account_summary.total_equity > Decimal("0"), (
+                "Expected positive equity when auto-lending is detected"
+            )
+
+            # Calculate total USD value including all assets (enhanced balances)
+            total_usd_value = Decimal("0")
+            for asset, balance in balances.items():
+                if asset in ["USDC", "USDT"]:
+                    total_usd_value += balance.total_quantity
+
+            # With auto-lending, USD balances should be positive
+            if total_usd_value > Decimal("0"):
+                # Equity should be reasonable compared to USD balances
+                # (equity includes all assets valued in USD)
+                assert account_summary.total_equity >= total_usd_value * Decimal("0.8"), (
+                    f"Account equity ({account_summary.total_equity}) seems low "
+                    f"compared to USD balances ({total_usd_value}) in auto-lending scenario"
                 )
+        else:
+            # Standard zero balance scenario
+            # Calculate total from balances
+            total_usd_value = Decimal("0")
+            for asset, balance in balances.items():
+                if asset in ["USDC", "USDT"]:
+                    total_usd_value += balance.total_quantity
+
+            # If balances are zero, equity should also be zero (or very close)
+            if total_usd_value == Decimal("0"):
+                # Account with no USD balances and no positions should have zero equity
+                if account_summary.total_position_notional == Decimal("0"):
+                    assert account_summary.total_equity <= Decimal("0.01"), (
+                        f"Expected near-zero equity for account with no balances, "
+                        f"but got {account_summary.total_equity}"
+                    )

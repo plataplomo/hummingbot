@@ -159,7 +159,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_insufficient_funds_validation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() pipeline validation - expects INSUFFICIENT_FUNDS with $0 balance.
@@ -178,7 +178,7 @@ class TestBackpackOrdersZeroBalance:
         symbol = "SOL_USDC"  # Common Backpack trading pair
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
+            api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=side,
             tolerance_percent=Decimal("3"),  # 3% below market for buy order
@@ -196,7 +196,7 @@ class TestBackpackOrdersZeroBalance:
 
         # With $0 balance, expect INSUFFICIENT_FUNDS error
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         # Validate the error is what we expect (not auth or malformed request)
         api_error = exc_info.value
@@ -219,7 +219,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_order_validation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test cancel_order() API endpoint validation with $0 balance.
@@ -240,7 +240,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Should raise APIError with ORDER_NOT_FOUND or similar
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.cancel_order(cancel_args)
+            await bp_api_for_zero_balance_test.cancel_order(cancel_args)
 
         # Validate error mapping works correctly
         api_error = exc_info.value
@@ -312,7 +312,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_large_quantity_validation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with unrealistically large quantity.
@@ -326,7 +326,7 @@ class TestBackpackOrdersZeroBalance:
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
+            api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=side,
             tolerance_percent=Decimal("-3"),  # 3% above market (negative = higher price)
@@ -344,7 +344,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Should raise APIError with INSUFFICIENT_FUNDS or INVALID_REQUEST code
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(large_order_args)
+            await bp_api_for_zero_balance_test.place_order(large_order_args)
 
         # Validate error mapping
         api_error = exc_info.value
@@ -364,7 +364,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_invalid_symbol(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with invalid symbol error."""
@@ -383,7 +383,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Should raise APIError with appropriate error code
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(invalid_symbol_args)
+            await bp_api_for_zero_balance_test.place_order(invalid_symbol_args)
 
         # Validate error structure
         api_error = exc_info.value
@@ -397,7 +397,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_order_management_endpoints_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test order management pipeline endpoints with $0 balance.
@@ -409,7 +409,7 @@ class TestBackpackOrdersZeroBalance:
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         # Step 1: Test get_open_orders endpoint
-        open_orders = await bp_api_for_test_env.get_open_orders()
+        open_orders = await bp_api_for_zero_balance_test.get_open_orders()
         assert isinstance(open_orders, list), "get_open_orders() should return list"
 
         # Step 2: Test get_order_history endpoint
@@ -421,14 +421,14 @@ class TestBackpackOrdersZeroBalance:
             end_time=end_time,
             limit=10,
         )
-        order_history = await bp_api_for_test_env.get_order_history(args)
+        order_history = await bp_api_for_zero_balance_test.get_order_history(args)
         assert isinstance(order_history, list), "get_order_history() should return list"
 
         # Step 3: Test that place_order fails with expected error for $0 balance
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
+            api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=side,
             tolerance_percent=Decimal("4"),
@@ -445,7 +445,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Should fail with INSUFFICIENT_FUNDS
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value, (
@@ -461,7 +461,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_backpack_api_structure_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test Backpack-specific API structure validation with $0 balance.
@@ -472,7 +472,7 @@ class TestBackpackOrdersZeroBalance:
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         # Test get_open_orders for Backpack-specific structure
-        open_orders = await bp_api_for_test_env.get_open_orders()
+        open_orders = await bp_api_for_zero_balance_test.get_open_orders()
         assert isinstance(open_orders, list), "get_open_orders() should return list"
 
         # Test get_order_history for Backpack-specific structure
@@ -484,7 +484,7 @@ class TestBackpackOrdersZeroBalance:
             end_time=end_time,
             limit=5,
         )
-        order_history = await bp_api_for_test_env.get_order_history(args)
+        order_history = await bp_api_for_zero_balance_test.get_order_history(args)
         assert isinstance(order_history, list), "get_order_history() should return list"
 
         # Validate Backpack-specific fields in any existing orders
@@ -523,7 +523,7 @@ class TestBackpackOrdersZeroBalance:
         symbol = "SOL_USDC"
         side = OrderSide.BUY
         test_price = await get_dynamic_test_price(
-            api=bp_api_for_test_env,
+            api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=side,
             tolerance_percent=Decimal("4"),
@@ -540,7 +540,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Should fail with INSUFFICIENT_FUNDS, validating the error structure
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.INSUFFICIENT_FUNDS.value
@@ -552,7 +552,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_order_history_date_range_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_order_history() with various date range scenarios with $0 balance.
@@ -572,7 +572,7 @@ class TestBackpackOrdersZeroBalance:
             limit=10,
         )
 
-        recent_history = await bp_api_for_test_env.get_order_history(args)
+        recent_history = await bp_api_for_zero_balance_test.get_order_history(args)
         assert isinstance(recent_history, list), "Should return list"
 
         # Validate orders are within date range
@@ -590,7 +590,7 @@ class TestBackpackOrdersZeroBalance:
             limit=50,
         )
 
-        long_history = await bp_api_for_test_env.get_order_history(long_args)
+        long_history = await bp_api_for_zero_balance_test.get_order_history(long_args)
         assert isinstance(long_history, list), "Should return list for longer range"
 
         # Longer range should have >= orders from shorter range
@@ -604,7 +604,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_symbol_format_validation_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test order symbol format validation with $0 balance.
@@ -615,7 +615,7 @@ class TestBackpackOrdersZeroBalance:
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         # Get open orders to test symbol formats
-        open_orders = await bp_api_for_test_env.get_open_orders()
+        open_orders = await bp_api_for_zero_balance_test.get_open_orders()
 
         # Get order history to test symbol formats
         end_time = datetime.now()
@@ -626,7 +626,7 @@ class TestBackpackOrdersZeroBalance:
             end_time=end_time,
             limit=10,
         )
-        order_history = await bp_api_for_test_env.get_order_history(args)
+        order_history = await bp_api_for_zero_balance_test.get_order_history(args)
 
         # Combine orders for symbol validation (with $0 balance, we test existing orders)
         all_orders = open_orders + order_history
@@ -665,7 +665,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_extreme_edge_cases_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with extreme edge case parameters that should fail gracefully.
@@ -674,7 +674,9 @@ class TestBackpackOrdersZeroBalance:
         With zero balance, these should fail with appropriate error codes.
         """
         symbol = "SOL_USDC"
-        current_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        current_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         # Test cases with extreme parameters
         extreme_test_cases: list[dict[str, Any]] = [
@@ -748,7 +750,7 @@ class TestBackpackOrdersZeroBalance:
         for test_case in extreme_test_cases:
             args: PlaceOrderArgs = test_case["args"]
             with pytest.raises(APIError) as exc_info:
-                await bp_api_for_test_env.place_order(args)
+                await bp_api_for_zero_balance_test.place_order(args)
 
             api_error = exc_info.value
             expected_error_values = test_case["expected_errors"]
@@ -765,14 +767,16 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_malformed_data_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with malformed or invalid data structures.
 
         Tests how the API handles malformed symbols, invalid enum values, and edge cases.
         """
-        current_price = await get_dynamic_test_price(bp_api_for_test_env, "SOL_USDC", OrderSide.BUY)
+        current_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, "SOL_USDC", OrderSide.BUY
+        )
 
         # Test malformed symbols
         malformed_symbol_cases = [
@@ -797,7 +801,7 @@ class TestBackpackOrdersZeroBalance:
                 )
 
                 with pytest.raises(APIError) as exc_info:
-                    await bp_api_for_test_env.place_order(place_args)
+                    await bp_api_for_zero_balance_test.place_order(place_args)
 
                 api_error = exc_info.value
                 # Should get symbol-related error, not insufficient funds
@@ -824,7 +828,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_place_order_precision_edge_cases_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with decimal precision edge cases.
@@ -832,7 +836,9 @@ class TestBackpackOrdersZeroBalance:
         Tests very high precision numbers, scientific notation edge cases, and rounding behaviors.
         """
         symbol = "SOL_USDC"
-        base_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        base_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         precision_test_cases: list[dict[str, Any]] = [
             {
@@ -873,7 +879,7 @@ class TestBackpackOrdersZeroBalance:
         for test_case in precision_test_cases:
             with pytest.raises(APIError) as exc_info:
                 args: PlaceOrderArgs = test_case["args"]
-                await bp_api_for_test_env.place_order(args)
+                await bp_api_for_zero_balance_test.place_order(args)
 
             api_error = exc_info.value
             # Could be insufficient funds or precision-related error
@@ -892,7 +898,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_concurrent_order_operations_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent order operations to validate rate limiting and thread safety.
@@ -903,7 +909,9 @@ class TestBackpackOrdersZeroBalance:
         import asyncio
 
         symbol = "SOL_USDC"
-        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         # Create multiple order requests
         order_tasks: list[Any] = []
@@ -916,7 +924,7 @@ class TestBackpackOrdersZeroBalance:
                 price=test_price + Decimal(str(i)),  # Slightly different prices
                 time_in_force=TimeInForce.GTC,
             )
-            order_tasks.append(bp_api_for_test_env.place_order(place_args))
+            order_tasks.append(bp_api_for_zero_balance_test.place_order(place_args))
 
         # Execute all requests concurrently
         results: list[Order | BaseException] = await asyncio.gather(
@@ -957,7 +965,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_order_lifecycle_simulation_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test complete order lifecycle simulation with zero balance.
@@ -966,7 +974,9 @@ class TestBackpackOrdersZeroBalance:
         All operations should fail appropriately with zero balance.
         """
         symbol = "SOL_USDC"
-        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         # Step 1: Try to place order (should fail with insufficient funds)
         place_args = PlaceOrderArgs(
@@ -979,7 +989,7 @@ class TestBackpackOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as place_exc:
-            await bp_api_for_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         assert place_exc.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
         logger.info("✓ Step 1: Order placement correctly failed with insufficient funds")
@@ -989,7 +999,7 @@ class TestBackpackOrdersZeroBalance:
         cancel_args = CancelOrderArgs(symbol=symbol, order_id=fake_order_id)
 
         with pytest.raises(APIError) as cancel_exc:
-            await bp_api_for_test_env.cancel_order(cancel_args)
+            await bp_api_for_zero_balance_test.cancel_order(cancel_args)
 
         # Should get order not found or similar error
         assert cancel_exc.value.code in [
@@ -1005,7 +1015,7 @@ class TestBackpackOrdersZeroBalance:
         history_args = GetOrderHistoryArgs(symbol=symbol, limit=10)
 
         try:
-            orders = await bp_api_for_test_env.get_order_history(history_args)
+            orders = await bp_api_for_zero_balance_test.get_order_history(history_args)
             # Should return empty list or minimal orders for zero balance account
             assert isinstance(orders, list)
             assert len(orders) <= 10  # Respects limit
@@ -1017,7 +1027,7 @@ class TestBackpackOrdersZeroBalance:
 
         # Step 4: Query open orders (should work but return empty for zero balance)
         try:
-            open_orders = await bp_api_for_test_env.get_open_orders(symbol)
+            open_orders = await bp_api_for_zero_balance_test.get_open_orders(symbol)
             assert isinstance(open_orders, list)
             assert len(open_orders) == 0  # No open orders with zero balance
             logger.info("✓ Step 4: Open orders query succeeded, no open orders (expected)")
@@ -1031,7 +1041,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_order_error_message_validation_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that error messages are properly formatted and informative.
@@ -1039,7 +1049,9 @@ class TestBackpackOrdersZeroBalance:
         Validates that error responses contain useful information for debugging and logging.
         """
         symbol = "SOL_USDC"
-        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -1051,7 +1063,7 @@ class TestBackpackOrdersZeroBalance:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.place_order(place_args)
+            await bp_api_for_zero_balance_test.place_order(place_args)
 
         api_error = exc_info.value
 
@@ -1086,7 +1098,7 @@ class TestBackpackOrdersZeroBalance:
     @pytest.mark.asyncio
     async def test_network_timeout_simulation_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test order operations under network timeout conditions.
@@ -1094,7 +1106,9 @@ class TestBackpackOrdersZeroBalance:
         Simulates timeout scenarios to ensure graceful handling.
         """
         symbol = "SOL_USDC"
-        test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
+        test_price = await get_dynamic_test_price(
+            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+        )
 
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -1108,7 +1122,7 @@ class TestBackpackOrdersZeroBalance:
         try:
             # Normal request (should get insufficient funds)
             with pytest.raises(APIError) as exc_info:
-                await bp_api_for_test_env.place_order(place_args)
+                await bp_api_for_zero_balance_test.place_order(place_args)
 
             assert exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value
             logger.info("✓ Normal request completed (insufficient funds as expected)")

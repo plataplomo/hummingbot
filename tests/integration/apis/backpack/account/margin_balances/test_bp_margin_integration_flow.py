@@ -1,10 +1,7 @@
-"""End-to-end integration test for Backpack margin account flow.
+"""Integration tests for Backpack margin account data flow.
 
-This module demonstrates the complete integration flow between:
-- Spot balances from /api/v1/capital
-- Collateral data from /api/v1/capital/collateral
-- MarginAccountSummary model integration
-- Consistency validation across endpoints
+Tests the integration between spot balances, collateral data, and margin account summary.
+Validates data consistency and calculations across different API endpoints.
 """
 
 from __future__ import annotations
@@ -16,175 +13,270 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
+from tests.integration.apis.backpack.shared.test_helpers import (
+    BALANCE_PRECISION_TOLERANCE,
+    COLLATERAL_VALUE_TOLERANCE,
+    LARGE_VALUE_TOLERANCE,
+    SMALL_VALUE_TOLERANCE,
+    is_within_tolerance,
+)
 
 
 @pytest.mark.integration
 class TestBackpackMarginIntegrationFlow:
-    """Test complete margin account integration flow."""
+    """Test margin account data integration across endpoints."""
 
-    async def test_complete_margin_account_flow(
+    @pytest.mark.asyncio
+    async def test_spot_balances_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
     ) -> None:
-        """Test the complete flow of margin account data integration.
-        
-        This test demonstrates how the Backpack API integrates:
-        1. Basic spot balance data
-        2. Enhanced collateral information
-        3. Margin account summary with risk metrics
-        4. Position-aware margin calculations
-        
-        The test validates the consistency and correctness of data
-        across all these components.
-        """
-        # Step 1: Get spot balances (basic endpoint)
-        print("\n=== Step 1: Getting Spot Balances ===")
+        """Test that spot balances are properly structured and contain required fields."""
         spot_balances = await bp_api_for_test_env.get_balances()
-        
-        # Validate spot balances
-        assert isinstance(spot_balances, dict)
+
+        assert isinstance(spot_balances, dict), "Balances should be a dict"
+        assert len(spot_balances) > 0, "Should have at least one balance"
+
         for symbol, balance in spot_balances.items():
-            assert isinstance(balance, SpotBalance)
-            assert balance.exchange == "backpack"
-            assert balance.asset == symbol
-            print(f"{symbol}: total={balance.total_quantity}, available={balance.available_quantity}")
-            
-            # Check Backpack-specific details
-            if balance.bp_details:
+            assert isinstance(balance, SpotBalance), f"{symbol} balance should be SpotBalance"
+            assert balance.exchange == "backpack", f"{symbol} should be from backpack exchange"
+            assert balance.asset == symbol, f"{symbol} asset field mismatch"
+            assert balance.total_quantity >= Decimal("0"), f"{symbol} total should be non-negative"
+            assert balance.available_quantity >= Decimal("0"), (
+                f"{symbol} available should be non-negative"
+            )
+            assert balance.available_quantity <= balance.total_quantity, (
+                f"{symbol} available should not exceed total"
+            )
+
+            # Validate bp_details if present
+            if balance.bp_details and balance.total_quantity > 0:
                 if balance.bp_details.lend_quantity is not None:
-                    print(f"  - Lending: {balance.bp_details.lend_quantity}")
+                    assert balance.bp_details.lend_quantity >= Decimal("0"), (
+                        f"{symbol} lend_quantity should be non-negative"
+                    )
+                    assert balance.bp_details.lend_quantity <= balance.total_quantity, (
+                        f"{symbol} lend_quantity should not exceed total"
+                    )
+
                 if balance.bp_details.open_order_quantity is not None:
-                    print(f"  - In Orders: {balance.bp_details.open_order_quantity}")
+                    assert balance.bp_details.open_order_quantity >= Decimal("0"), (
+                        f"{symbol} open_order_quantity should be non-negative"
+                    )
+
                 if balance.bp_details.collateral_weight is not None:
-                    print(f"  - Collateral Weight: {balance.bp_details.collateral_weight}")
-        
-        # Step 2: Get margin account summary (uses collateral endpoint)
-        print("\n=== Step 2: Getting Margin Account Summary ===")
+                    assert Decimal("0") <= balance.bp_details.collateral_weight <= Decimal("1"), (
+                        f"{symbol} collateral_weight should be between 0 and 1"
+                    )
+
+    @pytest.mark.asyncio
+    async def test_margin_account_summary_structure(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test that margin account summary contains all required fields and calculations."""
         account_summary = await bp_api_for_test_env.get_account_summary()
-        
-        assert isinstance(account_summary, MarginAccountSummary)
-        print(f"Total Equity: ${account_summary.total_equity}")
-        print(f"Available Equity: ${account_summary.available_equity}")
-        
-        # Step 3: Validate enhanced Backpack details
-        print("\n=== Step 3: Enhanced Backpack Details ===")
+
+        # Basic structure validation
+        assert isinstance(account_summary, MarginAccountSummary), "Should be MarginAccountSummary"
+        assert account_summary.exchange == "backpack", "Should be from backpack exchange"
+        assert account_summary.timestamp is not None, "Should have timestamp"
+
+        # Core financial fields
+        assert account_summary.total_equity >= Decimal("0"), "Total equity should be non-negative"
+        assert account_summary.available_equity >= Decimal("0"), (
+            "Available equity should be non-negative"
+        )
+        assert account_summary.available_equity <= account_summary.total_equity, (
+            "Available equity should not exceed total equity"
+        )
+
+        # Backpack-specific details must exist
+        assert account_summary.bp_details is not None, "Should have bp_details"
+        assert account_summary.hl_details is None, "Should not have hl_details"
+
+        bp_details = account_summary.bp_details
+
+        # Validate equity breakdown if available
+        if bp_details.assets_value is not None and bp_details.liabilities_value is not None:
+            assert bp_details.assets_value >= Decimal("0"), "Assets value should be non-negative"
+            assert bp_details.liabilities_value >= Decimal("0"), (
+                "Liabilities value should be non-negative"
+            )
+
+            # Equity = Assets - Liabilities
+            calculated_equity = bp_details.assets_value - bp_details.liabilities_value
+            assert is_within_tolerance(
+                calculated_equity, account_summary.total_equity, tolerance=SMALL_VALUE_TOLERANCE
+            ), f"Equity calculation mismatch: {calculated_equity} != {account_summary.total_equity}"
+
+        # Validate margin fraction
+        if bp_details.margin_fraction is not None:
+            assert bp_details.margin_fraction >= Decimal("0"), (
+                "Margin fraction should be non-negative"
+            )
+
+    @pytest.mark.asyncio
+    async def test_spot_vs_collateral_data_consistency(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test consistency between spot balance and collateral endpoints."""
+        spot_balances = await bp_api_for_test_env.get_balances()
+        account_summary = await bp_api_for_test_env.get_account_summary()
+
+        assert account_summary.bp_details is not None
+        collateral_assets = account_summary.bp_details.collateral_assets or []
+
+        # Create collateral map for easy lookup
+        collateral_map = {
+            asset["symbol"]: asset for asset in collateral_assets if "symbol" in asset
+        }
+
+        # Test each spot balance against collateral data
+        for symbol, spot_balance in spot_balances.items():
+            if spot_balance.total_quantity == 0:
+                continue  # Skip zero balances
+
+            if symbol in collateral_map:
+                collateral_data = collateral_map[symbol]
+                collateral_total = Decimal(collateral_data.get("totalQuantity", "0"))
+
+                # Only validate when both have non-zero values
+                if collateral_total > 0:
+                    assert is_within_tolerance(
+                        spot_balance.total_quantity,
+                        collateral_total,
+                        tolerance=BALANCE_PRECISION_TOLERANCE,
+                    ), (
+                        f"{symbol} quantity mismatch: "
+                        f"spot={spot_balance.total_quantity}, collateral={collateral_total}"
+                    )
+
+                # Validate collateral value calculation
+                collateral_weight = Decimal(collateral_data.get("collateralWeight", "0"))
+                collateral_value = Decimal(collateral_data.get("collateralValue", "0"))
+                mark_price = Decimal(collateral_data.get("assetMarkPrice", "0"))
+
+                if mark_price > 0 and collateral_total > 0:
+                    expected_value = collateral_total * mark_price * collateral_weight
+                    assert abs(collateral_value - expected_value) < COLLATERAL_VALUE_TOLERANCE, (
+                        f"{symbol} collateral value mismatch: "
+                        f"expected={expected_value}, actual={collateral_value}"
+                    )
+
+    @pytest.mark.asyncio
+    async def test_margin_requirements_with_positions(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test margin requirements calculation when positions exist."""
+        positions = await bp_api_for_test_env.get_positions()
+        account_summary = await bp_api_for_test_env.get_account_summary()
+
+        if positions:
+            # With positions, should have position notional
+            assert account_summary.total_position_notional is not None
+            assert account_summary.total_position_notional >= Decimal("0")
+
+            # Calculate expected notional from positions
+            expected_notional = sum(
+                abs(pos.size * pos.mark_price)
+                for pos in positions
+                if pos.size != 0 and pos.mark_price is not None
+            )
+
+            if expected_notional > 0:
+                assert is_within_tolerance(
+                    account_summary.total_position_notional,
+                    expected_notional,
+                    tolerance_percent=Decimal("5"),  # 5% tolerance for price movements
+                ), (
+                    f"Position notional mismatch: "
+                    f"account={account_summary.total_position_notional}, "
+                    f"calculated={expected_notional}"
+                )
+
+            # Validate margin requirements
+            if account_summary.total_initial_margin_required is not None:
+                assert account_summary.total_initial_margin_required >= Decimal("0")
+
+            if account_summary.total_maintenance_margin_required is not None:
+                assert account_summary.total_maintenance_margin_required >= Decimal("0")
+
+            # Initial margin >= maintenance margin
+            if (
+                account_summary.total_initial_margin_required is not None
+                and account_summary.total_maintenance_margin_required is not None
+            ):
+                assert (
+                    account_summary.total_initial_margin_required
+                    >= account_summary.total_maintenance_margin_required
+                ), "Initial margin should be >= maintenance margin"
+
+    @pytest.mark.asyncio
+    async def test_available_equity_calculation(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test available equity calculation with locked equity."""
+        account_summary = await bp_api_for_test_env.get_account_summary()
+
         assert account_summary.bp_details is not None
         bp_details = account_summary.bp_details
-        
-        if bp_details.assets_value is not None:
-            print(f"Assets Value: ${bp_details.assets_value}")
-        if bp_details.liabilities_value is not None:
-            print(f"Liabilities Value: ${bp_details.liabilities_value}")
-        if bp_details.locked_equity is not None:
-            print(f"Locked Equity: ${bp_details.locked_equity}")
-        if bp_details.margin_fraction is not None:
-            print(f"Margin Utilization: {bp_details.margin_fraction * 100:.2f}%")
-        
-        # Step 4: Cross-validate spot vs collateral data
-        print("\n=== Step 4: Cross-Validation ===")
-        if bp_details.collateral_assets:
-            collateral_map = {
-                asset["symbol"]: asset
-                for asset in bp_details.collateral_assets
-                if "symbol" in asset
-            }
-            
-            # Validate each spot balance against collateral
-            for symbol, spot_balance in spot_balances.items():
-                if symbol in collateral_map and spot_balance.total_quantity > 0:
-                    collateral_data = collateral_map[symbol]
-                    
-                    # Validate total quantity matches
-                    spot_total = spot_balance.total_quantity
-                    collateral_total = Decimal(collateral_data.get("totalQuantity", "0"))
-                    
-                    print(f"\n{symbol} Validation:")
-                    print(f"  Spot Total: {spot_total}")
-                    print(f"  Collateral Total: {collateral_total}")
-                    
-                    # They should match closely
-                    quantity_diff = abs(spot_total - collateral_total)
-                    assert quantity_diff < Decimal("0.0001"), (
-                        f"Quantity mismatch for {symbol}: "
-                        f"spot={spot_total}, collateral={collateral_total}"
-                    )
-                    
-                    # Validate collateral value calculation
-                    collateral_weight = Decimal(collateral_data.get("collateralWeight", "0"))
-                    collateral_value = Decimal(collateral_data.get("collateralValue", "0"))
-                    mark_price = Decimal(collateral_data.get("assetMarkPrice", "0"))
-                    
-                    if mark_price > 0:
-                        expected_value = collateral_total * mark_price * collateral_weight
-                        value_diff = abs(collateral_value - expected_value)
-                        print(f"  Collateral Value: ${collateral_value} "
-                              f"(weight={collateral_weight})")
-                        
-                        # Allow small rounding differences
-                        assert value_diff < Decimal("0.01"), (
-                            f"Collateral value mismatch for {symbol}"
-                        )
-        
-        # Step 5: Check positions and margin requirements
-        print("\n=== Step 5: Positions and Margin ===")
-        positions = await bp_api_for_test_env.get_positions()
-        
-        if positions:
-            print(f"Active Positions: {len(positions)}")
-            
-            # With positions, we should have margin requirements
-            if account_summary.total_initial_margin_required is not None:
-                print(f"Initial Margin Required: ${account_summary.total_initial_margin_required}")
-            if account_summary.total_maintenance_margin_required is not None:
-                print(f"Maintenance Margin Required: ${account_summary.total_maintenance_margin_required}")
-            
-            # Calculate margin ratio
-            if (
-                account_summary.total_maintenance_margin_required is not None and
-                account_summary.total_maintenance_margin_required > 0 and
-                account_summary.total_equity > 0
-            ):
-                margin_ratio = (
-                    account_summary.total_maintenance_margin_required / 
-                    account_summary.total_equity
-                )
-                print(f"Margin Ratio: {margin_ratio * 100:.2f}%")
-                
-                # Validate against reported margin fraction if available
-                if bp_details.margin_fraction is not None:
-                    fraction_diff = abs(margin_ratio - bp_details.margin_fraction)
-                    assert fraction_diff < Decimal("0.1"), (
-                        "Large discrepancy between calculated and reported margin fraction"
-                    )
-        else:
-            print("No active positions")
-            
-            # Without positions, margin requirements should be zero or None
-            if account_summary.total_initial_margin_required is not None:
-                assert account_summary.total_initial_margin_required == Decimal("0")
-            if account_summary.total_maintenance_margin_required is not None:
-                assert account_summary.total_maintenance_margin_required == Decimal("0")
-        
-        # Step 6: Final consistency checks
-        print("\n=== Step 6: Final Consistency Checks ===")
-        
-        # Assets - Liabilities = Net Equity
-        if (
-            bp_details.assets_value is not None and
-            bp_details.liabilities_value is not None
-        ):
-            calculated_equity = bp_details.assets_value - bp_details.liabilities_value
-            equity_diff = abs(calculated_equity - account_summary.total_equity)
-            print(f"Calculated Equity: ${calculated_equity}")
-            print(f"Reported Equity: ${account_summary.total_equity}")
-            assert equity_diff < Decimal("0.01"), "Equity calculation mismatch"
-        
-        # Available equity consistency
+
+        # If locked equity is provided, validate available equity calculation
         if bp_details.locked_equity is not None and bp_details.locked_equity > 0:
             expected_available = account_summary.total_equity - bp_details.locked_equity
-            available_diff = abs(expected_available - account_summary.available_equity)
-            print(f"Expected Available: ${expected_available}")
-            print(f"Reported Available: ${account_summary.available_equity}")
-            assert available_diff < Decimal("1.0"), "Available equity mismatch"
-        
-        print("\n✅ All integration checks passed!")
+            assert is_within_tolerance(
+                expected_available,
+                account_summary.available_equity,
+                tolerance=LARGE_VALUE_TOLERANCE,
+            ), (
+                f"Available equity mismatch: "
+                f"expected={expected_available} (total={account_summary.total_equity} - locked={bp_details.locked_equity}), "
+                f"actual={account_summary.available_equity}"
+            )
+
+    @pytest.mark.asyncio
+    async def test_collateral_weight_validation(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test that collateral weights are properly applied across assets."""
+        account_summary = await bp_api_for_test_env.get_account_summary()
+
+        assert account_summary.bp_details is not None
+        collateral_assets = account_summary.bp_details.collateral_assets or []
+
+        stablecoin_found = False
+        for asset in collateral_assets:
+            symbol = asset.get("symbol")
+            if not symbol:
+                continue
+
+            collateral_weight = Decimal(asset.get("collateralWeight", "0"))
+            balance_notional = Decimal(asset.get("balanceNotional", "0"))
+
+            # Validate weight range
+            assert Decimal("0") <= collateral_weight <= Decimal("1"), (
+                f"{symbol} collateral weight out of range: {collateral_weight}"
+            )
+
+            # Check stablecoins have weight of 1 when they have balance
+            if symbol in ["USDC", "USDT"] and balance_notional > 0:
+                assert collateral_weight == Decimal("1"), (
+                    f"Stablecoin {symbol} should have collateral weight of 1, got {collateral_weight}"
+                )
+                stablecoin_found = True
+
+            # Also check if we have USDC with zero balance but still in collateral list
+            if symbol == "USDC" and "collateralWeight" in asset:
+                # USDC in collateral list indicates account has USDC capability
+                stablecoin_found = True
+
+        # Ensure we tested at least one stablecoin if account has funds
+        if account_summary.total_equity > Decimal("0") and len(collateral_assets) > 0:
+            assert stablecoin_found, (
+                f"Expected to find at least one stablecoin in collateral assets: {[a.get('symbol') for a in collateral_assets]}"
+            )

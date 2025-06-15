@@ -2,6 +2,10 @@
 
 This module tests the edge cases where accounts have minimal or zero balances,
 ensuring proper handling of empty states and edge conditions.
+
+IMPORTANT: These tests require a zero-balance account to run properly.
+They will fail if run against an account with positive balances.
+TODO: Run these tests with a dedicated zero-balance test account.
 """
 
 from __future__ import annotations
@@ -13,15 +17,17 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
+from tests.integration.apis.backpack.shared.test_helpers import DUST_THRESHOLD
 
 
 @pytest.mark.integration
 class TestBackpackMarginBalancesZero:
     """Test Backpack margin balance integration with zero/minimal values."""
 
+    @pytest.mark.asyncio
     async def test_margin_account_summary_zero_balance(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test MarginAccountSummary with zero or minimal balance.
 
@@ -32,7 +38,7 @@ class TestBackpackMarginBalancesZero:
         4. Proper representation of empty state
         """
         # Get margin account summary
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
         assert account_summary.exchange == "backpack"
@@ -56,9 +62,10 @@ class TestBackpackMarginBalancesZero:
         if account_summary.total_unrealized_pnl is not None:
             assert account_summary.total_unrealized_pnl == Decimal("0")
 
+    @pytest.mark.asyncio
     async def test_backpack_margin_details_zero_values(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test BackpackMarginDetails with zero values.
 
@@ -67,7 +74,7 @@ class TestBackpackMarginBalancesZero:
         2. Margin fraction is None or zero when no positions
         3. All equity components are zero or minimal
         """
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert account_summary.bp_details is not None
         bp_details = account_summary.bp_details
@@ -91,11 +98,12 @@ class TestBackpackMarginBalancesZero:
 
         # Net exposure should be zero with no futures positions
         if bp_details.net_exposure_futures is not None:
-            assert abs(bp_details.net_exposure_futures) <= Decimal("0.01")
+            assert abs(bp_details.net_exposure_futures) <= DUST_THRESHOLD
 
+    @pytest.mark.asyncio
     async def test_spot_balances_all_zero(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test spot balances when all assets have zero balance.
 
@@ -104,7 +112,7 @@ class TestBackpackMarginBalancesZero:
         2. Zero balance representation
         3. Proper defaults for BackpackSpotBalanceDetails
         """
-        spot_balances = await bp_api_for_test_env.get_balances()
+        spot_balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Even with zero balances, common assets might be returned
         for _, balance in spot_balances.items():
@@ -122,9 +130,10 @@ class TestBackpackMarginBalancesZero:
                     if balance.bp_details.lend_quantity is not None:
                         assert balance.bp_details.lend_quantity == Decimal("0")
 
+    @pytest.mark.asyncio
     async def test_collateral_endpoint_zero_collateral(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test collateral endpoint response with zero collateral.
 
@@ -133,7 +142,7 @@ class TestBackpackMarginBalancesZero:
         2. Zero net equity representation
         3. Proper margin factor defaults
         """
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # With zero collateral, equity should be zero
         if account_summary.total_equity == Decimal("0"):
@@ -152,9 +161,10 @@ class TestBackpackMarginBalancesZero:
                             total_quantity = Decimal(asset.get("totalQuantity", "0"))
                             assert total_quantity == Decimal("0")
 
+    @pytest.mark.asyncio
     async def test_margin_calculations_no_positions(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test margin calculations when no positions exist.
 
@@ -163,8 +173,8 @@ class TestBackpackMarginBalancesZero:
         2. Full equity availability
         3. No division errors in margin calculations
         """
-        positions = await bp_api_for_test_env.get_positions()
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        positions = await bp_api_for_zero_balance_test.get_positions()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         if not positions:  # No positions
             # With no positions, margin requirements should be zero
@@ -185,9 +195,10 @@ class TestBackpackMarginBalancesZero:
             ):
                 assert account_summary.bp_details.margin_fraction == Decimal("0")
 
+    @pytest.mark.asyncio
     async def test_edge_case_tiny_balances(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test handling of very small (dust) balances.
 
@@ -196,8 +207,8 @@ class TestBackpackMarginBalancesZero:
         2. No rounding errors
         3. Consistent representation across endpoints
         """
-        spot_balances = await bp_api_for_test_env.get_balances()
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        spot_balances = await bp_api_for_zero_balance_test.get_balances()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # Check for any dust balances
         dust_threshold = Decimal("0.00001")
@@ -224,9 +235,10 @@ class TestBackpackMarginBalancesZero:
                             "0.00000001"
                         )
 
+    @pytest.mark.asyncio
     async def test_zero_balance_field_validation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
     ) -> None:
         """Test that all model fields properly validate zero values.
 
@@ -235,7 +247,7 @@ class TestBackpackMarginBalancesZero:
         2. Optional fields can be None
         3. No validation errors on edge cases
         """
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # Core fields validation
         assert isinstance(account_summary.total_equity, Decimal)

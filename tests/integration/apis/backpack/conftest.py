@@ -8,6 +8,7 @@ Uses test configuration from tests/config/test_config.yaml.
 # Uses test configuration from tests/config/test_config.yaml
 
 from collections.abc import AsyncGenerator, Callable
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,6 +16,7 @@ import pytest_asyncio
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
 
@@ -216,3 +218,67 @@ def bp_api_with_di(
         )
 
     return _create_api
+
+
+# Zero Balance Test Fixtures
+@pytest.fixture(scope="session")
+def test_secrets_zero_balance_file_path() -> Path:
+    """Path to the zero balance test secrets file."""
+    return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_zero_balance.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) -> SecretsConfig:
+    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml."""
+    if not test_secrets_zero_balance_file_path.exists():
+        pytest.skip(
+            f"Zero balance test secrets file not found at {test_secrets_zero_balance_file_path}, "
+            "skipping zero balance tests."
+        )
+    try:
+        manager = SecretsManager(str(test_secrets_zero_balance_file_path))
+        if manager.secrets_data is None:
+            raise RuntimeError("SecretsManager loaded but secrets_data is None.")
+        return manager.secrets_data
+    except Exception as e:
+        pytest.fail(
+            f"Failed to load zero balance test SecretsConfig from {test_secrets_zero_balance_file_path}: {e}"
+        )
+
+
+@pytest.fixture(scope="session")
+def bp_secrets_for_zero_balance(
+    test_secrets_zero_balance_config: SecretsConfig,
+) -> ApiKeyAuthSecrets:
+    """Provide ApiKeyAuthSecrets for Backpack zero balance account from test_secrets_zero_balance.yaml."""
+    secrets = test_secrets_zero_balance_config.exchanges["backpack"]
+    if not isinstance(secrets, ApiKeyAuthSecrets):
+        pytest.fail(
+            "Backpack secrets in test_secrets_zero_balance.yaml are not ApiKeyAuthSecrets type."
+        )
+    return secrets
+
+
+@pytest_asyncio.fixture
+async def bp_api_for_zero_balance_test(
+    active_bp_config: ExchangeSpecificConfig,
+    bp_secrets_for_zero_balance: ApiKeyAuthSecrets,
+) -> AsyncGenerator[BackpackAPI]:
+    """Create BackpackAPI instance for zero balance integration tests.
+
+    Uses configuration from test_config.yaml and zero balance account secrets
+    from test_secrets_zero_balance.yaml. This fixture is specifically for
+    testing with an account that has:
+    - Zero or minimal balances
+    - No positions
+    - No open orders
+    - Minimal or no trading history
+    """
+    # Create BackpackAPI with zero balance account credentials
+    api = BackpackAPI(
+        exchange_config=active_bp_config,
+        exchange_secrets=bp_secrets_for_zero_balance,
+    )
+    yield api
+    # Ensure proper cleanup
+    await api.close()

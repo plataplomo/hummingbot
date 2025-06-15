@@ -15,6 +15,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
+from tests.integration.apis.backpack.shared.test_helpers import DEFAULT_TEST_SYMBOL_PERP
 
 # Mark all tests in this file
 pytestmark = [
@@ -86,7 +87,7 @@ class TestBackpackPositionsPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving a specific position by symbol."""
-        symbol = "SOL-PERP"
+        symbol = DEFAULT_TEST_SYMBOL_PERP
         positions = await bp_api_for_test_env.get_positions(symbol=symbol)
 
         assert isinstance(positions, list)

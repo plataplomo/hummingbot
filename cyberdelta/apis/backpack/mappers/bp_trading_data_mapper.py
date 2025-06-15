@@ -31,6 +31,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
@@ -318,6 +319,53 @@ class BackpackTradingDataMapper:
                 BackpackTradingDataMapper._parse_order_timestamps(raw_order)
             )
 
+            # Create BackpackOrderDetails from raw order data
+            bp_details = BackpackOrderDetails(
+                executed_quote_quantity=parse_decimal_value(
+                    raw_order.executedQuoteQuantity,
+                    field_name="executedQuoteQuantity",
+                    allow_none=True,
+                )
+                if raw_order.executedQuoteQuantity
+                else None,
+                self_trade_prevention=None,  # Can be mapped if needed
+                expiry_reason=None,  # Can be mapped if needed
+                origin=None,  # Can be mapped if needed
+                sl_trigger_price=parse_decimal_value(
+                    raw_order.stopLossTriggerPrice,
+                    field_name="stopLossTriggerPrice",
+                    allow_none=True,
+                )
+                if raw_order.stopLossTriggerPrice
+                else None,
+                sl_limit_price=parse_decimal_value(
+                    raw_order.stopLossLimitPrice, field_name="stopLossLimitPrice", allow_none=True
+                )
+                if raw_order.stopLossLimitPrice
+                else None,
+                sl_trigger_by=None,  # Can be mapped from stopLossTriggerBy if needed
+                tp_trigger_price=parse_decimal_value(
+                    raw_order.takeProfitTriggerPrice,
+                    field_name="takeProfitTriggerPrice",
+                    allow_none=True,
+                )
+                if raw_order.takeProfitTriggerPrice
+                else None,
+                tp_limit_price=parse_decimal_value(
+                    raw_order.takeProfitLimitPrice,
+                    field_name="takeProfitLimitPrice",
+                    allow_none=True,
+                )
+                if raw_order.takeProfitLimitPrice
+                else None,
+                tp_trigger_by=None,  # Can be mapped from takeProfitTriggerBy if needed
+                trigger_quantity=parse_decimal_value(
+                    raw_order.triggerQuantity, field_name="triggerQuantity", allow_none=True
+                )
+                if raw_order.triggerQuantity
+                else None,
+            )
+
             return Order(
                 exchange_order_id=raw_order.id,
                 symbol=raw_order.symbol,
@@ -339,6 +387,7 @@ class BackpackTradingDataMapper:
                 signal_id=None,
                 reduce_only=raw_order.reduceOnly or False,
                 post_only=raw_order.postOnly or False,
+                bp_details=bp_details,
             )
 
         except Exception as e:

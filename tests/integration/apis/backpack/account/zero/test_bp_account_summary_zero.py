@@ -28,11 +28,11 @@ class TestBackpackAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_empty_account(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with empty account (zero balance)."""
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
         assert account_summary.exchange == "backpack"
@@ -73,11 +73,11 @@ class TestBackpackAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_zero_precision(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() decimal precision with zero values."""
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert isinstance(account_summary.total_equity, Decimal)
         # These fields may be None for zero balance accounts
@@ -116,11 +116,11 @@ class TestBackpackAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_structure_validation(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() structure validation with zero balance."""
-        account_summary = await bp_api_for_test_env.get_account_summary()
+        account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert hasattr(account_summary, "total_equity")
         assert hasattr(account_summary, "total_initial_margin_required")

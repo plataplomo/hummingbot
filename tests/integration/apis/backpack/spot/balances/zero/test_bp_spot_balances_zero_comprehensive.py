@@ -47,7 +47,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_zero_account_comprehensive(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with comprehensive SpotBalance validation for zero balance accounts.
@@ -56,7 +56,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         to fully validated SpotBalance model instances with zero balance constraints.
         """
         # Execute the API call
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Validate container type
         assert isinstance(balances, dict), "get_balances() should return dict[str, SpotBalance]"
@@ -159,7 +159,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_precision_edge_cases(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with edge cases around decimal precision.
@@ -167,7 +167,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         This validates handling of very small balances, dust amounts,
         and precision edge cases that might occur in real trading.
         """
-        balances = await bp_api_for_test_env.get_balances()
+        balances = await bp_api_for_zero_balance_test.get_balances()
 
         if not balances:
             pytest.skip("No balances for precision testing")
@@ -223,7 +223,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_concurrent_requests(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests to same endpoint.
@@ -235,9 +235,9 @@ class TestBackpackSpotBalancesZeroComprehensive:
 
         # Make multiple concurrent calls
         tasks = [
-            bp_api_for_test_env.get_balances(),
-            bp_api_for_test_env.get_balances(),
-            bp_api_for_test_env.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
+            bp_api_for_zero_balance_test.get_balances(),
         ]
 
         # Execute concurrently
@@ -273,7 +273,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_rate_limiting(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() rate limiting behavior.
@@ -285,7 +285,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
             # Make multiple rapid calls to potentially trigger rate limiting
             tasks: list[Any] = []
             for _ in range(5):
-                tasks.append(bp_api_for_test_env.get_balances())
+                tasks.append(bp_api_for_zero_balance_test.get_balances())
 
             # Most should succeed, but if rate limited, validate error handling
             results: list[dict[str, SpotBalance]] = []
@@ -315,7 +315,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_network_timeout(
         self,
-        bp_api_for_test_env: BackpackAPI,
+        bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() behavior with network timeout scenarios.
@@ -325,7 +325,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         """
         try:
             # Attempt the call - in normal conditions this should succeed
-            balances = await bp_api_for_test_env.get_balances()
+            balances = await bp_api_for_zero_balance_test.get_balances()
 
             # If successful, validate the response
             assert isinstance(balances, dict), "Successful response should be dict"
