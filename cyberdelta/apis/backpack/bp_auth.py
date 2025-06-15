@@ -5,7 +5,6 @@ including ED25519 signature generation for REST API requests and WebSocket subsc
 """
 
 import base64
-import json
 import time
 import urllib.parse
 from collections.abc import Mapping
