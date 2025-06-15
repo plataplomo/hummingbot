@@ -483,6 +483,23 @@ COMMON_PERP_SYMBOLS = [
 DEFAULT_TEST_SYMBOL_SPOT = "SOL_USDC"
 DEFAULT_TEST_SYMBOL_PERP = "SOL_USDC_PERP"
 
+# Named test symbols for better readability
+TEST_SYMBOL_SOL_USDC = "SOL_USDC"
+TEST_SYMBOL_BTC_USDC = "BTC_USDC"
+TEST_SYMBOL_ETH_USDC = "ETH_USDC"
+TEST_SYMBOL_USDT_USDC = "USDT_USDC"
+
+TEST_SYMBOL_SOL_PERP = "SOL_USDC_PERP"
+TEST_SYMBOL_BTC_PERP = "BTC_USDC_PERP"
+TEST_SYMBOL_ETH_PERP = "ETH_USDC_PERP"
+
+# Invalid/delisted symbols for negative testing
+INVALID_SPOT_SYMBOL = "INVALID_USDC"
+DELISTED_PERP_SYMBOL = "DOGE_USDC_PERP"
+
+# Stablecoin list
+STABLECOIN_SYMBOLS = ["USDC", "USDT", "BUSD", "USDD"]
+
 
 # =============================================================================
 # Test Tolerances and Thresholds
@@ -510,6 +527,116 @@ COLLATERAL_VALUE_TOLERANCE = Decimal("0.01")  # $0.01 for collateral value calcu
 AUTO_LENDING_DETECTION_THRESHOLD = Decimal(
     "0"
 )  # If all spot balances are 0, auto-lending is likely active
+
+# Position and PnL tolerances
+PNL_TOLERANCE = Decimal("1.0")  # $1.00 tolerance for PnL comparisons
+BREAK_EVEN_PRICE_TOLERANCE_PERCENT = Decimal("0.1")  # 0.1% for break-even price
+
+# Ratio tolerances (for notional values, position sizes, etc.)
+RATIO_LOWER_BOUND = Decimal("0.99")  # 1% lower bound for ratio comparisons
+RATIO_UPPER_BOUND = Decimal("1.01")  # 1% upper bound for ratio comparisons
+
+# Margin fraction bounds
+MARGIN_FRACTION_MIN = Decimal("0")  # Minimum valid margin fraction
+MARGIN_FRACTION_MAX = Decimal("1")  # Maximum valid margin fraction
+
+
+# =============================================================================
+# Balance Detection Helpers  
+# =============================================================================
+
+
+async def detect_account_auto_lending(api: BackpackAPI) -> bool:
+    """Detect if account has auto-lending enabled based on balance patterns.
+    
+    Args:
+        api: Backpack API instance
+        
+    Returns:
+        True if auto-lending is likely active
+    """
+    try:
+        # Check spot balances
+        spot_balances = await api.get_balances()
+        
+        # If all spot balances are exactly 0, auto-lending might be active
+        all_zero = all(
+            balance.total_quantity == Decimal("0") 
+            for balance in spot_balances.values()
+        )
+        
+        if all_zero and len(spot_balances) > 0:
+            # Double check with account summary
+            account_summary = await api.get_account_summary()
+            if account_summary.total_equity > Decimal("0"):
+                # Account has value but spot shows 0 = auto-lending
+                return True
+                
+        return False
+        
+    except Exception as e:
+        logger.warning(f"Failed to detect auto-lending: {e}")
+        return False
+
+
+async def get_actual_balances_with_lending(
+    api: BackpackAPI
+) -> dict[str, dict[str, Decimal]]:
+    """Get actual balances including lent amounts from collateral endpoint.
+    
+    Args:
+        api: Backpack API instance
+        
+    Returns:
+        Dict mapping asset to balance details including lent amounts
+    """
+    try:
+        # Get regular spot balances
+        spot_balances = await api.get_balances()
+        
+        # Get account summary with collateral info
+        account_summary = await api.get_account_summary()
+        
+        result = {}
+        
+        # Process spot balances
+        for asset, balance in spot_balances.items():
+            result[asset] = {
+                "spot_total": balance.total_quantity,
+                "spot_available": balance.available_quantity,
+                "spot_locked": balance.locked_quantity,
+                "lend_quantity": Decimal("0"),
+                "true_total": balance.total_quantity,
+            }
+            
+            # Add lending info from bp_details
+            if balance.bp_details and balance.bp_details.lend_quantity:
+                result[asset]["lend_quantity"] = balance.bp_details.lend_quantity
+                result[asset]["true_total"] = (
+                    balance.total_quantity + balance.bp_details.lend_quantity
+                )
+        
+        # Also check collateral assets in account summary
+        if account_summary.bp_details and account_summary.bp_details.collateral_assets:
+            for asset_info in account_summary.bp_details.collateral_assets:
+                symbol = asset_info.get("symbol")
+                if symbol and symbol not in result:
+                    # Asset only in collateral, not in spot
+                    total_qty = Decimal(asset_info.get("totalQuantity", "0"))
+                    lend_qty = Decimal(asset_info.get("lendQuantity", "0"))
+                    result[symbol] = {
+                        "spot_total": Decimal("0"),
+                        "spot_available": Decimal("0"),
+                        "spot_locked": Decimal("0"),
+                        "lend_quantity": lend_qty,
+                        "true_total": total_qty,
+                    }
+                    
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Failed to get balances with lending: {e}")
+        return {}
 
 
 # =============================================================================
@@ -687,3 +814,148 @@ def is_within_tolerance(
     else:
         # Default to exact match
         return actual == expected
+
+
+# =============================================================================
+# Additional Helper Functions for Tests
+# =============================================================================
+
+
+def generate_invalid_order_id() -> str:
+    """Generate a deterministic invalid order ID for negative testing.
+    
+    Returns:
+        A fake order ID that should not exist in the exchange
+    """
+    # Use a predictable pattern that's unlikely to be a real order ID
+    return "invalid_order_0000000000000000"
+
+
+async def get_unreasonably_large_price(
+    api: BackpackAPI, 
+    symbol: str, 
+    multiplier: Decimal = Decimal("1000")
+) -> Decimal:
+    """Get an unreasonably high price for insufficient balance tests.
+    
+    Args:
+        api: Backpack API instance
+        symbol: Trading symbol
+        multiplier: How many times current price to use (default 10x)
+        
+    Returns:
+        Price that's too high for typical test accounts
+    """
+    try:
+        current_price = await get_current_market_price(api, symbol)
+        large_price = current_price * multiplier
+        tick_size = await get_symbol_tick_size(api, symbol)
+        return large_price.quantize(tick_size).normalize()
+    except Exception as e:
+        logger.warning(f"Failed to get large price for {symbol}: {e}, using fallback")
+        # Fallback to very high prices
+        if "BTC" in symbol:
+            return Decimal("1000000.00")  # $1M BTC
+        elif "ETH" in symbol:
+            return Decimal("100000.00")   # $100K ETH
+        else:
+            return Decimal("10000.00")     # $10K default
+
+
+async def get_unreasonably_large_quantity(
+    api: BackpackAPI,
+    symbol: str,
+    multiplier: Decimal = Decimal("1000")
+) -> Decimal:
+    """Get an unreasonably large quantity for insufficient balance tests.
+    
+    Args:
+        api: Backpack API instance
+        symbol: Trading symbol
+        multiplier: Quantity multiplier (default 1000x minimum)
+        
+    Returns:
+        Quantity that's too large for typical test accounts
+    """
+    try:
+        constraints = await get_market_constraints(api, symbol)
+        min_quantity = constraints.get("min_quantity", Decimal("0.01"))
+        large_quantity = max(min_quantity * multiplier, Decimal("1000"))
+        step_size = constraints["step_size"]
+        return large_quantity.quantize(step_size).normalize()
+    except Exception as e:
+        logger.warning(f"Failed to get large quantity for {symbol}: {e}, using fallback")
+        return Decimal("1000.00")  # Fallback large quantity
+
+
+def is_stablecoin(asset: str) -> bool:
+    """Check if an asset is a stablecoin.
+    
+    Args:
+        asset: Asset symbol (e.g., "USDC", "USDT")
+        
+    Returns:
+        True if asset is a known stablecoin
+    """
+    return asset.upper() in STABLECOIN_SYMBOLS
+
+
+def validate_pnl_direction(
+    pnl: Decimal,
+    side: OrderSide,
+    entry_price: Decimal,
+    current_price: Decimal
+) -> bool:
+    """Validate that PnL direction matches the expected direction based on position.
+    
+    Args:
+        pnl: Profit/Loss value
+        side: Position side (BUY/SELL)
+        entry_price: Average entry price
+        current_price: Current market price
+        
+    Returns:
+        True if PnL direction is correct
+    """
+    if side == OrderSide.BUY:
+        # Long position: profit when price goes up
+        expected_positive = current_price > entry_price
+    else:
+        # Short position: profit when price goes down
+        expected_positive = current_price < entry_price
+        
+    if expected_positive:
+        return pnl >= Decimal("0")
+    else:
+        return pnl <= Decimal("0")
+
+
+def is_within_ratio_bounds(actual: Decimal, expected: Decimal) -> bool:
+    """Check if actual value is within standard ratio bounds (0.99-1.01) of expected.
+    
+    Args:
+        actual: Actual value
+        expected: Expected value
+        
+    Returns:
+        True if within ratio bounds
+    """
+    if expected == Decimal("0"):
+        return actual == Decimal("0")
+    
+    ratio = actual / expected
+    return RATIO_LOWER_BOUND <= ratio <= RATIO_UPPER_BOUND
+
+
+def is_valid_margin_fraction(margin_fraction: Decimal | None) -> bool:
+    """Check if margin fraction is within valid bounds (0-1).
+    
+    Args:
+        margin_fraction: Margin fraction value
+        
+    Returns:
+        True if valid or None
+    """
+    if margin_fraction is None:
+        return True
+    return MARGIN_FRACTION_MIN <= margin_fraction <= MARGIN_FRACTION_MAX

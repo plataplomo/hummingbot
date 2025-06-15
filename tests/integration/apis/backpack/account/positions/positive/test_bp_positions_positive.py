@@ -15,7 +15,19 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
-from tests.integration.apis.backpack.shared.test_helpers import DEFAULT_TEST_SYMBOL_PERP
+from tests.integration.apis.backpack.shared.test_helpers import (
+    BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
+    DEFAULT_TEST_SYMBOL_PERP,
+    MARGIN_FRACTION_MAX,
+    MARGIN_FRACTION_MIN,
+    PNL_TOLERANCE,
+    RATIO_LOWER_BOUND,
+    RATIO_UPPER_BOUND,
+    is_valid_margin_fraction,
+    is_within_ratio_bounds,
+    is_within_tolerance,
+    validate_pnl_direction,
+)
 
 # Mark all tests in this file
 pytestmark = [
@@ -87,16 +99,29 @@ class TestBackpackPositionsPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving a specific position by symbol."""
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        
         symbol = DEFAULT_TEST_SYMBOL_PERP
-        positions = await bp_api_for_test_env.get_positions(symbol=symbol)
+        
+        try:
+            positions = await bp_api_for_test_env.get_positions(symbol=symbol)
+            assert isinstance(positions, list)
+            
+            if len(positions) == 0:
+                # No positions for this symbol - this is valid
+                pytest.skip(f"No positions found for {symbol}")
 
-        assert isinstance(positions, list)
-
-        # All returned positions should be for the specified symbol
-        for position in positions:
-            assert isinstance(position, DerivativePosition)
-            assert position.symbol == symbol
-            assert position.exchange == "backpack"
+            # All returned positions should be for the specified symbol
+            for position in positions:
+                assert isinstance(position, DerivativePosition)
+                assert position.symbol == symbol
+                assert position.exchange == "backpack"
+        except APIError as e:
+            # Handle case where no position exists for the symbol
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
+                pytest.skip(f"No positions found for {symbol}: {e.message}")
+            raise
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -119,15 +144,14 @@ class TestBackpackPositionsPositive:
             assert position.entry_price > Decimal("0")
 
             # Unrealized PnL calculation check
-            if position.mark_price and position.entry_price:
-                # For long: PnL = (mark - entry) * size
-                expected_direction = position.mark_price - position.entry_price
-                if expected_direction > Decimal("0") and position.unrealized_pnl is not None:
-                    # Price went up, should have positive PnL
-                    assert position.unrealized_pnl >= Decimal("0")
-                elif expected_direction < Decimal("0") and position.unrealized_pnl is not None:
-                    # Price went down, should have negative PnL
-                    assert position.unrealized_pnl <= Decimal("0")
+            if position.mark_price and position.entry_price and position.unrealized_pnl is not None:
+                # Validate PnL direction matches expectations
+                assert validate_pnl_direction(
+                    position.unrealized_pnl,
+                    OrderSide.BUY,
+                    position.entry_price,
+                    position.mark_price
+                ), f"PnL direction incorrect for long position: PnL={position.unrealized_pnl}, entry={position.entry_price}, mark={position.mark_price}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -150,15 +174,14 @@ class TestBackpackPositionsPositive:
             assert position.entry_price > Decimal("0")
 
             # Unrealized PnL calculation check
-            if position.mark_price and position.entry_price:
-                # For short: PnL = (entry - mark) * |size|
-                expected_direction = position.entry_price - position.mark_price
-                if expected_direction > Decimal("0") and position.unrealized_pnl is not None:
-                    # Price went down, should have positive PnL
-                    assert position.unrealized_pnl >= Decimal("0")
-                elif expected_direction < Decimal("0") and position.unrealized_pnl is not None:
-                    # Price went up, should have negative PnL
-                    assert position.unrealized_pnl <= Decimal("0")
+            if position.mark_price and position.entry_price and position.unrealized_pnl is not None:
+                # Validate PnL direction matches expectations
+                assert validate_pnl_direction(
+                    position.unrealized_pnl,
+                    OrderSide.SELL,
+                    position.entry_price,
+                    position.mark_price
+                ), f"PnL direction incorrect for short position: PnL={position.unrealized_pnl}, entry={position.entry_price}, mark={position.mark_price}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -177,13 +200,13 @@ class TestBackpackPositionsPositive:
                     imf = getattr(position.bp_details, "imf_base", None)
                     if imf is not None:
                         assert isinstance(imf, Decimal)
-                        assert Decimal("0") < imf <= Decimal("1")
+                        assert is_valid_margin_fraction(imf)
 
                 if hasattr(position.bp_details, "mmf_base"):
                     mmf = getattr(position.bp_details, "mmf_base", None)
                     if mmf is not None:
                         assert isinstance(mmf, Decimal)
-                        assert Decimal("0") < mmf <= Decimal("1")
+                        assert is_valid_margin_fraction(mmf)
 
                 # IMF should be >= MMF
                 if hasattr(position.bp_details, "imf_base") and hasattr(
@@ -255,9 +278,11 @@ class TestBackpackPositionsPositive:
                     # Break-even should be close to entry price
                     # (differs by fees and funding)
                     if position.entry_price:
-                        diff_ratio = abs(break_even - position.entry_price) / position.entry_price
-                        # Break-even shouldn't be too far from entry (e.g., < 10%)
-                        assert diff_ratio < Decimal("0.1")
+                        assert is_within_tolerance(
+                            break_even,
+                            position.entry_price,
+                            tolerance_percent=BREAK_EVEN_PRICE_TOLERANCE_PERCENT
+                        ), f"Break-even price too far from entry: break_even={break_even}, entry={position.entry_price}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -283,8 +308,9 @@ class TestBackpackPositionsPositive:
 
                         # Should be close to calculated value
                         if expected_notional > Decimal("0"):
-                            ratio = notional / expected_notional
-                            assert Decimal("0.99") <= ratio <= Decimal("1.01")
+                            assert is_within_ratio_bounds(notional, expected_notional), (
+                                f"Notional value mismatch: actual={notional}, expected={expected_notional}"
+                            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -315,14 +341,17 @@ class TestBackpackPositionsPositive:
                 and account_summary.total_position_notional > Decimal("0")
                 and total_notional > Decimal("0")
             ):
-                ratio = account_summary.total_position_notional / total_notional
-                # Allow some difference for rounding
-                assert Decimal("0.99") <= ratio <= Decimal("1.01")
+                assert is_within_ratio_bounds(
+                    account_summary.total_position_notional, total_notional
+                ), f"Position notional mismatch: summary={account_summary.total_position_notional}, calculated={total_notional}"
 
             # Unrealized PnL should match
             if (
                 total_unrealized_pnl != Decimal("0")
                 and account_summary.total_unrealized_pnl is not None
             ):
-                pnl_diff = abs(account_summary.total_unrealized_pnl - total_unrealized_pnl)
-                assert pnl_diff < Decimal("1")
+                assert is_within_tolerance(
+                    account_summary.total_unrealized_pnl,
+                    total_unrealized_pnl,
+                    tolerance=PNL_TOLERANCE
+                ), f"PnL mismatch: summary={account_summary.total_unrealized_pnl}, calculated={total_unrealized_pnl}"
