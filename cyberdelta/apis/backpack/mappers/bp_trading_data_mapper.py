@@ -254,6 +254,46 @@ class BackpackTradingDataMapper:
         return parsed_price if parsed_price is not None and parsed_price > 0 else None
 
     @staticmethod
+    def _calculate_average_fill_price(raw_order: BackpackRawOrder, quantity_filled: Decimal) -> Decimal | None:
+        """Calculate average fill price for filled orders.
+        
+        For Backpack orders, if avgFillPrice is not provided but order has fills,
+        calculate it from executedQuoteQuantity / executedQuantity.
+        
+        Args:
+            raw_order: Raw order data
+            quantity_filled: Already parsed quantity filled
+            
+        Returns:
+            Average fill price or None if cannot be determined
+        """
+        # First try to use the provided avgFillPrice
+        avg_fill_price = BackpackTradingDataMapper._parse_order_price(
+            raw_order.avgFillPrice, "avgFillPrice"
+        )
+        
+        if avg_fill_price is not None:
+            return avg_fill_price
+            
+        # If no avgFillPrice but order has fills, calculate from quote quantity
+        if quantity_filled > 0 and raw_order.executedQuoteQuantity:
+            executed_quote = parse_decimal_value(
+                raw_order.executedQuoteQuantity,
+                allow_none=True,
+                field_name="executedQuoteQuantity"
+            )
+            
+            if executed_quote is not None and executed_quote > 0:
+                calculated_avg_price = executed_quote / quantity_filled
+                logger.debug(
+                    f"Calculated average fill price {calculated_avg_price} for order {raw_order.id} "
+                    f"from executedQuoteQuantity {executed_quote} / executedQuantity {quantity_filled}"
+                )
+                return calculated_avg_price
+                
+        return None
+
+    @staticmethod
     def _parse_order_timestamps(
         raw_order: BackpackRawOrder,
     ) -> tuple[datetime, datetime | None, datetime | None]:
@@ -309,9 +349,8 @@ class BackpackTradingDataMapper:
                 raw_order.triggerPrice,
                 "triggerPrice",
             )
-            average_fill_price = BackpackTradingDataMapper._parse_order_price(
-                raw_order.avgFillPrice,
-                "avgFillPrice",
+            average_fill_price = BackpackTradingDataMapper._calculate_average_fill_price(
+                raw_order, quantity_filled
             )
 
             # Parse timestamps

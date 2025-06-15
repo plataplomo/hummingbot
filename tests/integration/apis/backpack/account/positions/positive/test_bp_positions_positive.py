@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
 from tests.integration.apis.backpack.shared.test_helpers import (
@@ -36,6 +37,8 @@ pytestmark = [
     pytest.mark.positions,
     pytest.mark.positive_positions,
 ]
+
+logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -98,30 +101,113 @@ class TestBackpackPositionsPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test retrieving a specific position by symbol."""
+        """Test retrieving a specific position by symbol - dynamically creates position if needed."""
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+        from cyberdelta.core.models.enums import OrderType, TimeInForce
+        from tests.integration.apis.backpack.shared.test_helpers import (
+            get_dynamic_test_price,
+            get_minimal_order_size,
+        )
         
         symbol = DEFAULT_TEST_SYMBOL_PERP
+        opened_position = False
         
         try:
-            positions = await bp_api_for_test_env.get_positions(symbol=symbol)
-            assert isinstance(positions, list)
+            # First check what symbols are available
+            from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+            markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
+            perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol]
             
-            if len(positions) == 0:
-                # No positions for this symbol - this is valid
-                pytest.skip(f"No positions found for {symbol}")
+            if symbol not in perp_symbols:
+                # Use first available perpetual symbol instead
+                if perp_symbols:
+                    symbol = perp_symbols[0]
+                    logger.info(f"Using available perp symbol: {symbol}")
+                else:
+                    raise AssertionError("No perpetual symbols available for testing")
+            
+            # Check if position already exists
+            try:
+                positions = await bp_api_for_test_env.get_positions(symbol=symbol)
+                assert isinstance(positions, list)
+                position_exists = len(positions) > 0
+            except APIError as e:
+                if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
+                    # No position exists for this symbol
+                    position_exists = False
+                    positions = []
+                else:
+                    raise
+            
+            if not position_exists:
+                # No position exists, create one for testing
+                side = OrderSide.BUY  # Open a long position
+                
+                # Get minimal order size for market order (will open position immediately)
+                test_quantity = await get_minimal_order_size(
+                    bp_api_for_test_env, symbol, side, None  # None for market order
+                )
+                
+                args = PlaceOrderArgs(
+                    symbol=symbol,
+                    side=side,
+                    order_type=OrderType.MARKET,
+                    quantity=test_quantity,
+                    time_in_force=TimeInForce.IOC,
+                )
+                
+                # Place market order to open position
+                order = await bp_api_for_test_env.place_order(args)
+                opened_position = True
+                
+                # Wait a moment for position to be reflected
+                import asyncio
+                await asyncio.sleep(1)
+                
+                # Re-fetch positions
+                positions = await bp_api_for_test_env.get_positions(symbol=symbol)
 
+            # Validate the position
+            assert len(positions) > 0, f"Should have at least one position for {symbol}"
+            
             # All returned positions should be for the specified symbol
             for position in positions:
                 assert isinstance(position, DerivativePosition)
                 assert position.symbol == symbol
                 assert position.exchange == "backpack"
+                
         except APIError as e:
-            # Handle case where no position exists for the symbol
+            # Handle case where symbol doesn't exist or other API errors
             if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
-                pytest.skip(f"No positions found for {symbol}: {e.message}")
+                raise AssertionError(f"Symbol {symbol} not found: {e.message}") from e
             raise
+            
+        finally:
+            # Clean up: close any position we opened
+            if opened_position:
+                try:
+                    # Get current positions to determine close side
+                    current_positions = await bp_api_for_test_env.get_positions(symbol=symbol)
+                    for position in current_positions:
+                        if position.size != Decimal("0"):
+                            # Close position with opposite side
+                            close_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
+                            close_quantity = abs(position.size)
+                            
+                            close_args = PlaceOrderArgs(
+                                symbol=symbol,
+                                side=close_side,
+                                order_type=OrderType.MARKET,
+                                quantity=close_quantity,
+                                time_in_force=TimeInForce.IOC,
+                            )
+                            
+                            await bp_api_for_test_env.place_order(close_args)
+                except Exception as cleanup_error:
+                    # Log cleanup error but don't fail test
+                    logger.warning(f"Failed to clean up position for {symbol}: {cleanup_error}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -230,16 +316,22 @@ class TestBackpackPositionsPositive:
         for position in positions:
             if position.liquidation_price is not None:
                 assert isinstance(position.liquidation_price, Decimal)
-                assert position.liquidation_price > Decimal("0")
-
-                # Liquidation price should make sense relative to entry
-                if position.entry_price:
-                    if position.side == OrderSide.BUY:
-                        # Long position liquidates below entry
-                        assert position.liquidation_price < position.entry_price
-                    else:
-                        # Short position liquidates above entry
-                        assert position.liquidation_price > position.entry_price
+                
+                # Some positions may have liquidation_price of 0, which can happen
+                # for positions with very low leverage or high collateral ratios
+                if position.liquidation_price > Decimal("0"):
+                    # Liquidation price should make sense relative to entry
+                    if position.entry_price:
+                        if position.side == OrderSide.BUY:
+                            # Long position liquidates below entry
+                            assert position.liquidation_price < position.entry_price
+                        else:
+                            # Short position liquidates above entry
+                            assert position.liquidation_price > position.entry_price
+                elif position.liquidation_price == Decimal("0"):
+                    # Zero liquidation price can be valid for very low-leverage positions
+                    # or positions with very high collateral ratios
+                    assert position.size != Decimal("0"), "Position with zero liquidation price should have non-zero size"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

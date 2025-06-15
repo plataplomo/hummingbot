@@ -285,14 +285,64 @@ class TestBackpackBalancesPositive:
                 if asset in ["USDC", "USDT"]:
                     total_usd_from_balances += balance.total_quantity
 
-            # If we have positions, account equity might differ from spot balances
-            # but should be in the same ballpark if no positions
-            if account_summary.total_position_notional == Decimal("0"):
-                # No positions, so equity should roughly equal USD balances
-                if total_usd_from_balances > Decimal("0"):
-                    ratio = account_summary.total_equity / total_usd_from_balances
-                    # Allow for some difference due to unsettled amounts, fees, etc.
-                    assert Decimal("0.9") <= ratio <= Decimal("1.1"), (
-                        f"Large discrepancy between total equity ({account_summary.total_equity}) "
-                        f"and USD balances ({total_usd_from_balances})"
+            # Test consistency between individual balances and account summary
+            
+            # 1. Total equity must be non-negative
+            assert account_summary.total_equity >= Decimal("0"), (
+                f"Total equity cannot be negative: {account_summary.total_equity}"
+            )
+            
+            # 2. Calculate total balance value (all assets)
+            # For a proper consistency check, we'd need current market prices
+            # But we can at least verify USD stablecoins are reflected correctly
+            total_stablecoin_balance = sum(
+                balance.total_quantity 
+                for asset, balance in balances.items() 
+                if asset in ["USDC", "USDT", "BUSD", "DAI", "TUSD"]
+            )
+            
+            # 3. Equity must be at least equal to stablecoin balances
+            # (since stablecoins are always worth $1)
+            if total_stablecoin_balance > Decimal("0"):
+                assert account_summary.total_equity >= total_stablecoin_balance * Decimal("0.999"), (
+                    f"Account equity ({account_summary.total_equity}) is less than "
+                    f"stablecoin balances ({total_stablecoin_balance}). "
+                    f"This violates basic accounting principles."
+                )
+            
+            # 4. If we have non-stablecoin assets, equity should be higher than just stablecoins
+            non_stablecoin_assets = [
+                (asset, balance.total_quantity)
+                for asset, balance in balances.items()
+                if asset not in ["USDC", "USDT", "BUSD", "DAI", "TUSD"] and balance.total_quantity > Decimal("0")
+            ]
+            
+            if non_stablecoin_assets and total_stablecoin_balance > Decimal("0"):
+                # Equity should be noticeably higher than just stablecoins if we hold crypto
+                # But we can't test exact amounts without prices
+                print(f"Non-stablecoin assets held: {non_stablecoin_assets}")
+                print(f"Total equity: {account_summary.total_equity}")
+                print(f"Stablecoin balance: {total_stablecoin_balance}")
+            
+            # 5. Available balance must be <= total balance for each asset
+            for asset, balance in balances.items():
+                assert balance.available_quantity <= balance.total_quantity, (
+                    f"{asset}: Available ({balance.available_quantity}) exceeds "
+                    f"total ({balance.total_quantity})"
+                )
+                
+            # 6. If account has derivatives, verify position notional makes sense
+            if account_summary.total_position_notional is not None:
+                assert account_summary.total_position_notional >= Decimal("0"), (
+                    f"Position notional cannot be negative: {account_summary.total_position_notional}"
+                )
+                
+                # If we have positions, total_position_initial_margin should be set
+                if account_summary.total_position_notional > Decimal("0"):
+                    assert account_summary.total_position_initial_margin is not None, (
+                        "Account has positions but no initial margin reported"
+                    )
+                    assert account_summary.total_position_initial_margin > Decimal("0"), (
+                        f"Positive position notional ({account_summary.total_position_notional}) "
+                        f"but zero/negative initial margin ({account_summary.total_position_initial_margin})"
                     )

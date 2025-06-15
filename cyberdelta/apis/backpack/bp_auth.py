@@ -5,6 +5,7 @@ including ED25519 signature generation for REST API requests and WebSocket subsc
 """
 
 import base64
+import json
 import time
 import urllib.parse
 from collections.abc import Mapping
@@ -168,11 +169,31 @@ class BackpackEd25519Authenticator(IAuthenticator):
         if method.upper() == "GET" and params:
             filtered_params = {k: v for k, v in params.items() if v is not None}
             if filtered_params:
-                return urllib.parse.urlencode(sorted(filtered_params.items()))
+                stringified_params = {}
+                for k, v_val in filtered_params.items():
+                    if isinstance(v_val, bool):
+                        # Backpack expects lowercase boolean strings for signatures
+                        stringified_params[k] = "true" if v_val else "false"
+                    else:
+                        stringified_params[k] = str(v_val)
+                return urllib.parse.urlencode(sorted(stringified_params.items()))
         elif method.upper() in ["POST", "PUT", "DELETE"] and data:
+            # CRITICAL DISCOVERY: Backpack might expect ALL parameters (including POST body data)
+            # to be sent as query parameters for signature generation, with empty POST body
+            # This would explain why the working cassette shows "body: null"
+            # 
+            # However, let's first try the standard approach with body data in signature
             filtered_data = {k: v for k, v in data.items() if v is not None}
             if filtered_data:
-                stringified_data = {k: str(v_val) for k, v_val in filtered_data.items()}
+                # For POST/PUT/DELETE requests, Backpack expects the signature to be generated
+                # from query string format (same as GET requests), not JSON format
+                stringified_data = {}
+                for k, v_val in filtered_data.items():
+                    if isinstance(v_val, bool):
+                        # Backpack expects lowercase boolean strings for signatures
+                        stringified_data[k] = "true" if v_val else "false"
+                    else:
+                        stringified_data[k] = str(v_val)
                 return urllib.parse.urlencode(sorted(stringified_data.items()))
         return ""
 
@@ -185,7 +206,8 @@ class BackpackEd25519Authenticator(IAuthenticator):
             sign_payload_parts.append(content_part_str)
         sign_payload_parts.append(f"timestamp={timestamp_ms}")
         sign_payload_parts.append(f"window={window_ms}")
-        return "&".join(sign_payload_parts)
+        string_to_sign = "&".join(sign_payload_parts)
+        return string_to_sign
 
     def _create_auth_headers(
         self, timestamp_ms: int, window_ms: int, signature_b64: str

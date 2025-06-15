@@ -237,37 +237,38 @@ def get_fallback_test_prices(symbol: str, side: OrderSide) -> Decimal:
     # Normalize symbol for comparison (handle both - and _ formats)
     normalized_symbol = symbol.upper().replace("-", "_")
 
+    # More conservative fallback prices to reduce chances of accidental execution
     # Spot market fallbacks
     if (
         "SOL" in normalized_symbol
         and "USDC" in normalized_symbol
         and "_PERP" not in normalized_symbol
     ):
-        return Decimal("50.00") if side == OrderSide.BUY else Decimal("200.00")
+        return Decimal("1.00") if side == OrderSide.BUY else Decimal("500.00")
     elif (
         "BTC" in normalized_symbol
         and "USDC" in normalized_symbol
         and "_PERP" not in normalized_symbol
     ):
-        return Decimal("40000.00") if side == OrderSide.BUY else Decimal("60000.00")
+        return Decimal("10000.00") if side == OrderSide.BUY else Decimal("100000.00")
     elif (
         "ETH" in normalized_symbol
         and "USDC" in normalized_symbol
         and "_PERP" not in normalized_symbol
     ):
-        return Decimal("2000.00") if side == OrderSide.BUY else Decimal("3000.00")
+        return Decimal("500.00") if side == OrderSide.BUY else Decimal("10000.00")
 
-    # Perp market fallbacks
+    # Perp market fallbacks - more conservative spread
     elif normalized_symbol == "SOL_USDC_PERP":
-        return Decimal("140.00") if side == OrderSide.BUY else Decimal("160.00")
+        return Decimal("1.00") if side == OrderSide.BUY else Decimal("500.00")
     elif normalized_symbol == "BTC_USDC_PERP":
-        return Decimal("40000.00") if side == OrderSide.BUY else Decimal("45000.00")
+        return Decimal("10000.00") if side == OrderSide.BUY else Decimal("100000.00")
     elif normalized_symbol == "ETH_USDC_PERP":
-        return Decimal("2000.00") if side == OrderSide.BUY else Decimal("3000.00")
+        return Decimal("500.00") if side == OrderSide.BUY else Decimal("10000.00")
 
-    # Generic fallback
+    # Generic fallback - very conservative
     else:
-        return Decimal("90.00") if side == OrderSide.BUY else Decimal("110.00")
+        return Decimal("1.00") if side == OrderSide.BUY else Decimal("1000.00")
 
 
 # =============================================================================
@@ -568,12 +569,20 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
         if all_zero and len(spot_balances) > 0:
             # Double check with account summary
             account_summary = await api.get_account_summary()
-            if account_summary.total_equity > Decimal("0"):
+            if account_summary and account_summary.total_equity > Decimal("0"):
                 # Account has value but spot shows 0 = auto-lending
                 return True
-                
-        return False
         
+        # Additional check: look for lend_quantity in bp_details
+        has_lending = any(
+            balance.bp_details and 
+            balance.bp_details.lend_quantity and 
+            balance.bp_details.lend_quantity > Decimal("0")
+            for balance in spot_balances.values()
+        )
+        
+        return has_lending
+                
     except Exception as e:
         logger.warning(f"Failed to detect auto-lending: {e}")
         return False

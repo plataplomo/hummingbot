@@ -403,7 +403,7 @@ class TestBackpackOrdersPositive:
             assert order.post_only is True
 
             # Post-only orders should either be OPEN or CANCELLED (if would have been taker)
-            assert order.status in [OrderStatus.OPEN, OrderStatus.CANCELLED], (
+            assert order.status in [OrderStatus.OPEN, OrderStatus.CANCELED], (
                 f"Post-only order has unexpected status: {order.status}"
             )
             
@@ -411,14 +411,16 @@ class TestBackpackOrdersPositive:
                 # If open, should not be filled
                 assert order.quantity_filled == Decimal("0")
         except APIError as e:
-            # Some exchanges reject post-only orders in certain conditions
-            # Handle various error codes that can occur with post-only orders
-            if (e.code == APIErrorCode.ORDER_REJECTED.value or 
-                e.code == APIErrorCode.INVALID_REQUEST.value or
-                e.code == APIErrorCode.AUTHENTICATION_FAILED.value or
-                "Invalid signature" in str(e.message)):
-                pytest.skip(f"Post-only order rejected or failed: {e.message}")
-            raise
+            # Authentication signature issues indicate configuration problems that need investigation
+            if "Invalid signature" in str(e.message) or e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
+                raise AssertionError(
+                    f"CRITICAL: Post-only order failed due to authentication issue. "
+                    f"This indicates API credentials or signature generation problems that must be resolved. "
+                    f"Error: {e.code} - {e.message}"
+                ) from e
+            else:
+                # For other API errors, re-raise as they may be expected (e.g., market conditions)
+                raise AssertionError(f"Post-only order failed with APIError: {e.code} - {e.message}") from e
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

@@ -164,26 +164,9 @@ class TestBackpackOrdersZero:
         bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test creating an order and immediately cancelling it."""
-        # Check account balance first
-        from tests.integration.apis.backpack.shared.test_helpers import get_actual_balances_with_lending
-        balances = await get_actual_balances_with_lending(bp_api_for_zero_balance_test)
-        
-        # Check if account has any USDC balance to place a buy order
-        usdc_balance = balances.get("USDC", {}).get("true_total", Decimal("0"))
-        
-        if usdc_balance < Decimal("1"):
-            # Try a SELL order instead if no USDC
-            symbol = DEFAULT_TEST_SYMBOL_SPOT
-            side = OrderSide.SELL
-            base_asset = symbol.split("_")[0]  # Get base asset (e.g., SOL from SOL_USDC)
-            
-            base_balance = balances.get(base_asset, {}).get("true_total", Decimal("0"))
-            if base_balance < Decimal("0.01"):
-                pytest.skip(f"Insufficient balance to place orders (USDC: {usdc_balance}, {base_asset}: {base_balance})")
-        else:
-            symbol = DEFAULT_TEST_SYMBOL_SPOT
-            side = OrderSide.BUY
+        """Test that order creation correctly fails with zero balance."""
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        side = OrderSide.BUY
             
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test, symbol, side
@@ -201,29 +184,16 @@ class TestBackpackOrdersZero:
             time_in_force=TimeInForce.GTC,
         )
         
-        try:
-            order = await bp_api_for_zero_balance_test.place_order(args)
-
-            assert order.status == OrderStatus.OPEN
-
-            # Immediately cancel it
-            assert order.exchange_order_id is not None, "Order must have exchange_order_id"
-            cancel_args = CancelOrderArgs(
-                order_id=order.exchange_order_id,
-                symbol=order.symbol,
-            )
-            success = await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-
-            assert success is True
-
-            # Verify no open orders remain
-            open_orders = await bp_api_for_zero_balance_test.get_all_open_orders(GetAllOpenOrdersArgs())
-            assert len(open_orders) == 0
+        # With zero balance, order placement should fail appropriately
+        with pytest.raises(APIError) as exc_info:
+            await bp_api_for_zero_balance_test.place_order(args)
             
-        except APIError as e:
-            if e.code in [APIErrorCode.INSUFFICIENT_BALANCE.value, APIErrorCode.INVALID_ORDER.value]:
-                pytest.skip(f"Order placement failed due to insufficient balance: {e.message}")
-            raise
+        error = exc_info.value
+        # Should fail due to insufficient balance
+        assert error.code in [
+            APIErrorCode.INSUFFICIENT_FUNDS.value,
+            APIErrorCode.INVALID_REQUEST.value,
+        ], f"Expected insufficient balance error, got: {error.code} - {error.message}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -325,29 +295,15 @@ class TestBackpackOrdersZero:
         bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test transition from zero orders to having one order."""
-        # Start with no orders
+        """Test that zero balance properly prevents order lifecycle operations."""
+        # Start with no orders (verify initial state)
         initial_orders = await bp_api_for_zero_balance_test.get_all_open_orders(
             GetAllOpenOrdersArgs()
         )
         assert len(initial_orders) == 0
 
-        # Check account balance to determine which side we can test
-        from tests.integration.apis.backpack.shared.test_helpers import get_actual_balances_with_lending
-        balances = await get_actual_balances_with_lending(bp_api_for_zero_balance_test)
-        
         symbol = DEFAULT_TEST_SYMBOL_SPOT
-        usdc_balance = balances.get("USDC", {}).get("true_total", Decimal("0"))
-        base_asset = symbol.split("_")[0]
-        base_balance = balances.get(base_asset, {}).get("true_total", Decimal("0"))
-        
-        # Determine which side we can trade
-        if usdc_balance >= Decimal("1"):
-            side = OrderSide.BUY
-        elif base_balance >= Decimal("0.01"):
-            side = OrderSide.SELL
-        else:
-            pytest.skip(f"Insufficient balance for order lifecycle test (USDC: {usdc_balance}, {base_asset}: {base_balance})")
+        side = OrderSide.BUY
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test, symbol, side
@@ -365,29 +321,19 @@ class TestBackpackOrdersZero:
             time_in_force=TimeInForce.GTC,
         )
         
-        try:
-            order = await bp_api_for_zero_balance_test.place_order(args)
-
-            # Now should have one order
-            open_orders = await bp_api_for_zero_balance_test.get_all_open_orders(GetAllOpenOrdersArgs())
-            assert len(open_orders) == 1
-            assert open_orders[0].exchange_order_id == order.exchange_order_id
-
-            # Cancel it to return to zero
-            assert order.exchange_order_id is not None, "Order must have exchange_order_id"
-            cancel_args = CancelOrderArgs(
-                order_id=order.exchange_order_id,
-                symbol=order.symbol,
-            )
-            await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-
-            # Back to zero orders
-            final_orders = await bp_api_for_zero_balance_test.get_all_open_orders(
-                GetAllOpenOrdersArgs()
-            )
-            assert len(final_orders) == 0
+        # With zero balance, should not be able to create orders
+        with pytest.raises(APIError) as exc_info:
+            await bp_api_for_zero_balance_test.place_order(args)
             
-        except APIError as e:
-            if e.code in [APIErrorCode.INSUFFICIENT_BALANCE.value, APIErrorCode.INVALID_ORDER.value]:
-                pytest.skip(f"Order placement failed due to insufficient balance: {e.message}")
-            raise
+        error = exc_info.value
+        # Should fail due to insufficient balance
+        assert error.code in [
+            APIErrorCode.INSUFFICIENT_FUNDS.value,
+            APIErrorCode.INVALID_REQUEST.value,
+        ], f"Expected insufficient balance error, got: {error.code} - {error.message}"
+
+        # Verify still no orders after failed attempt
+        final_orders = await bp_api_for_zero_balance_test.get_all_open_orders(
+            GetAllOpenOrdersArgs()
+        )
+        assert len(final_orders) == 0

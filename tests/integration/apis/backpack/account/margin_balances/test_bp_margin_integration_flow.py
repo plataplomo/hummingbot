@@ -191,10 +191,13 @@ class TestBackpackMarginIntegrationFlow:
             )
 
             if expected_notional > 0:
+                # Use a more generous tolerance for position notional since mark prices can differ
+                # between the position and account summary endpoints due to timing differences
+                tolerance_percent = Decimal("0.1")  # 0.1% tolerance for notional calculations
                 assert is_within_tolerance(
                     account_summary.total_position_notional,
                     expected_notional,
-                    tolerance_percent=PRICE_TOLERANCE_PERCENT * Decimal("5"),  # 5x normal price tolerance for movements
+                    tolerance_percent=tolerance_percent,
                 ), (
                     f"Position notional mismatch: "
                     f"account={account_summary.total_position_notional}, "

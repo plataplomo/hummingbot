@@ -459,31 +459,3 @@ class TestBackpackPerpPositionsPrivate:
                     size_diff = abs(first_pos.size - second_pos.size)
                     assert size_diff <= Decimal("0.00001")
 
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Large position testing to be implemented separately")
-    async def test_bp_position_large_size_handling(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_positions() handling of large position sizes."""
-        # Skip for now as requested by user
-        positions = await bp_api_for_test_env.get_positions()
-
-        for position in positions:
-            if abs(position.size) > Decimal("1000"):
-                assert position.size.is_finite()
-                if position.entry_price is not None:
-                    assert position.entry_price > Decimal("0")
-                if position.mark_price is not None:
-                    assert position.mark_price > Decimal("0")
-
-                if position.mark_price is not None:
-                    notional_value = abs(position.size) * position.mark_price
-                    assert notional_value.is_finite()
-
-                    if position.bp_details and position.bp_details.imf_base:
-                        margin_ratio = position.bp_details.imf_base / notional_value
-                        assert margin_ratio > Decimal("0")
-                        assert margin_ratio <= Decimal("1")

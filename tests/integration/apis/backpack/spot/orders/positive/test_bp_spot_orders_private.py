@@ -19,7 +19,7 @@ Balance: Positive USDC balance (successful spot order scenarios)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -35,6 +35,13 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
+from tests.integration.apis.backpack.shared.test_helpers import (
+    get_dynamic_test_price,
+    get_symbol_tick_size,
+    get_minimal_order_size,
+    get_market_constraints,
+    generate_deterministic_client_order_id,
+)
 
 # Mark all tests in this file
 pytestmark = [
@@ -47,184 +54,6 @@ pytestmark = [
 logger = get_logger(__name__)
 
 
-async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
-    """Get the tick size (price precision) for a symbol using public API.
-
-    This function uses the public get_markets() method to fetch actual
-    tick size information from Backpack's API, ensuring tests use real
-    market data instead of hardcoded values.
-
-    Args:
-        api: BackpackAPI instance for getting market data
-        symbol: Trading symbol (e.g., "SOL_USDC")
-
-    Returns:
-        Decimal tick size for the symbol
-    """
-    try:
-        # Use the public API method to get market metadata
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
-        markets = await api.get_markets(GetMarketsArgs())
-
-        # Find the market by symbol
-        for market in markets:
-            if market.symbol == symbol:
-                return market.tick_size
-
-        logger.warning(f"Symbol {symbol} not found in markets, using default tick size")
-        return Decimal("0.01")  # Fallback default
-
-    except Exception as e:
-        logger.warning(f"Failed to get tick size for {symbol}: {e}, using default")
-        return Decimal("0.01")  # Fallback default
-
-
-async def get_dynamic_test_price(
-    api: BackpackAPI, symbol: str, side: OrderSide, tolerance_percent: Decimal = Decimal("5")
-) -> Decimal:
-    """Get a dynamic test price based on current market conditions.
-
-    This function fetches the current market price and calculates a test price
-    that is far enough from market to avoid accidental fills, but close enough
-    to be accepted by the exchange's price validation.
-
-    Args:
-        api: BackpackAPI instance for getting market data
-        symbol: Trading symbol (e.g., "SOL_USDC")
-        side: Order side (BUY or SELL)
-        tolerance_percent: Percentage away from market price (default 5%)
-
-    Returns:
-        Decimal price suitable for testing
-    """
-    try:
-        # Get current market ticker
-        ticker: Ticker = await api.get_ticker(symbol)
-
-        # Use last traded price, fall back to mid-price, then bid/ask
-        market_price = None
-        if ticker.price is not None:
-            market_price = ticker.price
-        elif ticker.mid_price is not None:
-            market_price = ticker.mid_price
-        elif side == OrderSide.BUY and ticker.ask is not None:
-            market_price = ticker.ask
-        elif side == OrderSide.SELL and ticker.bid is not None:
-            market_price = ticker.bid
-        else:
-            raise ValueError(f"Unable to determine market price for {symbol}")
-
-        # Calculate test price with tolerance
-        tolerance_factor = tolerance_percent / Decimal("100")
-
-        if side == OrderSide.BUY:
-            # For buy orders, use price below market to avoid fills
-            test_price = market_price * (Decimal("1") - tolerance_factor)
-        else:
-            # For sell orders, use price above market to avoid fills
-            test_price = market_price * (Decimal("1") + tolerance_factor)
-
-        # Get the tick size for this symbol
-        tick_size = await get_symbol_tick_size(api, symbol)
-
-        # Round to the required tick size and normalize to remove trailing zeros
-        quantized_price = test_price.quantize(tick_size)
-        return quantized_price.normalize()
-
-    except Exception as e:
-        # Fallback to a reasonable static price if dynamic pricing fails
-        if symbol == "SOL_USDC":
-            fallback_price = Decimal("150.0") if side == OrderSide.BUY else Decimal("170.0")
-        else:
-            fallback_price = Decimal("1.0") if side == OrderSide.BUY else Decimal("10.0")
-
-        logger.warning(
-            "Dynamic pricing failed for %s, using fallback price %s: %s", symbol, fallback_price, e
-        )
-        return fallback_price
-
-
-async def get_minimal_order_size(
-    api: BackpackAPI, symbol: str, side: OrderSide, price: Decimal
-) -> Decimal:
-    """Calculate the minimal order size that fits within available balance.
-
-    Gets actual account balance and market constraints to determine appropriate order size.
-
-    Args:
-        api: BackpackAPI instance for getting market data and balances
-        symbol: Trading symbol (e.g., "SOL_USDC")
-        side: Order side (BUY or SELL)
-        price: Order price to calculate affordable quantity
-
-    Returns:
-        Decimal quantity that represents the minimal affordable order size
-    """
-    try:
-        # Get actual account balances
-        balances = await api.get_balances()
-
-        # Get market information for constraints
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
-        markets = await api.get_markets(GetMarketsArgs())
-
-        # Find the market for this symbol
-        market = None
-        for m in markets:
-            if m.symbol == symbol:
-                market = m
-                break
-
-        if market is None:
-            logger.warning(f"Market {symbol} not found")
-            raise ValueError(f"Market {symbol} not found")
-
-        if side == OrderSide.BUY and symbol == "SOL_USDC":
-            # For buying SOL with USDC, check USDC balance
-            usdc_balance = balances.get("USDC")
-            if usdc_balance is None or usdc_balance.available_quantity <= Decimal("0"):
-                logger.warning("No USDC balance available")
-                raise ValueError("No USDC balance available")
-
-            # Calculate max quantity based on available balance
-            max_quantity = usdc_balance.available_quantity / price
-
-            # Get the actual minimum quantity from market rules
-            min_quantity = market.min_quantity
-            if min_quantity is None:
-                # If no min_quantity specified, use step_size as minimum
-                min_quantity = market.step_size
-
-            # Round up to the nearest step_size to ensure we meet exchange requirements
-            steps_needed = (min_quantity / market.step_size).quantize(
-                Decimal("1"), rounding="ROUND_UP"
-            )
-            actual_min_quantity = steps_needed * market.step_size
-
-            # Check if we can afford the actual minimum
-            if max_quantity >= actual_min_quantity:
-                return actual_min_quantity
-            else:
-                # If we can't afford minimum, something's wrong
-                raise ValueError(
-                    f"Balance ${usdc_balance.available_quantity} insufficient for "
-                    f"minimum order size {actual_min_quantity} at price ${price}"
-                )
-
-        # For other cases, calculate minimum based on market rules
-        min_quantity = market.min_quantity
-        if min_quantity is None:
-            min_quantity = market.step_size
-
-        # Round up to nearest step_size
-        steps_needed = (min_quantity / market.step_size).quantize(Decimal("1"), rounding="ROUND_UP")
-        return steps_needed * market.step_size
-
-    except Exception as e:
-        logger.warning(f"Failed to calculate minimal order size for {symbol}: {e}")
-        raise
 
 
 @pytest.mark.parametrize(
@@ -233,26 +62,6 @@ async def get_minimal_order_size(
 class TestBackpackSpotOrdersPositiveBalance:
     """Comprehensive private orders integration tests with positive balance for operations."""
 
-    async def _get_market_constraints(self, api: BackpackAPI, symbol: str) -> dict[str, Decimal]:
-        """Get market constraints for precision testing."""
-        try:
-            from cyberdelta.apis.models.service_args_models import GetMarketArgs
-
-            market = await api.get_market(GetMarketArgs(symbol=symbol))
-
-            return {
-                "step_size": market.step_size or Decimal("0.001"),
-                "tick_size": market.tick_size or Decimal("0.01"),
-                "min_quantity": market.step_size or Decimal("0.001"),
-            }
-        except Exception as e:
-            logger.warning(f"Could not get market constraints for {symbol}: {e}")
-            # Safe fallbacks based on common Backpack requirements
-            return {
-                "step_size": Decimal("0.001"),
-                "tick_size": Decimal("0.01"),
-                "min_quantity": Decimal("0.001"),
-            }
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -409,7 +218,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         # VCR configuration is used by pytest-vcr automatically
         _ = custom_vcr_config
         # Define recent date range for order history
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)  # Last 7 days
 
         # Execute the full pipeline using GetOrderHistoryArgs
@@ -522,7 +331,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         side = OrderSide.BUY
 
         # Get market constraints
-        constraints = await self._get_market_constraints(bp_api_for_test_env, symbol)
+        constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
         tick_size = constraints["tick_size"]
@@ -599,11 +408,19 @@ class TestBackpackSpotOrdersPositiveBalance:
                 tolerance_percent=Decimal("3") + Decimal(str(i)),  # Slightly different prices
             )
 
+            # Calculate minimal affordable order size
+            minimal_quantity = await get_minimal_order_size(
+                api=bp_api_for_test_env,
+                symbol=symbol,
+                side=side,
+                price=test_price,
+            )
+
             place_args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal("0.05"),  # Small quantity
+                quantity=minimal_quantity,  # Dynamic quantity based on balance
                 price=test_price,
                 time_in_force=TimeInForce.GTC,
             )
@@ -662,12 +479,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("4"),
         )
 
+        # Calculate minimal affordable order size
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
         # Place an order to validate symbol format
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
@@ -730,12 +555,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("4"),
         )
 
+        # Calculate minimal affordable order size
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
         # Step 1: Place order
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
@@ -764,7 +597,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         )
 
         # Step 5: Verify order appears in history
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=1)
 
         args = GetOrderHistoryArgs(
@@ -807,12 +640,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("4"),
         )
 
+        # Calculate minimal affordable order size
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
         # Place order to validate Backpack-specific fields
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
@@ -886,12 +727,20 @@ class TestBackpackSpotOrdersPositiveBalance:
             tolerance_percent=Decimal("4"),
         )
 
+        # Calculate minimal affordable order size
+        minimal_quantity = await get_minimal_order_size(
+            api=bp_api_for_test_env,
+            symbol=symbol,
+            side=side,
+            price=test_price,
+        )
+
         # Place and immediately cancel an order to ensure we have recent history
         place_args = PlaceOrderArgs(
             symbol=symbol,
             side=side,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
@@ -907,7 +756,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         await bp_api_for_test_env.cancel_order(cancel_args)
 
         # Test recent date range (should include our cancelled order)
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(hours=1)  # Last hour
 
         args = GetOrderHistoryArgs(
