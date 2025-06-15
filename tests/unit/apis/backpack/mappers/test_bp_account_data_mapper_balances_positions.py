@@ -200,9 +200,7 @@ class TestBalanceTransformation:
         mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test successful transformation of BackpackRawBalance to SpotBalance."""
-        raw_balance = create_raw_balance(
-            available="900.0", locked="100.0", staked="100.0"
-        )
+        raw_balance = create_raw_balance(available="900.0", locked="100.0", staked="100.0")
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
@@ -221,9 +219,7 @@ class TestBalanceTransformation:
         assets = ["BTC", "ETH", "SOL", "AVAX"]
 
         for asset in assets:
-            raw_balance = create_raw_balance(
-                available="500.0", locked="50.0", staked="50.0"
-            )
+            raw_balance = create_raw_balance(available="500.0", locked="50.0", staked="50.0")
             result = mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
             assert result.asset == asset.upper()

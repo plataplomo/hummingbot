@@ -13,9 +13,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def vcr_cassette_dir(
-    request: FixtureRequest, custom_vcr_cassette_dir: str | None = None
-) -> str:
+def vcr_cassette_dir(request: FixtureRequest, custom_vcr_cassette_dir: str | None = None) -> str:
     """Dynamic VCR cassette directory based on test location."""
     if custom_vcr_cassette_dir:
         return custom_vcr_cassette_dir
@@ -24,7 +22,7 @@ def vcr_cassette_dir(
     module: Any = getattr(request, "module", None)
     if module is None:
         raise ValueError("Unable to determine test module")
-    
+
     module_file: str | None = getattr(module, "__file__", None)
     if module_file is None:
         raise ValueError("Unable to determine test module file path")
