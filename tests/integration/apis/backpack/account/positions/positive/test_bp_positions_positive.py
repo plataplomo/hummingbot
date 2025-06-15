@@ -19,11 +19,7 @@ from cyberdelta.core.models.enums import OrderSide
 from tests.integration.apis.backpack.shared.test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
     DEFAULT_TEST_SYMBOL_PERP,
-    MARGIN_FRACTION_MAX,
-    MARGIN_FRACTION_MIN,
     PNL_TOLERANCE,
-    RATIO_LOWER_BOUND,
-    RATIO_UPPER_BOUND,
     is_valid_margin_fraction,
     is_within_ratio_bounds,
     is_within_tolerance,
@@ -94,6 +90,104 @@ class TestBackpackPositionsPositive:
                 assert position.bp_details is not None
                 assert isinstance(position.bp_details, BackpackPositionDetails)
 
+    async def _get_test_symbol(self, bp_api: BackpackAPI, default_symbol: str) -> str:
+        """Get a valid perpetual symbol for testing."""
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
+        markets = await bp_api.get_markets(GetMarketsArgs())
+        perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol]
+
+        if default_symbol not in perp_symbols:
+            # Use first available perpetual symbol instead
+            if perp_symbols:
+                symbol = perp_symbols[0]
+                logger.info(f"Using available perp symbol: {symbol}")
+                return symbol
+            else:
+                raise AssertionError("No perpetual symbols available for testing")
+
+        return default_symbol
+
+    async def _check_position_exists(
+        self, bp_api: BackpackAPI, symbol: str
+    ) -> tuple[bool, list[DerivativePosition]]:
+        """Check if a position exists for the given symbol."""
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        try:
+            positions = await bp_api.get_positions(symbol=symbol)
+            assert isinstance(positions, list)
+            return len(positions) > 0, positions
+        except APIError as e:
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
+                # No position exists for this symbol
+                return False, []
+            else:
+                raise
+
+    async def _open_test_position(self, bp_api: BackpackAPI, symbol: str) -> None:
+        """Open a test position for the given symbol."""
+        import asyncio
+
+        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+        from cyberdelta.core.models.enums import OrderType, TimeInForce
+        from tests.integration.apis.backpack.shared.test_helpers import (
+            get_minimal_order_size,
+        )
+
+        side = OrderSide.BUY  # Open a long position
+
+        # Get current market price for size calculation
+        ticker = await bp_api.get_ticker(symbol)
+        market_price = ticker.price or ticker.ask
+        if market_price is None:
+            raise ValueError(f"Cannot determine market price for {symbol}")
+
+        # Get minimal order size for market order (will open position immediately)
+        test_quantity = await get_minimal_order_size(bp_api, symbol, side, market_price)
+
+        args = PlaceOrderArgs(
+            symbol=symbol,
+            side=side,
+            order_type=OrderType.MARKET,
+            quantity=test_quantity,
+            time_in_force=TimeInForce.IOC,
+        )
+
+        # Place market order to open position
+        await bp_api.place_order(args)
+
+        # Wait a moment for position to be reflected
+        await asyncio.sleep(1)
+
+    async def _close_position(self, bp_api: BackpackAPI, symbol: str) -> None:
+        """Close any open positions for the given symbol."""
+        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+        from cyberdelta.core.models.enums import OrderType, TimeInForce
+
+        try:
+            # Get current positions to determine close side
+            current_positions = await bp_api.get_positions(symbol=symbol)
+            for position in current_positions:
+                if position.size != Decimal("0"):
+                    # Close position with opposite side
+                    close_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
+                    close_quantity = abs(position.size)
+
+                    close_args = PlaceOrderArgs(
+                        symbol=symbol,
+                        side=close_side,
+                        order_type=OrderType.MARKET,
+                        quantity=close_quantity,
+                        time_in_force=TimeInForce.IOC,
+                    )
+
+                    await bp_api.place_order(close_args)
+        except Exception as cleanup_error:
+            # Log cleanup error but don't fail test
+            logger.warning(f"Failed to clean up position for {symbol}: {cleanup_error}")
+
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_derivative_position_by_symbol(
@@ -101,113 +195,52 @@ class TestBackpackPositionsPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test retrieving a specific position by symbol - dynamically creates position if needed."""
+        """Test retrieving a specific position by symbol.
+
+        Dynamically creates position if needed.
+        """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
-        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-        from cyberdelta.core.models.enums import OrderType, TimeInForce
-        from tests.integration.apis.backpack.shared.test_helpers import (
-            get_dynamic_test_price,
-            get_minimal_order_size,
-        )
-        
+
         symbol = DEFAULT_TEST_SYMBOL_PERP
         opened_position = False
-        
+
         try:
-            # First check what symbols are available
-            from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-            markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
-            perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol]
-            
-            if symbol not in perp_symbols:
-                # Use first available perpetual symbol instead
-                if perp_symbols:
-                    symbol = perp_symbols[0]
-                    logger.info(f"Using available perp symbol: {symbol}")
-                else:
-                    raise AssertionError("No perpetual symbols available for testing")
-            
+            # Get valid test symbol
+            symbol = await self._get_test_symbol(bp_api_for_test_env, symbol)
+
             # Check if position already exists
-            try:
-                positions = await bp_api_for_test_env.get_positions(symbol=symbol)
-                assert isinstance(positions, list)
-                position_exists = len(positions) > 0
-            except APIError as e:
-                if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
-                    # No position exists for this symbol
-                    position_exists = False
-                    positions = []
-                else:
-                    raise
-            
+            position_exists, positions = await self._check_position_exists(
+                bp_api_for_test_env, symbol
+            )
+
             if not position_exists:
                 # No position exists, create one for testing
-                side = OrderSide.BUY  # Open a long position
-                
-                # Get minimal order size for market order (will open position immediately)
-                test_quantity = await get_minimal_order_size(
-                    bp_api_for_test_env, symbol, side, None  # None for market order
-                )
-                
-                args = PlaceOrderArgs(
-                    symbol=symbol,
-                    side=side,
-                    order_type=OrderType.MARKET,
-                    quantity=test_quantity,
-                    time_in_force=TimeInForce.IOC,
-                )
-                
-                # Place market order to open position
-                order = await bp_api_for_test_env.place_order(args)
+                await self._open_test_position(bp_api_for_test_env, symbol)
                 opened_position = True
-                
-                # Wait a moment for position to be reflected
-                import asyncio
-                await asyncio.sleep(1)
-                
+
                 # Re-fetch positions
                 positions = await bp_api_for_test_env.get_positions(symbol=symbol)
 
             # Validate the position
             assert len(positions) > 0, f"Should have at least one position for {symbol}"
-            
+
             # All returned positions should be for the specified symbol
             for position in positions:
                 assert isinstance(position, DerivativePosition)
                 assert position.symbol == symbol
                 assert position.exchange == "backpack"
-                
+
         except APIError as e:
             # Handle case where symbol doesn't exist or other API errors
             if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
                 raise AssertionError(f"Symbol {symbol} not found: {e.message}") from e
             raise
-            
+
         finally:
             # Clean up: close any position we opened
             if opened_position:
-                try:
-                    # Get current positions to determine close side
-                    current_positions = await bp_api_for_test_env.get_positions(symbol=symbol)
-                    for position in current_positions:
-                        if position.size != Decimal("0"):
-                            # Close position with opposite side
-                            close_side = OrderSide.SELL if position.side == OrderSide.BUY else OrderSide.BUY
-                            close_quantity = abs(position.size)
-                            
-                            close_args = PlaceOrderArgs(
-                                symbol=symbol,
-                                side=close_side,
-                                order_type=OrderType.MARKET,
-                                quantity=close_quantity,
-                                time_in_force=TimeInForce.IOC,
-                            )
-                            
-                            await bp_api_for_test_env.place_order(close_args)
-                except Exception as cleanup_error:
-                    # Log cleanup error but don't fail test
-                    logger.warning(f"Failed to clean up position for {symbol}: {cleanup_error}")
+                await self._close_position(bp_api_for_test_env, symbol)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -236,8 +269,12 @@ class TestBackpackPositionsPositive:
                     position.unrealized_pnl,
                     OrderSide.BUY,
                     position.entry_price,
-                    position.mark_price
-                ), f"PnL direction incorrect for long position: PnL={position.unrealized_pnl}, entry={position.entry_price}, mark={position.mark_price}"
+                    position.mark_price,
+                ), (
+                    f"PnL direction incorrect for long position: "
+                    f"PnL={position.unrealized_pnl}, entry={position.entry_price}, "
+                    f"mark={position.mark_price}"
+                )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -266,8 +303,12 @@ class TestBackpackPositionsPositive:
                     position.unrealized_pnl,
                     OrderSide.SELL,
                     position.entry_price,
-                    position.mark_price
-                ), f"PnL direction incorrect for short position: PnL={position.unrealized_pnl}, entry={position.entry_price}, mark={position.mark_price}"
+                    position.mark_price,
+                ), (
+                    f"PnL direction incorrect for short position: "
+                    f"PnL={position.unrealized_pnl}, entry={position.entry_price}, "
+                    f"mark={position.mark_price}"
+                )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -316,7 +357,7 @@ class TestBackpackPositionsPositive:
         for position in positions:
             if position.liquidation_price is not None:
                 assert isinstance(position.liquidation_price, Decimal)
-                
+
                 # Some positions may have liquidation_price of 0, which can happen
                 # for positions with very low leverage or high collateral ratios
                 if position.liquidation_price > Decimal("0"):
@@ -331,7 +372,9 @@ class TestBackpackPositionsPositive:
                 elif position.liquidation_price == Decimal("0"):
                     # Zero liquidation price can be valid for very low-leverage positions
                     # or positions with very high collateral ratios
-                    assert position.size != Decimal("0"), "Position with zero liquidation price should have non-zero size"
+                    assert position.size != Decimal("0"), (
+                        "Position with zero liquidation price should have non-zero size"
+                    )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -373,8 +416,11 @@ class TestBackpackPositionsPositive:
                         assert is_within_tolerance(
                             break_even,
                             position.entry_price,
-                            tolerance_percent=BREAK_EVEN_PRICE_TOLERANCE_PERCENT
-                        ), f"Break-even price too far from entry: break_even={break_even}, entry={position.entry_price}"
+                            tolerance_percent=BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
+                        ), (
+                            f"Break-even price too far from entry: "
+                            f"break_even={break_even}, entry={position.entry_price}"
+                        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -401,7 +447,8 @@ class TestBackpackPositionsPositive:
                         # Should be close to calculated value
                         if expected_notional > Decimal("0"):
                             assert is_within_ratio_bounds(notional, expected_notional), (
-                                f"Notional value mismatch: actual={notional}, expected={expected_notional}"
+                                f"Notional value mismatch: "
+                                f"actual={notional}, expected={expected_notional}"
                             )
 
     @pytest.mark.vcr
@@ -416,13 +463,13 @@ class TestBackpackPositionsPositive:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         # Calculate total unrealized PnL from positions
-        total_unrealized_pnl = sum(
-            p.unrealized_pnl for p in positions if p.unrealized_pnl is not None
+        total_unrealized_pnl = Decimal(
+            sum(p.unrealized_pnl for p in positions if p.unrealized_pnl is not None)
         )
 
         # Calculate total notional from positions
-        total_notional = sum(
-            abs(p.size * p.mark_price) for p in positions if p.mark_price is not None
+        total_notional = Decimal(
+            sum(abs(p.size * p.mark_price) for p in positions if p.mark_price is not None)
         )
 
         # Account summary should reflect position data
@@ -435,7 +482,11 @@ class TestBackpackPositionsPositive:
             ):
                 assert is_within_ratio_bounds(
                     account_summary.total_position_notional, total_notional
-                ), f"Position notional mismatch: summary={account_summary.total_position_notional}, calculated={total_notional}"
+                ), (
+                    f"Position notional mismatch: "
+                    f"summary={account_summary.total_position_notional}, "
+                    f"calculated={total_notional}"
+                )
 
             # Unrealized PnL should match
             if (
@@ -445,5 +496,8 @@ class TestBackpackPositionsPositive:
                 assert is_within_tolerance(
                     account_summary.total_unrealized_pnl,
                     total_unrealized_pnl,
-                    tolerance=PNL_TOLERANCE
-                ), f"PnL mismatch: summary={account_summary.total_unrealized_pnl}, calculated={total_unrealized_pnl}"
+                    tolerance=PNL_TOLERANCE,
+                ), (
+                    f"PnL mismatch: summary={account_summary.total_unrealized_pnl}, "
+                    f"calculated={total_unrealized_pnl}"
+                )

@@ -18,9 +18,7 @@ from tests.integration.apis.backpack.shared.test_helpers import (
     COLLATERAL_VALUE_TOLERANCE,
     DUST_THRESHOLD,
     LARGE_VALUE_TOLERANCE,
-    PRICE_TOLERANCE_PERCENT,
     SMALL_VALUE_TOLERANCE,
-    STABLECOIN_SYMBOLS,
     is_stablecoin,
     is_within_tolerance,
 )
@@ -184,10 +182,12 @@ class TestBackpackMarginIntegrationFlow:
             assert account_summary.total_position_notional >= Decimal("0")
 
             # Calculate expected notional from positions
-            expected_notional = sum(
-                abs(pos.size * pos.mark_price)
-                for pos in positions
-                if pos.size != 0 and pos.mark_price is not None
+            expected_notional = Decimal(
+                sum(
+                    abs(pos.size * pos.mark_price)
+                    for pos in positions
+                    if pos.size != 0 and pos.mark_price is not None
+                )
             )
 
             if expected_notional > 0:
@@ -241,7 +241,8 @@ class TestBackpackMarginIntegrationFlow:
                 tolerance=LARGE_VALUE_TOLERANCE,
             ), (
                 f"Available equity mismatch: "
-                f"expected={expected_available} (total={account_summary.total_equity} - locked={bp_details.locked_equity}), "
+                f"expected={expected_available} "
+                f"(total={account_summary.total_equity} - locked={bp_details.locked_equity}), "
                 f"actual={account_summary.available_equity}"
             )
 
@@ -258,21 +259,26 @@ class TestBackpackMarginIntegrationFlow:
 
         # Track what we find for validation
         weights_validated = False
-        stablecoin_with_balance_found = False
-        
+
         for asset in collateral_assets:
             symbol = asset.get("symbol")
             if not symbol:
                 continue
 
             # Get values with proper defaults (handle both camelCase and snake_case)
-            collateral_weight_str = asset.get("collateralWeight", asset.get("collateral_weight", "0"))
+            collateral_weight_str = asset.get(
+                "collateralWeight", asset.get("collateral_weight", "0")
+            )
             balance_notional_str = asset.get("balanceNotional", asset.get("balance_notional", "0"))
-            
+
             # Skip if no collateral weight info
-            if collateral_weight_str == "0" and "collateralWeight" not in asset and "collateral_weight" not in asset:
+            if (
+                collateral_weight_str == "0"
+                and "collateralWeight" not in asset
+                and "collateral_weight" not in asset
+            ):
                 continue
-                
+
             collateral_weight = Decimal(collateral_weight_str)
             balance_notional = Decimal(balance_notional_str)
 
@@ -285,9 +291,9 @@ class TestBackpackMarginIntegrationFlow:
             # Check stablecoins have weight of 1 when they have substantial balance
             if is_stablecoin(symbol) and balance_notional > DUST_THRESHOLD:
                 assert collateral_weight == Decimal("1"), (
-                    f"Stablecoin {symbol} with balance {balance_notional} should have collateral weight of 1, got {collateral_weight}"
+                    f"Stablecoin {symbol} with balance {balance_notional} should have "
+                    f"collateral weight of 1, got {collateral_weight}"
                 )
-                stablecoin_with_balance_found = True
 
         # More flexible validation - we should have validated at least some weights
         if len(collateral_assets) > 0:

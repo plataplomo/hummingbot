@@ -1,8 +1,8 @@
 # FastAPI Service Wrappers: Exposing Existing APIs and Trading Logic
 
-## Overview
+## Overview (Updated June 2025)
 
-This document details how to create FastAPI service wrappers around your existing CyberDelta components. These services expose your proven trading infrastructure through modern REST APIs while preserving all existing logic unchanged.
+This document details how to create FastAPI service wrappers around your existing CyberDelta components within the 8-9 week timeline. These services expose your production-ready trading infrastructure (including sophisticated features like auto-lending detection and margin support) through modern REST APIs while preserving all existing logic unchanged. The wrapper approach ensures zero risk to proven trading algorithms and supports the reduced 2-person team structure.
 
 ## Service Architecture
 
@@ -26,14 +26,19 @@ Each FastAPI service is a thin wrapper that:
 3. **Adds REST API interface and documentation**
 4. **Provides authentication and rate limiting**
 5. **Publishes events via message broker**
+6. **Preserves all sophisticated features** (auto-lending, margin calculations, etc.)
+7. **Uses existing test suite** for validation
 
 ## FastAPI Market Data Service
 
 ### Purpose and Scope
-- **Wrap existing API clients**: `cyberdelta.apis.hyperliquid`, `cyberdelta.apis.backpack`
+- **Wrap existing API clients**: Production-ready `cyberdelta.apis.hyperliquid`, `cyberdelta.apis.backpack`
+  - Preserves auto-lending detection and handling
+  - Maintains margin/collateral calculations
+  - Keeps sophisticated rate limiting (weight-based for Hyperliquid)
 - **Expose market data endpoints**: Real-time and historical data
 - **Provide WebSocket hub**: Distribute real-time data to multiple consumers
-- **Add rate limiting**: Protect against API abuse
+- **Add external rate limiting**: Protect public endpoints
 - **Enable external integration**: Third-party tools and monitoring
 
 ### Project Structure
@@ -170,7 +175,14 @@ from cyberdelta.config.secrets_manager import get_secrets_config
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HLRawCandle
 
 class HyperliquidAdapter:
-    """Adapter to expose existing Hyperliquid API through FastAPI"""
+    """Adapter to expose existing Hyperliquid API through FastAPI
+    
+    Preserves all production features:
+    - EIP-712 signature handling
+    - Weight-based rate limiting
+    - Comprehensive error handling
+    - WebSocket auto-reconnection
+    """
     
     def __init__(self):
         # Use existing configuration system - no changes to existing code
@@ -659,11 +671,12 @@ class TickerListResponse(BaseModel):
 ## FastAPI Trading Engine Service
 
 ### Purpose and Scope
-- **Wrap existing trading engine**: `cyberdelta.core.engine`, `cyberdelta.core.strategy_manager`
+- **Wrap existing trading engine**: Production-ready `cyberdelta.core.engine`, `cyberdelta.core.strategy_manager`
 - **Strategy management APIs**: Start, stop, configure strategies
-- **Portfolio APIs**: Current positions, balances, PnL
+- **Portfolio APIs**: Current positions, balances, PnL with margin calculations
 - **Order management**: Place, cancel, monitor orders
-- **Risk management**: Risk metrics and controls
+- **Risk management**: Risk metrics and controls with circuit breakers
+- **Performance tracking**: Historical analysis with existing monitoring components
 
 ### Key Implementation
 ```python
@@ -681,7 +694,14 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
 class TradingEngineAdapter:
-    """Adapter to expose existing trading engine through FastAPI"""
+    """Adapter to expose existing trading engine through FastAPI
+    
+    Preserves all production features:
+    - Enhanced Backpack integration with auto-lending
+    - Sophisticated portfolio tracking with margin calculations
+    - Risk management with circuit breakers
+    - Performance monitoring and historical tracking
+    """
     
     def __init__(self):
         # Initialize existing components exactly as they are currently
@@ -689,6 +709,7 @@ class TradingEngineAdapter:
         self.strategy_manager = StrategyManager(...)
         self.portfolio_tracker = PortfolioTracker(...)
         self.risk_manager = RiskManager(...)
+        self.performance_tracker = PerformanceTracker(...)  # For historical data
         
         # Load existing strategies
         self._load_strategies()
@@ -813,10 +834,11 @@ class TradingEngineAdapter:
 ## Benefits of FastAPI Service Wrappers
 
 ### 1. **Preserve All Existing Logic**
-- Zero changes to proven trading algorithms
+- Zero changes to proven trading algorithms including auto-lending detection
 - All existing error handling and edge cases preserved
-- Existing performance optimizations maintained
-- Risk management systems unchanged
+- Existing performance optimizations maintained (weight-based rate limiting, etc.)
+- Risk management systems unchanged including circuit breakers
+- Comprehensive test coverage through existing VCR test suite
 
 ### 2. **Modern API Interface**
 - RESTful endpoints with OpenAPI documentation
@@ -842,4 +864,12 @@ class TradingEngineAdapter:
 - Easy testing with built-in test client
 - Consistent error handling patterns
 
-This approach gives you modern, documented APIs while preserving all your valuable trading infrastructure exactly as it works today.
+This approach gives you modern, documented APIs while preserving all your valuable trading infrastructure exactly as it works today, including all the sophisticated enhancements like auto-lending detection, margin calculations, and comprehensive testing that have been built into the system.
+
+### Key Success Factors for Service Wrappers
+
+1. **Import, Don't Rebuild**: Always import existing cyberdelta modules directly
+2. **Wrap, Don't Replace**: Add API layer without changing underlying logic
+3. **Test with Existing Suite**: Use VCR cassettes to validate wrapper behavior
+4. **Preserve Configuration**: Use existing config and secrets management
+5. **Maintain Error Handling**: All existing error recovery stays intact

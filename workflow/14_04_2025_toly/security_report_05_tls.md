@@ -1,49 +1,89 @@
 # Security Report: Transport Layer Security (CyberDeltaEngine v0.0.1)
 
-**Rule Reference:** `Transport_Layer_Security.mdc` (Implicitly, based on user prompt's focus) / General secure communication principles.
+**Rule Reference:** `.claude/rules/security.md` - "Transport Layer Security" section
 
-**Assessment Summary:** Adequate with Concerns (Requires Verification)
+**Assessment Summary:** Significantly Improved with Pydantic Validation
+
+**Last Updated:** 2025-06-15
 
 **Detailed Findings:**
 
-The application generally uses secure protocols (HTTPS/WSS) by default, but relies on external configuration and the correct setup of the underlying HTTP client (`aiohttp.ClientSession`) for effective transport security.
+The application now enforces secure protocols (HTTPS/WSS) through Pydantic URL validation and relies on aiohttp's secure default SSL configuration for transport security.
 
-1.  **Protocol Usage:**
-    *   **Defaults:** The `HyperliquidAPI` defines default base URLs (`BASE_URL`, `INFO_URL`, `WS_URL`) using `https://` and `wss://` respectively (Good). The `BackpackAPI` inherits its endpoints from configuration.
-    *   **Configuration Overrides:** Both `ConfigManager` and the API clients allow REST and WebSocket endpoints to be overridden via the `config.yaml` file (e.g., `exchanges.hyperliquid.rest_endpoint`).
-    *   **Concern:** As noted in Report Part 1 (Input Validation), `ConfigManager` does not validate the *format* or *scheme* of these configured URLs. If an operator mistakenly configures an insecure `http://` or `ws://` endpoint in `config.yaml`, the application might attempt to connect insecurely without warning.
-    *   **Severity:** Medium (Configuration Validation). Depends on the lack of validation in `ConfigManager`.
+**UPDATE (2025-06-15):** Major improvements include Pydantic URL validation that ensures HTTPS/WSS protocols and continued use of aiohttp's default certificate validation.
 
-2.  **Certificate Validation:**
-    *   **Underlying Client:** All REST and WebSocket communication relies on `aiohttp.ClientSession`.
-    *   **Default Behavior:** By default, `aiohttp` performs standard SSL/TLS certificate validation for HTTPS/WSS connections (Good).
-    *   **Concern:** It is possible to disable certificate validation when creating or using `aiohttp.ClientSession` by passing `ssl=False` or a custom `ssl.SSLContext` with verification disabled. The current analysis of `apis/base.py`, `apis/backpack.py`, and `apis/hyperliquid.py` does not show any explicit disabling of SSL validation *within those files*. However, the `aiohttp.ClientSession` instance might be created higher up in the application stack (e.g., in `Engine` or `main.py`) where such insecure configuration could occur.
-    *   **Verification Needed:** The instantiation point of the `aiohttp.ClientSession` used by the API clients must be audited to confirm that certificate validation is not being disabled globally or per-request.
-    *   **Severity:** High (If validation is disabled). Disabling certificate validation completely undermines TLS, making connections vulnerable to Man-in-the-Middle (MitM) attacks.
+1.  **Protocol Usage (Enhanced with Validation):**
+    *   **Pydantic URL Types:** Configuration now uses:
+        *   `HttpUrl` for REST endpoints - validates and ensures HTTPS (or HTTP)
+        *   `AnyUrl` for WebSocket endpoints - validates URL format
+    *   **Configuration Models (`config_models.py`):**
+        ```python
+        api_base_url_mainnet: HttpUrl
+        ws_url_mainnet: AnyUrl
+        api_base_url_testnet: HttpUrl | None
+        ws_url_testnet: AnyUrl | None
+        ```
+    *   **Security Rules:** `.claude/rules/security.md` explicitly mandates HTTPS/WSS usage
+    *   **Remaining Gap:** While `HttpUrl` allows both HTTP and HTTPS, the security rules require HTTPS. Consider using custom validator to enforce HTTPS-only.
+    *   **Severity:** Low (Validation present, but could be stricter)
 
-**Code Snippets (Illustrative Examples):**
+2.  **Certificate Validation (Verified Secure):**
+    *   **HTTP Client (`http_client.py`):** Uses aiohttp's default SSL configuration:
+        ```python
+        self._session = aiohttp.ClientSession(
+            headers={"User-Agent": f"CyberDeltaEngine/{self.exchange_name}"}
+        )
+        ```
+    *   **WebSocket Manager (`ws_manager.py`):** Also uses default SSL:
+        ```python
+        self._ws_connection = await session.ws_connect(
+            self._ws_url,
+            heartbeat=server_expected_ping_interval,
+            timeout=sentinel
+        )
+        ```
+    *   **Security Status:** 
+        *   ✅ No code disables SSL verification
+        *   ✅ Certificate validation enabled by default
+        *   ✅ No custom SSL context that weakens security
+    *   **Enhancement Opportunity:** Could add explicit TLS 1.2+ enforcement
+    *   **Severity:** None (Secure by default)
 
-*   **Hyperliquid Default Secure URLs:**
+**Code Examples (Current Implementation):**
+
+*   **Pydantic URL Validation:**
     ```python
-    # cyberdelta/apis/hyperliquid.py
-    class HyperliquidAPI(ExchangeAPI):
-        BASE_URL = "https://api.hyperliquid.xyz" # HTTPS
-        INFO_URL = "https://info.hyperliquid.xyz" # HTTPS
-        WS_URL = "wss://api.hyperliquid.xyz/ws"    # WSS
-        # ...
-        def __init__(self, api_config: dict[str, Any], secrets: dict[str, str | None]) -> None:
-            # Uses defaults unless overridden by api_config, but override isn't validated for scheme
-            self.rest_endpoint = api_config.get("rest_endpoint", self.BASE_URL)
-            self.ws_endpoint = api_config.get("ws_endpoint", self.WS_URL)
-            # ...
+    # cyberdelta/config/config_models.py
+    class HyperliquidSettings(BaseModel):
+        api_base_url_mainnet: HttpUrl = Field(
+            default="https://api.hyperliquid.xyz",
+            description="Hyperliquid mainnet API base URL"
+        )
+        ws_url_mainnet: AnyUrl = Field(
+            default="wss://api.hyperliquid.xyz/ws",
+            description="Hyperliquid mainnet WebSocket URL"
+        )
     ```
 
-*   **ConfigManager Lacks URL Scheme Validation:**
+*   **HTTP Client Secure Defaults:**
     ```python
-    # cyberdelta/config/config_manager.py
-    # ... _validate_config checks presence, not content/format ...
-    # Allows potentially insecure URLs like "http://..." or "ws://..."
-    # passed via config.yaml to be loaded without error.
+    # cyberdelta/apis/connectivity/http_client.py
+    async def _create_session(self) -> None:
+        """Create aiohttp session."""
+        if self._session is None:
+            self._session = aiohttp.ClientSession(
+                headers={"User-Agent": f"CyberDeltaEngine/{self.exchange_name}"}
+            )
+            # Uses aiohttp default SSL - certificate validation enabled
+    ```
+
+*   **Security Rules Enforcement:**
+    ```markdown
+    # .claude/rules/security.md
+    ## Transport Layer Security (TLS/SSL)
+    - Use HTTPS/WSS for all external API communication
+    - Never disable certificate validation
+    - Don't downgrade to HTTP/WS protocols
     ```
 
 *   **aiohttp Usage (Conceptual - Needs Verification at Instantiation):**
@@ -65,15 +105,60 @@ The application generally uses secure protocols (HTTPS/WSS) by default, but reli
     # hyperliquid_client = HyperliquidAPI(config, secrets, session=session)
     ```
 
-**Recommendations:**
+**Recent Improvements (2025-06-15):**
 
-1.  **Validate URL Schemes in Config:** Enhance `ConfigManager._validate_config` to explicitly check that all configured `rest_endpoint` and `ws_endpoint` values start with `https://` or `wss://` respectively. Reject configurations with insecure schemes.
-2.  **Audit `aiohttp.ClientSession` Instantiation:** Locate the code responsible for creating the `aiohttp.ClientSession` instance(s) used by the API clients. Verify that certificate validation (`ssl` parameter/context) is *not* disabled. Ensure the default, secure behavior is used.
-3.  **Document Secure Configuration:** Explicitly document that only `https://` and `wss://` endpoints should be used in the configuration.
+*   **Pydantic URL Validation:**
+    *   All URLs validated at configuration load time
+    *   `HttpUrl` type ensures valid URL format
+    *   `AnyUrl` type for WebSocket URLs
+    
+*   **Secure Defaults Maintained:**
+    *   No custom SSL context that weakens security
+    *   Certificate validation enabled by default
+    *   No code path disables SSL verification
+    
+*   **Clear Security Rules:**
+    *   Documented requirement for HTTPS/WSS
+    *   Prohibition on certificate validation bypass
+
+**Recommendations (Updated):**
+
+1.  **Enforce HTTPS-Only Validation:** Add custom validator to reject HTTP URLs:
+    ```python
+    @field_validator('api_base_url_mainnet', 'api_base_url_testnet')
+    @classmethod
+    def validate_https_only(cls, v: HttpUrl) -> HttpUrl:
+        if v.scheme != 'https':
+            raise ValueError('Only HTTPS URLs are allowed')
+        return v
+    ```
+
+2.  **Add Explicit TLS Configuration (Optional):** For enhanced security:
+    ```python
+    import ssl
+    ssl_context = ssl.create_default_context()
+    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+    ssl_context.check_hostname = True
+    ssl_context.verify_mode = ssl.CERT_REQUIRED
+    ```
+
+3.  **Consider Certificate Pinning (Advanced):** For high-security deployments, implement certificate pinning for known exchange endpoints.
+
+4.  **Monitor TLS Handshakes:** Add logging for SSL/TLS connection establishment to detect potential downgrade attacks.
 
 **Severity Assessment:**
 
-*   **Potential for Insecure URL Configuration:** Medium
-*   **Potential for Disabled Certificate Validation:** High
+*   **URL Protocol Validation:** Low (Pydantic validates URLs, but allows HTTP)
+*   **Certificate Validation:** None (Secure by default, not disabled)
+*   **TLS Version Enforcement:** Low (Uses system defaults, could be stricter)
+*   **Overall Transport Security:** Good (Major improvements from April 2025)
 
-Transport security relies on using the correct protocols and verifying server identity. While defaults seem secure, the lack of configuration validation and the need to verify `aiohttp` setup present significant potential risks.
+The transport security implementation has been significantly improved with Pydantic URL validation and maintains secure defaults for certificate validation. The main enhancement opportunity is enforcing HTTPS-only URLs through custom validators.
+
+**Progress Summary:**
+- ✅ Pydantic URL validation implemented
+- ✅ Certificate validation enabled by default
+- ✅ No SSL bypass code found
+- ✅ Security rules documented
+- ⚠️ Could enforce HTTPS-only validation
+- ⚠️ Could add explicit TLS 1.2+ requirement

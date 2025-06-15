@@ -34,13 +34,10 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.models.market.ticker import Ticker
 from tests.integration.apis.backpack.shared.test_helpers import (
     get_dynamic_test_price,
-    get_symbol_tick_size,
-    get_minimal_order_size,
     get_market_constraints,
-    generate_deterministic_client_order_id,
+    get_minimal_order_size,
 )
 
 # Mark all tests in this file
@@ -54,14 +51,11 @@ pytestmark = [
 logger = get_logger(__name__)
 
 
-
-
 @pytest.mark.parametrize(
     "custom_vcr_cassette_dir", ["apis/backpack/spot/orders/positive"], indirect=True
 )
 class TestBackpackSpotOrdersPositiveBalance:
     """Comprehensive private orders integration tests with positive balance for operations."""
-
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

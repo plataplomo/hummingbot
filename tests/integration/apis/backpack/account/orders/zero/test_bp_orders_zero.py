@@ -6,7 +6,6 @@ including edge cases and empty responses.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -21,13 +20,11 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.test_helpers import (
-    COMMON_SPOT_SYMBOLS,
     DEFAULT_TEST_SYMBOL_SPOT,
     TEST_SYMBOL_BTC_USDC,
     TEST_SYMBOL_ETH_USDC,
-    generate_deterministic_client_order_id,
     generate_invalid_order_id,
     get_dynamic_test_price,
     get_minimal_order_size,
@@ -167,10 +164,8 @@ class TestBackpackOrdersZero:
         """Test that order creation correctly fails with zero balance."""
         symbol = DEFAULT_TEST_SYMBOL_SPOT
         side = OrderSide.BUY
-            
-        test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, side
-        )
+
+        test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
         test_quantity = await get_minimal_order_size(
             bp_api_for_zero_balance_test, symbol, side, test_price
         )
@@ -183,11 +178,11 @@ class TestBackpackOrdersZero:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         # With zero balance, order placement should fail appropriately
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_zero_balance_test.place_order(args)
-            
+
         error = exc_info.value
         # Should fail due to insufficient balance
         assert error.code in [
@@ -229,9 +224,7 @@ class TestBackpackOrdersZero:
     ) -> None:
         """Test cancelling all orders for a symbol with no orders."""
         # Try to cancel orders for a symbol with no open orders
-        results = await bp_api_for_zero_balance_test.cancel_all_orders(
-            symbol=TEST_SYMBOL_ETH_USDC
-        )
+        results = await bp_api_for_zero_balance_test.cancel_all_orders(symbol=TEST_SYMBOL_ETH_USDC)
 
         assert isinstance(results, list)
         assert len(results) == 0
@@ -305,9 +298,7 @@ class TestBackpackOrdersZero:
         symbol = DEFAULT_TEST_SYMBOL_SPOT
         side = OrderSide.BUY
 
-        test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, side
-        )
+        test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
         test_quantity = await get_minimal_order_size(
             bp_api_for_zero_balance_test, symbol, side, test_price
         )
@@ -320,11 +311,11 @@ class TestBackpackOrdersZero:
             price=test_price,
             time_in_force=TimeInForce.GTC,
         )
-        
+
         # With zero balance, should not be able to create orders
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_zero_balance_test.place_order(args)
-            
+
         error = exc_info.value
         # Should fail due to insufficient balance
         assert error.code in [

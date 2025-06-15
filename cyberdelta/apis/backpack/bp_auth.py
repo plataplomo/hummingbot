@@ -180,7 +180,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             # CRITICAL DISCOVERY: Backpack might expect ALL parameters (including POST body data)
             # to be sent as query parameters for signature generation, with empty POST body
             # This would explain why the working cassette shows "body: null"
-            # 
+            #
             # However, let's first try the standard approach with body data in signature
             filtered_data = {k: v for k, v in data.items() if v is not None}
             if filtered_data:

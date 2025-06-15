@@ -1,8 +1,8 @@
-# Django Refactor: Database Models Design
+# Django Refactor: Database Models Design (Wrapper Pattern)
 
 ## Overview
 
-This document outlines the Django model design to replace the current Pydantic-based in-memory models. The goal is to provide persistent storage while maintaining the same data integrity and relationships.
+This document outlines the Django model design for the **wrapper layer** that provides persistence without modifying the core CyberDeltaEngine. These models mirror the existing Pydantic models and are populated via background synchronization from the running core engine.
 
 ## Core Model Categories
 
@@ -422,57 +422,188 @@ CREATE INDEX CONCURRENTLY idx_signal_strategy_status_time
 ON strategies_tradesignal (strategy_instance_id, status, created_at DESC);
 ```
 
-## Migration Strategy from Current Models
+## Data Synchronization Strategy
 
-### 1. Pydantic → Django Model Mapping
-- **Current Candle** → **market_data.Candle**
-- **Current Trade** → **portfolio.Trade** 
-- **Current SpotBalance** → **portfolio.Balance**
-- **Current DerivativePosition** → **portfolio.Position**
-- **Current TradeSignal** → **strategies.TradeSignal**
+### 1. Core → Django Model Mapping
+- **core.models.Candle** → **market_data.Candle** (via background sync)
+- **core.models.Trade** → **portfolio.Trade** (real-time sync)
+- **core.models.SpotBalance** → **portfolio.Balance** (periodic sync)
+- **core.models.DerivativePosition** → **portfolio.Position** (periodic sync)
+- **core.models.TradeSignal** → **strategies.TradeSignal** (real-time sync)
 
-### 2. Data Migration Scripts
+### 2. Synchronization Architecture
 ```python
-# Example migration script
-def migrate_pydantic_to_django():
-    """Migrate existing Pydantic data to Django models"""
+# apps/bridge/sync_service.py
+from django.core.management.base import BaseCommand
+import asyncio
+from typing import Dict, Any
+from cyberdelta.core import CyberDeltaEngine
+
+class DataSyncService:
+    """Synchronizes data from core engine to Django database"""
     
-    # Create exchanges and assets
-    for exchange_name in current_exchanges:
-        exchange, created = Exchange.objects.get_or_create(
-            name=exchange_name,
-            defaults={...}
-        )
+    def __init__(self):
+        self.engine = None  # Reference to running core engine
+        self.sync_interval = 5  # seconds
+        
+    async def connect_to_core(self):
+        """Establish connection to core engine process"""
+        # Connect via IPC, Redis, or ZeroMQ
+        pass
+        
+    async def sync_market_data(self):
+        """Sync market data from core to database"""
+        while True:
+            try:
+                # Get latest data from core
+                tickers = await self.engine.get_latest_tickers()
+                
+                # Bulk create in database
+                ticker_objects = []
+                for ticker_data in tickers:
+                    ticker_objects.append(
+                        Ticker(
+                            trading_pair_id=self.get_pair_id(ticker_data),
+                            last_price=ticker_data.last_price,
+                            bid_price=ticker_data.bid_price,
+                            ask_price=ticker_data.ask_price,
+                            timestamp=ticker_data.timestamp
+                        )
+                    )
+                
+                # Efficient bulk insert
+                Ticker.objects.bulk_create(
+                    ticker_objects,
+                    batch_size=1000,
+                    ignore_conflicts=True
+                )
+                
+                await asyncio.sleep(self.sync_interval)
+                
+            except Exception as e:
+                logger.error(f"Market data sync error: {e}")
+                await asyncio.sleep(self.sync_interval * 2)
     
-    # Migrate trading pairs
-    for pair_data in current_trading_pairs:
-        trading_pair, created = TradingPair.objects.get_or_create(
-            exchange=exchange,
-            symbol=pair_data.symbol,
-            defaults={...}
-        )
+    async def sync_portfolio_data(self):
+        """Sync portfolio data from core to database"""
+        while True:
+            try:
+                # Get portfolio state from core
+                portfolio_state = await self.engine.get_portfolio_state()
+                
+                # Update balances
+                for balance_data in portfolio_state.balances:
+                    Balance.objects.update_or_create(
+                        account_id=balance_data.account_id,
+                        asset_id=balance_data.asset_id,
+                        defaults={
+                            'total_balance': balance_data.total,
+                            'available_balance': balance_data.available,
+                            'locked_balance': balance_data.locked,
+                            'timestamp': timezone.now()
+                        }
+                    )
+                
+                # Update positions
+                for position_data in portfolio_state.positions:
+                    Position.objects.update_or_create(
+                        account_id=position_data.account_id,
+                        trading_pair_id=position_data.pair_id,
+                        defaults={
+                            'side': position_data.side,
+                            'size': position_data.size,
+                            'entry_price': position_data.entry_price,
+                            'mark_price': position_data.mark_price,
+                            'unrealized_pnl': position_data.unrealized_pnl,
+                            'timestamp': timezone.now()
+                        }
+                    )
+                
+                await asyncio.sleep(self.sync_interval * 2)  # Less frequent
+                
+            except Exception as e:
+                logger.error(f"Portfolio sync error: {e}")
+                await asyncio.sleep(self.sync_interval * 4)
+
+# Management command to run sync service
+class Command(BaseCommand):
+    def handle(self, *args, **options):
+        sync_service = DataSyncService()
+        asyncio.run(sync_service.start())
+```
+
+### 3. Real-time Event Streaming
+```python
+# apps/bridge/event_bridge.py
+class EventBridge:
+    """Bridges events from core engine to Django"""
     
-    # Migrate historical data if needed
-    for candle_data in historical_candles:
-        Candle.objects.create(
-            trading_pair=trading_pair,
-            open_time=candle_data.timestamp,
-            # ... other fields
-        )
+    def __init__(self):
+        self.redis_client = redis.Redis()
+        self.channel_layer = get_channel_layer()
+        
+    async def listen_for_events(self):
+        """Listen for events from core engine"""
+        pubsub = self.redis_client.pubsub()
+        pubsub.subscribe('core_events')
+        
+        for message in pubsub.listen():
+            if message['type'] == 'message':
+                event = json.loads(message['data'])
+                await self.handle_core_event(event)
+    
+    async def handle_core_event(self, event: Dict[str, Any]):
+        """Process events from core engine"""
+        event_type = event['type']
+        
+        if event_type == 'trade_executed':
+            # Save to database
+            Trade.objects.create(
+                account_id=event['account_id'],
+                trading_pair_id=event['pair_id'],
+                side=event['side'],
+                quantity=event['quantity'],
+                price=event['price'],
+                fee=event['fee'],
+                executed_at=event['timestamp']
+            )
+            
+            # Broadcast to WebSocket clients
+            await self.channel_layer.group_send("trades", {
+                "type": "trade_update",
+                "trade": event
+            })
+            
+        elif event_type == 'signal_generated':
+            # Save trading signal
+            TradeSignal.objects.create(
+                strategy_instance_id=event['strategy_id'],
+                signal_type=event['signal_type'],
+                trading_pair_id=event['pair_id'],
+                side=event['side'],
+                quantity=event['quantity'],
+                created_at=event['timestamp']
+            )
 ```
 
 ## Performance Considerations
 
 ### Read Optimization
-- **Time-series queries**: Use TimescaleDB features
-- **Dashboard aggregations**: Pre-computed materialized views
-- **Real-time data**: Redis caching for latest values
-- **Bulk operations**: Use Django's bulk_create and bulk_update
+- **Dashboard queries**: Read from local database, not core
+- **Historical analysis**: TimescaleDB continuous aggregates
+- **Real-time display**: Redis cache for latest values
+- **Bulk reads**: Django select_related and prefetch_related
 
 ### Write Optimization
-- **Batch inserts**: Collect market data and insert in batches
-- **Connection pooling**: Use pgbouncer for database connections
-- **Async tasks**: Celery for non-critical data writes
-- **Partitioning**: Automatic partitioning for large time-series tables
+- **Bulk sync**: Batch inserts every 5 seconds
+- **Event streaming**: Real-time for critical events only
+- **Data retention**: Automatic old data cleanup
+- **Connection pooling**: Persistent connections to core
 
-This model design provides a solid foundation for the Django refactor while maintaining data integrity and supporting the high-performance requirements of a trading system.
+### Data Consistency
+- **Eventually consistent**: Database lags core by sync interval
+- **Critical data**: Real-time sync for trades and signals
+- **Reconciliation**: Periodic full sync to catch any gaps
+- **Monitoring**: Track sync lag and alert on issues
+
+This wrapper approach ensures the core engine remains unchanged while providing all the benefits of persistent storage for historical analysis and multi-user access.

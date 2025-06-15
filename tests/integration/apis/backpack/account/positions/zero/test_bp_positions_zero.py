@@ -13,12 +13,9 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from tests.integration.apis.backpack.shared.test_helpers import (
-    BALANCE_PRECISION_TOLERANCE,
-    COMMON_PERP_SYMBOLS,
     COMMON_SPOT_SYMBOLS,
     DELISTED_PERP_SYMBOL,
     DUST_THRESHOLD,
-    PNL_TOLERANCE,
     SMALL_VALUE_TOLERANCE,
     TEST_SYMBOL_BTC_PERP,
     TEST_SYMBOL_ETH_PERP,
@@ -63,9 +60,11 @@ class TestBackpackPositionsZero:
         """Test retrieving a position for a symbol with no position."""
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
-        
+
         try:
-            positions = await bp_api_for_zero_balance_test.get_positions(symbol=TEST_SYMBOL_BTC_PERP)
+            positions = await bp_api_for_zero_balance_test.get_positions(
+                symbol=TEST_SYMBOL_BTC_PERP
+            )
             # Should return empty list for non-existent positions
             assert isinstance(positions, list)
             assert len(positions) == 0
@@ -96,11 +95,11 @@ class TestBackpackPositionsZero:
 
         # Account summary should reflect no positions
         account_summary = await bp_api_for_zero_balance_test.get_account_summary()
-        
+
         # Position notional should be 0 or None when no positions
         if account_summary.total_position_notional is not None:
             assert account_summary.total_position_notional == Decimal("0")
-            
+
         # Unrealized PnL should be 0 or None when no positions
         if account_summary.total_unrealized_pnl is not None:
             assert account_summary.total_unrealized_pnl == Decimal("0")
@@ -118,11 +117,13 @@ class TestBackpackPositionsZero:
         """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
-        
+
         try:
             # Try to get position for spot symbol
             # SOL-USDC
-            positions = await bp_api_for_zero_balance_test.get_positions(symbol=COMMON_SPOT_SYMBOLS[0])
+            positions = await bp_api_for_zero_balance_test.get_positions(
+                symbol=COMMON_SPOT_SYMBOLS[0]
+            )
 
             # Should return empty list as spot pairs don't have positions
             assert isinstance(positions, list)
@@ -145,7 +146,7 @@ class TestBackpackPositionsZero:
         """Test position state for a new account that has never traded derivatives."""
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
-        
+
         positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
@@ -164,7 +165,7 @@ class TestBackpackPositionsZero:
                 pass
             else:
                 raise
-                
+
         try:
             eth_positions = await bp_api_for_zero_balance_test.get_positions(
                 symbol=TEST_SYMBOL_ETH_PERP
@@ -195,7 +196,7 @@ class TestBackpackPositionsZero:
         # Account metrics should reflect zero position exposure
         if account_summary.total_position_notional is not None:
             assert account_summary.total_position_notional == Decimal("0")
-            
+
         if account_summary.total_unrealized_pnl is not None:
             assert account_summary.total_unrealized_pnl == Decimal("0")
 
@@ -236,11 +237,13 @@ class TestBackpackPositionsZero:
         """Test retrieving position for a delisted or invalid symbol."""
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
-        
+
         try:
             # Try an invalid/delisted symbol
             # Use a less common perp symbol that might not exist
-            positions = await bp_api_for_zero_balance_test.get_positions(symbol=DELISTED_PERP_SYMBOL)
+            positions = await bp_api_for_zero_balance_test.get_positions(
+                symbol=DELISTED_PERP_SYMBOL
+            )
 
             # Should return empty list for invalid symbols
             assert isinstance(positions, list)

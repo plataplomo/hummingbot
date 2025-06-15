@@ -395,7 +395,7 @@ class TestBackpackOrdersPositive:
             time_in_force=TimeInForce.GTC,
             post_only=True,
         )
-        
+
         try:
             order = await bp_api_for_test_env.place_order(args)
 
@@ -406,21 +406,28 @@ class TestBackpackOrdersPositive:
             assert order.status in [OrderStatus.OPEN, OrderStatus.CANCELED], (
                 f"Post-only order has unexpected status: {order.status}"
             )
-            
+
             if order.status == OrderStatus.OPEN:
                 # If open, should not be filled
                 assert order.quantity_filled == Decimal("0")
         except APIError as e:
-            # Authentication signature issues indicate configuration problems that need investigation
-            if "Invalid signature" in str(e.message) or e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
+            # Authentication signature issues indicate configuration problems
+            # that need investigation
+            if (
+                "Invalid signature" in str(e.message)
+                or e.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            ):
                 raise AssertionError(
                     f"CRITICAL: Post-only order failed due to authentication issue. "
-                    f"This indicates API credentials or signature generation problems that must be resolved. "
+                    f"This indicates API credentials or signature generation problems "
+                    f"that must be resolved. "
                     f"Error: {e.code} - {e.message}"
                 ) from e
             else:
                 # For other API errors, re-raise as they may be expected (e.g., market conditions)
-                raise AssertionError(f"Post-only order failed with APIError: {e.code} - {e.message}") from e
+                raise AssertionError(
+                    f"Post-only order failed with APIError: {e.code} - {e.message}"
+                ) from e
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

@@ -242,7 +242,8 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
         return manager.secrets_data
     except Exception as e:
         pytest.fail(
-            f"Failed to load zero balance test SecretsConfig from {test_secrets_zero_balance_file_path}: {e}"
+            f"Failed to load zero balance test SecretsConfig from "
+            f"{test_secrets_zero_balance_file_path}: {e}"
         )
 
 
@@ -250,7 +251,10 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
 def bp_secrets_for_zero_balance(
     test_secrets_zero_balance_config: SecretsConfig,
 ) -> ApiKeyAuthSecrets:
-    """Provide ApiKeyAuthSecrets for Backpack zero balance account from test_secrets_zero_balance.yaml."""
+    """Provide ApiKeyAuthSecrets for zero balance account.
+
+    Loads from test_secrets_zero_balance.yaml.
+    """
     secrets = test_secrets_zero_balance_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
         pytest.fail(

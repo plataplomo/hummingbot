@@ -182,10 +182,12 @@ class TestBackpackMarginBalancesPositive:
             assert account_summary.total_position_notional >= Decimal("0")
 
             # Calculate expected total notional
-            expected_notional = sum(
-                abs(pos.size * pos.mark_price)
-                for pos in positions
-                if pos.size != 0 and pos.mark_price is not None
+            expected_notional = Decimal(
+                sum(
+                    abs(pos.size * pos.mark_price)
+                    for pos in positions
+                    if pos.size != 0 and pos.mark_price is not None
+                )
             )
 
             # Allow for small differences due to price movements

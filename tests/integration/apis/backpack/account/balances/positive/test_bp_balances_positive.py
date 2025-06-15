@@ -13,7 +13,11 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import BackpackSpotBalanceDetails, SpotBalance
+from cyberdelta.core.models.margin_account import MarginAccountSummary
+
+logger = get_logger(__name__)
 
 # Mark all tests in this file
 pytestmark = [
@@ -223,6 +227,115 @@ class TestBackpackBalancesPositive:
                         f"Excessive decimal places in available: {available_str}"
                     )
 
+    def _check_auto_lending_active(self, balances: dict[str, SpotBalance]) -> bool:
+        """Check if auto-lending is active based on balance details."""
+        return any(
+            balance.bp_details
+            and balance.bp_details.lend_quantity
+            and balance.bp_details.lend_quantity > Decimal("0")
+            for balance in balances.values()
+        )
+
+    def _validate_auto_lending_scenario(
+        self,
+        balances: dict[str, SpotBalance],
+        account_summary: MarginAccountSummary,
+    ) -> None:
+        """Validate balances in auto-lending scenario."""
+        # Calculate total value from all enhanced balances
+        total_balance_value = sum(
+            balance.total_quantity
+            for balance in balances.values()
+            if balance.asset in ["USDC", "USDT"]
+        )
+
+        if total_balance_value > Decimal("0"):
+            # For accounts with non-USD assets (like SOL), equity includes their USD value
+            # So equity will be higher than just USD balances
+            assert account_summary.total_equity >= total_balance_value * Decimal("0.9"), (
+                f"Account equity ({account_summary.total_equity}) seems too low "
+                f"compared to USD balances ({total_balance_value}) in auto-lending scenario"
+            )
+
+            # Log for debugging
+            logger.debug(
+                f"Auto-lending detected - Account Equity: {account_summary.total_equity}, "
+                f"USD Balances: {total_balance_value}"
+            )
+            for asset, balance in balances.items():
+                if balance.total_quantity > Decimal("0"):
+                    lend_qty = balance.bp_details.lend_quantity if balance.bp_details else None
+                    logger.debug(f"  {asset}: {balance.total_quantity} (lent: {lend_qty})")
+
+    def _validate_normal_scenario(
+        self,
+        balances: dict[str, SpotBalance],
+        account_summary: MarginAccountSummary,
+    ) -> None:
+        """Validate balances in normal (non-auto-lending) scenario."""
+        # 1. Total equity must be non-negative
+        assert account_summary.total_equity >= Decimal("0"), (
+            f"Total equity cannot be negative: {account_summary.total_equity}"
+        )
+
+        # 2. Calculate total stablecoin balance
+        total_stablecoin_balance = sum(
+            balance.total_quantity
+            for asset, balance in balances.items()
+            if asset in ["USDC", "USDT", "BUSD", "DAI", "TUSD"]
+        )
+
+        # 3. Equity must be at least equal to stablecoin balances
+        if total_stablecoin_balance > Decimal("0"):
+            assert account_summary.total_equity >= total_stablecoin_balance * Decimal("0.999"), (
+                f"Account equity ({account_summary.total_equity}) is less than "
+                f"stablecoin balances ({total_stablecoin_balance}). "
+                f"This violates basic accounting principles."
+            )
+
+        # 4. Log non-stablecoin assets for debugging
+        non_stablecoin_assets = [
+            (asset, balance.total_quantity)
+            for asset, balance in balances.items()
+            if (
+                asset not in ["USDC", "USDT", "BUSD", "DAI", "TUSD"]
+                and balance.total_quantity > Decimal("0")
+            )
+        ]
+
+        if non_stablecoin_assets and total_stablecoin_balance > Decimal("0"):
+            logger.debug(f"Non-stablecoin assets held: {non_stablecoin_assets}")
+            logger.debug(f"Total equity: {account_summary.total_equity}")
+            logger.debug(f"Stablecoin balance: {total_stablecoin_balance}")
+
+        # 5. Validate individual balance constraints
+        for asset, balance in balances.items():
+            assert balance.available_quantity <= balance.total_quantity, (
+                f"{asset}: Available ({balance.available_quantity}) exceeds "
+                f"total ({balance.total_quantity})"
+            )
+
+        # 6. Validate derivatives if present
+        self._validate_derivatives(account_summary)
+
+    def _validate_derivatives(self, account_summary: MarginAccountSummary) -> None:
+        """Validate derivative-related fields in account summary."""
+        if account_summary.total_position_notional is not None:
+            assert account_summary.total_position_notional >= Decimal("0"), (
+                f"Position notional cannot be negative: {account_summary.total_position_notional}"
+            )
+
+            # If we have positions, check that margin requirements make sense
+            if account_summary.total_position_notional > Decimal("0"):
+                assert account_summary.total_initial_margin_required is not None, (
+                    "Account has positions but no initial margin reported"
+                )
+                assert account_summary.total_initial_margin_required > Decimal("0"), (
+                    f"Positive position notional ({account_summary.total_position_notional}) "
+                    f"but zero/negative initial margin "
+                    f"({account_summary.total_initial_margin_required})"
+                )
+
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_balances_consistency_with_account_summary(
@@ -239,110 +352,8 @@ class TestBackpackBalancesPositive:
         balances = await bp_api_for_test_env.get_balances()
         account_summary = await bp_api_for_test_env.get_account_summary()
 
-        # Check if auto-lending is active (balances have lend_quantity populated)
-        auto_lending_detected = any(
-            balance.bp_details
-            and balance.bp_details.lend_quantity
-            and balance.bp_details.lend_quantity > Decimal("0")
-            for balance in balances.values()
-        )
-
-        if auto_lending_detected:
-            # Auto-lending scenario: Compare total account values
-            # Calculate total value from all enhanced balances
-            total_balance_value = sum(
-                balance.total_quantity
-                for balance in balances.values()
-                if balance.asset in ["USDC", "USDT"]
-            )
-
-            # With auto-lending, the account equity should be close to the sum of all asset values
-            # Allow for reasonable variance due to:
-            # - Mark price fluctuations between spot and collateral endpoint calls
-            # - Small fees or unsettled amounts
-            # - Rounding differences in decimal calculations
-            if total_balance_value > Decimal("0"):
-                # For accounts with non-USD assets (like SOL), equity includes their USD value
-                # So equity will be higher than just USD balances
-                assert account_summary.total_equity >= total_balance_value * Decimal("0.9"), (
-                    f"Account equity ({account_summary.total_equity}) seems too low "
-                    f"compared to USD balances ({total_balance_value}) in auto-lending scenario"
-                )
-
-                # Log for debugging
-                print(
-                    f"Auto-lending detected - Account Equity: {account_summary.total_equity}, "
-                    f"USD Balances: {total_balance_value}"
-                )
-                for asset, balance in balances.items():
-                    if balance.total_quantity > Decimal("0"):
-                        lend_qty = balance.bp_details.lend_quantity if balance.bp_details else None
-                        print(f"  {asset}: {balance.total_quantity} (lent: {lend_qty})")
+        # Check if auto-lending is active and validate accordingly
+        if self._check_auto_lending_active(balances):
+            self._validate_auto_lending_scenario(balances, account_summary)
         else:
-            # Normal scenario: Compare spot balances with account equity
-            total_usd_from_balances = Decimal("0")
-            for asset, balance in balances.items():
-                if asset in ["USDC", "USDT"]:
-                    total_usd_from_balances += balance.total_quantity
-
-            # Test consistency between individual balances and account summary
-            
-            # 1. Total equity must be non-negative
-            assert account_summary.total_equity >= Decimal("0"), (
-                f"Total equity cannot be negative: {account_summary.total_equity}"
-            )
-            
-            # 2. Calculate total balance value (all assets)
-            # For a proper consistency check, we'd need current market prices
-            # But we can at least verify USD stablecoins are reflected correctly
-            total_stablecoin_balance = sum(
-                balance.total_quantity 
-                for asset, balance in balances.items() 
-                if asset in ["USDC", "USDT", "BUSD", "DAI", "TUSD"]
-            )
-            
-            # 3. Equity must be at least equal to stablecoin balances
-            # (since stablecoins are always worth $1)
-            if total_stablecoin_balance > Decimal("0"):
-                assert account_summary.total_equity >= total_stablecoin_balance * Decimal("0.999"), (
-                    f"Account equity ({account_summary.total_equity}) is less than "
-                    f"stablecoin balances ({total_stablecoin_balance}). "
-                    f"This violates basic accounting principles."
-                )
-            
-            # 4. If we have non-stablecoin assets, equity should be higher than just stablecoins
-            non_stablecoin_assets = [
-                (asset, balance.total_quantity)
-                for asset, balance in balances.items()
-                if asset not in ["USDC", "USDT", "BUSD", "DAI", "TUSD"] and balance.total_quantity > Decimal("0")
-            ]
-            
-            if non_stablecoin_assets and total_stablecoin_balance > Decimal("0"):
-                # Equity should be noticeably higher than just stablecoins if we hold crypto
-                # But we can't test exact amounts without prices
-                print(f"Non-stablecoin assets held: {non_stablecoin_assets}")
-                print(f"Total equity: {account_summary.total_equity}")
-                print(f"Stablecoin balance: {total_stablecoin_balance}")
-            
-            # 5. Available balance must be <= total balance for each asset
-            for asset, balance in balances.items():
-                assert balance.available_quantity <= balance.total_quantity, (
-                    f"{asset}: Available ({balance.available_quantity}) exceeds "
-                    f"total ({balance.total_quantity})"
-                )
-                
-            # 6. If account has derivatives, verify position notional makes sense
-            if account_summary.total_position_notional is not None:
-                assert account_summary.total_position_notional >= Decimal("0"), (
-                    f"Position notional cannot be negative: {account_summary.total_position_notional}"
-                )
-                
-                # If we have positions, total_position_initial_margin should be set
-                if account_summary.total_position_notional > Decimal("0"):
-                    assert account_summary.total_position_initial_margin is not None, (
-                        "Account has positions but no initial margin reported"
-                    )
-                    assert account_summary.total_position_initial_margin > Decimal("0"), (
-                        f"Positive position notional ({account_summary.total_position_notional}) "
-                        f"but zero/negative initial margin ({account_summary.total_position_initial_margin})"
-                    )
+            self._validate_normal_scenario(balances, account_summary)

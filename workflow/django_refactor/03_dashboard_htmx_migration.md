@@ -1,8 +1,8 @@
-# Django Refactor: Dashboard HTMX Migration
+# Django Refactor: Dashboard HTMX Migration (Wrapper Pattern)
 
 ## Overview
 
-This document outlines the migration from the current Dash-based dashboard to a Django + HTMX solution. The goal is to eliminate the React dependency while maintaining all functionality and improving performance.
+This document outlines how to create a new Django + HTMX dashboard that wraps around the existing CyberDeltaEngine without modifying the core. The dashboard reads from the synchronized database and sends commands to the core engine via the service bridge.
 
 ## Current Dashboard Analysis
 
@@ -26,7 +26,7 @@ class RealTimeDashboard:
             return create_plotly_figure(strategies, time_range)
 ```
 
-### Current Dashboard Features
+### Current Dashboard Features (Must Preserve)
 1. **Real-time performance monitoring**
 2. **Strategy selection and filtering**
 3. **Performance charts and metrics**
@@ -36,13 +36,13 @@ class RealTimeDashboard:
 7. **Drawdown visualization**
 8. **Portfolio overview**
 
-### Pain Points with Current Approach
-- **React dependency**: Dash uses React under the hood
-- **Build complexity**: Hidden webpack/babel complexity
-- **Type issues**: No proper type stubs for Dash components
-- **Performance**: React virtual DOM overhead
-- **Bundle size**: Large JavaScript payload
-- **Limited customization**: Constrained by Dash component library
+### Wrapper Approach Benefits
+- **Zero core changes**: Dashboard runs independently
+- **Multi-user support**: Django authentication built-in
+- **Historical data**: Read from TimescaleDB
+- **No React**: Pure server-side rendering with HTMX
+- **Lightweight**: 14KB HTMX vs 200MB+ React
+- **Better UX**: Faster initial load, better mobile performance
 
 ## Proposed HTMX Architecture
 
@@ -523,68 +523,127 @@ def get_dashboard_metrics():
         )
 ```
 
-## Migration Timeline
+## Integration with Core Engine
 
-### Phase 1: Basic Layout (1 week)
-- Set up Django dashboard app
-- Create base templates with HTMX
-- Implement basic navigation
-- Set up WebSocket infrastructure
+### Service Bridge Communication
+```python
+# apps/bridge/core_commands.py
+class CoreCommandService:
+    """Send commands to core engine from dashboard"""
+    
+    def __init__(self):
+        self.redis_client = redis.Redis()
+        
+    async def start_strategy(self, strategy_id: str, user: User):
+        """Send start command to core engine"""
+        command = {
+            'type': 'start_strategy',
+            'strategy_id': strategy_id,
+            'user_id': user.id,
+            'timestamp': timezone.now().isoformat()
+        }
+        
+        # Send command via Redis pub/sub
+        self.redis_client.publish('core_commands', json.dumps(command))
+        
+        # Log command for audit
+        CommandLog.objects.create(
+            user=user,
+            command_type='start_strategy',
+            payload=command,
+            status='sent'
+        )
+        
+    async def stop_strategy(self, strategy_id: str, user: User):
+        """Send stop command to core engine"""
+        command = {
+            'type': 'stop_strategy',
+            'strategy_id': strategy_id,
+            'user_id': user.id,
+            'timestamp': timezone.now().isoformat()
+        }
+        
+        self.redis_client.publish('core_commands', json.dumps(command))
 
-### Phase 2: Core Components (2 weeks)
-- Migrate performance charts
-- Implement metrics tables
-- Create strategy selectors
-- Add real-time updates
+# Dashboard views using the bridge
+class StrategyControlView(View):
+    def post(self, request, strategy_id):
+        action = request.POST.get('action')
+        command_service = CoreCommandService()
+        
+        if action == 'start':
+            asyncio.run(command_service.start_strategy(strategy_id, request.user))
+            messages.success(request, "Strategy start command sent")
+        elif action == 'stop':
+            asyncio.run(command_service.stop_strategy(strategy_id, request.user))
+            messages.success(request, "Strategy stop command sent")
+            
+        return redirect('dashboard:strategies')
+```
 
-### Phase 3: Advanced Features (2 weeks)
+### Real-time Data Flow
+```
+Core Engine → Redis Pub/Sub → Django Bridge → Database → Dashboard
+     ↑                                                        ↓
+     └────────── Command Service ← User Actions ←────────────┘
+```
+
+## Implementation Timeline
+
+### Week 1: Foundation
+- Django dashboard app setup
+- Base HTMX templates
+- User authentication
+- Service bridge foundation
+
+### Week 2: Core Components
+- Performance charts from database
+- Metrics tables with auto-refresh
+- Strategy controls via bridge
+- Basic WebSocket setup
+
+### Week 3: Advanced Features
 - Funding rate heatmaps
-- Trade analysis tables
-- Infinite scroll implementation
-- Advanced filtering
+- Trade analysis with filtering
+- Real-time notifications
+- Mobile responsive design
 
-### Phase 4: Polish & Optimization (1 week)
-- Performance optimization
-- Error handling
-- User experience improvements
-- Mobile responsiveness
+## Benefits of Wrapper Approach
 
-## Benefits of HTMX Migration
+### Zero Risk to Trading
+- Core engine runs unchanged
+- Dashboard failure doesn't affect trading
+- Commands are fire-and-forget
+- Graceful degradation built-in
 
-### Performance Benefits
-- **Faster initial load**: No large JavaScript bundle
-- **Better SEO**: Server-side rendering
-- **Lower memory usage**: No React virtual DOM
-- **Reduced bandwidth**: Only HTML updates, not JSON + rendering
+### Enhanced Features
+- Multi-user support with permissions
+- Historical data analysis
+- Audit trail for all actions
+- Better performance monitoring
 
-### Development Benefits
-- **Simpler debugging**: Server-side rendering easier to debug
-- **Better type safety**: Django has proper type stubs
-- **Familiar patterns**: Standard Django views and templates
-- **No build step**: Direct file editing, immediate feedback
+### Simplified Development
+- Standard Django patterns
+- No async complexity in views
+- Easy to test and debug
+- Gradual feature addition
 
-### User Experience Benefits
-- **Faster interactions**: No client-side rendering delay
-- **Progressive enhancement**: Works without JavaScript
-- **Better accessibility**: Standard HTML forms and interactions
-- **Mobile performance**: Less JavaScript execution on mobile devices
+## Potential Challenges & Solutions
 
-## Potential Challenges
+### 1. Data Freshness
+- **Challenge**: Dashboard data may lag core state
+- **Solution**: 5-second sync interval, real-time for critical events
 
-### 1. Chart Interactivity
-- **Challenge**: Plotly charts need JavaScript for interactivity
-- **Solution**: Use Plotly.js directly, update via HTMX + WebSocket
+### 2. Command Reliability
+- **Challenge**: Commands must reach core engine
+- **Solution**: Command queue with acknowledgments
 
-### 2. Complex State Management
-- **Challenge**: Some dashboard state is complex
-- **Solution**: Combine HTMX with Alpine.js for local state
+### 3. User Expectations
+- **Challenge**: Users expect instant feedback
+- **Solution**: Optimistic UI updates with eventual consistency
 
-### 3. Real-time Performance
-- **Challenge**: WebSocket updates need to be efficient
-- **Solution**: Use Django Channels with Redis backing, selective updates
+### 4. Chart Performance
+- **Challenge**: Large datasets for historical charts
+- **Solution**: TimescaleDB aggregations, data windowing
 
-### 4. Migration Complexity
-- **Challenge**: Large existing dashboard codebase
-- **Solution**: Gradual migration, component by component
-
-This HTMX migration will eliminate the React dependency while providing a more maintainable, performant, and type-safe dashboard solution.
+This wrapper-based HTMX dashboard provides all the benefits of a modern UI while maintaining complete isolation from the battle-tested core trading engine.

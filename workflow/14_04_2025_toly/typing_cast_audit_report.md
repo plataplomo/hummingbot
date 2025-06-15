@@ -1,8 +1,8 @@
 # `typing.cast` Usage Audit Report
 
-**Date:** 15.04.2025
+**Date:** 15.04.2025 (Initial) | **Updated:** 15.06.2025
 
-**Objective:** Identify and assess all instances of `typing.cast` within the codebase (main.py, cyberdelta/, tests/, examples/) to ensure type safety and eliminate unnecessary casts.
+**Objective:** Identify and assess all instances of `typing.cast` within the codebase (main.py, cyberdelta/, tests/, examples/) to ensure type safety and compliance with RULE-NO-SILENCING-V4.
 
 **Methodology:**
 
@@ -133,7 +133,7 @@ Six functional instances of `typing.cast` were identified and analyzed within th
 
 ---
 
-**Conclusion:**
+**Original Conclusion (April 2025):**
 
 Following a structured approach (identifying imports, then analyzing usage), six functional instances of `typing.cast` were confirmed across 3 files:
 1.  `apis/base.py:466`: Necessary caveat, **recommend Pydantic validation**.
@@ -143,6 +143,78 @@ Following a structured approach (identifying imports, then analyzing usage), six
 5.  `tests/integration/test_core_workflow.py:317`: Suspicious/Lazy, **recommend typing `_deep_get` or `isinstance` check**.
 6.  `tests/integration/test_core_workflow.py:322`: Suspicious/Lazy, **recommend typing fixture or Pydantic model**.
 
-Most instances are suspicious/lazy, primarily used in test fixtures to assert types without validation. Replacing these with runtime checks or better upstream typing would improve robustness. The instance in `apis/base.py` should ideally be replaced with schema validation (Pydantic).
+---
 
-*(Note: Numerous other type errors unrelated to `cast` were detected by Pylance during related operations, indicating widespread areas needing attention for overall type hygiene, particularly missing stub files and annotations.)*
+## **UPDATE (June 2025): Critical Compliance Gap Identified**
+
+### **Current State Analysis**
+
+**❌ MAJOR NON-COMPLIANCE DISCOVERED:**
+
+A comprehensive re-audit reveals that `typing.cast` usage has **significantly expanded** throughout the codebase (70+ files), but **95% of instances violate** the strict requirements of `RULE-NO-SILENCING-V4`.
+
+### **Rule Violations Found**
+
+**Missing Required Components:**
+1. **No `assert isinstance()` checks** following cast operations
+2. **Insufficient justification comments** (most lack detailed explanations)
+3. **Missing `#[CAST-REVIEW-REQUIRED]` tags** (found in <5% of instances)
+
+### **Examples of Non-Compliant Usage**
+
+```python
+# ❌ VIOLATES RULE - cyberdelta/core/engine.py
+idx_typed = cast(int, idx)  # No justification, no assert isinstance
+
+# ❌ VIOLATES RULE - cyberdelta/backtesting/results.py
+"timestamp": cast(pd.Timestamp, idx).to_pydatetime().isoformat(),
+# No justification, no assert isinstance, no review tag
+
+# ❌ VIOLATES RULE - Multiple files
+pd_timestamp_result = cast(pd.Timestamp, pd.to_datetime(timestamp_raw, utc=True))
+# Has comment but no assert isinstance, no review tag
+```
+
+### **Limited Compliant Examples**
+
+```python
+# ✅ COMPLIANT - cyberdelta/apis/backpack/models/bp_raw_market.py
+@field_validator("bids", "asks", mode="before")
+@classmethod  
+def _validate_bids_asks_must_be_list_ob(cls, v: object, info: ValidationInfo) -> list[tuple[str, str]]:
+    if not isinstance(v, list):  # ✅ Runtime check
+        raise ValueError("Must be a list")
+    
+    # ✅ JUSTIFICATION: Type checker cannot infer that validated list
+    # contains tuple[str, str] pairs after validation above.
+    # Alternative: Create custom TypeGuard function.
+    # Cast is safe because validation ensures proper structure.
+    # #[CAST-REVIEW-REQUIRED]
+    
+    return cast(list[tuple[str, str]], v)
+```
+
+### **Compliance Assessment**
+
+- **Compliant**: ~5% (mainly in some API model files)
+- **Non-Compliant**: ~95% (missing required components)
+- **Critical Areas**: `cyberdelta/core/`, `cyberdelta/validation/`, `cyberdelta/backtesting/`
+
+### **Required Actions**
+
+1. **Immediate Remediation**: All non-compliant cast usage must be fixed or replaced
+2. **Alternative Solutions**: Many casts can be replaced with:
+   - Better type hints and generics
+   - `TypeGuard` functions
+   - `@overload` decorators
+   - Refactored code structure
+3. **Systematic Review**: Each cast requires individual assessment for compliance
+
+### **Impact on Security**
+
+This represents a **critical type safety gap** that could lead to:
+- Runtime errors from incorrect type assumptions
+- Reduced code reliability and maintainability
+- Violation of the project's strict security-first principles
+
+*(Note: The expansion from 6 to 70+ cast instances indicates rapid development without adherence to established type safety rules, requiring immediate attention.)*

@@ -1,31 +1,31 @@
-# Django Refactor: Migration Timeline & Implementation Plan
+# Django Refactor: Migration Timeline & Implementation Plan (Wrapper Pattern)
 
 ## Executive Summary
 
-This document provides a detailed timeline for migrating CyberDeltaEngine from its current async-based architecture to Django + HTMX. The migration is structured as a 16-week project divided into 5 major phases, designed to minimize disruption to trading operations while providing incremental value.
+This document provides a detailed timeline for implementing Django + HTMX wrappers around the existing CyberDeltaEngine without modifying the core trading system. The project is structured as an 8-week implementation focused on building external layers that read from and command the unchanged core engine.
 
-## Migration Principles
+## Migration Philosophy: Wrapper Pattern
 
 ### Core Principles
-1. **Zero Downtime**: Current trading system remains operational throughout migration
-2. **Incremental Value**: Each phase delivers tangible benefits
-3. **Risk Mitigation**: Comprehensive testing and rollback capabilities
-4. **Performance Parity**: New system matches or exceeds current performance
-5. **Feature Preservation**: All existing functionality is maintained
+1. **Zero Core Modifications**: Trading engine remains completely unchanged
+2. **Independent Operation**: Wrappers run alongside core, not replacing it
+3. **Gradual Enhancement**: Add features incrementally without risk
+4. **Production Safety**: Core engine failure doesn't affect wrappers, and wrapper failure doesn't affect trading
+5. **Data Synchronization**: Django reads from synchronized database, commands via Redis
 
 ### Success Criteria
-- **Performance**: API response times < 100ms, WebSocket latency < 50ms
-- **Reliability**: 99.9% uptime for trading operations
-- **Functionality**: 100% feature parity with current system
-- **Maintainability**: Improved code maintainability and type safety
-- **Scalability**: Enhanced ability to add new exchanges and strategies
+- **Zero Risk**: Core trading performance unaffected
+- **Enhanced Features**: Multi-user support, historical analysis, external API access
+- **Performance**: Wrapper response times < 200ms (non-critical path)
+- **Reliability**: Wrapper failure gracefully degrades without affecting trading
+- **Maintainability**: Clean separation enables independent development
 
-## Phase 1: Foundation & Database Setup (Weeks 1-4)
+## Phase 1: Foundation & Data Bridge (Weeks 1-2)
 
-### Week 1: Project Setup & Environment
+### Week 1: Django Wrapper Setup
 ```bash
-# Day 1-2: Django Project Structure
-django_cyberdelta/
+# Day 1-2: Django Wrapper Project Structure
+django_wrapper/
 ├── manage.py
 ├── requirements/
 │   ├── base.txt
@@ -38,225 +38,293 @@ django_cyberdelta/
 │   │   ├── production.py
 │   │   └── testing.py
 │   ├── urls.py
-│   └── wsgi.py
+│   ├── wsgi.py
+│   └── asgi.py
 ├── apps/
-│   ├── exchanges/
-│   ├── market_data/
-│   ├── portfolio/
-│   ├── strategies/
-│   ├── dashboard/
-│   └── api/
+│   ├── persistence/      # Django models for synchronized data
+│   ├── dashboard/        # HTMX dashboard
+│   ├── api_gateway/      # FastAPI gateway
+│   ├── bridge/          # Service bridge to core
+│   └── monitoring/      # Health monitoring
 └── tests/
 
 # Day 3-5: Infrastructure Setup
-- PostgreSQL + TimescaleDB setup
-- Redis configuration for caching and Celery
-- Celery worker configuration
-- Django Channels setup with Redis backend
-- Docker containers for development
+- PostgreSQL + TimescaleDB for data persistence
+- Redis for pub/sub communication with core
+- Django Channels for WebSocket proxy
+- Service bridge foundation
+- Docker containers for wrapper services
 ```
 
-### Week 2: Core Database Models
+### Week 2: Data Synchronization Bridge
 ```python
-# Priority 1: Essential Models
-- Exchange, Asset, TradingPair models
-- Basic Account, Balance models
-- Ticker, Candle models (TimescaleDB hypertables)
-- Strategy, StrategyInstance models
+# Core Data Models (Read-Only Persistence)
+class Exchange(models.Model):
+    """Mirror of core exchange configuration"""
+    name = models.CharField(max_length=50, unique=True)
+    display_name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-# Priority 2: Trading Models
-- Order, Trade models
-- TradeSignal, ArbitrageOpportunity models
-- Position models for derivatives
+class TradingPair(models.Model):
+    """Mirror of trading pairs from core"""
+    exchange = models.ForeignKey(Exchange, on_delete=models.CASCADE)
+    symbol = models.CharField(max_length=20)
+    base_asset = models.CharField(max_length=10)
+    quote_asset = models.CharField(max_length=10)
+    pair_type = models.CharField(max_length=20)  # spot, perpetual, etc.
 
-# Priority 3: Configuration Models
-- SystemConfig, ExchangeConfig models
-- RiskConfig models
+class Ticker(models.Model):
+    """Real-time ticker data from core (TimescaleDB)"""
+    trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(db_index=True)
+    last_price = models.DecimalField(max_digits=20, decimal_places=8)
+    bid_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    ask_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    volume_24h = models.DecimalField(max_digits=20, decimal_places=8, null=True)
+    
+    class Meta:
+        db_table = 'tickers'  # TimescaleDB hypertable
+
+# Data Synchronization Service
+class DataSyncService:
+    """Synchronizes data from core engine to Django database"""
+    
+    def __init__(self):
+        self.redis_client = redis.Redis()
+    
+    async def sync_ticker_data(self, ticker_data: dict):
+        """Sync incoming ticker from core"""
+        try:
+            trading_pair = await sync_to_async(TradingPair.objects.get)(
+                symbol=ticker_data['symbol'],
+                exchange__name=ticker_data['exchange']
+            )
+            
+            await sync_to_async(Ticker.objects.create)(
+                trading_pair=trading_pair,
+                timestamp=parse(ticker_data['timestamp']),
+                last_price=ticker_data['last_price'],
+                bid_price=ticker_data.get('bid_price'),
+                ask_price=ticker_data.get('ask_price'),
+                volume_24h=ticker_data.get('volume_24h')
+            )
+        except Exception as e:
+            logger.error(f"Ticker sync error: {e}")
 ```
 
 **Deliverables:**
-- ✅ Django project structure
-- ✅ Database models with migrations
-- ✅ TimescaleDB integration
-- ✅ Basic admin interface
-- ✅ Development environment setup
-
-### Week 3: Data Migration & Validation
-```python
-# Migration Scripts
-def migrate_historical_data():
-    """Migrate existing historical data to Django models"""
-    
-    # Exchange and asset setup
-    create_exchanges_and_assets()
-    
-    # Historical market data (if any)
-    migrate_historical_candles()
-    migrate_historical_funding_rates()
-    
-    # Configuration migration
-    migrate_yaml_config_to_database()
-
-# Validation Scripts
-def validate_data_integrity():
-    """Ensure migrated data maintains integrity"""
-    
-    # Verify all exchanges have required trading pairs
-    # Validate configuration completeness
-    # Check data consistency across models
-```
-
-**Deliverables:**
-- ✅ Data migration scripts
-- ✅ Data validation framework
-- ✅ Configuration migration from YAML to database
-- ✅ Data integrity checks
-
-### Week 4: Basic API Framework
-```python
-# Django REST Framework Setup
-INSTALLED_APPS = [
-    'rest_framework',
-    'rest_framework.authtoken',
-    'django_filters',
-    'corsheaders',
-]
-
-# Basic API Endpoints
-class ExchangeViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Exchange.objects.filter(is_active=True)
-    serializer_class = ExchangeSerializer
-
-class TradingPairViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = TradingPair.objects.filter(is_active=True)
-    serializer_class = TradingPairSerializer
-    filterset_fields = ['exchange', 'pair_type']
-
-class TickerViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Ticker.objects.all()
-    serializer_class = TickerSerializer
-    filterset_fields = ['trading_pair']
-    ordering = ['-timestamp']
-```
-
-**Deliverables:**
-- ✅ Django REST Framework configuration
-- ✅ Basic CRUD APIs for core models
-- ✅ API authentication framework
-- ✅ API documentation setup (Swagger/OpenAPI)
+- ✅ Django wrapper project foundation
+- ✅ Data synchronization from core to Django
+- ✅ Redis pub/sub bridge setup  
+- ✅ TimescaleDB integration for time-series data
+- ✅ Basic monitoring and health checks
 
 **Phase 1 Milestone Review:**
-- Database schema complete and validated
-- Basic API endpoints functional
-- Development environment stable
-- Foundation ready for business logic implementation
+- Wrapper foundation established
+- Data synchronization operational  
+- Zero modifications to core engine
+- Ready for dashboard and API implementation
 
 ---
 
-## Phase 2: Exchange API Integration (Weeks 5-8)
+## Phase 2: Dashboard & WebSocket Proxy (Weeks 3-4)
 
-### Week 5: Sync API Client Development
+### Week 3: HTMX Dashboard Implementation
 ```python
-# Convert Async APIs to Sync
-class HyperliquidSyncAPI:
-    """Synchronous version of Hyperliquid API client"""
+# Dashboard Views (Server-Side Rendering)
+class DashboardOverviewView(TemplateView):
+    """Main dashboard reading from synchronized database"""
+    template_name = 'dashboard/overview.html'
     
-    def __init__(self, exchange_config: ExchangeConfig):
-        self.config = exchange_config
-        self.session = self._create_session()
-        self.rate_limiter = DistributedRateLimiter(
-            exchange_config.exchange.name,
-            exchange_config.max_requests_per_minute
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Read from synchronized database
+        context['latest_tickers'] = Ticker.objects.select_related('trading_pair')\
+            .filter(timestamp__gte=timezone.now() - timedelta(minutes=5))\
+            .order_by('trading_pair', '-timestamp')\
+            .distinct('trading_pair')
+        
+        # Strategy performance from database
+        context['strategy_metrics'] = self.calculate_strategy_metrics()
+        
+        # Market data for charts
+        context['chart_data'] = self.get_chart_data()
+        
+        return context
+
+# HTMX Component Views
+class PerformanceChartView(View):
+    """HTMX endpoint for updating charts"""
+    
+    def get(self, request):
+        time_range = request.GET.get('time_range', '24h')
+        strategies = request.GET.getlist('strategies')
+        
+        # Query database for historical data
+        chart_data = self.get_performance_data(strategies, time_range)
+        
+        # Server-side chart generation
+        fig = create_plotly_figure(chart_data)
+        
+        return render(request, 'dashboard/components/chart.html', {
+            'chart_json': fig.to_json(),
+            'time_range': time_range
+        })
+
+# Core Command Service (Dashboard → Core)
+class CoreCommandService:
+    """Send commands to core engine from dashboard"""
+    
+    def __init__(self):
+        self.redis_client = redis.Redis()
+        
+    async def start_strategy(self, strategy_id: str, user: User):
+        """Send start command to core engine"""
+        command = {
+            'type': 'start_strategy',
+            'strategy_id': strategy_id,
+            'user_id': user.id,
+            'timestamp': timezone.now().isoformat()
+        }
+        
+        # Send command via Redis pub/sub
+        self.redis_client.publish('core_commands', json.dumps(command))
+        
+        # Log command for audit
+        CommandLog.objects.create(
+            user=user,
+            command_type='start_strategy',
+            payload=command,
+            status='sent'
         )
-    
-    def get_ticker(self, symbol: str) -> Ticker:
-        """Get ticker with rate limiting and error handling"""
-        can_proceed, wait_time = self.rate_limiter.can_proceed()
-        if not can_proceed:
-            time.sleep(wait_time)
-        
-        response = self.session.get(f"/info/ticker/{symbol}")
-        response.raise_for_status()
-        
-        ticker_data = self.response_handler.parse_ticker(response.json())
-        return self.save_ticker(ticker_data)
-
-# Parallel API Client Testing
-def test_api_performance():
-    """Compare async vs sync API performance"""
-    
-    # Test current async implementation
-    async_times = benchmark_async_api()
-    
-    # Test new sync implementation
-    sync_times = benchmark_sync_api()
-    
-    # Ensure performance parity
-    assert sync_times['mean'] <= async_times['mean'] * 1.2
 ```
 
 **Deliverables:**
-- ✅ Synchronous API clients for all exchanges
-- ✅ Rate limiting implementation with Redis
-- ✅ Error handling and retry logic
-- ✅ Performance benchmarking results
+- ✅ HTMX dashboard with server-side rendering
+- ✅ Real-time components reading from database
+- ✅ Command service for core engine communication
+- ✅ Strategy control interface
 
-### Week 6: Service Layer Implementation
+### Week 4: WebSocket Proxy & Real-time Updates  
 ```python
-# Business Logic Services
-class MarketDataService:
-    """Service for market data operations"""
+# Django Channels WebSocket Consumer
+class DashboardConsumer(AsyncWebsocketConsumer):
+    """WebSocket proxy for real-time dashboard updates"""
     
-    def __init__(self, exchange: Exchange):
-        self.exchange = exchange
-        self.api_client = get_api_client(exchange)
-    
-    def update_ticker(self, symbol: str) -> Ticker:
-        """Update ticker data for symbol"""
-        ticker_data = self.api_client.get_ticker(symbol)
+    async def connect(self):
+        self.user = self.scope["user"]
         
-        # Cache for fast access
-        cache_key = f"ticker:{self.exchange.name}:{symbol}"
-        cache.set(cache_key, ticker_data, 300)
+        # Authentication check
+        if not self.user.is_authenticated:
+            await self.close(code=4001)
+            return
+            
+        await self.accept()
+        await self.channel_layer.group_add("dashboard", self.channel_name)
         
-        return ticker_data
+        # Send initial state from database
+        await self.send_initial_dashboard_state()
     
-    def bulk_update_tickers(self, symbols: list[str]) -> list[Ticker]:
-        """Efficiently update multiple tickers"""
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
-                executor.submit(self.update_ticker, symbol)
-                for symbol in symbols
-            ]
-            return [future.result() for future in futures]
+    async def receive(self, text_data):
+        """Handle client subscription requests"""
+        try:
+            data = json.loads(text_data)
+            if data.get('type') == 'subscribe':
+                symbols = data.get('symbols', [])
+                await self.handle_subscription(symbols)
+        except json.JSONDecodeError:
+            await self.send_error('Invalid JSON')
+    
+    async def market_data_update(self, event):
+        """Forward market data from Redis to client"""
+        await self.send(text_data=json.dumps({
+            'type': 'ticker_update',
+            'data': event['data']
+        }))
 
-class TradingService:
-    """Service for trading operations"""
+# Redis Bridge Service
+class RedisWebSocketBridge:
+    """Bridge Redis pub/sub to Django Channels"""
     
-    def place_order(self, order_request: OrderRequest) -> Order:
-        """Place order with risk validation"""
+    def __init__(self):
+        self.redis_client = redis.Redis()
+        self.channel_layer = get_channel_layer()
+    
+    async def start_listening(self):
+        """Listen to Redis channels from core engine"""
+        pubsub = self.redis_client.pubsub()
         
-        # Risk validation
-        risk_service = RiskManagementService(self.exchange)
-        risk_service.validate_order(order_request)
+        # Subscribe to core engine channels
+        channels = [
+            'market_data:hyperliquid',
+            'market_data:backpack', 
+            'trades',
+            'positions',
+            'strategy_updates'
+        ]
         
-        # Place order
-        order_data = self.api_client.place_order(order_request)
+        for channel in channels:
+            pubsub.subscribe(channel)
         
-        # Save to database
-        order = Order.objects.create(**order_data)
-        
-        # Emit signal for monitoring
-        order_placed.send(sender=self.__class__, order=order)
-        
-        return order
+        # Process messages and broadcast to WebSocket clients
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                await self.broadcast_to_clients(message)
+    
+    async def broadcast_to_clients(self, message):
+        """Broadcast Redis message to WebSocket clients"""
+        try:
+            channel = message['channel']
+            data = json.loads(message['data'])
+            
+            # Route to appropriate consumer group
+            if channel.startswith('market_data:'):
+                await self.channel_layer.group_send("dashboard", {
+                    "type": "market_data_update",
+                    "data": data
+                })
+            elif channel == 'trades':
+                await self.channel_layer.group_send("trading", {
+                    "type": "trade_update", 
+                    "data": data
+                })
+        except Exception as e:
+            logger.error(f"Broadcast error: {e}")
+
+# Minimal Core Integration (Optional Redis Publisher)
+class RedisDataPublisher:
+    """Add to core engine for publishing to Redis"""
+    
+    def __init__(self):
+        self.redis_client = redis.Redis()
+        self.enabled = True  # Can disable if not needed
+    
+    async def publish_ticker(self, exchange: str, ticker_data: dict):
+        """Publish ticker update to Redis"""
+        if not self.enabled:
+            return
+            
+        try:
+            channel = f"market_data:{exchange}"
+            message = {
+                'type': 'ticker',
+                'exchange': exchange,
+                'data': ticker_data,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            self.redis_client.publish(channel, json.dumps(message))
+        except Exception as e:
+            # Log but don't crash core engine
+            logger.debug(f"Redis publish error: {e}")
 ```
 
 **Deliverables:**
-- ✅ Service layer for all exchange operations
-- ✅ Business logic separation from API clients
-- ✅ Django signals for event handling
-- ✅ Comprehensive error handling
+- ✅ Django Channels WebSocket proxy
+- ✅ Redis bridge for real-time data forwarding
+- ✅ Multi-user WebSocket support with authentication
+- ✅ Minimal core integration (optional Redis publisher)
 
 ### Week 7: Celery Background Tasks
 ```python
@@ -358,133 +426,255 @@ def load_test_api_endpoints():
 - ✅ Rate limiting verification
 
 **Phase 2 Milestone Review:**
-- All exchange APIs successfully integrated
-- Performance meets or exceeds current system
-- Background task framework operational
-- Ready for real-time data implementation
+- Dashboard operational with HTMX
+- WebSocket proxy providing real-time updates
+- Command bridge for core engine communication
+- Ready for API gateway implementation
 
 ---
 
-## Phase 3: Real-time Data & WebSockets (Weeks 9-12)
+## Phase 3: FastAPI Gateway & Multi-User Support (Weeks 5-6)
 
-### Week 9: Celery WebSocket Workers
+### Week 5: FastAPI Gateway Implementation
 ```python
-# WebSocket Worker Implementation
-@shared_task(bind=True)
-def hyperliquid_websocket_worker(self):
-    """Background WebSocket worker for Hyperliquid"""
-    
-    async def websocket_handler():
-        uri = settings.HYPERLIQUID_WS_URL
-        
-        while True:
-            try:
-                async with websockets.connect(uri) as websocket:
-                    # Subscribe to required channels
-                    await self.subscribe_to_channels(websocket)
-                    
-                    # Message processing loop
-                    message_batcher = MessageBatcher()
-                    
-                    async for message in websocket:
-                        await self.process_message(message, message_batcher)
-                        
-            except Exception as e:
-                logger.error(f"WebSocket error: {e}")
-                await asyncio.sleep(5)  # Reconnect delay
-    
-    # Run async handler
-    asyncio.run(websocket_handler())
+# FastAPI Gateway for External API Access
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer
+import redis
+import json
+from uuid import uuid4
 
-# Message Processing
-class HyperliquidMessageProcessor:
+app = FastAPI(title="CyberDelta API Gateway", version="1.0.0")
+security = HTTPBearer()
+
+class CoreBridge:
+    """Bridge between FastAPI and core engine"""
     
-    async def process_ticker_message(self, data: dict):
-        """Process ticker update from WebSocket"""
+    def __init__(self):
+        self.redis_client = redis.Redis()
+    
+    async def send_command(self, command: dict) -> dict:
+        """Send command to core and await response"""
+        command_id = str(uuid4())
+        command['id'] = command_id
         
-        # Transform to internal format
-        ticker_data = HLTickerMapper.to_internal(data)
+        # Send command via Redis
+        self.redis_client.publish('api_commands', json.dumps(command))
         
-        # Batch database update
-        await self.batch_ticker_update(ticker_data)
+        # Wait for response with timeout
+        response = await self.wait_for_response(command_id, timeout=30)
+        if not response:
+            raise HTTPException(status_code=408, detail="Core engine timeout")
         
-        # Broadcast to WebSocket clients
-        channel_layer = get_channel_layer()
-        await channel_layer.group_send("market_data", {
-            "type": "ticker_update",
-            "ticker": ticker_data
-        })
+        return response
+    
+    async def wait_for_response(self, command_id: str, timeout: int) -> dict:
+        """Wait for core engine response"""
+        pubsub = self.redis_client.pubsub()
+        pubsub.subscribe(f'api_response:{command_id}')
         
-        # Update cache
-        cache_key = f"ticker:hyperliquid:{ticker_data['symbol']}"
-        cache.set(cache_key, ticker_data, 300)
+        # Implement timeout logic
+        end_time = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < end_time:
+            message = pubsub.get_message(timeout=0.1)
+            if message and message['type'] == 'message':
+                return json.loads(message['data'])
+            await asyncio.sleep(0.1)
+        
+        return None
+
+bridge = CoreBridge()
+
+# API Endpoints
+@app.get("/api/v1/ticker/{exchange}/{symbol}")
+async def get_ticker(
+    exchange: str, 
+    symbol: str,
+    api_key: str = Depends(verify_api_key)
+):
+    """Get current ticker data"""
+    
+    # First try cache for recent data
+    cache_key = f"ticker:{exchange}:{symbol}"
+    cached = redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+    
+    # Otherwise query core engine
+    command = {
+        'type': 'get_ticker',
+        'exchange': exchange,
+        'symbol': symbol
+    }
+    
+    response = await bridge.send_command(command)
+    return response
+
+@app.get("/api/v1/portfolio")
+async def get_portfolio(api_key: str = Depends(verify_api_key)):
+    """Get current portfolio from database"""
+    
+    # Read from synchronized database for consistency
+    balances = await fetch_latest_balances()
+    positions = await fetch_latest_positions()
+    
+    return {
+        'balances': balances,
+        'positions': positions,
+        'timestamp': datetime.utcnow()
+    }
+
+# Authentication with Django
+async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify API key against Django database"""
+    from django_wrapper.apps.api_gateway.models import APIKey
+    
+    try:
+        api_key = credentials.credentials
+        key_obj = await sync_to_async(APIKey.objects.get)(
+            key=api_key, 
+            is_active=True
+        )
+        
+        # Update last used timestamp
+        key_obj.last_used_at = timezone.now()
+        await sync_to_async(key_obj.save)()
+        
+        return api_key
+    except APIKey.DoesNotExist:
+        raise HTTPException(status_code=401, detail="Invalid API key")
 ```
 
 **Deliverables:**
-- ✅ WebSocket workers for all exchanges
-- ✅ Message processing and batching
-- ✅ Automatic reconnection logic
-- ✅ Performance monitoring
+- ✅ FastAPI gateway for external API access
+- ✅ Authentication integration with Django
+- ✅ Core engine command bridge via Redis
+- ✅ Rate limiting and security features
 
-### Week 10: Django Channels Implementation
+### Week 6: User Management & Permissions
 ```python
-# WebSocket Consumers
-class DashboardConsumer(AsyncWebsocketConsumer):
-    """Real-time dashboard updates"""
-    
-    async def connect(self):
-        # Authentication and authorization
-        if not await self.authenticate_user():
-            await self.close(code=4003)
-            return
-        
-        # Join relevant groups
-        await self.join_user_groups()
-        await self.accept()
-        
-        # Send initial data
-        await self.send_initial_dashboard_data()
-    
-    async def ticker_update(self, event):
-        """Handle ticker update broadcast"""
-        await self.send(text_data=json.dumps({
-            'type': 'ticker_update',
-            'data': event['ticker']
-        }))
-    
-    async def strategy_update(self, event):
-        """Handle strategy performance update"""
-        await self.send(text_data=json.dumps({
-            'type': 'strategy_update',
-            'data': event['strategy_data']
-        }))
+# User Management Models
+from django.contrib.auth.models import AbstractUser
+from django.db import models
 
-# Connection Management
-class WebSocketConnectionManager:
-    """Manage WebSocket connections and groups"""
+class TradingUser(AbstractUser):
+    """Extended user model for trading platform"""
     
-    async def add_user_to_groups(self, user, channel_name):
-        """Add user to appropriate WebSocket groups"""
+    # Trading permissions
+    can_view_dashboard = models.BooleanField(default=True)
+    can_view_trades = models.BooleanField(default=False)
+    can_execute_trades = models.BooleanField(default=False)
+    can_manage_strategies = models.BooleanField(default=False)
+    
+    # API access
+    max_api_calls_per_minute = models.IntegerField(default=100)
+    
+    # Profile information
+    organization = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
+
+class APIKey(models.Model):
+    """API keys for external access"""
+    user = models.ForeignKey(TradingUser, on_delete=models.CASCADE)
+    key = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+    
+    # Permissions
+    permissions = models.JSONField(default=list)  # ['read', 'trade', 'admin']
+    
+    # Rate limiting
+    rate_limit_per_minute = models.IntegerField(default=100)
+    
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    total_requests = models.BigIntegerField(default=0)
+
+class UserStrategyAccess(models.Model):
+    """Control which users can access which strategies"""
+    user = models.ForeignKey(TradingUser, on_delete=models.CASCADE)
+    strategy_name = models.CharField(max_length=100)
+    
+    # Access levels
+    can_view = models.BooleanField(default=True)
+    can_start_stop = models.BooleanField(default=False)
+    can_configure = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['user', 'strategy_name']
+
+# Permission Checking
+class PermissionService:
+    """Service for checking user permissions"""
+    
+    @staticmethod
+    def can_user_access_strategy(user: TradingUser, strategy_name: str) -> dict:
+        """Check user's access level for a strategy"""
         
-        # All authenticated users get dashboard updates
-        await self.channel_layer.group_add("dashboard", channel_name)
-        
-        # Trading permissions get trading updates
-        if user.has_perm('trading.can_trade'):
-            await self.channel_layer.group_add("trading_updates", channel_name)
-        
-        # Strategy-specific groups
-        user_strategies = get_user_strategies(user)
-        for strategy in user_strategies:
-            group_name = f"strategy_{strategy.id}"
-            await self.channel_layer.group_add(group_name, channel_name)
+        try:
+            access = UserStrategyAccess.objects.get(
+                user=user, 
+                strategy_name=strategy_name
+            )
+            return {
+                'can_view': access.can_view,
+                'can_start_stop': access.can_start_stop,
+                'can_configure': access.can_configure
+            }
+        except UserStrategyAccess.DoesNotExist:
+            # Default permissions for authenticated users
+            return {
+                'can_view': user.can_view_dashboard,
+                'can_start_stop': False,
+                'can_configure': False
+            }
+    
+    @staticmethod
+    def can_user_execute_trades(user: TradingUser) -> bool:
+        """Check if user can execute trades"""
+        return user.can_execute_trades and user.is_active
+    
+    @staticmethod
+    def get_user_api_limit(user: TradingUser) -> int:
+        """Get API rate limit for user"""
+        return user.max_api_calls_per_minute
+
+# Django Admin Integration
+from django.contrib import admin
+
+@admin.register(TradingUser)
+class TradingUserAdmin(admin.ModelAdmin):
+    list_display = ['username', 'email', 'organization', 'can_execute_trades', 'last_login']
+    list_filter = ['can_execute_trades', 'can_manage_strategies', 'is_active']
+    search_fields = ['username', 'email', 'organization']
+    
+    fieldsets = (
+        (None, {'fields': ('username', 'email', 'password')}),
+        ('Trading Permissions', {
+            'fields': ('can_view_dashboard', 'can_view_trades', 
+                      'can_execute_trades', 'can_manage_strategies')
+        }),
+        ('API Access', {'fields': ('max_api_calls_per_minute',)}),
+        ('Profile', {'fields': ('organization', 'last_login_ip')}),
+    )
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'is_active', 'last_used_at', 'total_requests']
+    list_filter = ['is_active', 'permissions']
+    search_fields = ['name', 'user__username']
+    readonly_fields = ['key', 'total_requests', 'last_used_at']
 ```
 
 **Deliverables:**
-- ✅ Django Channels WebSocket consumers
-- ✅ Real-time data broadcasting
-- ✅ User authentication and authorization
-- ✅ Connection management
+- ✅ Multi-user authentication system
+- ✅ Permission-based access control
+- ✅ API key management
+- ✅ Django admin interface for user management
 
 ### Week 11: Strategy Engine Integration
 ```python
@@ -632,229 +822,442 @@ def collect_performance_metrics():
 - ✅ Automated alerting
 
 **Phase 3 Milestone Review:**
-- Real-time data processing operational
-- WebSocket performance meets requirements
-- Strategy engine fully integrated
-- Performance metrics within targets
+- FastAPI gateway operational
+- Multi-user authentication system active
+- API access control implemented
+- Ready for testing and deployment
 
 ---
 
-## Phase 4: Dashboard Migration to HTMX (Weeks 13-15)
+## Phase 4: Testing & Production Deployment (Weeks 7-8)
 
-### Week 13: HTMX Base Templates
-```html
-<!-- Base Dashboard Template -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CyberDelta Dashboard</title>
-    
-    <!-- Core Libraries -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    
-    <!-- Custom Styles -->
-    <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
-</head>
-<body>
-    <!-- Main Dashboard Container -->
-    <div id="dashboard-container" 
-         hx-ws="connect:/ws/dashboard/"
-         x-data="dashboardState()">
-        
-        <!-- Navigation -->
-        <nav class="dashboard-nav">
-            <div class="nav-brand">CyberDelta</div>
-            <div class="nav-links">
-                <a href="#" hx-get="{% url 'dashboard:overview' %}" 
-                   hx-target="#main-content">Overview</a>
-                <a href="#" hx-get="{% url 'dashboard:strategies' %}" 
-                   hx-target="#main-content">Strategies</a>
-                <a href="#" hx-get="{% url 'dashboard:trading' %}" 
-                   hx-target="#main-content">Trading</a>
-            </div>
-        </nav>
-        
-        <!-- Main Content Area -->
-        <main id="main-content" class="dashboard-main">
-            {% block content %}{% endblock %}
-        </main>
-        
-        <!-- Status Bar -->
-        <div id="status-bar" class="dashboard-status">
-            <div id="connection-status" x-text="connectionStatus"></div>
-            <div id="last-update" x-text="lastUpdate"></div>
-        </div>
-    </div>
-    
-    <!-- JavaScript State Management -->
-    <script>
-        function dashboardState() {
-            return {
-                connectionStatus: 'Connecting...',
-                lastUpdate: 'Never',
-                strategies: {},
-                
-                init() {
-                    this.setupWebSocket();
-                },
-                
-                setupWebSocket() {
-                    // Handle WebSocket messages
-                    document.body.addEventListener('htmx:wsAfterMessage', (event) => {
-                        const data = JSON.parse(event.detail.message);
-                        this.handleWebSocketMessage(data);
-                    });
-                },
-                
-                handleWebSocketMessage(data) {
-                    switch(data.type) {
-                        case 'ticker_update':
-                            this.updateTicker(data.data);
-                            break;
-                        case 'strategy_update':
-                            this.updateStrategy(data.data);
-                            break;
-                    }
-                    this.lastUpdate = new Date().toLocaleTimeString();
-                }
-            }
-        }
-    </script>
-</body>
-</html>
-```
-
+### Week 7: Comprehensive Testing
 ```python
-# Django Views for HTMX
-class DashboardOverviewView(TemplateView):
-    """Main dashboard overview"""
-    template_name = 'dashboard/overview.html'
+# Integration Testing Suite
+class WrapperIntegrationTests(TestCase):
+    """Test wrapper integration with core engine"""
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def setUp(self):
+        self.user = TradingUser.objects.create_user(
+            username='testuser',
+            password='testpass',
+            can_view_dashboard=True
+        )
         
-        # Get latest performance metrics
-        context['performance_metrics'] = self.get_performance_metrics()
+    def test_data_synchronization(self):
+        """Test data flows from core to Django database"""
         
-        # Get active strategies
-        context['active_strategies'] = StrategyInstance.objects.filter(
-            is_active=True
-        ).select_related('strategy')
+        # Simulate core engine publishing ticker data
+        ticker_data = {
+            'exchange': 'hyperliquid',
+            'symbol': 'BTC-USD',
+            'last_price': '50000.00',
+            'timestamp': datetime.utcnow().isoformat()
+        }
         
-        # Get latest market data
-        context['latest_tickers'] = self.get_latest_tickers()
+        # Publish to Redis
+        redis_client = redis.Redis()
+        redis_client.publish('market_data:hyperliquid', json.dumps(ticker_data))
         
-        return context
+        # Wait for synchronization
+        time.sleep(1)
+        
+        # Verify data in database
+        ticker = Ticker.objects.filter(
+            trading_pair__symbol='BTC-USD',
+            trading_pair__exchange__name='hyperliquid'
+        ).first()
+        
+        self.assertIsNotNone(ticker)
+        self.assertEqual(float(ticker.last_price), 50000.00)
+    
+    def test_dashboard_authentication(self):
+        """Test dashboard requires authentication"""
+        
+        # Unauthenticated request
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 302)  # Redirect to login
+        
+        # Authenticated request
+        self.client.login(username='testuser', password='testpass')
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 200)
+    
+    def test_api_gateway_authentication(self):
+        """Test API gateway requires valid API key"""
+        
+        # Create API key
+        api_key = APIKey.objects.create(
+            user=self.user,
+            key='test_key_123',
+            name='Test Key',
+            permissions=['read']
+        )
+        
+        # Test without API key
+        response = self.client.get('/api/v1/ticker/hyperliquid/BTC-USD')
+        self.assertEqual(response.status_code, 401)
+        
+        # Test with valid API key
+        headers = {'Authorization': 'Bearer test_key_123'}
+        response = self.client.get('/api/v1/ticker/hyperliquid/BTC-USD', **headers)
+        self.assertIn(response.status_code, [200, 404])  # 404 if no data
 
-class PerformanceChartView(View):
-    """HTMX endpoint for performance charts"""
+# Load Testing
+class WrapperLoadTest:
+    """Load testing for wrapper components"""
     
-    def get(self, request):
-        strategies = request.GET.getlist('strategies')
-        time_range = request.GET.get('time_range', '24h')
+    def test_dashboard_concurrent_users(self):
+        """Test dashboard with 50 concurrent users"""
         
-        # Get performance data
-        chart_data = self.get_chart_data(strategies, time_range)
+        def simulate_user_session():
+            session = requests.Session()
+            
+            # Login
+            session.post('/auth/login/', data={
+                'username': 'testuser1',
+                'password': 'testpass'
+            })
+            
+            # Dashboard requests
+            times = []
+            for _ in range(10):
+                start = time.time()
+                response = session.get('/dashboard/')
+                times.append(time.time() - start)
+                time.sleep(0.5)
+            
+            return {
+                'avg_time': sum(times) / len(times),
+                'max_time': max(times)
+            }
         
-        # Create Plotly figure
-        fig = self.create_performance_figure(chart_data)
+        # Run 50 concurrent sessions
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            futures = [executor.submit(simulate_user_session) for _ in range(50)]
+            results = [future.result() for future in futures]
         
-        return render(request, 'dashboard/components/performance_chart.html', {
-            'chart_json': fig.to_json(),
-            'strategies': strategies,
-            'time_range': time_range
-        })
+        # Verify performance
+        avg_response_time = sum(r['avg_time'] for r in results) / len(results)
+        assert avg_response_time < 1.0  # Under 1 second average
+    
+    def test_websocket_concurrent_connections(self):
+        """Test WebSocket proxy with many connections"""
+        
+        async def test_websocket_connection():
+            uri = "ws://localhost:8000/ws/dashboard/"
+            
+            try:
+                async with websockets.connect(uri) as websocket:
+                    # Send auth message
+                    await websocket.send(json.dumps({
+                        'type': 'auth',
+                        'token': 'test_token'
+                    }))
+                    
+                    # Receive messages for 30 seconds
+                    start_time = time.time()
+                    message_count = 0
+                    
+                    while time.time() - start_time < 30:
+                        try:
+                            message = await asyncio.wait_for(
+                                websocket.recv(), 
+                                timeout=1.0
+                            )
+                            message_count += 1
+                        except asyncio.TimeoutError:
+                            continue
+                    
+                    return message_count
+                    
+            except Exception as e:
+                return 0
+        
+        # Test 100 concurrent connections
+        async def run_load_test():
+            tasks = [test_websocket_connection() for _ in range(100)]
+            results = await asyncio.gather(*tasks)
+            
+            successful_connections = [r for r in results if r > 0]
+            assert len(successful_connections) >= 90  # 90% success rate
+        
+        asyncio.run(run_load_test())
+
+# Core Engine Isolation Test
+class CoreEngineIsolationTest(TestCase):
+    """Verify wrapper failure doesn't affect core engine"""
+    
+    def test_wrapper_failure_isolation(self):
+        """Test that wrapper crashes don't affect core"""
+        
+        # Simulate wrapper database failure
+        with patch('django.db.connection.cursor') as mock_cursor:
+            mock_cursor.side_effect = Exception("Database connection failed")
+            
+            # Dashboard should fail gracefully
+            response = self.client.get('/dashboard/')
+            self.assertEqual(response.status_code, 500)
+            
+            # Core engine should still be running
+            # (This would be verified by checking core engine health endpoints)
+            core_health = self.check_core_engine_health()
+            self.assertTrue(core_health['healthy'])
+    
+    def test_redis_failure_graceful_degradation(self):
+        """Test wrapper handles Redis failures gracefully"""
+        
+        with patch('redis.Redis') as mock_redis:
+            mock_redis.side_effect = Exception("Redis connection failed")
+            
+            # Dashboard should load with cached/database data
+            response = self.client.get('/dashboard/')
+            self.assertEqual(response.status_code, 200)
+            
+            # Real-time features should be disabled
+            self.assertContains(response, "Real-time updates unavailable")
+    
+    def check_core_engine_health(self):
+        """Check if core engine is healthy"""
+        # This would ping core engine health endpoints
+        return {'healthy': True}
 ```
 
 **Deliverables:**
-- ✅ HTMX base template structure
-- ✅ Django views for dashboard components
-- ✅ Alpine.js state management
-- ✅ WebSocket integration with HTMX
+- ✅ Comprehensive integration test suite
+- ✅ Load testing for concurrent users
+- ✅ WebSocket stress testing  
+- ✅ Core engine isolation verification
 
-### Week 14: Core Dashboard Components
-```html
-<!-- Performance Chart Component -->
-<div id="performance-chart-container" class="chart-container">
-    <div class="chart-controls">
-        <select name="strategies" 
-                multiple
-                hx-get="{% url 'dashboard:performance_chart' %}"
-                hx-target="#performance-chart-container"
-                hx-trigger="change"
-                hx-include="[name='time_range']">
-            {% for strategy in available_strategies %}
-                <option value="{{ strategy.id }}" 
-                        {% if strategy.id in selected_strategies %}selected{% endif %}>
-                    {{ strategy.name }}
-                </option>
-            {% endfor %}
-        </select>
-        
-        <div class="time-range-selector">
-            {% for option in time_range_options %}
-                <button class="btn {% if option.value == time_range %}active{% endif %}"
-                        hx-get="{% url 'dashboard:performance_chart' %}"
-                        hx-target="#performance-chart-container"
-                        hx-include="[name='strategies']"
-                        name="time_range" 
-                        value="{{ option.value }}">
-                    {{ option.label }}
-                </button>
-            {% endfor %}
-        </div>
-    </div>
-    
-    <div id="performance-chart"></div>
-    
-    <script>
-        // Render Plotly chart
-        const chartData = {{ chart_json|safe }};
-        Plotly.newPlot('performance-chart', chartData.data, chartData.layout);
-    </script>
-</div>
+### Week 8: Production Deployment
+```bash
+# Production Deployment Script
+#!/bin/bash
 
-<!-- Metrics Table Component -->
-<div id="metrics-table" 
-     hx-trigger="load, every 5s"
-     hx-get="{% url 'dashboard:metrics_table' %}"
-     hx-swap="innerHTML">
-    <table class="metrics-table">
-        <thead>
-            <tr>
-                <th>Strategy</th>
-                <th>PnL 24h</th>
-                <th>Total Return</th>
-                <th>Sharpe Ratio</th>
-                <th>Max Drawdown</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for metric in metrics %}
-                <tr class="metric-row" data-strategy="{{ metric.strategy.id }}">
-                    <td>{{ metric.strategy.name }}</td>
-                    <td class="{% if metric.pnl_24h >= 0 %}positive{% else %}negative{% endif %}">
-                        ${{ metric.pnl_24h|floatformat:2 }}
-                    </td>
-                    <td class="{% if metric.total_return >= 0 %}positive{% else %}negative{% endif %}">
-                        {{ metric.total_return|floatformat:2 }}%
-                    </td>
-                    <td>{{ metric.sharpe_ratio|floatformat:2 }}</td>
-                    <td class="negative">{{ metric.max_drawdown|floatformat:2 }}%</td>
-                    <td>
-                        <span class="status {{ metric.status }}">{{ metric.status|title }}</span>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
+echo "🚀 Deploying CyberDelta Django Wrapper..."
+
+# 1. Environment Setup
+echo "Setting up production environment..."
+export DJANGO_SETTINGS_MODULE=config.settings.production
+export DJANGO_SECRET_KEY=$(openssl rand -base64 32)
+export DATABASE_URL="postgresql://user:pass@localhost:5432/cyberdelta"
+export REDIS_URL="redis://localhost:6379/0"
+
+# 2. Database Setup
+echo "Setting up database..."
+python manage.py migrate --settings=config.settings.production
+python manage.py collectstatic --noinput --settings=config.settings.production
+
+# 3. Create Superuser (if needed)
+echo "Creating admin user..."
+python manage.py shell -c "
+from django_wrapper.apps.users.models import TradingUser
+if not TradingUser.objects.filter(username='admin').exists():
+    TradingUser.objects.create_superuser('admin', 'admin@cyberdelta.com', 'secure_password')
+"
+
+# 4. Start Services in Production
+echo "Starting production services..."
+
+# Start Celery worker for data synchronization
+celery multi start data_sync \
+    -A config.celery:app \
+    --pidfile=/var/run/celery/data_sync.pid \
+    --logfile=/var/log/celery/data_sync.log \
+    --loglevel=INFO \
+    -Q data_sync
+
+# Start Django Channels (WebSocket proxy)
+daphne -b 0.0.0.0 -p 8001 config.asgi:application &
+echo $! > /var/run/daphne.pid
+
+# Start FastAPI Gateway
+uvicorn api_gateway.main:app \
+    --host 0.0.0.0 \
+    --port 8002 \
+    --workers 2 \
+    --access-log &
+echo $! > /var/run/fastapi.pid
+
+# Start Django WSGI (Dashboard)
+gunicorn config.wsgi:application \
+    --bind 0.0.0.0:8000 \
+    --workers 2 \
+    --worker-class gevent \
+    --worker-connections 1000 \
+    --timeout 120 &
+echo $! > /var/run/gunicorn.pid
+
+echo "✅ Deployment complete!"
+echo "📊 Dashboard: http://localhost:8000"
+echo "🔌 WebSocket: ws://localhost:8001/ws/"
+echo "🚪 API Gateway: http://localhost:8002"
+
+# 5. Health Checks
+sleep 5
+echo "🔍 Running health checks..."
+
+# Check Django
+if curl -f http://localhost:8000/health/ > /dev/null 2>&1; then
+    echo "✅ Django wrapper healthy"
+else
+    echo "❌ Django wrapper not responding"
+fi
+
+# Check FastAPI
+if curl -f http://localhost:8002/health/ > /dev/null 2>&1; then
+    echo "✅ FastAPI gateway healthy"
+else
+    echo "❌ FastAPI gateway not responding"
+fi
+
+# Check WebSocket
+if curl -f http://localhost:8001/health/ > /dev/null 2>&1; then
+    echo "✅ WebSocket proxy healthy"
+else
+    echo "❌ WebSocket proxy not responding"
+fi
 ```
+
+```python
+# Production Monitoring & Health Checks
+class ProductionMonitor:
+    """Monitor wrapper system health in production"""
+    
+    @staticmethod
+    def check_wrapper_health():
+        """Comprehensive health check for wrapper system"""
+        
+        health_status = {
+            'timestamp': timezone.now(),
+            'django_db': check_django_database(),
+            'redis_connection': check_redis_connection(),
+            'data_sync': check_data_synchronization(),
+            'websocket_proxy': check_websocket_proxy(),
+            'api_gateway': check_api_gateway(),
+            'core_engine_connection': check_core_connection()
+        }
+        
+        # Store health metrics
+        WrapperHealthMetric.objects.create(**health_status)
+        
+        # Check for issues
+        issues = []
+        
+        if not health_status['django_db']['healthy']:
+            issues.append("Django database connection failed")
+        
+        if not health_status['data_sync']['healthy']:
+            issues.append("Data synchronization from core is stale")
+        
+        if not health_status['core_engine_connection']['healthy']:
+            issues.append("Cannot reach core engine")
+        
+        # Send alerts for critical issues
+        if issues:
+            send_wrapper_alert.delay(issues)
+        
+        return health_status
+    
+    @staticmethod
+    def check_data_synchronization():
+        """Check if data is being synchronized from core"""
+        try:
+            # Check latest ticker timestamp
+            latest_ticker = Ticker.objects.latest('timestamp')
+            time_since_update = timezone.now() - latest_ticker.timestamp
+            
+            if time_since_update.total_seconds() > 300:  # 5 minutes
+                return {
+                    'healthy': False,
+                    'error': f'Data is {time_since_update.total_seconds()}s stale'
+                }
+            
+            return {
+                'healthy': True,
+                'latest_update': latest_ticker.timestamp,
+                'seconds_ago': time_since_update.total_seconds()
+            }
+            
+        except Ticker.DoesNotExist:
+            return {
+                'healthy': False,
+                'error': 'No ticker data found in database'
+            }
+    
+    @staticmethod
+    def check_core_connection():
+        """Check if we can communicate with core engine"""
+        try:
+            redis_client = redis.Redis()
+            
+            # Send ping command to core
+            command = {
+                'type': 'ping',
+                'timestamp': timezone.now().isoformat()
+            }
+            
+            redis_client.publish('core_commands', json.dumps(command))
+            
+            # Wait for response
+            pubsub = redis_client.pubsub()
+            pubsub.subscribe('ping_response')
+            
+            # Wait up to 5 seconds for response
+            start_time = time.time()
+            while time.time() - start_time < 5:
+                message = pubsub.get_message(timeout=0.1)
+                if message and message['type'] == 'message':
+                    return {
+                        'healthy': True,
+                        'response_time': time.time() - start_time
+                    }
+            
+            return {
+                'healthy': False,
+                'error': 'Core engine ping timeout'
+            }
+            
+        except Exception as e:
+            return {
+                'healthy': False,
+                'error': f'Core connection error: {str(e)}'
+            }
+
+# Deployment Configuration
+DEPLOYMENT_CONFIG = {
+    'services': {
+        'django': {
+            'port': 8000,
+            'workers': 2,
+            'worker_class': 'gevent'
+        },
+        'websocket': {
+            'port': 8001,
+            'backend': 'daphne'
+        },
+        'api_gateway': {
+            'port': 8002,
+            'workers': 2,
+            'backend': 'uvicorn'
+        }
+    },
+    'monitoring': {
+        'health_check_interval': 60,  # seconds
+        'alert_thresholds': {
+            'response_time': 5.0,  # seconds
+            'data_staleness': 300,  # seconds
+            'error_rate': 0.05  # 5%
+        }
+    }
+}
+```
+
+**Deliverables:**
+- ✅ Production deployment scripts
+- ✅ Health monitoring system
+- ✅ Service orchestration
+- ✅ Automated health checks
 
 ```python
 # Component Views
@@ -1470,71 +1873,101 @@ class ProductionMonitor:
 - ✅ User feedback collection
 - ✅ Issue tracking and resolution
 
-**Phase 5 Deliverables:**
-- ✅ Production-ready Django application
-- ✅ Comprehensive monitoring system
-- ✅ Load testing results validation
+**Phase 4 Final Deliverables:**
+- ✅ Production-ready Django wrapper system
+- ✅ Comprehensive monitoring and health checks
+- ✅ Load testing validation results
 - ✅ Successful production deployment
-- ✅ Documentation and runbooks
+- ✅ Zero-risk operation alongside core engine
 
-## Risk Mitigation & Contingency Plans
+## Risk Mitigation & Wrapper Safety
 
-### High-Risk Scenarios
+### Wrapper-Specific Risk Management
 
-1. **Performance Regression**
-   - **Risk**: New system slower than current async implementation
-   - **Mitigation**: Continuous benchmarking, performance budgets
-   - **Contingency**: Rollback to current system, optimize bottlenecks
+1. **Core Engine Isolation**
+   - **Guarantee**: Core trading engine completely unchanged
+   - **Safety**: Wrapper failure cannot affect trading operations
+   - **Validation**: Core operates independently with zero dependencies on wrapper
 
-2. **Data Loss During Migration**
-   - **Risk**: Loss of historical data or configuration
-   - **Mitigation**: Multiple backups, incremental migration, validation
-   - **Contingency**: Restore from backup, manual data recovery
+2. **Data Synchronization Issues**
+   - **Risk**: Lag between core state and wrapper database
+   - **Mitigation**: Real-time Redis pub/sub, data validation checks
+   - **Contingency**: Graceful degradation to cached data, core query fallback
 
-3. **Real-time Functionality Issues**
-   - **Risk**: WebSocket or strategy processing problems
-   - **Mitigation**: Extensive testing, gradual rollout
-   - **Contingency**: Fallback to polling, manual strategy execution
+3. **Wrapper Service Failures**
+   - **Risk**: Dashboard or API gateway becomes unavailable
+   - **Mitigation**: Health monitoring, automatic restarts, redundancy
+   - **Contingency**: Core engine continues trading, wrapper services restart independently
 
-4. **Extended Downtime**
-   - **Risk**: Migration takes longer than planned
-   - **Mitigation**: Parallel development, blue-green deployment
-   - **Contingency**: Extend maintenance window, rollback if necessary
+4. **Performance Impact**
+   - **Risk**: Wrapper services consume system resources
+   - **Mitigation**: Separate infrastructure, resource limits, monitoring
+   - **Contingency**: Scale wrapper services independently, disable non-critical features
 
-### Success Metrics
+### Success Metrics (Wrapper Pattern)
 
-**Technical Metrics:**
-- API response times < 100ms (95th percentile)
-- WebSocket latency < 50ms
-- System uptime > 99.9%
-- Zero data loss during migration
+**Safety Metrics:**
+- Zero core engine modifications
+- Zero core performance impact
+- 100% core operation independence
+- Wrapper failure graceful degradation
 
-**Business Metrics:**
-- No trading strategy performance degradation
-- Maintain all existing functionality
-- Improved development velocity post-migration
-- Reduced maintenance overhead
+**Enhancement Metrics:**
+- Multi-user dashboard operational
+- External API access functional
+- Historical data analysis available
+- Real-time monitoring enhanced
 
-## Post-Migration Benefits
+## Post-Implementation Benefits
 
-1. **Improved Maintainability**
-   - Better type safety with Django's ecosystem
-   - No React/JavaScript build complexity
-   - Standard Django patterns and conventions
+1. **Enhanced Capabilities**
+   - Multi-user access with permissions
+   - Historical data analysis and visualization  
+   - External API for integrations
+   - Improved monitoring and alerting
 
-2. **Enhanced Scalability**
-   - Celery-based background processing
-   - Database-backed configuration
-   - Horizontal scaling capabilities
+2. **Zero Risk Operation**
+   - Core trading engine completely preserved
+   - Independent failure domains
+   - Gradual feature rollout capability
+   - Easy rollback at any time
 
-3. **Better Developer Experience**
-   - Django admin for configuration management
-   - Comprehensive API documentation
-   - Simplified debugging and monitoring
+3. **Development Benefits**
+   - Clean separation of concerns
+   - Standard Django development patterns
+   - Independent testing and deployment
+   - Simplified maintenance
 
-4. **Operational Benefits**
-   - Standard Django deployment patterns
-   - Better monitoring and alerting
-   - Easier backup and recovery procedures
+4. **Operational Advantages**
+   - Better user management and access control
+   - Comprehensive audit trails
+   - Enhanced monitoring capabilities
+   - Professional dashboard interface
 
-This migration timeline provides a comprehensive roadmap for successfully transitioning CyberDeltaEngine to Django + HTMX while maintaining operational excellence and delivering incremental value throughout the process.
+## Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Django Wrapper Layer                    │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐│
+│  │  HTMX Dashboard │ │  FastAPI Gateway│ │  WebSocket    ││
+│  │  (Multi-User)   │ │  (External API) │ │  Proxy        ││
+│  └─────────────────┘ └─────────────────┘ └───────────────┘│
+└─────────────────────────────────────────────────────────────┘
+                           │
+                    ┌──────────────┐
+                    │    Redis     │
+                    │   Pub/Sub    │
+                    │  (Bridge)    │
+                    └──────────────┘
+                           │
+┌─────────────────────────────────────────────────────────────┐
+│              CyberDeltaEngine Core (Unchanged)             │
+│  ┌─────────────────┐ ┌─────────────────┐ ┌───────────────┐│
+│  │  Exchange APIs  │ │  Strategy Engine│ │  Risk Engine  ││
+│  │  (Async)        │ │  (Async)        │ │  (Async)      ││
+│  └─────────────────┘ └─────────────────┘ └───────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+This wrapper-based implementation provides a comprehensive roadmap for enhancing CyberDeltaEngine with modern web capabilities while maintaining absolute safety and zero risk to the production trading system. The 8-week timeline ensures rapid delivery of value with minimal complexity and maximum safety.

@@ -299,18 +299,17 @@ class TestBackpackAccountSummaryEnhanced:
             )
 
         # Available equity consistency check
-        if account_summary.available_equity is not None and account_summary.bp_details:
+        if account_summary.bp_details:
             # Check if locked_equity is tracked
             if account_summary.bp_details.locked_equity is not None:
                 # Available equity should be total minus locked
-                if account_summary.total_equity is not None:
-                    expected_available = (
-                        account_summary.total_equity - account_summary.bp_details.locked_equity
-                    )
-                    available_diff = abs(account_summary.available_equity - expected_available)
-                    # Allow small differences due to rounding or timing
-                    assert available_diff < Decimal("1.0"), (
-                        f"Large discrepancy between available_equity "
-                        f"({account_summary.available_equity}) and calculated available "
-                        f"({expected_available})"
-                    )
+                expected_available = (
+                    account_summary.total_equity - account_summary.bp_details.locked_equity
+                )
+                available_diff = abs(account_summary.available_equity - expected_available)
+                # Allow small differences due to rounding or timing
+                assert available_diff < Decimal("1.0"), (
+                    f"Large discrepancy between available_equity "
+                    f"({account_summary.available_equity}) and calculated available "
+                    f"({expected_available})"
+                )

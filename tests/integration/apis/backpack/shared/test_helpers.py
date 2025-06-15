@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.margin_account import MarginAccountSummary
 
 if TYPE_CHECKING:
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -449,7 +450,7 @@ def generate_deterministic_client_order_id(test_name: str, symbol: str, side: st
     """
     # Create a hash from test context to ensure deterministic but unique IDs
     context = f"{test_name}_{symbol}_{side}"
-    hash_obj = hashlib.md5(context.encode())
+    hash_obj = hashlib.sha256(context.encode())
 
     # Convert to integer and ensure it's within reasonable range for Backpack
     # Use first 8 hex chars to create a 7-8 digit integer (Backpack compatible)
@@ -543,88 +544,83 @@ MARGIN_FRACTION_MAX = Decimal("1")  # Maximum valid margin fraction
 
 
 # =============================================================================
-# Balance Detection Helpers  
+# Balance Detection Helpers
 # =============================================================================
 
 
 async def detect_account_auto_lending(api: BackpackAPI) -> bool:
     """Detect if account has auto-lending enabled based on balance patterns.
-    
+
     Args:
         api: Backpack API instance
-        
+
     Returns:
         True if auto-lending is likely active
     """
     try:
         # Check spot balances
         spot_balances = await api.get_balances()
-        
+
         # If all spot balances are exactly 0, auto-lending might be active
-        all_zero = all(
-            balance.total_quantity == Decimal("0") 
-            for balance in spot_balances.values()
-        )
-        
+        all_zero = all(balance.total_quantity == Decimal("0") for balance in spot_balances.values())
+
         if all_zero and len(spot_balances) > 0:
             # Double check with account summary
             account_summary = await api.get_account_summary()
             if account_summary and account_summary.total_equity > Decimal("0"):
                 # Account has value but spot shows 0 = auto-lending
                 return True
-        
+
         # Additional check: look for lend_quantity in bp_details
         has_lending = any(
-            balance.bp_details and 
-            balance.bp_details.lend_quantity and 
-            balance.bp_details.lend_quantity > Decimal("0")
+            balance.bp_details
+            and balance.bp_details.lend_quantity
+            and balance.bp_details.lend_quantity > Decimal("0")
             for balance in spot_balances.values()
         )
-        
+
         return has_lending
-                
+
     except Exception as e:
         logger.warning(f"Failed to detect auto-lending: {e}")
         return False
 
 
-async def get_actual_balances_with_lending(
-    api: BackpackAPI
-) -> dict[str, dict[str, Decimal]]:
+async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[str, Decimal]]:
     """Get actual balances including lent amounts from collateral endpoint.
-    
+
     Args:
         api: Backpack API instance
-        
+
     Returns:
         Dict mapping asset to balance details including lent amounts
     """
     try:
         # Get regular spot balances
         spot_balances = await api.get_balances()
-        
+
         # Get account summary with collateral info
         account_summary = await api.get_account_summary()
-        
-        result = {}
-        
+
+        result: dict[str, dict[str, Decimal]] = {}
+
         # Process spot balances
         for asset, balance in spot_balances.items():
             result[asset] = {
                 "spot_total": balance.total_quantity,
                 "spot_available": balance.available_quantity,
-                "spot_locked": balance.locked_quantity,
+                "spot_locked": balance.total_quantity - balance.available_quantity,
                 "lend_quantity": Decimal("0"),
                 "true_total": balance.total_quantity,
             }
-            
+
             # Add lending info from bp_details
             if balance.bp_details and balance.bp_details.lend_quantity:
                 result[asset]["lend_quantity"] = balance.bp_details.lend_quantity
                 result[asset]["true_total"] = (
                     balance.total_quantity + balance.bp_details.lend_quantity
                 )
-        
+
         # Also check collateral assets in account summary
         if account_summary.bp_details and account_summary.bp_details.collateral_assets:
             for asset_info in account_summary.bp_details.collateral_assets:
@@ -640,9 +636,9 @@ async def get_actual_balances_with_lending(
                         "lend_quantity": lend_qty,
                         "true_total": total_qty,
                     }
-                    
+
         return result
-        
+
     except Exception as e:
         logger.warning(f"Failed to get balances with lending: {e}")
         return {}
@@ -671,7 +667,7 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         # Get account summary which includes margin info
         account_summary = await api.get_account_summary()
 
-        params = {
+        params: dict[str, Decimal | None | bool] = {
             "margin_fraction": None,
             "initial_margin_factor": None,
             "maintenance_margin_factor": None,
@@ -686,7 +682,7 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
             if account_summary.bp_details.imf_raw:
                 try:
                     params["initial_margin_factor"] = Decimal(account_summary.bp_details.imf_raw)
-                except:
+                except (ValueError, TypeError, AttributeError):
                     pass
 
             if account_summary.bp_details.mmf_raw:
@@ -694,7 +690,7 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
                     params["maintenance_margin_factor"] = Decimal(
                         account_summary.bp_details.mmf_raw
                     )
-                except:
+                except (ValueError, TypeError, AttributeError):
                     pass
 
         # Check for positions
@@ -705,7 +701,33 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         open_orders = await api.get_open_orders()
         params["has_open_orders"] = len(open_orders) > 0
 
-        return params
+        # Convert to proper return type
+        result: dict[str, Decimal | None] = {}
+
+        # Add Decimal values
+        mf = params.get("margin_fraction")
+        if isinstance(mf, Decimal):
+            result["margin_fraction"] = mf
+        else:
+            result["margin_fraction"] = None
+
+        imf = params.get("initial_margin_factor")
+        if isinstance(imf, Decimal):
+            result["initial_margin_factor"] = imf
+        else:
+            result["initial_margin_factor"] = None
+
+        mmf = params.get("maintenance_margin_factor")
+        if isinstance(mmf, Decimal):
+            result["maintenance_margin_factor"] = mmf
+        else:
+            result["maintenance_margin_factor"] = None
+
+        # Convert booleans to Decimal for consistency with return type
+        result["has_positions"] = Decimal("1") if params.get("has_positions") else Decimal("0")
+        result["has_open_orders"] = Decimal("1") if params.get("has_open_orders") else Decimal("0")
+
+        return result
 
     except Exception as e:
         logger.warning(f"Failed to get margin parameters: {e}")
@@ -713,8 +735,8 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
             "margin_fraction": None,
             "initial_margin_factor": None,
             "maintenance_margin_factor": None,
-            "has_positions": False,
-            "has_open_orders": False,
+            "has_positions": Decimal("0"),
+            "has_open_orders": Decimal("0"),
         }
 
 
@@ -832,7 +854,7 @@ def is_within_tolerance(
 
 def generate_invalid_order_id() -> str:
     """Generate a deterministic invalid order ID for negative testing.
-    
+
     Returns:
         A fake order ID that should not exist in the exchange
     """
@@ -841,17 +863,15 @@ def generate_invalid_order_id() -> str:
 
 
 async def get_unreasonably_large_price(
-    api: BackpackAPI, 
-    symbol: str, 
-    multiplier: Decimal = Decimal("1000")
+    api: BackpackAPI, symbol: str, multiplier: Decimal = Decimal("1000")
 ) -> Decimal:
     """Get an unreasonably high price for insufficient balance tests.
-    
+
     Args:
         api: Backpack API instance
         symbol: Trading symbol
         multiplier: How many times current price to use (default 10x)
-        
+
     Returns:
         Price that's too high for typical test accounts
     """
@@ -866,23 +886,21 @@ async def get_unreasonably_large_price(
         if "BTC" in symbol:
             return Decimal("1000000.00")  # $1M BTC
         elif "ETH" in symbol:
-            return Decimal("100000.00")   # $100K ETH
+            return Decimal("100000.00")  # $100K ETH
         else:
-            return Decimal("10000.00")     # $10K default
+            return Decimal("10000.00")  # $10K default
 
 
 async def get_unreasonably_large_quantity(
-    api: BackpackAPI,
-    symbol: str,
-    multiplier: Decimal = Decimal("1000")
+    api: BackpackAPI, symbol: str, multiplier: Decimal = Decimal("1000")
 ) -> Decimal:
     """Get an unreasonably large quantity for insufficient balance tests.
-    
+
     Args:
         api: Backpack API instance
         symbol: Trading symbol
         multiplier: Quantity multiplier (default 1000x minimum)
-        
+
     Returns:
         Quantity that's too large for typical test accounts
     """
@@ -899,10 +917,10 @@ async def get_unreasonably_large_quantity(
 
 def is_stablecoin(asset: str) -> bool:
     """Check if an asset is a stablecoin.
-    
+
     Args:
         asset: Asset symbol (e.g., "USDC", "USDT")
-        
+
     Returns:
         True if asset is a known stablecoin
     """
@@ -910,19 +928,16 @@ def is_stablecoin(asset: str) -> bool:
 
 
 def validate_pnl_direction(
-    pnl: Decimal,
-    side: OrderSide,
-    entry_price: Decimal,
-    current_price: Decimal
+    pnl: Decimal, side: OrderSide, entry_price: Decimal, current_price: Decimal
 ) -> bool:
     """Validate that PnL direction matches the expected direction based on position.
-    
+
     Args:
         pnl: Profit/Loss value
         side: Position side (BUY/SELL)
         entry_price: Average entry price
         current_price: Current market price
-        
+
     Returns:
         True if PnL direction is correct
     """
@@ -932,7 +947,7 @@ def validate_pnl_direction(
     else:
         # Short position: profit when price goes down
         expected_positive = current_price < entry_price
-        
+
     if expected_positive:
         return pnl >= Decimal("0")
     else:
@@ -941,27 +956,27 @@ def validate_pnl_direction(
 
 def is_within_ratio_bounds(actual: Decimal, expected: Decimal) -> bool:
     """Check if actual value is within standard ratio bounds (0.99-1.01) of expected.
-    
+
     Args:
         actual: Actual value
         expected: Expected value
-        
+
     Returns:
         True if within ratio bounds
     """
     if expected == Decimal("0"):
         return actual == Decimal("0")
-    
+
     ratio = actual / expected
     return RATIO_LOWER_BOUND <= ratio <= RATIO_UPPER_BOUND
 
 
 def is_valid_margin_fraction(margin_fraction: Decimal | None) -> bool:
     """Check if margin fraction is within valid bounds (0-1).
-    
+
     Args:
         margin_fraction: Margin fraction value
-        
+
     Returns:
         True if valid or None
     """

@@ -1,12 +1,16 @@
 # Security Report: Input Validation (CyberDeltaEngine v0.0.1)
 
-**Rule Reference:** `Assume_Hostile_Input_Validation.mdc` (Implicitly, based on user prompt's focus) / `.roo/rules-toly/security_boundary_validation.md`
+**Rule Reference:** `.claude/rules/security.md` - "Assume Hostile Input" principle
 
-**Assessment Summary:** Critical Gaps
+**Assessment Summary:** Critical Gaps (Partially Addressed)
+
+**Last Updated:** 2025-06-15
 
 **Detailed Findings:**
 
 The most significant security weakness identified across the audited components (`config_manager.py`, `apis/base.py`, `apis/backpack.py`, `apis/hyperliquid.py`) is the systemic lack of rigorous runtime input validation for data crossing trust boundaries.
+
+**UPDATE (2025-06-15):** Recent improvements have been made to the Backpack trading data mapper with enhanced defensive programming patterns, though the core issue of missing schema validation at API boundaries remains.
 
 1.  **Configuration Loading (`config_manager.py`):**
     *   Uses `yaml.safe_load`, preventing arbitrary code execution (Good).
@@ -97,23 +101,63 @@ sequenceDiagram
     end
 ```
 
-**Recommendations:**
+**Recent Improvements (2025-06-15):**
 
-1.  **Implement Runtime Schema Validation:** Introduce a robust validation library like Pydantic.
+*   **Enhanced Trading Data Mapper (`bp_trading_data_mapper.py`):**
+    *   Added defensive null checks and proper error handling for quantity parsing
+    *   Implemented comprehensive price validation that treats zero prices as null
+    *   Added calculation methods for average fill prices with fallback logic
+    *   Enhanced timestamp parsing with proper error handling
+    *   Introduced helper methods for parsing order quantities, prices, and timestamps
+    *   Better handling of optional fields with appropriate defaults
+
+*   **Improved Error Handling:**
+    *   All parsing operations now use `parse_decimal_value()` and `parse_datetime_utc()` utilities
+    *   Explicit field name tracking in error messages for better debugging
+    *   Defensive checks after parsing operations to ensure non-None values where required
+
+**Example of Improved Defensive Code:**
+```python
+# New defensive parsing pattern in bp_trading_data_mapper.py
+def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | None:
+    """Parse order price field, returning None for zero or invalid values."""
+    if not price_value or price_value == "0":
+        return None
+    
+    parsed_price = parse_decimal_value(
+        price_value,
+        allow_none=True,
+        field_name=field_name,
+    )
+    return parsed_price if parsed_price is not None and parsed_price > 0 else None
+```
+
+**Recommendations (Updated):**
+
+1.  **Implement Runtime Schema Validation:** While defensive parsing has improved, the core recommendation remains - introduce Pydantic models for API boundaries.
 2.  **Define Strict Schemas:** Define explicit Pydantic models for:
-    *   The entire `config.yaml` structure.
-    *   Every expected REST API response payload for each endpoint used.
-    *   Every expected WebSocket message structure for each subscription type.
+    *   The entire `config.yaml` structure
+    *   Every expected REST API response payload for each endpoint used (including new autolending, collateral, and RFQ endpoints)
+    *   Every expected WebSocket message structure for each subscription type
 3.  **Validate at Boundaries:**
-    *   In `ConfigManager.load`, validate the loaded `self.config` dictionary against the Pydantic config schema *before* setting `self.loaded = True`.
-    *   In `ExchangeAPI._request` (or just before calling specific parsers in subclasses), validate the raw response dictionary against the corresponding Pydantic response model *before* any parsing attempt.
-    *   In `ExchangeAPI._route_ws_message` (or equivalent entry point for WS messages), validate the incoming message dictionary against the corresponding Pydantic message model *before* dispatching to handlers or specific parsers.
+    *   In `ConfigManager.load`, validate the loaded `self.config` dictionary against the Pydantic config schema *before* setting `self.loaded = True`
+    *   In `ExchangeAPI._request` (or just before calling specific parsers in subclasses), validate the raw response dictionary against the corresponding Pydantic response model *before* any parsing attempt
+    *   In `ExchangeAPI._route_ws_message` (or equivalent entry point for WS messages), validate the incoming message dictionary against the corresponding Pydantic message model *before* dispatching to handlers or specific parsers
 4.  **Fail Fast:** If validation fails at any boundary, log a detailed error and reject the data (e.g., raise an `APIError`, return `None`, skip processing the config/message). Do not allow invalid data to proceed.
-5.  **Refine Parsers:** Once validation ensures data structure and types, simplify parsing logic, potentially leveraging Pydantic's built-in parsing capabilities.
+5.  **Leverage Existing Architecture:** The codebase already has a separation between Raw API Models and Internal Domain Models - extend this pattern to include validation at the Raw model level.
 
 **Severity Assessment:**
 
-*   **API Response Validation:** Critical
-*   **Configuration Validation:** High
+*   **API Response Validation:** Critical (partially mitigated through defensive parsing)
+*   **Configuration Validation:** High (unchanged)
+*   **New Endpoint Support:** Medium (autolending, collateral, RFQ endpoints need validation)
 
-Failure to implement rigorous input validation leaves the system highly vulnerable to external manipulation and internal instability. This should be the top priority for remediation.
+While recent improvements in defensive parsing reduce the immediate risk, the lack of schema validation at trust boundaries remains a critical vulnerability. The addition of new endpoints (autolending, collateral management, RFQ) increases the attack surface that requires proper validation.
+
+**Progress Summary:**
+- ✅ Improved defensive parsing patterns in trading data mappers
+- ✅ Better error handling with field-specific error messages  
+- ✅ Zero-value handling for prices and quantities
+- ❌ Still missing schema validation at API boundaries
+- ❌ Configuration validation remains weak
+- ❌ New endpoints lack comprehensive validation

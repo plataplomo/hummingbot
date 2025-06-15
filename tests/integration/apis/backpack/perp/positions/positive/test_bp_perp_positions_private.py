@@ -458,4 +458,3 @@ class TestBackpackPerpPositionsPrivate:
                     assert first_pos.symbol == second_pos.symbol
                     size_diff = abs(first_pos.size - second_pos.size)
                     assert size_diff <= Decimal("0.00001")
-
