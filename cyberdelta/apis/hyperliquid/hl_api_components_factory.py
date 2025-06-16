@@ -7,7 +7,7 @@ request builders, response handlers, domain data mappers, and service classes.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Coroutine, Mapping
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from typing import TYPE_CHECKING, Any
 
 from pydantic import SecretStr
@@ -243,6 +243,7 @@ class HyperliquidAPIComponentsFactory:
         response_handler: HyperliquidResponseHandler,
         exchange_name: str,
         wallet_address: str | None,
+        get_asset_index_callable: Callable[[str], Awaitable[int]],
     ) -> HyperliquidAccountService:
         """Create a HyperliquidAccountService instance.
 
@@ -255,6 +256,7 @@ class HyperliquidAPIComponentsFactory:
             response_handler: Response handler instance
             exchange_name: Name of the exchange
             wallet_address: Wallet address for account operations
+            get_asset_index_callable: Function to retrieve asset index for symbols
 
         Returns:
             Configured account service instance
@@ -269,6 +271,7 @@ class HyperliquidAPIComponentsFactory:
             wallet_address=wallet_address,
             account_mapper=account_data_mapper,
             trading_mapper=trading_data_mapper,
+            get_asset_index_callable=get_asset_index_callable,
         )
 
     def create_trading_service(

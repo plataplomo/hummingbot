@@ -54,6 +54,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
@@ -61,6 +62,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -420,6 +422,18 @@ class BackpackAPI(ExchangeAPI):
             MarginAccountSummary with bp_details populated when available
         """
         return await self.account_service.get_account_summary()
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings such as leverage limits and auto-trading preferences.
+
+        Args:
+            args: Account settings to update
+
+        Note:
+            This allows updating leverage limits which directly impacts maximum position sizes
+            for large balance testing. Changes take effect immediately.
+        """
+        return await self.account_service.update_account_settings(args=args)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types."""

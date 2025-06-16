@@ -21,6 +21,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
+    HyperliquidRawUpdateLeverageAction,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawPlaceOrderAction,  # This is the individual order action for the list
@@ -104,4 +105,17 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
     ] = Field("cancel")
     action: HyperliquidRawCancelOrderAction
 
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+# --- /exchange endpoint: Update Leverage --- #
+class HyperliquidApiUpdateLeverageRequest(BaseModel):
+    """Top-level request payload for updating leverage."""
+    
+    type: Annotated[
+        Literal["updateLeverage"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
+    ] = Field("updateLeverage")
+    action: HyperliquidRawUpdateLeverageAction
+    
     model_config = ConfigDict(extra="forbid", frozen=True)

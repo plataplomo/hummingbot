@@ -877,6 +877,7 @@ class BackpackRequestBuilder:
         auto_lend: bool | None = None,
         auto_realize_pnl: bool | None = None,
         auto_repay_borrows: bool | None = None,
+        leverage_limit: Decimal | None = None,
     ) -> BackpackRawUpdateAccountSettingsRequest:
         """Build the payload for updating account settings.
 
@@ -885,6 +886,7 @@ class BackpackRequestBuilder:
             auto_lend: Enable/disable auto lending.
             auto_realize_pnl: Enable/disable auto PnL realization.
             auto_repay_borrows: Enable/disable auto repay borrows.
+            leverage_limit: Maximum leverage limit for the account.
 
         Returns:
             BackpackRawUpdateAccountSettingsRequest: The validated request payload model.
@@ -900,6 +902,8 @@ class BackpackRequestBuilder:
             request_data["autoRealizePnl"] = auto_realize_pnl
         if auto_repay_borrows is not None:
             request_data["autoRepayBorrows"] = auto_repay_borrows
+        if leverage_limit is not None:
+            request_data["leverageLimit"] = str(leverage_limit)
 
         return BackpackRawUpdateAccountSettingsRequest(**request_data)
 

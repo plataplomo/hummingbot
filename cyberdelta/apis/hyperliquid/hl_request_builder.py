@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiL2UsdTransferRequest,
     HyperliquidApiPlaceOrderRequest,
     HyperliquidApiTokenWithdrawalRequest,
+    HyperliquidApiUpdateLeverageRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleRequestDetails,
@@ -26,6 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
+    HyperliquidRawUpdateLeverageAction,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryRequestPayload,
@@ -370,3 +372,29 @@ class HyperliquidRequestBuilder:
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the
     # request body.
+    
+    @staticmethod
+    def build_update_leverage_request(
+        asset_index: int,
+        leverage: int,
+        is_cross: bool = True,
+    ) -> HyperliquidApiUpdateLeverageRequest:
+        """Build the request payload for updating leverage on a specific asset.
+        
+        Args:
+            asset_index: The asset index from meta response
+            leverage: The leverage value (e.g., 10, 20, 50)
+            is_cross: True for cross margin, False for isolated margin
+            
+        Returns:
+            HyperliquidApiUpdateLeverageRequest: The validated request payload model.
+            
+        """
+        return HyperliquidApiUpdateLeverageRequest(
+            type="updateLeverage",
+            action=HyperliquidRawUpdateLeverageAction(
+                asset=asset_index,
+                isCross=is_cross,
+                leverage=leverage,
+            ),
+        )

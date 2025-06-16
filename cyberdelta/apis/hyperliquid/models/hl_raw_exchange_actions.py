@@ -102,3 +102,17 @@ class HyperliquidRawCancelOrderAction(BaseModel):
     oid: RawNonNegativeInt
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+
+class HyperliquidRawUpdateLeverageAction(BaseModel):
+    """Represents the action payload for updating leverage on a specific asset.
+    
+    This forms part of the signed message for the /exchange endpoint and contains
+    the asset index, leverage mode (cross/isolated), and leverage value.
+    """
+    
+    asset: RawNonNegativeInt = Field(description="Asset index from meta response")
+    isCross: RawStrictBool = Field(description="True for cross margin, False for isolated")
+    leverage: RawNonNegativeInt = Field(description="Leverage value (e.g., 10, 20, 50)")
+    
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)

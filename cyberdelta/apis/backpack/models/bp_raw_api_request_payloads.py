@@ -21,6 +21,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
     RawBpNonEmptyStringMax64,
     RawBpNonEmptyStringMax128,
     RawBpNonEmptyStringMax255,
+    RawBpOptionalParsableFiniteDecimalString,
     RawBpOptionalStrictBool,
     RawBpParsableFiniteDecimalString,
     RawBpUint32,
@@ -285,6 +286,11 @@ class BackpackRawUpdateAccountSettingsRequest(BaseModel):
     autoLend: RawBpOptionalStrictBool | None = Field(default=None, alias="autoLend")
     autoRealizePnl: RawBpOptionalStrictBool | None = Field(default=None, alias="autoRealizePnl")
     autoRepayBorrows: RawBpOptionalStrictBool | None = Field(default=None, alias="autoRepayBorrows")
+    leverageLimit: RawBpOptionalParsableFiniteDecimalString | None = Field(
+        default=None,
+        alias="leverageLimit",
+        description="Determines the maximum leverage allowed for the main account or subaccount.",
+    )
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

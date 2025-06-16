@@ -697,3 +697,15 @@ class GetMaxWithdrawalQuantityArgs(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=64)
     auto_borrow: bool | None = Field(default=None)
     auto_lend_redeem: bool | None = Field(default=None)
+
+
+class UpdateAccountSettingsArgs(BaseModel):
+    """Arguments for updating account settings."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    auto_borrow_settlements: bool | None = Field(default=None)
+    auto_lend: bool | None = Field(default=None)
+    auto_realize_pnl: bool | None = Field(default=None)
+    auto_repay_borrows: bool | None = Field(default=None)
+    leverage_limit: Decimal | None = Field(default=None, gt=Decimal("0"))

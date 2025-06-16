@@ -57,12 +57,14 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -307,6 +309,7 @@ class HyperliquidAPI(ExchangeAPI):
                 response_handler=self._hl_response_handler,
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
+                get_asset_index_callable=self._get_asset_index,
             )
 
         # Use injected trading service or create one via factory
@@ -464,6 +467,22 @@ class HyperliquidAPI(ExchangeAPI):
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Get derivative positions."""
         return await self.account_service.get_positions(symbol=symbol)
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings such as leverage limits and auto-trading preferences.
+
+        Args:
+            args: Account settings to update
+
+        Note:
+            Hyperliquid uses a fundamentally different approach than Backpack:
+            - Leverage is set per-asset, not globally
+            - No equivalent for auto_lend, auto_borrow_settlements, auto_realize_pnl,
+              auto_repay_borrows
+            - Uses EIP-712 signed actions via /exchange endpoint
+
+        """
+        return await self.account_service.update_account_settings(args=args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get all open orders."""

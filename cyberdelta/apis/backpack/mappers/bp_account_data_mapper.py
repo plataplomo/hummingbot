@@ -39,7 +39,10 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.core.models import (
+    AccountSettings,
+    BackpackAccountSettingsDetails,
     BackpackMarginDetails,
     BackpackOrderDetails,
     BackpackPositionDetails,
@@ -1201,4 +1204,46 @@ class BackpackAccountDataMapper:
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform WebSocket position update to internal: {e}",
+            ) from e
+
+    @staticmethod
+    def transform_account_settings_update_to_internal(
+        args: UpdateAccountSettingsArgs,
+        exchange_name: str,
+    ) -> AccountSettings:
+        """Transform updated account settings args to internal AccountSettings model.
+
+        Args:
+            args: The account settings update arguments that were applied
+            exchange_name: Name of the exchange
+
+        Returns:
+            AccountSettings: Internal model representing the updated settings
+
+        Raises:
+            TransformationError: If transformation fails
+
+        """
+        try:
+            # Create Backpack-specific details
+            bp_details = BackpackAccountSettingsDetails(
+                leverage_limit_raw=str(args.leverage_limit) if args.leverage_limit else None,
+                source_endpoint="/api/v1/account",
+            )
+
+            return AccountSettings(
+                exchange=exchange_name,
+                timestamp=datetime.now(UTC),
+                leverage_limit=args.leverage_limit,
+                auto_borrow_settlements=args.auto_borrow_settlements,
+                auto_lend=args.auto_lend,
+                auto_realize_pnl=args.auto_realize_pnl,
+                auto_repay_borrows=args.auto_repay_borrows,
+                bp_details=bp_details,
+                hl_details=None,  # Not applicable for Backpack
+            )
+
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform account settings update to internal: {e}",
             ) from e

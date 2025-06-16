@@ -381,73 +381,33 @@ def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
 
 
 @pytest.fixture(scope="session")
-def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
-    """Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
+def active_hl_config(
+    test_app_settings: AppSettings,
+    hl_test_environment_from_config: str,
+) -> ExchangeSpecificConfig:
+    """Provide ExchangeSpecificConfig for Hyperliquid from test configuration.
 
-    Configures the exchange for mainnet or testnet based on hl_test_environment.
-    Always includes both mainnet and testnet URLs.
+    Uses test_config.yaml settings with environment override support.
+    Matches Backpack pattern for consistency.
     """
-    is_mainnet_env_flag = hl_test_environment == "mainnet"
-
-    return ExchangeSpecificConfig.model_validate(
-        {
-            "exchange_name": ExchangeName.HYPERLIQUID,
-            "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-            "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-            "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
-            "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-            "is_mainnet_environment": is_mainnet_env_flag,
-            "chain_id": 1337,
-            "rate_limit_per_minute": 300,
-            "symbols": {"BTC": "BTC", "ETH": "ETH"},
-            # Hyperliquid-specific rate limiting configuration
-            "ip_weight_limit_per_minute": 1200,
-            "info_request_type_ip_weights": {
-                "l2Book": 2,
-                "allMids": 2,
-                "meta": 2,
-                "userRole": 60,
-                "clearinghouseState": 10,
-                "openOrders": 1,
-            },
-            "default_info_weight": 20,
-            "exchange_action_base_ip_weight": 1,
-            "address_action_safety_net": {"rate_per_minute": 300},
-            "websocket_send_rate_per_minute": 1800,
-        },
+    hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
+    # Override is_mainnet_environment based on hl_test_environment_from_config fixture
+    return hl_config_from_file.model_copy(
+        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"},
     )
 
 
 @pytest.fixture(scope="session")
-def active_hl_secrets() -> PrivateKeyAuthSecrets:
-    """Environment-aware PrivateKeyAuthSecrets fixture for Hyperliquid.
+def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
+    """Provide PrivateKeyAuthSecrets for Hyperliquid from test secrets.
 
-    Uses environment variables if available, otherwise provides test placeholders.
-    Supports both dedicated testnet credentials and main credentials.
+    Uses test_secrets.yaml settings.
+    Matches Backpack pattern for consistency.
     """
-    # Main private key (always required)
-    main_private_key = os.environ.get(
-        "HL_PRIVATE_KEY",
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-    )
-
-    # Optional testnet-specific private key
-    testnet_private_key = os.environ.get("HL_TESTNET_PRIVATE_KEY")
-
-    # Optional testnet seed passphrase
-    testnet_seed = os.environ.get("HL_TESTNET_SEED_PASSPHRASE")
-
-    # Optional passphrase for main key encryption
-    passphrase = os.environ.get("HL_PASSPHRASE")
-
-    return PrivateKeyAuthSecrets.model_validate(
-        {
-            "private_key": main_private_key,
-            "passphrase": passphrase,
-            "private_key_testnet": testnet_private_key,
-            "testnet_seed_passphrase": testnet_seed,
-        },
-    )
+    secrets = test_secrets_config.exchanges["hyperliquid"]
+    if not isinstance(secrets, PrivateKeyAuthSecrets):
+        pytest.fail("Hyperliquid secrets in test_secrets.yaml are not PrivateKeyAuthSecrets type.")
+    return secrets
 
 
 @pytest.fixture

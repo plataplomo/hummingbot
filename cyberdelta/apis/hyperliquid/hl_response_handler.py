@@ -8,6 +8,8 @@ from typing import Any, NoReturn, TypeGuard
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+
 # Corrected imports for processed models
 from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
     HyperliquidErrorStatus,
@@ -324,7 +326,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_info_user_state_response(
-        raw_response_content: RawJsonResponse,
+        raw_response_content: ParsedJsonResponse,
         user_address: str,
     ) -> HyperliquidRawUserStateResponse:
         """Validates the /info response for user_state."""
@@ -368,7 +370,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_info_user_fills_response(
-        raw_response_content: RawJsonResponse,
+        raw_response_content: ParsedJsonResponse,
         user_address: str,
     ) -> HyperliquidRawUserFillsResponse:
         """Validates the /info response for user_fills."""
@@ -802,7 +804,7 @@ class HyperliquidResponseHandler:
 
     @staticmethod
     def handle_exchange_response(
-        raw_response_content: RawJsonResponse,
+        raw_response_content: ParsedJsonResponse,
         action_type: str,
     ) -> HyperliquidRawExchangeResponse:
         """Validates the /exchange response (for actions like order, cancel, withdraw)."""

@@ -34,6 +34,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 
@@ -41,6 +42,7 @@ from cyberdelta.apis.models.service_args_models import (
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
 from cyberdelta.config import AppSettings
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -271,6 +273,17 @@ class MockExchangeAPI(ExchangeAPI):
             position  # Store in the _positions dict used by get_positions
         )
         logger.debug(f"Mock position set for {self.exchange_name} - {position.symbol}: {position}")
+
+    def set_open_orders_behavior(self, behavior: str) -> None:
+        """Set the behavior for handling open orders.
+        
+        Args:
+            behavior: One of "keep_open", "fill_immediately", or "partial_fill"
+        """
+        if behavior not in ["keep_open", "fill_immediately", "partial_fill"]:
+            raise ValueError(f"Invalid open orders behavior: {behavior}")
+        self._open_orders_behavior = behavior
+        logger.debug(f"Open orders behavior set for {self.exchange_name}: {behavior}")
 
     async def get_account_summary(self) -> MarginAccountSummary | None:
         """Return a mock account summary."""
@@ -580,6 +593,24 @@ class MockExchangeAPI(ExchangeAPI):
             pos = self._positions.get(symbol)
             return [pos] if pos else []
         return list(self._positions.values())
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update mock account settings."""
+        self._check_error("update_account_settings")
+        await self._simulate_latency()
+        
+        # Return a mock AccountSettings object with the requested values
+        return AccountSettings(
+            exchange=self.exchange_name,
+            timestamp=datetime.now(UTC),
+            leverage_limit=args.leverage_limit,
+            auto_borrow_settlements=args.auto_borrow_settlements,
+            auto_lend=args.auto_lend,
+            auto_realize_pnl=args.auto_realize_pnl,
+            auto_repay_borrows=args.auto_repay_borrows,
+            bp_details=None,
+            hl_details=None,
+        )
 
     # --- Order Management ---
 

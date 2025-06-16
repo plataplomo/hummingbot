@@ -227,6 +227,74 @@ def test_secrets_zero_balance_file_path() -> Path:
     return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_zero_balance.yaml"
 
 
+# Large Balance Test Fixtures
+@pytest.fixture(scope="session")
+def test_secrets_large_balance_file_path() -> Path:
+    """Path to the large balance test secrets file."""
+    return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_large_balance.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path) -> SecretsConfig:
+    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml."""
+    if not test_secrets_large_balance_file_path.exists():
+        pytest.skip(
+            f"Large balance test secrets file not found at {test_secrets_large_balance_file_path}, "
+            "skipping large balance tests."
+        )
+    try:
+        manager = SecretsManager(str(test_secrets_large_balance_file_path))
+        if manager.secrets_data is None:
+            raise RuntimeError("SecretsManager loaded but secrets_data is None.")
+        return manager.secrets_data
+    except Exception as e:
+        pytest.fail(
+            f"Failed to load large balance test SecretsConfig from "
+            f"{test_secrets_large_balance_file_path}: {e}"
+        )
+
+
+@pytest.fixture(scope="session")
+def bp_secrets_for_large_balance(
+    test_secrets_large_balance_config: SecretsConfig,
+) -> ApiKeyAuthSecrets:
+    """Provide ApiKeyAuthSecrets for large balance account.
+
+    Loads from test_secrets_large_balance.yaml.
+    """
+    secrets = test_secrets_large_balance_config.exchanges["backpack"]
+    if not isinstance(secrets, ApiKeyAuthSecrets):
+        pytest.fail(
+            "Backpack secrets in test_secrets_large_balance.yaml are not ApiKeyAuthSecrets type."
+        )
+    return secrets
+
+
+@pytest_asyncio.fixture
+async def bp_api_for_large_balance_test(
+    active_bp_config: ExchangeSpecificConfig,
+    bp_secrets_for_large_balance: ApiKeyAuthSecrets,
+) -> AsyncGenerator[BackpackAPI]:
+    """Create BackpackAPI instance for large balance integration tests.
+
+    Uses configuration from test_config.yaml and large balance account secrets
+    from test_secrets_large_balance.yaml. This fixture is specifically for
+    testing with an account that has:
+    - Large balance for maximum position testing
+    - High leverage limits
+    - Sufficient margin for edge case testing
+    - Ability to open and close large positions
+    """
+    # Create BackpackAPI with large balance account credentials
+    api = BackpackAPI(
+        exchange_config=active_bp_config,
+        exchange_secrets=bp_secrets_for_large_balance,
+    )
+    yield api
+    # Ensure proper cleanup
+    await api.close()
+
+
 @pytest.fixture(scope="session")
 def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) -> SecretsConfig:
     """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml."""

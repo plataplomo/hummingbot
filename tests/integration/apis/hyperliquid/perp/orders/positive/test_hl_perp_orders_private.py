@@ -34,6 +34,12 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from tests.integration.apis.hyperliquid.shared.test_helpers import (
+    COMMON_PERP_SYMBOLS,
+    HyperliquidTestHelpers,
+    get_minimal_test_quantity,
+    get_safe_test_price,
+)
 
 pytestmark = [
     pytest.mark.integration,
@@ -69,15 +75,26 @@ class TestHyperliquidPerpOrdersPrivate:
 
         This test validates the complete pipeline from EIP-712 authenticated request
         to fully validated Order model instances with all field constraints.
-        Uses testnet asset and far-from-market price to avoid fills during recording.
+        Uses dynamic helpers to calculate safe test prices and quantities.
         """
-        # Define order parameters for testnet (use testnet asset, far from market to avoid fills)
+        # Use dynamic helpers to get appropriate test symbol
+        test_symbol = COMMON_PERP_SYMBOLS[0]  # Start with BTC
+
+        # Get dynamic test parameters
+        test_price = await get_safe_test_price(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("5.0")
+        )
+        test_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
+        # Define order parameters using dynamic values
         place_args = PlaceOrderArgs(
-            symbol="PURP",  # Common testnet asset on Hyperliquid
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),  # Small size for testnet
-            price=Decimal("0.01"),  # Far below market price to avoid fills
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
 
@@ -93,7 +110,7 @@ class TestHyperliquidPerpOrdersPrivate:
         )
 
         # Validate order matches request parameters
-        assert placed_order.symbol == "PURP", (
+        assert placed_order.symbol == test_symbol, (
             f"Order symbol should match request, got {placed_order.symbol}"
         )
         assert placed_order.side == OrderSide.BUY, (
@@ -115,10 +132,10 @@ class TestHyperliquidPerpOrdersPrivate:
         )
 
         # Validate order parameter values
-        assert placed_order.quantity_requested == Decimal("1"), (
+        assert placed_order.quantity_requested == test_quantity, (
             f"Order quantity should match request, got {placed_order.quantity_requested}"
         )
-        assert placed_order.price == Decimal("0.01"), (
+        assert placed_order.price == test_price, (
             f"Order price should match request, got {placed_order.price}"
         )
 
@@ -250,13 +267,23 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates that our HyperliquidErrorMapper correctly maps Hyperliquid's
         "Insufficient balance" or similar error to our standardized APIErrorCode.
         """
-        # Create order with unrealistically large quantity to trigger insufficient funds
+        test_symbol = COMMON_PERP_SYMBOLS[0]
+
+        # Get unreasonably large values using dynamic helpers
+        large_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
+            hl_api_for_test_env, test_symbol
+        )
+        large_price = await HyperliquidTestHelpers.get_unreasonably_large_price(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Create order with unrealistically large values to trigger insufficient funds
         large_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("999999999.0"),  # Unrealistically large for testnet
-            price=Decimal("100.00"),  # High price to maximize required margin
+            quantity=large_quantity,
+            price=large_price,
             time_in_force=TimeInForce.GTC,
         )
 
@@ -408,13 +435,19 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates the full order management pipeline and Order model consistency
         across different order states. Uses both /exchange (write) and /info (read) operations.
         """
-        # Step 1: Place order (/exchange endpoint)
+        # Step 1: Place order (/exchange endpoint) using dynamic helpers
+        test_symbol = COMMON_PERP_SYMBOLS[0]
+        test_price = await get_safe_test_price(hl_api_for_test_env, test_symbol, OrderSide.BUY)
+        test_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
         place_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),
-            price=Decimal("0.01"),
+            quantity=test_quantity,
+            price=test_price,
             time_in_force=TimeInForce.GTC,
         )
 
@@ -428,7 +461,7 @@ class TestHyperliquidPerpOrdersPrivate:
         assert placed_order_found, "Placed order should appear in open orders"
 
         # Step 3: Cancel order (/exchange endpoint)
-        cancel_args = CancelOrderArgs(order_id=order_id, symbol="PURP")
+        cancel_args = CancelOrderArgs(order_id=order_id, symbol=test_symbol)
         cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
         assert cancel_result is True, "Order cancellation should succeed"
 

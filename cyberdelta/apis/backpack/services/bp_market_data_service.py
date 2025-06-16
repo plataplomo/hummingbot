@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal, TypeGuard
 
 from pydantic import ValidationError
 
@@ -75,6 +75,19 @@ HttpClientRequesterSig = Callable[
     ...,
     Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
+
+# Type alias for supported timeframes
+BackpackTimeframe = Literal[
+    "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+]
+
+
+def is_valid_backpack_timeframe(timeframe: str) -> TypeGuard[BackpackTimeframe]:
+    """Type guard to check if a string is a valid Backpack timeframe."""
+    return timeframe in {
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", 
+        "6h", "8h", "12h", "1d", "3d", "1w"
+    }
 
 
 class BackpackMarketDataService:
@@ -1148,60 +1161,25 @@ class BackpackMarketDataService:
 
     def _validate_and_prepare_timeframe(
         self, timeframe: str, current_method: str
-    ) -> Literal[
-        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
-    ]:
+    ) -> BackpackTimeframe:
         """Validate timeframe is supported by Backpack and return typed literal."""
-        supported_intervals = {
-            "1m",
-            "3m",
-            "5m",
-            "15m",
-            "30m",
-            "1h",
-            "2h",
-            "4h",
-            "6h",
-            "8h",
-            "12h",
-            "1d",
-            "3d",
-            "1w",
-        }
-        if timeframe not in supported_intervals:
+        if not is_valid_backpack_timeframe(timeframe):
+            supported_intervals = {
+                "1m", "3m", "5m", "15m", "30m", "1h", "2h", 
+                "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+            }
             raise ValueError(
                 f"[{current_method}] Unsupported interval '{timeframe}'. "
                 f"Supported intervals: {sorted(supported_intervals)}",
             )
-
-        # DEFENSIVE CHECK: Service validates timeframe is supported literal value.
-        # Mypy=[arg-type]
-        return cast(
-            Literal[
-                "1m",
-                "3m",
-                "5m",
-                "15m",
-                "30m",
-                "1h",
-                "2h",
-                "4h",
-                "6h",
-                "8h",
-                "12h",
-                "1d",
-                "3d",
-                "1w",
-            ],
-            timeframe,
-        )
+        
+        # TypeGuard ensures timeframe is now typed as BackpackTimeframe
+        return timeframe
 
     async def _execute_market_data_request(
         self,
         args: GetMarketDataArgs,
-        validated_timeframe: Literal[
-            "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
-        ],
+        validated_timeframe: BackpackTimeframe,
     ) -> list[Candle]:
         """Execute the market data API request and process the response."""
         params = self._request_builder.build_get_market_data_params(

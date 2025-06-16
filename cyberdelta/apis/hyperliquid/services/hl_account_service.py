@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, NoReturn
 
 from pydantic import ValidationError
 
@@ -22,7 +22,6 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
@@ -53,6 +52,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 from cyberdelta.config.logging_config import get_logger
@@ -65,6 +65,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,  # For trade history
 )
+from cyberdelta.core.models.account_settings import AccountSettings
 from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supports these
 
 if TYPE_CHECKING:
@@ -92,6 +93,7 @@ class HyperliquidAccountService:
     _authenticator: IAuthenticator | None
     _exchange_name: str
     _wallet_address: str | None
+    _get_asset_index_callable: Callable[[str], Awaitable[int]]
 
     def __init__(
         self,
@@ -104,6 +106,7 @@ class HyperliquidAccountService:
         # Add mapper dependencies
         account_mapper: HyperliquidAccountDataMapper,
         trading_mapper: HyperliquidTradingDataMapper,
+        get_asset_index_callable: Callable[[str], Awaitable[int]],
     ) -> None:
         """Initialize the Hyperliquid account service with required dependencies.
 
@@ -116,6 +119,7 @@ class HyperliquidAccountService:
             wallet_address: Wallet address for authenticated operations (optional)
             account_mapper: Mapper for converting raw account data to internal models
             trading_mapper: Mapper for converting raw trading data to internal models
+            get_asset_index_callable: Function to retrieve asset index for symbols
 
         """
         self._http_client_requester = http_client_requester
@@ -127,6 +131,7 @@ class HyperliquidAccountService:
         # Assign injected mappers
         self._account_mapper = account_mapper
         self._trading_mapper = trading_mapper
+        self._get_asset_index_callable = get_asset_index_callable
 
     async def _get_raw_clearinghouse_state(self) -> HyperliquidRawClearinghouseState:
         """Fetch and validate the raw HyperliquidClearinghouseState."""
@@ -182,22 +187,20 @@ class HyperliquidAccountService:
                     http_status=status_code,
                 )
 
-            state_data_dict = raw_data[0]
-            if not isinstance(state_data_dict, dict):
+            # The response handler will validate the structure, but we need to ensure
+            # we're passing the right part of the response. Hyperliquid returns user state
+            # as a list with one dict element.
+            if len(raw_data) == 0:
                 raise APIError(
-                    message=(
-                        f"Unexpected item format in user state response, expected dict, "
-                        f"got {type(state_data_dict)}"
-                    ),
+                    message="Empty list received for user state response",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-
+            
+            # Pass the first element directly to the handler
+            # The handler will validate it's a dict and has the correct structure
             return self._response_handler.handle_info_user_state_response(
-                raw_response_content=cast(
-                    dict[str, Any],
-                    state_data_dict,
-                ),  # Cast to dict[str, Any]
+                raw_response_content=raw_data[0],
                 user_address=self._wallet_address,
             )
         except APIError:  # Re-raise APIErrors directly
@@ -783,11 +786,7 @@ class HyperliquidAccountService:
                 http_status=status_code,
             )
 
-        # Cast to list[dict[str,Any]] as RawJsonResponse is list[dict]
-        raw_fills_list_of_dicts = cast(list[dict[str, Any]], raw_response_list)
-
-        # The handler expects list[RawJsonResponseItem] which is list[dict[str, Any]]
-        # and user_address
+        # The handler expects ParsedJsonResponse which is compatible with our raw_response_list
         if self._wallet_address is None:
             raise APIError(
                 message="Wallet address is required for user fills processing",
@@ -795,11 +794,8 @@ class HyperliquidAccountService:
             )
 
         return self._response_handler.handle_info_user_fills_response(
-            raw_response_content=cast(
-                RawJsonResponse,
-                raw_fills_list_of_dicts,
-            ),  # Cast to satisfy handler
-            user_address=self._wallet_address,  # Add missing user_address
+            raw_response_content=raw_response_list,
+            user_address=self._wallet_address,
         )
 
     def _map_fills_to_internal_trades(
@@ -1184,3 +1180,129 @@ class HyperliquidAccountService:
                 e_unexpected, "get_open_orders", status_code, raw_response_content
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings such as leverage limits.
+
+        Args:
+            args: Account settings to update
+
+        Returns:
+            AccountSettings: Updated account settings with current timestamp
+
+        Note:
+            Hyperliquid only supports updating leverage limits, which is set per-asset.
+            Other settings like auto_lend are not supported.
+
+        Raises:
+            APIError: If leverage_limit is not provided or update fails
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "update_account_settings"
+
+        logger.debug(
+            f"[{self.__class__.__name__}::{current_method}] Starting account settings update"
+        )
+
+        # Validate leverage_limit is provided since it's the only setting we can update
+        if args.leverage_limit is None:
+            raise APIError(
+                message="leverage_limit is required for Hyperliquid account settings update. "
+                       "Other settings (auto_lend, etc.) are not supported by Hyperliquid.",
+                code=APIErrorCode.INVALID_REQUEST.value,
+            )
+
+        # Initialize error handling context
+        status_code: int = 0
+        raw_response_content: str | None = None
+
+        try:
+            # Convert Decimal to int for leverage
+            leverage_int = int(args.leverage_limit)
+            if leverage_int < 1 or leverage_int > 100:
+                raise APIError(
+                    message=f"Invalid leverage value: {leverage_int}. Must be between 1 and 100.",
+                    code=APIErrorCode.INVALID_REQUEST.value,
+                )
+
+            # Get current positions to update leverage for all active assets
+            positions: list[DerivativePosition] = []
+            try:
+                positions = await self.get_positions()
+            except APIError as e:
+                logger.warning(
+                    f"[{self._exchange_name}] Could not fetch positions for leverage update: {e}"
+                )
+                # Continue without positions - will return settings without updating
+
+            # Track which assets we updated
+            asset_leverage_settings: dict[int, int] = {}
+
+            # Update leverage for each position's asset
+            for position in positions:
+                if position.symbol and position.size > 0:
+                    try:
+                        # Get asset index for the symbol
+                        asset_index = await self._get_asset_index_callable(position.symbol)
+
+                        # Build the update leverage request
+                        request_payload = self._request_builder.build_update_leverage_request(
+                            asset_index=asset_index,
+                            leverage=leverage_int,
+                            is_cross=True,  # Default to cross margin
+                        )
+
+                        # Execute the leverage update via /exchange endpoint
+                        _, status_code, _ = await self._http_client_requester(
+                            method="POST",
+                            endpoint="/exchange",
+                            data=request_payload.model_dump(),
+                            is_signed=True,
+                            endpoint_group="exchange",
+                            request_weight=1,
+                        )
+
+                        # Track successful updates
+                        asset_leverage_settings[asset_index] = leverage_int
+
+                        logger.info(
+                            f"[{self._exchange_name}] Updated leverage for {position.symbol} "
+                            f"(asset index {asset_index}) to {leverage_int}x"
+                        )
+
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self._exchange_name}] Failed to update leverage for "
+                            f"{position.symbol}: {e}"
+                        )
+                        # Continue with other positions even if one fails
+
+            logger.debug(
+                f"[{self.__class__.__name__}::{current_method}] "
+                f"Account settings updated successfully"
+            )
+
+            # Transform to internal model using mapper
+            return self._account_mapper.transform_account_settings_update_to_internal(
+                args=args,
+                exchange_name=self._exchange_name,
+                asset_leverage_settings=(
+                    asset_leverage_settings if asset_leverage_settings else None
+                ),
+            )
+
+        except APIError:
+            raise
+        except Exception as e:
+            logger.error(
+                f"[{self.__class__.__name__}::{current_method}] "
+                f"Failed to update account settings: {e}"
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in update_account_settings",
+                original_exception=e,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e
+

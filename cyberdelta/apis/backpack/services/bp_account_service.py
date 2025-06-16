@@ -38,10 +38,12 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     MarginAccountSummary,  # Reverted to MarginAccountSummary
     Order,
@@ -1827,3 +1829,70 @@ class BackpackAccountService:
                 original_exception=e,
                 http_status=status_code,
             ) from e
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings such as leverage limits and auto-trading preferences.
+
+        Args:
+            args: Account settings to update
+
+        Returns:
+            AccountSettings: Updated account settings with current timestamp
+
+        Raises:
+            APIError: If the request fails or settings cannot be updated
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "update_account_settings"
+
+        logger.debug(
+            f"[{self.__class__.__name__}::{current_method}] Starting account settings update"
+        )
+
+        try:
+            # Build payload using request builder
+            payload = self._request_builder.build_update_account_settings_payload(
+                auto_borrow_settlements=args.auto_borrow_settlements,
+                auto_lend=args.auto_lend,
+                auto_realize_pnl=args.auto_realize_pnl,
+                auto_repay_borrows=args.auto_repay_borrows,
+                leverage_limit=args.leverage_limit,
+            )
+
+            endpoint_path = "/api/v1/account"
+            logger.debug(
+                f"[{self._exchange_name}] Updating account settings at {endpoint_path} "
+                f"with payload: {payload}",
+            )
+
+            # Execute PATCH request
+            _, status_code, _ = await self._http_client_requester(
+                method="PATCH",
+                endpoint=endpoint_path,
+                data=payload,
+                instruction="accountUpdate",
+            )
+
+            logger.debug(
+                f"[{self.__class__.__name__}::{current_method}] "
+                f"Account settings updated successfully (status: {status_code})"
+            )
+
+            # Transform updated settings to internal model
+            return self._mapper.transform_account_settings_update_to_internal(
+                args, self._exchange_name
+            )
+
+        except Exception as e:
+            logger.error(
+                f"[{self.__class__.__name__}::{current_method}] "
+                f"Failed to update account settings: {e}"
+            )
+            if isinstance(e, APIError):
+                raise
+            else:
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Unexpected error in update_account_settings",
+                    original_exception=e,
+                ) from e

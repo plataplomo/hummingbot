@@ -9,9 +9,8 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 """
 
 import inspect
-from collections.abc import Callable, Coroutine, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
-from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -19,10 +18,7 @@ from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidResponseHandler,
-    RawJsonResponse,
-)
+from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 
 # Internal Domain Models & Mappers
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
@@ -72,7 +68,7 @@ logger = get_logger(__name__)
 
 HttpClientRequesterSig = Callable[
     ...,
-    Coroutine[Any, Any, tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
+    Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
 
 
@@ -87,7 +83,7 @@ class HyperliquidTradingService:
         authenticator: IAuthenticator | None,
         exchange_name: str,
         wallet_address: str | None,
-        get_asset_index_callable: Callable[[str], Coroutine[Any, Any, int | None]],
+        get_asset_index_callable: Callable[[str], Awaitable[int | None]],
         trading_mapper: HyperliquidTradingDataMapper,
         error_mapper: HyperliquidErrorMapper,
     ) -> None:
@@ -155,7 +151,7 @@ class HyperliquidTradingService:
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
 
             exchange_response = self._response_handler.handle_exchange_response(
-                cast(RawJsonResponse, raw_content),
+                raw_content,
                 action_type=request_payload_model.type,
             )
             return exchange_response, http_status
@@ -207,7 +203,7 @@ class HyperliquidTradingService:
                 raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
 
             exchange_response = self._response_handler.handle_exchange_response(
-                cast(RawJsonResponse, raw_content),
+                raw_content,
                 action_type=request_payload_model.type,
             )
             return exchange_response, http_status

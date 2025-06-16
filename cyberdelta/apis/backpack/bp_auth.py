@@ -168,7 +168,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         if method.upper() == "GET" and params:
             filtered_params = {k: v for k, v in params.items() if v is not None}
             if filtered_params:
-                stringified_params = {}
+                stringified_params: dict[str, str] = {}
                 for k, v_val in filtered_params.items():
                     if isinstance(v_val, bool):
                         # Backpack expects lowercase boolean strings for signatures
@@ -186,7 +186,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             if filtered_data:
                 # For POST/PUT/DELETE requests, Backpack expects the signature to be generated
                 # from query string format (same as GET requests), not JSON format
-                stringified_data = {}
+                stringified_data: dict[str, str] = {}
                 for k, v_val in filtered_data.items():
                     if isinstance(v_val, bool):
                         # Backpack expects lowercase boolean strings for signatures

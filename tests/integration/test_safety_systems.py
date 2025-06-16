@@ -478,8 +478,8 @@ async def test_position_reconciler_detects_discrepancy(
     symbol = "BTC-PERP"
     mock_position = _setup_test_position(exchange_id, symbol)
 
-    # Accessing protected member _positions for test setup is intentional
-    mock_bp_api._positions[symbol] = mock_position
+    # Use public method to set the position
+    mock_bp_api.set_mock_position(mock_position)
 
     # 2. Run Reconciliation
     _register_mock_apis(real_portfolio_tracker, mock_hl_api, mock_bp_api)

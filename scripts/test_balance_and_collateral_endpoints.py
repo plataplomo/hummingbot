@@ -19,23 +19,12 @@ async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
     """Test spot balances endpoint."""
     logger.info("1. SPOT BALANCES (/api/v1/capital):")
 
-    # Get raw response directly to debug format
-    raw_data, status_code, _ = await api.account_service._http_client_requester(
-        method="GET",
-        endpoint="/api/v1/capital",
-        params={},
-        is_signed=True,
-        endpoint_group="private",
-        request_weight=1,
-    )
-    logger.info(f"   Raw API response: {raw_data}")
-    logger.info(f"   Raw API response type: {type(raw_data)}")
-
     # Initialize spot_balances
     spot_balances: dict[str, SpotBalance] = {}
     try:
         spot_balances = await api.get_balances()
         logger.info(f"   Keys: {list(spot_balances.keys())}")
+        logger.info(f"   Number of balances: {len(spot_balances)}")
     except Exception as e:
         logger.error(f"   Error getting balances: {e}")
 
@@ -54,48 +43,15 @@ async def test_collateral_endpoint(api: BackpackAPI) -> None:
     """Test collateral endpoint."""
     logger.info("")
     logger.info("2. COLLATERAL ENDPOINT (/api/v1/capital/collateral):")
-    try:
-        # Use the HTTP client requester directly
-        http_client_requester = api.account_service._http_client_requester
+    logger.info("   NOTE: The Backpack API client does not currently expose a public method")
+    logger.info("   to retrieve collateral data directly. This would require:")
+    logger.info("   1. Adding a new method to BackpackAccountService like:")
+    logger.info("      async def get_collateral() -> CollateralData")
+    logger.info("   2. Or accessing protected internal methods (not recommended)")
+    logger.info("")
+    logger.info("   For production use, the proper approach would be to implement")
+    logger.info("   a public method in BackpackAPI or BackpackAccountService.")
 
-        # Make request to collateral endpoint
-        raw_data, status_code, _ = await http_client_requester(
-            method="GET",
-            endpoint="/api/v1/capital/collateral",
-            params={},
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
-
-        logger.info(f"   Status: {status_code}")
-        if status_code == 200 and raw_data is not None:
-            logger.info(f"   Collateral response: {raw_data}")
-            if isinstance(raw_data, dict):
-                display_collateral_details(raw_data)
-        else:
-            logger.info(f"   Error: Status {status_code}, Data: {raw_data}")
-
-    except Exception as e:
-        logger.exception(f"   Exception: {e}")
-
-
-def display_collateral_details(raw_data: dict) -> None:
-    """Display collateral details from raw data."""
-    # Check for USDC in collateral array
-    if "collateral" in raw_data and isinstance(raw_data["collateral"], list):
-        for asset in raw_data["collateral"]:
-            if isinstance(asset, dict) and asset.get("symbol") == "USDC":
-                logger.info("   🎯 FOUND USDC IN COLLATERAL:")
-                logger.info(f"      - Total Quantity: {asset.get('totalQuantity', 'N/A')}")
-                logger.info(f"      - Lend Quantity: {asset.get('lendQuantity', 'N/A')}")
-                logger.info(f"      - Available Quantity: {asset.get('availableQuantity', 'N/A')}")
-                logger.info(f"      - Collateral Value: ${asset.get('collateralValue', 'N/A')}")
-
-    # Also show summary values
-    logger.info("   Summary:")
-    logger.info(f"      - Net Equity: ${raw_data.get('netEquity', 'N/A')}")
-    logger.info(f"      - Assets Value: ${raw_data.get('assetsValue', 'N/A')}")
 
 
 def display_summary(spot_balances: dict[str, SpotBalance]) -> None:

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any  # Added for type hints
 
 import pandas as pd
+import pandas.core.series
 import pytest
 
 from cyberdelta.backtesting import BacktestEngine
@@ -137,7 +138,7 @@ class TestBacktestingIntegration:
         assert init_success
 
         # first_row_data is a Series, potentially with complex index/dtypes
-        first_row_data: Any = self.funding_data.iloc[0]
+        first_row_data: pd.Series[Any] = self.funding_data.iloc[0]
         # Update method takes Series and returns dict
         result: dict[str, Any] = adapter.update(first_row_data)
 
@@ -153,7 +154,7 @@ class TestBacktestingIntegration:
 
         # The type of the element retrieved can vary, use Any
         # Access the close price data using iloc
-        price_series: Any = self.funding_data[first_close_price_column_key]
+        price_series: pd.Series[Any] = self.funding_data[first_close_price_column_key]
         first_close_price: Any = price_series.iloc[0]
 
         expected_signal_count = 0
@@ -230,7 +231,8 @@ class TestBacktestingIntegration:
         price_val_raw: Any = None
 
         if isinstance(current_data, pd.Series):
-            if price_column_key in current_data.index:
+            series_index: pd.Index[Any] = current_data.index
+            if price_column_key in series_index:
                 price_val_raw = current_data[price_column_key]
         elif price_column_key in current_data.columns:
             price_val_raw = current_data[price_column_key].iloc[0]

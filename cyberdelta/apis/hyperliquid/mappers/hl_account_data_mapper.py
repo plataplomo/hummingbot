@@ -36,7 +36,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
 )
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     HyperliquidMarginDetails,
     HyperliquidPositionDetails,
@@ -833,4 +835,52 @@ class HyperliquidAccountDataMapper:
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform WebSocket position update to internal: {e}",
+            ) from e
+    
+    @staticmethod
+    def transform_account_settings_update_to_internal(
+        args: "UpdateAccountSettingsArgs",
+        exchange_name: str,
+        asset_leverage_settings: dict[int, int] | None = None,
+    ) -> "AccountSettings":
+        """Transform account settings update args to internal AccountSettings model.
+        
+        Args:
+            args: The account settings update arguments
+            exchange_name: Name of the exchange
+            asset_leverage_settings: Optional dict mapping asset indices to leverage values
+            
+        Returns:
+            AccountSettings: Internal model representing the updated settings
+            
+        Raises:
+            TransformationError: If transformation fails
+            
+        """
+        try:
+            from cyberdelta.core.models import AccountSettings
+            from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
+            
+            # Create Hyperliquid-specific details
+            hl_details = HyperliquidAccountSettingsDetails(
+                asset_leverage_settings=asset_leverage_settings,
+                cross_margin_enabled=True,  # Default to cross margin
+            )
+            
+            return AccountSettings(
+                exchange=exchange_name,
+                timestamp=datetime.now(UTC),
+                # This serves as the "default" for new positions
+                leverage_limit=args.leverage_limit,
+                auto_borrow_settlements=None,  # Not supported by Hyperliquid
+                auto_lend=None,  # Not supported by Hyperliquid
+                auto_realize_pnl=None,  # Not supported by Hyperliquid
+                auto_repay_borrows=None,  # Not supported by Hyperliquid
+                hl_details=hl_details,
+                bp_details=None,
+            )
+            
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to transform account settings update to internal: {e}",
             ) from e

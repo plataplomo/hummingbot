@@ -201,7 +201,8 @@ class TestBackpackPerpPositionsPrivate:
         assert len(position.symbol) <= 20
 
         if "PERP" in position.symbol.upper():
-            assert "-" in position.symbol
+            # Backpack perp symbols use underscores (e.g., SOL_USDC_PERP)
+            assert "_" in position.symbol
 
         assert position.timestamp is not None
         time_diff = datetime.now(position.timestamp.tzinfo) - position.timestamp

@@ -7,46 +7,22 @@ Uses test configuration from tests/config/test_config.yaml.
 # Integration test fixtures for Hyperliquid API
 # Uses test configuration from tests/config/test_config.yaml
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
 
-
-@pytest.fixture(scope="session")
-def active_hl_config(
-    test_app_settings: AppSettings,
-    hl_test_environment_from_config: str,
-) -> ExchangeSpecificConfig:
-    """Provide ExchangeSpecificConfig for Hyperliquid from test configuration.
-
-    Uses test_config.yaml settings with environment override support.
-    """
-    hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
-    # Override is_mainnet_environment based on hl_test_environment_from_config fixture
-    return hl_config_from_file.model_copy(
-        update={"is_mainnet_environment": hl_test_environment_from_config == "testnet"},
-    )
-
-
-@pytest.fixture(scope="session")
-def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
-    """Provide PrivateKeyAuthSecrets for Hyperliquid from test secrets.
-
-    Uses test_secrets.yaml settings.
-    """
-    secrets = test_secrets_config.exchanges["hyperliquid"]
-    if not isinstance(secrets, PrivateKeyAuthSecrets):
-        pytest.fail("Hyperliquid secrets in test_secrets.yaml are not PrivateKeyAuthSecrets type.")
-    return secrets
-
-
-# Removed deprecated create_test_exchange_config function - now using active_hl_config fixture
+# Note: active_hl_config and active_hl_secrets fixtures are now provided by
+# tests.fixtures.config_fixtures
+# to ensure consistency with the main configuration pattern
 
 
 @pytest.fixture
@@ -259,3 +235,142 @@ def hl_api_with_di(
         )
 
     return _create_api
+
+
+# Multi-Environment Test Fixtures (Zero Balance, Large Balance)
+
+
+@pytest.fixture(scope="session")
+def test_secrets_zero_balance_file_path() -> Path:
+    """Path to the zero balance test secrets file."""
+    return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_zero_balance.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_secrets_large_balance_file_path() -> Path:
+    """Path to the large balance test secrets file."""
+    return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_large_balance.yaml"
+
+
+@pytest.fixture(scope="session")
+def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) -> SecretsConfig:
+    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml."""
+    if not test_secrets_zero_balance_file_path.exists():
+        pytest.skip(
+            f"Zero balance test secrets file not found at {test_secrets_zero_balance_file_path}, "
+            "skipping zero balance tests."
+        )
+    try:
+        manager = SecretsManager(str(test_secrets_zero_balance_file_path))
+        if manager.secrets_data is None:
+            raise RuntimeError("SecretsManager loaded but secrets_data is None.")
+        return manager.secrets_data
+    except Exception as e:
+        pytest.fail(
+            f"Failed to load zero balance test SecretsConfig from "
+            f"{test_secrets_zero_balance_file_path}: {e}"
+        )
+
+
+@pytest.fixture(scope="session")
+def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path) -> SecretsConfig:
+    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml."""
+    if not test_secrets_large_balance_file_path.exists():
+        pytest.skip(
+            f"Large balance test secrets file not found at {test_secrets_large_balance_file_path}, "
+            "skipping large balance tests."
+        )
+    try:
+        manager = SecretsManager(str(test_secrets_large_balance_file_path))
+        if manager.secrets_data is None:
+            raise RuntimeError("SecretsManager loaded but secrets_data is None.")
+        return manager.secrets_data
+    except Exception as e:
+        pytest.fail(
+            f"Failed to load large balance test SecretsConfig from "
+            f"{test_secrets_large_balance_file_path}: {e}"
+        )
+
+
+@pytest.fixture(scope="session")
+def hl_secrets_for_zero_balance(
+    test_secrets_zero_balance_config: SecretsConfig,
+) -> PrivateKeyAuthSecrets:
+    """Provide PrivateKeyAuthSecrets for zero balance account.
+
+    Loads from test_secrets_zero_balance.yaml.
+    """
+    secrets = test_secrets_zero_balance_config.exchanges["hyperliquid"]
+    if not isinstance(secrets, PrivateKeyAuthSecrets):
+        pytest.fail(
+            "Hyperliquid secrets in test_secrets_zero_balance.yaml are not "
+            "PrivateKeyAuthSecrets type."
+        )
+    return secrets
+
+
+@pytest.fixture(scope="session")
+def hl_secrets_for_large_balance(
+    test_secrets_large_balance_config: SecretsConfig,
+) -> PrivateKeyAuthSecrets:
+    """Provide PrivateKeyAuthSecrets for large balance account.
+
+    Loads from test_secrets_large_balance.yaml.
+    """
+    secrets = test_secrets_large_balance_config.exchanges["hyperliquid"]
+    if not isinstance(secrets, PrivateKeyAuthSecrets):
+        pytest.fail(
+            "Hyperliquid secrets in test_secrets_large_balance.yaml are not "
+            "PrivateKeyAuthSecrets type."
+        )
+    return secrets
+
+
+@pytest_asyncio.fixture
+async def hl_api_for_zero_balance_test(
+    active_hl_config: ExchangeSpecificConfig,
+    hl_secrets_for_zero_balance: PrivateKeyAuthSecrets,
+) -> AsyncGenerator[HyperliquidAPI]:
+    """Create HyperliquidAPI instance for zero balance integration tests.
+
+    Uses configuration from test_config.yaml and zero balance account secrets
+    from test_secrets_zero_balance.yaml. This fixture is specifically for
+    testing with an account that has:
+    - Zero or minimal balances
+    - No positions
+    - No open orders
+    - Minimal or no trading history
+    """
+    # Create HyperliquidAPI with zero balance account credentials
+    api = HyperliquidAPI(
+        exchange_config=active_hl_config,
+        exchange_secrets=hl_secrets_for_zero_balance,
+    )
+    yield api
+    # Ensure proper cleanup
+    await api.close()
+
+
+@pytest_asyncio.fixture
+async def hl_api_for_large_balance_test(
+    active_hl_config: ExchangeSpecificConfig,
+    hl_secrets_for_large_balance: PrivateKeyAuthSecrets,
+) -> AsyncGenerator[HyperliquidAPI]:
+    """Create HyperliquidAPI instance for large balance integration tests.
+
+    Uses configuration from test_config.yaml and large balance account secrets
+    from test_secrets_large_balance.yaml. This fixture is specifically for
+    testing with an account that has:
+    - Large balance for maximum position testing
+    - High leverage limits
+    - Sufficient margin for edge case testing
+    - Ability to open and close large positions
+    """
+    # Create HyperliquidAPI with large balance account credentials
+    api = HyperliquidAPI(
+        exchange_config=active_hl_config,
+        exchange_secrets=hl_secrets_for_large_balance,
+    )
+    yield api
+    # Ensure proper cleanup
+    await api.close()

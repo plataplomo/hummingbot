@@ -4,7 +4,6 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_manager import ConfigManager
@@ -18,33 +17,14 @@ logger = logging.getLogger(__name__)
 async def get_autolend_status(api: BackpackAPI) -> bool | None:
     """Get the autoLend status from account settings."""
     logger.info("1. ACCOUNT SETTINGS (/api/v1/account):")
-    try:
-        # Direct API call to get raw account data
-        raw_data, status_code, _ = await api.account_service._http_client_requester(
-            method="GET",
-            endpoint="/api/v1/account",
-            params={},
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
-
-        if status_code == 200 and raw_data and isinstance(raw_data, dict):
-            logger.info(f"   Raw response: {raw_data}")
-            auto_lend = raw_data.get("autoLend", None)
-            logger.info(f"   🎯 autoLend setting: {auto_lend}")
-
-            # Show other relevant settings
-            logger.info(f"   autoBorrowSettlements: {raw_data.get('autoBorrowSettlements')}")
-            logger.info(f"   autoRepayBorrows: {raw_data.get('autoRepayBorrows')}")
-            logger.info(f"   autoRealizePnl: {raw_data.get('autoRealizePnl')}")
-            return auto_lend
-        else:
-            logger.error(f"   Failed to get account data: {status_code}")
-            return None
-    except Exception as e:
-        logger.exception(f"   Error: {e}")
-        return None
+    logger.info("   NOTE: The Backpack API client does not currently expose a public method")
+    logger.info("   to retrieve account settings (autoLend, autoBorrowSettlements, etc.)")
+    logger.info("   This functionality would require accessing internal/protected methods.")
+    logger.info("")
+    logger.info("   To properly implement this, the BackpackAPI would need a new method like:")
+    logger.info("   async def get_account_settings() -> AccountSettings")
+    logger.info("")
+    return None
 
 
 async def display_spot_balances(api: BackpackAPI) -> None:
@@ -62,26 +42,13 @@ async def display_spot_balances(api: BackpackAPI) -> None:
 async def display_collateral_data(api: BackpackAPI) -> None:
     """Display collateral data."""
     logger.info("\n   Collateral Data (/api/v1/capital/collateral):")
-    raw_data, status_code, _ = await api.account_service._http_client_requester(
-        method="GET",
-        endpoint="/api/v1/capital/collateral",
-        params={},
-        is_signed=True,
-        endpoint_group="private",
-        request_weight=1,
-    )
-
-    if status_code == 200 and raw_data and isinstance(raw_data, dict) and "collateral" in raw_data:
-        collateral_list = raw_data.get("collateral", [])
-        if isinstance(collateral_list, list):
-            for asset in collateral_list:
-                if isinstance(asset, dict):
-                    asset_symbol: Any = asset.get("symbol")
-                    if asset_symbol and asset_symbol in ["USDC", "SOL"]:
-                        logger.info(f"   {asset_symbol}:")
-                        logger.info(f"      totalQuantity: {asset.get('totalQuantity')}")
-                        logger.info(f"      lendQuantity: {asset.get('lendQuantity')}")
-                        logger.info(f"      availableQuantity: {asset.get('availableQuantity')}")
+    logger.info("   NOTE: The Backpack API client does not currently expose a public method")
+    logger.info("   to retrieve collateral data directly. This would require accessing")
+    logger.info("   internal/protected methods or implementing a new service method like:")
+    logger.info("   async def get_collateral() -> CollateralData")
+    logger.info("")
+    logger.info("   For production use, consider implementing this method in the BackpackAPI")
+    logger.info("   or BackpackAccountService to provide proper access to collateral data.")
 
 
 def analyze_autolend_status(auto_lend: bool | None) -> None:

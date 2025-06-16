@@ -36,6 +36,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
         GetTradeHistoryArgs,
         PlaceOrderArgs,
         TransferArgs,
+        UpdateAccountSettingsArgs,
         WithdrawArgs,
     )
 
@@ -818,6 +820,24 @@ class ExchangeAPI(ABC):
     @abstractmethod
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Fetch current open positions, optionally filtered by symbol."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings such as leverage limits and auto-trading preferences.
+
+        Args:
+            args: Account settings to update including optional leverage_limit,
+                 auto_borrow_settlements, auto_lend, auto_realize_pnl, and auto_repay_borrows.
+
+        Note:
+            This allows updating leverage limits which directly impacts maximum position sizes
+            for large balance testing. Changes take effect immediately.
+
+        Raises:
+            APIError: If the account settings update fails.
+
+        """
         raise NotImplementedError
 
     # --- Order Management --- #

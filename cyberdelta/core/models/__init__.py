@@ -6,6 +6,12 @@
 """
 
 # from .credentials import APIKeys # TODO: Resolve ModuleNotFoundError
+# Import Account models
+from .account_settings import (
+    AccountSettings,
+    BackpackAccountSettingsDetails,
+    HyperliquidAccountSettingsDetails,
+)
 from .derivative_position import (
     BackpackPositionDetails,
     DerivativePosition,
@@ -24,8 +30,6 @@ from .enums import (
     TimeInForce,
     TriggerType,
 )
-
-# Import new Margin Account models
 from .margin_account import (
     BackpackMarginDetails,
     HyperliquidMarginDetails,
@@ -89,6 +93,10 @@ __all__ = [
     "MarginAccountSummary",
     "HyperliquidMarginDetails",  # Margin Account Detail
     "BackpackMarginDetails",  # Margin Account Detail
+    # Account Settings Models
+    "AccountSettings",
+    "HyperliquidAccountSettingsDetails",  # Account Settings Detail
+    "BackpackAccountSettingsDetails",  # Account Settings Detail
     # Strategy Models
     "TradeSignal",
     # --- TODO: Resolve Missing Modules/Imports ---
