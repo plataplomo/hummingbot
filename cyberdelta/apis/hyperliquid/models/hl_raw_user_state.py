@@ -131,12 +131,15 @@ class HyperliquidRawClearinghouseState(BaseModel):
         alias="crossMaintenanceMarginUsed",
     )
     cross_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="crossMarginSummary")
-    isolated_maintenance_margin_used: RawNonNegativeFiniteDecimalStr = Field(
-        ...,
+    isolated_maintenance_margin_used: RawNonNegativeFiniteDecimalStr | None = Field(
+        None,
         alias="isolatedMaintenanceMarginUsed",
     )
-    isolated_margin_summary: HyperliquidRawMarginSummary = Field(..., alias="isolatedMarginSummary")
+    isolated_margin_summary: HyperliquidRawMarginSummary | None = Field(
+        None, alias="isolatedMarginSummary"
+    )
     withdrawable: RawNonNegativeFiniteDecimalStr = Field(..., alias="withdrawable")
+    time: RawNonNegativeInt | None = Field(None, alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

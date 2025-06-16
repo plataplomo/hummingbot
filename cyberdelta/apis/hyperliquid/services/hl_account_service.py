@@ -177,10 +177,14 @@ class HyperliquidAccountService:
                     http_status=status_code,
                 )
 
-            if not isinstance(raw_data, list) or not raw_data:
+            # Handle both list and dict responses for clearinghouse state
+            if isinstance(raw_data, dict):
+                # Convert dict response to list format expected by handler
+                raw_data = [raw_data]
+            elif not isinstance(raw_data, list) or not raw_data:
                 raise APIError(
                     message=(
-                        f"Unexpected raw user state response format, expected non-empty list, "
+                        f"Unexpected raw user state response format, expected non-empty list or dict, "
                         f"got {type(raw_data)}"
                     ),
                     code=APIErrorCode.INVALID_RESPONSE.value,
@@ -196,7 +200,7 @@ class HyperliquidAccountService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Pass the first element directly to the handler
             # The handler will validate it's a dict and has the correct structure
             return self._response_handler.handle_info_user_state_response(
@@ -1208,7 +1212,7 @@ class HyperliquidAccountService:
         if args.leverage_limit is None:
             raise APIError(
                 message="leverage_limit is required for Hyperliquid account settings update. "
-                       "Other settings (auto_lend, etc.) are not supported by Hyperliquid.",
+                "Other settings (auto_lend, etc.) are not supported by Hyperliquid.",
                 code=APIErrorCode.INVALID_REQUEST.value,
             )
 
@@ -1305,4 +1309,3 @@ class HyperliquidAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-

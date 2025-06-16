@@ -50,12 +50,18 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
             if market.symbol == symbol:
                 return market.tick_size
 
-        logger.warning(f"Symbol {symbol} not found in markets, using default tick size")
-        return Decimal("0.01")  # Fallback default
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Symbol {symbol} not found in markets. "
+            "This test requires real market data and cannot use default values."
+        )
 
     except Exception as e:
-        logger.warning(f"Failed to get tick size for {symbol}: {e}, using default")
-        return Decimal("0.01")  # Fallback default
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to get tick size for {symbol}: {e}. "
+            "This test requires real market data and cannot use default values."
+        ) from e
 
 
 async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
@@ -77,12 +83,18 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
             if market.symbol == symbol:
                 return market.step_size
 
-        logger.warning(f"Symbol {symbol} not found in markets, using default step size")
-        return Decimal("0.01")  # Fallback default
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Symbol {symbol} not found in markets. "
+            "This test requires real market data and cannot use default values."
+        )
 
     except Exception as e:
-        logger.warning(f"Failed to get step size for {symbol}: {e}, using default")
-        return Decimal("0.01")  # Fallback default
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to get step size for {symbol}: {e}. "
+            "This test requires real market data and cannot use default values."
+        ) from e
 
 
 async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Decimal]:
@@ -123,11 +135,11 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         return constraints
 
     except Exception as e:
-        logger.warning(f"Failed to get market constraints for {symbol}: {e}, using defaults")
-        return {
-            "tick_size": Decimal("0.01"),
-            "step_size": Decimal("0.01"),
-        }
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to get market constraints for {symbol}: {e}. "
+            "This test requires real market data and cannot use default values."
+        ) from e
 
 
 # =============================================================================
@@ -214,62 +226,17 @@ async def get_dynamic_test_price(
         return quantized_price.normalize()
 
     except Exception as e:
-        # Fallback prices based on symbol type
-        fallback_prices = get_fallback_test_prices(symbol, side)
-        logger.warning(
-            "Dynamic pricing failed for %s, using fallback price %s: %s",
-            symbol,
-            fallback_prices,
-            e,
-        )
-        return fallback_prices
+        # NO FALLBACK PRICES - This is a trading engine!
+        # If we can't get real market data, the test should fail
+        raise RuntimeError(
+            f"Failed to get dynamic test price for {symbol} {side.value}: {e}. "
+            "This test requires real market data and cannot use hardcoded fallback prices."
+        ) from e
 
 
-def get_fallback_test_prices(symbol: str, side: OrderSide) -> Decimal:
-    """Get fallback test prices when dynamic pricing fails.
-
-    Args:
-        symbol: Trading symbol
-        side: Order side
-
-    Returns:
-        Fallback test price
-    """
-    # Normalize symbol for comparison (handle both - and _ formats)
-    normalized_symbol = symbol.upper().replace("-", "_")
-
-    # More conservative fallback prices to reduce chances of accidental execution
-    # Spot market fallbacks
-    if (
-        "SOL" in normalized_symbol
-        and "USDC" in normalized_symbol
-        and "_PERP" not in normalized_symbol
-    ):
-        return Decimal("1.00") if side == OrderSide.BUY else Decimal("500.00")
-    elif (
-        "BTC" in normalized_symbol
-        and "USDC" in normalized_symbol
-        and "_PERP" not in normalized_symbol
-    ):
-        return Decimal("10000.00") if side == OrderSide.BUY else Decimal("100000.00")
-    elif (
-        "ETH" in normalized_symbol
-        and "USDC" in normalized_symbol
-        and "_PERP" not in normalized_symbol
-    ):
-        return Decimal("500.00") if side == OrderSide.BUY else Decimal("10000.00")
-
-    # Perp market fallbacks - more conservative spread
-    elif normalized_symbol == "SOL_USDC_PERP":
-        return Decimal("1.00") if side == OrderSide.BUY else Decimal("500.00")
-    elif normalized_symbol == "BTC_USDC_PERP":
-        return Decimal("10000.00") if side == OrderSide.BUY else Decimal("100000.00")
-    elif normalized_symbol == "ETH_USDC_PERP":
-        return Decimal("500.00") if side == OrderSide.BUY else Decimal("10000.00")
-
-    # Generic fallback - very conservative
-    else:
-        return Decimal("1.00") if side == OrderSide.BUY else Decimal("1000.00")
+# REMOVED: get_fallback_test_prices function
+# This function provided hardcoded fallback prices which is unacceptable for a trading engine.
+# Tests should fail if real market data cannot be obtained.
 
 
 # =============================================================================
@@ -304,8 +271,11 @@ async def get_minimal_order_size(
         return quantized_quantity.normalize()
 
     except Exception as e:
-        logger.warning(f"Failed to calculate minimal order size for {symbol}: {e}")
-        return Decimal("0.01")  # Safe fallback
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to calculate minimal order size for {symbol}: {e}. "
+            "This test requires real market constraints and cannot use hardcoded fallback values."
+        ) from e
 
 
 async def validate_order_constraints(
@@ -881,14 +851,11 @@ async def get_unreasonably_large_price(
         tick_size = await get_symbol_tick_size(api, symbol)
         return large_price.quantize(tick_size).normalize()
     except Exception as e:
-        logger.warning(f"Failed to get large price for {symbol}: {e}, using fallback")
-        # Fallback to very high prices
-        if "BTC" in symbol:
-            return Decimal("1000000.00")  # $1M BTC
-        elif "ETH" in symbol:
-            return Decimal("100000.00")  # $100K ETH
-        else:
-            return Decimal("10000.00")  # $10K default
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to get unreasonably large price for {symbol}: {e}. "
+            "This test requires real market data and cannot use hardcoded prices."
+        ) from e
 
 
 async def get_unreasonably_large_quantity(
@@ -911,8 +878,11 @@ async def get_unreasonably_large_quantity(
         step_size = constraints["step_size"]
         return large_quantity.quantize(step_size).normalize()
     except Exception as e:
-        logger.warning(f"Failed to get large quantity for {symbol}: {e}, using fallback")
-        return Decimal("1000.00")  # Fallback large quantity
+        # NO FALLBACK VALUES - This is a trading engine!
+        raise RuntimeError(
+            f"Failed to get unreasonably large quantity for {symbol}: {e}. "
+            "This test requires real market data and cannot use hardcoded quantities."
+        ) from e
 
 
 def is_stablecoin(asset: str) -> bool:

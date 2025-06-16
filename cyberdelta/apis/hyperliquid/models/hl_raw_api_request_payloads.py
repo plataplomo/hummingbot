@@ -83,14 +83,11 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
         Literal["order"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("order")
-    # The `HyperliquidRawBatchPlaceOrderActionPayload` has 'type', 'grouping', and 'orders'
-    # It seems this top-level request *is* the HyperliquidRawBatchPlaceOrderActionPayload.
-    # Let's verify the structure from hl_request_builder.py for build_place_order_payload
-    # It was: return {"type": "order", "actions": [place_order_action.model_dump(by_alias=True)]}
-    # The Hyperliquid spec for place order (type: "order") shows an 'actions' list of 'OrderSpec'.
-    # So `HyperliquidRawPlaceOrderAction` is the model for each item in the 'actions' list.
+    # Following the official Hyperliquid SDK structure which uses "orders" not "actions"
+    # Based on the official Python SDK, order placement uses "orders" field
+    # This matches the actual API specification used by the official SDK
 
-    actions: list[HyperliquidRawPlaceOrderAction]
+    orders: list[HyperliquidRawPlaceOrderAction]
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -111,11 +108,11 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
 # --- /exchange endpoint: Update Leverage --- #
 class HyperliquidApiUpdateLeverageRequest(BaseModel):
     """Top-level request payload for updating leverage."""
-    
+
     type: Annotated[
         Literal["updateLeverage"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("updateLeverage")
     action: HyperliquidRawUpdateLeverageAction
-    
+
     model_config = ConfigDict(extra="forbid", frozen=True)

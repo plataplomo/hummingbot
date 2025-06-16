@@ -276,7 +276,7 @@ class MockExchangeAPI(ExchangeAPI):
 
     def set_open_orders_behavior(self, behavior: str) -> None:
         """Set the behavior for handling open orders.
-        
+
         Args:
             behavior: One of "keep_open", "fill_immediately", or "partial_fill"
         """
@@ -598,7 +598,7 @@ class MockExchangeAPI(ExchangeAPI):
         """Update mock account settings."""
         self._check_error("update_account_settings")
         await self._simulate_latency()
-        
+
         # Return a mock AccountSettings object with the requested values
         return AccountSettings(
             exchange=self.exchange_name,

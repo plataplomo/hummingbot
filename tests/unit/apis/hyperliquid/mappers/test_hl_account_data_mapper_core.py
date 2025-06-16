@@ -95,6 +95,7 @@ def raw_clearinghouse_state_base_fixture(
         isolatedMaintenanceMarginUsed="25.0",
         isolatedMarginSummary=raw_margin_summary_fixture,
         withdrawable="9800.0",
+        time=1640995200000,
     )
 
 
@@ -118,6 +119,7 @@ def raw_user_state_empty_positions_no_balances() -> HyperliquidRawClearinghouseS
         isolatedMaintenanceMarginUsed="0",
         isolatedMarginSummary=empty_margin_summary,
         withdrawable="0",
+        time=1640995200000,
     )
 
 
@@ -383,6 +385,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
                 totalNtlPos="0",
             ),
             withdrawable="0",
+            time=1640995200000,
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
@@ -431,6 +434,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
                 totalNtlPos="0",
             ),
             withdrawable="9500.987654321098765",
+            time=1640995200000,
         )
 
         spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
@@ -497,6 +501,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
                 totalMarginUsed="0",
             ),
             withdrawable="9900.0",
+            time=1640995200000,
         )
 
         spot_balances = (

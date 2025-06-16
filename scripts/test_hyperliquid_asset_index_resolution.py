@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 async def test_asset_index_resolution() -> None:
     """Test the asset index resolution functionality."""
     logger.info("=== Testing Hyperliquid Asset Index Resolution ===\n")
-    
+
     # Create mock dependencies
     mock_requester = AsyncMock()
     mock_response_handler = MagicMock(spec=HyperliquidResponseHandler)
     mock_request_builder = MagicMock(spec=HyperliquidRequestBuilder)
-    
+
     # Create the asset indexer
     indexer = HyperliquidAssetIndexResolver(
         requester=mock_requester,
@@ -32,12 +32,12 @@ async def test_asset_index_resolution() -> None:
         request_builder=mock_request_builder,
         exchange_name_for_log="test_hyperliquid",
     )
-    
+
     # Mock the request builder to return a proper payload
     mock_request_builder.build_info_request_payload.return_value = MagicMock(
         model_dump=lambda by_alias=True, exclude_none=True: {"type": "metaAndAssetCtxs"}
     )
-    
+
     # Mock the API response with sample asset metadata
     mock_api_response: ParsedJsonResponse = [
         {
@@ -50,18 +50,18 @@ async def test_asset_index_resolution() -> None:
                 {"name": "SOL", "szDecimals": 9},
             ]
         },
-        []  # Empty asset contexts for this test
+        [],  # Empty asset contexts for this test
     ]
-    
+
     mock_requester.return_value = (mock_api_response, 200, {})
-    
+
     # Mock the response handler to parse and return validated response
     from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
         HyperliquidRawAssetDefinition,
         HyperliquidRawMetaAndAssetCtxsResponse,
         HyperliquidRawMetaResponse,
     )
-    
+
     mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
         meta=HyperliquidRawMetaResponse(
             universe=[
@@ -87,11 +87,11 @@ async def test_asset_index_resolution() -> None:
         ),
         asset_ctxs=[],
     )
-    
+
     mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
         mock_validated_response
     )
-    
+
     # Test 1: Fetch asset index for BTC (should be 0)
     logger.info("Test 1: Fetching asset index for BTC")
     btc_index = await indexer.get_asset_index("BTC")
@@ -99,7 +99,7 @@ async def test_asset_index_resolution() -> None:
     if btc_index != 0:
         raise AssertionError(f"Expected BTC index to be 0, got {btc_index}")
     logger.info("  ✓ BTC index is correct\n")
-    
+
     # Test 2: Fetch asset index for ETH (should be 1)
     logger.info("Test 2: Fetching asset index for ETH (from cache)")
     eth_index = await indexer.get_asset_index("ETH")
@@ -107,7 +107,7 @@ async def test_asset_index_resolution() -> None:
     if eth_index != 1:
         raise AssertionError(f"Expected ETH index to be 1, got {eth_index}")
     logger.info("  ✓ ETH index is correct\n")
-    
+
     # Test 3: Fetch asset index for SOL (should be 5)
     logger.info("Test 3: Fetching asset index for SOL (from cache)")
     sol_index = await indexer.get_asset_index("SOL")
@@ -115,14 +115,14 @@ async def test_asset_index_resolution() -> None:
     if sol_index != 5:
         raise AssertionError(f"Expected SOL index to be 5, got {sol_index}")
     logger.info("  ✓ SOL index is correct\n")
-    
+
     # Test 4: Verify caching works (API should only be called once)
     logger.info("Test 4: Verifying caching behavior")
     logger.info(f"  API was called {mock_requester.call_count} time(s)")
     if mock_requester.call_count != 1:
         raise AssertionError("API should only be called once due to caching")
     logger.info("  ✓ Caching is working correctly\n")
-    
+
     # Test 5: Test invalid symbol
     logger.info("Test 5: Testing invalid symbol handling")
     try:
@@ -131,12 +131,12 @@ async def test_asset_index_resolution() -> None:
         raise AssertionError("Should have raised APIError for invalid symbol")
     except APIError as e:
         logger.info(f"  ✓ Correctly raised APIError: {e.message}\n")
-    
+
     # Test 6: Show the complete cache
     logger.info("Test 6: Asset index cache contents:")
     for symbol, index in indexer._asset_to_index_cache.items():
         logger.info(f"  {symbol}: {index}")
-    
+
     logger.info("\n✅ All asset index resolution tests passed!")
     logger.info("\nKey takeaways:")
     logger.info("- Asset indices are fetched dynamically from Hyperliquid's /info endpoint")

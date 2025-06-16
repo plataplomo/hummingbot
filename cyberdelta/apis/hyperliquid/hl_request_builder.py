@@ -259,12 +259,12 @@ class HyperliquidRequestBuilder:
             hl_tif_details = HyperliquidRawLimitOrderTypeDetails(
                 tif=HyperliquidRequestBuilder._map_time_in_force_to_hyperliquid(time_in_force),
             )
-            # Ensure only 'limit' is set, not 'market'
-            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details, market=None)
+            # Only set 'limit', leave 'market' as default None (will be excluded with exclude_none=True)
+            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details)
         elif order_type == OrderType.MARKET:
             hl_market_details = HyperliquidRawMarketOrderTypeDetails()
-            # Ensure only 'market' is set, not 'limit'
-            hl_order_type = HyperliquidRawOrderType(limit=None, market=hl_market_details)
+            # Only set 'market', leave 'limit' as default None (will be excluded with exclude_none=True)
+            hl_order_type = HyperliquidRawOrderType(market=hl_market_details)
 
         # Handle trigger logic for stop orders
         trigger_details = None
@@ -290,7 +290,7 @@ class HyperliquidRequestBuilder:
             cloid=client_order_id,
         )
 
-        return HyperliquidApiPlaceOrderRequest(type="order", actions=[order_action])
+        return HyperliquidApiPlaceOrderRequest(type="order", orders=[order_action])
 
     @staticmethod
     def build_cancel_order_payload(
@@ -372,7 +372,7 @@ class HyperliquidRequestBuilder:
     # No changes needed for comments about /info endpoints and build_info_request_payload
     # as those are already handled or determined to not need specific Pydantic models for the
     # request body.
-    
+
     @staticmethod
     def build_update_leverage_request(
         asset_index: int,
@@ -380,15 +380,15 @@ class HyperliquidRequestBuilder:
         is_cross: bool = True,
     ) -> HyperliquidApiUpdateLeverageRequest:
         """Build the request payload for updating leverage on a specific asset.
-        
+
         Args:
             asset_index: The asset index from meta response
             leverage: The leverage value (e.g., 10, 20, 50)
             is_cross: True for cross margin, False for isolated margin
-            
+
         Returns:
             HyperliquidApiUpdateLeverageRequest: The validated request payload model.
-            
+
         """
         return HyperliquidApiUpdateLeverageRequest(
             type="updateLeverage",

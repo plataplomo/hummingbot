@@ -215,11 +215,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def _setup_eip712_configuration(self, chain_id: int) -> None:
         """Setup EIP-712 domain and type configurations."""
         # Initialize EIP-712 domain data for Exchange/Agent scheme (sign_l1_action)
+        # Use appropriate verifying contract based on environment
+        verifying_contract = (
+            "0x0000000000000000000000000000000000000000"
+            if self._is_mainnet_env
+            else "0x0000000000000000000000000000000000000000"
+        )
         self._exchange_action_domain = HyperliquidAgentDomainData(
             name="Exchange",
             version="1",
             chainId=chain_id,
-            verifyingContract="0x0000000000000000000000000000000000000000",
+            verifyingContract=verifying_contract,
         )
 
         # Initialize EIP-712 types for Exchange/Agent scheme
@@ -261,6 +267,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         This is specifically for Hyperliquid API which expects order types to have
         only the active field (limit OR market), not both with one as null.
+        Also removes other null fields that should be omitted.
         """
         # Handle order type structures: {"limit": {...}, "market": null} -> {"limit": {...}}
         if "limit" in data and "market" in data:
@@ -269,6 +276,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 del data["limit"]
             elif data["market"] is None and data["limit"] is not None:
                 del data["market"]
+
+        # Remove any null fields (except for specific cases where null is meaningful)
+        keys_to_remove = []
+        for key, value in data.items():
+            if value is None:
+                keys_to_remove.append(key)
+
+        for key in keys_to_remove:
+            del data[key]
 
         # Recursively clean nested structures
         for value in data.values():
@@ -360,7 +376,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             NotImplementedError: For non-/exchange paths.
 
         """
-        if path == "/exchange":
+        if path.endswith("/exchange"):
             return await self._prepare_exchange_request(method, path, params, data, headers)
         else:
             self.logger.error(

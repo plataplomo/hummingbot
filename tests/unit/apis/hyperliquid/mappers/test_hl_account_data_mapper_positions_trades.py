@@ -181,6 +181,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             isolatedMaintenanceMarginUsed="0",
             isolatedMarginSummary=empty_margin_summary,
             withdrawable="0",
+            time=1640995200000,
         )
 
         positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -292,6 +293,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                     totalNtlPos="0.0",
                 ),
                 withdrawable="900.0",
+                time=1640995200000,
             )
 
             positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -351,6 +353,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                     totalNtlPos="0.0",
                 ),
                 withdrawable="950.0",
+                time=1640995200000,
             )
 
             positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -405,6 +408,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 totalNtlPos="0.0",
             ),
             withdrawable="950.0",
+            time=1640995200000,
         )
 
         positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -729,6 +733,7 @@ class TestPositionAndTradeIntegration:
                 totalNtlPos="0.0",
             ),
             withdrawable="13500.0",
+            time=1640995200000,
         )
 
         # Transform all positions

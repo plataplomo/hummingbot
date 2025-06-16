@@ -177,7 +177,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         """
         # Create mock for get_asset_index_callable
         mock_get_asset_index = AsyncMock(return_value=0)
-        
+
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
             http_client_requester=mock_http_client_requester,
@@ -402,7 +402,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         """Test get_trade_history error handling for missing wallet and APIError from requester."""
         # Create mock for get_asset_index_callable
         mock_get_asset_index = AsyncMock(return_value=0)
-        
+
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet_trade_hist = HyperliquidAccountService(
             http_client_requester=mock_http_client_requester,

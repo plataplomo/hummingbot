@@ -85,8 +85,20 @@ BackpackTimeframe = Literal[
 def is_valid_backpack_timeframe(timeframe: str) -> TypeGuard[BackpackTimeframe]:
     """Type guard to check if a string is a valid Backpack timeframe."""
     return timeframe in {
-        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", 
-        "6h", "8h", "12h", "1d", "3d", "1w"
+        "1m",
+        "3m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "4h",
+        "6h",
+        "8h",
+        "12h",
+        "1d",
+        "3d",
+        "1w",
     }
 
 
@@ -1165,14 +1177,26 @@ class BackpackMarketDataService:
         """Validate timeframe is supported by Backpack and return typed literal."""
         if not is_valid_backpack_timeframe(timeframe):
             supported_intervals = {
-                "1m", "3m", "5m", "15m", "30m", "1h", "2h", 
-                "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+                "1m",
+                "3m",
+                "5m",
+                "15m",
+                "30m",
+                "1h",
+                "2h",
+                "4h",
+                "6h",
+                "8h",
+                "12h",
+                "1d",
+                "3d",
+                "1w",
             }
             raise ValueError(
                 f"[{current_method}] Unsupported interval '{timeframe}'. "
                 f"Supported intervals: {sorted(supported_intervals)}",
             )
-        
+
         # TypeGuard ensures timeframe is now typed as BackpackTimeframe
         return timeframe
 

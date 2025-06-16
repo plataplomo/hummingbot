@@ -100,6 +100,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             isolatedMaintenanceMarginUsed="0",
             isolatedMarginSummary=mock_raw_margin_summary,
             withdrawable="1000.5",
+            time=1640995200000,
         )
         mock_response_handler.handle_info_user_state_response.return_value = (
             mock_processed_raw_clearinghouse_state_model
@@ -153,7 +154,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         """Test get_balances raises APIError if wallet_address is not set in service."""
         # Create mock for get_asset_index_callable
         mock_get_asset_index = AsyncMock(return_value=0)
-        
+
         # Instantiate service directly with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
             http_client_requester=mock_http_client_requester,

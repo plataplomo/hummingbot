@@ -429,17 +429,21 @@ class HyperliquidAccountDataMapper:
                 allow_none=False,
                 field_name="cross_maintenance_margin_used",
             )
+            # Parse isolated maintenance margin (optional field)
             isolated_mmr = parse_decimal_value(
                 raw_state.isolated_maintenance_margin_used,
-                allow_none=False,
+                allow_none=True,
                 field_name="isolated_maintenance_margin_used",
             )
 
-            if cross_mmr is None or isolated_mmr is None:
-                raise TransformationError("Required maintenance margin fields are missing")
+            if cross_mmr is None:
+                raise TransformationError("Required cross maintenance margin field is missing")
 
             # Calculate total maintenance margin
-            total_maintenance_margin = cross_mmr + isolated_mmr
+            # If isolated margin is not provided, use only cross margin
+            total_maintenance_margin = cross_mmr + (
+                isolated_mmr if isolated_mmr is not None else Decimal("0")
+            )
 
             # Calculate available margin (withdrawable from raw state)
             withdrawable = parse_decimal_value(
@@ -464,7 +468,9 @@ class HyperliquidAccountDataMapper:
             # Create HL-specific details with required fields
             details = HyperliquidMarginDetails(
                 cross_maintenance_margin_used=cross_mmr,
-                isolated_maintenance_margin_used=isolated_mmr,
+                isolated_maintenance_margin_used=isolated_mmr
+                if isolated_mmr is not None
+                else Decimal("0"),
             )
 
             return MarginAccountSummary(
@@ -836,7 +842,7 @@ class HyperliquidAccountDataMapper:
             raise TransformationError(
                 f"Failed to transform WebSocket position update to internal: {e}",
             ) from e
-    
+
     @staticmethod
     def transform_account_settings_update_to_internal(
         args: "UpdateAccountSettingsArgs",
@@ -844,29 +850,29 @@ class HyperliquidAccountDataMapper:
         asset_leverage_settings: dict[int, int] | None = None,
     ) -> "AccountSettings":
         """Transform account settings update args to internal AccountSettings model.
-        
+
         Args:
             args: The account settings update arguments
             exchange_name: Name of the exchange
             asset_leverage_settings: Optional dict mapping asset indices to leverage values
-            
+
         Returns:
             AccountSettings: Internal model representing the updated settings
-            
+
         Raises:
             TransformationError: If transformation fails
-            
+
         """
         try:
             from cyberdelta.core.models import AccountSettings
             from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
-            
+
             # Create Hyperliquid-specific details
             hl_details = HyperliquidAccountSettingsDetails(
                 asset_leverage_settings=asset_leverage_settings,
                 cross_margin_enabled=True,  # Default to cross margin
             )
-            
+
             return AccountSettings(
                 exchange=exchange_name,
                 timestamp=datetime.now(UTC),
@@ -879,7 +885,7 @@ class HyperliquidAccountDataMapper:
                 hl_details=hl_details,
                 bp_details=None,
             )
-            
+
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform account settings update to internal: {e}",

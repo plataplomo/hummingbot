@@ -64,6 +64,7 @@ def raw_clearinghouse_state_base_fixture() -> HyperliquidRawClearinghouseState:
         isolatedMaintenanceMarginUsed="25.0",
         isolatedMarginSummary=margin_summary,
         withdrawable="9800.0",
+        time=1640995200000,
     )
 
 
@@ -155,6 +156,7 @@ class TestValidationErrorHandling:
                 isolatedMaintenanceMarginUsed="0",
                 isolatedMarginSummary=valid_margin_summary,
                 withdrawable="100",
+                time=1640995200000,
             )
 
     def test_invalid_raw_fill_data_handling(self) -> None:
@@ -230,6 +232,7 @@ class TestBoundaryValueConditions:
                 totalNtlPos="0.0",
             ),
             withdrawable=large_value,
+            time=1640995200000,
         )
 
         # Should handle large values without error
@@ -288,6 +291,7 @@ class TestBoundaryValueConditions:
                 totalNtlPos="0.0",
             ),
             withdrawable="1000.0",
+            time=1640995200000,
         )
 
         # Should handle small values without error
@@ -351,6 +355,7 @@ class TestBoundaryValueConditions:
                     totalNtlPos="0.0",
                 ),
                 withdrawable="900.0",
+                time=1640995200000,
             )
 
             positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -412,6 +417,7 @@ class TestBoundaryValueConditions:
                     totalNtlPos="0.0",
                 ),
                 withdrawable="950.0",
+                time=1640995200000,
             )
 
             positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -483,6 +489,7 @@ class TestUnicodeAndEncodingSupport:
                     totalNtlPos="0.0",
                 ),
                 withdrawable="950.0",
+                time=1640995200000,
             )
 
             # Should handle Unicode symbols without error
@@ -574,6 +581,7 @@ class TestUnicodeAndEncodingSupport:
                 totalNtlPos="0.0",
             ),
             withdrawable="950.0",
+            time=1640995200000,
         )
 
         positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
@@ -666,6 +674,7 @@ class TestPerformanceAndMemory:
                 totalNtlPos="0.0",
             ),
             withdrawable="35000.0",
+            time=1640995200000,
         )
 
         # Transform all positions efficiently
@@ -720,6 +729,7 @@ class TestPerformanceAndMemory:
                 totalNtlPos="0.0",
             ),
             withdrawable="10000.0",
+            time=1640995200000,
         )
 
         # Test multiple transformation methods on same data
@@ -791,6 +801,7 @@ class TestErrorRecoveryScenarios:
                 totalNtlPos="0.0",
             ),
             withdrawable="950.0",
+            time=1640995200000,
         )
 
         # Should handle missing optional fields gracefully
@@ -854,6 +865,7 @@ class TestErrorRecoveryScenarios:
                 totalNtlPos="0.0",
             ),
             withdrawable="2700.0",
+            time=1640995200000,
         )
 
         # Should process all non-zero positions

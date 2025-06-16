@@ -59,7 +59,7 @@ exchanges:
     ws_ping_interval_seconds: 25
     # ws_max_reconnect_attempts: 5  # Example of another optional field
     # Exchange-Specific Parameters (required for Hyperliquid)
-    chain_id: 1337
+    chain_id: 421614
     
   backpack:
     exchange_name: "backpack"

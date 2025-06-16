@@ -140,9 +140,9 @@ class HyperliquidTradingService:
             raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=False),
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
-                serialize_none_as_null=True,
+                serialize_none_as_null=False,
             )
             if raw_content is None:
                 _error_msg_no_content = (
@@ -192,9 +192,9 @@ class HyperliquidTradingService:
             raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=False),
+                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
                 is_signed=True,
-                serialize_none_as_null=True,
+                serialize_none_as_null=False,
             )
             if raw_content is None:
                 _error_msg_no_content = (

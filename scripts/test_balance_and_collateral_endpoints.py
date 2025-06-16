@@ -53,7 +53,6 @@ async def test_collateral_endpoint(api: BackpackAPI) -> None:
     logger.info("   a public method in BackpackAPI or BackpackAccountService.")
 
 
-
 def display_summary(spot_balances: dict[str, SpotBalance]) -> None:
     """Display summary of findings."""
     logger.info("")

@@ -85,11 +85,11 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Define order parameters that should impact account metrics (but still testnet-safe)
         impact_order_args = PlaceOrderArgs(
-            symbol="PURP",  # Common testnet asset
+            symbol="BTC",  # Use BTC which should be available on testnet
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),  # Moderate size for testnet
-            price=Decimal("0.01"),  # Far below market to avoid fills but reserve margin
+            quantity=Decimal("0.001"),  # Small testnet-safe size
+            price=Decimal("50000"),  # More realistic price to avoid fills but pass validation
             time_in_force=TimeInForce.GTC,
         )
 
@@ -146,7 +146,7 @@ class TestHyperliquidAccountSummaryPrivate:
 
             cancel_args = CancelOrderArgs(
                 order_id=placed_order.exchange_order_id,
-                symbol="PURP",
+                symbol="BTC",
             )
             await hl_api_for_test_env.cancel_order(cancel_args)
         except APIError:
@@ -167,10 +167,10 @@ class TestHyperliquidAccountSummaryPrivate:
         """
         # Execute a market order that should create/modify a position
         position_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.1"),  # Small size for testnet
+            quantity=Decimal("0.001"),  # Small size for testnet
             time_in_force=TimeInForce.IOC,
         )
 
@@ -204,10 +204,10 @@ class TestHyperliquidAccountSummaryPrivate:
 
             # Attempt to close position for cleanup
             close_position_args = PlaceOrderArgs(
-                symbol="PURP",
+                symbol="BTC",
                 side=OrderSide.SELL,  # Opposite side to close
                 order_type=OrderType.MARKET,
-                quantity=Decimal("0.1"),  # Same size to close
+                quantity=Decimal("0.001"),  # Same size to close
                 time_in_force=TimeInForce.IOC,
             )
 
@@ -250,11 +250,11 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Define stress order that should trigger margin error
         stress_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=stress_quantity,
-            price=Decimal("1.00"),  # $1 per unit
+            price=Decimal("30000.0"),  # Reasonable BTC price
             time_in_force=TimeInForce.GTC,
         )
 
@@ -320,11 +320,11 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Test with a small precision order to validate precision preservation
         precision_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.000001"),  # Very small quantity
-            price=Decimal("0.000001"),  # Very small price
+            price=Decimal("30000.0"),  # Reasonable BTC price
             time_in_force=TimeInForce.GTC,
         )
 
@@ -358,7 +358,7 @@ class TestHyperliquidAccountSummaryPrivate:
                 if precision_order.exchange_order_id is not None:
                     cancel_args = CancelOrderArgs(
                         order_id=precision_order.exchange_order_id,
-                        symbol="PURP",
+                        symbol="BTC",
                     )
                     await hl_api_for_test_env.cancel_order(cancel_args)
             except APIError:
@@ -397,11 +397,11 @@ class TestHyperliquidAccountSummaryPrivate:
         operations = [
             # Operation 1: Place a limit order (should affect available equity)
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol="BTC",
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal("0.5"),
-                price=Decimal("0.01"),
+                quantity=Decimal("0.001"),
+                price=Decimal("30000.0"),
                 time_in_force=TimeInForce.GTC,
             ),
         ]
@@ -446,7 +446,7 @@ class TestHyperliquidAccountSummaryPrivate:
 
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
-                        symbol="PURP",
+                        symbol="BTC",
                     )
                     await hl_api_for_test_env.cancel_order(cancel_args)
                 except APIError:
