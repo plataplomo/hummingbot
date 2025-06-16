@@ -1,0 +1,262 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital
+  response:
+    body:
+      string: '{"SOL":{"available":"0","locked":"0","staked":"0"},"USDC":{"available":"0","locked":"0","staked":"0"}}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '102'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:14 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e190fb1504edadc5ad76cf50b414ccaa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 8HQTC3bOjEYYPnn1isz3WmQn8QqhAVdyN2nwZg49VPR-RwzVAfPD5A==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital/collateral
+  response:
+    body:
+      string: '{"assetsValue":"21.0048357993402707353","borrowLiability":"0","collateral":[{"assetMarkPrice":"156.80532818","availableQuantity":"0","balanceNotional":"10.965510173726600774","collateralValue":"10.4172346650402707353","collateralWeight":"0.95","lendQuantity":"0.0699307243","openOrderQuantity":"0","symbol":"SOL","totalQuantity":"0.0699307243"},{"assetMarkPrice":"1","availableQuantity":"0","balanceNotional":"10.5876011343","collateralValue":"10.5876011343","collateralWeight":"1","lendQuantity":"10.5876011343","openOrderQuantity":"0","symbol":"USDC","totalQuantity":"10.5876011343"}],"imf":"0.1","liabilitiesValue":"0","marginFraction":null,"mmf":"0.0125","netEquity":"21.0048357993402707353","netEquityAvailable":"21.0048357993402707353","netEquityLocked":"0","netExposureFutures":"0","pnlUnrealized":"0","unsettledEquity":"0"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '831'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:14 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e190fb1504edadc5ad76cf50b414ccaa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - RjKxD8A8GkDgYKipIUBMPSl-3_wAyRnsELhPKBaCDRrHXHaBXGo8PA==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/position
+  response:
+    body:
+      string: '[]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:15 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 0d70c935256f77938aa9203f8240ecd2.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - oaebd2jOF2NM6HeL5drR9aRbmybrzsGzBesRqapHOSToUcEkHuBRJQ==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account
+  response:
+    body:
+      string: '{"autoBorrowSettlements":true,"autoLend":true,"autoRealizePnl":true,"autoRepayBorrows":true,"borrowLimit":"2500000","futuresMakerFee":"1.9","futuresTakerFee":"4.5","leverageLimit":"10","limitOrders":0,"liquidating":false,"positionLimit":"2500000","spotMakerFee":"8","spotTakerFee":"10","triggerOrders":0}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '304'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:15 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 47585918d4e536edf48c0f285b02fd94.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - KOz7Smn5Nyw_HmUZu4ELllzNRaRzKJzftrZbkQoEkJn-l2aYh_6o8w==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital/collateral
+  response:
+    body:
+      string: '{"assetsValue":"21.00483836436427269715","borrowLiability":"0","collateral":[{"assetMarkPrice":"156.80536679","availableQuantity":"0","balanceNotional":"10.965512873751865997","collateralValue":"10.41723723006427269715","collateralWeight":"0.95","lendQuantity":"0.0699307243","openOrderQuantity":"0","symbol":"SOL","totalQuantity":"0.0699307243"},{"assetMarkPrice":"1","availableQuantity":"0","balanceNotional":"10.5876011343","collateralValue":"10.5876011343","collateralWeight":"1","lendQuantity":"10.5876011343","openOrderQuantity":"0","symbol":"USDC","totalQuantity":"10.5876011343"}],"imf":"0.1","liabilitiesValue":"0","marginFraction":null,"mmf":"0.0125","netEquity":"21.00483836436427269715","netEquityAvailable":"21.00483836436427269715","netEquityLocked":"0","netExposureFutures":"0","pnlUnrealized":"0","unsettledEquity":"0"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '835'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:15 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e190fb1504edadc5ad76cf50b414ccaa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 7WVa71-iqNoGkg1wgvq4fJCmpfqvDuVITMsvA1s_0R9uSXfOiyxPzg==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

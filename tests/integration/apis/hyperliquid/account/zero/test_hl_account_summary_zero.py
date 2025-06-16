@@ -50,7 +50,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test successful get_account_summary() with comprehensive MarginAccountSummary validation.
@@ -59,7 +59,7 @@ class TestHyperliquidAccountSummaryZero:
         to fully validated MarginAccountSummary model instances with all field constraints.
         """
         # Execute the API call
-        account_summary = await hl_api_for_test_env.get_account_summary()
+        account_summary = await hl_api_for_zero_balance_test.get_account_summary()
 
         # Validate return type
         assert isinstance(account_summary, MarginAccountSummary), (
@@ -157,7 +157,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_empty_account(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with empty/new account.
@@ -165,7 +165,7 @@ class TestHyperliquidAccountSummaryZero:
         This test validates behavior when account has minimal equity or is newly created.
         Important for testing edge cases in margin account handling.
         """
-        account_summary = await hl_api_for_test_env.get_account_summary()
+        account_summary = await hl_api_for_zero_balance_test.get_account_summary()
 
         # Should return valid MarginAccountSummary even for empty accounts
         assert isinstance(account_summary, MarginAccountSummary), (
@@ -225,7 +225,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_margin_calculation_consistency(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() margin calculation consistency.
@@ -233,7 +233,7 @@ class TestHyperliquidAccountSummaryZero:
         This validates that margin calculations are internally consistent
         and that cross/isolated margin values add up correctly.
         """
-        account_summary = await hl_api_for_test_env.get_account_summary()
+        account_summary = await hl_api_for_zero_balance_test.get_account_summary()
 
         assert account_summary is not None, "Account summary should not be None"
         if not account_summary.hl_details:
@@ -279,7 +279,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_precision_edge_cases(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with edge cases around decimal precision.
@@ -287,7 +287,7 @@ class TestHyperliquidAccountSummaryZero:
         This validates handling of very small equity amounts, dust margin requirements,
         and precision edge cases that might occur in real trading.
         """
-        account_summary = await hl_api_for_test_env.get_account_summary()
+        account_summary = await hl_api_for_zero_balance_test.get_account_summary()
 
         assert account_summary is not None, "Account summary should not be None"
 
@@ -342,7 +342,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_leverage_scenarios(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with different leverage scenarios.
@@ -350,7 +350,7 @@ class TestHyperliquidAccountSummaryZero:
         This validates margin calculations across different leverage types
         (cross vs isolated) and edge cases around high leverage usage.
         """
-        account_summary = await hl_api_for_test_env.get_account_summary()
+        account_summary = await hl_api_for_zero_balance_test.get_account_summary()
 
         assert account_summary is not None, "Account summary should not be None"
         if not account_summary.hl_details:
@@ -407,7 +407,7 @@ class TestHyperliquidAccountSummaryZero:
     @pytest.mark.asyncio
     async def test_get_account_summary_concurrent_requests(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_account_summary() with concurrent requests to same endpoint.
@@ -419,9 +419,9 @@ class TestHyperliquidAccountSummaryZero:
 
         # Make multiple concurrent calls
         tasks = [
-            hl_api_for_test_env.get_account_summary(),
-            hl_api_for_test_env.get_account_summary(),
-            hl_api_for_test_env.get_account_summary(),
+            hl_api_for_zero_balance_test.get_account_summary(),
+            hl_api_for_zero_balance_test.get_account_summary(),
+            hl_api_for_zero_balance_test.get_account_summary(),
         ]
 
         # Execute concurrently

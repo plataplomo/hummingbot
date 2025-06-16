@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=ETH_USDC
+  response:
+    body:
+      string: '{"firstPrice":"2540.01","high":"2578.71","lastPrice":"2577.46","low":"2493.03","priceChange":"37.45","priceChangePercent":"0.014744","quoteVolume":"6095891.881529","symbol":"ETH_USDC","trades":"6912","volume":"2401.134"}'
+    headers:
+      Age:
+      - '23'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '220'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:56 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 26e40a330b4c3cc9642637f33b3feec4.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - c7Bdcx3HqdJEyDPo8qzQdVm1vwMLeWDHxsY_lKAzwxODIE2Grc0cGQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,158 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital/collateral
+  response:
+    body:
+      string: '{"assetsValue":"21.0054912185893652529","borrowLiability":"0","collateral":[{"assetMarkPrice":"156.83494274","availableQuantity":"0","balanceNotional":"10.967581141357226582","collateralValue":"10.4192020842893652529","collateralWeight":"0.95","lendQuantity":"0.0699307243","openOrderQuantity":"0","symbol":"SOL","totalQuantity":"0.0699307243"},{"assetMarkPrice":"1","availableQuantity":"0","balanceNotional":"10.5862891343","collateralValue":"10.5862891343","collateralWeight":"1","lendQuantity":"9.1751891343","openOrderQuantity":"1.4111","symbol":"USDC","totalQuantity":"10.5862891343"}],"imf":"0.1","liabilitiesValue":"0","marginFraction":null,"mmf":"0.0125","netEquity":"21.0054912185893652529","netEquityAvailable":"21.0054912185893652529","netEquityLocked":"0","netExposureFutures":"0","pnlUnrealized":"0","unsettledEquity":"0"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '835'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:03:39 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 426e4d2c83977b69610aedc068967014.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - p4Xp_qrm4QSttRYJRFeVz8OxRWZfwlkWAc7Y0k1M0ovsLPYcLkn8Zw==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/position
+  response:
+    body:
+      string: '[]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:03:39 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 492ec283379f21c59140fd737b1d9020.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - cy7WmlCaMllv12VXC_94NRDvPWCZrwq8VUz0BvWDeyCXXBub2pcsUA==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account
+  response:
+    body:
+      string: '{"autoBorrowSettlements":true,"autoLend":true,"autoRealizePnl":true,"autoRepayBorrows":true,"borrowLimit":"2500000","futuresMakerFee":"1.9","futuresTakerFee":"4.5","leverageLimit":"10","limitOrders":1,"liquidating":false,"positionLimit":"2500000","spotMakerFee":"8","spotTakerFee":"10","triggerOrders":0}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '304'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:03:39 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 dfa853a5983d829600003a7e6103fcd6.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - nXFEpllcLq37rh0uhVE8mwtyrQUXP4hoPFXXYTaR2AJwBgofLrI4OQ==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

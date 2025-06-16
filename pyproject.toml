@@ -110,6 +110,8 @@ markers = [
     "positive_positions: marks tests requiring positive balance for position operations",
     "zero_orders: marks tests with zero order scenarios",
     "zero_positions: marks tests with zero position scenarios",
+    "large_positions: marks tests as large position specific tests",
+    "requires_large_balance: marks tests requiring large balance for testing maximum limits",
 ]
 
 # Ruff configuration for linting

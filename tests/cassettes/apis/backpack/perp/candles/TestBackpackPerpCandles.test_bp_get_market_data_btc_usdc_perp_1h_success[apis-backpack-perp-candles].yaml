@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749445438&interval=1h&limit=100&startTime=1749441838&symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '[{"close":"105406.5","end":"2025-06-09 06:00:00","high":"105539.3","low":"105369.4","open":"105474.9","quoteVolume":"1054548.512391","start":"2025-06-09
+        05:00:00","trades":"551","volume":"9.99956"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '198'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:03:59 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 570f13fe52ef5f87305268d709d3ad00.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - _CW96gQo0O2Sb26bXOe3yLVPYlS3euPh3_0jwGpkocVLe953ta8JHA==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

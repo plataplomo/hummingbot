@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: POST
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: '{"code":"INSUFFICIENT_MARGIN","message":"Insufficient margin to open
+        a new order"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '82'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:42 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 32e243b58ee6b5223a0e6dc4865b9bc8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - ZIMbdezer6tgES4138NUoH2WMj2BL6HWC0cEpuDGOEtmvCQJVQzMFw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: Bad Request
+version: 1

@@ -44,7 +44,7 @@ class TestHyperliquidPositionsZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_positions_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test successful get_positions() with comprehensive DerivativePosition validation.
@@ -53,7 +53,7 @@ class TestHyperliquidPositionsZeroComprehensive:
         to fully validated DerivativePosition model instances with all field constraints.
         """
         # Execute the API call
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         # Validate container type
         assert isinstance(positions, list), "get_positions() should return list[DerivativePosition]"
@@ -153,7 +153,7 @@ class TestHyperliquidPositionsZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_positions_empty_account(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with account that has no open positions.
@@ -161,7 +161,7 @@ class TestHyperliquidPositionsZeroComprehensive:
         This test validates behavior when account has no positions or all closed positions.
         Important for testing edge cases in position handling.
         """
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         # Should return empty list for account with no positions
         assert isinstance(positions, list), "get_positions() should always return list"
@@ -216,7 +216,7 @@ class TestHyperliquidPositionsZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_positions_precision_edge_cases(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with edge cases around decimal precision.
@@ -224,7 +224,7 @@ class TestHyperliquidPositionsZeroComprehensive:
         This validates handling of very small position sizes, dust PnL amounts,
         and precision edge cases that might occur in real trading.
         """
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         if not positions:
             pytest.skip("No positions for precision testing")
@@ -270,7 +270,7 @@ class TestHyperliquidPositionsZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_positions_concurrent_requests(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with concurrent requests to same endpoint.
@@ -282,9 +282,9 @@ class TestHyperliquidPositionsZeroComprehensive:
 
         # Make multiple concurrent calls
         tasks = [
-            hl_api_for_test_env.get_positions(),
-            hl_api_for_test_env.get_positions(),
-            hl_api_for_test_env.get_positions(),
+            hl_api_for_zero_balance_test.get_positions(),
+            hl_api_for_zero_balance_test.get_positions(),
+            hl_api_for_zero_balance_test.get_positions(),
         ]
 
         # Execute concurrently

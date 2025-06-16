@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: DELETE
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: 'parse request payload error: failed to parse "OrderId": invalid digit
+        found in string (occurred while parsing "optional_OrderId") (occurred while
+        parsing "OrderCancelPayload")'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '175'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:43 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 9d3f44e07fe0bf2749a2bc7bdc8a7a02.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - k1NP44lUOm5KC43yHbxOUOEbnA7KTxvc_WE_5VMMKwTKLL2swOTNxg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: Bad Request
+version: 1

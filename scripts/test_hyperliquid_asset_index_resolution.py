@@ -58,19 +58,31 @@ async def test_asset_index_resolution() -> None:
     # Mock the response handler to parse and return validated response
     from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
         HyperliquidRawAssetDefinition,
-        HyperliquidRawMetaResponse,
         HyperliquidRawMetaAndAssetCtxsResponse,
+        HyperliquidRawMetaResponse,
     )
     
     mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
         meta=HyperliquidRawMetaResponse(
             universe=[
-                HyperliquidRawAssetDefinition(name="BTC", szDecimals=8, maxLeverage=50, onlyIsolated=False),
-                HyperliquidRawAssetDefinition(name="ETH", szDecimals=18, maxLeverage=50, onlyIsolated=False),
-                HyperliquidRawAssetDefinition(name="ARB", szDecimals=18, maxLeverage=20, onlyIsolated=False),
-                HyperliquidRawAssetDefinition(name="OP", szDecimals=18, maxLeverage=20, onlyIsolated=False),
-                HyperliquidRawAssetDefinition(name="MATIC", szDecimals=18, maxLeverage=20, onlyIsolated=False),
-                HyperliquidRawAssetDefinition(name="SOL", szDecimals=9, maxLeverage=50, onlyIsolated=False),
+                HyperliquidRawAssetDefinition(
+                    name="BTC", szDecimals=8, maxLeverage=50, onlyIsolated=False
+                ),
+                HyperliquidRawAssetDefinition(
+                    name="ETH", szDecimals=18, maxLeverage=50, onlyIsolated=False
+                ),
+                HyperliquidRawAssetDefinition(
+                    name="ARB", szDecimals=18, maxLeverage=20, onlyIsolated=False
+                ),
+                HyperliquidRawAssetDefinition(
+                    name="OP", szDecimals=18, maxLeverage=20, onlyIsolated=False
+                ),
+                HyperliquidRawAssetDefinition(
+                    name="MATIC", szDecimals=18, maxLeverage=20, onlyIsolated=False
+                ),
+                HyperliquidRawAssetDefinition(
+                    name="SOL", szDecimals=9, maxLeverage=50, onlyIsolated=False
+                ),
             ]
         ),
         asset_ctxs=[],
@@ -84,27 +96,31 @@ async def test_asset_index_resolution() -> None:
     logger.info("Test 1: Fetching asset index for BTC")
     btc_index = await indexer.get_asset_index("BTC")
     logger.info(f"  BTC index: {btc_index}")
-    assert btc_index == 0, f"Expected BTC index to be 0, got {btc_index}"
+    if btc_index != 0:
+        raise AssertionError(f"Expected BTC index to be 0, got {btc_index}")
     logger.info("  ✓ BTC index is correct\n")
     
     # Test 2: Fetch asset index for ETH (should be 1)
     logger.info("Test 2: Fetching asset index for ETH (from cache)")
     eth_index = await indexer.get_asset_index("ETH")
     logger.info(f"  ETH index: {eth_index}")
-    assert eth_index == 1, f"Expected ETH index to be 1, got {eth_index}"
+    if eth_index != 1:
+        raise AssertionError(f"Expected ETH index to be 1, got {eth_index}")
     logger.info("  ✓ ETH index is correct\n")
     
     # Test 3: Fetch asset index for SOL (should be 5)
     logger.info("Test 3: Fetching asset index for SOL (from cache)")
     sol_index = await indexer.get_asset_index("SOL")
     logger.info(f"  SOL index: {sol_index}")
-    assert sol_index == 5, f"Expected SOL index to be 5, got {sol_index}"
+    if sol_index != 5:
+        raise AssertionError(f"Expected SOL index to be 5, got {sol_index}")
     logger.info("  ✓ SOL index is correct\n")
     
     # Test 4: Verify caching works (API should only be called once)
     logger.info("Test 4: Verifying caching behavior")
     logger.info(f"  API was called {mock_requester.call_count} time(s)")
-    assert mock_requester.call_count == 1, "API should only be called once due to caching"
+    if mock_requester.call_count != 1:
+        raise AssertionError("API should only be called once due to caching")
     logger.info("  ✓ Caching is working correctly\n")
     
     # Test 5: Test invalid symbol
@@ -112,7 +128,7 @@ async def test_asset_index_resolution() -> None:
     try:
         await indexer.get_asset_index("INVALID_SYMBOL")
         logger.error("  ✗ Should have raised an error for invalid symbol")
-        assert False, "Should have raised APIError for invalid symbol"
+        raise AssertionError("Should have raised APIError for invalid symbol")
     except APIError as e:
         logger.info(f"  ✓ Correctly raised APIError: {e.message}\n")
     

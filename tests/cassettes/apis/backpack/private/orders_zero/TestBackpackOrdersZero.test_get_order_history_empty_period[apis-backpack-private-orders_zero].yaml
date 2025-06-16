@@ -1,0 +1,62 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/wapi/v1/history/orders
+  response:
+    body:
+      string: '[]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:03:03 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 ff1365828fa7f70dc82f796f46d6bd30.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - j5O05N5g9N15X0mQvz3QMO-a-aWWkvHcy4iIZpd82r367HjT6p8VNw==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      x-current-page:
+      - '1'
+      x-page-count:
+      - '1'
+      x-page-size:
+      - '100'
+      x-total:
+      - '0'
+    status:
+      code: 200
+      message: OK
+version: 1

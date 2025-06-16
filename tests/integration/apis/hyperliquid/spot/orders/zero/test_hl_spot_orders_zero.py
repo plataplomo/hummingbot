@@ -54,7 +54,7 @@ class TestHyperliquidSpotOrdersZero:
     @pytest.mark.asyncio
     async def test_get_spot_order_by_id_not_implemented(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order retrieval - currently not implemented in Hyperliquid API."""
@@ -65,7 +65,7 @@ class TestHyperliquidSpotOrdersZero:
 
         # Currently should raise NotImplementedError or return empty results
         try:
-            retrieved_order = await hl_api_for_test_env.get_order(get_order_args)
+            retrieved_order = await hl_api_for_zero_balance_test.get_order(get_order_args)
             # If implemented in future, validate the order model
             if retrieved_order is not None:
                 assert isinstance(retrieved_order, Order)
@@ -77,7 +77,7 @@ class TestHyperliquidSpotOrdersZero:
     @pytest.mark.asyncio
     async def test_get_spot_order_history_not_implemented(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order history retrieval - currently not implemented."""
@@ -91,7 +91,7 @@ class TestHyperliquidSpotOrdersZero:
 
         # Currently should return empty list or raise NotImplementedError
         try:
-            order_history = await hl_api_for_test_env.get_order_history(args)
+            order_history = await hl_api_for_zero_balance_test.get_order_history(args)
             assert isinstance(order_history, list)
             # Spot orders would be validated here when implemented
         except (NotImplementedError, APIError):
@@ -102,13 +102,13 @@ class TestHyperliquidSpotOrdersZero:
     @pytest.mark.asyncio
     async def test_get_open_spot_orders_not_implemented(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot open orders retrieval - currently not implemented."""
         # Currently should return empty list since no spot orders exist
         try:
-            open_orders = await hl_api_for_test_env.get_open_orders()
+            open_orders = await hl_api_for_zero_balance_test.get_open_orders()
             assert isinstance(open_orders, list)
 
             # Filter for spot orders (when implemented, spot orders would have different symbols)
@@ -129,7 +129,7 @@ class TestHyperliquidSpotOrdersZero:
     @pytest.mark.asyncio
     async def test_spot_order_queries_future_implementation_placeholder(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Placeholder test for future spot order query implementation.
@@ -141,7 +141,7 @@ class TestHyperliquidSpotOrdersZero:
         # but the infrastructure is ready for when it becomes available
 
         # For now, verify that the API instance is properly configured
-        assert hl_api_for_test_env is not None
-        assert isinstance(hl_api_for_test_env, HyperliquidAPI)
+        assert hl_api_for_zero_balance_test is not None
+        assert isinstance(hl_api_for_zero_balance_test, HyperliquidAPI)
 
         pytest.skip("Spot order functionality not yet implemented in Hyperliquid API")

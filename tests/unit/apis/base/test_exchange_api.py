@@ -31,9 +31,11 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
     TransferArgs,
+    UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
 from cyberdelta.core.models import (
+    AccountSettings,
     DerivativePosition,
     FundingRate,
     Order,
@@ -215,6 +217,10 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Get all open orders for the specified arguments."""
         return [MagicMock(spec=Order)]
+
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Mock implementation of update_account_settings."""
+        return MagicMock(spec=AccountSettings)
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
         return MockSubscriptionPayload(type="subscribe", channel=topic)

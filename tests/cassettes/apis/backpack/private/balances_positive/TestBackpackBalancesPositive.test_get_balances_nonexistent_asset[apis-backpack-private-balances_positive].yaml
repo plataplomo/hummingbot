@@ -1,0 +1,106 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital
+  response:
+    body:
+      string: '{"SOL":{"available":"0","locked":"0","staked":"0"},"USDC":{"available":"0","locked":"0","staked":"0"}}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '102'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:09 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e1758ea5a81c01c76d5d606b200a9254.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - GNmWHvkLeEyW7nE4gZ80cksiM28AqGX57Jn3mIudIcDwR3Q6jvJMQw==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/capital/collateral
+  response:
+    body:
+      string: '{"assetsValue":"21.0054911141436437455","borrowLiability":"0","collateral":[{"assetMarkPrice":"156.8151923","availableQuantity":"0","balanceNotional":"10.96619997878278289","collateralValue":"10.4178899798436437455","collateralWeight":"0.95","lendQuantity":"0.0699307243","openOrderQuantity":"0","symbol":"SOL","totalQuantity":"0.0699307243"},{"assetMarkPrice":"1","availableQuantity":"0","balanceNotional":"10.5876011343","collateralValue":"10.5876011343","collateralWeight":"1","lendQuantity":"10.5876011343","openOrderQuantity":"0","symbol":"USDC","totalQuantity":"10.5876011343"}],"imf":"0.1","liabilitiesValue":"0","marginFraction":null,"mmf":"0.0125","netEquity":"21.0054911141436437455","netEquityAvailable":"21.0054911141436437455","netEquityLocked":"0","netExposureFutures":"0","pnlUnrealized":"0","unsettledEquity":"0"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '829'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:02:09 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e1758ea5a81c01c76d5d606b200a9254.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - kfWqNx_btqUL_j7mCyu8sh5CYWJpBriEP2dPt5vuoM7MiTKJbGdA1A==
+      X-Amz-Cf-Pop:
+      - SCL51-P1
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

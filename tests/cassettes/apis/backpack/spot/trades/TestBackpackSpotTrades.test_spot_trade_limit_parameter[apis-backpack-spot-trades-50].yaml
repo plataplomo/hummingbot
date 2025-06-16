@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/trades?limit=50&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"id":358186705,"isBuyerMaker":false,"price":"156.59","quantity":"0.09","quoteQuantity":"14.0931","timestamp":1750050380377},{"id":358186704,"isBuyerMaker":true,"price":"156.58","quantity":"0.07","quoteQuantity":"10.9606","timestamp":1750050377667},{"id":358186703,"isBuyerMaker":false,"price":"156.59","quantity":"0.07","quoteQuantity":"10.9613","timestamp":1750050377608},{"id":358186702,"isBuyerMaker":true,"price":"156.58","quantity":"0.15","quoteQuantity":"23.487","timestamp":1750050371849},{"id":358186701,"isBuyerMaker":true,"price":"156.58","quantity":"0.01","quoteQuantity":"1.5658","timestamp":1750050371659},{"id":358186700,"isBuyerMaker":true,"price":"156.59","quantity":"0.1","quoteQuantity":"15.659","timestamp":1750050368831},{"id":358186699,"isBuyerMaker":true,"price":"156.6","quantity":"0.01","quoteQuantity":"1.566","timestamp":1750050367879},{"id":358186698,"isBuyerMaker":true,"price":"156.6","quantity":"0.07","quoteQuantity":"10.962","timestamp":1750050367879},{"id":358186697,"isBuyerMaker":true,"price":"156.61","quantity":"0.01","quoteQuantity":"1.5661","timestamp":1750050367794},{"id":358186696,"isBuyerMaker":true,"price":"156.61","quantity":"0.5","quoteQuantity":"78.305","timestamp":1750050367794},{"id":358186695,"isBuyerMaker":true,"price":"156.62","quantity":"0.01","quoteQuantity":"1.5662","timestamp":1750050367703},{"id":358186694,"isBuyerMaker":true,"price":"156.62","quantity":"0.1","quoteQuantity":"15.662","timestamp":1750050367703},{"id":358186693,"isBuyerMaker":true,"price":"156.62","quantity":"0.19","quoteQuantity":"29.7578","timestamp":1750050367703},{"id":358186692,"isBuyerMaker":true,"price":"156.62","quantity":"0.31","quoteQuantity":"48.5522","timestamp":1750050366943},{"id":358186691,"isBuyerMaker":true,"price":"156.63","quantity":"0.1","quoteQuantity":"15.663","timestamp":1750050364555},{"id":358186690,"isBuyerMaker":true,"price":"156.64","quantity":"0.07","quoteQuantity":"10.9648","timestamp":1750050364449},{"id":358186689,"isBuyerMaker":true,"price":"156.65","quantity":"0.1","quoteQuantity":"15.665","timestamp":1750050364449},{"id":358186688,"isBuyerMaker":true,"price":"156.66","quantity":"6","quoteQuantity":"939.96","timestamp":1750050363608},{"id":358186687,"isBuyerMaker":true,"price":"156.67","quantity":"0.07","quoteQuantity":"10.9669","timestamp":1750050363608},{"id":358186686,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186685,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186684,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186683,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186682,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186681,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186680,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186679,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186678,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186677,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186676,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186675,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186674,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186673,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186672,"isBuyerMaker":true,"price":"156.67","quantity":"0.25","quoteQuantity":"39.1675","timestamp":1750050363608},{"id":358186671,"isBuyerMaker":true,"price":"156.67","quantity":"0.5","quoteQuantity":"78.335","timestamp":1750050363608},{"id":358186670,"isBuyerMaker":true,"price":"156.68","quantity":"0.07","quoteQuantity":"10.9676","timestamp":1750050363507},{"id":358186669,"isBuyerMaker":true,"price":"156.68","quantity":"0.1","quoteQuantity":"15.668","timestamp":1750050363507},{"id":358186668,"isBuyerMaker":false,"price":"156.69","quantity":"0.31","quoteQuantity":"48.5739","timestamp":1750050361609},{"id":358186667,"isBuyerMaker":false,"price":"156.69","quantity":"0.01","quoteQuantity":"1.5669","timestamp":1750050361316},{"id":358186666,"isBuyerMaker":false,"price":"156.69","quantity":"0.15","quoteQuantity":"23.5035","timestamp":1750050361147},{"id":358186665,"isBuyerMaker":true,"price":"156.69","quantity":"0.02","quoteQuantity":"3.1338","timestamp":1750050359018},{"id":358186664,"isBuyerMaker":true,"price":"156.69","quantity":"0.08","quoteQuantity":"12.5352","timestamp":1750050344750},{"id":358186663,"isBuyerMaker":true,"price":"156.69","quantity":"0.01","quoteQuantity":"1.5669","timestamp":1750050344750},{"id":358186662,"isBuyerMaker":true,"price":"156.69","quantity":"0.06","quoteQuantity":"9.4014","timestamp":1750050341253},{"id":358186661,"isBuyerMaker":false,"price":"156.7","quantity":"0.06","quoteQuantity":"9.402","timestamp":1750050341187},{"id":358186660,"isBuyerMaker":false,"price":"156.7","quantity":"0.09","quoteQuantity":"14.103","timestamp":1750050329878},{"id":358186659,"isBuyerMaker":true,"price":"156.7","quantity":"0.1","quoteQuantity":"15.67","timestamp":1750050325005},{"id":358186658,"isBuyerMaker":true,"price":"156.7","quantity":"0.01","quoteQuantity":"1.567","timestamp":1750050325005},{"id":358186657,"isBuyerMaker":true,"price":"156.71","quantity":"0.01","quoteQuantity":"1.5671","timestamp":1750050325005},{"id":358186656,"isBuyerMaker":true,"price":"156.72","quantity":"0.07","quoteQuantity":"10.9704","timestamp":1750050325005}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '6164'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:06:24 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 e5a8b52815dbc513cb0f443c50ceacfa.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - fur0U4K5qcyyZZUWVST6KM-vvpvpjuDLriXwrihewjrUhRlZsLtMtg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,96 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749445565&interval=1h&limit=100&startTime=1749359165&symbol=BTC_USDC
+  response:
+    body:
+      string: '[{"close":"105507.2","end":"2025-06-08 07:00:00","high":"105644.5","low":"105502.3","open":"105502.3","quoteVolume":"102928.2347","start":"2025-06-08
+        06:00:00","trades":"327","volume":"0.97481"},{"close":"105494.7","end":"2025-06-08
+        08:00:00","high":"105625.3","low":"105476.3","open":"105507.2","quoteVolume":"94696.644338","start":"2025-06-08
+        07:00:00","trades":"344","volume":"0.89718"},{"close":"105421.4","end":"2025-06-08
+        09:00:00","high":"105563.6","low":"105421.3","open":"105496.8","quoteVolume":"45342.141004","start":"2025-06-08
+        08:00:00","trades":"209","volume":"0.42975"},{"close":"105219.2","end":"2025-06-08
+        10:00:00","high":"105463.1","low":"105164.9","open":"105431.3","quoteVolume":"123093.33902","start":"2025-06-08
+        09:00:00","trades":"548","volume":"1.16882"},{"close":"105398.9","end":"2025-06-08
+        11:00:00","high":"105512.2","low":"105069.7","open":"105208.9","quoteVolume":"71711.743085","start":"2025-06-08
+        10:00:00","trades":"547","volume":"0.68051"},{"close":"105714.2","end":"2025-06-08
+        12:00:00","high":"105750.5","low":"105404.2","open":"105404.2","quoteVolume":"110217.06926","start":"2025-06-08
+        11:00:00","trades":"646","volume":"1.04323"},{"close":"105773.4","end":"2025-06-08
+        13:00:00","high":"105815.8","low":"105573.1","open":"105715.1","quoteVolume":"100322.897892","start":"2025-06-08
+        12:00:00","trades":"642","volume":"0.94914"},{"close":"105663.9","end":"2025-06-08
+        14:00:00","high":"106189","low":"105621.9","open":"105775.5","quoteVolume":"220105.07059","start":"2025-06-08
+        13:00:00","trades":"926","volume":"2.07994"},{"close":"105913.5","end":"2025-06-08
+        15:00:00","high":"105957.9","low":"105622.9","open":"105664.1","quoteVolume":"43900.515382","start":"2025-06-08
+        14:00:00","trades":"372","volume":"0.41508"},{"close":"106045.9","end":"2025-06-08
+        16:00:00","high":"106131.7","low":"105892.4","open":"105902.9","quoteVolume":"39951.48701","start":"2025-06-08
+        15:00:00","trades":"416","volume":"0.37677"},{"close":"106247.7","end":"2025-06-08
+        17:00:00","high":"106335.3","low":"106024.8","open":"106045.9","quoteVolume":"62405.531235","start":"2025-06-08
+        16:00:00","trades":"603","volume":"0.58737"},{"close":"106160.7","end":"2025-06-08
+        18:00:00","high":"106429","low":"106147.4","open":"106246.1","quoteVolume":"142340.198518","start":"2025-06-08
+        17:00:00","trades":"2281","volume":"1.33892"},{"close":"106376","end":"2025-06-08
+        19:00:00","high":"106396.5","low":"106086.4","open":"106153.6","quoteVolume":"222337.137239","start":"2025-06-08
+        18:00:00","trades":"2444","volume":"2.09097"},{"close":"106353","end":"2025-06-08
+        20:00:00","high":"106402.4","low":"106248.1","open":"106371.8","quoteVolume":"36638.34578","start":"2025-06-08
+        19:00:00","trades":"739","volume":"0.34444"},{"close":"106213.4","end":"2025-06-08
+        21:00:00","high":"106371.5","low":"106184.4","open":"106367.1","quoteVolume":"11438.411833","start":"2025-06-08
+        20:00:00","trades":"199","volume":"0.10758"},{"close":"106394.1","end":"2025-06-08
+        22:00:00","high":"106541","low":"106213.2","open":"106213.2","quoteVolume":"40477.041294","start":"2025-06-08
+        21:00:00","trades":"328","volume":"0.38026"},{"close":"105822.9","end":"2025-06-08
+        23:00:00","high":"106404.7","low":"105767.1","open":"106404.7","quoteVolume":"201694.217025","start":"2025-06-08
+        22:00:00","trades":"732","volume":"1.90155"},{"close":"105796.3","end":"2025-06-09
+        00:00:00","high":"105844.5","low":"105620.8","open":"105823.6","quoteVolume":"73503.613425","start":"2025-06-08
+        23:00:00","trades":"516","volume":"0.6952"},{"close":"105749.6","end":"2025-06-09
+        01:00:00","high":"106023","low":"105662.2","open":"105742.1","quoteVolume":"79741.730704","start":"2025-06-09
+        00:00:00","trades":"774","volume":"0.75368"},{"close":"105575.4","end":"2025-06-09
+        02:00:00","high":"105802.4","low":"105516.8","open":"105749.5","quoteVolume":"121967.204264","start":"2025-06-09
+        01:00:00","trades":"1103","volume":"1.15407"},{"close":"105639.9","end":"2025-06-09
+        03:00:00","high":"105792.3","low":"105541.2","open":"105585.5","quoteVolume":"106196.548001","start":"2025-06-09
+        02:00:00","trades":"1274","volume":"1.00492"},{"close":"105704.5","end":"2025-06-09
+        04:00:00","high":"105745.7","low":"105389.6","open":"105618.8","quoteVolume":"182627.347884","start":"2025-06-09
+        03:00:00","trades":"813","volume":"1.73047"},{"close":"105505.3","end":"2025-06-09
+        05:00:00","high":"105768.5","low":"105496.9","open":"105721.5","quoteVolume":"143975.342717","start":"2025-06-09
+        04:00:00","trades":"1847","volume":"1.36289"},{"close":"105450.6","end":"2025-06-09
+        06:00:00","high":"105591.5","low":"105395.1","open":"105506.2","quoteVolume":"609708.451346","start":"2025-06-09
+        05:00:00","trades":"3389","volume":"5.78096"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:06:06 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      - Origin
+      Via:
+      - 1.1 efff942f5fbfeab2d6cc3eafc9a95662.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - JzzkZlreSIqxbWEe1LiPOW4bpqpF9Gfz9Av4jS-WiwTGYG_gykjQBw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '4680'
+    status:
+      code: 200
+      message: OK
+version: 1

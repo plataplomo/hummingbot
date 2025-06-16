@@ -45,11 +45,11 @@ class TestHyperliquidPerpPositionsZero:
     @pytest.mark.asyncio
     async def test_get_positions_empty_account(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with account that has no open positions."""
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list), "get_positions() should always return list"
 
@@ -90,11 +90,11 @@ class TestHyperliquidPerpPositionsZero:
     @pytest.mark.asyncio
     async def test_get_positions_precision_edge_cases(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with edge cases around decimal precision."""
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         if not positions:
             pytest.skip("No positions for precision testing")
@@ -124,11 +124,11 @@ class TestHyperliquidPerpPositionsZero:
     @pytest.mark.asyncio
     async def test_get_positions_pnl_consistency(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() PnL calculation consistency for zero positions."""
-        positions = await hl_api_for_test_env.get_positions()
+        positions = await hl_api_for_zero_balance_test.get_positions()
 
         if not positions:
             pytest.skip("No positions for PnL testing")

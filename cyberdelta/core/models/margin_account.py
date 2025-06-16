@@ -243,6 +243,11 @@ class BackpackMarginDetails(BaseModel):
     mmf_raw: str | None = Field(
         default=None, description="Raw Maintenance Margin Fraction string from API (mmf)"
     )
+    
+    # Account configuration
+    leverage_limit: Decimal | None = Field(
+        default=None, gt=Decimal("0"), description="Account leverage limit (leverageLimit)"
+    )
 
     # Subaccount information (from OpenAPI support)
     subaccount_id: int | None = Field(
@@ -277,6 +282,7 @@ class BackpackMarginDetails(BaseModel):
         "margin_fraction",
         "unsettled_equity",
         "net_exposure_futures",
+        "leverage_limit",
         mode="before",
     )
     @classmethod

@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: POST
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: '{"clientId":null,"createdAt":1750050277073,"executedQuantity":"0.01","executedQuoteQuantity":"1.5664","id":"1921010222","orderType":"Market","quantity":"0.01","quoteQuantity":"1.57","reduceOnly":null,"relatedOrderId":null,"selfTradePrevention":"RejectTaker","side":"Bid","status":"Filled","stopLossLimitPrice":null,"stopLossTriggerBy":null,"stopLossTriggerPrice":null,"strategyId":null,"symbol":"SOL_USDC_PERP","takeProfitLimitPrice":null,"takeProfitTriggerBy":null,"takeProfitTriggerPrice":null,"timeInForce":"GTC","triggerBy":null,"triggerPrice":null,"triggerQuantity":null,"triggeredAt":null}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '595'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:37 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 d4fa83b82c99896c282cca412cab441e.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - EeWsjyAZjuy4DTeSpCFBmRZZCr338mkZYQmu2mKLuNEtIzvtA5d7BA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

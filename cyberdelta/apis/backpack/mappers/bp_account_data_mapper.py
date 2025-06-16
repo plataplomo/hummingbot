@@ -515,8 +515,9 @@ class BackpackAccountDataMapper:
                 liabilities_value=None,
                 locked_equity=None,
                 margin_fraction=None,
-                imf_raw=str(raw_settings.leverage_limit),
+                imf_raw=None,  # IMF should come from actual margin data, not leverage limit
                 mmf_raw=None,
+                leverage_limit=raw_settings.leverage_limit,
             )
 
             return MarginAccountSummary(
@@ -648,6 +649,7 @@ class BackpackAccountDataMapper:
                 net_exposure_futures=net_exposure_futures,
                 imf_raw=str(raw_collateral.imf) if raw_collateral.imf else None,
                 mmf_raw=str(raw_collateral.mmf) if raw_collateral.mmf else None,
+                leverage_limit=raw_settings.leverage_limit,
                 subaccount_id=None,  # Set if subaccount was used in request
                 collateral_assets=collateral_assets_data,
                 source_endpoint="collateral",

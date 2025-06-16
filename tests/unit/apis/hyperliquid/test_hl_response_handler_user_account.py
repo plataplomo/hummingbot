@@ -5,9 +5,9 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOpenOrdersResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
@@ -32,7 +32,7 @@ class TestHandleInfoUserStateResponse:
         raw_data = valid_raw_user_state
         response: HyperliquidRawClearinghouseState = (
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         )
@@ -49,7 +49,7 @@ class TestHandleInfoUserStateResponse:
         }  # Missing assetPositions
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -70,7 +70,7 @@ class TestHandleInfoUserStateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -85,7 +85,7 @@ class TestHandleInfoUserStateResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_state_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -104,7 +104,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = [valid_raw_open_order_item, valid_raw_open_order_item.copy()]
         response: HyperliquidRawOpenOrdersResponse = (
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         )
@@ -117,7 +117,7 @@ class TestHandleInfoOpenOrdersResponse:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
         response = HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert isinstance(response, HyperliquidRawOpenOrdersResponse)
@@ -129,7 +129,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -144,7 +144,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = ["not_an_order_dict"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -159,7 +159,7 @@ class TestHandleInfoOpenOrdersResponse:
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -182,7 +182,7 @@ class TestHandleInfoOpenOrdersResponse:
         ]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -201,7 +201,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = [valid_raw_user_fill, valid_raw_user_fill.copy()]
         response: HyperliquidRawUserFillsResponse = (
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         )
@@ -215,7 +215,7 @@ class TestHandleInfoUserFillsResponse:
         """Test handling empty user fills response."""
         raw_data: list[Any] = []
         response = HyperliquidResponseHandler.handle_info_user_fills_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert isinstance(response, HyperliquidRawUserFillsResponse)
@@ -227,7 +227,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = [invalid_fill]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -242,7 +242,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = ["not_a_fill_dict"]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -257,7 +257,7 @@ class TestHandleInfoUserFillsResponse:
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -298,7 +298,7 @@ class TestUserAccountEdgeCases:
             "withdrawable": "5000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert len(response.asset_positions) == 0
@@ -331,7 +331,7 @@ class TestUserAccountEdgeCases:
             "withdrawable": "1000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert response.withdrawable == "1000.0"
@@ -350,7 +350,7 @@ class TestUserAccountEdgeCases:
         ]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -418,7 +418,7 @@ class TestUserAccountEdgeCases:
             "withdrawable": "12000.0",
         }
         response = HyperliquidResponseHandler.handle_info_user_state_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert len(response.asset_positions) == 2
@@ -451,7 +451,7 @@ class TestUserAccountEdgeCases:
         }
         raw_data = [trigger_order]
         response = HyperliquidResponseHandler.handle_info_open_orders_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
         assert len(response.items) == 1

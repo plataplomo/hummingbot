@@ -44,7 +44,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test successful get_balances() with comprehensive SpotBalance validation.
@@ -53,7 +53,7 @@ class TestHyperliquidBalancesZeroComprehensive:
         to fully validated SpotBalance model instances with all field constraints.
         """
         # Execute the API call
-        balances = await hl_api_for_test_env.get_balances()
+        balances = await hl_api_for_zero_balance_test.get_balances()
 
         # Validate container type
         assert isinstance(balances, dict), "get_balances() should return dict[str, SpotBalance]"
@@ -137,7 +137,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_empty_account(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with empty/zero balance account.
@@ -145,7 +145,7 @@ class TestHyperliquidBalancesZeroComprehensive:
         This test validates behavior when account has no balances or all zero balances.
         Important for testing edge cases in balance handling.
         """
-        balances = await hl_api_for_test_env.get_balances()
+        balances = await hl_api_for_zero_balance_test.get_balances()
 
         # Should return empty dict or dict with zero balances
         assert isinstance(balances, dict), "get_balances() should always return dict"
@@ -209,7 +209,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_network_timeout(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() behavior with network timeout scenarios.
@@ -219,7 +219,7 @@ class TestHyperliquidBalancesZeroComprehensive:
         """
         try:
             # Attempt the call - in normal conditions this should succeed
-            balances = await hl_api_for_test_env.get_balances()
+            balances = await hl_api_for_zero_balance_test.get_balances()
 
             # If successful, validate the response
             assert isinstance(balances, dict), "Successful response should be dict"
@@ -240,7 +240,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_rate_limiting(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() rate limiting behavior.
@@ -252,7 +252,7 @@ class TestHyperliquidBalancesZeroComprehensive:
             # Make multiple rapid calls to potentially trigger rate limiting
             tasks: list[Any] = []
             for _ in range(5):
-                tasks.append(hl_api_for_test_env.get_balances())
+                tasks.append(hl_api_for_zero_balance_test.get_balances())
 
             # Most should succeed, but if rate limited, validate error handling
             results: list[dict[str, Any]] = []
@@ -282,7 +282,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_precision_edge_cases(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with edge cases around decimal precision.
@@ -290,7 +290,7 @@ class TestHyperliquidBalancesZeroComprehensive:
         This validates handling of very small balances, dust amounts,
         and precision edge cases that might occur in real trading.
         """
-        balances = await hl_api_for_test_env.get_balances()
+        balances = await hl_api_for_zero_balance_test.get_balances()
 
         if not balances:
             pytest.skip("No balances for precision testing")
@@ -326,7 +326,7 @@ class TestHyperliquidBalancesZeroComprehensive:
     @pytest.mark.asyncio
     async def test_get_balances_concurrent_requests(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests to same endpoint.
@@ -338,9 +338,9 @@ class TestHyperliquidBalancesZeroComprehensive:
 
         # Make multiple concurrent calls
         tasks = [
-            hl_api_for_test_env.get_balances(),
-            hl_api_for_test_env.get_balances(),
-            hl_api_for_test_env.get_balances(),
+            hl_api_for_zero_balance_test.get_balances(),
+            hl_api_for_zero_balance_test.get_balances(),
+            hl_api_for_zero_balance_test.get_balances(),
         ]
 
         # Execute concurrently

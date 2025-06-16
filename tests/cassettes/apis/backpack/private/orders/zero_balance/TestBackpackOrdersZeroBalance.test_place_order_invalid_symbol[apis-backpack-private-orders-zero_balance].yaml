@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: POST
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: 'parse request payload error: failed to parse "MarketSymbol": Invalid
+        market symbol (occurred while parsing "OrderExecutePayload")'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '129'
+      Content-Type:
+      - text/plain; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:06:49 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 a95232657939f052320289c47cff1d7a.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - NQWA1ykO263CPhN0zjFQ3OzdJM_bQm5mdNm6VZUKg8Suznz_WfU5TA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Error from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 400
+      message: Bad Request
+version: 1

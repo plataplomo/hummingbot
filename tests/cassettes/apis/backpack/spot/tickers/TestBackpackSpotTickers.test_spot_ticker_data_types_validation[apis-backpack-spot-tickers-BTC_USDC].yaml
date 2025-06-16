@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC
+  response:
+    body:
+      string: '{"firstPrice":"105588.8","high":"106498.1","lastPrice":"106450.7","low":"104538.2","priceChange":"861.9","priceChangePercent":"0.008163","quoteVolume":"2707274.629671","symbol":"BTC_USDC","trades":"5453","volume":"25.64636"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '224'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:06:19 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 59ba94822e89d588c9376627a36c3ed4.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - YqroGOTFr_KpQLYobaFO3ol-b3_Sg23y0RHqMyPCY_PQMMUuUj0x-w==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

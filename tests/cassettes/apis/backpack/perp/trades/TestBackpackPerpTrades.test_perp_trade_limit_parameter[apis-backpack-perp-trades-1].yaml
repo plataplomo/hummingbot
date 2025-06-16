@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/trades?limit=1&symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '[{"id":15539859,"isBuyerMaker":false,"price":"156.64","quantity":"11.52","quoteQuantity":"1804.4928","timestamp":1750050267004}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '128'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:31 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 9c2aead96bd3177f92a03e01a6804fc6.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 3iBh4YUeBAKRiE1jD6VXFo7nJtMtRmfjDuDYPLWtkymtE_y3G3uqqA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

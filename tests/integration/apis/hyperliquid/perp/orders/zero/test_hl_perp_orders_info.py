@@ -57,7 +57,7 @@ class TestHyperliquidOrdersInfo:
     @pytest.mark.asyncio
     async def test_get_order_by_id_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_order() validates pipeline for single order query.
@@ -72,7 +72,7 @@ class TestHyperliquidOrdersInfo:
         get_order_args = GetOrderArgs(order_id=test_order_id)
 
         try:
-            retrieved_order = await hl_api_for_test_env.get_order(get_order_args)
+            retrieved_order = await hl_api_for_zero_balance_test.get_order(get_order_args)
 
             # Validate retrieved order if it exists
             if retrieved_order is not None:
@@ -110,7 +110,7 @@ class TestHyperliquidOrdersInfo:
     @pytest.mark.asyncio
     async def test_get_order_history_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_order_history() validates full pipeline to Order models.
@@ -126,7 +126,7 @@ class TestHyperliquidOrdersInfo:
             start_time=start_time,
             end_time=end_time,
         )
-        order_history = await hl_api_for_test_env.get_order_history(args)
+        order_history = await hl_api_for_zero_balance_test.get_order_history(args)
 
         # Validate return type
         assert isinstance(order_history, list), "get_order_history() should return list[Order]"
@@ -169,12 +169,12 @@ class TestHyperliquidOrdersInfo:
     @pytest.mark.asyncio
     async def test_get_open_orders_success_comprehensive(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test successful get_open_orders() with detailed Order model validation."""
         # Execute the full pipeline
-        open_orders = await hl_api_for_test_env.get_open_orders()
+        open_orders = await hl_api_for_zero_balance_test.get_open_orders()
 
         # Validate return type
         assert isinstance(open_orders, list), "get_open_orders() should return list[Order]"
@@ -220,7 +220,7 @@ class TestHyperliquidOrdersInfo:
     @pytest.mark.asyncio
     async def test_get_order_nonexistent_id(
         self,
-        hl_api_for_test_env: HyperliquidAPI,
+        hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_order() with non-existent order ID."""
@@ -229,7 +229,7 @@ class TestHyperliquidOrdersInfo:
 
         # Should raise APIError with ORDER_NOT_FOUND
         with pytest.raises(APIError) as exc_info:
-            await hl_api_for_test_env.get_order(get_order_args)
+            await hl_api_for_zero_balance_test.get_order(get_order_args)
 
         # Validate error mapping
         api_error = exc_info.value

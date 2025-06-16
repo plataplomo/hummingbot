@@ -1,0 +1,96 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/klines?endTime=1749445565&interval=1h&limit=100&startTime=1749359165&symbol=SOL_USDC
+  response:
+    body:
+      string: '[{"close":"150.01","end":"2025-06-08 07:00:00","high":"150.55","low":"149.91","open":"149.94","quoteVolume":"192894.7572","start":"2025-06-08
+        06:00:00","trades":"1092","volume":"1283.75"},{"close":"149.37","end":"2025-06-08
+        08:00:00","high":"150.25","low":"149.24","open":"150.01","quoteVolume":"195287.6063","start":"2025-06-08
+        07:00:00","trades":"1008","volume":"1303.3"},{"close":"149.09","end":"2025-06-08
+        09:00:00","high":"149.79","low":"149.05","open":"149.38","quoteVolume":"184391.2725","start":"2025-06-08
+        08:00:00","trades":"1079","volume":"1233.61"},{"close":"148.54","end":"2025-06-08
+        10:00:00","high":"149.19","low":"147.9","open":"149.1","quoteVolume":"368914.1787","start":"2025-06-08
+        09:00:00","trades":"1863","volume":"2484.28"},{"close":"148.97","end":"2025-06-08
+        11:00:00","high":"149.04","low":"148.25","open":"148.52","quoteVolume":"104776.7129","start":"2025-06-08
+        10:00:00","trades":"771","volume":"704.93"},{"close":"149.68","end":"2025-06-08
+        12:00:00","high":"149.75","low":"148.92","open":"148.94","quoteVolume":"201466.1743","start":"2025-06-08
+        11:00:00","trades":"1158","volume":"1348.62"},{"close":"149.58","end":"2025-06-08
+        13:00:00","high":"149.99","low":"149.15","open":"149.7","quoteVolume":"220886.2904","start":"2025-06-08
+        12:00:00","trades":"1101","volume":"1477.48"},{"close":"149.81","end":"2025-06-08
+        14:00:00","high":"151.24","low":"149.25","open":"149.59","quoteVolume":"404795.0054","start":"2025-06-08
+        13:00:00","trades":"2437","volume":"2692.42"},{"close":"150.46","end":"2025-06-08
+        15:00:00","high":"150.5","low":"149.58","open":"149.75","quoteVolume":"239656.5311","start":"2025-06-08
+        14:00:00","trades":"1666","volume":"1597.45"},{"close":"150.79","end":"2025-06-08
+        16:00:00","high":"151.06","low":"150.39","open":"150.47","quoteVolume":"233540.2289","start":"2025-06-08
+        15:00:00","trades":"1692","volume":"1548.66"},{"close":"152.3","end":"2025-06-08
+        17:00:00","high":"152.3","low":"150.75","open":"150.79","quoteVolume":"338249.5648","start":"2025-06-08
+        16:00:00","trades":"2225","volume":"2229.13"},{"close":"153.14","end":"2025-06-08
+        18:00:00","high":"153.96","low":"152.29","open":"152.3","quoteVolume":"499619.5129","start":"2025-06-08
+        17:00:00","trades":"2452","volume":"3262.23"},{"close":"153.96","end":"2025-06-08
+        19:00:00","high":"154.22","low":"153.09","open":"153.21","quoteVolume":"354983.954","start":"2025-06-08
+        18:00:00","trades":"2258","volume":"2308.01"},{"close":"154.51","end":"2025-06-08
+        20:00:00","high":"154.58","low":"153.85","open":"153.96","quoteVolume":"258460.3547","start":"2025-06-08
+        19:00:00","trades":"1611","volume":"1675.5"},{"close":"154.35","end":"2025-06-08
+        21:00:00","high":"154.8","low":"154.05","open":"154.52","quoteVolume":"232743.0761","start":"2025-06-08
+        20:00:00","trades":"1470","volume":"1506.99"},{"close":"154.5","end":"2025-06-08
+        22:00:00","high":"155.34","low":"154.09","open":"154.35","quoteVolume":"128894.5317","start":"2025-06-08
+        21:00:00","trades":"1263","volume":"833.86"},{"close":"153.02","end":"2025-06-08
+        23:00:00","high":"154.57","low":"152.96","open":"154.51","quoteVolume":"314380.2296","start":"2025-06-08
+        22:00:00","trades":"1656","volume":"2044.86"},{"close":"152.56","end":"2025-06-09
+        00:00:00","high":"153.07","low":"152.27","open":"153.02","quoteVolume":"379951.4111","start":"2025-06-08
+        23:00:00","trades":"1363","volume":"2489.11"},{"close":"152.42","end":"2025-06-09
+        01:00:00","high":"153.23","low":"151.94","open":"152.56","quoteVolume":"558830.8638","start":"2025-06-09
+        00:00:00","trades":"3029","volume":"3664.78"},{"close":"152.09","end":"2025-06-09
+        02:00:00","high":"152.75","low":"151.84","open":"152.47","quoteVolume":"437111.6015","start":"2025-06-09
+        01:00:00","trades":"1555","volume":"2869.96"},{"close":"151.8","end":"2025-06-09
+        03:00:00","high":"152.53","low":"151.67","open":"152.07","quoteVolume":"260715.0951","start":"2025-06-09
+        02:00:00","trades":"1730","volume":"1714.91"},{"close":"151.63","end":"2025-06-09
+        04:00:00","high":"151.9","low":"150.87","open":"151.81","quoteVolume":"293316.0494","start":"2025-06-09
+        03:00:00","trades":"1936","volume":"1938.03"},{"close":"150.93","end":"2025-06-09
+        05:00:00","high":"151.92","low":"150.79","open":"151.63","quoteVolume":"216020.0984","start":"2025-06-09
+        04:00:00","trades":"1990","volume":"1427.17"},{"close":"149.91","end":"2025-06-09
+        06:00:00","high":"150.95","low":"149.91","open":"150.95","quoteVolume":"272965.8322","start":"2025-06-09
+        05:00:00","trades":"1445","volume":"1814.84"}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:06:05 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      - Origin
+      Via:
+      - 1.1 a9d3afb5ec3e79d69b46871cc83d920a.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - YDL-rL67k5PULBA51Nm1cP-se06wlmjfAeI9phQ2e3pykwPl2hbDTg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+      content-length:
+      - '4472'
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,978 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/position
+  response:
+    body:
+      string: '[]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:18 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - OUvYLRYl5LV-fZ_r1-dmJgLWysrCudqswLQF0vmqVBArxvnOMthfOg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"145.97","high":"157.33","lastPrice":"156.66","low":"144.23","priceChange":"10.69","priceChangePercent":"0.073234","quoteVolume":"65714159.2827","symbol":"SOL_USDC_PERP","trades":"64718","volume":"435106.88"}'
+    headers:
+      Age:
+      - '55'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '222'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:25 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - VqCyuXqeP3_bC_7M_A-87fVvtIfJvUPM7XSfDaw3J9EtGjkwPabE6A==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=156.66&side=Bid&symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0.06","price":"156.66","reduceOnly":null,"side":"Bid","symbol":"SOL_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '163'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:20 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - Klxn01w-CFVNtZzhJi5es3u-jjl5zK9O0IflB7JrBQtdyLMRgS1f-A==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"SOL","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.03","maxMultiplier":"1.25","maxPrice":"1000","meanMarkPriceBand":{"maxMultiplier":"1.1","minMultiplier":"0.9"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.97","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.01","stepSize":"0.01"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.0001275","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.0000765","type":"sqrt"},"openInterestLimit":"1200000","orderBookState":"Open","quoteSymbol":"USDC","symbol":"SOL_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '830'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:20 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - nZnaV9uEoKLkUeDpps07JS3JdCOtZHB7d5EuVLZ18jOIp3jjPCFusg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: POST
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: '{"clientId":null,"createdAt":1750050321163,"executedQuantity":"0.06","executedQuoteQuantity":"9.3978","id":"1921034004","orderType":"Market","quantity":"0.06","quoteQuantity":"9.4","reduceOnly":null,"relatedOrderId":null,"selfTradePrevention":"RejectTaker","side":"Bid","status":"Filled","stopLossLimitPrice":null,"stopLossTriggerBy":null,"stopLossTriggerPrice":null,"strategyId":null,"symbol":"SOL_USDC_PERP","takeProfitLimitPrice":null,"takeProfitTriggerBy":null,"takeProfitTriggerPrice":null,"timeInForce":"GTC","triggerBy":null,"triggerPrice":null,"triggerQuantity":null,"triggeredAt":null}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '594'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:21 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - bBAg3wVC2GtE0yy9iUR-2f293TSw9-HykTvuxF8aYzvWQS8mtcRnww==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"105531.6","high":"106448.3","lastPrice":"106429.7","low":"104459.8","priceChange":"898.1","priceChangePercent":"0.00851","quoteVolume":"69047866.910169","symbol":"BTC_USDC_PERP","trades":"56793","volume":"654.87108"}'
+    headers:
+      Age:
+      - '56'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '231'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:26 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - miAbyY0-dqhUhHr83ljWVuB32g9rISQsuL_pbtJoU8ZYQY4XfF1sZQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=106429.7&side=Bid&symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0","price":"106429.7","reduceOnly":null,"side":"Bid","symbol":"BTC_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '162'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:22 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 5OWSaUIW6KNJvwcfmNj8KTTacXjSYcqmhn1FRQMslohe1ZCIyfvRsw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"2539.61","high":"2578.41","lastPrice":"2576.03","low":"2491.77","priceChange":"36.42","priceChangePercent":"0.014341","quoteVolume":"59719651.945379","symbol":"ETH_USDC_PERP","trades":"42661","volume":"23526.3987"}'
+    headers:
+      Age:
+      - '55'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '229'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:27 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - YvQGI5jLiDH3FZqXxVVNdzwHh3Ksc6b6hHIByDoAO-xRDlZhWD69gQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=2576.03&side=Bid&symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0","price":"2576.03","reduceOnly":null,"side":"Bid","symbol":"ETH_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '161'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:22 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - zznQOEyA2ZBsuL_pMWqIVjONmG2uWT736M2YHCfVopLdjULP6FofKg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"145.97","high":"157.33","lastPrice":"156.66","low":"144.23","priceChange":"10.69","priceChangePercent":"0.073234","quoteVolume":"65714159.2827","symbol":"SOL_USDC_PERP","trades":"64718","volume":"435106.88"}'
+    headers:
+      Age:
+      - '57'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '222'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:25 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 1iq1N_FGE2o9UHlIZ8x_Uulai0VjKmFMDfedf2K6_tkSnXv_alufvw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=156.66&side=Bid&symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0","price":"156.66","reduceOnly":null,"side":"Bid","symbol":"SOL_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '160'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:23 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - AYZwCaSIS519MZ8LksglGmtplvmCLmhl5I0BxUqp_6dyFSKZyxxWKw==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"SOL","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.03","maxMultiplier":"1.25","maxPrice":"1000","meanMarkPriceBand":{"maxMultiplier":"1.1","minMultiplier":"0.9"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.97","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.01","stepSize":"0.01"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.0001275","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.0000765","type":"sqrt"},"openInterestLimit":"1200000","orderBookState":"Open","quoteSymbol":"USDC","symbol":"SOL_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '830'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:24 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - O5YGbOr8cKRK7_xpf2ucAvaAJESK_Y-d6K2myqFchbq_A4Q1tS9Mbg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"105531.6","high":"106448.3","lastPrice":"106429.7","low":"104459.8","priceChange":"898.1","priceChangePercent":"0.00851","quoteVolume":"69047866.910169","symbol":"BTC_USDC_PERP","trades":"56793","volume":"654.87108"}'
+    headers:
+      Age:
+      - '58'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '231'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:26 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - EFBtN5laBVIt8-Mby9Bev6G4OU9ZOIFgVc5QMc67kGWTaefYmExUyA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=106429.7&side=Bid&symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0","price":"106429.7","reduceOnly":null,"side":"Bid","symbol":"BTC_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '162'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:25 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - LgTTJVMw56j28eUQpMkz3GQ5vq5bHkDdfsvOqzHcZubuhnjxWMiLWg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"BTC","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.02","maxMultiplier":"1.25","maxPrice":"1000000","meanMarkPriceBand":{"maxMultiplier":"1.06","minMultiplier":"0.94"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.98","minMultiplier":"0.75","minPrice":"0.1","tickSize":"0.1"},"quantity":{"maxQuantity":null,"minQuantity":"0.00001","stepSize":"0.00001"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.000085","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.000051","type":"sqrt"},"openInterestLimit":"3200","orderBookState":"Open","quoteSymbol":"USDC","symbol":"BTC_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '834'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:25 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - PUNnVPxja0HMTr78E-H4HuYDlLsxuyfmfXSAlKRYbZWSngHkvbN3EA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/ticker?symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"firstPrice":"2539.61","high":"2578.41","lastPrice":"2576.03","low":"2491.77","priceChange":"36.42","priceChangePercent":"0.014341","quoteVolume":"59719651.945379","symbol":"ETH_USDC_PERP","trades":"42661","volume":"23526.3987"}'
+    headers:
+      Age:
+      - '58'
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '229'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:27 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - -iWj_9XP9AIeBiHhJvX6QoypgsBkbCcluERPbzoUUld7v2Ou8r6NIg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Hit from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/account/limits/order?price=2576.03&side=Bid&symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"autoBorrow":null,"autoBorrowRepay":null,"autoLendRedeem":null,"maxOrderQuantity":"0","price":"2576.03","reduceOnly":null,"side":"Bid","symbol":"ETH_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '161'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:26 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 9jpSXWlrxSBS-obFvfOVjFSiEo3Gyj9RiTA079Qf6iTBA0q-uYcUuQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"ETH","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.02","maxMultiplier":"1.25","maxPrice":"1000000","meanMarkPriceBand":{"maxMultiplier":"1.09","minMultiplier":"0.92"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.98","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.0001","stepSize":"0.0001"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.0000935","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.0000561","type":"sqrt"},"openInterestLimit":"64000","orderBookState":"Open","quoteSymbol":"USDC","symbol":"ETH_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '837'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:26 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - ju9FGvfO73_1OZdY5qxJ8NcoM_u1dF3TAJs6ej994U1c768s94BbZQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/position
+  response:
+    body:
+      string: '[{"breakEvenPrice":"156.7005","cumulativeFundingPayment":"0","cumulativeInterest":"0","entryPrice":"156.63","estLiquidationPrice":"150.6604066745","imf":"0.02","imfFunction":{"base":"0.02","factor":"0.0001275","type":"sqrt"},"markPrice":"156.61175276","mmf":"0.0125","mmfFunction":{"base":"0.0125","factor":"0.0000765","type":"sqrt"},"netCost":"9.3978","netExposureNotional":"9.3967051656","netExposureQuantity":"0.06","netQuantity":"0.06","pnlRealized":"0","pnlUnrealized":"-0.001094","positionId":"1921034005","subaccountId":7,"symbol":"SOL_USDC_PERP","userId":1670824}]'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '572'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:27 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - WpGn4QZQI-jEGhRgPr3WglZ0d9m1NVZLGi5J-gjmk_X3Svx-0ZH_xA==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Content-Type:
+      - application/json; charset=utf-8
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+      X-Api-Key:
+      - FILTERED_API_KEY
+      X-Signature:
+      - FILTERED_SIGNATURE
+      X-Timestamp:
+      - FILTERED_TIMESTAMP
+      X-Window:
+      - FILTERED_WINDOW
+    method: POST
+    uri: https://api.backpack.exchange/api/v1/order
+  response:
+    body:
+      string: '{"clientId":null,"createdAt":1750050328713,"executedQuantity":"0.06","executedQuoteQuantity":"9.393","id":"1921037416","orderType":"Market","quantity":"0.06","quoteQuantity":"9.4","reduceOnly":null,"relatedOrderId":null,"selfTradePrevention":"RejectTaker","side":"Ask","status":"Filled","stopLossLimitPrice":null,"stopLossTriggerBy":null,"stopLossTriggerPrice":null,"strategyId":null,"symbol":"SOL_USDC_PERP","takeProfitLimitPrice":null,"takeProfitTriggerBy":null,"takeProfitTriggerPrice":null,"timeInForce":"GTC","triggerBy":null,"triggerPrice":null,"triggerQuantity":null,"triggeredAt":null}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '593'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:05:28 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - dHL8reUB6MozM4pTx_q3aexOobK6K_10sZfoqY4xqLse7VPsC97Erg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

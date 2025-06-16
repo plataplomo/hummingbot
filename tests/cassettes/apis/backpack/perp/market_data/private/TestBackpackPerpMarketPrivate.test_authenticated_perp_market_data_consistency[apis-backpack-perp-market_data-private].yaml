@@ -1,0 +1,134 @@
+interactions:
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=SOL_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"SOL","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.03","maxMultiplier":"1.25","maxPrice":"1000","meanMarkPriceBand":{"maxMultiplier":"1.1","minMultiplier":"0.9"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.97","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.01","stepSize":"0.01"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.0001275","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.0000765","type":"sqrt"},"openInterestLimit":"1200000","orderBookState":"Open","quoteSymbol":"USDC","symbol":"SOL_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '830'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:15 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 807153771362b47c5ed78af2666b1f62.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - NOeGCTDT4aJF0dEDlFosgJGMtjsKGDSgFues4an9HcYJP71FMRtPAQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=BTC_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"BTC","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.02","maxMultiplier":"1.25","maxPrice":"1000000","meanMarkPriceBand":{"maxMultiplier":"1.06","minMultiplier":"0.94"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.98","minMultiplier":"0.75","minPrice":"0.1","tickSize":"0.1"},"quantity":{"maxQuantity":null,"minQuantity":"0.00001","stepSize":"0.00001"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.000085","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.000051","type":"sqrt"},"openInterestLimit":"3200","orderBookState":"Open","quoteSymbol":"USDC","symbol":"BTC_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '834'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:15 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 807153771362b47c5ed78af2666b1f62.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - gOjjG1sZrOwuQVosv9uRIVuyRRRVNAcofbIzG_1dhTCfdrSgzZmXIQ==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      User-Agent:
+      - CyberDeltaEngine-Test-Suite/1.0
+    method: GET
+    uri: https://api.backpack.exchange/api/v1/market?symbol=ETH_USDC_PERP
+  response:
+    body:
+      string: '{"baseSymbol":"ETH","createdAt":"2025-01-21T06:34:54.691858","filters":{"price":{"borrowEntryFeeMaxMultiplier":null,"borrowEntryFeeMinMultiplier":null,"maxImpactMultiplier":"1.02","maxMultiplier":"1.25","maxPrice":"1000000","meanMarkPriceBand":{"maxMultiplier":"1.09","minMultiplier":"0.92"},"meanPremiumBand":{"tolerancePct":"0.05"},"minImpactMultiplier":"0.98","minMultiplier":"0.75","minPrice":"0.01","tickSize":"0.01"},"quantity":{"maxQuantity":null,"minQuantity":"0.0001","stepSize":"0.0001"}},"fundingInterval":28800000,"fundingRateLowerBound":"-100","fundingRateUpperBound":"100","imfFunction":{"base":"0.02","factor":"0.0000935","type":"sqrt"},"marketType":"PERP","mmfFunction":{"base":"0.0125","factor":"0.0000561","type":"sqrt"},"openInterestLimit":"64000","orderBookState":"Open","quoteSymbol":"USDC","symbol":"ETH_USDC_PERP"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=86400
+      Cache-Control:
+      - no-cache="Set-Cookie"
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '837'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Mon, 16 Jun 2025 05:04:16 GMT
+      Strict-Transport-Security:
+      - max-age=31536000
+      Vary:
+      - Origin
+      Via:
+      - 1.1 807153771362b47c5ed78af2666b1f62.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - _oItJ1eXqmFyPRe6-yMVEmY3xPVrp6gsiPF2Y3pfeja1i_F20Y-NFg==
+      X-Amz-Cf-Pop:
+      - LIM50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

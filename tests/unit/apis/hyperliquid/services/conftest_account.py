@@ -76,6 +76,14 @@ def mock_http_client() -> Generator[MagicMock, Any, Any]:
 
 
 @pytest.fixture
+def mock_get_asset_index_callable() -> AsyncMock:
+    """Create a mock for the get_asset_index_callable."""
+    mock = AsyncMock()
+    mock.return_value = 0  # Default return value for asset index
+    return mock
+
+
+@pytest.fixture
 def hyperliquid_account_service(
     mock_http_client_requester: AsyncMock,
     mock_request_builder: MagicMock,
@@ -83,6 +91,7 @@ def hyperliquid_account_service(
     mock_authenticator: MagicMock,
     mock_hl_account_mapper: MagicMock,
     mock_hl_trading_mapper: MagicMock,
+    mock_get_asset_index_callable: AsyncMock,
 ) -> HyperliquidAccountService:
     """Create HyperliquidAccountService instance with mocked dependencies for testing."""
     service = HyperliquidAccountService(
@@ -94,5 +103,6 @@ def hyperliquid_account_service(
         wallet_address="0xTestWalletAddress",
         account_mapper=mock_hl_account_mapper,
         trading_mapper=mock_hl_trading_mapper,
+        get_asset_index_callable=mock_get_asset_index_callable,
     )
     return service

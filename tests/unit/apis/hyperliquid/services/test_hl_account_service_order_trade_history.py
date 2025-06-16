@@ -175,6 +175,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         Tests error handling when wallet address is missing, time parameters are invalid,
         and when the underlying HTTP requester raises APIError exceptions.
         """
+        # Create mock for get_asset_index_callable
+        mock_get_asset_index = AsyncMock(return_value=0)
+        
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
             http_client_requester=mock_http_client_requester,
@@ -185,6 +188,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             wallet_address=None,  # Key change here
             account_mapper=mock_hl_account_mapper,
             trading_mapper=mock_hl_trading_mapper,
+            get_asset_index_callable=mock_get_asset_index,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet.get_order_history(
@@ -396,6 +400,9 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_hl_trading_mapper: MagicMock,
     ) -> None:
         """Test get_trade_history error handling for missing wallet and APIError from requester."""
+        # Create mock for get_asset_index_callable
+        mock_get_asset_index = AsyncMock(return_value=0)
+        
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet_trade_hist = HyperliquidAccountService(
             http_client_requester=mock_http_client_requester,
@@ -406,6 +413,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             wallet_address=None,  # Key: Instantiate with None
             account_mapper=mock_hl_account_mapper,
             trading_mapper=mock_hl_trading_mapper,
+            get_asset_index_callable=mock_get_asset_index,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet_trade_hist.get_trade_history(
