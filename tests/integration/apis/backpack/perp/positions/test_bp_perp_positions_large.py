@@ -95,7 +95,7 @@ class TestBackpackPerpLargePositions:
         )
 
         # This uses the internal method that calls /api/v1/account/limits/order
-        return await api.account_service._get_exchange_max_order_quantity(max_order_args) # pyright: ignore[reportPrivateUsage]
+        return await api.account_service._get_exchange_max_order_quantity(max_order_args)  # pyright: ignore[reportPrivateUsage]
 
     async def _get_account_margin_parameters(self, api: BackpackAPI) -> dict[str, Decimal | None]:
         """Get actual margin parameters from the exchange."""

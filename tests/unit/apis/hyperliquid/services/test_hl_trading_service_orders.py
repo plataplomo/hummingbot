@@ -441,6 +441,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock response handler to return raw Pydantic model (not internal Order)
         mock_raw_response = HyperliquidRawExchangeResponse(
+            response=None,
             status="ok",
             data=HyperliquidRawExchangeResponseData(
                 type="order",
@@ -874,6 +875,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock response handler to return raw Pydantic model (not boolean)
         mock_raw_response = HyperliquidRawExchangeResponse(
+            response=None,
             status="ok",
             data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
         )

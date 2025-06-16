@@ -42,8 +42,8 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
         assert request_model.type == "order"
-        assert len(request_model.actions) == 1
-        action = request_model.actions[0]
+        assert len(request_model.orders) == 1
+        action = request_model.orders[0]
         assert isinstance(action, HyperliquidRawPlaceOrderAction)
         assert action.asset == asset_index
         assert action.is_buy is True
@@ -67,8 +67,8 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
         assert request_model.type == "order"
-        assert len(request_model.actions) == 1
-        action = request_model.actions[0]
+        assert len(request_model.orders) == 1
+        action = request_model.orders[0]
         assert isinstance(action, HyperliquidRawPlaceOrderAction)
         assert action.asset == asset_index + 1
         assert action.is_buy is False
@@ -91,8 +91,8 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
         assert request_model.type == "order"
-        assert len(request_model.actions) == 1
-        action = request_model.actions[0]
+        assert len(request_model.orders) == 1
+        action = request_model.orders[0]
         assert isinstance(action, HyperliquidRawPlaceOrderAction)
         assert action.asset == asset_index
         assert action.is_buy is True
@@ -116,8 +116,8 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
         assert request_model.type == "order"
-        assert len(request_model.actions) == 1
-        action = request_model.actions[0]
+        assert len(request_model.orders) == 1
+        action = request_model.orders[0]
         assert isinstance(action, HyperliquidRawPlaceOrderAction)
         assert action.asset == asset_index + 2
         assert action.is_buy is False
@@ -146,8 +146,8 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
         assert request_model.type == "order"
-        assert len(request_model.actions) == 1
-        action = request_model.actions[0]
+        assert len(request_model.orders) == 1
+        action = request_model.orders[0]
         assert isinstance(action, HyperliquidRawPlaceOrderAction)
         assert action.asset == asset_index + 3
         assert action.is_buy is True
@@ -177,7 +177,7 @@ class TestHyperliquidRequestBuilderTrading:
             post_only=False,
             reduce_only=False,
         )
-        assert payload.actions[0].limit_px == "0"  # Builder defaults to "0"
+        assert payload.orders[0].limit_px == "0"  # Builder defaults to "0"
 
         # Request builder should accept None stop_price for STOP_MARKET order
         payload = HyperliquidRequestBuilder.build_place_order_payload(
@@ -190,7 +190,7 @@ class TestHyperliquidRequestBuilderTrading:
             post_only=False,
             reduce_only=False,
         )
-        assert payload.actions[0].trigger is None  # No trigger created without stop_price
+        assert payload.orders[0].trigger is None  # No trigger created without stop_price
 
         # Request builder should accept None stop_price for STOP_LIMIT order
         payload = HyperliquidRequestBuilder.build_place_order_payload(
@@ -204,7 +204,7 @@ class TestHyperliquidRequestBuilderTrading:
             post_only=False,
             reduce_only=False,
         )
-        assert payload.actions[0].trigger is None  # No trigger created without stop_price
+        assert payload.orders[0].trigger is None  # No trigger created without stop_price
 
     def test_build_cancel_order_payload(self, asset_index: int) -> None:
         """Test build_cancel_order_payload with valid inputs."""
@@ -243,7 +243,7 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=False,
             post_only=False,
         )
-        action_ioc = request_ioc.actions[0]
+        action_ioc = request_ioc.orders[0]
         assert action_ioc.order_type.limit is not None
         assert action_ioc.order_type.limit.tif == "Ioc"
 
@@ -258,7 +258,7 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=False,
             post_only=False,
         )
-        action_gtc = request_gtc.actions[0]
+        action_gtc = request_gtc.orders[0]
         assert action_gtc.order_type.limit is not None
         assert action_gtc.order_type.limit.tif == "Gtc"
 
@@ -275,7 +275,7 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=False,
             post_only=False,
         )
-        action_small = request_small.actions[0]
+        action_small = request_small.orders[0]
         assert action_small.sz == "0.00001"
         assert action_small.limit_px == "1.123456789"
 
@@ -290,7 +290,7 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=True,
             post_only=True,
         )
-        action_large = request_large.actions[0]
+        action_large = request_large.orders[0]
         assert action_large.sz == "999999.999999"
         assert action_large.limit_px == "100000.123456"
         assert action_large.reduce_only is True

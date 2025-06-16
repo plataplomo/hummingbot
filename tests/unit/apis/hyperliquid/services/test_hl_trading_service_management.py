@@ -153,6 +153,7 @@ class TestHyperliquidTradingServiceManagement:
 
         mock_cancel_raw_response = HyperliquidRawExchangeResponse(
             status="ok",
+            response=None,
             data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
         )
         mock_hl_response_handler.handle_exchange_response.return_value = mock_cancel_raw_response
@@ -312,6 +313,7 @@ class TestHyperliquidTradingServiceManagement:
 
         mock_cancel_raw_response = HyperliquidRawExchangeResponse(
             status="ok",
+            response=None,
             data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
         )
         mock_hl_response_handler.handle_exchange_response.return_value = mock_cancel_raw_response

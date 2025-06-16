@@ -233,7 +233,7 @@ class HyperliquidTradingService:
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
-                is_signed=True,
+                is_signed=False,  # openOrders is a public endpoint in Hyperliquid
             )
             if raw_response_content is None:
                 _error_msg_no_content = "Fetching open orders returned no content."
@@ -281,7 +281,7 @@ class HyperliquidTradingService:
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
-                is_signed=True,
+                is_signed=False,  # orderStatus is a public endpoint in Hyperliquid
             )
             if raw_response_content is None:
                 logger.error(
