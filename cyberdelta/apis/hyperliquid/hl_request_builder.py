@@ -154,11 +154,15 @@ class HyperliquidRequestBuilder:
         if rounded == "-0.00000000":
             rounded = "0.00000000"
 
-        # Normalize to remove trailing zeros
+        # Normalize to remove trailing zeros but ensure at least one decimal place
         try:
             normalized = Decimal(rounded).normalize()
             # Ensure we don't return scientific notation
             result = f"{normalized:f}"
+            
+            # Ensure at least one decimal place for Hyperliquid API compatibility
+            if "." not in result:
+                result = result + ".0"
 
             # Final validation - ensure result is parseable
             _ = Decimal(result)
@@ -344,8 +348,18 @@ class HyperliquidRequestBuilder:
         is_buy = args.side == OrderSide.BUY
 
         # Convert prices to wire format - handle None for market orders
-        price_for_wire = args.price if args.price is not None else Decimal("0")
-        limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(price_for_wire)
+        if args.order_type == OrderType.MARKET:
+            # Market orders require a price to be passed from the service layer
+            # The service layer should calculate aggressive pricing based on current market data
+            if args.price is None:
+                raise ValueError(
+                    "Market orders require a calculated aggressive price. "
+                    "The service layer must provide the price based on current market data."
+                )
+            limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.price)
+        else:
+            price_for_wire = args.price if args.price is not None else Decimal("0")
+            limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(price_for_wire)
 
         # Convert quantity to wire format
         sz_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.quantity)
@@ -357,8 +371,10 @@ class HyperliquidRequestBuilder:
                 limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
             )
         elif args.order_type == OrderType.MARKET:
+            # Hyperliquid market orders are implemented as aggressive IoC limit orders
+            # Based on official SDK: "Market Order is an aggressive Limit Order IoC"
             order_type_model = HyperliquidRawOrderType(
-                market=HyperliquidRawMarketOrderTypeDetails()
+                limit=HyperliquidRawLimitOrderTypeDetails(tif="Ioc")
             )
         elif args.order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
             # For stop orders, create trigger order type

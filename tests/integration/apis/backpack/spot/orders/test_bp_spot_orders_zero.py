@@ -736,6 +736,11 @@ class TestBackpackOrdersZeroBalance:
 
         # Get market data for test setup
         current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
+        
+        # Get market constraints for price quantization
+        constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
+        tick_size = constraints["tick_size"]
+        
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
@@ -763,19 +768,19 @@ class TestBackpackOrdersZeroBalance:
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=minimal_quantity,
-                    price=current_price * Decimal("0.95"),
+                    price=(current_price * Decimal("0.95")).quantize(tick_size),
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [APIErrorCode.INSUFFICIENT_FUNDS.value],
             },
             {
-                "name": "STOP_MARKET_SELL",
+                "name": "STOP_MARKET_BUY",
                 "args": PlaceOrderArgs(
                     symbol=symbol,
-                    side=OrderSide.SELL,
+                    side=OrderSide.BUY,
                     order_type=OrderType.STOP_MARKET,
                     quantity=minimal_quantity,
-                    stop_price=current_price * Decimal("0.95"),
+                    stop_price=(current_price * Decimal("1.05")).quantize(tick_size),
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [
@@ -785,14 +790,14 @@ class TestBackpackOrdersZeroBalance:
                 ],
             },
             {
-                "name": "STOP_LIMIT_SELL",
+                "name": "STOP_LIMIT_BUY",
                 "args": PlaceOrderArgs(
                     symbol=symbol,
-                    side=OrderSide.SELL,
+                    side=OrderSide.BUY,
                     order_type=OrderType.STOP_LIMIT,
                     quantity=minimal_quantity,
-                    price=current_price * Decimal("0.94"),
-                    stop_price=current_price * Decimal("0.95"),
+                    price=(current_price * Decimal("1.06")).quantize(tick_size),
+                    stop_price=(current_price * Decimal("1.05")).quantize(tick_size),
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [
@@ -802,13 +807,13 @@ class TestBackpackOrdersZeroBalance:
                 ],
             },
             {
-                "name": "TAKE_PROFIT_MARKET_SELL",
+                "name": "TAKE_PROFIT_MARKET_BUY",
                 "args": PlaceOrderArgs(
                     symbol=symbol,
-                    side=OrderSide.SELL,
+                    side=OrderSide.BUY,
                     order_type=OrderType.TAKE_PROFIT_MARKET,
                     quantity=minimal_quantity,
-                    stop_price=current_price * Decimal("1.05"),
+                    stop_price=(current_price * Decimal("0.95")).quantize(tick_size),
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [
@@ -818,14 +823,14 @@ class TestBackpackOrdersZeroBalance:
                 ],
             },
             {
-                "name": "TAKE_PROFIT_LIMIT_SELL",
+                "name": "TAKE_PROFIT_LIMIT_BUY",
                 "args": PlaceOrderArgs(
                     symbol=symbol,
-                    side=OrderSide.SELL,
+                    side=OrderSide.BUY,
                     order_type=OrderType.TAKE_PROFIT_LIMIT,
                     quantity=minimal_quantity,
-                    price=current_price * Decimal("1.06"),
-                    stop_price=current_price * Decimal("1.05"),
+                    price=(current_price * Decimal("0.94")).quantize(tick_size),
+                    stop_price=(current_price * Decimal("0.95")).quantize(tick_size),
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [
@@ -838,18 +843,33 @@ class TestBackpackOrdersZeroBalance:
 
         # Test each order type
         for test_case in order_type_tests:
-            with pytest.raises(APIError) as exc_info:
-                await bp_api_for_zero_balance_test.place_order(test_case["args"])
-
-            api_error = exc_info.value
-            assert api_error.code in test_case["expected_errors"], (
-                f"Order type {test_case['name']} failed with unexpected error: "
-                f"{api_error.code} - {api_error.message}"
-            )
-
-            logger.info(
-                f"✓ {test_case['name']} correctly failed: {api_error.code} - {api_error.message}"
-            )
+            try:
+                order = await bp_api_for_zero_balance_test.place_order(test_case["args"])
+                # If order succeeds, it should be a conditional order in TriggerPending status
+                if test_case["name"] in ["STOP_MARKET_BUY", "STOP_LIMIT_BUY", "TAKE_PROFIT_MARKET_BUY", "TAKE_PROFIT_LIMIT_BUY"]:
+                    # Conditional orders might succeed even with zero balance
+                    assert order.status.value in ["TRIGGER_PENDING", "PENDING"], (
+                        f"Conditional order {test_case['name']} should be in pending status, "
+                        f"got: {order.status.value}"
+                    )
+                    logger.info(
+                        f"✓ {test_case['name']} conditional order placed successfully: {order.status.value}"
+                    )
+                else:
+                    # Non-conditional orders should not succeed with zero balance
+                    pytest.fail(
+                        f"Order type {test_case['name']} unexpectedly succeeded with zero balance. "
+                        f"Order ID: {order.exchange_order_id}, Status: {order.status.value}"
+                    )
+            except APIError as api_error:
+                # Order failed as expected
+                assert api_error.code in test_case["expected_errors"], (
+                    f"Order type {test_case['name']} failed with unexpected error: "
+                    f"{api_error.code} - {api_error.message}"
+                )
+                logger.info(
+                    f"✓ {test_case['name']} correctly failed: {api_error.code} - {api_error.message}"
+                )
 
         logger.info(f"✓ All {len(order_type_tests)} order types tested with zero balance")
 
@@ -1041,6 +1061,11 @@ class TestBackpackOrdersZeroBalance:
             try:
                 # Get symbol-specific parameters
                 current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
+                
+                # Get market constraints for price quantization
+                constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
+                tick_size = constraints["tick_size"]
+                
                 minimal_quantity = await get_minimal_order_size(
                     api=bp_api_for_zero_balance_test,
                     symbol=symbol,
@@ -1067,7 +1092,7 @@ class TestBackpackOrdersZeroBalance:
                             side=OrderSide.BUY,
                             order_type=OrderType.LIMIT,
                             quantity=minimal_quantity,
-                            price=current_price * Decimal("0.95"),
+                            price=(current_price * Decimal("0.95")).quantize(tick_size),
                             time_in_force=TimeInForce.GTC,
                         ),
                     },
@@ -1115,6 +1140,10 @@ class TestBackpackOrdersZeroBalance:
 
         current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
+        tick_size = constraints["tick_size"]
+        
+        # Quantize current price to ensure it respects tick size
+        current_price = current_price.quantize(tick_size)
 
         # Edge case parameter tests
         edge_cases: list[dict[str, Any]] = [

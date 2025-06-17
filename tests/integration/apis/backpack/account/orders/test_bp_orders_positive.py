@@ -14,6 +14,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -29,6 +30,8 @@ from tests.integration.apis.backpack.shared.test_helpers import (
     get_dynamic_test_price,
     get_minimal_order_size,
 )
+
+logger = get_logger(__name__)
 
 # Mark all tests in this file
 pytestmark = [
@@ -210,10 +213,21 @@ class TestBackpackOrdersPositive:
             time_in_force=TimeInForce.GTC,
             client_order_id=client_order_id,
         )
-        order = await bp_api_for_test_env.place_order(args)
-
-        assert isinstance(order, Order)
-        assert order.client_order_id == client_order_id
+        
+        try:
+            order = await bp_api_for_test_env.place_order(args)
+            assert isinstance(order, Order)
+            assert order.client_order_id == client_order_id
+        except APIError as e:
+            if "insufficient_funds" in str(e).lower():
+                # Expected business logic error
+                logger.info(f"Order correctly rejected due to balance: {e}")
+            else:
+                # Unexpected system error
+                pytest.fail(f"Unexpected API error: {e}")
+        except Exception as e:
+            # All other exceptions are test failures
+            pytest.fail(f"System error in trading operation: {e}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

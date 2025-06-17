@@ -10,6 +10,7 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from decimal import Decimal
 from typing import Any
 
 from pydantic import ValidationError
@@ -142,10 +143,13 @@ class HyperliquidTradingService:
         request_payload_model: HyperliquidApiPlaceOrderRequest | HyperliquidApiCancelOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Execute an exchange action request and return the response."""
+        # Convert Pydantic model to dictionary for HTTP client (exchange-agnostic boundary)
+        request_payload_dict = request_payload_model.model_dump(by_alias=False, exclude_none=True)
+        
         raw_content, http_status, _ = await self._http_client_requester(
             method="POST",
             endpoint=self._action_endpoint,
-            data=request_payload_model,
+            data=request_payload_dict,
             is_signed=True,
             serialize_none_as_null=True,
         )
@@ -547,6 +551,14 @@ class HyperliquidTradingService:
             if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
                 tif_str = self._map_time_in_force_to_hyperliquid(effective_tif)
 
+            # Validate market orders are not supported without proper pricing
+            if args.order_type == OrderType.MARKET:
+                raise ValueError(
+                    f"[{current_method}] Market orders are not currently supported. "
+                    "Market order implementation requires integration with real-time market data service "
+                    "to calculate safe aggressive pricing. Use limit orders instead."
+                )
+
             # Use the request builder to create the proper payload format
             place_order_payload = self._request_builder.build_place_order_payload(
                 args=args,
@@ -611,6 +623,7 @@ class HyperliquidTradingService:
             raise ValueError(
                 f"[{current_method}] Stop price is required for {args.order_type.value} orders"
             )
+
 
     @staticmethod
     def _map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:

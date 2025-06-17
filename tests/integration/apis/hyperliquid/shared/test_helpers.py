@@ -14,7 +14,10 @@ from typing import Any
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
+
+logger = get_logger(__name__)
 
 # REMOVED HARDCODED SYMBOL LISTS - SECURITY VIOLATION
 # Hardcoded symbol lists are forbidden - must get available symbols from exchange
@@ -66,7 +69,8 @@ class HyperliquidTestHelpers:
                         available_symbols.append(symbol)
                         if len(available_symbols) >= limit:
                             break
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Symbol {symbol} unavailable: {e}")
                     continue  # Skip unavailable symbols
 
             if not available_symbols:
@@ -215,8 +219,52 @@ class HyperliquidTestHelpers:
         tick_size = constraints["tick_size"]
         # Round to the nearest tick and ensure no floating point errors
         from decimal import ROUND_HALF_UP
-        rounded_ticks = (test_price / tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-        return rounded_ticks * tick_size
+
+        # Get the precision of the tick size first
+        tick_decimal_places = abs(tick_size.as_tuple().exponent)
+        price_precision = Decimal(10) ** (-tick_decimal_places)
+
+        # Calculate how many ticks this test price represents
+        ticks_decimal = test_price / tick_size
+        rounded_ticks = ticks_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        
+        # Calculate the final price by multiplying back
+        final_price = rounded_ticks * tick_size
+        
+        # Ensure the final price is quantized to match tick_size precision exactly
+        # This is critical for Hyperliquid's strict tick size validation
+        quantized_price = final_price.quantize(price_precision, rounding=ROUND_HALF_UP)
+
+        # Log calculation information for debugging
+        logger.info(
+            f"Price calculation for {symbol}: market={market_price}, "
+            f"tolerance={tolerance_percent}%, side={side.value}"
+        )
+        logger.info(
+            f"Step 1 - test_price calculation: {market_price} * (1 {'-' if side == OrderSide.BUY else '+'} {tolerance_percent/100}) = {test_price}"
+        )
+        logger.info(
+            f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
+            f"ticks_decimal={ticks_decimal}, rounded_ticks={rounded_ticks}"
+        )
+        logger.info(
+            f"Step 3 - final calculation: {rounded_ticks} * {tick_size} = {final_price}, "
+            f"quantized to {tick_decimal_places} places = {quantized_price}"
+        )
+
+        # Verify the final price is correctly aligned to tick size
+        remainder = quantized_price % tick_size
+        if remainder != Decimal("0"):
+            # Force alignment by recalculating
+            corrected_ticks = (quantized_price / tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            quantized_price = corrected_ticks * tick_size
+            quantized_price = quantized_price.quantize(price_precision, rounding=ROUND_HALF_UP)
+            
+            logger.warning(
+                f"Price alignment corrected for {symbol}: was {final_price}, now {quantized_price}"
+            )
+
+        return quantized_price
 
     @staticmethod
     async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: str) -> Decimal:
@@ -247,7 +295,7 @@ class HyperliquidTestHelpers:
         side: OrderSide,
         price: Decimal | None = None,
     ) -> Decimal:
-        """Calculate minimal viable order size based on account balance.
+        """Calculate minimal viable order size that meets exchange minimum notional value.
 
         Args:
             api: HyperliquidAPI instance
@@ -256,47 +304,84 @@ class HyperliquidTestHelpers:
             price: Order price (if None, uses current market price)
 
         Returns:
-            Minimal order quantity that account can afford
+            Minimal order quantity that meets exchange minimum notional requirements
+
+        Raises:
+            RuntimeError: If unable to determine valid order size
         """
         if price is None:
             price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
 
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
         min_quantity = constraints["min_quantity"]
+        step_size = constraints["step_size"]
 
         try:
-            # Get account balance
+            # Get account information to determine real minimum requirements
             account_summary = await api.get_account_summary()
             if not account_summary or account_summary.total_equity <= Decimal("0"):
-                return min_quantity
+                raise RuntimeError(
+                    f"No account equity available for {symbol}. "
+                    "Trading tests require funded account to determine real order minimums."
+                )
 
-            # Calculate affordable quantity based on available balance
-            # Use minimum viable order value based on exchange requirements
-            min_notional = constraints["min_quantity"] * price
+            # Hyperliquid testnet has a $10 minimum notional value requirement
+            # Calculate quantity needed to meet this minimum
+            MIN_NOTIONAL_USD = Decimal("10.00")  # $10 minimum from Hyperliquid testnet
+            min_qty_for_notional = MIN_NOTIONAL_USD / price
 
-            if account_summary.total_equity <= min_notional:
-                return min_quantity
+            # Use the larger of: exchange min quantity OR quantity for $10 notional
+            required_min_quantity = max(min_quantity, min_qty_for_notional)
 
-            # Use small fraction of available balance (1% of equity)
-            notional_value = account_summary.total_equity * Decimal("0.01")
+            # Round up to next valid step size to ensure we meet minimums
+            from decimal import ROUND_UP
 
-            # Ensure it meets minimum notional requirements
-            if notional_value < min_notional:
-                notional_value = min_notional
+            rounded_steps = (required_min_quantity / step_size).quantize(
+                Decimal("1"), rounding=ROUND_UP
+            )
+            final_quantity = rounded_steps * step_size
 
-            affordable_quantity = notional_value / price
+            # Verify we meet exchange minimum quantity
+            if final_quantity < min_quantity:
+                raise RuntimeError(
+                    f"Calculated quantity {final_quantity} below exchange minimum "
+                    f"{min_quantity} for {symbol}"
+                )
 
-            # Round to step size (properly)
-            step_size = constraints["step_size"]
-            from decimal import ROUND_HALF_UP
-            rounded_ticks = (affordable_quantity / step_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-            rounded_quantity = rounded_ticks * step_size
+            # Verify we meet minimum notional value
+            final_notional = final_quantity * price
+            if final_notional < MIN_NOTIONAL_USD:
+                # Recalculate with slightly higher quantity to ensure we meet minimum
+                min_qty_for_notional = MIN_NOTIONAL_USD / price
+                # Add small buffer to account for rounding
+                buffered_qty = min_qty_for_notional * Decimal("1.01")  # 1% buffer
+                
+                rounded_steps = (buffered_qty / step_size).quantize(
+                    Decimal("1"), rounding=ROUND_UP
+                )
+                final_quantity = rounded_steps * step_size
+                final_notional = final_quantity * price
 
-            # Ensure it meets minimum requirements
-            return max(rounded_quantity, min_quantity)
+            # Verify account can afford this order (max 20% of equity for testing)
+            max_affordable_notional = account_summary.total_equity * Decimal("0.2")
+            if final_notional > max_affordable_notional:
+                raise RuntimeError(
+                    f"Required notional value {final_notional} exceeds 20% of account equity "
+                    f"({max_affordable_notional}). Cannot safely test with minimum $10 order on this account."
+                )
 
-        except Exception:
-            return min_quantity
+            logger.info(
+                f"Calculated minimal order size for {symbol}: qty={final_quantity}, "
+                f"price={price}, notional=${final_notional}, min_required=${MIN_NOTIONAL_USD}"
+            )
+
+            return final_quantity
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to calculate minimal order size for {symbol} at price {price}: {e}. "
+                "Cannot determine safe order size without valid exchange constraints."
+            ) from e
 
     @staticmethod
     async def validate_order_constraints(
@@ -655,7 +740,13 @@ async def get_safe_test_price(
     """Get safe test price that won't immediately execute.
 
     Args:
+        api: HyperliquidAPI instance
+        symbol: Trading symbol
+        side: Order side (BUY or SELL)
         tolerance: Price tolerance percentage - MUST be provided explicitly
                   based on exchange requirements, not hardcoded defaults
+
+    Returns:
+        Safe test price that won't immediately execute
     """
     return await HyperliquidTestHelpers.get_dynamic_test_price(api, symbol, side, tolerance)

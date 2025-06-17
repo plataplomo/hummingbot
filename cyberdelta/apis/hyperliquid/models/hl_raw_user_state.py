@@ -83,6 +83,7 @@ class HyperliquidRawPositionInfo(BaseModel):
     return_on_equity: RawFiniteDecimalStr = Field(..., alias="returnOnEquity")
     szi: RawFiniteDecimalStr = Field(..., alias="szi")
     unrealized_pnl: RawFiniteDecimalStr = Field(..., alias="unrealizedPnl")
+    cum_funding: dict[str, RawFiniteDecimalStr] | None = Field(None, alias="cumFunding")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -92,10 +93,13 @@ class HyperliquidRawAssetPosition(BaseModel):
 
     Combines asset identifier with detailed position information for comprehensive
     position tracking. Validation handled by Annotated types and nested models.
+    Updated to handle API format changes where asset identifier is in position.coin
+    and position type is provided at the asset position level.
     """
 
-    asset: RawAssetString64HL = Field(..., alias="asset")
+    asset: RawAssetString64HL | None = Field(None, alias="asset")
     position: HyperliquidRawPositionInfo = Field(..., alias="position")
+    type: str | None = Field(None, alias="type")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

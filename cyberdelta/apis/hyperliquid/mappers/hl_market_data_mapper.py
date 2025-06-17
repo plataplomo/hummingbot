@@ -789,10 +789,23 @@ class HyperliquidMarketDataMapper:
                 )
             step_size = step_size_parsed
 
-            # For Hyperliquid perpetuals, we'll use reasonable defaults for tick size
+            # For Hyperliquid perpetuals, determine tick size from actual market prices
             # since it's not explicitly provided in their meta response
-            # Most crypto perpetuals use similar precision to their step size
-            tick_size = step_size  # Default assumption - can be refined with actual market data
+            # Note: sz_decimals refers to quantity precision, not price precision
+            if asset_ctx and asset_ctx.mark_px:
+                # Analyze the mark price to determine price precision
+                mark_price_str = str(asset_ctx.mark_px)
+                if "." in mark_price_str:
+                    # Count decimal places in the actual market price
+                    decimal_places = len(mark_price_str.split(".")[1].rstrip("0"))
+                    tick_size = parse_decimal_value(f"1e-{decimal_places}") or Decimal("1.0")
+                else:
+                    # Whole number pricing
+                    tick_size = Decimal("1.0")
+            else:
+                # Fallback for assets without market context
+                # Use conservative tick size based on typical crypto price ranges
+                tick_size = Decimal("1.0") if step_size <= Decimal("0.001") else step_size
 
             # Create Hyperliquid-specific details using proper typed model
             hl_details = HyperliquidMarketDetails(

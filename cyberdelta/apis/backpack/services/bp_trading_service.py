@@ -208,6 +208,15 @@ class BackpackTradingService:
     ) -> Order:
         """Execute the place order API request and process the response."""
         endpoint = "/api/v1/order"
+        
+        # Determine the correct trigger price field based on order type
+        # Backpack uses standard trigger mechanism (triggerPrice + triggerQuantity) for all conditional orders
+        trigger_price = None
+        
+        if args.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT, 
+                              OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT]:
+            trigger_price = args.stop_price
+        
         payload = self._request_builder.build_place_order_payload(
             symbol=args.symbol,
             side=args.side,
@@ -217,7 +226,7 @@ class BackpackTradingService:
             price=args.price,
             client_order_id=args.client_order_id,
             post_only=args.post_only,
-            trigger_price=args.stop_price,
+            trigger_price=trigger_price,
         )
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -229,10 +238,11 @@ class BackpackTradingService:
             request_weight=1,
         )
 
-        return self._process_place_order_response(raw_data, status_code, args.symbol)
+        return self._process_place_order_response(raw_data, status_code, args.symbol, args.order_type)
 
     def _process_place_order_response(
-        self, raw_data: ParsedJsonResponse | None, status_code: int, symbol: str
+        self, raw_data: ParsedJsonResponse | None, status_code: int, symbol: str, 
+        original_order_type: OrderType | None = None
     ) -> Order:
         """Process the place order API response and transform to internal model."""
         if raw_data is not None:
@@ -249,6 +259,13 @@ class BackpackTradingService:
             raw_data,
         )
         internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
+        
+        # Preserve original order type intent for take profit orders
+        # Backpack represents take profit orders the same as stop orders in API responses
+        if (original_order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.TAKE_PROFIT_LIMIT] and
+            internal_order.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]):
+            internal_order.order_type = original_order_type
+        
         return internal_order
 
     def _create_place_order_api_error(

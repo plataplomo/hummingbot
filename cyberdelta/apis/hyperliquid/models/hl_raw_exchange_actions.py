@@ -63,7 +63,7 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     t: HyperliquidRawOrderType = Field(..., alias="order_type_details")
     c: RawOptionalNonEmptyString64HL | None = Field(default=None, alias="client_order_id")
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True, exclude_none=True)
 
 
 # Model for the overall BATCH order placement action (signed payload)

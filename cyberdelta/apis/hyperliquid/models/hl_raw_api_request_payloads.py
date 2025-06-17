@@ -40,7 +40,7 @@ class HyperliquidApiL2UsdTransferRequest(BaseModel):
     ] = Field("usdTransfer")
     action: HyperliquidRawL2UsdTransferActionDetails
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
 
 
 # --- /exchange endpoint: Withdrawals (ETH and other tokens) --- #
@@ -53,7 +53,7 @@ class HyperliquidApiEthWithdrawalRequest(BaseModel):
     ] = Field("withdrawEth")
     action: HyperliquidRawEthWithdrawalActionPayload
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
 
 
 class HyperliquidApiTokenWithdrawalRequest(BaseModel):
@@ -65,7 +65,7 @@ class HyperliquidApiTokenWithdrawalRequest(BaseModel):
     ] = Field("withdraw")
     action: HyperliquidRawWithdrawalToL1ActionPayload  # From hl_raw_transfer_withdrawal
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
 
 
 # For the builder, it might be easier to return one of these specific types,
@@ -93,7 +93,7 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
         description="Grouping type for orders, 'na' means not applicable",
     )
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
 
 
 # --- /exchange endpoint: Cancel Order --- #
@@ -106,7 +106,7 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
     ] = Field("cancel")
     action: HyperliquidRawCancelOrderAction
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
 
 
 # --- /exchange endpoint: Update Leverage --- #
@@ -119,4 +119,4 @@ class HyperliquidApiUpdateLeverageRequest(BaseModel):
     ] = Field("updateLeverage")
     action: HyperliquidRawUpdateLeverageAction
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
