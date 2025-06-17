@@ -340,4 +340,3 @@ class TestHandleInfoOrderStatusResponse:
         ) in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "order.status" in str(exc_info.value.original_exception)
-

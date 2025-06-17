@@ -724,7 +724,9 @@ class TestBackpackPerpOrdersPositiveBalance:
         tp_sell_limit = (tp_sell_price * Decimal("1.02")).quantize(tick_size)  # Above trigger
         tp_buy_limit = (tp_buy_price * Decimal("0.98")).quantize(tick_size)  # Below trigger
 
-        orders_to_test: list[tuple[str, OrderType, OrderSide, Decimal | None, Decimal, TimeInForce]] = []
+        orders_to_test: list[
+            tuple[str, OrderType, OrderSide, Decimal | None, Decimal, TimeInForce]
+        ] = []
         placed_orders = []
 
         # 1. STOP MARKET orders (both directions)

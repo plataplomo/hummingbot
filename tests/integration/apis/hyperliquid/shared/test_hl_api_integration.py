@@ -107,12 +107,12 @@ class TestHyperliquidAPIComponentIntegration:
         )
 
         # Step 2: Get market constraints (Market Data Service)
-        market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+        await HyperliquidTestHelpers.get_market_constraints(
             hl_api_for_test_env, test_symbol
         )
 
         # Step 3: Calculate safe order parameters using real market data
-        current_price = await HyperliquidTestHelpers.get_current_market_price(
+        await HyperliquidTestHelpers.get_current_market_price(
             hl_api_for_test_env, test_symbol
         )
 

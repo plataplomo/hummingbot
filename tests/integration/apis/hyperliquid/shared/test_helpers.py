@@ -27,6 +27,61 @@ from cyberdelta.core.models.enums import OrderSide
 class HyperliquidTestHelpers:
     """Collection of dynamic test helpers for Hyperliquid integration tests."""
 
+    # Symbol Discovery Utilities
+
+    @staticmethod
+    async def get_available_perp_symbols(api: HyperliquidAPI, limit: int = 3) -> list[str]:
+        """Get available perpetual symbols from the exchange.
+        
+        Args:
+            api: HyperliquidAPI instance
+            limit: Maximum number of symbols to return
+            
+        Returns:
+            List of available perpetual symbols
+            
+        Raises:
+            RuntimeError: If unable to fetch symbols from exchange
+        """
+        try:
+            # For Hyperliquid, perp symbols are like "BTC", "ETH", "SOL"
+            # We'll get these from the markets endpoint
+            from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+            markets = await api.get_markets(GetMarketsArgs())
+            if markets:
+                # Extract symbols from markets data
+                symbols = [market.symbol for market in markets][:limit]
+                if symbols:
+                    return symbols
+            
+            # Fallback to trying common symbols if meta doesn't work
+            common_symbols = ["BTC", "ETH", "SOL"]
+            available_symbols = []
+            
+            for symbol in common_symbols:
+                try:
+                    market = await api.get_market(GetMarketArgs(symbol=symbol))
+                    if market:
+                        available_symbols.append(symbol)
+                        if len(available_symbols) >= limit:
+                            break
+                except Exception:
+                    continue  # Skip unavailable symbols
+            
+            if not available_symbols:
+                raise RuntimeError(
+                    "No perpetual symbols available from exchange. "
+                    "Hyperliquid tests require real trading symbols."
+                )
+            
+            return available_symbols
+            
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to fetch perpetual symbols from exchange: {e}. "
+                "Hyperliquid tests require real market data and cannot use hardcoded symbols."
+            ) from e
+
     # Market Data Utilities
 
     @staticmethod
@@ -164,7 +219,7 @@ class HyperliquidTestHelpers:
         """Get an unreasonably large price for negative testing."""
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
         # Use exchange maximum price limits instead of arbitrary multiplier
-        constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
+        await HyperliquidTestHelpers.get_market_constraints(api, symbol)
         max_reasonable_multiplier = Decimal("2")  # 2x as maximum for negative testing
         return market_price * max_reasonable_multiplier
 
@@ -389,7 +444,7 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def eventually_assert(
-        condition_func: Callable[[], bool], timeout: int = 30, message: str = "Condition not met"
+        condition_func: Callable[[], bool | Any], timeout: int = 30, message: str = "Condition not met"
     ) -> None:
         """Poll until condition is true or timeout occurs."""
         import time
@@ -399,11 +454,13 @@ class HyperliquidTestHelpers:
 
         while time.time() - start_time < timeout:
             try:
-                if (
-                    await condition_func()
-                    if asyncio.iscoroutine(condition_func())
-                    else condition_func()
-                ):
+                condition_result = condition_func()
+                if asyncio.iscoroutine(condition_result):
+                    result = await condition_result
+                else:
+                    result = condition_result
+                
+                if result:
                     return  # Condition met
 
                 # Adaptive polling interval

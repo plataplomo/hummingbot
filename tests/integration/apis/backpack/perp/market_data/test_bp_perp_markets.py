@@ -628,10 +628,7 @@ class TestBackpackPerpMarkets:
         # Get actual funding rate from exchange - no hardcoded rates
         try:
             funding_data = await bp_api_for_test_env.get_funding_rate("SOL_USDC_PERP")
-            if funding_data.funding_rate is not None:
-                actual_funding_rate = abs(funding_data.funding_rate)
-            else:
-                actual_funding_rate = market.tick_size  # Conservative fallback
+            actual_funding_rate = abs(funding_data.funding_rate)
         except Exception:
             # If funding rate unavailable, use tick size validation only
             actual_funding_rate = market.tick_size  # Conservative fallback

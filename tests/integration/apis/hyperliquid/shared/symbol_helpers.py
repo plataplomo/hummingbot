@@ -7,6 +7,7 @@ rather than using hardcoded symbol lists that violate security rules.
 from typing import Any
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
 
 async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") -> list[str]:
@@ -24,7 +25,8 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
     """
     try:
         # Get all available markets from exchange
-        all_markets = await api.get_all_markets()
+        args = GetMarketsArgs()
+        all_markets = await api.get_markets(args)
         if not all_markets:
             raise RuntimeError(
                 f"Failed to get {market_type} markets from exchange. "
@@ -137,7 +139,8 @@ async def get_exchange_symbol_mapping(api: HyperliquidAPI) -> dict[str, Any]:
     """
     try:
         # Get market information that includes symbol formatting
-        markets = await api.get_all_markets()
+        args = GetMarketsArgs()
+        markets = await api.get_markets(args)
 
         mapping = {
             "available_symbols": [m.symbol for m in markets],

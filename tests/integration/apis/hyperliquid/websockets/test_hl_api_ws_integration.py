@@ -79,7 +79,7 @@ class TestHyperliquidWebSocketIntegration:
 
         # Track received ticker updates
         received_tickers: list[Ticker] = []
-        connection_established = asyncio.Event()
+        asyncio.Event()
         data_received = asyncio.Event()
 
         async def ticker_handler(ticker: Ticker) -> None:
@@ -453,7 +453,7 @@ class TestHyperliquidWebSocketIntegration:
         )
 
         # Test 2: Message parsing error handling
-        async def test_message_parsing():
+        async def test_message_parsing() -> bool | None:
             # Simulate invalid JSON message
             invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol + '"}'
 
@@ -464,7 +464,7 @@ class TestHyperliquidWebSocketIntegration:
                 parsed_data = json.loads(invalid_json)
 
                 # Try to create Ticker from invalid data
-                price = Decimal(parsed_data["price"])  # This should fail
+                Decimal(parsed_data["price"])  # This should fail
 
                 # If we get here, something is wrong
                 pytest.fail("Invalid WebSocket message should have failed parsing")
@@ -481,7 +481,7 @@ class TestHyperliquidWebSocketIntegration:
         assert parsing_success, "WebSocket message parsing error handling must work"
 
         # Test 3: Subscription failure handling
-        async def test_subscription_failure():
+        async def test_subscription_failure() -> bool | None:
             # Simulate subscription to invalid symbol
             invalid_symbol = "DEFINITELY_INVALID_SYMBOL_XYZ"
 
@@ -524,7 +524,7 @@ class TestHyperliquidWebSocketIntegration:
         message_count = 10
         processing_times: list[float] = []
 
-        for i in range(message_count):
+        for _i in range(message_count):
             start_time = datetime.now(UTC)
 
             # Simulate processing a WebSocket ticker message
@@ -615,7 +615,7 @@ class TestHyperliquidWebSocketIntegration:
         )
 
         # Validate all results maintain data integrity
-        for i, result in enumerate(concurrent_results):
+        for _i, result in enumerate(concurrent_results):
             assert isinstance(result, Ticker), "Concurrent processing must maintain model integrity"
             assert result.symbol == test_symbol, (
                 "Concurrent processing must maintain symbol consistency"

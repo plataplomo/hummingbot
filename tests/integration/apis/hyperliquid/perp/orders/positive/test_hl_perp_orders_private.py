@@ -39,6 +39,7 @@ from tests.integration.apis.hyperliquid.shared.test_helpers import (
     get_minimal_test_quantity,
     get_safe_test_price,
 )
+from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
 pytestmark = [
     pytest.mark.integration,
@@ -189,6 +190,9 @@ class TestHyperliquidPerpOrdersPrivate:
 
         This validates the complete order lifecycle: place → cancel → verify cancellation.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # First place an order
         place_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -226,6 +230,10 @@ class TestHyperliquidPerpOrdersPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test place_order() with invalid EIP-712 authentication."""
+        # Get test symbol using a temp API instance first
+        temp_api = hl_api_with_di()
+        test_symbol = await get_test_symbol(temp_api, "perp", 0)
+
         # Create API with invalid EIP-712 private key
         invalid_secrets = PrivateKeyAuthSecrets(
             private_key=SecretStr(
@@ -352,6 +360,9 @@ class TestHyperliquidPerpOrdersPrivate:
         This tests that our HyperliquidErrorMapper correctly maps Hyperliquid's
         "Order was never placed" or similar error to ORDER_NOT_FOUND.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        
         # Attempt to cancel order with fake ID
         cancel_args = CancelOrderArgs(
             order_id="99999999999999999",  # Non-existent order ID
@@ -388,6 +399,9 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates handling of very small quantities, dust amounts,
         and precision edge cases that might occur in real trading.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        
         # Test very small quantity order
         small_order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -443,7 +457,7 @@ class TestHyperliquidPerpOrdersPrivate:
         from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_price = await get_safe_test_price(hl_api_for_test_env, test_symbol, OrderSide.BUY)
+        test_price = await get_safe_test_price(hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05"))
         test_quantity = await get_minimal_test_quantity(
             hl_api_for_test_env, test_symbol, OrderSide.BUY
         )
@@ -671,6 +685,9 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates handling when symbol filter is provided but no orders
         exist for that specific symbol.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        
         # Place an order for PURP
         purp_order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -734,6 +751,9 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates proper error handling when some order cancellations
         might fail due to order state changes or network issues.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        
         # Place an order that we'll cancel immediately
         order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -785,6 +805,9 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates the complete bulk cancellation workflow with multiple orders
         across different symbols and various order types.
         """
+        # Get test symbol from exchange
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        
         # Place multiple orders with different characteristics
         order_scenarios = [
             # Different prices to avoid fills
