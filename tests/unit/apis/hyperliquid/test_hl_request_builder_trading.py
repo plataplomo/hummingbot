@@ -18,7 +18,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
 )
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
-    GetOrderStatusArgs,
+    HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
@@ -205,6 +205,7 @@ class TestHyperliquidRequestBuilderTrading:
             asset_index=asset_index,
             tif_str="Ioc",  # Immediate or Cancel override
         )
+        assert payload.orders[0].t.limit is not None
         assert payload.orders[0].t.limit.tif == "Ioc"  # Custom TIF applied
 
         # Test with no TIF override - should use default
@@ -212,6 +213,7 @@ class TestHyperliquidRequestBuilderTrading:
             args=args,
             asset_index=asset_index,
         )
+        assert payload_default.orders[0].t.limit is not None
         assert payload_default.orders[0].t.limit.tif == "Gtc"  # Default TIF
 
         # Test with post_only which should result in ALO
@@ -230,6 +232,7 @@ class TestHyperliquidRequestBuilderTrading:
             asset_index=asset_index,
             tif_str="Alo",
         )
+        assert payload_alo.orders[0].t.limit is not None
         assert payload_alo.orders[0].t.limit.tif == "Alo"  # ALO TIF for post_only
 
     def test_build_cancel_order_payload(self, asset_index: int) -> None:
@@ -252,7 +255,7 @@ class TestHyperliquidRequestBuilderTrading:
 
     def test_build_order_status_payload(self, valid_wallet_address: str) -> None:
         """Test build_order_status_payload with valid inputs."""
-        args = GetOrderStatusArgs(
+        args = HyperliquidGetOrderStatusArgs(
             order_id=67890,
             wallet_address=valid_wallet_address,
         )
@@ -381,7 +384,7 @@ class TestHyperliquidRequestBuilderTrading:
     def test_build_order_status_payload_edge_cases(self, valid_wallet_address: str) -> None:
         """Test build_order_status_payload with edge case order IDs."""
         # Test with small order ID
-        args_small = GetOrderStatusArgs(
+        args_small = HyperliquidGetOrderStatusArgs(
             order_id=1,
             wallet_address=valid_wallet_address,
         )
@@ -391,7 +394,7 @@ class TestHyperliquidRequestBuilderTrading:
         assert request_small.oid == args_small.order_id
 
         # Test with large order ID
-        args_large = GetOrderStatusArgs(
+        args_large = HyperliquidGetOrderStatusArgs(
             order_id=999999999,
             wallet_address=valid_wallet_address,
         )

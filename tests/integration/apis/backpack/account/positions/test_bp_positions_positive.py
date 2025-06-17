@@ -158,8 +158,19 @@ class TestBackpackPositionsPositive:
         # Place market order to open position
         await bp_api.place_order(args)
 
-        # Wait a moment for position to be reflected
-        await asyncio.sleep(1)
+        # Wait for position to be reflected
+        from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+        
+        async def position_exists():
+            positions = await bp_api.get_positions(symbol=symbol)
+            return len(positions) > 0 and positions[0].size != Decimal("0")
+        
+        await wait_for_condition(
+            position_exists,
+            timeout=5.0,
+            poll_interval=0.1,
+            message=f"Position for {symbol} was not created"
+        )
 
     async def _close_position(self, bp_api: BackpackAPI, symbol: str) -> None:
         """Close any open positions for the given symbol."""
@@ -185,8 +196,10 @@ class TestBackpackPositionsPositive:
 
                     await bp_api.place_order(close_args)
         except Exception as cleanup_error:
-            # Log cleanup error but don't fail test
-            logger.warning(f"Failed to clean up position for {symbol}: {cleanup_error}")
+            pytest.fail(
+                f"Failed to clean up position for {symbol}: {cleanup_error}. "
+                "Position cleanup is critical to prevent test contamination."
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

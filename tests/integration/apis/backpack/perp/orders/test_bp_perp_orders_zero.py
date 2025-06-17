@@ -19,7 +19,7 @@ Balance: $0 margin (insufficient margin scenarios for perp trading)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -210,7 +210,7 @@ class TestBackpackPerpOrdersZeroBalance:
         """Test getting perp order history with zero balance account."""
         symbol = "SOL_USDC_PERP"
 
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)  # Last 7 days
 
         history_args = GetOrderHistoryArgs(

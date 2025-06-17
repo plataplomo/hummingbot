@@ -15,6 +15,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawQueryOrderHistoryRequestPayload,
 )
+from cyberdelta.apis.models.service_args_models import (
+    GetCandleSnapshotArgs,
+    GetOrderHistoryArgsHL,
+)
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_request_builder"]
@@ -37,10 +41,13 @@ class TestHyperliquidRequestBuilderInfoMarket:
         """Test build_order_history_payload with valid inputs."""
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        request_model = HyperliquidRequestBuilder.build_order_history_payload(
+        args = GetOrderHistoryArgsHL(
             wallet_address=valid_wallet_address,
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
+        )
+        request_model = HyperliquidRequestBuilder.build_order_history_payload(
+            args=args,
         )
         assert isinstance(request_model, HyperliquidRawQueryOrderHistoryRequestPayload)
         assert request_model.type == "queryOrderHistory"
@@ -52,11 +59,14 @@ class TestHyperliquidRequestBuilderInfoMarket:
         """Test build_candle_snapshot_payload with valid inputs."""
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        payload = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+        args = GetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="1h",
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
+        )
+        payload = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+            args=args,
         )
         assert isinstance(payload, HyperliquidRawCandleSnapshotRequestPayload)
         assert payload.type == "candleSnapshot"
@@ -72,20 +82,26 @@ class TestHyperliquidRequestBuilderInfoMarket:
         end_time_ms = int(datetime(2023, 1, 1, 0, 15, 0, tzinfo=UTC).timestamp() * 1000)
 
         # Test with 1m timeframe
-        payload_1m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+        args_1m = GetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="1m",
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
+        payload_1m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+            args=args_1m,
+        )
         assert payload_1m.req.interval == "1m"
 
         # Test with 15m timeframe
-        payload_15m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+        args_15m = GetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="15m",
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
+        )
+        payload_15m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
+            args=args_15m,
         )
         assert payload_15m.req.interval == "15m"
 
@@ -93,20 +109,26 @@ class TestHyperliquidRequestBuilderInfoMarket:
         """Test build_order_history_payload with edge case timestamps."""
         # Test with same start and end time
         timestamp_ms = int(datetime(2023, 6, 15, 12, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        request_model = HyperliquidRequestBuilder.build_order_history_payload(
+        args = GetOrderHistoryArgsHL(
             wallet_address=valid_wallet_address,
             start_time_ms=timestamp_ms,
             end_time_ms=timestamp_ms,
+        )
+        request_model = HyperliquidRequestBuilder.build_order_history_payload(
+            args=args,
         )
         assert request_model.start_time == timestamp_ms
         assert request_model.end_time == timestamp_ms
 
         # Test with large timestamp values (year 2030)
         far_future_ms = int(datetime(2030, 12, 31, 23, 59, 59, tzinfo=UTC).timestamp() * 1000)
-        request_model_future = HyperliquidRequestBuilder.build_order_history_payload(
+        args_future = GetOrderHistoryArgsHL(
             wallet_address=valid_wallet_address,
             start_time_ms=timestamp_ms,
             end_time_ms=far_future_ms,
+        )
+        request_model_future = HyperliquidRequestBuilder.build_order_history_payload(
+            args=args_future,
         )
         assert request_model_future.start_time == timestamp_ms
         assert request_model_future.end_time == far_future_ms

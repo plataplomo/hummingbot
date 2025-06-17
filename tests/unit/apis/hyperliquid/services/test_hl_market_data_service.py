@@ -120,7 +120,7 @@ class TestHyperliquidMarketDataService:
             [],
         ]
         mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[]),
+            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
             asset_ctxs=[],
         )
 
@@ -179,18 +179,23 @@ class TestHyperliquidMarketDataService:
             impactPx="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
+            marginTables=None,
             universe=[
                 HyperliquidRawAssetDefinition(
                     name="BTC",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
                 HyperliquidRawAssetDefinition(
                     name="ETH",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
         )
@@ -231,7 +236,7 @@ class TestHyperliquidMarketDataService:
     ) -> None:
         """Test get_ticker returns None when symbol is not found."""
         symbol = "UNKNOWN"
-        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
+        mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=mock_meta_response,
             asset_ctxs=[],
@@ -286,18 +291,23 @@ class TestHyperliquidMarketDataService:
             impactPx="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
+            marginTables=None,
             universe=[
                 HyperliquidRawAssetDefinition(
                     name="BTC",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
                 HyperliquidRawAssetDefinition(
                     name="ETH",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
         )
@@ -812,12 +822,15 @@ class TestHyperliquidMarketDataService:
 
         mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=HyperliquidRawMetaResponse(
+                marginTables=None,
                 universe=[
                     HyperliquidRawAssetDefinition(
                         name="BTC",
                         szDecimals=5,
                         maxLeverage=100,
                         onlyIsolated=False,
+                        marginTableId=None,
+                        isDelisted=None,
                     ),
                 ],
             ),
@@ -1515,12 +1528,15 @@ class TestHyperliquidMarketDataService:
             impactPx="50001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
+            marginTables=None,
             universe=[
                 HyperliquidRawAssetDefinition(
                     name="BTC",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
         )
@@ -1926,14 +1942,17 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         # Mock data
         mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=HyperliquidRawMetaResponse(
+                marginTables=None,
                 universe=[
                     HyperliquidRawAssetDefinition(
                         name="BTC",
                         szDecimals=5,
                         maxLeverage=20,
                         onlyIsolated=False,
+                        marginTableId=None,
+                        isDelisted=None,
                     )
-                ]
+                ],
             ),
             asset_ctxs=[
                 HyperliquidRawAssetCtx(
@@ -2014,14 +2033,17 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         # Mock successful raw response
         mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=HyperliquidRawMetaResponse(
+                marginTables=None,
                 universe=[
                     HyperliquidRawAssetDefinition(
                         name="BTC",
                         szDecimals=5,
                         maxLeverage=20,
                         onlyIsolated=False,
+                        marginTableId=None,
+                        isDelisted=None,
                     )
-                ]
+                ],
             ),
             asset_ctxs=[
                 HyperliquidRawAssetCtx(
@@ -2068,7 +2090,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         """Test handling of empty markets response."""
         # Mock empty raw response
         mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[]),
+            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
             asset_ctxs=[],
         )
 

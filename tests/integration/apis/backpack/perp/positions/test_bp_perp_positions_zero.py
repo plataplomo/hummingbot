@@ -23,7 +23,7 @@ Balance: Zero balance account (no positions)
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -216,7 +216,12 @@ class TestBackpackPerpPositionsZero:
 
             # Small delay to avoid rate limiting
             if i < calls_count - 1:
-                await asyncio.sleep(0.1)
+                await wait_for_condition(
+                    lambda: True,  # Always true, just wait
+                    timeout=0.1,
+                    poll_interval=0.1,
+                    message="Rate limit delay"
+                )
 
         # Verify consistency across calls
         for i in range(1, calls_count):
@@ -312,7 +317,7 @@ class TestBackpackPerpPositionsZero:
         # Test timestamp consistency if positions exist
         positions = await bp_api_for_zero_balance_test.get_positions()
         if positions:
-            current_time = datetime.now()
+            current_time = datetime.now(UTC)
             for i, position in enumerate(positions):
                 if position.timestamp:
                     # Timestamp should be recent (within last 24 hours for zero balance)
@@ -334,11 +339,11 @@ class TestBackpackPerpPositionsZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() response time is reasonable."""
-        start_time = datetime.now()
+        start_time = datetime.now(UTC)
 
         positions = await bp_api_for_zero_balance_test.get_positions()
 
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         response_time = (end_time - start_time).total_seconds()
 
         # Response should be under 10 seconds for positions endpoint

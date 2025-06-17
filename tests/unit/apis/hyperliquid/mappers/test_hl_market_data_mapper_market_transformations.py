@@ -51,6 +51,8 @@ def create_asset_definition(
         szDecimals=sz_decimals,
         maxLeverage=max_leverage,
         onlyIsolated=only_isolated,
+        marginTableId=None,
+        isDelisted=None,
     )
 
 
@@ -90,7 +92,7 @@ def create_meta_and_asset_ctxs_response(
             create_asset_ctx("BTC-PERP", mark_px="65000.00"),
         ]
 
-    meta = HyperliquidRawMetaResponse(universe=asset_definitions)
+    meta = HyperliquidRawMetaResponse(universe=asset_definitions, marginTables=None)
 
     return HyperliquidRawMetaAndAssetCtxsResponse(
         meta=meta,
@@ -505,7 +507,7 @@ class TestMarketTransformationErrorHandling:
     ) -> None:
         """Test error handling with None asset contexts list."""
         asset_definitions = [create_asset_definition("TEST-PERP")]
-        meta = HyperliquidRawMetaResponse(universe=asset_definitions)
+        meta = HyperliquidRawMetaResponse(universe=asset_definitions, marginTables=None)
 
         # Create response with None asset contexts
         raw_response = HyperliquidRawMetaAndAssetCtxsResponse(

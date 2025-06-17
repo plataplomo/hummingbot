@@ -274,10 +274,20 @@ class HyperliquidMarketDataService:
         try:
             # Core operational logic
             all_contexts_response = await self.get_all_asset_contexts_raw()
-            if all_contexts_response and all_contexts_response.asset_ctxs:
-                for asset_ctx in all_contexts_response.asset_ctxs:
-                    if asset_ctx.name == symbol:
-                        return self._mapper.transform_raw_asset_ctx_to_ticker(asset_ctx)
+            if (
+                all_contexts_response
+                and all_contexts_response.asset_ctxs
+                and all_contexts_response.meta
+            ):
+                # Match asset contexts with universe names by index
+                # The asset contexts are in the same order as the universe
+                universe = all_contexts_response.meta.universe
+                for i, asset_def in enumerate(universe):
+                    if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
+                        asset_ctx = all_contexts_response.asset_ctxs[i]
+                        # Create a copy with the name field populated for the mapper
+                        asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
+                        return self._mapper.transform_raw_asset_ctx_to_ticker(asset_ctx_with_name)
 
             # Symbol not found in the contexts
             logger.warning(
@@ -638,10 +648,22 @@ class HyperliquidMarketDataService:
         try:
             # Core operational logic
             all_contexts_response = await self.get_all_asset_contexts_raw()
-            if all_contexts_response and all_contexts_response.asset_ctxs:
-                for asset_ctx in all_contexts_response.asset_ctxs:
-                    if asset_ctx.name == symbol:
-                        return self._mapper.transform_raw_asset_ctx_to_funding_rate(asset_ctx)
+            if (
+                all_contexts_response
+                and all_contexts_response.asset_ctxs
+                and all_contexts_response.meta
+            ):
+                # Match asset contexts with universe names by index
+                # The asset contexts are in the same order as the universe
+                universe = all_contexts_response.meta.universe
+                for i, asset_def in enumerate(universe):
+                    if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
+                        asset_ctx = all_contexts_response.asset_ctxs[i]
+                        # Create a copy with the name field populated for the mapper
+                        asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
+                        return self._mapper.transform_raw_asset_ctx_to_funding_rate(
+                            asset_ctx_with_name
+                        )
 
             logger.warning(
                 f"[{self._exchange_name}] Funding rate data (from asset context) not found "

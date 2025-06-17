@@ -626,12 +626,11 @@ class TestBackpackPerpMarkets:
 
         # Test that tick size allows reasonable funding rate calculations with REAL data
         # Get actual funding rate from exchange - no hardcoded rates
-        try:
-            funding_data = await bp_api_for_test_env.get_funding_rate("SOL_USDC_PERP")
-            actual_funding_rate = abs(funding_data.funding_rate)
-        except Exception:
-            # If funding rate unavailable, use tick size validation only
-            actual_funding_rate = market.tick_size  # Conservative fallback
+        funding_data = await bp_api_for_test_env.get_funding_rate("SOL_USDC_PERP")
+        assert funding_data.funding_rate is not None, (
+            "Funding rate should not be None for perpetual markets"
+        )
+        actual_funding_rate = abs(funding_data.funding_rate)
 
         # Get real current price - no hardcoded prices
         from tests.integration.apis.backpack.shared.test_helpers import get_current_market_price

@@ -20,7 +20,7 @@ Balance: Positive margin balance (successful perp order scenarios)
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -985,7 +985,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         symbol = "SOL_USDC_PERP"
 
         # Get recent order history
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=30)  # Last 30 days
 
         history_args = GetOrderHistoryArgs(

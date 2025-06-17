@@ -96,7 +96,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topics = await get_websocket_topics_for_symbol(test_symbol)
 
-        async def test_handler(message: dict[str, Any]) -> None:
+        async def test_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             """Test message handler for WebSocket data."""
             logger.info(f"Received WebSocket message: {message}")
 
@@ -128,10 +128,10 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "WebSocket tests require multiple real market symbols."
             )
 
-        async def handler1(message: dict[str, Any]) -> None:
+        async def handler1(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Handler1 received: {message}")
 
-        async def handler2(message: dict[str, Any]) -> None:
+        async def handler2(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Handler2 received: {message}")
 
         symbol1, symbol2 = available_symbols[0], available_symbols[1]
@@ -162,7 +162,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topic = f"ticker.{test_symbol}"
 
-        async def status_handler(message: dict[str, Any]) -> None:
+        async def status_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Status handler received: {message}")
 
         # Test connection status consistency
@@ -213,7 +213,7 @@ class TestBackpackAPIWebSocketLifecycle:
 
         received_messages = []
 
-        async def lifecycle_handler(message: dict[str, Any]) -> None:
+        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             received_messages.append(message)
             logger.info(f"Lifecycle handler received message: {message}")
 
@@ -228,7 +228,9 @@ class TestBackpackAPIWebSocketLifecycle:
             )
 
         # Test handler replacement with same topic
-        async def replacement_handler(message: dict[str, Any]) -> None:
+        async def replacement_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Replacement handler: {message}")
 
         try:
@@ -258,7 +260,7 @@ class TestBackpackAPIWebSocketLifecycle:
                 "Concurrent WebSocket operations require multiple real symbols."
             )
 
-        async def concurrent_handler(message: dict[str, Any]) -> None:
+        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Concurrent handler: {message}")
 
         # Create subscription tasks for multiple symbols
@@ -297,7 +299,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         """Test handling of invalid topic formats with fail-fast behavior."""
         _ = custom_vcr_config
 
-        async def error_handler(message: dict[str, Any]) -> None:
+        async def error_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Error handler: {message}")
 
         invalid_topics = [
@@ -376,7 +378,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def sequence_handler(message: dict[str, Any]) -> None:
+        async def sequence_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Sequence handler: {message}")
 
         try:
@@ -413,7 +415,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
 
-        async def rapid_handler(message: dict[str, Any]) -> None:
+        async def rapid_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Rapid handler: {message}")
 
         topic = f"trades.{test_symbol}"

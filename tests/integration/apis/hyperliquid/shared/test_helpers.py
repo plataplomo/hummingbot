@@ -32,14 +32,14 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def get_available_perp_symbols(api: HyperliquidAPI, limit: int = 3) -> list[str]:
         """Get available perpetual symbols from the exchange.
-        
+
         Args:
             api: HyperliquidAPI instance
             limit: Maximum number of symbols to return
-            
+
         Returns:
             List of available perpetual symbols
-            
+
         Raises:
             RuntimeError: If unable to fetch symbols from exchange
         """
@@ -47,17 +47,18 @@ class HyperliquidTestHelpers:
             # For Hyperliquid, perp symbols are like "BTC", "ETH", "SOL"
             # We'll get these from the markets endpoint
             from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
             markets = await api.get_markets(GetMarketsArgs())
             if markets:
                 # Extract symbols from markets data
                 symbols = [market.symbol for market in markets][:limit]
                 if symbols:
                     return symbols
-            
+
             # Fallback to trying common symbols if meta doesn't work
             common_symbols = ["BTC", "ETH", "SOL"]
             available_symbols = []
-            
+
             for symbol in common_symbols:
                 try:
                     market = await api.get_market(GetMarketArgs(symbol=symbol))
@@ -67,15 +68,15 @@ class HyperliquidTestHelpers:
                             break
                 except Exception:
                     continue  # Skip unavailable symbols
-            
+
             if not available_symbols:
                 raise RuntimeError(
                     "No perpetual symbols available from exchange. "
                     "Hyperliquid tests require real trading symbols."
                 )
-            
+
             return available_symbols
-            
+
         except Exception as e:
             raise RuntimeError(
                 f"Failed to fetch perpetual symbols from exchange: {e}. "
@@ -444,7 +445,9 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def eventually_assert(
-        condition_func: Callable[[], bool | Any], timeout: int = 30, message: str = "Condition not met"
+        condition_func: Callable[[], bool | Any],
+        timeout: int = 30,
+        message: str = "Condition not met",
     ) -> None:
         """Poll until condition is true or timeout occurs."""
         import time
@@ -459,7 +462,7 @@ class HyperliquidTestHelpers:
                     result = await condition_result
                 else:
                     result = condition_result
-                
+
                 if result:
                     return  # Condition met
 

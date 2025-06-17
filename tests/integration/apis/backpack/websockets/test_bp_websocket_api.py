@@ -100,7 +100,9 @@ class TestBackpackAPIWebSocketIntegration:
 
         received_messages = []
 
-        async def integration_handler(message: dict[str, Any]) -> None:
+        async def integration_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             """Handler for WebSocket integration messages."""
             received_messages.append(message)
             logger.info(f"Integration handler received: {message}")
@@ -145,7 +147,7 @@ class TestBackpackAPIWebSocketIntegration:
 
         subscription_results = []
 
-        async def multi_handler(message: dict[str, Any]) -> None:
+        async def multi_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             subscription_results.append(message)
             logger.info(f"Multi-subscription handler: {message}")
 
@@ -184,7 +186,7 @@ class TestBackpackAPIWebSocketIntegration:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def lifecycle_handler(message: dict[str, Any]) -> None:
+        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Lifecycle handler: {message}")
 
         try:
@@ -241,7 +243,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
 
         topics = await create_websocket_topics(available_symbols)
 
-        async def concurrent_handler(message: dict[str, Any]) -> None:
+        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Concurrent integration handler: {message}")
 
         # Create concurrent subscription tasks
@@ -283,7 +285,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         valid_symbol = available_symbols[0]
 
-        async def error_integration_handler(message: dict[str, Any]) -> None:
+        async def error_integration_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Error integration handler: {message}")
 
         # Test scenarios with real integration
@@ -348,7 +352,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
 
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 2)
 
-        async def state_handler(message: dict[str, Any]) -> None:
+        async def state_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"State consistency handler: {message}")
 
         # Track state changes throughout operations
@@ -406,7 +410,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         test_symbol = available_symbols[0]
 
-        async def rapid_handler(message: dict[str, Any]) -> None:
+        async def rapid_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Rapid integration handler: {message}")
 
         topic = f"trades.{test_symbol}"
@@ -424,7 +428,13 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 )
 
                 # Brief async pause to allow for processing
-                await asyncio.sleep(0.01)
+                from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+                await wait_for_condition(
+                    lambda: True,  # Always true, just wait
+                    timeout=0.01,
+                    poll_interval=0.01,
+                    message="Processing delay"
+                )
 
             logger.info(
                 f"✓ Rapid WebSocket operations integration successful: {operation_count} operations"
@@ -453,7 +463,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         """Test topic validation edge cases with real integration."""
         _ = custom_vcr_config
 
-        async def edge_case_handler(message: dict[str, Any]) -> None:
+        async def edge_case_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Edge case handler: {message}")
 
         # Test edge case topics
@@ -510,7 +520,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         test_symbol = available_symbols[0]
 
-        async def resilience_handler(message: dict[str, Any]) -> None:
+        async def resilience_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Resilience handler: {message}")
 
         operation_count = 0

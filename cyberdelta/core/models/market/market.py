@@ -156,14 +156,14 @@ class HyperliquidMarketDetails(BaseModel):
 
     Attributes:
         max_leverage: Maximum leverage allowed for this asset (1-1000).
-        only_isolated: True if only isolated margin is allowed.
+        only_isolated: True if only isolated margin is allowed (optional).
         sz_decimals: Number of decimals for size/quantity precision (0-18).
         mark_price: Current mark price (optional, from asset context).
         funding_rate: Current funding rate (optional, from asset context).
     """
 
     max_leverage: int = Field(ge=1, le=1000)
-    only_isolated: bool
+    only_isolated: bool | None = Field(default=None)
     sz_decimals: int = Field(ge=0, le=18)
     mark_price: Decimal | None = Field(default=None, ge=Decimal("0"))
     funding_rate: Decimal | None = Field(default=None)

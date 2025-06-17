@@ -23,15 +23,13 @@ These models adhere to the Raw Model Policy, focusing on validating the external
 raw data types, and basic formats without incorporating business logic.
 """
 
-from typing import Annotated, Literal, cast
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
-    ValidationInfo,
-    field_validator,
 )
 
 # Import specific common types
@@ -92,6 +90,13 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
+class HyperliquidRawExchangeResponseDataInner(BaseModel):
+    """Raw model for the inner 'data' object containing statuses."""
+
+    statuses: list[RawStatusStringHL | HyperliquidRawExchangeStatusObject] = Field(...)
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
 class HyperliquidRawExchangeResponseData(BaseModel):
     """Raw model for the 'data' part of an exchange action response."""
 
@@ -99,14 +104,13 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     statuses: list[RawStatusStringHL | HyperliquidRawExchangeStatusObject] = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    @field_validator("statuses", mode="before")
-    @classmethod
-    def validate_statuses_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
-        """Validate the 'statuses' field is a list. Pydantic will handle item validation."""
-        field_name = info.field_name or "statuses"
-        if not isinstance(v, list):
-            raise TypeError(f"Field '{field_name}': Must be a list, got {type(v).__name__}.")
-        return cast(list[object], v)
+
+class HyperliquidRawExchangeResponseNested(BaseModel):
+    """Raw model for the nested response structure when status is 'ok'."""
+
+    type: RawDefaultString = Field(..., description="Type of response data", max_length=32)
+    data: HyperliquidRawExchangeResponseDataInner = Field(...)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class HyperliquidRawExchangeResponse(BaseModel):
@@ -119,7 +123,27 @@ class HyperliquidRawExchangeResponse(BaseModel):
         ),
     ] = Field(...)
     data: HyperliquidRawExchangeResponseData | None = Field(None)
-    response: RawOptionalNonEmptyString1024HL | HyperliquidRawExchangeResponseData | None = Field(
+    response: (
+        RawOptionalNonEmptyString1024HL
+        | HyperliquidRawExchangeResponseData
+        | HyperliquidRawExchangeResponseNested
+        | None
+    ) = Field(
         None, description="Error message when status is 'err' or response data when status is 'ok'"
     )
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+    @property
+    def response_data(self) -> HyperliquidRawExchangeResponseData | None:
+        """Get the response data in a normalized format, handling both flat and nested structures."""
+        if self.status == "ok":
+            if isinstance(self.response, HyperliquidRawExchangeResponseData):
+                return self.response
+            elif isinstance(self.response, HyperliquidRawExchangeResponseNested):
+                # Return a flattened version
+                return HyperliquidRawExchangeResponseData(
+                    type=self.response.type, statuses=self.response.data.statuses
+                )
+            elif self.data:
+                return self.data
+        return None

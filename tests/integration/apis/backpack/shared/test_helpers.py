@@ -7,9 +7,11 @@ These helpers ensure tests use real market data instead of hardcoded values.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import time
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, TypeVar
 
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
@@ -20,6 +22,87 @@ if TYPE_CHECKING:
     from cyberdelta.core.models.market.ticker import Ticker
 
 logger = get_logger(__name__)
+
+T = TypeVar('T')
+
+
+# =============================================================================
+# Polling Utilities
+# =============================================================================
+
+
+async def wait_for_condition(
+    condition_fn: Callable[[], bool | Callable[[], bool]],
+    timeout: float = 30.0,
+    poll_interval: float = 0.1,
+    message: str = "Condition not met",
+) -> None:
+    """Wait for a condition to be met with polling.
+    
+    Args:
+        condition_fn: Function that returns True when condition is met
+        timeout: Maximum time to wait in seconds
+        poll_interval: Time between polls in seconds
+        message: Error message if timeout occurs
+        
+    Raises:
+        TimeoutError: If condition is not met within timeout
+    """
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            # Handle both sync and async condition functions
+            if asyncio.iscoroutinefunction(condition_fn):
+                result = await condition_fn()
+            else:
+                result = condition_fn()
+                
+            if result:
+                return
+        except Exception:
+            # Continue polling on transient errors
+            pass
+            
+        await asyncio.sleep(poll_interval)
+    
+    raise TimeoutError(f"{message} after {timeout} seconds")
+
+
+async def wait_for_value(
+    value_fn: Callable[[], T | Callable[[], T]],
+    expected_value: T,
+    timeout: float = 30.0,
+    poll_interval: float = 0.1,
+    message: str | None = None,
+) -> T:
+    """Wait for a function to return an expected value.
+    
+    Args:
+        value_fn: Function that returns the value to check
+        expected_value: The value to wait for
+        timeout: Maximum time to wait in seconds
+        poll_interval: Time between polls in seconds
+        message: Error message if timeout occurs
+        
+    Returns:
+        The expected value once obtained
+        
+    Raises:
+        TimeoutError: If expected value is not obtained within timeout
+    """
+    if message is None:
+        message = f"Expected value {expected_value} not obtained"
+        
+    async def check_value() -> bool:
+        if asyncio.iscoroutinefunction(value_fn):
+            value = await value_fn()
+        else:
+            value = value_fn()
+        return value == expected_value
+        
+    await wait_for_condition(check_value, timeout, poll_interval, message)
+    return expected_value
 
 
 # =============================================================================
@@ -330,13 +413,10 @@ async def validate_order_constraints(
         }
 
     except Exception as e:
-        logger.warning(f"Failed to validate order constraints for {symbol}: {e}")
-        return {
-            "price_valid": False,
-            "quantity_valid": False,
-            "size_valid": False,
-            "price_range_valid": False,
-        }
+        raise RuntimeError(
+            f"Failed to validate order constraints for {symbol}: {e}. "
+            "Order constraint validation is critical for trading tests."
+        ) from e
 
 
 # =============================================================================
@@ -476,41 +556,81 @@ STABLECOIN_SYMBOLS = ["USDC", "USDT", "BUSD", "USDD"]
 # =============================================================================
 # Test Tolerances and Thresholds
 # =============================================================================
+#
+# TOLERANCE JUSTIFICATION:
+# All tolerance values are carefully chosen based on exchange precision limits,
+# network latency, and real-world trading conditions. These values ensure tests
+# are reliable while accounting for legitimate variations in a live trading system.
+#
+# CRITICAL: Do not increase these tolerances without careful analysis. Larger
+# tolerances can mask real issues in the trading engine.
 
 
 # Precision tolerances for balance comparisons
 BALANCE_PRECISION_TOLERANCE = Decimal("0.0001")  # 0.0001 units
+# Justification: Exchanges typically support 4-8 decimal places for balances.
+# This tolerance accounts for rounding in the least significant digits.
+
 DUST_THRESHOLD = Decimal("0.00001")  # Amounts below this are considered dust
+# Justification: Below $0.00001 is economically insignificant and often
+# results from rounding. Most exchanges have similar dust thresholds.
 
 # Percentage tolerances
 PRICE_TOLERANCE_PERCENT = Decimal("0.01")  # 0.01% for price comparisons
+# Justification: Price feeds can vary by tiny amounts between API calls due to
+# market microstructure. 0.01% allows for bid-ask spread variations.
+
 QUANTITY_TOLERANCE_PERCENT = Decimal("0.01")  # 0.01% for quantity comparisons
+# Justification: Order quantities may be adjusted by exchanges for lot sizing.
+# 0.01% accounts for these adjustments while catching significant errors.
+
 EQUITY_TOLERANCE_PERCENT = Decimal("0.1")  # 0.1% for equity calculations
+# Justification: Equity calculations involve multiple components (spot, perp, 
+# collateral) each with their own precision. 0.1% aggregates these variances.
 
 # Fixed value tolerances
 SMALL_VALUE_TOLERANCE = Decimal("0.01")  # $0.01 for USD values
+# Justification: For USD-denominated values, $0.01 is the standard precision
+# used by most financial systems and exchanges.
+
 LARGE_VALUE_TOLERANCE = Decimal("1.0")  # $1.00 for larger USD calculations
+# Justification: For large portfolio values (>$10k), a $1 tolerance accounts
+# for timing differences in price updates across multiple positions.
 
 # Margin calculation tolerances
 MARGIN_FRACTION_TOLERANCE = Decimal("0.1")  # 10% tolerance for margin fraction differences
+# Justification: Margin calculations can vary significantly with small price
+# movements. 10% allows for market volatility during test execution.
+
 COLLATERAL_VALUE_TOLERANCE = Decimal("0.01")  # $0.01 for collateral value calculations
+# Justification: Collateral values are USD-based, so standard $0.01 precision
+# is appropriate and matches exchange reporting precision.
 
 # Auto-lending specific
-AUTO_LENDING_DETECTION_THRESHOLD = Decimal(
-    "0"
-)  # If all spot balances are 0, auto-lending is likely active
+AUTO_LENDING_DETECTION_THRESHOLD = Decimal("0")
+# Justification: When auto-lending is active, spot balances show exactly 0
+# while funds are lent out. No tolerance needed for this binary state.
 
 # Position and PnL tolerances
 PNL_TOLERANCE = Decimal("1.0")  # $1.00 tolerance for PnL comparisons
+# Justification: PnL involves entry price, current price, and fees. During
+# volatile markets, $1 tolerance prevents false test failures from price updates.
+
 BREAK_EVEN_PRICE_TOLERANCE_PERCENT = Decimal("0.1")  # 0.1% for break-even price
+# Justification: Break-even calculations include fees and funding. 0.1% accounts
+# for these additional factors beyond simple entry price.
 
 # Ratio tolerances (for notional values, position sizes, etc.)
 RATIO_LOWER_BOUND = Decimal("0.99")  # 1% lower bound for ratio comparisons
 RATIO_UPPER_BOUND = Decimal("1.01")  # 1% upper bound for ratio comparisons
+# Justification: When comparing calculated vs reported values, 1% tolerance
+# accounts for timing differences and calculation method variations.
 
 # Margin fraction bounds
 MARGIN_FRACTION_MIN = Decimal("0")  # Minimum valid margin fraction
 MARGIN_FRACTION_MAX = Decimal("1")  # Maximum valid margin fraction
+# Justification: Margin fraction is a ratio that must be between 0 (no margin
+# used) and 1 (maximum margin used). Values outside this range indicate errors.
 
 
 # =============================================================================
@@ -552,8 +672,10 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
         return has_lending
 
     except Exception as e:
-        logger.warning(f"Failed to detect auto-lending: {e}")
-        return False
+        raise RuntimeError(
+            f"Failed to detect auto-lending status: {e}. "
+            "Auto-lending detection is required for accurate balance calculations."
+        ) from e
 
 
 async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[str, Decimal]]:
@@ -610,8 +732,10 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
         return result
 
     except Exception as e:
-        logger.warning(f"Failed to get balances with lending: {e}")
-        return {}
+        raise RuntimeError(
+            f"Failed to get balances with lending: {e}. "
+            "Balance retrieval is a critical operation for trading tests."
+        ) from e
 
 
 # =============================================================================
@@ -652,16 +776,22 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
             if account_summary.bp_details.imf_raw:
                 try:
                     params["initial_margin_factor"] = Decimal(account_summary.bp_details.imf_raw)
-                except (ValueError, TypeError, AttributeError):
-                    pass
+                except (ValueError, TypeError, AttributeError) as e:
+                    raise ValueError(
+                        f"Failed to parse initial margin factor '{account_summary.bp_details.imf_raw}': {e}. "
+                        "Margin factors must be valid decimal values."
+                    ) from e
 
             if account_summary.bp_details.mmf_raw:
                 try:
                     params["maintenance_margin_factor"] = Decimal(
                         account_summary.bp_details.mmf_raw
                     )
-                except (ValueError, TypeError, AttributeError):
-                    pass
+                except (ValueError, TypeError, AttributeError) as e:
+                    raise ValueError(
+                        f"Failed to parse maintenance margin factor '{account_summary.bp_details.mmf_raw}': {e}. "
+                        "Margin factors must be valid decimal values."
+                    ) from e
 
         # Check for positions
         positions = await api.get_positions()
@@ -700,12 +830,10 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         return result
 
     except Exception as e:
-        logger.warning(f"Failed to get margin parameters: {e}")
-        return {
-            "margin_fraction": None,
-            "initial_margin_factor": None,
-            "maintenance_margin_factor": None,
-            "has_positions": Decimal("0"),
+        raise RuntimeError(
+            f"Failed to get margin parameters: {e}. "
+            "Margin parameter retrieval is critical for risk management tests."
+        ) from e
             "has_open_orders": Decimal("0"),
         }
 

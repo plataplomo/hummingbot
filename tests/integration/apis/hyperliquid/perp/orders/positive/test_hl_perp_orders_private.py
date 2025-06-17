@@ -34,12 +34,12 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 from tests.integration.apis.hyperliquid.shared.test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
     get_safe_test_price,
 )
-from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
 pytestmark = [
     pytest.mark.integration,
@@ -362,7 +362,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        
+
         # Attempt to cancel order with fake ID
         cancel_args = CancelOrderArgs(
             order_id="99999999999999999",  # Non-existent order ID
@@ -401,7 +401,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        
+
         # Test very small quantity order
         small_order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -457,7 +457,9 @@ class TestHyperliquidPerpOrdersPrivate:
         from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_price = await get_safe_test_price(hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05"))
+        test_price = await get_safe_test_price(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05")
+        )
         test_quantity = await get_minimal_test_quantity(
             hl_api_for_test_env, test_symbol, OrderSide.BUY
         )
@@ -687,7 +689,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        
+
         # Place an order for PURP
         purp_order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -753,7 +755,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        
+
         # Place an order that we'll cancel immediately
         order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -807,7 +809,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        
+
         # Place multiple orders with different characteristics
         order_scenarios = [
             # Different prices to avoid fills

@@ -59,18 +59,23 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
             impactPx="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
+            marginTables=None,
             universe=[
                 HyperliquidRawAssetDefinition(
                     name="BTC",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
                 HyperliquidRawAssetDefinition(
                     name="ETH",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
         )
@@ -112,7 +117,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     ) -> None:
         """Test get_funding_rate returns None when symbol is not found."""
         symbol = "UNKNOWN"
-        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
+        mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=mock_meta_response,
             asset_ctxs=[],
@@ -644,12 +649,15 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
             impactPx="50001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
+            marginTables=None,
             universe=[
                 HyperliquidRawAssetDefinition(
                     name="BTC",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
         )

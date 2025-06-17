@@ -12,6 +12,7 @@ Security Compliance:
 
 import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 import pytest
@@ -112,7 +113,9 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
         received_messages = []
 
-        async def real_symbol_handler(message: dict[str, Any]) -> None:
+        async def real_symbol_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             """Handler for real symbol subscription messages."""
             received_messages.append(message)
             logger.info(f"Real symbol handler received: {message}")
@@ -155,10 +158,12 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
         symbol1, symbol2 = symbols["spot"][0], symbols["spot"][1]
 
-        stream_results = {}
+        stream_results: dict[str, list[dict[str, Any]]] = {}
 
-        async def create_stream_handler(stream_type: str):
-            async def handler(message: dict[str, Any]) -> None:
+        async def create_stream_handler(
+            stream_type: str,
+        ) -> Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]:
+            async def handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
                 if stream_type not in stream_results:
                     stream_results[stream_type] = []
                 stream_results[stream_type].append(message)
@@ -217,7 +222,9 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def consistency_handler(message: dict[str, Any]) -> None:
+        async def consistency_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Consistency handler: {message}")
 
         # Track state consistency across operations
@@ -309,7 +316,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        async def lifecycle_handler(message: dict[str, Any]) -> None:
+        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Lifecycle handler: {message}")
 
         try:
@@ -364,7 +371,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
                 "Concurrent subscription tests require multiple real symbols."
             )
 
-        async def concurrent_handler(message: dict[str, Any]) -> None:
+        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Concurrent real handler: {message}")
 
         # Create concurrent subscription tasks with real symbols
@@ -410,7 +417,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
 
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        async def mixed_handler(message: dict[str, Any]) -> None:
+        async def mixed_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Mixed market handler: {message}")
 
         subscription_count = 0
@@ -468,7 +475,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         valid_symbol = symbols["spot"][0]
 
-        async def error_handler(message: dict[str, Any]) -> None:
+        async def error_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Error test handler: {message}")
 
         # Test scenarios mixing real and invalid
@@ -538,7 +545,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def resilience_handler(message: dict[str, Any]) -> None:
+        async def resilience_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Resilience handler: {message}")
 
         operation_count = 0
@@ -558,7 +565,13 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                 )
 
                 # Brief pause to allow processing
-                await asyncio.sleep(0.01)
+                from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+                await wait_for_condition(
+                    lambda: True,  # Always true, just wait
+                    timeout=0.01,
+                    poll_interval=0.01,
+                    message="Processing delay"
+                )
 
             logger.info(
                 f"✓ Subscription resilience with real data confirmed: {operation_count} operations"

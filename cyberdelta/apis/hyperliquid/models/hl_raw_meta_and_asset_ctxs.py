@@ -61,13 +61,17 @@ class HyperliquidRawAssetDefinition(BaseModel):
         name (str): Asset symbol (e.g., 'ETH', 'BTC').
         sz_decimals (int): Number of decimals for size/quantity precision (0-18).
         max_leverage (int): Maximum leverage allowed (0-1000).
-        only_isolated (bool): True if only isolated margin is allowed for this asset.
+        margin_table_id (int, optional): Margin table identifier for this asset.
+        is_delisted (bool, optional): True if asset is delisted.
+        only_isolated (bool, optional): True if only isolated margin is allowed for this asset.
     """
 
     name: RawAssetString64HL = Field(..., alias="name")
     sz_decimals: RawNonNegativeInt = Field(..., alias="szDecimals", le=18)
     max_leverage: RawNonNegativeInt = Field(..., alias="maxLeverage", le=1000)
-    only_isolated: RawStrictBool = Field(..., alias="onlyIsolated")
+    margin_table_id: RawNonNegativeInt | None = Field(None, alias="marginTableId")
+    is_delisted: RawStrictBool | None = Field(None, alias="isDelisted")
+    only_isolated: RawStrictBool | None = Field(None, alias="onlyIsolated")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -80,7 +84,7 @@ class HyperliquidRawAssetCtx(BaseModel):
     Never use for internal business logic.
 
     Fields:
-        name (str): Asset symbol (max 64 chars).
+        name (str, optional): Asset symbol (max 64 chars) - not provided in API response.
         funding (str): Hourly funding rate as a decimal string.
         mark_px (str): Mark price as a decimal string.
         prev_day_px (str): Previous day's price as a decimal string.
@@ -88,7 +92,7 @@ class HyperliquidRawAssetCtx(BaseModel):
         impact_px (Optional[str]): Impact price as a decimal string, or None.
     """
 
-    name: RawAssetString64HL = Field(..., alias="name")
+    name: RawAssetString64HL | None = Field(None, alias="name")
     funding: RawFiniteDecimalStr = Field(..., alias="funding")
     mark_px: RawFiniteDecimalStr = Field(..., alias="markPx")
     prev_day_px: RawFiniteDecimalStr = Field(..., alias="prevDayPx")
@@ -105,9 +109,11 @@ class HyperliquidRawMetaResponse(BaseModel):
 
     Fields:
         universe (List[HyperliquidRawAssetDefinition]): List of asset definitions.
+        margin_tables (Any, optional): Margin tables data from the API.
     """
 
     universe: list[HyperliquidRawAssetDefinition] = Field(..., alias="universe")
+    margin_tables: Any | None = Field(None, alias="marginTables")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

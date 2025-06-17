@@ -6,10 +6,12 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.apis.backpack.bp_api import BackpackAPI
+
 
 @pytest.fixture
 async def bp_perp_test_config(
-    bp_api_for_test_env,
+    bp_api_for_test_env: BackpackAPI,
 ) -> dict[str, list[str] | list[Decimal] | Decimal | int]:
     """Backpack perp test configuration based on real market data.
 
@@ -21,7 +23,9 @@ async def bp_perp_test_config(
 
     # Get available perp markets dynamically
     try:
-        markets = await bp_api_for_test_env.get_markets()
+        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+
+        markets = await bp_api_for_test_env.get_markets(args=GetMarketsArgs())
         perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol.upper()][:3]
 
         if not perp_symbols:

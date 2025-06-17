@@ -72,16 +72,16 @@ from cyberdelta.apis.models.service_args_models import (
     GetL2BookArgs,
     GetOpenOrdersArgs,
     GetOrderHistoryArgsHL,
-    GetOrderStatusArgs,
     GetRecentTradesArgs,
     GetUserFillsArgs,
     GetUserStateArgs,
+    HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
     TransferL2UsdArgs,
     UpdateLeverageArgs,
     WithdrawL1Args,
 )
-from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models import OrderSide, OrderType
 
 
 class HyperliquidRequestBuilder:
@@ -98,20 +98,19 @@ class HyperliquidRequestBuilder:
     - Uses Pydantic validation at all boundaries
     """
 
-
     @staticmethod
     def _decimal_to_wire_format(value: Decimal | None) -> str:
         """Convert decimal to Hyperliquid wire format with comprehensive validation.
 
         Implements the exact SDK's float_to_wire function behavior with enhanced
         safety checks and Pydantic-compliant error handling.
-        
+
         Args:
             value: Decimal value to convert (None returns "0")
-            
+
         Returns:
             String representation in Hyperliquid wire format
-            
+
         Raises:
             ValueError: If conversion causes precision loss or value is invalid
         """
@@ -125,11 +124,11 @@ class HyperliquidRequestBuilder:
         # Validate input is finite
         if not value.is_finite():
             raise ValueError(f"Value must be finite, got {value}")
-        
+
         # Check for extreme values that could cause issues
         if abs(value) > Decimal("1e18"):
             raise ValueError(f"Value too large for wire format: {value}")
-        
+
         # Check for too small values that would round to zero
         if value != 0 and abs(value) < Decimal("1e-8"):
             raise ValueError(f"Value too small for wire format precision: {value}")
@@ -139,7 +138,7 @@ class HyperliquidRequestBuilder:
             x = float(value)
         except (ValueError, OverflowError) as e:
             raise ValueError(f"Cannot convert {value} to float: {e}") from e
-            
+
         # Format with 8 decimal places
         rounded = f"{x:.8f}"
 
@@ -160,10 +159,10 @@ class HyperliquidRequestBuilder:
             normalized = Decimal(rounded).normalize()
             # Ensure we don't return scientific notation
             result = f"{normalized:f}"
-            
+
             # Final validation - ensure result is parseable
             _ = Decimal(result)
-            
+
             return result
         except Exception as e:
             raise ValueError(f"Failed to normalize wire format for {value}: {e}") from e
@@ -177,7 +176,7 @@ class HyperliquidRequestBuilder:
 
         Returns:
             HyperliquidRawMetaAndAssetCtxsRequestPayload: Validated request payload
-            
+
         Payload: {"type": "metaAndAssetCtxs"}
         """
         return HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")
@@ -210,9 +209,7 @@ class HyperliquidRequestBuilder:
         Returns:
             HyperliquidRawRecentTradesRequestPayload: Validated Raw API model
         """
-        return HyperliquidRawRecentTradesRequestPayload(
-            type="recentTrades", coin=args.symbol
-        )
+        return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=args.symbol)
 
     @staticmethod
     def build_l2_usd_transfer_payload(
@@ -232,7 +229,7 @@ class HyperliquidRequestBuilder:
         """
         # Convert amount to wire format for precision
         amount_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.amount)
-        
+
         transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
             destination=args.destination_address,
             token="USDC",  # noqa: S106
@@ -263,7 +260,7 @@ class HyperliquidRequestBuilder:
         """
         # Convert amount to wire format for precision
         amount_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.amount)
-        
+
         if args.asset.upper() == "ETH":
             eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
                 amount=amount_wire,
@@ -383,20 +380,20 @@ class HyperliquidRequestBuilder:
         # Architecture Compliance: All fields validated by Pydantic at boundary
         # Build the raw order specification with full validation
         wire_order = HyperliquidRawOrderItemSpec(
-            a=asset_index,
-            b=is_buy,
-            p=limit_px_wire,  # Wire format string validated by RawFiniteDecimalStr
-            s=sz_wire,  # Wire format string validated by RawFiniteDecimalStr
-            r=args.reduce_only,
-            t=order_type_model,  # Pydantic model with proper validation
-            c=args.client_order_id,
+            asset_index=asset_index,
+            is_buy=is_buy,
+            limit_px=limit_px_wire,  # Wire format string validated by RawFiniteDecimalStr
+            size=sz_wire,  # Wire format string validated by RawFiniteDecimalStr
+            reduce_only=args.reduce_only,
+            order_type_details=order_type_model,  # Pydantic model with proper validation
+            client_order_id=args.client_order_id,
         )
 
         # Return the final request payload with Pydantic validation
         return HyperliquidApiPlaceOrderRequest(
-            type="order", 
-            orders=[wire_order], 
-            grouping="na"  # Default grouping per Hyperliquid API
+            type="order",
+            orders=[wire_order],
+            grouping="na",  # Default grouping per Hyperliquid API
         )
 
     @staticmethod
@@ -422,14 +419,14 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_order_status_payload(
-        args: GetOrderStatusArgs,
+        args: HyperliquidGetOrderStatusArgs,
     ) -> HyperliquidRawOrderStatusRequestPayload:
         """Build the payload for querying the status of a specific order.
 
         Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
 
         Args:
-            args: Validated GetOrderStatusArgs containing wallet address and order ID
+            args: Validated HyperliquidGetOrderStatusArgs containing wallet address and order ID
 
         Returns:
             HyperliquidRawOrderStatusRequestPayload: Validated Raw API model

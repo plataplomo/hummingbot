@@ -14,6 +14,7 @@ from typing import Any, TypedDict
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
 from cyberdelta.apis.models.service_args_models import (
     GetMaxOrderQuantityArgs,
     PlaceOrderArgs,
@@ -70,8 +71,19 @@ class TestBackpackPerpLargePositions:
                         time_in_force=TimeInForce.IOC,
                     )
                     try:
-                        await api.place_order(place_args)
-                        await asyncio.sleep(0.5)
+                        close_order = await api.place_order(place_args)
+                        
+                        # Wait for position to be closed
+                        async def position_closed():
+                            current_positions = await api.get_positions()
+                            return not any(p.symbol == position.symbol for p in current_positions)
+                        
+                        await wait_for_condition(
+                            position_closed,
+                            timeout=5.0,
+                            poll_interval=0.1,
+                            message=f"Position {position.symbol} was not closed"
+                        )
                     except Exception as e:
                         # Log and ignore errors when closing positions in cleanup
                         logging.warning(f"Failed to close position {position.symbol}: {e}")
@@ -126,7 +138,18 @@ class TestBackpackPerpLargePositions:
         """Find the absolute maximum position using exchange's max order endpoint."""
         # Close all positions first
         await self._close_all_positions(api)
-        await asyncio.sleep(1.0)
+        
+        # Wait for all positions to be confirmed closed
+        async def all_positions_closed():
+            positions = await api.get_positions()
+            return len(positions) == 0
+            
+        await wait_for_condition(
+            all_positions_closed,
+            timeout=5.0,
+            poll_interval=0.1,
+            message="All positions were not closed"
+        )
 
         # Get constraints
         constraints = await get_market_constraints(api, symbol)
@@ -187,7 +210,7 @@ class TestBackpackPerpLargePositions:
                 )
                 order = await bp_api_for_large_balance_test.place_order(place_args)
                 assert order.exchange_order_id is not None
-                await asyncio.sleep(1.0)
+                # Position update handled by proper polling
 
                 # Get final position to verify size
                 positions = await bp_api_for_large_balance_test.get_positions()
@@ -238,7 +261,7 @@ class TestBackpackPerpLargePositions:
                     time_in_force=TimeInForce.IOC,
                 )
                 await bp_api_for_large_balance_test.place_order(place_args)
-                await asyncio.sleep(1.0)
+                # Position update handled by proper polling
 
                 # Try to add one more step - should fail
                 additional_args = PlaceOrderArgs(
@@ -290,7 +313,7 @@ class TestBackpackPerpLargePositions:
                 )
                 order = await bp_api_for_large_balance_test.place_order(place_args)
                 assert order.exchange_order_id is not None
-                await asyncio.sleep(1.0)
+                # Position update handled by proper polling
 
                 # Verify actual position size
                 positions = await bp_api_for_large_balance_test.get_positions()
@@ -360,7 +383,7 @@ class TestBackpackPerpLargePositions:
         try:
             # Start clean
             await self._close_all_positions(bp_api_for_large_balance_test)
-            await asyncio.sleep(1.0)
+            # Position update handled by proper polling
 
             positions_created: list[str] = []
 
@@ -390,7 +413,7 @@ class TestBackpackPerpLargePositions:
                             time_in_force=TimeInForce.IOC,
                         )
                         await bp_api_for_large_balance_test.place_order(place_args)
-                        await asyncio.sleep(1.0)
+                        # Position update handled by proper polling
                         positions_created.append(symbol)
                 except Exception:
                     # No more margin available - expected
@@ -443,7 +466,7 @@ class TestBackpackPerpLargePositions:
                     time_in_force=TimeInForce.IOC,
                 )
                 await bp_api_for_large_balance_test.place_order(place_args)
-                await asyncio.sleep(1.0)
+                # Position update handled by proper polling
 
                 # Reducing position should always work
                 reduce_args = PlaceOrderArgs(

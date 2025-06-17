@@ -12,6 +12,7 @@ Security Compliance:
 
 import asyncio
 import logging
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 import pytest
@@ -108,7 +109,9 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         received_messages = []
 
-        async def subscription_handler(message: dict[str, Any]) -> None:
+        async def subscription_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             """Handler for subscription messages."""
             received_messages.append(message)
             logger.info(f"Subscription handler received: {message}")
@@ -150,10 +153,12 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         symbol1, symbol2 = symbols["spot"][0], symbols["spot"][1]
 
-        stream_handlers = {}
+        stream_handlers: dict[str, list[dict[str, Any]]] = {}
 
-        async def create_handler(stream_type: str):
-            async def handler(message: dict[str, Any]) -> None:
+        async def create_handler(
+            stream_type: str,
+        ) -> Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]:
+            async def handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
                 if stream_type not in stream_handlers:
                     stream_handlers[stream_type] = []
                 stream_handlers[stream_type].append(message)
@@ -204,7 +209,9 @@ class TestBackpackAPIWebSocketSubscriptions:
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def consistency_handler(message: dict[str, Any]) -> None:
+        async def consistency_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Consistency handler: {message}")
 
         # Test state consistency
@@ -299,7 +306,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 "Concurrent subscription tests require multiple real symbols."
             )
 
-        async def concurrent_handler(message: dict[str, Any]) -> None:
+        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Concurrent handler: {message}")
 
         # Create concurrent subscription tasks
@@ -345,7 +352,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        async def lifecycle_handler(message: dict[str, Any]) -> None:
+        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Lifecycle handler: {message}")
 
         try:
@@ -394,7 +401,7 @@ class TestBackpackAPIAdvancedSubscriptions:
 
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
 
-        async def mixed_handler(message: dict[str, Any]) -> None:
+        async def mixed_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Mixed market handler: {message}")
 
         subscription_count = 0
@@ -445,7 +452,7 @@ class TestBackpackAPIAdvancedSubscriptions:
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
         valid_symbol = symbols["spot"][0]
 
-        async def error_test_handler(message: dict[str, Any]) -> None:
+        async def error_test_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Error test handler: {message}")
 
         # Test scenarios that might cause errors

@@ -198,7 +198,7 @@ class TestHyperliquidMarketDataServicePublicData:
             [],
         ]
         mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[]),
+            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
             asset_ctxs=[],
         )
 
@@ -299,14 +299,19 @@ class TestHyperliquidMarketDataServicePublicData:
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
                 HyperliquidRawAssetDefinition(
                     name="ETH",
                     szDecimals=5,
                     maxLeverage=100,
                     onlyIsolated=False,
+                    marginTableId=None,
+                    isDelisted=None,
                 ),
             ],
+            marginTables=None,
         )
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=mock_meta_response,
@@ -345,7 +350,7 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker returns None when symbol is not found."""
         symbol = "UNKNOWN"
-        mock_meta_response = HyperliquidRawMetaResponse(universe=[])
+        mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
         mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=mock_meta_response,
             asset_ctxs=[],

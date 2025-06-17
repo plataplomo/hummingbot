@@ -38,7 +38,6 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.test_helpers import HyperliquidTestHelpers
-from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
 
@@ -89,17 +88,45 @@ class TestHyperliquidAccountSummaryPrivate:
         initial_margin_used = initial_summary.total_initial_margin_required
 
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
+            get_exchange_symbol_mapping,
+            get_major_crypto_symbol,
+        )
 
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        # Use a major crypto symbol that should always have data
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
+
+        # Get symbol details to ensure we use valid order size
+        symbol_mapping = await get_exchange_symbol_mapping(hl_api_for_test_env)
+        symbol_details = symbol_mapping["symbol_details"].get(test_symbol, {})
+
+        # Get current market price first
+        current_price = await HyperliquidTestHelpers.get_current_market_price(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Calculate safe limit price (50% below market to ensure it won't fill)
+        safe_limit_price = current_price * Decimal("0.5")
+        safe_limit_price = safe_limit_price.quantize(Decimal("1"))
+        
+        # Calculate minimum quantity for $10 order value
+        min_order_value = Decimal("10")
+        min_qty_for_value = (min_order_value / safe_limit_price).quantize(Decimal("0.00001"), rounding="ROUND_UP")
+        
+        # Use the larger of min_quantity from symbol details or calculated min for $10
+        min_qty = symbol_details.get("min_quantity", Decimal("0.00001"))
+        order_qty = max(min_qty, min_qty_for_value)
+
+        # Log for debugging
+        logger.info(f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} (50% below market), Order qty: {order_qty}")
 
         # Define order parameters that should impact account metrics (but still testnet-safe)
         impact_order_args = PlaceOrderArgs(
             symbol=test_symbol,  # Use first available symbol from exchange
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.001"),  # Small testnet-safe size
-            price=Decimal("50000"),  # More realistic price to avoid fills but pass validation
+            quantity=order_qty,  # Use valid size for the symbol
+            price=safe_limit_price,  # Price within exchange limits that won't fill
             time_in_force=TimeInForce.GTC,
         )
 
@@ -179,9 +206,10 @@ class TestHyperliquidAccountSummaryPrivate:
         are opened, modified, or closed through trading operations.
         """
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        # Use a major crypto symbol that should always have data
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
         # Execute a market order that should create/modify a position
         position_order_args = PlaceOrderArgs(
@@ -261,9 +289,10 @@ class TestHyperliquidAccountSummaryPrivate:
         attempting operations that would exceed available margin.
         """
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        # Use a major crypto symbol that should always have data
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
         # Get current account summary to understand available margin
         current_summary = await hl_api_for_test_env.get_account_summary()
@@ -355,9 +384,10 @@ class TestHyperliquidAccountSummaryPrivate:
                 )
 
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        # Use a major crypto symbol that should always have data
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
         # Test with a small precision order to validate precision preservation
         precision_order_args = PlaceOrderArgs(
@@ -443,9 +473,10 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+        # Use a major crypto symbol that should always have data
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
         # Execute a series of operations and validate consistency at each step
         operations = [

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
     RawCloidString64HL,
+    RawDefaultString,
     RawFiniteDecimalStr,
     RawHistoricalOrderStatusHL,  # Use the new historical status type
     RawNonNegativeFiniteDecimalStr,
@@ -44,15 +45,24 @@ class HyperliquidRawHistoricalOrder(BaseModel):
         alias="cloid",
     )  # Adjusted from RawOptionalNonEmptyString64HL
     asset: RawAssetString64HL = Field(..., alias="asset")
+    coin: RawAssetString64HL | None = Field(None, alias="coin")  # Sometimes returned instead of asset
     side: RawSideStr = Field(..., alias="side")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
     sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
-    order_type: dict[str, object] = Field(..., alias="orderType")  # Kept as dict for now
+    order_type: RawDefaultString | dict[str, object] = Field(..., alias="orderType")  # Can be string or dict
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
     remaining_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="remainingSz")
     status: RawHistoricalOrderStatusHL = Field(..., alias="status")  # KEY CHANGE
     status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
+    # Additional fields that may be present
+    trigger_condition: RawDefaultString | None = Field(None, alias="triggerCondition")
+    is_trigger: RawStrictBool | None = Field(None, alias="isTrigger")
+    trigger_px: RawFiniteDecimalStr | None = Field(None, alias="triggerPx")
+    children: list[object] | None = Field(None, alias="children")
+    is_position_tpsl: RawStrictBool | None = Field(None, alias="isPositionTpsl")
+    orig_sz: RawNonNegativeFiniteDecimalStr | None = Field(None, alias="origSz")
+    tif: RawDefaultString | None = Field(None, alias="tif")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
