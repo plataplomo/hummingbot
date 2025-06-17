@@ -54,7 +54,7 @@ class HyperliquidRawVaultRelationshipData(BaseModel):
     child_addresses: list[RawLaxEthereumAddressStrHL] | None = Field(None, alias="childAddresses")
     master: RawLaxEthereumAddressStrHL | None = Field(None, alias="master")
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow", frozen=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawVaultRelationship(BaseModel):

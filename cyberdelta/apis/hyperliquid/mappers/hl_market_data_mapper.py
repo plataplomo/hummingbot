@@ -73,12 +73,27 @@ class HyperliquidMarketDataMapper:
             TransformationError: If side cannot be mapped
 
         """
-        if hl_side == "B":
-            return OrderSide.BUY
-        elif hl_side == "A":
-            return OrderSide.SELL
+        try:
+            if hl_side == "B":
+                return OrderSide.BUY
+            elif hl_side == "A":
+                return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Hyperliquid order side: '{hl_side}'")
+            raise TransformationError(
+                f"Unknown Hyperliquid order side: '{hl_side}'",
+                field_name="side",
+                source_value=hl_side,
+            )
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to map order side: {e}",
+                field_name="side",
+                source_value=hl_side,
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
@@ -102,7 +117,11 @@ class HyperliquidMarketDataMapper:
                 field_name="markPx",
             )
             if mark_px is None:
-                raise TransformationError("mark_px is required for ticker")
+                raise TransformationError(
+                    "mark_px is required for ticker",
+                    field_name="mark_px",
+                    source_value=raw_asset_ctx.mark_px,
+                )
 
             # Extract volume data from day_ntl_vlm (daily notional volume)
             volume_24h = None
@@ -125,9 +144,17 @@ class HyperliquidMarketDataMapper:
                 volume=volume_24h,
             )
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidMarketDataMapper] Failed to transform asset context to ticker: {e}. "
+                f"Symbol: {raw_asset_ctx.name}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}",
+                source_data={"symbol": raw_asset_ctx.name, "mark_px": raw_asset_ctx.mark_px},
             ) from e
 
     @staticmethod
@@ -169,9 +196,17 @@ class HyperliquidMarketDataMapper:
                 timestamp=timestamp,
             )
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidMarketDataMapper] Failed to transform order book: {e}. "
+                f"Symbol: {raw_book.coin}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
+                source_data={"symbol": str(raw_book.coin), "levels_count": len(raw_book.levels)},
             ) from e
 
     @staticmethod
@@ -189,24 +224,38 @@ class HyperliquidMarketDataMapper:
 
         Returns:
             List of (price, size) tuples
+            
+        Raises:
+            TransformationError: If parsing fails
         """
-        levels: list[tuple[Decimal, Decimal]] = []
+        try:
+            levels: list[tuple[Decimal, Decimal]] = []
 
-        if not raw_book.levels or len(raw_book.levels) <= level_index:
+            if not raw_book.levels or len(raw_book.levels) <= level_index:
+                return levels
+
+            level_data = raw_book.levels[level_index]
+            for level in level_data:
+                if depth is not None and len(levels) >= depth:
+                    break
+
+                price = parse_decimal_value(level.px, allow_none=False, field_name="px")
+                size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
+
+                if price is not None and size is not None:
+                    levels.append((price, size))
+
             return levels
-
-        level_data = raw_book.levels[level_index]
-        for level in level_data:
-            if depth is not None and len(levels) >= depth:
-                break
-
-            price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-            size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-            if price is not None and size is not None:
-                levels.append((price, size))
-
-        return levels
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to parse order book levels: {e}",
+                field_name="levels",
+                source_value=level_index,
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def transform_raw_public_trade_to_internal(
@@ -233,7 +282,10 @@ class HyperliquidMarketDataMapper:
             quantity = parse_decimal_value(raw_trade.sz, allow_none=False, field_name="sz")
 
             if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+                raise TransformationError(
+                    "Price and quantity are required for trade",
+                    source_data={"px": raw_trade.px, "sz": raw_trade.sz},
+                )
 
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
@@ -273,9 +325,17 @@ class HyperliquidMarketDataMapper:
                 hl_details=details,
             )
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidMarketDataMapper] Failed to transform public trade: {e}. "
+                f"Symbol: {raw_trade.coin}, Hash: {raw_trade.hash}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}",
+                source_data={"symbol": str(raw_trade.coin), "hash": raw_trade.hash},
             ) from e
 
     @staticmethod
@@ -706,46 +766,64 @@ class HyperliquidMarketDataMapper:
 
         Returns:
             Market object with available metadata
+            
+        Raises:
+            TransformationError: If market creation fails
         """
-        # Calculate step_size from sz_decimals
-        step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
-        if step_size_parsed is None:
-            raise TransformationError(f"Failed to parse step size for {asset_def.name}")
-        step_size = step_size_parsed
+        try:
+            # Calculate step_size from sz_decimals
+            step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
+            if step_size_parsed is None:
+                raise TransformationError(
+                    f"Failed to parse step size for {asset_def.name}",
+                    field_name="sz_decimals",
+                    source_value=asset_def.sz_decimals,
+                )
+            step_size = step_size_parsed
 
-        # For Hyperliquid perpetuals, we'll use reasonable defaults for tick size
-        # since it's not explicitly provided in their meta response
-        # Most crypto perpetuals use similar precision to their step size
-        tick_size = step_size  # Default assumption - can be refined with actual market data
+            # For Hyperliquid perpetuals, we'll use reasonable defaults for tick size
+            # since it's not explicitly provided in their meta response
+            # Most crypto perpetuals use similar precision to their step size
+            tick_size = step_size  # Default assumption - can be refined with actual market data
 
-        # Create Hyperliquid-specific details using proper typed model
-        hl_details = HyperliquidMarketDetails(
-            max_leverage=asset_def.max_leverage,
-            only_isolated=asset_def.only_isolated,
-            sz_decimals=asset_def.sz_decimals,
-            mark_price=parse_decimal_value(asset_ctx.mark_px) if asset_ctx else None,
-            funding_rate=parse_decimal_value(asset_ctx.funding) if asset_ctx else None,
-        )
+            # Create Hyperliquid-specific details using proper typed model
+            hl_details = HyperliquidMarketDetails(
+                max_leverage=asset_def.max_leverage,
+                only_isolated=asset_def.only_isolated,
+                sz_decimals=asset_def.sz_decimals,
+                mark_price=parse_decimal_value(asset_ctx.mark_px) if asset_ctx else None,
+                funding_rate=parse_decimal_value(asset_ctx.funding) if asset_ctx else None,
+            )
 
-        # Create market with available information
-        market = Market(
-            symbol=asset_def.name,
-            base_symbol=asset_def.name,  # For perps, symbol equals base
-            quote_symbol="USD",  # Hyperliquid perps are USD-settled
-            market_type="Perpetual",
-            tick_size=tick_size,
-            step_size=step_size,
-            min_price=None,  # Not specified in Hyperliquid meta
-            max_price=None,  # Not specified in Hyperliquid meta
-            min_quantity=step_size,  # Minimum is typically one step
-            max_quantity=None,  # Not specified in Hyperliquid meta
-            status="Active",  # Assume active if in meta response
-            created_at=None,  # Not provided in meta response
-            bp_details=None,  # Not applicable
-            hl_details=hl_details,  # Properly typed Hyperliquid details
-        )
+            # Create market with available information
+            market = Market(
+                symbol=asset_def.name,
+                base_symbol=asset_def.name,  # For perps, symbol equals base
+                quote_symbol="USD",  # Hyperliquid perps are USD-settled
+                market_type="Perpetual",
+                tick_size=tick_size,
+                step_size=step_size,
+                min_price=None,  # Not specified in Hyperliquid meta
+                max_price=None,  # Not specified in Hyperliquid meta
+                min_quantity=step_size,  # Minimum is typically one step
+                max_quantity=None,  # Not specified in Hyperliquid meta
+                status="Active",  # Assume active if in meta response
+                created_at=None,  # Not provided in meta response
+                bp_details=None,  # Not applicable
+                hl_details=hl_details,  # Properly typed Hyperliquid details
+            )
 
-        return market
+            return market
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to create market from asset definition: {e}",
+                field_name="asset_def",
+                source_value=asset_def.name if hasattr(asset_def, 'name') else str(asset_def),
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def transform_single_asset_to_market(

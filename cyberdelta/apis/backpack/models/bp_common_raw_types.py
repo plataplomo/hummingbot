@@ -48,6 +48,7 @@ BP_ORDER_STATUSES = {
     "EXPIRED",
     "REJECTED",
     "PARTIALLY_FILLED",
+    "TRIGGER_PENDING",
     # Backpack API case variations (new format)
     "New",
     "Filled",
@@ -55,6 +56,7 @@ BP_ORDER_STATUSES = {
     "Expired",
     "Rejected",
     "PartiallyFilled",
+    "TriggerPending",
 }
 """Set of allowed Backpack order statuses (supports both uppercase and title case)."""
 

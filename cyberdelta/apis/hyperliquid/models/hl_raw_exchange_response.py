@@ -113,10 +113,13 @@ class HyperliquidRawExchangeResponse(BaseModel):
     """Raw model for the top-level response from the /exchange endpoint."""
 
     status: Annotated[
-        Literal["ok"],
+        Literal["ok", "err"],
         BeforeValidator(
             lambda x: validate_str_field(x, field_name="status", max_length=16, allow_empty=False),
         ),
     ] = Field(...)
     data: HyperliquidRawExchangeResponseData | None = Field(None)
+    response: RawOptionalNonEmptyString1024HL | HyperliquidRawExchangeResponseData | None = Field(
+        None, description="Error message when status is 'err' or response data when status is 'ok'"
+    )
     model_config = ConfigDict(extra="forbid", frozen=True)

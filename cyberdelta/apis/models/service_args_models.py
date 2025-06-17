@@ -709,3 +709,119 @@ class UpdateAccountSettingsArgs(BaseModel):
     auto_realize_pnl: bool | None = Field(default=None)
     auto_repay_borrows: bool | None = Field(default=None)
     leverage_limit: Decimal | None = Field(default=None, gt=Decimal("0"))
+
+
+# --- Additional Args Models for RequestBuilder Architecture Compliance ---
+
+
+class GetL2BookArgs(BaseModel):
+    """Arguments for fetching L2 order book data."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+
+
+class GetRecentTradesArgs(BaseModel):
+    """Arguments for fetching recent public trades."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+
+
+class TransferL2UsdArgs(BaseModel):
+    """Arguments for L2 USD transfer requests."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    destination_address: str = Field(..., min_length=1, max_length=128)
+    amount: Decimal = Field(..., gt=Decimal("0"))
+
+
+class GetOrderStatusArgs(BaseModel):
+    """Arguments for querying order status."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+    order_id: int = Field(..., ge=0)
+
+
+class GetUserStateArgs(BaseModel):
+    """Arguments for fetching user state information."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+
+
+class GetUserFillsArgs(BaseModel):
+    """Arguments for fetching user fills (trade history)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+
+
+class GetOpenOrdersArgs(BaseModel):
+    """Arguments for fetching open orders."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+
+
+class UpdateLeverageArgs(BaseModel):
+    """Arguments for updating leverage on a specific asset."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    asset_index: int = Field(..., ge=0)
+    leverage: int = Field(..., ge=1, le=1000)
+    is_cross: bool = Field(default=True)
+
+
+class WithdrawL1Args(BaseModel):
+    """Arguments for L1 withdrawal requests."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    asset: str = Field(..., min_length=1, max_length=64)
+    amount: Decimal = Field(..., gt=Decimal("0"))
+    destination_address: str = Field(..., min_length=1, max_length=128)
+
+
+class GetCandleSnapshotArgs(BaseModel):
+    """Arguments for fetching candle snapshot data."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str = Field(..., min_length=1, max_length=64)
+    timeframe: str = Field(..., min_length=1, max_length=32)
+    start_time_ms: int = Field(..., ge=0)
+    end_time_ms: int = Field(..., ge=0)
+
+    @model_validator(mode="after")
+    def check_time_range(self) -> "GetCandleSnapshotArgs":
+        """Validate time range logic."""
+        if self.start_time_ms >= self.end_time_ms:
+            raise ValueError("start_time_ms must be before end_time_ms")
+        return self
+
+
+class GetOrderHistoryArgsHL(BaseModel):
+    """Arguments for fetching order history (Hyperliquid-specific)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+    start_time_ms: int = Field(..., ge=0)
+    end_time_ms: int = Field(..., ge=0)
+
+    @model_validator(mode="after")
+    def check_time_range(self) -> "GetOrderHistoryArgsHL":
+        """Validate time range logic."""
+        if self.start_time_ms >= self.end_time_ms:
+            raise ValueError("start_time_ms must be before end_time_ms")
+        return self

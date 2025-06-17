@@ -111,6 +111,34 @@ class APIError(Exception):
 
 
 class TransformationError(ValueError):
-    """Raised when a validated Raw model cannot be transformed to Internal model."""
+    """Raised when a validated Raw model cannot be transformed to Internal model.
+    
+    This exception supports enhanced context information to aid in debugging
+    transformation failures in mapper classes.
+    """
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        field_name: str | None = None,
+        source_value: Any = None,
+        source_data: dict[str, Any] | None = None,
+        code: str | None = None,
+        original_exception: Exception | None = None,
+    ) -> None:
+        """Initialize TransformationError with enhanced context.
+        
+        Args:
+            message: Primary error message
+            field_name: Name of the field that failed transformation
+            source_value: The value that caused the transformation failure
+            source_data: Raw data context where transformation failed
+            code: Optional error code for categorization
+            original_exception: The underlying exception that caused this error
+        """
+        super().__init__(message)
+        self.field_name = field_name
+        self.source_value = source_value
+        self.source_data = source_data
+        self.code = code
+        self.original_exception = original_exception

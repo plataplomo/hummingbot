@@ -81,19 +81,7 @@ class HyperliquidRawTriggerInfo(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
-class HyperliquidRawTriggerSpec(BaseModel):
-    """Trigger spec for conditional orders.
-
-    Fields:
-        trigger_px (RawFiniteDecimalStr): Trigger price (str)
-        is_market (RawStrictBool): Is market order (bool)
-        tpsl (RawTpslStr): Trigger type ('tp' or 'sl')
-    """
-
-    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
-    is_market: RawStrictBool = Field(..., alias="isMarket")
-    tpsl: RawTpslStr = Field(..., alias="tpsl")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+# HyperliquidRawTriggerSpec removed - using HyperliquidRawTriggerInfo instead
 
 
 # --- Time-in-Force for Limit Orders ---
@@ -252,7 +240,7 @@ class HyperliquidRawOrderSpec(BaseModel):
         sz: Size (RawPositiveFiniteDecimalStr, must be > 0).
         reduce_only: Reduce-only flag (RawStrictBool).
         order_type: Order type details (dict[str, object], must not be empty).
-        trigger: Optional trigger spec (HyperliquidRawTriggerSpec | None).
+        trigger: Optional trigger spec (HyperliquidRawTriggerInfo | None).
         cloid: Optional client order ID (RawOptionalNonEmptyString64HL | None).
     """
 
@@ -262,7 +250,7 @@ class HyperliquidRawOrderSpec(BaseModel):
     sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
     order_type: dict[str, object] = Field(..., alias="orderType")
-    trigger: HyperliquidRawTriggerSpec | None = Field(None, alias="trigger")
+    trigger: HyperliquidRawTriggerInfo | None = Field(None, alias="trigger")
     cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

@@ -168,6 +168,8 @@ class BackpackTradingService:
             OrderType.MARKET,
             OrderType.STOP_MARKET,
             OrderType.STOP_LIMIT,
+            OrderType.TAKE_PROFIT_MARKET,
+            OrderType.TAKE_PROFIT_LIMIT,
         ]
         if args.order_type not in supported_order_types:
             raise ValueError(
@@ -175,7 +177,7 @@ class BackpackTradingService:
             )
 
         # Validate time in force for limit orders
-        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
             supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
             if args.time_in_force not in supported_tif:
                 supported_values = [tif.value for tif in supported_tif]

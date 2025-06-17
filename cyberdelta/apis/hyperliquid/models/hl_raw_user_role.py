@@ -28,7 +28,7 @@ class HyperliquidRawUserRoleData(BaseModel):
     user: RawLaxEthereumAddressStrHL | None = Field(None, alias="user")
     master: RawLaxEthereumAddressStrHL | None = Field(None, alias="master")
 
-    model_config = ConfigDict(populate_by_name=True, extra="allow", frozen=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawUserRoleResponse(BaseModel):

@@ -27,6 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
+    HyperliquidRawOrderItemSpec,
     HyperliquidRawUpdateLeverageAction,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
@@ -37,14 +38,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersRequestPayload,
+    HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
     HyperliquidRawOrderType,
-    HyperliquidRawPlaceOrderAction,
     HyperliquidRawQueryOrderHistoryRequestPayload,
-    HyperliquidRawTriggerDetails,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
@@ -65,6 +65,22 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetCandleSnapshotArgs,
+    GetHistoricalFundingRatesArgs,
+    GetL2BookArgs,
+    GetOpenOrdersArgs,
+    GetOrderHistoryArgsHL,
+    GetOrderStatusArgs,
+    GetRecentTradesArgs,
+    GetUserFillsArgs,
+    GetUserStateArgs,
+    PlaceOrderArgs,
+    TransferL2UsdArgs,
+    UpdateLeverageArgs,
+    WithdrawL1Args,
+)
 from cyberdelta.core.models import OrderSide, OrderType, TimeInForce
 
 
@@ -74,79 +90,153 @@ class HyperliquidRequestBuilder:
     This class centralizes the logic for constructing Pydantic models
     representing requests for Hyperliquid API calls, ensuring consistency and
     separating request formatting from API call execution.
+
+    Architecture Compliance: Follows proper Request Builder Pattern:
+    - Takes internal Args models as input (PlaceOrderArgs, etc.)
+    - Returns validated Raw API models (HyperliquidApiPlaceOrderRequest, etc.)
+    - Handles INTERNAL → RAW transformation directly
+    - Uses Pydantic validation at all boundaries
     """
 
+
     @staticmethod
-    def _map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
-        """Map internal TimeInForce enum values to Hyperliquid-specific format.
+    def _decimal_to_wire_format(value: Decimal | None) -> str:
+        """Convert decimal to Hyperliquid wire format with comprehensive validation.
 
-        Our internal enum uses all uppercase (GTC, IOC, ALO, FOK),
-        but Hyperliquid expects specific capitalization (Gtc, Ioc, Alo).
-
+        Implements the exact SDK's float_to_wire function behavior with enhanced
+        safety checks and Pydantic-compliant error handling.
+        
         Args:
-            tif: Internal TimeInForce enum value
-
+            value: Decimal value to convert (None returns "0")
+            
         Returns:
-            Hyperliquid-formatted time-in-force string
-
+            String representation in Hyperliquid wire format
+            
         Raises:
-            ValueError: If the time-in-force value is not supported by Hyperliquid
-
+            ValueError: If conversion causes precision loss or value is invalid
         """
-        mapping = {
-            TimeInForce.GTC: "Gtc",
-            TimeInForce.IOC: "Ioc",
-            TimeInForce.ALO: "Alo",
-            # FOK is not supported by Hyperliquid according to the RAW model validation
-        }
+        if value is None:
+            return "0"
 
-        if tif not in mapping:
+        # Type validation at boundary
+        if not isinstance(value, Decimal):
+            raise TypeError(f"Expected Decimal, got {type(value).__name__}: {value}")
+
+        # Validate input is finite
+        if not value.is_finite():
+            raise ValueError(f"Value must be finite, got {value}")
+        
+        # Check for extreme values that could cause issues
+        if abs(value) > Decimal("1e18"):
+            raise ValueError(f"Value too large for wire format: {value}")
+        
+        # Check for too small values that would round to zero
+        if value != 0 and abs(value) < Decimal("1e-8"):
+            raise ValueError(f"Value too small for wire format precision: {value}")
+
+        # Convert to float for rounding (maintaining SDK compatibility)
+        try:
+            x = float(value)
+        except (ValueError, OverflowError) as e:
+            raise ValueError(f"Cannot convert {value} to float: {e}") from e
+            
+        # Format with 8 decimal places
+        rounded = f"{x:.8f}"
+
+        # Check for rounding errors with tighter tolerance
+        precision_loss = abs(float(rounded) - x)
+        if precision_loss >= 1e-12:
             raise ValueError(
-                f"TimeInForce {tif.value} is not supported by Hyperliquid. "
-                f"Supported values: {list(mapping.keys())}",
+                f"Wire format conversion causes precision loss for {value}. "
+                f"Loss: {precision_loss:.2e}"
             )
 
-        return mapping[tif]
+        # Handle negative zero
+        if rounded == "-0.00000000":
+            rounded = "0.00000000"
+
+        # Normalize to remove trailing zeros
+        try:
+            normalized = Decimal(rounded).normalize()
+            # Ensure we don't return scientific notation
+            result = f"{normalized:f}"
+            
+            # Final validation - ensure result is parseable
+            _ = Decimal(result)
+            
+            return result
+        except Exception as e:
+            raise ValueError(f"Failed to normalize wire format for {value}: {e}") from e
 
     @staticmethod
     def build_info_request_payload() -> HyperliquidRawMetaAndAssetCtxsRequestPayload:
         """Build the Pydantic model for fetching meta and asset contexts via /info.
 
+        Architecture Compliance: Pure factory method returning validated Pydantic model.
+        No args needed as this is a static request type.
+
+        Returns:
+            HyperliquidRawMetaAndAssetCtxsRequestPayload: Validated request payload
+            
         Payload: {"type": "metaAndAssetCtxs"}
         """
         return HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")
 
     @staticmethod
-    def build_l2_book_request_payload(symbol: str) -> HyperliquidRawL2BookRequestPayload:
+    def build_l2_book_request_payload(args: GetL2BookArgs) -> HyperliquidRawL2BookRequestPayload:
         """Build the Pydantic model for fetching L2 order book data.
 
-        Payload: {"type": "l2Book", "coin": "SYMBOL"}
+        Pure factory method returning validated Pydantic model.
+
+        Args:
+            args: Validated GetL2BookArgs containing symbol
+
+        Returns:
+            HyperliquidRawL2BookRequestPayload: Validated Raw API model
         """
-        return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=symbol.upper())
+        return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=args.symbol)
 
     @staticmethod
     def build_recent_trades_request_payload(
-        symbol: str,
+        args: GetRecentTradesArgs,
     ) -> HyperliquidRawRecentTradesRequestPayload:
         """Build the Pydantic model for fetching recent public trades.
 
-        Payload: {"type": "recentTrades", "coin": "SYMBOL"}
+        Pure factory method returning validated Pydantic model.
+
+        Args:
+            args: Validated GetRecentTradesArgs containing symbol
+
+        Returns:
+            HyperliquidRawRecentTradesRequestPayload: Validated Raw API model
         """
-        return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=symbol.upper())
+        return HyperliquidRawRecentTradesRequestPayload(
+            type="recentTrades", coin=args.symbol
+        )
 
     @staticmethod
     def build_l2_usd_transfer_payload(
-        destination_address: str,
-        amount: Decimal,
+        args: TransferL2UsdArgs,
     ) -> HyperliquidApiL2UsdTransferRequest:
         """Build the Pydantic model for an L2 USD transfer request.
 
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated TransferL2UsdArgs containing transfer parameters
+
+        Returns:
+            HyperliquidApiL2UsdTransferRequest: Validated Raw API model
+
         Assumes all business validation has been done by the service layer.
         """
+        # Convert amount to wire format for precision
+        amount_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.amount)
+        
         transfer_payload_model = HyperliquidRawL2UsdTransferPayload(
-            destination=destination_address,
+            destination=args.destination_address,
             token="USDC",  # noqa: S106
-            amount=str(amount),
+            amount=amount_wire,
         )
         action_details_model = HyperliquidRawL2UsdTransferActionDetails(
             chain="L2",
@@ -156,20 +246,28 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_withdrawal_payload(
-        asset: str,
-        amount: Decimal,
-        destination_address: str,
+        args: WithdrawL1Args,
     ) -> HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
         """Build the Pydantic model for a withdrawal to L1 request.
 
-        Returns a specific model based on whether the asset is ETH or another token.
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
 
+        Args:
+            args: Validated WithdrawL1Args containing withdrawal parameters
+
+        Returns:
+            HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest: Validated Raw API model
+
+        Returns a specific model based on whether the asset is ETH or another token.
         Assumes all business validation has been done by the service layer.
         """
-        if asset.upper() == "ETH":
+        # Convert amount to wire format for precision
+        amount_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.amount)
+        
+        if args.asset.upper() == "ETH":
             eth_withdrawal_model = HyperliquidRawEthWithdrawalActionPayload(
-                amount=str(amount),
-                destination=destination_address,
+                amount=amount_wire,
+                destination=args.destination_address,
             )
             return HyperliquidApiEthWithdrawalRequest(
                 type="withdrawEth",
@@ -177,9 +275,9 @@ class HyperliquidRequestBuilder:
             )
         else:
             withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
-                token=asset.upper(),
-                amount=str(amount),
-                destination=destination_address,
+                token=args.asset,
+                amount=amount_wire,
+                destination=args.destination_address,
             )
             return HyperliquidApiTokenWithdrawalRequest(
                 type="withdraw",
@@ -188,183 +286,240 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_order_history_payload(
-        wallet_address: str,
-        start_time_ms: int,
-        end_time_ms: int,
+        args: GetOrderHistoryArgsHL,
     ) -> HyperliquidRawQueryOrderHistoryRequestPayload:
-        """Build the Pydantic model for querying order history."""
+        """Build the Pydantic model for querying order history.
+
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated GetOrderHistoryArgsHL containing history query parameters
+
+        Returns:
+            HyperliquidRawQueryOrderHistoryRequestPayload: Validated Raw API model
+        """
         return HyperliquidRawQueryOrderHistoryRequestPayload(
             type="queryOrderHistory",
-            user=wallet_address,
-            startTime=start_time_ms,
-            endTime=end_time_ms,
+            user=args.wallet_address,
+            startTime=args.start_time_ms,
+            endTime=args.end_time_ms,
         )
 
     @staticmethod
     def build_candle_snapshot_payload(
-        symbol: str,
-        timeframe: str,
-        start_time_ms: int,
-        end_time_ms: int,
+        args: GetCandleSnapshotArgs,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
-        """Build the Pydantic model for fetching candle snapshots."""
+        """Build the Pydantic model for fetching candle snapshots.
+
+        Pure factory method returning validated Pydantic model.
+
+        Args:
+            args: Validated GetCandleSnapshotArgs containing candle query parameters
+
+        Returns:
+            HyperliquidRawCandleSnapshotRequestPayload: Validated Raw API model
+        """
         req_details = HyperliquidRawCandleRequestDetails(
-            coin=symbol.upper(),
-            interval=timeframe,
-            startTime=start_time_ms,
-            endTime=end_time_ms,
+            coin=args.symbol,
+            interval=args.timeframe,
+            startTime=args.start_time_ms,
+            endTime=args.end_time_ms,
         )
         return HyperliquidRawCandleSnapshotRequestPayload(type="candleSnapshot", req=req_details)
 
     @staticmethod
     def build_place_order_payload(
+        args: PlaceOrderArgs,
         asset_index: int,
-        side: OrderSide,
-        order_type: OrderType,
-        quantity: Decimal,
-        time_in_force: TimeInForce,
-        price: Decimal | None = None,
-        stop_price: Decimal | None = None,
-        client_order_id: str | None = None,
-        reduce_only: bool = False,
-        post_only: bool = False,
+        tif_str: str | None = None,  # Pass mapped TIF from service
     ) -> HyperliquidApiPlaceOrderRequest:
         """Build the Pydantic model for placing orders.
 
-        Returns HyperliquidApiPlaceOrderRequest with full field structure and trigger support.
+        Pure factory method creating the exact wire format structure expected by Hyperliquid API.
 
-        Assumes all business validation has been done by the service layer.
+        Args:
+            args: Validated PlaceOrderArgs containing order parameters
+            asset_index: Hyperliquid-specific asset index for the symbol
+
+        Returns:
+            HyperliquidApiPlaceOrderRequest: Validated Raw API model
         """
-        is_buy = side == OrderSide.BUY
-        sz_str = str(quantity)
+        is_buy = args.side == OrderSide.BUY
 
-        # Set limit price appropriately for order types
-        if order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT):
-            # Service layer ensures price is not None for these order types
-            limit_px_str = str(price) if price is not None else "0"
-        elif order_type in (OrderType.MARKET, OrderType.STOP_MARKET):
-            limit_px_str = "0"
-        else:
-            # This is more of a mapping issue than business logic
-            raise ValueError(f"Order type {order_type.value} is not supported by Hyperliquid")
+        # Convert prices to wire format - handle None for market orders
+        price_for_wire = args.price if args.price is not None else Decimal("0")
+        limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(price_for_wire)
 
-        # Handle post_only mapping to ALO time-in-force
-        if post_only and time_in_force != TimeInForce.ALO:
-            time_in_force = TimeInForce.ALO
+        # Convert quantity to wire format
+        sz_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.quantity)
 
-        # Construct order type details
-        # Note: Both STOP_MARKET and STOP_LIMIT orders use limit order type details
-        # The trigger.is_market field determines whether it executes as market or limit
-        if order_type in (OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.STOP_MARKET):
-            hl_tif_details = HyperliquidRawLimitOrderTypeDetails(
-                tif=HyperliquidRequestBuilder._map_time_in_force_to_hyperliquid(time_in_force),
+        # Construct order type model
+        if args.order_type == OrderType.LIMIT:
+            # Use provided tif_str or default to "Gtc"
+            order_type_model = HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
             )
-            # Only set 'limit', leave 'market' as default None (will be excluded with exclude_none=True)
-            hl_order_type = HyperliquidRawOrderType(limit=hl_tif_details)
-        elif order_type == OrderType.MARKET:
-            hl_market_details = HyperliquidRawMarketOrderTypeDetails()
-            # Only set 'market', leave 'limit' as default None (will be excluded with exclude_none=True)
-            hl_order_type = HyperliquidRawOrderType(market=hl_market_details)
-
-        # Handle trigger logic for stop orders
-        trigger_details = None
-        if order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
-            # Service layer ensures stop_price is not None for stop orders
-            if stop_price is not None:
-                is_market = order_type == OrderType.STOP_MARKET
-                trigger_details = HyperliquidRawTriggerDetails(
-                    triggerPx=str(stop_price),
-                    isMarket=is_market,
-                    tpsl="sl",  # Stop-loss trigger type
+        elif args.order_type == OrderType.MARKET:
+            order_type_model = HyperliquidRawOrderType(
+                market=HyperliquidRawMarketOrderTypeDetails()
+            )
+        elif args.order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
+            # For stop orders, create trigger order type
+            if args.stop_price is not None:
+                trigger_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.stop_price)
+                is_market = args.order_type == OrderType.STOP_MARKET
+                order_type_model = HyperliquidRawOrderType(
+                    trigger=HyperliquidRawTriggerInfo(
+                        triggerPx=trigger_px_wire, isMarket=is_market, tpsl="sl"
+                    )
+                )
+            else:
+                # Fallback to limit order if no stop price
+                order_type_model = HyperliquidRawOrderType(
+                    limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
                 )
 
-        # Create the order action using full field names
-        order_action = HyperliquidRawPlaceOrderAction(
-            asset=asset_index,
-            isBuy=is_buy,
-            limitPx=limit_px_str,
-            sz=sz_str,
-            reduceOnly=reduce_only,
-            orderType=hl_order_type,
-            trigger=trigger_details,
-            cloid=client_order_id,
+        # Create validated Pydantic model - INTERNAL → RAW transformation
+        # Architecture Compliance: All fields validated by Pydantic at boundary
+        # Build the raw order specification with full validation
+        wire_order = HyperliquidRawOrderItemSpec(
+            a=asset_index,
+            b=is_buy,
+            p=limit_px_wire,  # Wire format string validated by RawFiniteDecimalStr
+            s=sz_wire,  # Wire format string validated by RawFiniteDecimalStr
+            r=args.reduce_only,
+            t=order_type_model,  # Pydantic model with proper validation
+            c=args.client_order_id,
         )
 
-        return HyperliquidApiPlaceOrderRequest(type="order", orders=[order_action])
+        # Return the final request payload with Pydantic validation
+        return HyperliquidApiPlaceOrderRequest(
+            type="order", 
+            orders=[wire_order], 
+            grouping="na"  # Default grouping per Hyperliquid API
+        )
 
     @staticmethod
     def build_cancel_order_payload(
+        args: CancelOrderArgs,
         asset_index: int,
         order_id: int,
     ) -> HyperliquidApiCancelOrderRequest:
-        """Build the Pydantic model for cancelling an order."""
+        """Build the Pydantic model for cancelling an order.
+
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated CancelOrderArgs containing cancellation parameters
+            asset_index: Hyperliquid-specific asset index for the symbol
+            order_id: Numeric order ID to cancel
+
+        Returns:
+            HyperliquidApiCancelOrderRequest: Validated Raw API model
+        """
         action_model = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
         return HyperliquidApiCancelOrderRequest(type="cancel", action=action_model)
 
     @staticmethod
     def build_order_status_payload(
-        wallet_address: str,
-        order_id: int,
+        args: GetOrderStatusArgs,
     ) -> HyperliquidRawOrderStatusRequestPayload:
-        """Build the payload for querying the status of a specific order."""
+        """Build the payload for querying the status of a specific order.
+
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated GetOrderStatusArgs containing wallet address and order ID
+
+        Returns:
+            HyperliquidRawOrderStatusRequestPayload: Validated Raw API model
+        """
         return HyperliquidRawOrderStatusRequestPayload(
             type="orderStatus",
-            user=wallet_address,
-            oid=order_id,
+            user=args.wallet_address,
+            oid=args.order_id,
         )
 
     @staticmethod
     def build_user_state_payload(
-        wallet_address: str,
+        args: GetUserStateArgs,
     ) -> HyperliquidRawUserStateRequestPayload:
         """Build the Pydantic model for fetching user state information.
+
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated GetUserStateArgs containing wallet address
+
+        Returns:
+            HyperliquidRawUserStateRequestPayload: Validated Raw API model
 
         Assumes all business validation has been done by the service layer.
         """
         # The RawLaxEthereumAddressStrHL in the model will handle format validation
         # Explicitly provide 'type' to satisfy Pydantic, even if model has a default Field value.
-        return HyperliquidRawUserStateRequestPayload(type="clearinghouseState", user=wallet_address)
+        return HyperliquidRawUserStateRequestPayload(
+            type="clearinghouseState", user=args.wallet_address
+        )
 
     @staticmethod
     def build_user_fills_request_payload(
-        wallet_address: str,
+        args: GetUserFillsArgs,
     ) -> HyperliquidRawUserFillsRequestPayload:
         """Build the Pydantic model for fetching user fills (trade history).
 
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated GetUserFillsArgs containing wallet address
+
+        Returns:
+            HyperliquidRawUserFillsRequestPayload: Validated Raw API model
+
         Payload: {"type": "userFills", "user": "WALLET_ADDRESS"}
         """
-        return HyperliquidRawUserFillsRequestPayload(type="userFills", user=wallet_address)
+        return HyperliquidRawUserFillsRequestPayload(type="userFills", user=args.wallet_address)
 
     @staticmethod
     def build_open_orders_payload(
-        wallet_address: str,
+        args: GetOpenOrdersArgs,
     ) -> HyperliquidRawOpenOrdersRequestPayload:
         """Build the Pydantic model for fetching open orders.
 
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
+        Args:
+            args: Validated GetOpenOrdersArgs containing wallet address
+
+        Returns:
+            HyperliquidRawOpenOrdersRequestPayload: Validated Raw API model
+
         Payload: {"type": "openOrders", "user": "WALLET_ADDRESS"}
         """
-        return HyperliquidRawOpenOrdersRequestPayload(type="openOrders", user=wallet_address)
+        return HyperliquidRawOpenOrdersRequestPayload(type="openOrders", user=args.wallet_address)
 
     @staticmethod
     def build_historical_funding_rates_payload(
-        symbol: str,
-        start_time_ms: int,
-        end_time_ms: int | None,
+        args: GetHistoricalFundingRatesArgs,
     ) -> HyperliquidRawFundingHistoryRequestPayload:
         """Build the Pydantic model for fetching historical funding rates for a specific coin.
 
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
         Args:
-            symbol: The coin symbol (e.g., "ETH").
-            start_time_ms: The start time for the query in milliseconds (inclusive).
-            end_time_ms: The end time for the query in milliseconds (inclusive).
-                         If None, API defaults to current time.
+            args: Validated GetHistoricalFundingRatesArgs containing funding rate query parameters
 
         Returns:
             HyperliquidRawFundingHistoryRequestPayload: The validated request payload model.
 
         """
+        # Convert datetime to milliseconds
+        start_time_ms = int(args.start_time.timestamp() * 1000) if args.start_time else 0
+        end_time_ms = int(args.end_time.timestamp() * 1000) if args.end_time else None
+
+        # Create request with Pydantic validation at boundary
         return HyperliquidRawFundingHistoryRequestPayload(
-            coin=RawHlCoinName(symbol),
+            coin=RawHlCoinName(args.symbol),
             startTime=start_time_ms,
             endTime=end_time_ms,
         )
@@ -375,16 +530,14 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def build_update_leverage_request(
-        asset_index: int,
-        leverage: int,
-        is_cross: bool = True,
+        args: UpdateLeverageArgs,
     ) -> HyperliquidApiUpdateLeverageRequest:
         """Build the request payload for updating leverage on a specific asset.
 
+        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+
         Args:
-            asset_index: The asset index from meta response
-            leverage: The leverage value (e.g., 10, 20, 50)
-            is_cross: True for cross margin, False for isolated margin
+            args: Validated UpdateLeverageArgs containing leverage parameters
 
         Returns:
             HyperliquidApiUpdateLeverageRequest: The validated request payload model.
@@ -393,8 +546,8 @@ class HyperliquidRequestBuilder:
         return HyperliquidApiUpdateLeverageRequest(
             type="updateLeverage",
             action=HyperliquidRawUpdateLeverageAction(
-                asset=asset_index,
-                isCross=is_cross,
-                leverage=leverage,
+                asset=args.asset_index,
+                isCross=args.is_cross,
+                leverage=args.leverage,
             ),
         )

@@ -102,6 +102,8 @@ class HyperliquidErrorMapper(IErrorMapper):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
         if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
+        if HyperliquidErrorMapper._regex_match(msg, r"does not exist"):
+            return HyperliquidAPIErrorCategory.UNAUTHORIZED
         return HyperliquidAPIErrorCategory.UNKNOWN
 
     @staticmethod
@@ -148,6 +150,9 @@ class HyperliquidErrorMapper(IErrorMapper):
         if HyperliquidErrorMapper._regex_match(msg, r"order size too small"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
         if HyperliquidErrorMapper._regex_match(msg, r"order size too large"):
+            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
+        # Match "Order value too large. Max is $XXX" pattern
+        if HyperliquidErrorMapper._regex_match(msg, r"(order )?value too large"):
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
         return HyperliquidAPIErrorCategory.UNKNOWN
 

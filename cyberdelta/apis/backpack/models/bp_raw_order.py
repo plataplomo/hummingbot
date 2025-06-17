@@ -59,7 +59,7 @@ class BackpackRawOrder(BaseModel):
         side (str): Order side ('buy', 'sell', 'Bid', 'Ask').
         orderType (str): Order type ('LIMIT', 'MARKET', etc.).
         status (str): Order status ('NEW', 'FILLED', etc.).
-        quantity (str): Requested order quantity (parsable finite decimal string).
+        quantity (str | None): Requested order quantity (parsable finite decimal string).
         executedQuantity (str | None): Total filled quantity (parsable finite decimal string).
         executedQuoteQuantity (str | None): Filled quote quantity (parsable finite decimal string).
         price (str | None): Limit price (parsable finite decimal string).
@@ -113,8 +113,8 @@ class BackpackRawOrder(BaseModel):
         alias="status",
         description="Order status ('NEW', 'FILLED', etc.). Alias: 'X'",
     )
-    quantity: RawBpParsableFiniteDecimalString = Field(
-        ...,
+    quantity: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,
         alias="quantity",
         description="Requested order quantity. Alias: 'q'",
     )

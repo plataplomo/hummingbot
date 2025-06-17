@@ -23,8 +23,8 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawStrictBool,
     RawTifStr,
     RawTimestampMsInt,
-    RawTpslStr,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -50,29 +50,20 @@ class HyperliquidRawMarketOrderTypeDetails(BaseModel):
 
 
 class HyperliquidRawOrderType(BaseModel):
-    """Represents the 'orderType' field which can be a limit or market type.
+    """Represents the 'orderType' field which can be a limit, market, or trigger type.
 
-    Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}}
-    or {"market": {}}. This model is used as a field in HyperliquidRawPlaceOrderAction.
+    Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}},
+    {"market": {}}, or {"trigger": {...}}. This model is used as a field in HyperliquidRawPlaceOrderAction.
     """
 
     limit: HyperliquidRawLimitOrderTypeDetails | None = Field(default=None)
     market: HyperliquidRawMarketOrderTypeDetails | None = Field(default=None)
+    trigger: HyperliquidRawTriggerInfo | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class HyperliquidRawTriggerDetails(BaseModel):
-    """Details for a trigger order (TP/SL).
-
-    Corresponds to ApiTriggerSpec in openapi_hl.json.
-    """
-
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
-
-    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
-    is_market: RawStrictBool = Field(..., alias="isMarket")
-    tpsl: RawTpslStr
+# HyperliquidRawTriggerDetails removed - using HyperliquidRawTriggerInfo from hl_raw_open_orders.py
 
 
 class HyperliquidRawPlaceOrderAction(BaseModel):
@@ -86,12 +77,12 @@ class HyperliquidRawPlaceOrderAction(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
     asset: RawNonNegativeInt = Field(..., description="Asset index (integer)")
-    is_buy: RawStrictBool = Field(..., alias="isBuy")
-    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
-    sz: RawFiniteDecimalStr = Field(..., alias="sz")
-    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
-    order_type: HyperliquidRawOrderType = Field(..., alias="orderType")
-    trigger: HyperliquidRawTriggerDetails | None = Field(default=None)
+    isBuy: RawStrictBool = Field(...)
+    limitPx: RawFiniteDecimalStr = Field(...)
+    sz: RawFiniteDecimalStr = Field(...)
+    reduceOnly: RawStrictBool = Field(...)
+    orderType: HyperliquidRawOrderType = Field(...)
+    trigger: HyperliquidRawTriggerInfo | None = Field(default=None)
     cloid: RawOptionalNonEmptyString64HL | None = Field(
         default=None,
         description="Client Order ID (string, e.g., user-defined or 0x...)",

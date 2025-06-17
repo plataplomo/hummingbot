@@ -11,6 +11,7 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from decimal import Decimal
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -51,7 +52,9 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
+    GetOpenOrdersArgs,
     GetOrderArgs,
+    GetOrderStatusArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.logging_config import get_logger
@@ -59,6 +62,8 @@ from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
     OrderStatus,
+    OrderType,
+    TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.parsing import parse_decimal_value
@@ -140,9 +145,9 @@ class HyperliquidTradingService:
             raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
+                data=request_payload_model.model_dump(by_alias=False, exclude_none=True),
                 is_signed=True,
-                serialize_none_as_null=False,
+                serialize_none_as_null=True,
             )
             if raw_content is None:
                 _error_msg_no_content = (
@@ -192,9 +197,9 @@ class HyperliquidTradingService:
             raw_content, http_status, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=True, exclude_none=True),
+                data=request_payload_model.model_dump(by_alias=False, exclude_none=True),
                 is_signed=True,
-                serialize_none_as_null=False,
+                serialize_none_as_null=True,
             )
             if raw_content is None:
                 _error_msg_no_content = (
@@ -225,7 +230,7 @@ class HyperliquidTradingService:
             raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
 
         request_payload_model = self._request_builder.build_open_orders_payload(
-            wallet_address=self._wallet_address,
+            GetOpenOrdersArgs(wallet_address=self._wallet_address)
         )
 
         try:
@@ -272,8 +277,10 @@ class HyperliquidTradingService:
 
         request_payload_model: HyperliquidRawOrderStatusRequestPayload = (
             self._request_builder.build_order_status_payload(
-                wallet_address=self._wallet_address,
-                order_id=order_id,
+                GetOrderStatusArgs(
+                    wallet_address=self._wallet_address,
+                    order_id=order_id,
+                )
             )
         )
         try:
@@ -398,16 +405,22 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for order {args.order_id}: {e_service_logic}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            ) from e_service_logic
+            # Distinguish input validation from internal errors per ERROR_HANDLING.md
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and any(param in error_msg for param in ["order_id", "symbol"]):
+                # Re-raise input validation errors
+                raise
+            else:
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for order {args.order_id}: {e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -424,12 +437,12 @@ class HyperliquidTradingService:
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Places an order and maps the raw response to an internal Order model."""
-        # Service Input Parameter Validation is now handled by PlaceOrderArgs model
+        # Service Input Parameter Validation
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_order"
 
-        # Handle optional price - use Decimal("0") for market orders
-        order_price = args.price if args.price is not None else Decimal("0")
+        # Validate order parameters
+        self._validate_place_order_params(args, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -444,18 +457,21 @@ class HyperliquidTradingService:
                     APIErrorCode.INVALID_SYMBOL.value,
                 )
 
+            # Handle post_only mapping to ALO time-in-force  
+            effective_tif = args.time_in_force
+            if args.post_only and args.time_in_force != TimeInForce.ALO:
+                effective_tif = TimeInForce.ALO
+            
+            # Map time in force to Hyperliquid format
+            tif_str = None
+            if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+                tif_str = self._map_time_in_force_to_hyperliquid(effective_tif)
+            
             # Use the request builder to create the proper payload format
             place_order_payload = self._request_builder.build_place_order_payload(
+                args=args,
                 asset_index=asset_index,
-                side=args.side,
-                order_type=args.order_type,
-                quantity=args.quantity,
-                time_in_force=args.time_in_force,
-                price=order_price,
-                stop_price=args.stop_price,
-                client_order_id=args.client_order_id,
-                reduce_only=args.reduce_only,
-                post_only=args.post_only,
+                tif_str=tif_str,
             )
 
             raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
@@ -486,6 +502,159 @@ class HyperliquidTradingService:
                 e_unexpected, current_method, args.symbol, status_code, raw_response_content
             ) from e_unexpected
 
+    def _validate_place_order_params(self, args: PlaceOrderArgs, current_method: str) -> None:
+        """Validate order parameters for Hyperliquid exchange.
+        
+        Moves business validation logic from request builder to service layer.
+        """
+        # Validate order type is supported by Hyperliquid
+        supported_order_types = [
+            OrderType.LIMIT,
+            OrderType.MARKET,
+            OrderType.STOP_MARKET,
+            OrderType.STOP_LIMIT,
+        ]
+        if args.order_type not in supported_order_types:
+            raise ValueError(
+                f"[{current_method}] Order type {args.order_type.value} is not supported by Hyperliquid. "
+                f"Supported types: {[ot.value for ot in supported_order_types]}"
+            )
+        
+        # Validate time in force
+        if args.time_in_force == TimeInForce.FOK:
+            raise ValueError(
+                f"[{current_method}] TimeInForce FOK is not supported by Hyperliquid. "
+                f"Supported values: GTC, IOC, ALO"
+            )
+        
+        # Validate price for limit orders
+        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and args.price is None:
+            raise ValueError(
+                f"[{current_method}] Price is required for {args.order_type.value} orders"
+            )
+        
+        # Validate stop price for stop orders
+        if args.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT] and args.stop_price is None:
+            raise ValueError(
+                f"[{current_method}] Stop price is required for {args.order_type.value} orders"
+            )
+
+    @staticmethod
+    def _map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
+        """Map internal TimeInForce enum values to Hyperliquid-specific format.
+        
+        Moved from request builder to service layer.
+        """
+        mapping = {
+            TimeInForce.GTC: "Gtc",
+            TimeInForce.IOC: "Ioc",
+            TimeInForce.ALO: "Alo",
+        }
+        
+        if tif not in mapping:
+            raise ValueError(
+                f"TimeInForce {tif.value} is not supported by Hyperliquid. "
+                f"Supported values: {list(mapping.keys())}"
+            )
+        
+        return mapping[tif]
+
+    def _process_exchange_status(
+        self,
+        status_raw: Any,
+        action_description: str,
+    ) -> dict[str, Any]:
+        """Process raw exchange status into a standardized format.
+        
+        Moved from ResponseHandler to maintain separation of concerns.
+        Returns a dict with the status type as key and details as value.
+        """
+        # Handle Pydantic model status (HyperliquidRawExchangeStatusObject)
+        if isinstance(status_raw, HyperliquidRawExchangeStatusObject):
+            if status_raw.resting:
+                return {"resting": status_raw.resting}
+            elif status_raw.filled:
+                return {"filled": status_raw.filled}
+            elif status_raw.error:
+                return {"error": status_raw.error}
+            else:
+                raise APIError(
+                    f"Unknown status structure for {action_description}",
+                    APIErrorCode.INVALID_RESPONSE.value,
+                )
+        
+        # Handle dict status (for backwards compatibility)
+        elif isinstance(status_raw, dict):
+            # Check for resting status
+            if "resting" in status_raw and isinstance(status_raw["resting"], dict):
+                oid = status_raw["resting"].get("oid")
+                if not isinstance(oid, int):
+                    raise APIError(
+                        f"Invalid or missing 'oid' in resting status for {action_description}",
+                        APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": status_raw},
+                    )
+                return {"resting": HyperliquidRawExchangeStatusResting(oid=oid)}
+            
+            # Check for filled status
+            if "filled" in status_raw and isinstance(status_raw["filled"], dict):
+                filled_details = status_raw["filled"]
+                oid = filled_details.get("oid")
+                total_sz = filled_details.get("totalSz")
+                avg_px = filled_details.get("avgPx")
+                
+                if not isinstance(oid, int):
+                    raise APIError(
+                        f"Invalid or missing 'oid' in filled status for {action_description}",
+                        APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": status_raw},
+                    )
+                
+                if not isinstance(total_sz, str) or not isinstance(avg_px, str):
+                    raise APIError(
+                        f"Invalid filled status data for {action_description}",
+                        APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": status_raw},
+                    )
+                
+                return {"filled": HyperliquidRawExchangeStatusFilled(
+                    oid=oid,
+                    total_sz=total_sz,
+                    avg_px=avg_px,
+                )}
+            
+            # Check for canceled status
+            if "canceled" in status_raw and isinstance(status_raw["canceled"], dict):
+                oid = status_raw["canceled"].get("oid")
+                if not isinstance(oid, int):
+                    raise APIError(
+                        f"Invalid or missing 'oid' in canceled status for {action_description}",
+                        APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"raw_status": status_raw},
+                    )
+                return {"canceled": {"oid": oid}}
+            
+            # Check for error status
+            if "error" in status_raw and isinstance(status_raw["error"], str):
+                return {"error": status_raw["error"]}
+        
+        # Handle string status
+        elif isinstance(status_raw, str):
+            if status_raw.lower() == "canceled":
+                return {"canceled": {"type": "string"}}
+            # Any other string is treated as an error
+            logger.warning(
+                f"Encountered direct string status for {action_description}: '{status_raw}'. "
+                f"Treating as error."
+            )
+            return {"error": status_raw}
+        
+        # Unknown status type
+        raise APIError(
+            f"Unknown status structure for {action_description}: {status_raw!r}",
+            APIErrorCode.INVALID_RESPONSE.value,
+        )
+
     async def _process_place_order_response(
         self,
         raw_exchange_response: HyperliquidRawExchangeResponse,
@@ -493,25 +662,42 @@ class HyperliquidTradingService:
         args: PlaceOrderArgs,
     ) -> Order:
         """Process the place order response and return the internal Order."""
+        # Check if this is an error response
+        if raw_exchange_response.status == "err" and raw_exchange_response.response:
+            if isinstance(raw_exchange_response.response, str):
+                # Use the error mapper to get the specific error code for this message
+                mapped_error = self._error_mapper.map_string_error(
+                    raw_exchange_response.response,
+                    http_status=http_status,
+                )
+                raise mapped_error
+        
+        # Process successful response
         if raw_exchange_response.data and raw_exchange_response.data.statuses:
             first_status = raw_exchange_response.data.statuses[0]
-            if isinstance(first_status, HyperliquidRawExchangeStatusObject):
-                if first_status.resting:
-                    return await self._handle_resting_order(first_status.resting, args)
-                elif first_status.filled:
-                    return await self._handle_filled_order(first_status.filled, args)
-                elif first_status.error:
-                    # Use the error mapper to get the specific error code for this message
-                    mapped_error = self._error_mapper.map_string_error(
-                        first_status.error,
-                        http_status=http_status,
-                    )
-                    raise mapped_error
-            elif "error" in first_status.lower():
-                raise APIError(
-                    f"Failed to place order: {first_status}",
-                    APIErrorCode.UNKNOWN.value,
+            
+            # Process the status - moved business logic from ResponseHandler
+            processed_status = self._process_exchange_status(first_status, "place_order")
+            
+            if isinstance(processed_status, dict) and "error" in processed_status:
+                # Use the error mapper for error messages
+                mapped_error = self._error_mapper.map_string_error(
+                    processed_status["error"],
+                    http_status=http_status,
                 )
+                raise mapped_error
+            
+            # Handle successful statuses
+            if isinstance(processed_status, dict):
+                if "resting" in processed_status:
+                    return await self._handle_resting_order(processed_status["resting"], args)
+                elif "filled" in processed_status:
+                    return await self._handle_filled_order(processed_status["filled"], args)
+                elif "canceled" in processed_status:
+                    raise APIError(
+                        f"Order was canceled unexpectedly: {processed_status}",
+                        APIErrorCode.UNKNOWN.value,
+                    )
 
         raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
 
@@ -618,16 +804,22 @@ class HyperliquidTradingService:
         symbol: str,
     ) -> APIError:
         """Handle service logic errors for place_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Service internal logic error "
-            f"for {symbol}: {e_service_logic}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Service internal logic error.",
-            original_exception=e_service_logic,
-        )
+        # Distinguish input validation from internal errors per ERROR_HANDLING.md
+        error_msg = str(e_service_logic)
+        if current_method in error_msg and any(param in error_msg for param in ["symbol", "quantity", "price", "side", "order_type"]):
+            # Re-raise input validation errors
+            raise e_service_logic
+        else:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol}: {e_service_logic}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            )
 
     def _handle_place_order_unexpected_error(
         self,
@@ -739,16 +931,22 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            ) from e_service_logic
+            # Distinguish input validation from internal errors per ERROR_HANDLING.md
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and any(param in error_msg for param in ["order_id", "symbol"]):
+                # Re-raise input validation errors
+                raise
+            else:
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                    f"{e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
@@ -797,7 +995,14 @@ class HyperliquidTradingService:
                     APIErrorCode.INVALID_SYMBOL.value,
                 )
 
-            cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id_int)
+            # Use the request builder to create the proper payload format
+            cancel_request_payload = self._request_builder.build_cancel_order_payload(
+                args=args,
+                asset_index=asset_index,
+                order_id=order_id_int,
+            )
+            # Extract the action for the raw method
+            cancel_action = cancel_request_payload.action
             raw_exchange_response, http_status = await self._cancel_order_raw(cancel_action)
             status_code = http_status
 
@@ -858,31 +1063,36 @@ class HyperliquidTradingService:
         order_id_int: int,
     ) -> bool:
         """Process the cancel order response and return success status."""
+        # Check if this is an error response
+        if raw_exchange_response.status == "err" and raw_exchange_response.response:
+            if isinstance(raw_exchange_response.response, str):
+                # Use the error mapper to get the specific error code for this message
+                mapped_error = self._error_mapper.map_string_error(
+                    raw_exchange_response.response,
+                    http_status=http_status,
+                )
+                raise mapped_error
+        
+        # Process successful response
         if raw_exchange_response.data and raw_exchange_response.data.statuses:
             first_status = raw_exchange_response.data.statuses[0]
-            if isinstance(first_status, HyperliquidRawExchangeStatusObject):
-                if first_status.error:
-                    # Use the error mapper to get the specific error code for this message
-                    mapped_error = self._error_mapper.map_string_error(
-                        first_status.error,
-                        http_status=http_status,
-                    )
-                    raise mapped_error
-                else:
-                    logger.info(
-                        f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}",
-                    )
-                    return True
-            elif "error" in first_status.lower():
-                raise APIError(
-                    f"Failed to cancel order: {first_status}",
-                    APIErrorCode.UNKNOWN.value,
+            
+            # Process the status - moved business logic from ResponseHandler
+            processed_status = self._process_exchange_status(first_status, "cancel_order")
+            
+            if isinstance(processed_status, dict) and "error" in processed_status:
+                # Use the error mapper for error messages
+                mapped_error = self._error_mapper.map_string_error(
+                    processed_status["error"],
+                    http_status=http_status,
                 )
-            else:
-                logger.info(
-                    f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}",
-                )
-                return True
+                raise mapped_error
+            
+            # Any non-error status means successful cancellation
+            logger.info(
+                f"[{self._exchange_name}] Successfully cancelled order OID {order_id_int}",
+            )
+            return True
 
         # If we reach here, something unexpected happened
         raise APIError("Failed to cancel order or parse response.", APIErrorCode.UNKNOWN.value)
@@ -938,16 +1148,22 @@ class HyperliquidTradingService:
         order_id_int: int,
     ) -> APIError:
         """Handle service logic errors for cancel_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Service internal logic error "
-            f"for order {order_id_int}: {e_service_logic}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Service internal logic error.",
-            original_exception=e_service_logic,
-        )
+        # Distinguish input validation from internal errors per ERROR_HANDLING.md
+        error_msg = str(e_service_logic)
+        if current_method in error_msg and any(param in error_msg for param in ["order_id", "symbol"]):
+            # Re-raise input validation errors
+            raise e_service_logic
+        else:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order {order_id_int}: {e_service_logic}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            )
 
     def _handle_cancel_order_unexpected_error(
         self,
@@ -1236,18 +1452,24 @@ class HyperliquidTradingService:
         raw_response_content: str | None,
     ) -> APIError:
         """Handle service logic errors for cancel_all_orders."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Service internal logic error "
-            f"for cancel all orders: {e_service_logic}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Service internal logic error.",
-            original_exception=e_service_logic,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
+        # Distinguish input validation from internal errors per ERROR_HANDLING.md
+        error_msg = str(e_service_logic)
+        if current_method in error_msg and any(param in error_msg for param in ["symbol"]):
+            # Re-raise input validation errors
+            raise e_service_logic
+        else:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for cancel all orders: {e_service_logic}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            )
 
     def _handle_cancel_all_orders_unexpected_error(
         self,
@@ -1319,17 +1541,23 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
+            # Distinguish input validation from internal errors per ERROR_HANDLING.md
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and any(param in error_msg for param in ["symbol"]):
+                # Re-raise input validation errors
+                raise
+            else:
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                    f"{e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(

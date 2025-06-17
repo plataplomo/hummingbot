@@ -319,7 +319,7 @@ class TestErrorHandlingAndExceptions:
             trading_data_mapper.transform_raw_order_to_internal(order)
 
         # Verify the exception chain is preserved
-        assert "Failed to transform" in str(exc_info.value)
+        assert "Failed to parse order quantities and price" in str(exc_info.value)
 
     def test_logging_during_error_scenarios(
         self,

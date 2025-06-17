@@ -267,6 +267,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert api_error.code in [
             APIErrorCode.INSUFFICIENT_FUNDS.value,
             APIErrorCode.MAX_POSITION_EXCEEDED.value,
+            APIErrorCode.INVALID_ORDER_SIZE.value,  # Order value limit
         ], f"Should map to margin-related error code, got {api_error.code}"
 
         # Verify account summary remains consistent after failed operation

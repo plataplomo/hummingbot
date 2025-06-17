@@ -88,12 +88,27 @@ class HyperliquidTradingDataMapper:
             TransformationError: If side cannot be mapped
 
         """
-        if hl_side == "B":
-            return OrderSide.BUY
-        elif hl_side == "A":
-            return OrderSide.SELL
+        try:
+            if hl_side == "B":
+                return OrderSide.BUY
+            elif hl_side == "A":
+                return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Hyperliquid order side: '{hl_side}'")
+            raise TransformationError(
+                f"Unknown Hyperliquid order side: '{hl_side}'",
+                field_name="side",
+                source_value=hl_side,
+            )
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to map order side: {e}",
+                field_name="side",
+                source_value=hl_side,
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def _map_status_to_internal(hl_status: str) -> OrderStatus:
@@ -106,15 +121,35 @@ class HyperliquidTradingDataMapper:
             OrderStatus: Mapped internal enum value
 
         """
-        status_map = {
-            "open": OrderStatus.OPEN,
-            "filled": OrderStatus.FILLED,
-            "canceled": OrderStatus.CANCELED,  # Note: Hyperliquid uses "canceled" not "cancelled"
-            "rejected": OrderStatus.REJECTED,
-            # Map expired to UNKNOWN since we don't have an EXPIRED status
-            "expired": OrderStatus.UNKNOWN,
-        }
-        return status_map.get(hl_status.lower(), OrderStatus.UNKNOWN)
+        try:
+            status_map = {
+                "open": OrderStatus.OPEN,
+                "filled": OrderStatus.FILLED,
+                "canceled": OrderStatus.CANCELED,  # Note: Hyperliquid uses "canceled" not "cancelled"
+                "rejected": OrderStatus.REJECTED,
+                # Map expired to UNKNOWN since we don't have an EXPIRED status
+                "expired": OrderStatus.UNKNOWN,
+            }
+            mapped_status = status_map.get(hl_status.lower(), OrderStatus.UNKNOWN)
+            
+            if mapped_status == OrderStatus.UNKNOWN and hl_status.lower() not in status_map:
+                logger.warning(
+                    f"[HyperliquidTradingDataMapper] Unknown order status '{hl_status}', "
+                    f"mapping to UNKNOWN"
+                )
+            
+            return mapped_status
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            logger.error(f"Failed to map order status '{hl_status}': {e}")
+            raise TransformationError(
+                f"Failed to map order status: {e}",
+                field_name="status",
+                source_value=hl_status,
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def _map_type_to_internal(
@@ -130,29 +165,44 @@ class HyperliquidTradingDataMapper:
         Returns:
             OrderType: Mapped internal enum value
 
-        """
-        # Hyperliquid uses nested dicts for orderType,
-        # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
-        if "limit" in order_type:
-            if trigger:
-                if getattr(trigger, "tpsl", None) == "sl":
-                    return OrderType.STOP_LIMIT
-                elif getattr(trigger, "tpsl", None) == "tp":
-                    return OrderType.TAKE_PROFIT_LIMIT
-            return OrderType.LIMIT
-        elif "market" in order_type:
-            if trigger:
-                if getattr(trigger, "tpsl", None) == "sl":
-                    return OrderType.STOP_MARKET
-                elif getattr(trigger, "tpsl", None) == "tp":
-                    return OrderType.TAKE_PROFIT_MARKET
-            return OrderType.MARKET
+        Raises:
+            TransformationError: If order type structure is invalid
 
-        logger.warning(
-            f"[HyperliquidTradingDataMapper] Unknown orderType structure: {order_type}. "
-            "Defaulting to LIMIT.",
-        )
-        return OrderType.LIMIT
+        """
+        try:
+            # Hyperliquid uses nested dicts for orderType,
+            # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
+            if "limit" in order_type:
+                if trigger:
+                    if getattr(trigger, "tpsl", None) == "sl":
+                        return OrderType.STOP_LIMIT
+                    elif getattr(trigger, "tpsl", None) == "tp":
+                        return OrderType.TAKE_PROFIT_LIMIT
+                return OrderType.LIMIT
+            elif "market" in order_type:
+                if trigger:
+                    if getattr(trigger, "tpsl", None) == "sl":
+                        return OrderType.STOP_MARKET
+                    elif getattr(trigger, "tpsl", None) == "tp":
+                        return OrderType.TAKE_PROFIT_MARKET
+                return OrderType.MARKET
+
+            logger.warning(
+                f"[HyperliquidTradingDataMapper] Unknown orderType structure: {order_type}. "
+                "Defaulting to LIMIT.",
+            )
+            return OrderType.LIMIT
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            logger.error(f"Failed to map order type: {e}")
+            raise TransformationError(
+                f"Failed to map order type: {e}",
+                field_name="order_type",
+                source_value=str(order_type),
+                original_exception=e,
+            ) from e
 
     @staticmethod
     def _map_time_in_force(order_type: dict[str, Any]) -> TimeInForce:
@@ -165,21 +215,34 @@ class HyperliquidTradingDataMapper:
             TimeInForce: Mapped internal enum value
 
         """
-        # Only limit orders have TIF in HL
-        if "limit" in order_type and _is_dict_str_any(order_type["limit"]):
-            # TypeGuard confirms it's a dict[str, Any]
-            limit_dict = order_type["limit"]
-            tif_val: Any = limit_dict.get("tif", "")
-            tif_str = str(tif_val).upper()
+        try:
+            # Only limit orders have TIF in HL
+            if "limit" in order_type and _is_dict_str_any(order_type["limit"]):
+                # TypeGuard confirms it's a dict[str, Any]
+                limit_dict = order_type["limit"]
+                tif_val: Any = limit_dict.get("tif", "")
+                tif_str = str(tif_val).upper()
 
-            if tif_str == "GTC":
-                return TimeInForce.GTC
-            elif tif_str == "IOC":
-                return TimeInForce.IOC
-            elif tif_str == "ALO":
-                return TimeInForce.ALO
+                if tif_str == "GTC":
+                    return TimeInForce.GTC
+                elif tif_str == "IOC":
+                    return TimeInForce.IOC
+                elif tif_str == "ALO":
+                    return TimeInForce.ALO
+                elif tif_str:
+                    logger.warning(
+                        f"[HyperliquidTradingDataMapper] Unknown TIF value '{tif_str}', "
+                        f"defaulting to GTC"
+                    )
 
-        return TimeInForce.GTC
+            return TimeInForce.GTC
+        except TransformationError:
+            # Re-raise TransformationError as-is per ERROR_HANDLING.md
+            raise
+        except Exception as e:
+            logger.error(f"Failed to map time in force: {e}")
+            # Default to GTC on error rather than raising per business logic
+            return TimeInForce.GTC
 
     @staticmethod
     def _parse_order_enums(
@@ -201,37 +264,50 @@ class HyperliquidTradingDataMapper:
         raw_order: HyperliquidRawOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
         """Parse quantities and price from raw order data."""
-        # Parse quantities
-        quantity_requested = parse_decimal_value(
-            raw_order.sz,
-            allow_none=False,
-            field_name="sz",
-        )
-        if quantity_requested is None:
-            raise TransformationError("quantity_requested (sz) is required")
+        try:
+            # Parse quantities
+            quantity_requested = parse_decimal_value(
+                raw_order.sz,
+                allow_none=False,
+                field_name="sz",
+            )
+            if quantity_requested is None:
+                raise TransformationError(
+                    "quantity_requested (sz) is required",
+                    field_name="sz",
+                    source_value=raw_order.sz,
+                )
 
-        remaining_sz = parse_decimal_value(
-            str(raw_order.remaining_sz),
-            allow_none=True,
-            field_name="remainingSz",
-        )
-        if remaining_sz is None:
-            remaining_sz = Decimal("0")
+            remaining_sz = parse_decimal_value(
+                str(raw_order.remaining_sz),
+                allow_none=True,
+                field_name="remainingSz",
+            )
+            if remaining_sz is None:
+                remaining_sz = Decimal("0")
 
-        quantity_filled = quantity_requested - remaining_sz
+            quantity_filled = quantity_requested - remaining_sz
 
-        # Parse price - handle market orders correctly
-        price = parse_decimal_value(
-            str(raw_order.limit_px),
-            allow_none=True,
-            field_name="limitPx",
-        )
-        # For market orders, Hyperliquid uses limit_px="0", but internal Order
-        # expects price=None
-        if price is not None and price == Decimal("0"):
-            price = None
+            # Parse price - handle market orders correctly
+            price = parse_decimal_value(
+                str(raw_order.limit_px),
+                allow_none=True,
+                field_name="limitPx",
+            )
+            # For market orders, Hyperliquid uses limit_px="0", but internal Order
+            # expects price=None
+            if price is not None and price == Decimal("0"):
+                price = None
 
-        return quantity_requested, quantity_filled, price
+            return quantity_requested, quantity_filled, price
+        except TransformationError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to parse order quantities and price: {e}")
+            raise TransformationError(
+                f"Failed to parse order quantities and price: {e}",
+                source_data={"sz": raw_order.sz, "remaining_sz": raw_order.remaining_sz},
+            ) from e
 
     @staticmethod
     def transform_raw_order_to_internal(
@@ -262,9 +338,17 @@ class HyperliquidTradingDataMapper:
                 raw_order, order_components
             )
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidTradingDataMapper] Failed to transform order: {e}. "
+                f"Raw order: {raw_order.model_dump_json()}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawOrder to Order: {e}",
+                source_data=raw_order.model_dump(),
             ) from e
 
     @staticmethod
@@ -316,18 +400,34 @@ class HyperliquidTradingDataMapper:
         raw_order: HyperliquidRawOrder,
     ) -> tuple[datetime, datetime]:
         """Parse order timestamps."""
-        created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
-        if created_at is None:
-            raise TransformationError("created_at (timestamp) is required")
+        try:
+            created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
+            if created_at is None:
+                raise TransformationError(
+                    "created_at (timestamp) is required",
+                    field_name="timestamp",
+                    source_value=raw_order.timestamp,
+                )
 
-        updated_at = parse_datetime_utc(
-            raw_order.status_timestamp,
-            field_name="statusTimestamp",
-        )
-        if updated_at is None:
-            updated_at = created_at
+            updated_at = parse_datetime_utc(
+                raw_order.status_timestamp,
+                field_name="statusTimestamp",
+            )
+            if updated_at is None:
+                updated_at = created_at
 
-        return created_at, updated_at
+            return created_at, updated_at
+        except TransformationError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to parse order timestamps: {e}")
+            raise TransformationError(
+                f"Failed to parse order timestamps: {e}",
+                source_data={
+                    "timestamp": raw_order.timestamp,
+                    "status_timestamp": raw_order.status_timestamp,
+                },
+            ) from e
 
     @staticmethod
     def _parse_trigger_info(
@@ -474,9 +574,17 @@ class HyperliquidTradingDataMapper:
                 raw_historical_order, order_components
             )
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidTradingDataMapper] Failed to transform historical order: {e}. "
+                f"Raw order: {raw_historical_order.model_dump_json()}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
+                source_data=raw_historical_order.model_dump(),
             ) from e
 
     @staticmethod

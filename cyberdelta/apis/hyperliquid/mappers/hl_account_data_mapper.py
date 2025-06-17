@@ -76,12 +76,25 @@ class HyperliquidAccountDataMapper:
             TransformationError: If side cannot be mapped
 
         """
-        if hl_side == "B":
-            return OrderSide.BUY
-        elif hl_side == "A":
-            return OrderSide.SELL
+        try:
+            if hl_side == "B":
+                return OrderSide.BUY
+            elif hl_side == "A":
+                return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Hyperliquid order side: '{hl_side}'")
+            raise TransformationError(
+                f"Unknown Hyperliquid order side: '{hl_side}'",
+                field_name="side",
+                source_value=hl_side,
+            )
+        except Exception as e:
+            if isinstance(e, TransformationError):
+                raise
+            raise TransformationError(
+                f"Failed to map order side: {e}",
+                field_name="side",
+                source_value=hl_side,
+            ) from e
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_spot_balances(
@@ -110,9 +123,17 @@ class HyperliquidAccountDataMapper:
 
             return spot_balances
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
+                f"spot balances: {e}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
+                source_data={"has_margin_summary": hasattr(raw_state, "margin_summary")},
             ) from e
 
     @staticmethod
@@ -240,9 +261,17 @@ class HyperliquidAccountDataMapper:
 
             return positions
 
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
         except Exception as e:
+            logger.error(
+                f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
+                f"derivative positions: {e}"
+            )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
+                source_data={"has_asset_positions": hasattr(raw_state, "asset_positions")},
             ) from e
 
     @staticmethod
@@ -269,6 +298,8 @@ class HyperliquidAccountDataMapper:
         if entry_price is None or entry_price <= Decimal("0"):
             raise TransformationError(
                 f"Invalid or zero entry price for {symbol}: {getattr(pos, 'entry_px', None)}",
+                field_name="entry_px",
+                source_value=getattr(pos, "entry_px", None),
             )
 
         # Create the derivative position

@@ -21,10 +21,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawCancelOrderAction,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
+    HyperliquidRawOrderItemSpec,
     HyperliquidRawUpdateLeverageAction,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawPlaceOrderAction,  # This is the individual order action for the list
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawWithdrawalToL1ActionPayload,
@@ -87,7 +85,13 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
     # Based on the official Python SDK, order placement uses "orders" field
     # This matches the actual API specification used by the official SDK
 
-    orders: list[HyperliquidRawPlaceOrderAction]
+    orders: list[HyperliquidRawOrderItemSpec]  # Only accept validated Pydantic models
+
+    # The official SDK includes this field with value "na"
+    grouping: Literal["na"] = Field(
+        default="na",
+        description="Grouping type for orders, 'na' means not applicable",
+    )
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

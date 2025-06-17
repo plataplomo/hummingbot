@@ -38,11 +38,14 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidR
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    GetCandleSnapshotArgs,
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
+    GetL2BookArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+    GetRecentTradesArgs,
 )
 
 # Utilities
@@ -260,8 +263,8 @@ class HyperliquidMarketDataService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        # Validate symbol
+        self._validate_symbol(symbol, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -336,6 +339,56 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
+    def _validate_symbol(self, symbol: str, current_method: str) -> None:
+        """Validate symbol parameter.
+        
+        Args:
+            symbol: Trading symbol to validate
+            current_method: Calling method name for error context
+            
+        Raises:
+            ValueError: If symbol is invalid
+        """
+        if not symbol:
+            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        
+        # Strip and check again
+        if not symbol.strip():
+            raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
+
+    def _validate_candle_snapshot_params(self, args: GetCandleSnapshotArgs, current_method: str) -> None:
+        """Validate candle snapshot parameters.
+        
+        Args:
+            args: Candle snapshot arguments to validate
+            current_method: Calling method name for error context
+            
+        Raises:
+            ValueError: If parameters are invalid
+        """
+        # Validate symbol
+        self._validate_symbol(args.symbol, current_method)
+        
+        # Validate timeframe
+        if not args.timeframe:
+            raise ValueError(f"[{current_method}] 'timeframe' must be a non-empty string.")
+        
+        if not args.timeframe.strip():
+            raise ValueError(f"[{current_method}] 'timeframe' cannot be empty or whitespace only.")
+        
+        # Validate time range
+        if args.start_time_ms < 0:
+            raise ValueError(f"[{current_method}] Start time cannot be negative: {args.start_time_ms}")
+        
+        if args.end_time_ms < 0:
+            raise ValueError(f"[{current_method}] End time cannot be negative: {args.end_time_ms}")
+        
+        if args.start_time_ms >= args.end_time_ms:
+            raise ValueError(
+                f"[{current_method}] Start time ({args.start_time_ms}) must be before "
+                f"end time ({args.end_time_ms})"
+            )
+
     async def get_order_book(self, symbol: str) -> OrderBook | None:
         """Retrieve the order book for a specific symbol using a POST request to /info.
 
@@ -355,8 +408,8 @@ class HyperliquidMarketDataService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_book"
 
-        if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+        # Validate symbol
+        self._validate_symbol(symbol, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -368,7 +421,7 @@ class HyperliquidMarketDataService:
             # Assuming HyperliquidRequestBuilder has or will have this method:
             try:
                 request_payload_model = self._request_builder.build_l2_book_request_payload(
-                    symbol=symbol,
+                    GetL2BookArgs(symbol=symbol)
                 )
             except Exception as e:
                 # Wrap request builder exceptions in APIError
@@ -787,9 +840,11 @@ class HyperliquidMarketDataService:
 
         endpoint_path = "/info"
         payload = self._request_builder.build_historical_funding_rates_payload(
-            symbol=symbol,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetHistoricalFundingRatesArgs(
+                symbol=symbol,
+                start_time=args.start_time,
+                end_time=args.end_time,
+            )
         )
 
         raw_response_content, status_code, headers = await self._http_client_requester(
@@ -1040,10 +1095,12 @@ class HyperliquidMarketDataService:
         endpoint_path = "/info"
         try:
             payload = self._request_builder.build_candle_snapshot_payload(
-                symbol=symbol,
-                timeframe=interval,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
+                GetCandleSnapshotArgs(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
+                )
             )
         except Exception as e:
             # Wrap request builder exceptions in APIError
@@ -1291,7 +1348,7 @@ class HyperliquidMarketDataService:
         """Fetch raw recent trades data from API."""
         endpoint_path = "/info"
         request_payload_model = self._request_builder.build_recent_trades_request_payload(
-            symbol=symbol,
+            GetRecentTradesArgs(symbol=symbol)
         )
         request_payload_data: dict[str, Any] = request_payload_model.model_dump(
             by_alias=True,

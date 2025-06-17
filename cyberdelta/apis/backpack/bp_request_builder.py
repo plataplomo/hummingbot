@@ -193,11 +193,13 @@ class BackpackRequestBuilder:
             OrderType.MARKET: "Market",
             OrderType.STOP_MARKET: "Market",  # With triggerPrice it becomes a stop
             OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
+            OrderType.TAKE_PROFIT_MARKET: "Market",  # With triggerPrice it becomes a take profit
+            OrderType.TAKE_PROFIT_LIMIT: "Limit",  # With triggerPrice it becomes a take profit limit
         }.get(order_type, "Limit")  # Default to "Limit" if not found
 
         # Map time in force (only for limit orders, service validates this)
         api_time_in_force = None
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
             api_time_in_force = {
                 TimeInForce.GTC: "GTC",
                 TimeInForce.IOC: "IOC",
@@ -229,7 +231,9 @@ class BackpackRequestBuilder:
         api_self_trade_prevention: str | None,
     ) -> None:
         """Add basic order fields to request data."""
-        request_data["quantity"] = str(quantity)
+        # For stop limit and take profit limit orders, Backpack API requires NOT to specify quantity, only triggerQuantity
+        if order_type not in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+            request_data["quantity"] = str(quantity)
         if price is not None:
             request_data["price"] = str(price)
 
@@ -355,6 +359,12 @@ class BackpackRequestBuilder:
             api_time_in_force,
             api_self_trade_prevention,
         )
+
+        # Add trigger price for stop orders
+        if trigger_price is not None:
+            request_data["triggerPrice"] = str(trigger_price)
+            # Backpack requires triggerQuantity to be the same as quantity for stop orders
+            request_data["triggerQuantity"] = str(quantity)
 
         # Add stop loss and take profit fields using helper methods
         BackpackRequestBuilder._add_stop_loss_fields(

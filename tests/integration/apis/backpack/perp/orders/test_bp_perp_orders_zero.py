@@ -119,7 +119,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Get large quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
-        min_quantity = constraints["min_order_size"]
+        min_quantity = constraints["min_quantity"]
         # Large quantity is 1000x minimum order size (would require significant margin)
         large_quantity = min_quantity * Decimal("1000")
 
@@ -244,7 +244,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Get extremely large quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
-        min_quantity = constraints["min_order_size"]
+        min_quantity = constraints["min_quantity"]
         # Extremely large quantity is 10 million times minimum (to ensure margin error)
         extremely_large_quantity = min_quantity * Decimal("10000000")
 
@@ -322,7 +322,7 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Get high leverage quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
-        min_quantity = constraints["min_order_size"]
+        min_quantity = constraints["min_quantity"]
         # High leverage quantity is 5000x minimum (would imply very high leverage)
         high_leverage_quantity = min_quantity * Decimal("5000")
 

@@ -49,10 +49,15 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawC
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
+    GetOpenOrdersArgs,
     GetOrderHistoryArgs,
+    GetOrderHistoryArgsHL,
     GetTradeHistoryArgs,
+    GetUserFillsArgs,
+    GetUserStateArgs,
     TransferArgs,
     UpdateAccountSettingsArgs,
+    UpdateLeverageArgs,
     WithdrawArgs,
 )
 from cyberdelta.config.logging_config import get_logger
@@ -146,7 +151,9 @@ class HyperliquidAccountService:
             )
 
         endpoint_path = "/info"
-        payload_model = self._request_builder.build_user_state_payload(self._wallet_address)
+        payload_model = self._request_builder.build_user_state_payload(
+            GetUserStateArgs(wallet_address=self._wallet_address)
+        )
         payload_dict = payload_model.model_dump()
 
         logger.debug(
@@ -291,6 +298,8 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
+            # Distinguish input validation from internal errors per ERROR_HANDLING.md
+            # No input parameters to validate in get_balances, so wrap as internal error
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error: "
                 f"{e_service_logic}",
@@ -390,16 +399,23 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            ) from e_service_logic
+            # Distinguish input validation from internal errors per ERROR_HANDLING.md
+            error_msg = str(e_service_logic)
+            if current_method in error_msg and "symbol" in error_msg:
+                # Re-raise input validation errors
+                raise
+            else:
+                # Wrap internal errors as APIError
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                    f"{e_service_logic}",
+                    exc_info=True,
+                )
+                raise APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=e_service_logic,
+                ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
@@ -563,9 +579,11 @@ class HyperliquidAccountService:
         end_time_ms = int(args.end_time.timestamp() * 1000)
 
         payload_model = self._request_builder.build_order_history_payload(
-            wallet_address=self._wallet_address,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetOrderHistoryArgsHL(
+                wallet_address=self._wallet_address,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
         )
         payload_dict = payload_model.model_dump()
 
@@ -744,7 +762,7 @@ class HyperliquidAccountService:
 
         endpoint_path = "/info"
         payload_model = self._request_builder.build_user_fills_request_payload(
-            self._wallet_address,
+            GetUserFillsArgs(wallet_address=self._wallet_address)
         )
         payload_dict = payload_model.model_dump()
 
@@ -848,7 +866,7 @@ class HyperliquidAccountService:
         endpoint_path = "/info"  # Hyperliquid uses /info for many user-specific queries
         # Use the request builder to create the payload
         payload_model = self._request_builder.build_open_orders_payload(
-            wallet_address=self._wallet_address,
+            GetOpenOrdersArgs(wallet_address=self._wallet_address)
         )
         payload_dict = payload_model.model_dump()
 
@@ -1251,9 +1269,11 @@ class HyperliquidAccountService:
 
                         # Build the update leverage request
                         request_payload = self._request_builder.build_update_leverage_request(
-                            asset_index=asset_index,
-                            leverage=leverage_int,
-                            is_cross=True,  # Default to cross margin
+                            UpdateLeverageArgs(
+                                asset_index=asset_index,
+                                leverage=leverage_int,
+                                is_cross=True,  # Default to cross margin
+                            )
                         )
 
                         # Execute the leverage update via /exchange endpoint

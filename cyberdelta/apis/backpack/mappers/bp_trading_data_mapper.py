@@ -86,20 +86,32 @@ class BackpackTradingDataMapper:
             "rejected": OrderStatus.REJECTED,
             "partially_filled": OrderStatus.PARTIALLY_FILLED,
             "pending": OrderStatus.OPEN,
+            "trigger_pending": OrderStatus.TRIGGER_PENDING,
+            "triggerpending": OrderStatus.TRIGGER_PENDING,
         }
         return status_map.get(bp_status.lower(), OrderStatus.UNKNOWN)
 
     @staticmethod
-    def _map_type_to_internal(bp_type: str) -> OrderType:
+    def _map_type_to_internal(bp_type: str, trigger_price: str | None = None) -> OrderType:
         """Map a Backpack order type string to internal OrderType enum.
 
         Args:
             bp_type: Raw order type string from Backpack
+            trigger_price: Trigger price if present (indicates stop/take profit order)
 
         Returns:
             OrderType: Mapped internal enum value
 
         """
+        bp_type_lower = bp_type.lower()
+        
+        # If there's a trigger price, it indicates this was a stop/take profit order
+        if trigger_price:
+            if bp_type_lower == "market":
+                return OrderType.STOP_MARKET
+            elif bp_type_lower == "limit":
+                return OrderType.STOP_LIMIT
+        
         type_map = {
             "limit": OrderType.LIMIT,
             "market": OrderType.MARKET,
@@ -108,7 +120,7 @@ class BackpackTradingDataMapper:
             "trailing_stop": OrderType.STOP_MARKET,
             "take_profit": OrderType.LIMIT,
         }
-        return type_map.get(bp_type.lower(), OrderType.LIMIT)
+        return type_map.get(bp_type_lower, OrderType.LIMIT)
 
     @staticmethod
     def _map_time_in_force(bp_tif: str) -> TimeInForce:
@@ -226,11 +238,21 @@ class BackpackTradingDataMapper:
         """Parse and validate order quantities."""
         quantity_requested = parse_decimal_value(
             raw_order.quantity,
-            allow_none=False,
+            allow_none=True,
             field_name="quantity",
         )
-        if quantity_requested is None:
-            raise TransformationError("quantity_requested is required")
+        
+        # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
+        if quantity_requested is None or quantity_requested == Decimal("0"):
+            if raw_order.triggerQuantity:
+                quantity_requested = parse_decimal_value(
+                    raw_order.triggerQuantity,
+                    allow_none=False,
+                    field_name="triggerQuantity",
+                )
+        
+        if quantity_requested is None or quantity_requested <= Decimal("0"):
+            raise TransformationError("quantity_requested is required and must be > 0")
 
         quantity_filled = parse_decimal_value(
             raw_order.executedQuantity,
@@ -333,7 +355,9 @@ class BackpackTradingDataMapper:
         try:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order.side)
-            mapped_type = BackpackTradingDataMapper._map_type_to_internal(raw_order.orderType)
+            mapped_type = BackpackTradingDataMapper._map_type_to_internal(
+                raw_order.orderType, raw_order.triggerPrice
+            )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(raw_order.status)
             mapped_tif = BackpackTradingDataMapper._map_time_in_force(
                 raw_order.timeInForce or "gtc",
@@ -456,7 +480,7 @@ class BackpackTradingDataMapper:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order_update.side)
             mapped_type = BackpackTradingDataMapper._map_type_to_internal(
-                raw_order_update.order_type,
+                raw_order_update.order_type, None
             )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(
                 raw_order_update.order_status,
