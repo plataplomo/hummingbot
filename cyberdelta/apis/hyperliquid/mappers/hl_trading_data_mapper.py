@@ -152,6 +152,31 @@ class HyperliquidTradingDataMapper:
             ) from e
 
     @staticmethod
+    def _get_trigger_type(trigger: HyperliquidRawTriggerInfo | None) -> str | None:
+        """Extract trigger type from trigger info."""
+        return getattr(trigger, "tpsl", None) if trigger else None
+
+    @staticmethod
+    def _map_limit_order_type(trigger: HyperliquidRawTriggerInfo | None) -> OrderType:
+        """Map limit order types with optional trigger."""
+        trigger_type = HyperliquidTradingDataMapper._get_trigger_type(trigger)
+        if trigger_type == "sl":
+            return OrderType.STOP_LIMIT
+        elif trigger_type == "tp":
+            return OrderType.TAKE_PROFIT_LIMIT
+        return OrderType.LIMIT
+
+    @staticmethod
+    def _map_market_order_type(trigger: HyperliquidRawTriggerInfo | None) -> OrderType:
+        """Map market order types with optional trigger."""
+        trigger_type = HyperliquidTradingDataMapper._get_trigger_type(trigger)
+        if trigger_type == "sl":
+            return OrderType.STOP_MARKET
+        elif trigger_type == "tp":
+            return OrderType.TAKE_PROFIT_MARKET
+        return OrderType.MARKET
+
+    @staticmethod
     def _map_type_to_internal(
         order_type: dict[str, Any],
         trigger: HyperliquidRawTriggerInfo | None,
@@ -173,19 +198,9 @@ class HyperliquidTradingDataMapper:
             # Hyperliquid uses nested dicts for orderType,
             # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
             if "limit" in order_type:
-                if trigger:
-                    if getattr(trigger, "tpsl", None) == "sl":
-                        return OrderType.STOP_LIMIT
-                    elif getattr(trigger, "tpsl", None) == "tp":
-                        return OrderType.TAKE_PROFIT_LIMIT
-                return OrderType.LIMIT
+                return HyperliquidTradingDataMapper._map_limit_order_type(trigger)
             elif "market" in order_type:
-                if trigger:
-                    if getattr(trigger, "tpsl", None) == "sl":
-                        return OrderType.STOP_MARKET
-                    elif getattr(trigger, "tpsl", None) == "tp":
-                        return OrderType.TAKE_PROFIT_MARKET
-                return OrderType.MARKET
+                return HyperliquidTradingDataMapper._map_market_order_type(trigger)
 
             logger.warning(
                 f"[HyperliquidTradingDataMapper] Unknown orderType structure: {order_type}. "
@@ -595,7 +610,7 @@ class HyperliquidTradingDataMapper:
         """Parse all components needed for historical Order creation."""
         # Map enums
         side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
-        
+
         # Handle order_type that can be string or dict
         order_type_dict: dict[str, Any]
         if isinstance(raw_historical_order.order_type, str):
@@ -604,7 +619,7 @@ class HyperliquidTradingDataMapper:
         else:
             # Already a dict
             order_type_dict = raw_historical_order.order_type
-        
+
         order_type = HyperliquidTradingDataMapper._map_type_to_internal(
             order_type_dict,
             trigger,

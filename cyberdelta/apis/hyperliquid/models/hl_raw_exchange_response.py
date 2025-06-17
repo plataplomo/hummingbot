@@ -135,7 +135,7 @@ class HyperliquidRawExchangeResponse(BaseModel):
 
     @property
     def response_data(self) -> HyperliquidRawExchangeResponseData | None:
-        """Get the response data in a normalized format, handling both flat and nested structures."""
+        """Get the response data in a normalized format, handling flat and nested structures."""
         if self.status == "ok":
             if isinstance(self.response, HyperliquidRawExchangeResponseData):
                 return self.response

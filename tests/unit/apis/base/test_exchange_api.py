@@ -164,7 +164,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """Get account balances for all assets."""
         return {"USD": MagicMock(spec=SpotBalance)}
 
-    async def get_account_summary(self) -> MarginAccountSummary | None:
+    async def get_account_summary(self) -> MarginAccountSummary:
         """Get margin account summary information."""
         return MagicMock(spec=MarginAccountSummary)
 

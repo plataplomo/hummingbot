@@ -4,7 +4,6 @@ Validates raw JSON data against Pydantic models specific to Hyperliquid's API en
 """
 
 from collections.abc import Mapping
-from typing import Any, TypeGuard
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
@@ -57,16 +56,6 @@ type RawJsonResponse = RawJson
 
 # --- Processed Status Models (REMOVED) ---
 # Definitions were moved to cyberdelta/apis/hyperliquid/models/hl_processed_exchange_responses.py
-
-
-def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
-    """Type guard to check if value is a dict[str, Any]."""
-    return isinstance(value, dict)
-
-
-def _is_list_any(value: object) -> TypeGuard[list[Any]]:
-    """Type guard to check if value is a list[Any]."""
-    return isinstance(value, list)
 
 
 class HyperliquidResponseHandler:

@@ -446,7 +446,7 @@ class TestHyperliquidWebSocketIntegration:
                     wait_time = 2**attempt  # 1s, 2s, 4s...
                     await asyncio.sleep(wait_time)
                     continue
-            
+
             # Should never reach here due to pytest.fail above
             return {"status": "failed", "attempt": max_attempts}
 

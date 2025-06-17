@@ -376,9 +376,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
                 "Concurrent subscription tests require multiple real symbols."
             )
 
-        async def concurrent_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
-        ) -> None:
+        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Concurrent real handler: {message}")
 
         # Create concurrent subscription tasks with real symbols
@@ -507,15 +505,11 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
                 if should_succeed:
                     successful_count += 1
-                    logger.info(
-                        f"✓ Expected successful real subscription: {topic}"
-                    )
+                    logger.info(f"✓ Expected successful real subscription: {topic}")
                 else:
                     # If subscription succeeded despite being invalid,
                     # that might be exchange tolerance
-                    logger.info(
-                        f"✓ Exchange accepted invalid topic (tolerance): {topic}"
-                    )
+                    logger.info(f"✓ Exchange accepted invalid topic (tolerance): {topic}")
 
                 # Always validate connection state
                 state = bp_api_for_test_env.is_connected

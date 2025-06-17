@@ -60,7 +60,7 @@ class HyperliquidRawOrderType(BaseModel):
     market: HyperliquidRawMarketOrderTypeDetails | None = Field(default=None)
     trigger: HyperliquidRawTriggerInfo | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", frozen=True, exclude_none=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 # HyperliquidRawTriggerDetails removed - using HyperliquidRawTriggerInfo from hl_raw_open_orders.py

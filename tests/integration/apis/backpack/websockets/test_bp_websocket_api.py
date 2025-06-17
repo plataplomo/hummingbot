@@ -186,9 +186,7 @@ class TestBackpackAPIWebSocketIntegration:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def lifecycle_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
-        ) -> None:
+        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             logger.info(f"Lifecycle handler: {message}")
 
         try:

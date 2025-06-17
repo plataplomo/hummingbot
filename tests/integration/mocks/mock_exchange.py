@@ -285,7 +285,7 @@ class MockExchangeAPI(ExchangeAPI):
         self._open_orders_behavior = behavior
         logger.debug(f"Open orders behavior set for {self.exchange_name}: {behavior}")
 
-    async def get_account_summary(self) -> MarginAccountSummary | None:
+    async def get_account_summary(self) -> MarginAccountSummary:
         """Return a mock account summary."""
         # Simulate potential API error for this method if configured
         self._check_error("get_account_summary")

@@ -14,7 +14,6 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.config.logging_config import get_logger
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -22,6 +21,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import BackpackOrderDetails, Order
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.test_helpers import (
@@ -213,7 +213,7 @@ class TestBackpackOrdersPositive:
             time_in_force=TimeInForce.GTC,
             client_order_id=client_order_id,
         )
-        
+
         try:
             order = await bp_api_for_test_env.place_order(args)
             assert isinstance(order, Order)

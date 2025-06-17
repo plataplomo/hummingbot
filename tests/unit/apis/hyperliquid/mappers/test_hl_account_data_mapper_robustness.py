@@ -202,11 +202,13 @@ class TestBoundaryValueConditions:
             positionValue=large_value,
             returnOnEquity="0.999999999999999",
             unrealizedPnl=large_value,
+            cumFunding=None,
         )
 
         asset_position = HyperliquidRawAssetPosition(
             asset="LARGE-PERP",
             position=position_info,
+            type=None,
         )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -261,11 +263,13 @@ class TestBoundaryValueConditions:
             positionValue=small_value,
             returnOnEquity=small_value,
             unrealizedPnl=small_value,
+            cumFunding=None,
         )
 
         asset_position = HyperliquidRawAssetPosition(
             asset="SMALL-PERP",
             position=position_info,
+            type=None,
         )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -325,11 +329,13 @@ class TestBoundaryValueConditions:
                 positionValue="1000.0",
                 returnOnEquity="0.0",
                 unrealizedPnl="0.0",
+                cumFunding=None,
             )
 
             asset_position = HyperliquidRawAssetPosition(
                 asset=f"TEST-{description.replace(' ', '-').upper()}-PERP",
                 position=position_info,
+                type=None,
             )
 
             raw_state = HyperliquidRawClearinghouseState(
@@ -387,11 +393,13 @@ class TestBoundaryValueConditions:
                 positionValue="1000.0",
                 returnOnEquity="0.1",
                 unrealizedPnl="50.0",
+                cumFunding=None,
             )
 
             asset_position = HyperliquidRawAssetPosition(
                 asset=f"LEV{leverage_value}-PERP",
                 position=position_info,
+                type=None,
             )
 
             raw_state = HyperliquidRawClearinghouseState(
@@ -459,11 +467,13 @@ class TestUnicodeAndEncodingSupport:
                 positionValue="1000.0",
                 returnOnEquity="0.1",
                 unrealizedPnl="50.0",
+                cumFunding=None,
             )
 
             asset_position = HyperliquidRawAssetPosition(
                 asset=symbol,
                 position=position_info,
+                type=None,
             )
 
             raw_state = HyperliquidRawClearinghouseState(
@@ -551,11 +561,13 @@ class TestUnicodeAndEncodingSupport:
             positionValue="1000.0",
             returnOnEquity="0.1",
             unrealizedPnl="50.0",
+            cumFunding=None,
         )
 
         asset_position = HyperliquidRawAssetPosition(
             asset=long_symbol,
             position=position_info,
+            type=None,
         )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -646,9 +658,10 @@ class TestPerformanceAndMemory:
                 positionValue=str(1000.0 + i),
                 returnOnEquity=str(0.01 + i * 0.001),
                 unrealizedPnl=str(10.0 + i),
+                cumFunding=None,
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info, type=None),
             )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -771,11 +784,13 @@ class TestErrorRecoveryScenarios:
             positionValue="1000.0",
             returnOnEquity="0.1",
             unrealizedPnl="50.0",
+            cumFunding=None,
         )
 
         asset_position = HyperliquidRawAssetPosition(
             asset="PARTIAL-PERP",
             position=position_info,
+            type=None,
         )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -837,9 +852,10 @@ class TestErrorRecoveryScenarios:
                 positionValue="1000.0",
                 returnOnEquity="0.1",
                 unrealizedPnl="50.0",
+                cumFunding=None,
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info, type=None),
             )
 
         raw_state = HyperliquidRawClearinghouseState(

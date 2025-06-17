@@ -736,11 +736,11 @@ class TestBackpackOrdersZeroBalance:
 
         # Get market data for test setup
         current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
-        
+
         # Get market constraints for price quantization
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
         tick_size = constraints["tick_size"]
-        
+
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
@@ -846,7 +846,12 @@ class TestBackpackOrdersZeroBalance:
             try:
                 order = await bp_api_for_zero_balance_test.place_order(test_case["args"])
                 # If order succeeds, it should be a conditional order in TriggerPending status
-                if test_case["name"] in ["STOP_MARKET_BUY", "STOP_LIMIT_BUY", "TAKE_PROFIT_MARKET_BUY", "TAKE_PROFIT_LIMIT_BUY"]:
+                if test_case["name"] in [
+                    "STOP_MARKET_BUY",
+                    "STOP_LIMIT_BUY",
+                    "TAKE_PROFIT_MARKET_BUY",
+                    "TAKE_PROFIT_LIMIT_BUY",
+                ]:
                     # Conditional orders might succeed even with zero balance
                     assert order.status.value in ["TRIGGER_PENDING", "PENDING"], (
                         f"Conditional order {test_case['name']} should be in pending status, "
@@ -1061,11 +1066,11 @@ class TestBackpackOrdersZeroBalance:
             try:
                 # Get symbol-specific parameters
                 current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
-                
+
                 # Get market constraints for price quantization
                 constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
                 tick_size = constraints["tick_size"]
-                
+
                 minimal_quantity = await get_minimal_order_size(
                     api=bp_api_for_zero_balance_test,
                     symbol=symbol,
@@ -1141,7 +1146,7 @@ class TestBackpackOrdersZeroBalance:
         current_price = await get_current_market_price(bp_api_for_zero_balance_test, symbol)
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Quantize current price to ensure it respects tick size
         current_price = current_price.quantize(tick_size)
 

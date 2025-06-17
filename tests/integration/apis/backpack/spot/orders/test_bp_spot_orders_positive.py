@@ -158,7 +158,7 @@ class TestBackpackSpotOrdersPositiveBalance:
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Calculate trigger price and quantize to proper tick size
         trigger_price = (current_price * Decimal("0.95")).quantize(tick_size)
 
@@ -226,10 +226,14 @@ class TestBackpackSpotOrdersPositiveBalance:
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Calculate trigger and limit prices and quantize to proper tick size
-        trigger_price = (current_price * Decimal("0.95")).quantize(tick_size)  # 5% below for stop loss
-        limit_price = (trigger_price * Decimal("0.99")).quantize(tick_size)  # Slightly below trigger
+        trigger_price = (current_price * Decimal("0.95")).quantize(
+            tick_size
+        )  # 5% below for stop loss
+        limit_price = (trigger_price * Decimal("0.99")).quantize(
+            tick_size
+        )  # Slightly below trigger
 
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -296,9 +300,11 @@ class TestBackpackSpotOrdersPositiveBalance:
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Calculate trigger price and quantize to proper tick size
-        trigger_price = (current_price * Decimal("1.05")).quantize(tick_size)  # 5% above current price
+        trigger_price = (current_price * Decimal("1.05")).quantize(
+            tick_size
+        )  # 5% above current price
 
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -367,10 +373,14 @@ class TestBackpackSpotOrdersPositiveBalance:
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Calculate trigger and limit prices and quantize to proper tick size
-        trigger_price = (current_price * Decimal("1.05")).quantize(tick_size)  # 5% above for take profit
-        limit_price = (trigger_price * Decimal("1.01")).quantize(tick_size)  # Slightly above trigger
+        trigger_price = (current_price * Decimal("1.05")).quantize(
+            tick_size
+        )  # 5% above for take profit
+        limit_price = (trigger_price * Decimal("1.01")).quantize(
+            tick_size
+        )  # Slightly above trigger
 
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -536,11 +546,11 @@ class TestBackpackSpotOrdersPositiveBalance:
         _ = custom_vcr_config
         symbol = TEST_SYMBOL_SOL_USDC
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
-        
+
         # Get market constraints for price quantization
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         minimal_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -784,7 +794,9 @@ class TestBackpackSpotOrdersPositiveBalance:
         for multiplier in large_order_multipliers:
             try:
                 large_quantity = min_quantity * Decimal(str(multiplier))
-                test_price = (current_price * Decimal("0.9")).quantize(tick_size)  # Well below market
+                test_price = (current_price * Decimal("0.9")).quantize(
+                    tick_size
+                )  # Well below market
 
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -865,11 +877,11 @@ class TestBackpackSpotOrdersPositiveBalance:
             try:
                 # Get symbol-specific parameters
                 current_price = await get_current_market_price(bp_api_for_test_env, symbol)
-                
+
                 # Get market constraints for price quantization
                 constraints = await get_market_constraints(bp_api_for_test_env, symbol)
                 tick_size = constraints["tick_size"]
-                
+
                 minimal_quantity = await get_minimal_order_size(
                     api=bp_api_for_test_env,
                     symbol=symbol,
@@ -877,7 +889,9 @@ class TestBackpackSpotOrdersPositiveBalance:
                     price=current_price,
                 )
 
-                test_price = (current_price * Decimal("0.95")).quantize(tick_size)  # 5% below market
+                test_price = (current_price * Decimal("0.95")).quantize(
+                    tick_size
+                )  # 5% below market
 
                 place_args = PlaceOrderArgs(
                     symbol=symbol,

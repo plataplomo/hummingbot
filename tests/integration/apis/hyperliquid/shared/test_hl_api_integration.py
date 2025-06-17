@@ -535,7 +535,7 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Type cast results after confirming they're not exceptions
         account_data = results[0]
-        market_data = results[1] 
+        market_data = results[1]
         ticker_data = results[2]
         open_orders = results[3]
 

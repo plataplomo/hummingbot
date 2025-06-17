@@ -122,8 +122,9 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get market constraints for debugging
         from cyberdelta.apis.models.service_args_models import GetMarketArgs
+
         market_info = await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
-        
+
         # Log for debugging
         logger.info(
             f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} "
@@ -152,7 +153,7 @@ class TestHyperliquidAccountSummaryPrivate:
         try:
             placed_order = await hl_api_for_test_env.place_order(impact_order_args)
             assert placed_order.exchange_order_id is not None, "Order should be placed successfully"
-            
+
             # Get updated account summary to validate impact
             updated_summary = await hl_api_for_test_env.get_account_summary()
 
@@ -193,11 +194,13 @@ class TestHyperliquidAccountSummaryPrivate:
             assert isinstance(updated_summary.total_initial_margin_required, Decimal)
             if updated_summary.total_initial_margin_required > initial_margin_used:
                 # Margin increased due to order, validate the increase is reasonable
-                margin_increase = updated_summary.total_initial_margin_required - initial_margin_used
+                margin_increase = (
+                    updated_summary.total_initial_margin_required - initial_margin_used
+                )
                 assert margin_increase > Decimal("0"), (
                     f"Margin increase should be positive, got {margin_increase}"
                 )
-                
+
         except APIError as e:
             # Distinguish expected business logic errors from system failures
             if any(phrase in e.message.lower() for phrase in ["minimum", "value", "$10"]):

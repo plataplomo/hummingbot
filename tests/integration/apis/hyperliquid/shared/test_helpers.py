@@ -221,16 +221,25 @@ class HyperliquidTestHelpers:
         from decimal import ROUND_HALF_UP
 
         # Get the precision of the tick size first
-        tick_decimal_places = abs(tick_size.as_tuple().exponent)
+        exponent = tick_size.as_tuple().exponent
+        if isinstance(exponent, int):
+            tick_decimal_places = abs(exponent)
+        else:
+            # Handle special cases like 'n', 'N', 'F' - fallback to string analysis
+            tick_str = str(tick_size)
+            if '.' in tick_str:
+                tick_decimal_places = len(tick_str.split('.')[1])
+            else:
+                tick_decimal_places = 0
         price_precision = Decimal(10) ** (-tick_decimal_places)
 
         # Calculate how many ticks this test price represents
         ticks_decimal = test_price / tick_size
         rounded_ticks = ticks_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-        
+
         # Calculate the final price by multiplying back
         final_price = rounded_ticks * tick_size
-        
+
         # Ensure the final price is quantized to match tick_size precision exactly
         # This is critical for Hyperliquid's strict tick size validation
         quantized_price = final_price.quantize(price_precision, rounding=ROUND_HALF_UP)
@@ -241,7 +250,7 @@ class HyperliquidTestHelpers:
             f"tolerance={tolerance_percent}%, side={side.value}"
         )
         logger.info(
-            f"Step 1 - test_price calculation: {market_price} * (1 {'-' if side == OrderSide.BUY else '+'} {tolerance_percent/100}) = {test_price}"
+            f"Step 1 - test_price calculation: {market_price} * (1 {'-' if side == OrderSide.BUY else '+'} {tolerance_percent / 100}) = {test_price}"
         )
         logger.info(
             f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
@@ -256,10 +265,12 @@ class HyperliquidTestHelpers:
         remainder = quantized_price % tick_size
         if remainder != Decimal("0"):
             # Force alignment by recalculating
-            corrected_ticks = (quantized_price / tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            corrected_ticks = (quantized_price / tick_size).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
             quantized_price = corrected_ticks * tick_size
             quantized_price = quantized_price.quantize(price_precision, rounding=ROUND_HALF_UP)
-            
+
             logger.warning(
                 f"Price alignment corrected for {symbol}: was {final_price}, now {quantized_price}"
             )
@@ -355,10 +366,8 @@ class HyperliquidTestHelpers:
                 min_qty_for_notional = MIN_NOTIONAL_USD / price
                 # Add small buffer to account for rounding
                 buffered_qty = min_qty_for_notional * Decimal("1.01")  # 1% buffer
-                
-                rounded_steps = (buffered_qty / step_size).quantize(
-                    Decimal("1"), rounding=ROUND_UP
-                )
+
+                rounded_steps = (buffered_qty / step_size).quantize(Decimal("1"), rounding=ROUND_UP)
                 final_quantity = rounded_steps * step_size
                 final_notional = final_quantity * price
 

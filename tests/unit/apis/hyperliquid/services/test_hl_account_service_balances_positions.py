@@ -81,10 +81,12 @@ class TestHyperliquidAccountServiceBalancesPositions:
             returnOnEquity="0",
             szi="1000.5",
             unrealizedPnl="0",
+            cumFunding=None,
         )
         mock_raw_asset_position_usdc = HyperliquidRawAssetPosition(
             asset="USDC",
             position=mock_raw_position_info,
+            type=None,
         )
         mock_raw_margin_summary = HyperliquidRawMarginSummary(
             accountValue="1000.5",

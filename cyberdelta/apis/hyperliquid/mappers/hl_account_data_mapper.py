@@ -192,7 +192,7 @@ class HyperliquidAccountDataMapper:
             asset_name = asset_pos.asset
 
             # Skip USDC as it's handled above, and skip obvious perps
-            if asset_name == "USDC" or "-PERP" in asset_name.upper():
+            if asset_name is None or asset_name == "USDC" or "-PERP" in asset_name.upper():
                 continue
 
             HyperliquidAccountDataMapper._process_single_spot_asset(

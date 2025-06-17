@@ -67,7 +67,9 @@ def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
             positionValue="3000.0",
             returnOnEquity="0.05",
             unrealizedPnl="150.0",
+            cumFunding=None,
         ),
+        type=None,
     )
     btc_position_asset = HyperliquidRawAssetPosition(
         asset="BTC-PERP",
@@ -82,7 +84,9 @@ def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
             positionValue="30000.0",
             returnOnEquity="-0.02",
             unrealizedPnl="-600.0",
+            cumFunding=None,
         ),
+        type=None,
     )
 
     updated_asset_positions_data = [
@@ -264,10 +268,12 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 positionValue="1000.0",
                 returnOnEquity="0.0",
                 unrealizedPnl="0.0",
+                cumFunding=None,
             )
             asset_position = HyperliquidRawAssetPosition(
                 asset="TEST-PERP",
                 position=position_info,
+                type=None,
             )
 
             raw_state = HyperliquidRawClearinghouseState(
@@ -324,10 +330,12 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 positionValue="1000.0",
                 returnOnEquity="0.1",
                 unrealizedPnl="50.0",
+                cumFunding=None,
             )
             asset_position = HyperliquidRawAssetPosition(
                 asset="TEST-PERP",
                 position=position_info,
+                type=None,
             )
 
             raw_state = HyperliquidRawClearinghouseState(
@@ -379,10 +387,12 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             positionValue="1000.999999999999999",
             returnOnEquity="0.123456789012345",
             unrealizedPnl="50.987654321098765",
+            cumFunding=None,
         )
         asset_position = HyperliquidRawAssetPosition(
             asset="PRECISION-PERP",
             position=position_info,
+            type=None,
         )
 
         raw_state = HyperliquidRawClearinghouseState(
@@ -705,9 +715,10 @@ class TestPositionAndTradeIntegration:
                 positionValue=str(1000.0 + i * 110),
                 returnOnEquity=str(0.01 * i),
                 unrealizedPnl=str(10.0 + i * 5),
+                cumFunding=None,
             )
             asset_positions.append(
-                HyperliquidRawAssetPosition(asset=symbol, position=position_info),
+                HyperliquidRawAssetPosition(asset=symbol, position=position_info, type=None),
             )
 
         raw_state = HyperliquidRawClearinghouseState(

@@ -68,6 +68,7 @@ def raw_position_info_fixture(
         marginUsed="100.0",
         leverage=raw_leverage_fixture,
         returnOnEquity="0.5",
+        cumFunding=None,
     )
 
 
@@ -145,6 +146,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
             marginUsed="100.0",
             leverage=HyperliquidRawLeverage(type="cross", value=10),
             returnOnEquity="0.75",
+            cumFunding=None,
         )
         raw_position_2_info = HyperliquidRawPositionInfo(
             coin="BTC",
@@ -157,9 +159,14 @@ class TestMapRawClearinghouseStateToMarginSummary:
             marginUsed="300.0",
             leverage=HyperliquidRawLeverage(type="isolated", value=5),
             returnOnEquity="-0.1",
+            cumFunding=None,
         )
-        asset_pos_1 = HyperliquidRawAssetPosition(asset="ETH", position=raw_position_1_info)
-        asset_pos_2 = HyperliquidRawAssetPosition(asset="BTC", position=raw_position_2_info)
+        asset_pos_1 = HyperliquidRawAssetPosition(
+            asset="ETH", position=raw_position_1_info, type=None
+        )
+        asset_pos_2 = HyperliquidRawAssetPosition(
+            asset="BTC", position=raw_position_2_info, type=None
+        )
 
         base_dump_python_names = raw_clearinghouse_state_base_fixture.model_dump(by_alias=False)
 
@@ -462,7 +469,9 @@ class TestMapRawClearinghouseStateToSpotBalances:
                         positionValue="3000.0",
                         returnOnEquity="0.05",
                         unrealizedPnl="150.0",
+                        cumFunding=None,
                     ),
+                    type=None,
                 ),
                 HyperliquidRawAssetPosition(
                     asset="SPOT-ASSET",
@@ -477,7 +486,9 @@ class TestMapRawClearinghouseStateToSpotBalances:
                         positionValue="500.0",
                         returnOnEquity="0",
                         unrealizedPnl="0",
+                        cumFunding=None,
                     ),
+                    type=None,
                 ),
             ],
             marginSummary=HyperliquidRawMarginSummary(
@@ -581,7 +592,9 @@ class TestCoreBusinessLogicValidation:
                 marginUsed="100.0",
                 leverage=HyperliquidRawLeverage(type="cross", value=10),
                 returnOnEquity="0.75",
+                cumFunding=None,
             ),
+            type=None,
         )
         btc_position = HyperliquidRawAssetPosition(
             asset="BTC",
@@ -596,7 +609,9 @@ class TestCoreBusinessLogicValidation:
                 marginUsed="300.0",
                 leverage=HyperliquidRawLeverage(type="isolated", value=5),
                 returnOnEquity="-0.25",
+                cumFunding=None,
             ),
+            type=None,
         )
 
         base_dump = raw_clearinghouse_state_base_fixture.model_dump(by_alias=False)

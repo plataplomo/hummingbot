@@ -42,7 +42,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
-    HyperliquidRawMarketOrderTypeDetails,
     HyperliquidRawOrderType,
     HyperliquidRawQueryOrderHistoryRequestPayload,
 )
@@ -99,6 +98,59 @@ class HyperliquidRequestBuilder:
     """
 
     @staticmethod
+    def _validate_decimal_input(value: Decimal) -> None:
+        """Validate decimal input for wire format conversion."""
+        if not value.is_finite():
+            raise ValueError(f"Value must be finite, got {value}")
+
+        if abs(value) > Decimal("1e18"):
+            raise ValueError(f"Value too large for wire format: {value}")
+
+        if value != 0 and abs(value) < Decimal("1e-8"):
+            raise ValueError(f"Value too small for wire format precision: {value}")
+
+    @staticmethod
+    def _format_and_validate_precision(value: Decimal) -> str:
+        """Format decimal with precision validation."""
+        try:
+            x = float(value)
+        except (ValueError, OverflowError) as e:
+            raise ValueError(f"Cannot convert {value} to float: {e}") from e
+
+        rounded = f"{x:.8f}"
+
+        # Check for rounding errors
+        precision_loss = abs(float(rounded) - x)
+        if precision_loss >= 1e-12:
+            raise ValueError(
+                f"Wire format conversion causes precision loss for {value}. "
+                f"Loss: {precision_loss:.2e}"
+            )
+
+        return rounded
+
+    @staticmethod
+    def _normalize_wire_format(rounded: str, original_value: Decimal) -> str:
+        """Normalize wire format string with proper decimal handling."""
+        # Handle negative zero
+        if rounded == "-0.00000000":
+            rounded = "0.00000000"
+
+        try:
+            normalized = Decimal(rounded).normalize()
+            result = f"{normalized:f}"
+
+            # Ensure at least one decimal place for Hyperliquid API compatibility
+            if "." not in result:
+                result = result + ".0"
+
+            # Final validation - ensure result is parseable
+            _ = Decimal(result)
+            return result
+        except Exception as e:
+            raise ValueError(f"Failed to normalize wire format for {original_value}: {e}") from e
+
+    @staticmethod
     def _decimal_to_wire_format(value: Decimal | None) -> str:
         """Convert decimal to Hyperliquid wire format with comprehensive validation.
 
@@ -117,59 +169,12 @@ class HyperliquidRequestBuilder:
         if value is None:
             return "0"
 
-        # Type validation at boundary
         if not isinstance(value, Decimal):
             raise TypeError(f"Expected Decimal, got {type(value).__name__}: {value}")
 
-        # Validate input is finite
-        if not value.is_finite():
-            raise ValueError(f"Value must be finite, got {value}")
-
-        # Check for extreme values that could cause issues
-        if abs(value) > Decimal("1e18"):
-            raise ValueError(f"Value too large for wire format: {value}")
-
-        # Check for too small values that would round to zero
-        if value != 0 and abs(value) < Decimal("1e-8"):
-            raise ValueError(f"Value too small for wire format precision: {value}")
-
-        # Convert to float for rounding (maintaining SDK compatibility)
-        try:
-            x = float(value)
-        except (ValueError, OverflowError) as e:
-            raise ValueError(f"Cannot convert {value} to float: {e}") from e
-
-        # Format with 8 decimal places
-        rounded = f"{x:.8f}"
-
-        # Check for rounding errors with tighter tolerance
-        precision_loss = abs(float(rounded) - x)
-        if precision_loss >= 1e-12:
-            raise ValueError(
-                f"Wire format conversion causes precision loss for {value}. "
-                f"Loss: {precision_loss:.2e}"
-            )
-
-        # Handle negative zero
-        if rounded == "-0.00000000":
-            rounded = "0.00000000"
-
-        # Normalize to remove trailing zeros but ensure at least one decimal place
-        try:
-            normalized = Decimal(rounded).normalize()
-            # Ensure we don't return scientific notation
-            result = f"{normalized:f}"
-            
-            # Ensure at least one decimal place for Hyperliquid API compatibility
-            if "." not in result:
-                result = result + ".0"
-
-            # Final validation - ensure result is parseable
-            _ = Decimal(result)
-
-            return result
-        except Exception as e:
-            raise ValueError(f"Failed to normalize wire format for {value}: {e}") from e
+        HyperliquidRequestBuilder._validate_decimal_input(value)
+        rounded = HyperliquidRequestBuilder._format_and_validate_precision(value)
+        return HyperliquidRequestBuilder._normalize_wire_format(rounded, value)
 
     @staticmethod
     def build_info_request_payload() -> HyperliquidRawMetaAndAssetCtxsRequestPayload:
@@ -221,7 +226,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidApiL2UsdTransferRequest:
         """Build the Pydantic model for an L2 USD transfer request.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated TransferL2UsdArgs containing transfer parameters
@@ -251,13 +257,15 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
         """Build the Pydantic model for a withdrawal to L1 request.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated WithdrawL1Args containing withdrawal parameters
 
         Returns:
-            HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest: Validated Raw API model
+            HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
+                Validated Raw API model
 
         Returns a specific model based on whether the asset is ETH or another token.
         Assumes all business validation has been done by the service layer.
@@ -291,7 +299,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawQueryOrderHistoryRequestPayload:
         """Build the Pydantic model for querying order history.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated GetOrderHistoryArgsHL containing history query parameters
@@ -341,6 +350,7 @@ class HyperliquidRequestBuilder:
         Args:
             args: Validated PlaceOrderArgs containing order parameters
             asset_index: Hyperliquid-specific asset index for the symbol
+            tif_str: Optional time-in-force string mapped from service layer
 
         Returns:
             HyperliquidApiPlaceOrderRequest: Validated Raw API model
@@ -391,6 +401,9 @@ class HyperliquidRequestBuilder:
                 order_type_model = HyperliquidRawOrderType(
                     limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
                 )
+        else:
+            # Default fallback for unsupported order types
+            raise ValueError(f"Unsupported order type: {args.order_type}")
 
         # Create validated Pydantic model - INTERNAL → RAW transformation
         # Architecture Compliance: All fields validated by Pydantic at boundary
@@ -420,7 +433,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidApiCancelOrderRequest:
         """Build the Pydantic model for cancelling an order.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated CancelOrderArgs containing cancellation parameters
@@ -439,7 +453,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawOrderStatusRequestPayload:
         """Build the payload for querying the status of a specific order.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated HyperliquidGetOrderStatusArgs containing wallet address and order ID
@@ -459,7 +474,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawUserStateRequestPayload:
         """Build the Pydantic model for fetching user state information.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated GetUserStateArgs containing wallet address
@@ -481,7 +497,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawUserFillsRequestPayload:
         """Build the Pydantic model for fetching user fills (trade history).
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated GetUserFillsArgs containing wallet address
@@ -499,7 +516,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawOpenOrdersRequestPayload:
         """Build the Pydantic model for fetching open orders.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated GetOpenOrdersArgs containing wallet address
@@ -517,7 +535,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidRawFundingHistoryRequestPayload:
         """Build the Pydantic model for fetching historical funding rates for a specific coin.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated GetHistoricalFundingRatesArgs containing funding rate query parameters
@@ -547,7 +566,8 @@ class HyperliquidRequestBuilder:
     ) -> HyperliquidApiUpdateLeverageRequest:
         """Build the request payload for updating leverage on a specific asset.
 
-        Following proper Request Builder Pattern: Takes internal Args model → Returns Raw Pydantic models.
+        Following proper Request Builder Pattern: Takes internal Args model and
+        returns Raw Pydantic models.
 
         Args:
             args: Validated UpdateLeverageArgs containing leverage parameters

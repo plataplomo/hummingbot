@@ -44,11 +44,13 @@ class HyperliquidPayloadPreprocessingMapper:
 
         The Hyperliquid API can return order status in various formats:
         - List format: [{"order": {...}}]
-        - Nested format: {'order': {'order': {...}, 'status': '...', 'statusTimestamp': ...}, 'status': 'order'}
+        - Nested format: {'order': {'order': {...}, 'status': '...', 'statusTimestamp': ...},
+          'status': 'order'}
         - Direct dict format: {"order": {...}}
         - Error formats: "Order not found", ["Order not found"], [], None
 
-        This method normalizes all formats to a structure that matches HyperliquidRawHistoricalOrderResponse.
+        This method normalizes all formats to a structure that matches
+        HyperliquidRawHistoricalOrderResponse.
 
         Args:
             raw_data: Raw response from Hyperliquid order status endpoint
@@ -92,7 +94,8 @@ class HyperliquidPayloadPreprocessingMapper:
             # Handle non-dict items
             if not isinstance(status_item, dict):
                 raise APIError(
-                    message=f"Order status response list: expected dict, got {type(status_item).__name__}",
+                    message=f"Order status response list: expected dict, "
+                    f"got {type(status_item).__name__}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     metadata={"original_response_item": status_item},
                 )
@@ -124,7 +127,8 @@ class HyperliquidPayloadPreprocessingMapper:
         # Now we should have a dict
         if not isinstance(raw_data, dict):
             raise APIError(
-                message=f"Order status response: expected dict after preprocessing, got {type(raw_data).__name__}",
+                message=f"Order status response: expected dict after preprocessing, "
+                f"got {type(raw_data).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -149,7 +153,7 @@ class HyperliquidPayloadPreprocessingMapper:
                     inner_order["statusTimestamp"] = order_wrapper["statusTimestamp"]
 
                 # Add reasonable defaults for missing fields
-                # If remainingSz is missing but we have sz, assume full size remaining for open orders
+                # If remainingSz is missing but we have sz, assume full size remaining
                 if "remainingSz" not in inner_order and "sz" in inner_order:
                     # Only add default if status indicates it's an open order
                     status = inner_order.get("status", "").lower()

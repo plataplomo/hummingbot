@@ -627,7 +627,7 @@ class TestBackpackPerpMarkets:
         # Test that tick size allows reasonable funding rate calculations with REAL data
         # Get actual funding rate from exchange - no hardcoded rates
         from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
-        
+
         funding_rates = await bp_api_for_test_env.get_funding_rates(
             GetFundingRatesArgs(symbols=["SOL_USDC_PERP"])
         )
