@@ -1,13 +1,34 @@
-"""Integration tests for the HyperliquidAPI client implementation.
+"""Comprehensive secure integration tests for Hyperliquid API component interactions.
 
-Tests use environment-aware fixtures and test complete workflows through public interfaces.
+This module tests the integration between different API components to ensure they work
+together correctly in real trading scenarios. It focuses on:
+
+1. Service layer integration (Trading, Market Data, Account services)
+2. Data mapper consistency across components
+3. Request/response pipeline integrity
+4. Error handling consistency across the stack
+5. Authentication flow integration
+6. Real market data validation and transformation
+
+SECURITY COMPLIANCE:
+- Uses only real market data from exchange APIs (no mocks/hardcoded values)
+- Implements fail-fast error handling for all critical operations
+- Validates financial data precision throughout the pipeline
+- Uses timezone-aware datetime operations
+- Implements proper polling for race condition prevention
+- Validates currency/symbol handling across components
+
+Authentication: EIP-712 signing for private endpoints, address-based for public
+VCR: Records real API responses for reproducible testing
 """
 
-from collections.abc import Callable
-from datetime import UTC, datetime
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,824 +37,521 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
-    GetFundingRatesArgs,
-    GetOrderArgs,
-    GetOrderHistoryArgs,
-    GetTradeHistoryArgs,
+    GetMarketArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.models import (
-    DerivativePosition,
-    MarginAccountSummary,
-    SpotBalance,
-    Trade,
-)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.ticker import Ticker
+from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
+    get_available_symbols,
+    get_test_symbol,
+)
+from tests.integration.apis.hyperliquid.shared.test_helpers import HyperliquidTestHelpers
 
-pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
+logger = logging.getLogger(__name__)
 
-TEST_WALLET_ADDRESS = "0x0000000000000000000000000000000000000000"
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.requires_balance,
+    pytest.mark.positive_balance,
+]
 
 
-class TestHyperliquidAPIAssetIndexingIntegration:
-    """Test asset indexing integration through public API methods that depend on it."""
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/hyperliquid/shared/integration"], indirect=True
+)
+class TestHyperliquidAPIComponentIntegration:
+    """Comprehensive integration tests for Hyperliquid API component interactions.
 
+    Tests the integration between:
+    - HyperliquidTradingService ↔ HyperliquidAccountService
+    - HyperliquidMarketDataService ↔ Trading components
+    - Data mappers consistency across the pipeline
+    - Error handling across service boundaries
+    - Authentication integration across endpoints
+    """
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_place_order_with_asset_indexing_success(
+    async def test_trading_account_service_integration(
         self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test that place_order works correctly when asset indexing succeeds."""
-        api = hl_api_with_di()
+        """Test integration between trading and account services with real data.
 
-        expected_order = Order(
-            exchange_order_id="12345",
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            exchange="hyperliquid",
-            time_in_force=TimeInForce.GTC,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
+        This validates that placing orders correctly affects account summaries
+        and that the data transformation pipeline maintains consistency.
+        """
+        # Get dynamic test symbol from exchange (no hardcoded symbols)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
+        # Step 1: Get baseline account state (Account Service)
+        initial_account = await hl_api_for_test_env.get_account_summary()
+        assert isinstance(initial_account, MarginAccountSummary), (
+            "Account service must return MarginAccountSummary model"
+        )
+        assert initial_account.exchange == "hyperliquid", (
+            "Account data must specify correct exchange"
         )
 
-        mock_hl_trading_service.place_order.return_value = expected_order
+        # Validate financial precision in account data
+        assert isinstance(initial_account.total_equity, Decimal), (
+            "Account equity must be Decimal for financial precision"
+        )
+        assert isinstance(initial_account.available_equity, Decimal), (
+            "Available equity must be Decimal for financial precision"
+        )
 
-        place_order_args = PlaceOrderArgs(
-            symbol="BTC",
+        # Step 2: Get market constraints (Market Data Service)
+        market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Step 3: Calculate safe order parameters using real market data
+        current_price = await HyperliquidTestHelpers.get_current_market_price(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Use 10% below market price to avoid immediate fills
+        safe_price = await HyperliquidTestHelpers.get_dynamic_test_price(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10.0")
+        )
+
+        # Get minimal viable order size based on account
+        safe_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, safe_price
+        )
+
+        # Step 4: Place order (Trading Service)
+        order_args = PlaceOrderArgs(
+            symbol=test_symbol,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=safe_quantity,
+            price=safe_price,
+            time_in_force=TimeInForce.GTC,
+        )
+
+        placed_order = await hl_api_for_test_env.place_order(order_args)
+
+        # Validate order model consistency
+        assert isinstance(placed_order, Order), "Trading service must return Order model"
+        assert placed_order.exchange_order_id is not None, (
+            "Placed order must have exchange order ID"
+        )
+        assert placed_order.symbol == test_symbol, "Order symbol must match requested symbol"
+        assert isinstance(placed_order.quantity, Decimal), (
+            "Order quantity must be Decimal for financial precision"
+        )
+        assert isinstance(placed_order.price, Decimal), (
+            "Order price must be Decimal for financial precision"
+        )
+
+        # Step 5: Wait for order placement to be reflected (avoid race conditions)
+        await HyperliquidTestHelpers.wait_for_order_placement(
+            hl_api_for_test_env, placed_order.exchange_order_id
+        )
+
+        # Step 6: Verify account state changes (Account Service Integration)
+        updated_account = await hl_api_for_test_env.get_account_summary()
+
+        # Validate that services maintain data consistency
+        assert isinstance(updated_account, MarginAccountSummary), (
+            "Updated account must maintain model type consistency"
+        )
+        assert updated_account.exchange == initial_account.exchange, (
+            "Exchange specification must be consistent across services"
+        )
+
+        # Check if margin usage increased (order should reserve margin)
+        if (
+            updated_account.total_initial_margin_required
+            > initial_account.total_initial_margin_required
+        ):
+            margin_increase = (
+                updated_account.total_initial_margin_required
+                - initial_account.total_initial_margin_required
+            )
+            # Validate margin increase is reasonable for order size
+            expected_margin = safe_quantity * safe_price * Decimal("0.1")  # ~10% margin
+            assert margin_increase <= expected_margin * 2, (
+                f"Margin increase {margin_increase} seems excessive for order size"
+            )
+
+        # Step 7: Test service integration for order cancellation
+        cancel_args = CancelOrderArgs(
+            order_id=placed_order.exchange_order_id,
+            symbol=test_symbol,
+        )
+
+        cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
+        if not cancel_result:
+            pytest.fail(
+                "Order cancellation failed. This is a critical trading operation "
+                "that must work reliably across service boundaries."
+            )
+
+        # Step 8: Wait for cancellation to be reflected and validate final state
+        await HyperliquidTestHelpers._wait_for_order_cancellation(hl_api_for_test_env, test_symbol)
+
+        # Final account state should reflect order removal
+        final_account = await hl_api_for_test_env.get_account_summary()
+
+        # Account equity should be unchanged (no fills occurred)
+        equity_change = abs(final_account.total_equity - initial_account.total_equity)
+        assert equity_change < Decimal("1.0"), (
+            f"Total equity changed by {equity_change} after cancelled order. "
+            "Cancelled orders should not affect total equity."
+        )
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_market_data_trading_integration(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test integration between market data and trading services.
+
+        Validates that market data from MarketDataService is correctly
+        used by TradingService for order validation and execution.
+        """
+        # Get real available symbols (no hardcoding)
+        available_symbols = await get_available_symbols(hl_api_for_test_env, "perp")
+        assert len(available_symbols) > 0, (
+            "Market data service must return available trading symbols"
+        )
+
+        test_symbol = available_symbols[0]
+
+        # Step 1: Get market data (Market Data Service)
+        market_args = GetMarketArgs(symbol=test_symbol)
+        market_data = await hl_api_for_test_env.get_market(market_args)
+
+        assert isinstance(market_data, Market), "Market data service must return Market model"
+        assert market_data.symbol == test_symbol, "Market data symbol must match requested symbol"
+
+        # Validate market data precision (critical for trading)
+        assert isinstance(market_data.tick_size, Decimal), (
+            "Tick size must be Decimal for precise order pricing"
+        )
+        assert isinstance(market_data.step_size, Decimal), (
+            "Step size must be Decimal for precise order sizing"
+        )
+        assert isinstance(market_data.min_quantity, Decimal), (
+            "Min quantity must be Decimal for precise order validation"
+        )
+
+        # Step 2: Get current ticker (Market Data Service)
+        ticker = await hl_api_for_test_env.get_ticker(test_symbol)
+
+        assert isinstance(ticker, Ticker), "Market data service must return Ticker model"
+        assert ticker.symbol == test_symbol, "Ticker symbol must match requested symbol"
+        assert isinstance(ticker.price, Decimal), (
+            "Ticker price must be Decimal for financial precision"
+        )
+
+        # Validate data freshness (prevent stale data trading disasters)
+        data_age = datetime.now(UTC) - ticker.timestamp
+        if data_age > timedelta(minutes=5):
+            pytest.fail(
+                f"Ticker data is {data_age} old. Trading requires fresh market data "
+                "to prevent execution at stale prices."
+            )
+
+        # Step 3: Test that trading service respects market constraints
+        # Use market data to create a valid order that respects constraints
+
+        # Price must respect tick size
+        market_price = ticker.price
+        tick_size = market_data.tick_size
+        aligned_price = (market_price / tick_size).quantize(Decimal("1")) * tick_size
+
+        # Quantity must respect step size and minimums
+        step_size = market_data.step_size
+        min_quantity = market_data.min_quantity
+        test_quantity = max(min_quantity, step_size)
+
+        # Step 4: Validate trading service uses market data correctly
+        order_args = PlaceOrderArgs(
+            symbol=test_symbol,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=test_quantity,
+            price=aligned_price * Decimal("0.9"),  # 10% below market to avoid fills
+            time_in_force=TimeInForce.GTC,
+        )
+
+        # Trading service should accept order that respects market constraints
+        placed_order = await hl_api_for_test_env.place_order(order_args)
+        assert placed_order.exchange_order_id is not None, (
+            "Order respecting market constraints should be accepted"
+        )
+
+        # Step 5: Test constraint violation handling
+        invalid_quantity = min_quantity / Decimal("2")  # Below minimum
+        invalid_order_args = PlaceOrderArgs(
+            symbol=test_symbol,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=invalid_quantity,
+            price=aligned_price * Decimal("0.9"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        # Trading service should reject orders violating market constraints
+        with pytest.raises(APIError) as exc_info:
+            await hl_api_for_test_env.place_order(invalid_order_args)
+
+        # Validate error mapping consistency
+        api_error = exc_info.value
+        assert api_error.code in [
+            APIErrorCode.INVALID_ORDER_SIZE.value,
+            APIErrorCode.MIN_QUANTITY_NOT_MET.value,
+        ], f"Expected quantity violation error, got {api_error.code}"
+
+        # Cleanup: Cancel the valid order
+        if placed_order.exchange_order_id:
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id,
+                symbol=test_symbol,
+            )
+            cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
+            if not cancel_result:
+                pytest.fail("Failed to cleanup test order - critical trading operation")
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_error_handling_consistency_across_services(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test that error handling is consistent across all API services.
+
+        Validates that errors are properly mapped and propagated consistently
+        across the Trading, Account, and Market Data services.
+        """
+        # Test 1: Invalid symbol handling across services
+        invalid_symbol = "INVALID_SYMBOL_XYZ_123"
+
+        # Market Data Service error handling
+        with pytest.raises(APIError) as market_exc:
+            await hl_api_for_test_env.get_ticker(invalid_symbol)
+
+        market_error = market_exc.value
+        assert market_error.code == APIErrorCode.SYMBOL_NOT_FOUND.value, (
+            f"Market data service should map invalid symbol to SYMBOL_NOT_FOUND, "
+            f"got {market_error.code}"
+        )
+
+        # Trading Service error handling
+        invalid_order_args = PlaceOrderArgs(
+            symbol=invalid_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
-            price=Decimal("50000.0"),
+            price=Decimal("100.0"),
             time_in_force=TimeInForce.GTC,
         )
-        result = await api.place_order(place_order_args)
-
-        mock_hl_trading_service.place_order.assert_called_once_with(place_order_args)
-
-        assert result == expected_order
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_place_order_with_asset_indexing_failure(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that place_order properly handles asset indexing failures."""
-        api = hl_api_with_di()
-
-        asset_indexing_error = APIError(
-            "Asset index not found for symbol 'UNKNOWN_SYMBOL'",
-            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-        )
-        mock_hl_trading_service.place_order.side_effect = asset_indexing_error
-
-        with pytest.raises(APIError) as exc_info:
-            place_order_args = PlaceOrderArgs(
-                symbol="UNKNOWN_SYMBOL",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
-            await api.place_order(place_order_args)
-
-        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        assert "Asset index not found" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_with_asset_indexing_success(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that cancel_order works correctly when asset indexing succeeds."""
-        api = hl_api_with_di()
-
-        mock_hl_trading_service.cancel_order.return_value = True
-
-        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
-        result = await api.cancel_order(args=cancel_args)
-
-        mock_hl_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
-
-        assert result is True
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_with_asset_indexing_failure(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that cancel_order properly handles asset indexing failures."""
-        api = hl_api_with_di()
-
-        asset_indexing_error = APIError(
-            "Asset index not found for symbol 'INVALID_SYMBOL'",
-            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-        )
-        mock_hl_trading_service.cancel_order.side_effect = asset_indexing_error
-
-        with pytest.raises(APIError) as exc_info:
-            cancel_args = CancelOrderArgs(order_id="12345", symbol="INVALID_SYMBOL")
-            await api.cancel_order(args=cancel_args)
-
-        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        assert "Asset index not found" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_order_with_asset_indexing_success(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that get_order works correctly when asset indexing succeeds."""
-        api = hl_api_with_di()
-
-        expected_order = Order(
-            exchange_order_id="12345",
-            symbol="ETH",
-            side=OrderSide.SELL,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("2.0"),
-            price=Decimal("3000.0"),
-            exchange="hyperliquid",
-            time_in_force=TimeInForce.GTC,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-        mock_hl_trading_service.get_order.return_value = expected_order
-
-        result = await api.get_order(GetOrderArgs(order_id="12345", symbol="ETH"))
-
-        mock_hl_trading_service.get_order.assert_called_once_with(
-            args=GetOrderArgs(order_id="12345", symbol="ETH"),
-        )
-
-        assert result == expected_order
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_order_with_asset_indexing_failure(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that get_order properly handles asset indexing failures."""
-        api = hl_api_with_di()
-
-        asset_indexing_error = APIError(
-            "Asset index not found for symbol 'NONEXISTENT'",
-            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-        )
-        mock_hl_trading_service.get_order.side_effect = asset_indexing_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_order(GetOrderArgs(order_id="12345", symbol="NONEXISTENT"))
-
-        assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        assert "Asset index not found" in str(exc_info.value)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_multiple_operations_asset_indexing_consistency(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that multiple operations using the same symbol work consistently."""
-        api = hl_api_with_di()
-
-        expected_order = Order(
-            exchange_order_id="12345",
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            exchange="hyperliquid",
-            time_in_force=TimeInForce.GTC,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-
-        mock_hl_trading_service.place_order.return_value = expected_order
-        mock_hl_trading_service.get_order.return_value = expected_order
-        mock_hl_trading_service.cancel_order.return_value = True
-
-        place_order_args = PlaceOrderArgs(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            time_in_force=TimeInForce.GTC,
-        )
-        place_result = await api.place_order(place_order_args)
-
-        get_result = await api.get_order(GetOrderArgs(order_id="12345", symbol="BTC"))
-
-        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
-        cancel_result = await api.cancel_order(args=cancel_args)
-
-        assert place_result == expected_order
-        assert get_result == expected_order
-        assert cancel_result is True
-
-        mock_hl_trading_service.place_order.assert_called_once()
-        mock_hl_trading_service.get_order.assert_called_once()
-        mock_hl_trading_service.cancel_order.assert_called_once()
-
-        await api.close()
-
-
-class TestHyperliquidAPIAccountOperations:
-    """Test account-related operations with service delegation."""
-
-    @pytest.mark.asyncio
-    async def test_get_balances_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_balances properly delegates to account service."""
-        api = hl_api_with_di()
-
-        expected_balances = {
-            "USDC": SpotBalance(
-                exchange="hyperliquid",
-                asset="USDC",
-                total_quantity=Decimal("5000.0"),
-                available_quantity=Decimal("4800.0"),
-                timestamp=datetime.now(UTC),
-            ),
-        }
-        mock_hl_account_service.get_balances.return_value = expected_balances
-
-        result = await api.get_balances()
-
-        mock_hl_account_service.get_balances.assert_called_once()
-        assert result == expected_balances
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_account_summary_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_account_summary properly delegates to account service."""
-        api = hl_api_with_di()
-
-        expected_summary = MarginAccountSummary(
-            exchange="hyperliquid",
-            timestamp=datetime.now(UTC),
-            total_equity=Decimal("5000.0"),
-            available_equity=Decimal("4200.0"),
-            total_initial_margin_required=None,
-            total_maintenance_margin_required=Decimal("80.0"),
-            total_unrealized_pnl=Decimal("25.0"),
-        )
-        mock_hl_account_service.get_account_summary.return_value = expected_summary
-
-        result = await api.get_account_summary()
-
-        mock_hl_account_service.get_account_summary.assert_called_once()
-        assert result == expected_summary
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_positions_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_positions properly delegates to account service."""
-        api = hl_api_with_di()
-
-        expected_positions: list[DerivativePosition] = []
-        mock_hl_account_service.get_positions.return_value = expected_positions
-
-        result = await api.get_positions()
-
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol=None)
-        assert result == expected_positions
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_positions_with_symbol_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_positions with symbol delegates to account service."""
-        api = hl_api_with_di()
-        mock_hl_account_service.get_positions.return_value = []
-
-        result = await api.get_positions("ETH")
-
-        assert result == []
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="ETH")
-
-    @pytest.mark.asyncio
-    async def test_get_order_history_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_order_history properly delegates to account service."""
-        api = hl_api_with_di()
-
-        expected_orders: list[Order] = []
-        mock_hl_account_service.get_order_history.return_value = expected_orders
-
-        order_args = GetOrderHistoryArgs(symbol="ETH")
-        result = await api.get_order_history(args=order_args)
-
-        mock_hl_account_service.get_order_history.assert_called_once_with(args=order_args)
-        assert result == expected_orders
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_trade_history_delegates_to_account_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that get_trade_history properly delegates to account service."""
-        api = hl_api_with_di()
-
-        expected_trades: list[Trade] = []
-        mock_hl_account_service.get_trade_history.return_value = expected_trades
-
-        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol="ETH"))
-
-        mock_hl_account_service.get_trade_history.assert_called_once_with(
-            args=GetTradeHistoryArgs(symbol="ETH"),
-        )
-        assert result == expected_trades
-
-        await api.close()
-
-
-class TestHyperliquidAPITradingOperations:
-    """Test trading-related operations with service delegation."""
-
-    @pytest.mark.asyncio
-    async def test_place_order_delegates_to_trading_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that place_order properly delegates to trading service."""
-        api = hl_api_with_di()
-
-        expected_order = Order(
-            exchange_order_id="12345",
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            exchange="hyperliquid",
-            time_in_force=TimeInForce.GTC,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-        mock_hl_trading_service.place_order.return_value = expected_order
-
-        place_order_args = PlaceOrderArgs(
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            time_in_force=TimeInForce.GTC,
-        )
-        result = await api.place_order(place_order_args)
-
-        mock_hl_trading_service.place_order.assert_called_once_with(place_order_args)
-        assert result == expected_order
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_cancel_order_delegates_to_trading_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that cancel_order properly delegates to trading service."""
-        api = hl_api_with_di()
-
-        mock_hl_trading_service.cancel_order.return_value = True
-
-        cancel_args = CancelOrderArgs(order_id="12345", symbol="BTC")
-        result = await api.cancel_order(args=cancel_args)
-
-        mock_hl_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
-        assert result is True
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_order_delegates_to_trading_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that get_order properly delegates to trading service."""
-        api = hl_api_with_di()
-
-        expected_order = Order(
-            exchange_order_id="12345",
-            symbol="BTC",
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.0"),
-            exchange="hyperliquid",
-            time_in_force=TimeInForce.GTC,
-            updated_at=None,
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-        )
-        mock_hl_trading_service.get_order.return_value = expected_order
-
-        result = await api.get_order(GetOrderArgs(order_id="12345", symbol="BTC"))
-
-        mock_hl_trading_service.get_order.assert_called_once_with(
-            args=GetOrderArgs(order_id="12345", symbol="BTC"),
-        )
-        assert result == expected_order
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_get_open_orders_delegates_to_trading_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that get_open_orders delegates to trading service."""
-        api = hl_api_with_di()
-        mock_hl_trading_service.get_open_orders.return_value = []
-
-        result = await api.get_open_orders("BTC")
-
-        assert result == []
-        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol="BTC")
-
-
-class TestHyperliquidAPIMarketDataOperations:
-    """Test market data operations with service delegation."""
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_delegates_to_market_data_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test that get_ticker delegates to market data service."""
-        api = hl_api_with_di()
-
-        mock_ticker = MagicMock()
-        mock_hl_market_data_service.get_ticker.return_value = mock_ticker
-
-        result = await api.get_ticker("BTC")
-
-        assert result == mock_ticker
-        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="BTC")
-
-    @pytest.mark.asyncio
-    async def test_get_funding_rates_delegates_to_market_data_service(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test that get_funding_rates delegates to market data service."""
-        api = hl_api_with_di()
-        mock_hl_market_data_service.get_funding_rates.return_value = []
-
-        funding_args = GetFundingRatesArgs(symbols=["BTC"])
-        result = await api.get_funding_rates(args=funding_args)
-
-        assert result == []
-        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(args=funding_args)
-
-
-class TestHyperliquidAPIComprehensiveErrorHandling:
-    """Comprehensive error handling tests covering various failure scenarios."""
-
-    @pytest.mark.asyncio
-    async def test_get_balances_service_validation_error(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test get_balances exact propagation of service validation errors."""
-        api = hl_api_with_di()
-
-        validation_error = APIError(
-            "Invalid balance data format",
-            code=APIErrorCode.INVALID_RESPONSE.value,
-        )
-        mock_hl_account_service.get_balances.side_effect = validation_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_balances()
-
-        assert exc_info.value is validation_error
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Invalid balance data format" in exc_info.value.message
-        mock_hl_account_service.get_balances.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_ticker_empty_successful_response(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test that get_ticker handles empty successful response correctly."""
-        api = hl_api_with_di()
-        mock_hl_market_data_service.get_ticker.return_value = None
-
-        result = await api.get_ticker("NONEXISTENT")
-
-        assert result is None
-        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="NONEXISTENT")
-
-    @pytest.mark.asyncio
-    async def test_get_positions_rate_limited_propagation(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test that rate limited errors from account service are propagated correctly."""
-        api = hl_api_with_di()
-
-        rate_limited_error = APIError("Rate limited", code=429)
-        mock_hl_account_service.get_positions.side_effect = rate_limited_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_positions("BTC")
-
-        assert exc_info.value.code == 429
-        assert "Rate limited" in str(exc_info.value)
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="BTC")
-
-    @pytest.mark.asyncio
-    async def test_get_account_summary_server_error_propagation(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_account_service: MagicMock,
-    ) -> None:
-        """Test get_account_summary exact propagation of server errors."""
-        api = hl_api_with_di()
-
-        server_error = APIError(
-            "Internal server error",
-            code=APIErrorCode.SERVER_ERROR.value,
-            http_status=500,
-        )
-        mock_hl_account_service.get_account_summary.side_effect = server_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_account_summary()
-
-        assert exc_info.value is server_error
-        assert exc_info.value.code == APIErrorCode.SERVER_ERROR.value
-        assert exc_info.value.http_status == 500
-        mock_hl_account_service.get_account_summary.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_order_book_timeout_error_propagation(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test get_order_book exact propagation of timeout errors."""
-        api = hl_api_with_di()
-
-        timeout_error = APIError("Request timeout", code=APIErrorCode.TIMEOUT.value)
-        mock_hl_market_data_service.get_order_book.side_effect = timeout_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_order_book("ETH")
-
-        assert exc_info.value is timeout_error
-        assert exc_info.value.code == APIErrorCode.TIMEOUT.value
-        mock_hl_market_data_service.get_order_book.assert_called_once_with(symbol="ETH")
-
-    @pytest.mark.asyncio
-    async def test_get_recent_trades_service_unavailable_propagation(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test get_recent_trades exact propagation of service unavailable errors."""
-        api = hl_api_with_di()
-
-        service_error = APIError(
-            "Service temporarily unavailable",
-            code=APIErrorCode.SERVICE_UNAVAILABLE.value,
-            http_status=503,
-        )
-        mock_hl_market_data_service.get_recent_trades.side_effect = service_error
-
-        with pytest.raises(APIError) as exc_info:
-            await api.get_recent_trades("BTC", limit=10)
-
-        assert exc_info.value is service_error
-        assert exc_info.value.code == APIErrorCode.SERVICE_UNAVAILABLE.value
-        assert exc_info.value.http_status == 503
-        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol="BTC")
-
-    @pytest.mark.asyncio
-    async def test_place_order_service_unexpected_exception(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test place_order exact propagation of unexpected exceptions from service."""
-        api = hl_api_with_di()
-
-        unexpected_error = RuntimeError("Unexpected service failure")
-        mock_hl_trading_service.place_order.side_effect = unexpected_error
-
-        with pytest.raises(RuntimeError) as exc_info:
-            place_order_args = PlaceOrderArgs(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
-            await api.place_order(place_order_args)
-
-        assert exc_info.value is unexpected_error
-        assert "Unexpected service failure" in str(exc_info.value)
-
-
-class TestHyperliquidAPIWebSocketOperations:
-    """Test WebSocket operations."""
-
-    @pytest.mark.asyncio
-    async def test_subscribe_delegates_to_ws_manager(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-    ) -> None:
-        """Test that subscribe properly delegates to WebSocket manager."""
-        api = hl_api_with_di()
-
-        async def mock_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
-            pass
-
-        empty_handlers: dict[str, Any] = {}
-        empty_subscriptions: dict[str, Any] = {}
-        with patch.object(api, "_ws_handlers", empty_handlers):
-            with patch.object(api, "_ws_subscriptions", empty_subscriptions):
-                await api.subscribe("test_topic", mock_handler)
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_websocket_message_handling_public_behavior(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-    ) -> None:
-        """Test WebSocket message handling through public interface."""
-        api = hl_api_with_di()
-
-        with patch.object(api, "_hl_ws_router") as mock_router:
-            mock_router.route_message = AsyncMock()
-            assert hasattr(api, "_hl_ws_router")
-
-        await api.close()
-
-
-class TestHyperliquidAPIErrorHandlingIntegration:
-    """Test that the API client correctly propagates errors from services through public API."""
-
-    @pytest.mark.asyncio
-    async def test_service_apierror_propagation_exact_passthrough(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that APIError from service is propagated exactly without wrapping."""
-        api = hl_api_with_di()
-
-        service_error = APIError(
-            message="Service-level validation failed",
-            code=APIErrorCode.INVALID_PARAMS.value,
-            http_status=400,
-        )
-        mock_hl_trading_service.place_order.side_effect = service_error
-
-        with pytest.raises(APIError) as exc_info:
-            place_order_args = PlaceOrderArgs(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("1.0"),
-                price=Decimal("50000.0"),
-                time_in_force=TimeInForce.GTC,
-            )
-            await api.place_order(place_order_args)
-
-        assert exc_info.value is service_error
-        assert exc_info.value.code == APIErrorCode.INVALID_PARAMS.value
-        assert exc_info.value.message == "Service-level validation failed"
-        assert exc_info.value.http_status == 400
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_service_valueerror_propagation_exact_passthrough(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-    ) -> None:
-        """Test that ValueError from service is propagated exactly without wrapping."""
-        api = hl_api_with_di()
-
-        service_error = ValueError("Invalid symbol format for service processing")
-        mock_hl_trading_service.get_order.side_effect = service_error
-
-        with pytest.raises(ValueError) as exc_info:
-            await api.get_order(GetOrderArgs(order_id="invalid_id", symbol="BTC"))
-
-        assert exc_info.value is service_error
-        assert str(exc_info.value) == "Invalid symbol format for service processing"
-
-        await api.close()
-
-    @pytest.mark.asyncio
-    async def test_multiple_error_types_from_different_services(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        mock_hl_trading_service: MagicMock,
-        mock_hl_account_service: MagicMock,
-        mock_hl_market_data_service: MagicMock,
-    ) -> None:
-        """Test different services raise different error types and all are propagated correctly."""
-        api = hl_api_with_di()
-
-        trading_api_error = APIError(
-            message="Trading service error",
-            code=APIErrorCode.NETWORK_ISSUE.value,
-        )
-        account_value_error = ValueError("Account service input validation failed")
-        market_data_api_error = APIError(
-            message="Market data service error",
-            code=APIErrorCode.INVALID_RESPONSE.value,
-        )
-
-        mock_hl_trading_service.cancel_order.side_effect = trading_api_error
-        mock_hl_account_service.get_balances.side_effect = account_value_error
-        mock_hl_market_data_service.get_ticker.side_effect = market_data_api_error
 
         with pytest.raises(APIError) as trading_exc:
-            cancel_args = CancelOrderArgs(order_id="12345")
-            await api.cancel_order(args=cancel_args)
-        assert trading_exc.value is trading_api_error
+            await hl_api_for_test_env.place_order(invalid_order_args)
 
-        with pytest.raises(ValueError) as account_exc:
-            await api.get_balances()
-        assert account_exc.value is account_value_error
+        trading_error = trading_exc.value
+        assert trading_error.code == APIErrorCode.SYMBOL_NOT_FOUND.value, (
+            f"Trading service should map invalid symbol to SYMBOL_NOT_FOUND, "
+            f"got {trading_error.code}"
+        )
 
-        with pytest.raises(APIError) as market_exc:
-            await api.get_ticker(symbol="BTC")
-        assert market_exc.value is market_data_api_error
+        # Error messages should be informative and consistent
+        assert invalid_symbol in market_error.message, (
+            "Error message should include the invalid symbol for debugging"
+        )
+        assert invalid_symbol in trading_error.message, (
+            "Error message should include the invalid symbol for debugging"
+        )
 
-        await api.close()
+        # Test 2: Authentication error consistency
+        # This would require testing with invalid credentials, which we skip
+        # in integration tests to avoid API lockouts
+
+        # Test 3: Network error handling consistency
+        # We don't test network failures directly as they're environmental
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_data_model_consistency_across_pipeline(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test that data models maintain consistency across the entire pipeline.
+
+        Validates that the same symbol/market data is consistently represented
+        across different services and operations.
+        """
+        # Get a real test symbol
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
+        # Step 1: Get the same symbol data from different services
+        market_data = await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
+        ticker_data = await hl_api_for_test_env.get_ticker(test_symbol)
+
+        # Step 2: Validate symbol consistency
+        assert market_data.symbol == ticker_data.symbol == test_symbol, (
+            "Symbol representation must be consistent across all services"
+        )
+
+        # Step 3: Validate financial data types are consistent
+        financial_fields = [
+            (market_data.tick_size, "market tick_size"),
+            (market_data.step_size, "market step_size"),
+            (market_data.min_quantity, "market min_quantity"),
+            (ticker_data.price, "ticker price"),
+        ]
+
+        for field_value, field_name in financial_fields:
+            assert isinstance(field_value, Decimal), (
+                f"{field_name} must be Decimal for financial precision"
+            )
+            # Validate no negative values for positive-definite quantities
+            if "price" in field_name or "size" in field_name or "quantity" in field_name:
+                assert field_value > Decimal("0"), f"{field_name} must be positive: {field_value}"
+
+        # Step 4: Validate timestamp consistency (timezone-aware)
+        if hasattr(ticker_data, "timestamp") and ticker_data.timestamp:
+            assert ticker_data.timestamp.tzinfo is not None, (
+                "All financial timestamps must be timezone-aware"
+            )
+
+            # Validate timestamp is recent (not stale data)
+            time_diff = datetime.now(UTC) - ticker_data.timestamp
+            assert time_diff < timedelta(hours=1), (
+                f"Ticker timestamp {ticker_data.timestamp} is too old: {time_diff}"
+            )
+
+        # Step 5: Test order creation maintains model consistency
+        safe_price = await HyperliquidTestHelpers.get_dynamic_test_price(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10.0")
+        )
+        safe_quantity = market_data.min_quantity
+
+        order_args = PlaceOrderArgs(
+            symbol=test_symbol,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=safe_quantity,
+            price=safe_price,
+            time_in_force=TimeInForce.GTC,
+        )
+
+        placed_order = await hl_api_for_test_env.place_order(order_args)
+
+        # Validate order maintains symbol consistency
+        assert placed_order.symbol == test_symbol, "Order symbol must be consistent with input"
+
+        # Validate order maintains precision consistency
+        assert isinstance(placed_order.quantity, Decimal), (
+            "Order quantity must maintain Decimal precision"
+        )
+        assert isinstance(placed_order.price, Decimal), (
+            "Order price must maintain Decimal precision"
+        )
+
+        # Validate order respects market constraints
+        assert placed_order.quantity >= market_data.min_quantity, (
+            "Order quantity must respect market minimum"
+        )
+
+        # Price should respect tick size (within rounding tolerance)
+        price_remainder = placed_order.price % market_data.tick_size
+        assert price_remainder == Decimal("0"), (
+            f"Order price {placed_order.price} must align with tick size {market_data.tick_size}"
+        )
+
+        # Cleanup
+        if placed_order.exchange_order_id:
+            cancel_args = CancelOrderArgs(
+                order_id=placed_order.exchange_order_id,
+                symbol=test_symbol,
+            )
+            await hl_api_for_test_env.cancel_order(cancel_args)
+
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
+    async def test_concurrent_service_operations(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test that concurrent operations across services maintain consistency.
+
+        Validates that the API can handle concurrent operations across different
+        services without data corruption or race conditions.
+        """
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
+        # Define concurrent operations across different services
+        async def get_account_data():
+            return await hl_api_for_test_env.get_account_summary()
+
+        async def get_market_data():
+            return await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
+
+        async def get_ticker_data():
+            return await hl_api_for_test_env.get_ticker(test_symbol)
+
+        async def get_open_orders():
+            return await hl_api_for_test_env.get_open_orders()
+
+        # Execute operations concurrently
+        start_time = datetime.now(UTC)
+        results = await asyncio.gather(
+            get_account_data(),
+            get_market_data(),
+            get_ticker_data(),
+            get_open_orders(),
+            return_exceptions=True,
+        )
+        end_time = datetime.now(UTC)
+
+        # Validate all operations completed successfully
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                pytest.fail(f"Concurrent operation {i} failed: {result}")
+
+        account_data, market_data, ticker_data, open_orders = results
+
+        # Validate data consistency despite concurrent execution
+        assert account_data.exchange == "hyperliquid", (
+            "Account data must maintain exchange consistency"
+        )
+        assert market_data.symbol == test_symbol, "Market data must maintain symbol consistency"
+        assert ticker_data.symbol == test_symbol, "Ticker data must maintain symbol consistency"
+        assert isinstance(open_orders, list), "Open orders must return list consistently"
+
+        # Validate timing consistency (operations should complete reasonably quickly)
+        total_time = end_time - start_time
+        if total_time > timedelta(seconds=10):
+            pytest.fail(
+                f"Concurrent operations took {total_time}, may indicate "
+                "performance issues or rate limiting problems"
+            )
+
+        # Validate financial data precision maintained across concurrent calls
+        financial_values = [
+            account_data.total_equity,
+            account_data.available_equity,
+            market_data.tick_size,
+            ticker_data.price,
+        ]
+
+        for value in financial_values:
+            assert isinstance(value, Decimal), (
+                "Financial precision must be maintained in concurrent operations"
+            )

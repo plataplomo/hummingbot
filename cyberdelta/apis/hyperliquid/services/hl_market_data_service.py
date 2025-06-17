@@ -11,6 +11,7 @@ Raw Pydantic Models.
 # Typing and Pydantic
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -341,48 +342,52 @@ class HyperliquidMarketDataService:
 
     def _validate_symbol(self, symbol: str, current_method: str) -> None:
         """Validate symbol parameter.
-        
+
         Args:
             symbol: Trading symbol to validate
             current_method: Calling method name for error context
-            
+
         Raises:
             ValueError: If symbol is invalid
         """
         if not symbol:
             raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-        
+
         # Strip and check again
         if not symbol.strip():
             raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
 
-    def _validate_candle_snapshot_params(self, args: GetCandleSnapshotArgs, current_method: str) -> None:
+    def _validate_candle_snapshot_params(
+        self, args: GetCandleSnapshotArgs, current_method: str
+    ) -> None:
         """Validate candle snapshot parameters.
-        
+
         Args:
             args: Candle snapshot arguments to validate
             current_method: Calling method name for error context
-            
+
         Raises:
             ValueError: If parameters are invalid
         """
         # Validate symbol
         self._validate_symbol(args.symbol, current_method)
-        
+
         # Validate timeframe
         if not args.timeframe:
             raise ValueError(f"[{current_method}] 'timeframe' must be a non-empty string.")
-        
+
         if not args.timeframe.strip():
             raise ValueError(f"[{current_method}] 'timeframe' cannot be empty or whitespace only.")
-        
+
         # Validate time range
         if args.start_time_ms < 0:
-            raise ValueError(f"[{current_method}] Start time cannot be negative: {args.start_time_ms}")
-        
+            raise ValueError(
+                f"[{current_method}] Start time cannot be negative: {args.start_time_ms}"
+            )
+
         if args.end_time_ms < 0:
             raise ValueError(f"[{current_method}] End time cannot be negative: {args.end_time_ms}")
-        
+
         if args.start_time_ms >= args.end_time_ms:
             raise ValueError(
                 f"[{current_method}] Start time ({args.start_time_ms}) must be before "
@@ -839,11 +844,17 @@ class HyperliquidMarketDataService:
         )
 
         endpoint_path = "/info"
+        from datetime import datetime
+
+        # Convert timestamps to datetime objects
+        start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC) if start_time_ms else None
+        end_time = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC) if end_time_ms else None
+
         payload = self._request_builder.build_historical_funding_rates_payload(
             GetHistoricalFundingRatesArgs(
                 symbol=symbol,
-                start_time=args.start_time,
-                end_time=args.end_time,
+                start_time=start_time,
+                end_time=end_time,
             )
         )
 

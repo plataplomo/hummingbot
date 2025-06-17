@@ -18,12 +18,6 @@ from pydantic import ValidationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
-    HyperliquidRawL2Book as HyperliquidRawOrderBookResponse,
-)
-from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
-    HyperliquidRawPublicTrade,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
@@ -31,6 +25,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
+    HyperliquidRawL2Book as HyperliquidRawOrderBookResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
+    HyperliquidRawPublicTrade,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -69,7 +69,7 @@ class HyperliquidResponsePreprocessingMapper:
 
         Returns:
             HyperliquidRawMetaAndAssetCtxsResponse: Validated response model
-            
+
         Raises:
             APIError: If preprocessing or validation fails
         """
@@ -197,7 +197,7 @@ class HyperliquidResponsePreprocessingMapper:
 
     @staticmethod
     def preprocess_order_status_response(
-        raw_response_content: Any,
+        raw_response_content: object,
         user_address: str,
         order_id: int,
     ) -> HyperliquidRawHistoricalOrderResponse:
@@ -247,7 +247,7 @@ class HyperliquidResponsePreprocessingMapper:
         )
 
     @staticmethod
-    def _is_direct_order_not_found_string(raw_response_content: Any) -> TypeGuard[str]:
+    def _is_direct_order_not_found_string(raw_response_content: object) -> TypeGuard[str]:
         """Check if response is a direct 'Order not found' string."""
         return isinstance(raw_response_content, str) and "Order not found" in raw_response_content
 
@@ -415,7 +415,7 @@ class HyperliquidResponsePreprocessingMapper:
 
     @staticmethod
     def preprocess_candle_snapshot_response(
-        raw_response_content: Any,
+        raw_response_content: object,
         symbol: str,
         interval: str,
     ) -> HyperliquidRawCandleSnapshot:
@@ -483,18 +483,18 @@ class HyperliquidResponsePreprocessingMapper:
 
     @staticmethod
     def preprocess_l2_book_response(
-        raw_response_content: Any,
+        raw_response_content: object,
         symbol: str,
     ) -> HyperliquidRawOrderBookResponse:
         """Preprocess and validate L2 order book response.
-        
+
         This method handles the business logic for transforming Hyperliquid's
         order book responses, including handling None/empty responses.
-        
+
         Args:
             raw_response_content: Raw API response data
             symbol: Symbol for context and empty book creation
-            
+
         Returns:
             HyperliquidRawOrderBookResponse: Validated order book model
         """
@@ -511,15 +511,14 @@ class HyperliquidResponsePreprocessingMapper:
 
         if not isinstance(raw_response_content, dict):
             logger.error(
-                f"Unexpected order book format for {symbol}. "
-                f"Raw: {raw_response_content!r}",
+                f"Unexpected order book format for {symbol}. Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected order book response format: expected dict, "
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-            
+
         try:
             return HyperliquidRawOrderBookResponse.model_validate(raw_response_content)
         except ValidationError as e:
@@ -545,25 +544,24 @@ class HyperliquidResponsePreprocessingMapper:
 
     @staticmethod
     def preprocess_recent_trades_response(
-        raw_response_content: Any,
+        raw_response_content: object,
         symbol: str,
     ) -> list[HyperliquidRawPublicTrade]:
         """Preprocess and validate recent trades response.
-        
+
         This method handles the business logic for transforming Hyperliquid's
         recent trades responses, including validation and error handling.
-        
+
         Args:
             raw_response_content: Raw API response data
             symbol: Symbol for context and logging
-            
+
         Returns:
             list[HyperliquidRawPublicTrade]: List of validated trade models
         """
         if not isinstance(raw_response_content, list):
             logger.error(
-                f"Unexpected recent trades format for {symbol}. "
-                f"Raw: {raw_response_content!r}",
+                f"Unexpected recent trades format for {symbol}. Raw: {raw_response_content!r}",
             )
             raise APIError(
                 message=f"Unexpected recent trades response format: expected list, "
@@ -598,5 +596,5 @@ class HyperliquidResponsePreprocessingMapper:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     original_exception=e,
                 ) from e
-                
+
         return validated_trades

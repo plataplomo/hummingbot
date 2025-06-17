@@ -194,7 +194,7 @@ class BackpackRequestBuilder:
             OrderType.STOP_MARKET: "Market",  # With triggerPrice it becomes a stop
             OrderType.STOP_LIMIT: "Limit",  # With triggerPrice it becomes a stop limit
             OrderType.TAKE_PROFIT_MARKET: "Market",  # With triggerPrice it becomes a take profit
-            OrderType.TAKE_PROFIT_LIMIT: "Limit",  # With triggerPrice it becomes a take profit limit
+            OrderType.TAKE_PROFIT_LIMIT: "Limit",  # With triggerPrice becomes take profit limit
         }.get(order_type, "Limit")  # Default to "Limit" if not found
 
         # Map time in force (only for limit orders, service validates this)
@@ -231,7 +231,8 @@ class BackpackRequestBuilder:
         api_self_trade_prevention: str | None,
     ) -> None:
         """Add basic order fields to request data."""
-        # For stop limit and take profit limit orders, Backpack API requires NOT to specify quantity, only triggerQuantity
+        # For stop limit and take profit limit orders, Backpack API requires
+        # NOT to specify quantity, only triggerQuantity
         if order_type not in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
             request_data["quantity"] = str(quantity)
         if price is not None:

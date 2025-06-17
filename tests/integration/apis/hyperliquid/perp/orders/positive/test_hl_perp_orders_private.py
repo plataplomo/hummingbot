@@ -35,7 +35,6 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.test_helpers import (
-    COMMON_PERP_SYMBOLS,
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
     get_safe_test_price,
@@ -77,8 +76,10 @@ class TestHyperliquidPerpOrdersPrivate:
         to fully validated Order model instances with all field constraints.
         Uses dynamic helpers to calculate safe test prices and quantities.
         """
-        # Use dynamic helpers to get appropriate test symbol
-        test_symbol = COMMON_PERP_SYMBOLS[0]  # Start with BTC
+        # Use dynamic helpers to get appropriate test symbol from exchange
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters
         test_price = await get_safe_test_price(
@@ -190,7 +191,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # First place an order
         place_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1"),
@@ -207,7 +208,7 @@ class TestHyperliquidPerpOrdersPrivate:
         # Cancel the order
         cancel_args = CancelOrderArgs(
             order_id=order_id,
-            symbol="PURP",  # Hyperliquid requires asset for cancellation
+            symbol=test_symbol,  # Hyperliquid requires asset for cancellation
         )
 
         cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
@@ -236,7 +237,7 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Define order args
         place_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1"),
@@ -267,7 +268,10 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates that our HyperliquidErrorMapper correctly maps Hyperliquid's
         "Insufficient balance" or similar error to our standardized APIErrorCode.
         """
-        test_symbol = COMMON_PERP_SYMBOLS[0]
+        # Use dynamic symbol helper instead of hardcoded reference
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get unreasonably large values using dynamic helpers
         large_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
@@ -351,7 +355,7 @@ class TestHyperliquidPerpOrdersPrivate:
         # Attempt to cancel order with fake ID
         cancel_args = CancelOrderArgs(
             order_id="99999999999999999",  # Non-existent order ID
-            symbol="PURP",
+            symbol=test_symbol,
         )
 
         # Should raise APIError with ORDER_NOT_FOUND
@@ -386,7 +390,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Test very small quantity order
         small_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.000001"),  # Very small quantity
@@ -412,7 +416,7 @@ class TestHyperliquidPerpOrdersPrivate:
             # Clean up
             if placed_order.exchange_order_id:
                 cancel_args = CancelOrderArgs(
-                    order_id=placed_order.exchange_order_id, symbol="PURP"
+                    order_id=placed_order.exchange_order_id, symbol=test_symbol
                 )
                 await hl_api_for_test_env.cancel_order(cancel_args)
 
@@ -436,7 +440,9 @@ class TestHyperliquidPerpOrdersPrivate:
         across different order states. Uses both /exchange (write) and /info (read) operations.
         """
         # Step 1: Place order (/exchange endpoint) using dynamic helpers
-        test_symbol = COMMON_PERP_SYMBOLS[0]
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
         test_price = await get_safe_test_price(hl_api_for_test_env, test_symbol, OrderSide.BUY)
         test_quantity = await get_minimal_test_quantity(
             hl_api_for_test_env, test_symbol, OrderSide.BUY
@@ -455,22 +461,16 @@ class TestHyperliquidPerpOrdersPrivate:
         order_id = placed_order.exchange_order_id
         assert order_id is not None, "Placed order should have order ID"
 
-        # Step 2: Verify order appears in open orders (/info endpoint)
-        open_orders = await hl_api_for_test_env.get_open_orders()
-        placed_order_found = any(order.exchange_order_id == order_id for order in open_orders)
-        assert placed_order_found, "Placed order should appear in open orders"
+        # Step 2: Wait for order to appear in open orders with proper polling (fixes race condition)
+        await HyperliquidTestHelpers.wait_for_order_placement(hl_api_for_test_env, order_id)
 
         # Step 3: Cancel order (/exchange endpoint)
         cancel_args = CancelOrderArgs(order_id=order_id, symbol=test_symbol)
         cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
         assert cancel_result is True, "Order cancellation should succeed"
 
-        # Step 4: Verify order no longer in open orders (/info endpoint)
-        open_orders_after = await hl_api_for_test_env.get_open_orders()
-        cancelled_order_found = any(
-            order.exchange_order_id == order_id for order in open_orders_after
-        )
-        assert not cancelled_order_found, "Cancelled order should not appear in open orders"
+        # Step 4: Wait for order cancellation to be reflected (fixes race condition)
+        await HyperliquidTestHelpers._wait_for_order_cancellation(hl_api_for_test_env, test_symbol)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -484,10 +484,15 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates the complete bulk cancellation pipeline with symbol filtering,
         ensuring all orders for a specific symbol are cancelled properly.
         """
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Step 1: Place multiple orders for the same symbol
         order_args_list = [
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -495,7 +500,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 time_in_force=TimeInForce.GTC,
             ),
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.2"),
@@ -510,13 +515,24 @@ class TestHyperliquidPerpOrdersPrivate:
                 order = await hl_api_for_test_env.place_order(order_args)
                 if order.exchange_order_id:
                     placed_orders.append(order)
-            except APIError:
-                # If placement fails, skip the test
-                pytest.skip("Unable to place orders for cancel_all test")
+            except APIError as e:
+                # Order placement failures are system errors
+                pytest.fail(
+                    f"Failed to place order for cancel_all test: {e}. "
+                    "Order placement is a critical operation that must work reliably."
+                )
 
-        # Step 2: Execute cancel_all_orders with symbol filter
+        # Step 2: Wait for all orders to be placed and visible before cancelling (fixes race condition)
         if placed_orders:
-            cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
+            # Verify all orders are properly placed before attempting cancellation
+            for placed_order in placed_orders:
+                if placed_order.exchange_order_id:
+                    await HyperliquidTestHelpers.wait_for_order_placement(
+                        hl_api_for_test_env, placed_order.exchange_order_id
+                    )
+
+            # Execute cancel_all_orders with symbol filter
+            cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol=test_symbol)
 
             # Validate return type and structure
             assert isinstance(cancel_results, list), (
@@ -530,18 +546,9 @@ class TestHyperliquidPerpOrdersPrivate:
                     "Cancel result should have status/success indicator"
                 )
 
-            # Step 3: Verify orders are no longer in open orders
-            open_orders_after = await hl_api_for_test_env.get_open_orders()
-            purp_orders_remaining = [
-                order
-                for order in open_orders_after
-                if order.symbol == "PURP"
-                and order.exchange_order_id
-                in [placed_order.exchange_order_id for placed_order in placed_orders]
-            ]
-
-            assert len(purp_orders_remaining) == 0, (
-                f"All PURP orders should be cancelled, but {len(purp_orders_remaining)} remain"
+            # Step 3: Wait for cancellation to be reflected (fixes race condition)
+            await HyperliquidTestHelpers._wait_for_order_cancellation(
+                hl_api_for_test_env, test_symbol
             )
 
     @pytest.mark.vcr
@@ -556,10 +563,15 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates bulk cancellation of ALL open orders across all symbols,
         ensuring complete order book cleanup.
         """
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Step 1: Place orders on different symbols if possible
         order_args_list = [
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -568,7 +580,7 @@ class TestHyperliquidPerpOrdersPrivate:
             ),
             # Note: Using same symbol for testnet safety
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -578,14 +590,19 @@ class TestHyperliquidPerpOrdersPrivate:
         ]
 
         placed_orders: list[Order] = []
-        for order_args in order_args_list:
+        failed_orders: list[str] = []
+        for i, order_args in enumerate(order_args_list):
             try:
                 order = await hl_api_for_test_env.place_order(order_args)
                 if order.exchange_order_id:
                     placed_orders.append(order)
-            except APIError:
-                # If placement fails, continue with other orders
-                pass
+            except APIError as e:
+                # Order placement failures are critical - track them
+                failed_orders.append(f"Order {i}: {e}")
+
+        # Fail if too many orders failed
+        if len(failed_orders) > len(order_args_list) * 0.5:  # More than 50% failed
+            pytest.fail(f"Too many order failures: {failed_orders}")
 
         # Step 2: Execute cancel_all_orders without symbol filter
         if placed_orders:
@@ -656,7 +673,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Place an order for PURP
         purp_order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
@@ -667,8 +684,14 @@ class TestHyperliquidPerpOrdersPrivate:
         try:
             purp_order = await hl_api_for_test_env.place_order(purp_order_args)
             order_placed = purp_order.exchange_order_id is not None
-        except APIError:
-            order_placed = False
+        except APIError as e:
+            # Distinguish expected business errors from system failures
+            if "insufficient" in str(e).lower() or "minimum" in str(e).lower():
+                # Expected business logic error
+                order_placed = False
+            else:
+                # Unexpected system error
+                pytest.fail(f"Unexpected error placing order: {e}")
 
         if order_placed:
             # Execute cancel_all_orders for a different symbol
@@ -692,8 +715,12 @@ class TestHyperliquidPerpOrdersPrivate:
             # Clean up the PURP order
             try:
                 await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
-            except APIError:
-                pass
+            except APIError as e:
+                # Order cancellation is critical - don't hide failures
+                pytest.fail(
+                    f"Failed to cancel order during cleanup: {e}. "
+                    "Order cancellation is critical for test isolation."
+                )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -709,7 +736,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Place an order that we'll cancel immediately
         order_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
@@ -724,7 +751,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 # Manually cancel the order first
                 manual_cancel_args = CancelOrderArgs(
                     order_id=placed_order.exchange_order_id,
-                    symbol="PURP",
+                    symbol=test_symbol,
                 )
                 await hl_api_for_test_env.cancel_order(manual_cancel_args)
 
@@ -739,9 +766,12 @@ class TestHyperliquidPerpOrdersPrivate:
                 # The implementation should handle already-cancelled orders gracefully
                 # Either by excluding them from cancellation or by returning error status
 
-        except APIError:
-            # If the test setup fails, that's acceptable
-            pytest.skip("Unable to set up error handling test scenario")
+        except APIError as e:
+            # Test setup failures are system errors - investigate
+            pytest.fail(
+                f"Failed to set up error handling test: {e}. "
+                "Test infrastructure must work reliably."
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -759,7 +789,7 @@ class TestHyperliquidPerpOrdersPrivate:
         order_scenarios = [
             # Different prices to avoid fills
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -767,7 +797,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 time_in_force=TimeInForce.GTC,
             ),
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -775,7 +805,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 time_in_force=TimeInForce.GTC,
             ),
             PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.05"),
@@ -785,14 +815,19 @@ class TestHyperliquidPerpOrdersPrivate:
         ]
 
         placed_orders: list[Order] = []
-        for order_args in order_scenarios:
+        failed_orders: list[str] = []
+        for i, order_args in enumerate(order_scenarios):
             try:
                 order = await hl_api_for_test_env.place_order(order_args)
                 if order.exchange_order_id:
                     placed_orders.append(order)
-            except APIError:
-                # If some orders fail to place, continue with others
-                pass
+            except APIError as e:
+                # Track order placement failures
+                failed_orders.append(f"Bulk order {i}: {e}")
+
+        # Fail if too many orders failed
+        if len(failed_orders) > len(order_scenarios) * 0.5:  # More than 50% failed
+            pytest.fail(f"Too many order failures: {failed_orders}")
 
         if len(placed_orders) >= 2:  # Need at least 2 orders for meaningful test
             # Get initial count of open orders

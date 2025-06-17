@@ -176,11 +176,30 @@ class TestBackpackSpotCandles:
                     f"Candle {i} symbol should be 'BTC_USDC', got '{candle.symbol}'"
                 )
 
-                assert candle.open > Decimal("1000"), f"BTC open price seems too low: {candle.open}"
-                assert candle.high > Decimal("1000"), f"BTC high price seems too low: {candle.high}"
-                assert candle.low > Decimal("1000"), f"BTC low price seems too low: {candle.low}"
-                assert candle.close > Decimal("1000"), (
-                    f"BTC close price seems too low: {candle.close}"
+                # Validate OHLC relationships instead of hardcoded price bounds
+                assert candle.open > Decimal("0"), (
+                    f"BTC open price should be positive: {candle.open}"
+                )
+                assert candle.high > Decimal("0"), (
+                    f"BTC high price should be positive: {candle.high}"
+                )
+                assert candle.low > Decimal("0"), f"BTC low price should be positive: {candle.low}"
+                assert candle.close > Decimal("0"), (
+                    f"BTC close price should be positive: {candle.close}"
+                )
+
+                # Validate OHLC relationships
+                assert candle.high >= candle.open, (
+                    f"BTC high {candle.high} should be >= open {candle.open}"
+                )
+                assert candle.high >= candle.close, (
+                    f"BTC high {candle.high} should be >= close {candle.close}"
+                )
+                assert candle.low <= candle.open, (
+                    f"BTC low {candle.low} should be <= open {candle.open}"
+                )
+                assert candle.low <= candle.close, (
+                    f"BTC low {candle.low} should be <= close {candle.close}"
                 )
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])

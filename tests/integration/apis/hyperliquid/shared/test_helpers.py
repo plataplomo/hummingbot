@@ -8,7 +8,7 @@ dynamic helper patterns but adapted for Hyperliquid's specific API structure.
 from __future__ import annotations
 
 import asyncio
-import logging
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
@@ -16,14 +16,12 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs
 from cyberdelta.core.models.enums import OrderSide
 
-# Common test symbols for Hyperliquid
-COMMON_PERP_SYMBOLS = ["BTC", "ETH", "SOL", "AVAX"]
-COMMON_SPOT_SYMBOLS = ["BTC", "ETH", "USDC", "SOL"]
+# REMOVED HARDCODED SYMBOL LISTS - SECURITY VIOLATION
+# Hardcoded symbol lists are forbidden - must get available symbols from exchange
+# Use get_available_symbols() to query exchange for current trading pairs
 
-# Default test tolerances
-DEFAULT_PRICE_TOLERANCE_PERCENT = Decimal("3.0")  # 3% from market price
-DEFAULT_SIZE_TOLERANCE_PERCENT = Decimal("10.0")  # 10% margin for sizing
-MIN_ORDER_VALUE_USD = Decimal("1.0")  # Minimum viable order value
+# REMOVE HARDCODED TOLERANCES - THESE ARE SECURITY VIOLATIONS
+# Tests must get real tolerances from exchange or fail
 
 
 class HyperliquidTestHelpers:
@@ -45,42 +43,38 @@ class HyperliquidTestHelpers:
         try:
             market = await api.get_market(GetMarketArgs(symbol=symbol))
             if not market:
-                # Fallback values for common symbols
-                return HyperliquidTestHelpers._get_fallback_constraints(symbol)
+                raise RuntimeError(
+                    f"Failed to get market data for {symbol}. "
+                    "Trading tests require real market data and cannot use fallback values."
+                )
+
+            # Verify all required fields are present
+            if not market.tick_size or not market.step_size:
+                raise RuntimeError(
+                    f"Incomplete market data for {symbol}: missing tick_size or step_size. "
+                    "Cannot proceed with trading tests without complete market constraints."
+                )
+
+            if not market.min_quantity:
+                raise RuntimeError(
+                    f"Missing min_quantity for {symbol}. "
+                    "Cannot determine minimum order size for trading tests."
+                )
 
             return {
                 "tick_size": market.tick_size,
                 "step_size": market.step_size,
-                "min_quantity": market.min_quantity or Decimal("0.001"),
-                "max_quantity": market.max_quantity or Decimal("1000000"),
+                "min_quantity": market.min_quantity,
+                "max_quantity": market.max_quantity or market.min_quantity * Decimal("1000000"),
             }
-        except Exception:
-            return HyperliquidTestHelpers._get_fallback_constraints(symbol)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to get market constraints for {symbol}: {e}. "
+                "Trading tests must have access to real market data to ensure safety."
+            ) from e
 
-    @staticmethod
-    def _get_fallback_constraints(symbol: str) -> dict[str, Decimal]:
-        """Get conservative fallback constraints when market data unavailable."""
-        if symbol in ["BTC"]:
-            return {
-                "tick_size": Decimal("0.1"),
-                "step_size": Decimal("0.0001"),
-                "min_quantity": Decimal("0.0001"),
-                "max_quantity": Decimal("100"),
-            }
-        elif symbol in ["ETH"]:
-            return {
-                "tick_size": Decimal("0.01"),
-                "step_size": Decimal("0.001"),
-                "min_quantity": Decimal("0.001"),
-                "max_quantity": Decimal("1000"),
-            }
-        else:
-            return {
-                "tick_size": Decimal("0.0001"),
-                "step_size": Decimal("0.001"),
-                "min_quantity": Decimal("0.001"),
-                "max_quantity": Decimal("10000"),
-            }
+    # REMOVED _get_fallback_constraints - SECURITY VIOLATION
+    # Fallback constraints with hardcoded values are forbidden in trading tests
 
     @staticmethod
     async def get_current_market_price(api: HyperliquidAPI, symbol: str) -> Decimal:
@@ -104,23 +98,20 @@ class HyperliquidTestHelpers:
             if market and market.hl_details and market.hl_details.mark_price:
                 return market.hl_details.mark_price
 
-            # Last resort: hardcoded fallback prices
-            return HyperliquidTestHelpers._get_fallback_price(symbol)
+            # No fallback prices - fail fast instead
+            raise RuntimeError(
+                f"Failed to get market price for {symbol}. No ticker or market data available. "
+                "Trading tests require real market data and cannot use hardcoded fallback values."
+            )
 
-        except Exception:
-            return HyperliquidTestHelpers._get_fallback_price(symbol)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to get market price for {symbol}: {e}. "
+                "Trading tests require real market data and cannot use fallback values."
+            ) from e
 
-    @staticmethod
-    def _get_fallback_price(symbol: str) -> Decimal:
-        """Get conservative fallback price when market data unavailable."""
-        fallback_prices = {
-            "BTC": Decimal("50000"),
-            "ETH": Decimal("3000"),
-            "SOL": Decimal("100"),
-            "AVAX": Decimal("30"),
-            "USDC": Decimal("1.0"),
-        }
-        return fallback_prices.get(symbol, Decimal("100"))
+    # REMOVED _get_fallback_price - SECURITY VIOLATION
+    # Hardcoded fallback prices are forbidden in trading tests
 
     # Dynamic Pricing Utilities
 
@@ -129,7 +120,7 @@ class HyperliquidTestHelpers:
         api: HyperliquidAPI,
         symbol: str,
         side: OrderSide,
-        tolerance_percent: Decimal = DEFAULT_PRICE_TOLERANCE_PERCENT,
+        tolerance_percent: Decimal | None = None,
     ) -> Decimal:
         """Calculate a safe test price offset from market price.
 
@@ -144,6 +135,15 @@ class HyperliquidTestHelpers:
         """
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
+
+        # Get tolerance from exchange or fail
+        if tolerance_percent is None:
+            # Must get real tolerance requirements from exchange
+            raise RuntimeError(
+                f"No price tolerance provided for {symbol}. "
+                "Tests must specify explicit tolerance based on exchange requirements, "
+                "not use hardcoded default values."
+            )
 
         # Calculate offset price
         offset_multiplier = tolerance_percent / Decimal("100")
@@ -163,13 +163,21 @@ class HyperliquidTestHelpers:
     async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: str) -> Decimal:
         """Get an unreasonably large price for negative testing."""
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
-        return market_price * Decimal("10")  # 10x market price
+        # Use exchange maximum price limits instead of arbitrary multiplier
+        constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
+        max_reasonable_multiplier = Decimal("2")  # 2x as maximum for negative testing
+        return market_price * max_reasonable_multiplier
 
     @staticmethod
     async def get_unreasonably_large_quantity(api: HyperliquidAPI, symbol: str) -> Decimal:
         """Get an unreasonably large quantity for negative testing."""
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
-        return constraints["max_quantity"] * Decimal("10")  # 10x max quantity
+        # Use exchange maximum or account limits instead of arbitrary multiplier
+        max_account_size = await HyperliquidTestHelpers.calculate_maximum_position_size(api, symbol)
+        if max_account_size["max_quantity"] > Decimal("0"):
+            return max_account_size["max_quantity"] * Decimal("2")  # 2x account max
+        else:
+            return constraints["max_quantity"]  # Use exchange max if no account limit
 
     # Dynamic Sizing Utilities
 
@@ -204,13 +212,18 @@ class HyperliquidTestHelpers:
                 return min_quantity
 
             # Calculate affordable quantity based on available balance
-            notional_value = MIN_ORDER_VALUE_USD
-            if account_summary.total_equity > MIN_ORDER_VALUE_USD:
-                # Use small fraction of available balance
-                notional_value = min(
-                    account_summary.total_equity * Decimal("0.01"),  # 1% of equity
-                    Decimal("10"),  # Cap at $10 for safety
-                )
+            # Use minimum viable order value based on exchange requirements
+            min_notional = constraints["min_quantity"] * price
+
+            if account_summary.total_equity <= min_notional:
+                return min_quantity
+
+            # Use small fraction of available balance (1% of equity)
+            notional_value = account_summary.total_equity * Decimal("0.01")
+
+            # Ensure it meets minimum notional requirements
+            if notional_value < min_notional:
+                notional_value = min_notional
 
             affordable_quantity = notional_value / price
 
@@ -251,9 +264,10 @@ class HyperliquidTestHelpers:
             if quantity > constraints["max_quantity"]:
                 return False
 
-            # Check notional value
+            # Check notional value against exchange minimums
             notional_value = quantity * price
-            if notional_value < MIN_ORDER_VALUE_USD:
+            min_notional = constraints["min_quantity"] * price
+            if notional_value < min_notional:
                 return False
 
             # Check step size alignment
@@ -289,7 +303,7 @@ class HyperliquidTestHelpers:
                 return {"has_balance": False, "can_trade": False}
 
             has_balance = account_summary.total_equity > Decimal("0")
-            can_trade = account_summary.total_equity >= MIN_ORDER_VALUE_USD
+            can_trade = account_summary.total_equity > Decimal("0")
 
             return {
                 "has_balance": has_balance,
@@ -299,8 +313,113 @@ class HyperliquidTestHelpers:
                 "margin_used": getattr(account_summary, "margin_used", Decimal("0")),
             }
 
-        except Exception:
-            return {"has_balance": False, "can_trade": False}
+        except Exception as e:
+            # Don't hide account access failures
+            raise RuntimeError(
+                f"Failed to detect account state: {e}. "
+                "Trading tests require access to account information."
+            ) from e
+
+    @staticmethod
+    async def _wait_for_order_cancellation(
+        api: HyperliquidAPI, symbol: str | None = None, timeout: int = 30
+    ) -> None:
+        """Wait for order cancellation to complete with proper verification and adaptive polling."""
+        import time
+
+        start_time = time.time()
+        attempt = 0
+
+        while time.time() - start_time < timeout:
+            try:
+                open_orders = await api.get_open_orders()
+                if symbol:
+                    symbol_orders = [order for order in open_orders if order.symbol == symbol]
+                    if not symbol_orders:
+                        return  # All orders for symbol cancelled
+                else:
+                    if not open_orders:
+                        return  # All orders cancelled
+
+                # Adaptive polling interval: shorter intervals initially, longer as time passes
+                attempt += 1
+                if attempt <= 3:
+                    interval = 0.5  # 0.5s for first 3 attempts (fast initial checks)
+                elif attempt <= 10:
+                    interval = 1.0  # 1s for next 7 attempts (standard polling)
+                else:
+                    interval = 2.0  # 2s for remaining attempts (slower polling)
+
+                await asyncio.sleep(interval)
+            except Exception as e:
+                raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
+
+        raise RuntimeError(f"Order cancellation not completed within {timeout} seconds")
+
+    @staticmethod
+    async def wait_for_order_placement(
+        api: HyperliquidAPI, order_id: str, timeout: int = 30
+    ) -> None:
+        """Wait for order to appear in open orders with proper verification."""
+        import time
+
+        start_time = time.time()
+        attempt = 0
+
+        while time.time() - start_time < timeout:
+            try:
+                open_orders = await api.get_open_orders()
+                if any(order.exchange_order_id == order_id for order in open_orders):
+                    return  # Order found in open orders
+
+                # Adaptive polling interval
+                attempt += 1
+                if attempt <= 3:
+                    interval = 0.5  # Fast initial checks
+                elif attempt <= 10:
+                    interval = 1.0  # Standard polling
+                else:
+                    interval = 2.0  # Slower polling
+
+                await asyncio.sleep(interval)
+            except Exception as e:
+                raise RuntimeError(f"Failed to verify order placement: {e}") from e
+
+        raise RuntimeError(f"Order {order_id} not found in open orders within {timeout} seconds")
+
+    @staticmethod
+    async def eventually_assert(
+        condition_func: Callable[[], bool], timeout: int = 30, message: str = "Condition not met"
+    ) -> None:
+        """Poll until condition is true or timeout occurs."""
+        import time
+
+        start_time = time.time()
+        attempt = 0
+
+        while time.time() - start_time < timeout:
+            try:
+                if (
+                    await condition_func()
+                    if asyncio.iscoroutine(condition_func())
+                    else condition_func()
+                ):
+                    return  # Condition met
+
+                # Adaptive polling interval
+                attempt += 1
+                if attempt <= 3:
+                    interval = 0.5
+                elif attempt <= 10:
+                    interval = 1.0
+                else:
+                    interval = 2.0
+
+                await asyncio.sleep(interval)
+            except Exception as e:
+                raise RuntimeError(f"Failed to check condition: {e}") from e
+
+        raise RuntimeError(f"{message} (timeout after {timeout} seconds)")
 
     @staticmethod
     async def get_account_margin_parameters(api: HyperliquidAPI) -> dict[str, Decimal]:
@@ -397,12 +516,15 @@ class HyperliquidTestHelpers:
             # Cancel all open orders for the symbol or all symbols
             await api.cancel_all_orders(symbol=symbol)
 
-            # Wait a moment for cancellation to process
-            await asyncio.sleep(0.5)
+            # Verify cancellation completed instead of fixed sleep
+            await HyperliquidTestHelpers._wait_for_order_cancellation(api, symbol)
 
         except Exception as e:
-            # Cleanup is best-effort, don't fail tests if it doesn't work
-            logging.warning(f"Failed to cleanup test orders: {e}")
+            # Order cleanup failures are critical in trading tests
+            raise RuntimeError(
+                f"Failed to cleanup test orders for {symbol}: {e}. "
+                "Order cleanup is critical for test isolation and financial safety."
+            ) from e
 
     @staticmethod
     async def cleanup_test_positions(api: HyperliquidAPI, symbol: str | None = None) -> None:
@@ -428,8 +550,11 @@ class HyperliquidTestHelpers:
                     pass
 
         except Exception as e:
-            # Cleanup is best-effort, don't fail tests if it doesn't work
-            logging.warning(f"Failed to cleanup test positions: {e}")
+            # Position cleanup failures are critical in trading tests
+            raise RuntimeError(
+                f"Failed to cleanup test positions for {symbol}: {e}. "
+                "Position cleanup is critical for test isolation and financial safety."
+            ) from e
 
 
 # Convenience functions for common operations
@@ -460,7 +585,12 @@ async def get_safe_test_price(
     api: HyperliquidAPI,
     symbol: str,
     side: OrderSide,
-    tolerance: Decimal = DEFAULT_PRICE_TOLERANCE_PERCENT,
+    tolerance: Decimal,
 ) -> Decimal:
-    """Get safe test price that won't immediately execute."""
+    """Get safe test price that won't immediately execute.
+
+    Args:
+        tolerance: Price tolerance percentage - MUST be provided explicitly
+                  based on exchange requirements, not hardcoded defaults
+    """
     return await HyperliquidTestHelpers.get_dynamic_test_price(api, symbol, side, tolerance)

@@ -568,6 +568,15 @@ class GetOrderArgs(BaseModel):
 GetOrderStatusArgs = GetOrderArgs  # Alias for clarity in signatures
 
 
+class HyperliquidGetOrderStatusArgs(BaseModel):
+    """Arguments for Hyperliquid-specific order status queries."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    wallet_address: str = Field(..., min_length=1, max_length=128)
+    order_id: int = Field(..., ge=0)
+
+
 class GetHistoricalFundingRatesArgs(BaseModel):
     """Encapsulates arguments for fetching historical funding rates.
 
@@ -737,15 +746,6 @@ class TransferL2UsdArgs(BaseModel):
 
     destination_address: str = Field(..., min_length=1, max_length=128)
     amount: Decimal = Field(..., gt=Decimal("0"))
-
-
-class GetOrderStatusArgs(BaseModel):
-    """Arguments for querying order status."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    wallet_address: str = Field(..., min_length=1, max_length=128)
-    order_id: int = Field(..., ge=0)
 
 
 class GetUserStateArgs(BaseModel):

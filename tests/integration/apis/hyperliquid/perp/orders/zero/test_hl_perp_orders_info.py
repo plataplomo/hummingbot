@@ -17,7 +17,7 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -117,8 +117,8 @@ class TestHyperliquidOrdersInfo:
 
         This tests historical order retrieval and validates Order model consistency.
         """
-        # Define recent date range for order history
-        end_time = datetime.now()
+        # Define recent date range for order history with timezone-aware datetime
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)  # Last 7 days
 
         # Execute the full pipeline using GetOrderHistoryArgs

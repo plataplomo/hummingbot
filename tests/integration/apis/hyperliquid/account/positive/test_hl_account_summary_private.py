@@ -22,6 +22,7 @@ implementation is completed.
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -38,6 +39,8 @@ from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -83,9 +86,14 @@ class TestHyperliquidAccountSummaryPrivate:
         # Store initial values for comparison
         initial_margin_used = initial_summary.total_initial_margin_required
 
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Define order parameters that should impact account metrics (but still testnet-safe)
         impact_order_args = PlaceOrderArgs(
-            symbol="BTC",  # Use BTC which should be available on testnet
+            symbol=test_symbol,  # Use first available symbol from exchange
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.001"),  # Small testnet-safe size
@@ -146,12 +154,15 @@ class TestHyperliquidAccountSummaryPrivate:
 
             cancel_args = CancelOrderArgs(
                 order_id=placed_order.exchange_order_id,
-                symbol="BTC",
+                symbol=test_symbol,
             )
             await hl_api_for_test_env.cancel_order(cancel_args)
-        except APIError:
-            # If cancel fails, that's acceptable for test cleanup
-            pass
+        except APIError as e:
+            # Order cancellation is critical - don't hide failures
+            pytest.fail(
+                f"Failed to cancel order {cancel_args.order_id}: {e}. "
+                "Order cancellation is a critical operation that must work reliably."
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -165,9 +176,14 @@ class TestHyperliquidAccountSummaryPrivate:
         This validates how MarginAccountSummary reflects changes when positions
         are opened, modified, or closed through trading operations.
         """
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Execute a market order that should create/modify a position
         position_order_args = PlaceOrderArgs(
-            symbol="BTC",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("0.001"),  # Small size for testnet
@@ -204,7 +220,7 @@ class TestHyperliquidAccountSummaryPrivate:
 
             # Attempt to close position for cleanup
             close_position_args = PlaceOrderArgs(
-                symbol="BTC",
+                symbol=test_symbol,
                 side=OrderSide.SELL,  # Opposite side to close
                 order_type=OrderType.MARKET,
                 quantity=Decimal("0.001"),  # Same size to close
@@ -213,13 +229,21 @@ class TestHyperliquidAccountSummaryPrivate:
 
             try:
                 await hl_api_for_test_env.place_order(close_position_args)
-            except APIError:
-                # If close fails, that's acceptable for test cleanup
-                pass
+            except APIError as e:
+                # Position closure is critical for test isolation
+                pytest.fail(
+                    f"Failed to close position: {e}. "
+                    "Position closure is critical for test isolation and financial safety."
+                )
 
         except APIError as e:
-            # If the position order fails due to market conditions, that's acceptable
-            # The test is primarily validating the account summary model consistency
+            # Distinguish between expected business errors and system failures
+            if "insufficient" in e.message.lower() or "minimum" in e.message.lower():
+                # Expected business logic error - order correctly rejected
+                logger.info(f"Order correctly rejected due to business rules: {e}")
+            else:
+                # Unexpected system error
+                pytest.fail(f"Unexpected error in position order: {e}")
             pytest.skip(f"Position order failed due to market conditions: {e.message}")
 
     @pytest.mark.vcr
@@ -234,6 +258,11 @@ class TestHyperliquidAccountSummaryPrivate:
         This validates error handling and account summary consistency when
         attempting operations that would exceed available margin.
         """
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Get current account summary to understand available margin
         current_summary = await hl_api_for_test_env.get_account_summary()
 
@@ -245,16 +274,20 @@ class TestHyperliquidAccountSummaryPrivate:
             # Assuming $1 per unit for simplicity in stress test
             stress_quantity = stress_order_value
         else:
-            # Fallback to large fixed amount
-            stress_quantity = Decimal("999999.0")
+            # Get unreasonably large quantity from exchange constraints instead of hardcoded value
+            stress_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
+                hl_api_for_test_env, test_symbol
+            )
 
         # Define stress order that should trigger margin error
         stress_order_args = PlaceOrderArgs(
-            symbol="BTC",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=stress_quantity,
-            price=Decimal("30000.0"),  # Reasonable BTC price
+            price=await HyperliquidTestHelpers.get_current_market_price(
+                hl_api_for_test_env, test_symbol
+            ),  # Current market price from exchange
             time_in_force=TimeInForce.GTC,
         )
 
@@ -319,13 +352,20 @@ class TestHyperliquidAccountSummaryPrivate:
                     f"{field_name} scientific notation should be negative exponent: {field_str}"
                 )
 
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Test with a small precision order to validate precision preservation
         precision_order_args = PlaceOrderArgs(
-            symbol="BTC",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.000001"),  # Very small quantity
-            price=Decimal("30000.0"),  # Reasonable BTC price
+            price=await HyperliquidTestHelpers.get_current_market_price(
+                hl_api_for_test_env, test_symbol
+            ),  # Current market price from exchange
             time_in_force=TimeInForce.GTC,
         )
 
@@ -359,19 +399,25 @@ class TestHyperliquidAccountSummaryPrivate:
                 if precision_order.exchange_order_id is not None:
                     cancel_args = CancelOrderArgs(
                         order_id=precision_order.exchange_order_id,
-                        symbol="BTC",
+                        symbol=test_symbol,
                     )
                     await hl_api_for_test_env.cancel_order(cancel_args)
-            except APIError:
-                # If cancel fails, that's acceptable for test cleanup
-                pass
+            except APIError as e:
+                # Order cancellation is critical - don't hide failures
+                pytest.fail(
+                    f"Failed to cancel order: {e}. "
+                    "Order cancellation is a critical operation that must work reliably."
+                )
 
         except APIError as e:
-            # If exchange rejects due to minimum order size, that's valid behavior
+            # Distinguish expected business errors from system failures
             if any(phrase in e.message.lower() for phrase in ["minimum", "size", "precision"]):
+                # Expected business logic error - order correctly rejected
+                logger.info(f"Order correctly rejected due to size constraints: {e}")
                 pytest.skip(f"Exchange has minimum order size requirements: {e.message}")
             else:
-                raise
+                # Unexpected system error
+                pytest.fail(f"Unexpected error in order placement: {e}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -394,15 +440,22 @@ class TestHyperliquidAccountSummaryPrivate:
                 "Baseline: Available equity should not exceed total equity"
             )
 
+        # Get available symbol from exchange instead of hardcoding
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
+
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
         # Execute a series of operations and validate consistency at each step
         operations = [
             # Operation 1: Place a limit order (should affect available equity)
             PlaceOrderArgs(
-                symbol="BTC",
+                symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.001"),
-                price=Decimal("30000.0"),
+                price=await HyperliquidTestHelpers.get_current_market_price(
+                    hl_api_for_test_env, test_symbol
+                ),
                 time_in_force=TimeInForce.GTC,
             ),
         ]
@@ -436,8 +489,11 @@ class TestHyperliquidAccountSummaryPrivate:
                     )
 
             except APIError as e:
-                # If any operation fails, that's acceptable - we're testing consistency
-                pytest.skip(f"Operation {i + 1} failed: {e.message}")
+                # Operations failing isn't acceptable - investigate and fail
+                pytest.fail(
+                    f"Operation {i + 1} failed: {e.message}. "
+                    "Trading operations must work reliably for stress testing."
+                )
 
         # Clean up all placed orders
         for order in placed_orders:
@@ -447,9 +503,12 @@ class TestHyperliquidAccountSummaryPrivate:
 
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
-                        symbol="BTC",
+                        symbol=test_symbol,
                     )
                     await hl_api_for_test_env.cancel_order(cancel_args)
-                except APIError:
-                    # If cancel fails, that's acceptable for test cleanup
-                    pass
+                except APIError as e:
+                    # Order cancellation is critical - don't hide failures
+                    pytest.fail(
+                        f"Failed to cancel order during cleanup: {e}. "
+                        "Order cancellation is critical for test isolation."
+                    )

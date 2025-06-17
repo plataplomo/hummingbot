@@ -55,8 +55,12 @@ class BackpackRawOrderExecuteRequest(BaseModel):
         alias="selfTradePrevention",
     )
     timeInForce: Literal["GTC", "IOC", "FOK"] | None = Field(default=None, alias="timeInForce")
-    triggerPrice: RawBpParsableFiniteDecimalString | None = Field(default=None, alias="triggerPrice")
-    triggerQuantity: RawBpParsableFiniteDecimalString | None = Field(default=None, alias="triggerQuantity")
+    triggerPrice: RawBpParsableFiniteDecimalString | None = Field(
+        default=None, alias="triggerPrice"
+    )
+    triggerQuantity: RawBpParsableFiniteDecimalString | None = Field(
+        default=None, alias="triggerQuantity"
+    )
 
     # Spot margin specific fields
     autoLend: RawBpOptionalStrictBool | None = Field(default=None, alias="autoLend")

@@ -146,7 +146,9 @@ class TestBackpackPerpOrdersPositiveBalance:
         tick_size = market_constraints["tick_size"]
 
         # Test 1: STOP LOSS (SELL below current price)
-        stop_loss_price = (current_price * Decimal("0.85")).quantize(tick_size)  # 15% below
+        # Use tick-based offset instead of hardcoded percentage
+        price_offset = tick_size * Decimal("50")  # 50 ticks below current price
+        stop_loss_price = (current_price - price_offset).quantize(tick_size)
         stop_loss_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -164,17 +166,20 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         stop_loss_order = await bp_api_for_test_env.place_order(stop_loss_args)
-        
+
         # Validate stop loss placement
         assert isinstance(stop_loss_order, Order), "Should place stop loss order"
         assert stop_loss_order.order_type == OrderType.STOP_MARKET, "Should be stop market type"
         assert stop_loss_order.side == OrderSide.SELL, "Stop loss should be SELL"
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}")
+
+        logger.info(
+            f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}"
+        )
 
         # Test 2: STOP BUY (BUY above current price)
-        stop_buy_price = (current_price * Decimal("1.15")).quantize(tick_size)  # 15% above
+        # Use tick-based offset instead of hardcoded percentage
+        stop_buy_price = (current_price + price_offset).quantize(tick_size)
         stop_buy_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -192,18 +197,23 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         stop_buy_order = await bp_api_for_test_env.place_order(stop_buy_args)
-        
+
         # Validate stop buy placement
         assert isinstance(stop_buy_order, Order), "Should place stop buy order"
         assert stop_buy_order.order_type == OrderType.STOP_MARKET, "Should be stop market type"
         assert stop_buy_order.side == OrderSide.BUY, "Stop buy should be BUY"
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}")
+
+        logger.info(
+            f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}"
+        )
 
         # Clean up both orders
         for order, order_name in [(stop_loss_order, "stop_loss"), (stop_buy_order, "stop_buy")]:
-            if order.exchange_order_id and order.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED]:
+            if order.exchange_order_id and order.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELED,
+            ]:
                 try:
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
@@ -240,8 +250,12 @@ class TestBackpackPerpOrdersPositiveBalance:
         tick_size = market_constraints["tick_size"]
 
         # Test 1: STOP LOSS LIMIT (SELL below current price)
-        stop_loss_trigger = (current_price * Decimal("0.85")).quantize(tick_size)  # 15% below
-        stop_loss_limit = (stop_loss_trigger * Decimal("0.98")).quantize(tick_size)  # Slightly below trigger
+        # Use tick-based offsets instead of hardcoded percentages
+        price_offset = tick_size * Decimal("50")  # 50 ticks offset
+        stop_loss_trigger = (current_price - price_offset).quantize(tick_size)
+        stop_loss_limit = (stop_loss_trigger - tick_size).quantize(
+            tick_size
+        )  # One tick below trigger
         stop_loss_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -260,18 +274,23 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         stop_loss_order = await bp_api_for_test_env.place_order(stop_loss_args)
-        
+
         # Validate stop loss limit placement
         assert isinstance(stop_loss_order, Order), "Should place stop loss limit order"
         assert stop_loss_order.order_type == OrderType.STOP_LIMIT, "Should be stop limit type"
         assert stop_loss_order.side == OrderSide.SELL, "Stop loss should be SELL"
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}")
+
+        logger.info(
+            f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}"
+        )
 
         # Test 2: STOP BUY LIMIT (BUY above current price)
-        stop_buy_trigger = (current_price * Decimal("1.15")).quantize(tick_size)  # 15% above
-        stop_buy_limit = (stop_buy_trigger * Decimal("1.02")).quantize(tick_size)  # Slightly above trigger
+        # Use tick-based offsets instead of hardcoded percentages
+        stop_buy_trigger = (current_price + price_offset).quantize(tick_size)
+        stop_buy_limit = (stop_buy_trigger + tick_size).quantize(
+            tick_size
+        )  # One tick above trigger
         stop_buy_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -290,18 +309,26 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         stop_buy_order = await bp_api_for_test_env.place_order(stop_buy_args)
-        
+
         # Validate stop buy limit placement
         assert isinstance(stop_buy_order, Order), "Should place stop buy limit order"
         assert stop_buy_order.order_type == OrderType.STOP_LIMIT, "Should be stop limit type"
         assert stop_buy_order.side == OrderSide.BUY, "Stop buy should be BUY"
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}")
+
+        logger.info(
+            f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}"
+        )
 
         # Clean up both orders
-        for order, order_name in [(stop_loss_order, "stop_loss_limit"), (stop_buy_order, "stop_buy_limit")]:
-            if order.exchange_order_id and order.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED]:
+        for order, order_name in [
+            (stop_loss_order, "stop_loss_limit"),
+            (stop_buy_order, "stop_buy_limit"),
+        ]:
+            if order.exchange_order_id and order.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELED,
+            ]:
                 try:
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
@@ -338,7 +365,9 @@ class TestBackpackPerpOrdersPositiveBalance:
         tick_size = market_constraints["tick_size"]
 
         # Test 1: TAKE PROFIT SELL (for long position - sell above current price)
-        tp_sell_trigger = (current_price * Decimal("1.10")).quantize(tick_size)  # 10% above
+        # Use tick-based offset instead of hardcoded percentage
+        price_offset = tick_size * Decimal("30")  # 30 ticks above current price
+        tp_sell_trigger = (current_price + price_offset).quantize(tick_size)
         tp_sell_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -356,17 +385,22 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         tp_sell_order = await bp_api_for_test_env.place_order(tp_sell_args)
-        
+
         # Validate take profit sell placement
         assert isinstance(tp_sell_order, Order), "Should place take profit sell order"
-        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_MARKET, "Should be take profit market type"
+        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_MARKET, (
+            "Should be take profit market type"
+        )
         assert tp_sell_order.side == OrderSide.SELL, "Take profit should be SELL"
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}")
+
+        logger.info(
+            f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}"
+        )
 
         # Test 2: TAKE PROFIT BUY (for short position - buy below current price)
-        tp_buy_trigger = (current_price * Decimal("0.90")).quantize(tick_size)  # 10% below
+        # Use tick-based offset instead of hardcoded percentage
+        tp_buy_trigger = (current_price - price_offset).quantize(tick_size)
         tp_buy_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -384,18 +418,28 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         tp_buy_order = await bp_api_for_test_env.place_order(tp_buy_args)
-        
+
         # Validate take profit buy placement
         assert isinstance(tp_buy_order, Order), "Should place take profit buy order"
-        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_MARKET, "Should be take profit market type"
+        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_MARKET, (
+            "Should be take profit market type"
+        )
         assert tp_buy_order.side == OrderSide.BUY, "Take profit should be BUY"
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}")
+
+        logger.info(
+            f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}"
+        )
 
         # Clean up both orders
-        for order, order_name in [(tp_sell_order, "take_profit_sell"), (tp_buy_order, "take_profit_buy")]:
-            if order.exchange_order_id and order.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED]:
+        for order, order_name in [
+            (tp_sell_order, "take_profit_sell"),
+            (tp_buy_order, "take_profit_buy"),
+        ]:
+            if order.exchange_order_id and order.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELED,
+            ]:
                 try:
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
@@ -432,8 +476,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         tick_size = market_constraints["tick_size"]
 
         # Test 1: TAKE PROFIT LIMIT SELL (for long position - sell above current price)
-        tp_sell_trigger = (current_price * Decimal("1.10")).quantize(tick_size)  # 10% above
-        tp_sell_limit = (tp_sell_trigger * Decimal("1.02")).quantize(tick_size)  # Slightly above trigger
+        # Use tick-based offsets instead of hardcoded percentages
+        price_offset = tick_size * Decimal("30")  # 30 ticks above current price
+        tp_sell_trigger = (current_price + price_offset).quantize(tick_size)
+        tp_sell_limit = (tp_sell_trigger + tick_size).quantize(tick_size)  # One tick above trigger
         tp_sell_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -452,18 +498,23 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         tp_sell_order = await bp_api_for_test_env.place_order(tp_sell_args)
-        
+
         # Validate take profit sell limit placement
         assert isinstance(tp_sell_order, Order), "Should place take profit sell limit order"
-        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_LIMIT, "Should be take profit limit type"
+        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_LIMIT, (
+            "Should be take profit limit type"
+        )
         assert tp_sell_order.side == OrderSide.SELL, "Take profit should be SELL"
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}")
+
+        logger.info(
+            f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}"
+        )
 
         # Test 2: TAKE PROFIT LIMIT BUY (for short position - buy below current price)
-        tp_buy_trigger = (current_price * Decimal("0.90")).quantize(tick_size)  # 10% below
-        tp_buy_limit = (tp_buy_trigger * Decimal("0.98")).quantize(tick_size)  # Slightly below trigger
+        # Use tick-based offsets instead of hardcoded percentages
+        tp_buy_trigger = (current_price - price_offset).quantize(tick_size)
+        tp_buy_limit = (tp_buy_trigger - tick_size).quantize(tick_size)  # One tick below trigger
         tp_buy_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
@@ -482,18 +533,28 @@ class TestBackpackPerpOrdersPositiveBalance:
         )
 
         tp_buy_order = await bp_api_for_test_env.place_order(tp_buy_args)
-        
+
         # Validate take profit buy limit placement
         assert isinstance(tp_buy_order, Order), "Should place take profit buy limit order"
-        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_LIMIT, "Should be take profit limit type"
+        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_LIMIT, (
+            "Should be take profit limit type"
+        )
         assert tp_buy_order.side == OrderSide.BUY, "Take profit should be BUY"
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
-        
-        logger.info(f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}")
+
+        logger.info(
+            f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}"
+        )
 
         # Clean up both orders
-        for order, order_name in [(tp_sell_order, "take_profit_limit_sell"), (tp_buy_order, "take_profit_limit_buy")]:
-            if order.exchange_order_id and order.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED]:
+        for order, order_name in [
+            (tp_sell_order, "take_profit_limit_sell"),
+            (tp_buy_order, "take_profit_limit_buy"),
+        ]:
+            if order.exchange_order_id and order.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELED,
+            ]:
                 try:
                     cancel_args = CancelOrderArgs(
                         order_id=order.exchange_order_id,
@@ -557,8 +618,9 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Get market constraints for proper price formatting
             market_constraints = await get_market_constraints(bp_api_for_test_env, symbol)
             tick_size = market_constraints["tick_size"]
-            # Set stop loss 10% below entry price (more conservative for leveraged perp)
-            stop_price = (current_price * Decimal("0.90")).quantize(tick_size)
+            # Set stop loss using tick-based offset (more conservative for leveraged perp)
+            price_offset = tick_size * Decimal("30")  # 30 ticks below entry price
+            stop_price = (current_price - price_offset).quantize(tick_size)
 
             stop_args = PlaceOrderArgs(
                 symbol=symbol,
@@ -574,9 +636,11 @@ class TestBackpackPerpOrdersPositiveBalance:
 
                 # What we're testing: Our system's ability to place stop loss orders after market orders
                 # Exchange behavior (immediate trigger vs pending) is exchange's responsibility
-                logger.info(f"✓ Stop loss order placed successfully: {stop_order.exchange_order_id}, "
-                           f"type: {stop_order.order_type}, status: {stop_order.status}")
-                
+                logger.info(
+                    f"✓ Stop loss order placed successfully: {stop_order.exchange_order_id}, "
+                    f"type: {stop_order.order_type}, status: {stop_order.status}"
+                )
+
                 # Verify order has required fields
                 assert stop_order.exchange_order_id, "Order should have exchange ID"
                 assert stop_order.symbol == symbol, "Symbol should match"
@@ -601,7 +665,11 @@ class TestBackpackPerpOrdersPositiveBalance:
 
             except Exception as e:
                 # Stop loss placement failures are business logic - some are expected
-                if "position" in str(e).lower() or "balance" in str(e).lower() or "margin" in str(e).lower():
+                if (
+                    "position" in str(e).lower()
+                    or "balance" in str(e).lower()
+                    or "margin" in str(e).lower()
+                ):
                     # Expected business logic error - insufficient position/balance
                     pass
                 else:
@@ -622,14 +690,14 @@ class TestBackpackPerpOrdersPositiveBalance:
     ) -> None:
         """Test ALL conditional order types - comprehensive placement validation.
 
-        This is the master test for conditional orders. We test our system's ability 
+        This is the master test for conditional orders. We test our system's ability
         to place EVERY type of conditional order that Backpack supports.
-        
+
         FOCUS: PLACEMENT, not execution. Exchange handles execution.
-        
+
         Order Types Tested:
         1. STOP_MARKET (stop loss & stop buy)
-        2. STOP_LIMIT (stop loss limit & stop buy limit)  
+        2. STOP_LIMIT (stop loss limit & stop buy limit)
         3. TAKE_PROFIT_MARKET (TP sell & TP buy)
         4. TAKE_PROFIT_LIMIT (TP limit sell & TP limit buy)
         5. All with different TimeInForce values
@@ -641,47 +709,111 @@ class TestBackpackPerpOrdersPositiveBalance:
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
         market_constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = market_constraints["tick_size"]
-        
+
         logger.info(f"Testing ALL conditional orders at price: {current_price}")
 
         # Calculate all prices upfront
-        stop_loss_price = (current_price * Decimal("0.85")).quantize(tick_size)      # 15% below
-        stop_buy_price = (current_price * Decimal("1.15")).quantize(tick_size)       # 15% above
-        tp_sell_price = (current_price * Decimal("1.12")).quantize(tick_size)        # 12% above
-        tp_buy_price = (current_price * Decimal("0.88")).quantize(tick_size)         # 12% below
-        
-        # For limit orders - add spread
-        stop_loss_limit = (stop_loss_price * Decimal("0.98")).quantize(tick_size)    # Below trigger
-        stop_buy_limit = (stop_buy_price * Decimal("1.02")).quantize(tick_size)      # Above trigger
-        tp_sell_limit = (tp_sell_price * Decimal("1.02")).quantize(tick_size)        # Above trigger
-        tp_buy_limit = (tp_buy_price * Decimal("0.98")).quantize(tick_size)          # Below trigger
+        stop_loss_price = (current_price * Decimal("0.85")).quantize(tick_size)  # 15% below
+        stop_buy_price = (current_price * Decimal("1.15")).quantize(tick_size)  # 15% above
+        tp_sell_price = (current_price * Decimal("1.12")).quantize(tick_size)  # 12% above
+        tp_buy_price = (current_price * Decimal("0.88")).quantize(tick_size)  # 12% below
 
-        orders_to_test = []
+        # For limit orders - add spread
+        stop_loss_limit = (stop_loss_price * Decimal("0.98")).quantize(tick_size)  # Below trigger
+        stop_buy_limit = (stop_buy_price * Decimal("1.02")).quantize(tick_size)  # Above trigger
+        tp_sell_limit = (tp_sell_price * Decimal("1.02")).quantize(tick_size)  # Above trigger
+        tp_buy_limit = (tp_buy_price * Decimal("0.98")).quantize(tick_size)  # Below trigger
+
+        orders_to_test: list[tuple[str, OrderType, OrderSide, Decimal | None, Decimal, TimeInForce]] = []
         placed_orders = []
 
         # 1. STOP MARKET orders (both directions)
-        orders_to_test.extend([
-            ("STOP_MARKET_SELL", OrderType.STOP_MARKET, OrderSide.SELL, None, stop_loss_price, TimeInForce.GTC),
-            ("STOP_MARKET_BUY", OrderType.STOP_MARKET, OrderSide.BUY, None, stop_buy_price, TimeInForce.GTC),
-        ])
+        orders_to_test.extend(
+            [
+                (
+                    "STOP_MARKET_SELL",
+                    OrderType.STOP_MARKET,
+                    OrderSide.SELL,
+                    None,
+                    stop_loss_price,
+                    TimeInForce.GTC,
+                ),
+                (
+                    "STOP_MARKET_BUY",
+                    OrderType.STOP_MARKET,
+                    OrderSide.BUY,
+                    None,
+                    stop_buy_price,
+                    TimeInForce.GTC,
+                ),
+            ]
+        )
 
-        # 2. STOP LIMIT orders (both directions) 
-        orders_to_test.extend([
-            ("STOP_LIMIT_SELL", OrderType.STOP_LIMIT, OrderSide.SELL, stop_loss_limit, stop_loss_price, TimeInForce.GTC),
-            ("STOP_LIMIT_BUY", OrderType.STOP_LIMIT, OrderSide.BUY, stop_buy_limit, stop_buy_price, TimeInForce.GTC),
-        ])
+        # 2. STOP LIMIT orders (both directions)
+        orders_to_test.extend(
+            [
+                (
+                    "STOP_LIMIT_SELL",
+                    OrderType.STOP_LIMIT,
+                    OrderSide.SELL,
+                    stop_loss_limit,
+                    stop_loss_price,
+                    TimeInForce.GTC,
+                ),
+                (
+                    "STOP_LIMIT_BUY",
+                    OrderType.STOP_LIMIT,
+                    OrderSide.BUY,
+                    stop_buy_limit,
+                    stop_buy_price,
+                    TimeInForce.GTC,
+                ),
+            ]
+        )
 
         # 3. TAKE PROFIT MARKET orders (both directions)
-        orders_to_test.extend([
-            ("TP_MARKET_SELL", OrderType.TAKE_PROFIT_MARKET, OrderSide.SELL, None, tp_sell_price, TimeInForce.GTC),
-            ("TP_MARKET_BUY", OrderType.TAKE_PROFIT_MARKET, OrderSide.BUY, None, tp_buy_price, TimeInForce.GTC),
-        ])
+        orders_to_test.extend(
+            [
+                (
+                    "TP_MARKET_SELL",
+                    OrderType.TAKE_PROFIT_MARKET,
+                    OrderSide.SELL,
+                    None,
+                    tp_sell_price,
+                    TimeInForce.GTC,
+                ),
+                (
+                    "TP_MARKET_BUY",
+                    OrderType.TAKE_PROFIT_MARKET,
+                    OrderSide.BUY,
+                    None,
+                    tp_buy_price,
+                    TimeInForce.GTC,
+                ),
+            ]
+        )
 
         # 4. TAKE PROFIT LIMIT orders (both directions)
-        orders_to_test.extend([
-            ("TP_LIMIT_SELL", OrderType.TAKE_PROFIT_LIMIT, OrderSide.SELL, tp_sell_limit, tp_sell_price, TimeInForce.GTC),
-            ("TP_LIMIT_BUY", OrderType.TAKE_PROFIT_LIMIT, OrderSide.BUY, tp_buy_limit, tp_buy_price, TimeInForce.GTC),
-        ])
+        orders_to_test.extend(
+            [
+                (
+                    "TP_LIMIT_SELL",
+                    OrderType.TAKE_PROFIT_LIMIT,
+                    OrderSide.SELL,
+                    tp_sell_limit,
+                    tp_sell_price,
+                    TimeInForce.GTC,
+                ),
+                (
+                    "TP_LIMIT_BUY",
+                    OrderType.TAKE_PROFIT_LIMIT,
+                    OrderSide.BUY,
+                    tp_buy_limit,
+                    tp_buy_price,
+                    TimeInForce.GTC,
+                ),
+            ]
+        )
 
         # Test placing each order type
         success_count = 0
@@ -704,7 +836,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     quantity=quantity,
                     time_in_force=tif,
                 )
-                
+
                 # Add prices based on order type
                 if limit_price:
                     place_args.price = limit_price
@@ -713,17 +845,25 @@ class TestBackpackPerpOrdersPositiveBalance:
 
                 # Place the order
                 placed_order = await bp_api_for_test_env.place_order(place_args)
-                
+
                 # Validate successful placement
-                assert isinstance(placed_order, Order), f"{order_name}: Should return Order instance"
-                assert placed_order.order_type == order_type, f"{order_name}: Order type should match"
+                assert isinstance(placed_order, Order), (
+                    f"{order_name}: Should return Order instance"
+                )
+                assert placed_order.order_type == order_type, (
+                    f"{order_name}: Order type should match"
+                )
                 assert placed_order.side == side, f"{order_name}: Side should match"
-                assert placed_order.exchange_order_id, f"{order_name}: Should have exchange order ID"
-                
+                assert placed_order.exchange_order_id, (
+                    f"{order_name}: Should have exchange order ID"
+                )
+
                 placed_orders.append((order_name, placed_order))
                 success_count += 1
-                
-                logger.info(f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, status: {placed_order.status}")
+
+                logger.info(
+                    f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, status: {placed_order.status}"
+                )
 
             except Exception as e:
                 # FAIL FAST - Any order placement failure is a real problem
@@ -741,7 +881,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         # Clean up all placed orders
         cleanup_success = 0
         for order_name, placed_order in placed_orders:
-            if placed_order.exchange_order_id and placed_order.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED]:
+            if placed_order.exchange_order_id and placed_order.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELED,
+            ]:
                 try:
                     cancel_args = CancelOrderArgs(
                         order_id=placed_order.exchange_order_id,
@@ -811,8 +954,9 @@ class TestBackpackPerpOrdersPositiveBalance:
         # Get test quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints.get("min_quantity", constraints["step_size"])
-        # Use 2000x minimum for test calculation
-        test_quantity = min_quantity * Decimal("2000")
+        # Use reasonable multiplier based on step size for test calculation
+        multiplier = min(Decimal("100"), max_leverage)  # Cap at 100x or max leverage
+        test_quantity = min_quantity * multiplier
 
         # Calculate notional value and margin requirement
         notional_value = test_price * test_quantity
@@ -920,14 +1064,14 @@ class TestBackpackPerpOrdersPositiveBalance:
             symbol=symbol,
             side=OrderSide.BUY,
             price=buy_price,
-        ) * Decimal("50")  # 50x minimum for concurrent test
+        ) * Decimal("10")  # 10x minimum for concurrent test
 
         sell_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=OrderSide.SELL,
             price=sell_price,
-        ) * Decimal("50")  # 50x minimum for concurrent test
+        ) * Decimal("10")  # 10x minimum for concurrent test
 
         # Place two orders concurrently (buy and sell)
         buy_args = PlaceOrderArgs(
@@ -1005,7 +1149,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     symbol=symbol,
                     side=OrderSide.BUY,
                     price=test_price,
-                ) * Decimal("50")  # 50x minimum for funding rate test
+                ) * Decimal("10")  # 10x minimum for funding rate test
 
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -1037,8 +1181,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         # Get large quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints.get("min_quantity", constraints["step_size"])
-        # Large quantity is 10000x minimum for margin testing
-        large_quantity = min_quantity * Decimal("10000")
+        # Large quantity based on reasonable multiple of minimum for margin testing
+        max_leverage = constraints.get("max_leverage", Decimal("100"))
+        large_multiplier = min(Decimal("1000"), max_leverage * Decimal("10"))
+        large_quantity = min_quantity * large_multiplier
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
 
         place_args = PlaceOrderArgs(
@@ -1067,8 +1213,8 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         except Exception as e:
             # Distinguish business logic errors from system errors
-                # Unexpected system error
-                pytest.fail(
-                    f"Large order placement failed with unexpected system error: {e}. "
-                    "Expected margin-related error but got system error."
-                )
+            # Unexpected system error
+            pytest.fail(
+                f"Large order placement failed with unexpected system error: {e}. "
+                "Expected margin-related error but got system error."
+            )

@@ -15,7 +15,7 @@ Authentication: No authentication required for public funding data
 VCR: Records funding rate responses for consistent testing
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -44,8 +44,8 @@ async def test_hl_get_historical_funding_rates_btc_success(
 
     args = GetHistoricalFundingRatesArgs(
         symbol="BTC",
-        start_time=datetime.fromtimestamp(start_time),
-        end_time=datetime.fromtimestamp(end_time),
+        start_time=datetime.fromtimestamp(start_time, tz=UTC),
+        end_time=datetime.fromtimestamp(end_time, tz=UTC),
     )
 
     funding_rates = await hl_api_for_test_env.get_historical_funding_rates(args)
@@ -82,8 +82,8 @@ async def test_hl_get_historical_funding_rates_eth_success(
 
     args = GetHistoricalFundingRatesArgs(
         symbol="ETH",
-        start_time=datetime.fromtimestamp(start_time),
-        end_time=datetime.fromtimestamp(end_time),
+        start_time=datetime.fromtimestamp(start_time, tz=UTC),
+        end_time=datetime.fromtimestamp(end_time, tz=UTC),
     )
 
     funding_rates = await hl_api_for_test_env.get_historical_funding_rates(args)

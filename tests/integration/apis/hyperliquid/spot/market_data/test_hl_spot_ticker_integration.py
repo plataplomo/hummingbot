@@ -128,8 +128,12 @@ async def test_hl_get_spot_ticker_avax_success(
         else:
             pass
 
-    except APIError:
-        pass
+    except APIError as e:
+        # Market data failures are system errors - don't hide them
+        pytest.fail(
+            f"Failed to get ticker data: {e}. "
+            "Market data access is critical for trading operations."
+        )
 
 
 @pytest.mark.parametrize(
@@ -180,8 +184,12 @@ async def test_hl_get_spot_ticker_empty_symbol_handling(
 
         assert ticker is None, f"Expected None for empty symbol, got {ticker}"
 
-    except (APIError, ValueError):
-        pass
+    except (APIError, ValueError) as e:
+        # Validation or API failures are system errors - don't hide them
+        pytest.fail(
+            f"Failed ticker validation: {e}. "
+            "Ticker data validation is critical for trading decisions."
+        )
 
 
 @pytest.mark.parametrize(

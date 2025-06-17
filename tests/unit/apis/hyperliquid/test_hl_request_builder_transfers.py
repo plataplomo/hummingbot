@@ -20,6 +20,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
     HyperliquidRawWithdrawalToL1ActionPayload,
 )
+from cyberdelta.apis.models.service_args_models import TransferL2UsdArgs
 
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_request_builder"]
@@ -30,10 +31,11 @@ class TestHyperliquidRequestBuilderTransfers:
 
     def test_build_l2_usd_transfer_payload(self, valid_wallet_address: str) -> None:
         """Test build_l2_usd_transfer_payload with valid inputs."""
-        request_model = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+        args = TransferL2UsdArgs(
             destination_address=valid_wallet_address,
             amount=Decimal("100.50"),
         )
+        request_model = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args)
         assert isinstance(request_model, HyperliquidApiL2UsdTransferRequest)
         assert request_model.type == "usdTransfer"
         action = request_model.action
@@ -50,24 +52,27 @@ class TestHyperliquidRequestBuilderTransfers:
     ) -> None:
         """Test build_l2_usd_transfer_payload with various decimal amounts."""
         # Test with small amount
-        request_small = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+        args_small = TransferL2UsdArgs(
             destination_address=valid_wallet_address,
             amount=Decimal("0.01"),
         )
+        request_small = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_small)
         assert request_small.action.payload.amount == "0.01"
 
         # Test with large amount
-        request_large = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+        args_large = TransferL2UsdArgs(
             destination_address=valid_wallet_address,
             amount=Decimal("999999.999999"),
         )
+        request_large = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_large)
         assert request_large.action.payload.amount == "999999.999999"
 
         # Test with integer amount
-        request_int = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+        args_int = TransferL2UsdArgs(
             destination_address=valid_wallet_address,
             amount=Decimal("1000"),
         )
+        request_int = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_int)
         assert request_int.action.payload.amount == "1000"
 
     def test_build_l2_usd_transfer_payload_invalid_input(self) -> None:
@@ -79,20 +84,22 @@ class TestHyperliquidRequestBuilderTransfers:
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
-            HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+            args_empty = TransferL2UsdArgs(
                 destination_address="",
                 amount=Decimal("100"),
             )
+            HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_empty)
 
     def test_build_l2_usd_transfer_payload_invalid_whitespace_address(self) -> None:
         """Test build_l2_usd_transfer_payload with whitespace-only address."""
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError, match="String cannot be empty"):
-            HyperliquidRequestBuilder.build_l2_usd_transfer_payload(
+            args_whitespace = TransferL2UsdArgs(
                 destination_address="   ",
                 amount=Decimal("100"),
             )
+            HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_whitespace)
 
     def test_build_withdrawal_payload_eth(self, valid_wallet_address: str) -> None:
         """Test build_withdrawal_payload for ETH withdrawals."""

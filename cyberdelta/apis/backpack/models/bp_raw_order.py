@@ -40,7 +40,6 @@ from .bp_common_raw_types import (
     RawBpOrderSideString,
     RawBpOrderStatusString,
     RawBpOrderTypeString,
-    RawBpParsableFiniteDecimalString,
 )
 
 

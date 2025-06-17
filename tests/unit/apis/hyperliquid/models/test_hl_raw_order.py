@@ -8,12 +8,12 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
     HyperliquidRawOrderType,
     HyperliquidRawPlaceOrderAction,
-    HyperliquidRawTriggerDetails,
 )
 
 # --- Test Data ---
@@ -81,20 +81,20 @@ def assert_common_place_order_fields(
     assert isinstance(parsed_model.asset, expected_python_types["asset"])
 
     is_buy_val = raw_data["isBuy"]
-    assert parsed_model.is_buy == is_buy_val
-    assert isinstance(parsed_model.is_buy, expected_python_types["is_buy"])
+    assert parsed_model.isBuy == is_buy_val
+    assert isinstance(parsed_model.isBuy, expected_python_types["is_buy"])
 
     limit_px_val = raw_data["limitPx"]
-    assert parsed_model.limit_px == str(limit_px_val)
-    assert isinstance(parsed_model.limit_px, expected_python_types["limit_px"])
+    assert parsed_model.limitPx == str(limit_px_val)
+    assert isinstance(parsed_model.limitPx, expected_python_types["limit_px"])
 
     sz_val = raw_data["sz"]
     assert parsed_model.sz == str(sz_val)
     assert isinstance(parsed_model.sz, expected_python_types["sz"])
 
     reduce_only_val = raw_data["reduceOnly"]
-    assert parsed_model.reduce_only == reduce_only_val
-    assert isinstance(parsed_model.reduce_only, expected_python_types["reduce_only"])
+    assert parsed_model.reduceOnly == reduce_only_val
+    assert isinstance(parsed_model.reduceOnly, expected_python_types["reduce_only"])
 
     cloid_val = raw_data.get("cloid")
     if cloid_val is not None:
@@ -156,12 +156,12 @@ class TestHyperliquidRawOrderType:
             )
 
 
-class TestHyperliquidRawTriggerDetails:
-    """Test class for HyperliquidRawTriggerDetails model."""
+class TestHyperliquidRawTriggerInfo:
+    """Test class for HyperliquidRawTriggerInfo model."""
 
     def test_valid_trigger_details_tp_market(self) -> None:
         """Test valid trigger details tp market."""
-        parsed = HyperliquidRawTriggerDetails(**VALID_TRIGGER_DETAILS_TP_MARKET_DATA)
+        parsed = HyperliquidRawTriggerInfo(**VALID_TRIGGER_DETAILS_TP_MARKET_DATA)
         assert parsed.trigger_px == "100.50"
         assert isinstance(parsed.trigger_px, str)
         assert parsed.is_market is True
@@ -171,7 +171,7 @@ class TestHyperliquidRawTriggerDetails:
 
     def test_valid_trigger_details_sl_limit(self) -> None:
         """Test valid trigger details sl limit."""
-        parsed = HyperliquidRawTriggerDetails(**VALID_TRIGGER_DETAILS_SL_LIMIT_DATA)
+        parsed = HyperliquidRawTriggerInfo(**VALID_TRIGGER_DETAILS_SL_LIMIT_DATA)
         assert parsed.trigger_px == "90.00"
         assert isinstance(parsed.trigger_px, str)
         assert parsed.is_market is False
@@ -187,7 +187,7 @@ class TestHyperliquidRawTriggerDetails:
             ValidationError,
             match=r"Cannot convert 'not_a_number' to Decimal",
         ):
-            HyperliquidRawTriggerDetails(**data)
+            HyperliquidRawTriggerInfo(**data)
 
     def test_invalid_trigger_px_infinite_string(self) -> None:
         """Test invalid trigger px infinite string."""
@@ -197,12 +197,12 @@ class TestHyperliquidRawTriggerDetails:
             ValidationError,
             match="trigger_px: Value 'inf' must be a parseable finite decimal string.",
         ):
-            HyperliquidRawTriggerDetails(**data)
+            HyperliquidRawTriggerInfo(**data)
 
     def test_valid_trigger_px_zero(self) -> None:
         """Test valid trigger px zero."""
         data: dict[str, Any] = {"triggerPx": "0", "isMarket": True, "tpsl": "tp"}
-        parsed = HyperliquidRawTriggerDetails(**data)
+        parsed = HyperliquidRawTriggerInfo(**data)
         assert parsed.trigger_px == "0"
         assert isinstance(parsed.trigger_px, str)
 
@@ -214,20 +214,20 @@ class TestHyperliquidRawTriggerDetails:
             ValidationError,
             match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]",
         ):
-            HyperliquidRawTriggerDetails(**data)
+            HyperliquidRawTriggerInfo(**data)
 
     def test_missing_trigger_px(self) -> None:
         """Test missing trigger px."""
         data_missing_px: dict[str, Any] = {"isMarket": True, "tpsl": "tp"}
         with pytest.raises(ValidationError, match="Field required"):
-            HyperliquidRawTriggerDetails(**data_missing_px)
+            HyperliquidRawTriggerInfo(**data_missing_px)
 
     def test_invalid_is_market_type(self) -> None:
         """Test invalid is market type."""
         data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
         data["isMarket"] = "not_a_bool"
         with pytest.raises(ValidationError, match="is_market: Must be a boolean"):
-            HyperliquidRawTriggerDetails(**data)
+            HyperliquidRawTriggerInfo(**data)
 
 
 class TestHyperliquidRawPlaceOrderAction:
@@ -247,10 +247,10 @@ class TestHyperliquidRawPlaceOrderAction:
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT
         parsed = HyperliquidRawPlaceOrderAction(**data)
         assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
-        assert parsed.order_type.limit is not None
+        assert parsed.orderType.limit is not None
         order_type_data = cast("dict[str, Any]", data["orderType"])
         limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
-        assert parsed.order_type.limit.tif == limit_data.get("tif")
+        assert parsed.orderType.limit.tif == limit_data.get("tif")
         assert parsed.trigger is None
 
     def test_full_valid_limit_order_with_trigger_and_cloid(self) -> None:
@@ -259,10 +259,10 @@ class TestHyperliquidRawPlaceOrderAction:
         parsed = HyperliquidRawPlaceOrderAction(**data)
         assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
 
-        assert parsed.order_type.limit is not None
+        assert parsed.orderType.limit is not None
         order_type_data = cast("dict[str, Any]", data["orderType"])
         limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
-        assert parsed.order_type.limit.tif == limit_data.get("tif")
+        assert parsed.orderType.limit.tif == limit_data.get("tif")
 
         assert parsed.trigger is not None
         trigger_data = cast("dict[str, Any]", data["trigger"])
@@ -278,8 +278,8 @@ class TestHyperliquidRawPlaceOrderAction:
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_MARKET
         parsed = HyperliquidRawPlaceOrderAction(**data)
         assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
-        assert parsed.order_type.market is not None
-        assert parsed.order_type.limit is None
+        assert parsed.orderType.market is not None
+        assert parsed.orderType.limit is None
         assert parsed.trigger is None
 
     def test_missing_required_field_asset(self) -> None:

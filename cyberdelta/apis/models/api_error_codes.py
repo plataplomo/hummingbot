@@ -47,8 +47,10 @@ class APIErrorCode(Enum):
     LIQUIDATION_IN_PROGRESS = 117
     FUNDING_RATE_UNAVAILABLE = 118
     IP_BAN_SUSPECTED = 119
+    MIN_QUANTITY_NOT_MET = 120
 
     # --- Unknown/Miscellaneous Errors (200-299) ---
     UNKNOWN = 200
     EXCHANGE_SPECIFIC = 201
+    TRANSFORMATION_FAILED = 202
     # (Add future catch-alls or unmapped errors here)

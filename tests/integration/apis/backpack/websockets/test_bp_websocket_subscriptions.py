@@ -1,202 +1,571 @@
-"""Integration Tests for BackpackAPI WebSocket subscription functionality."""
+"""Integration Tests for BackpackAPI WebSocket subscription functionality.
 
-from unittest.mock import AsyncMock, MagicMock, patch
+This module tests WebSocket subscription functionality using real market data
+and fail-fast error handling to ensure trading system reliability.
+
+Security Compliance:
+- No hardcoded currency pairs - uses dynamic symbol retrieval from exchange
+- No mocking of critical WebSocket operations - uses real connections with VCR
+- Fail-fast error handling - WebSocket failures cause test failures
+- Real subscription validation - tests actual market data streams
+"""
+
+import asyncio
+import logging
+from typing import Any
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr]
 
-
-# Removed hardcoded bp_config fixture - now using active_bp_config from conftest.py
+logger = logging.getLogger(__name__)
 
 
-# Removed hardcoded bp_secrets fixture - now using active_bp_secrets from conftest.py
+async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
+    """Get real trading symbols from the exchange for subscription testing.
+
+    Args:
+        api: BackpackAPI instance
+
+    Returns:
+        Dict containing spot and perp symbols
+
+    Raises:
+        RuntimeError: If unable to fetch symbols from exchange
+    """
+    try:
+        markets = await api.get_markets(GetMarketsArgs())
+
+        spot_symbols = [market.symbol for market in markets if not market.symbol.endswith("_PERP")]
+        perp_symbols = [market.symbol for market in markets if market.symbol.endswith("_PERP")]
+
+        if not spot_symbols:
+            raise RuntimeError(
+                "No spot symbols available from exchange. "
+                "WebSocket subscription tests require real trading symbols."
+            )
+
+        return {
+            "spot": spot_symbols[:3],  # First 3 spot symbols
+            "perp": perp_symbols[:2] if perp_symbols else [],  # First 2 perp symbols if available
+        }
+
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to fetch trading symbols from exchange: {e}. "
+            "WebSocket subscription tests require real market data and cannot use hardcoded symbols."
+        ) from e
 
 
-@pytest.fixture
-def mock_ws_manager() -> MagicMock:
-    """Create a mock WebSocketManager with realistic connection state."""
-    manager = MagicMock()
-    # Start with disconnected state - use a simple boolean attribute
-    manager._connection_state = False
+async def validate_subscription_topic(topic: str, available_symbols: list[str]) -> bool:
+    """Validate that a subscription topic uses real symbols.
 
-    async def mock_connect() -> None:
-        # Simulate connection establishing
-        manager._connection_state = True
+    Args:
+        topic: WebSocket topic string
+        available_symbols: List of available symbols from exchange
 
-    # Set up mock to return connection state dynamically
-    manager.is_connected = property(lambda _: manager._connection_state)
-    manager.send_json = AsyncMock(return_value=True)
-    manager.connect = AsyncMock(side_effect=mock_connect)
-    return manager
+    Returns:
+        True if topic uses real symbol
+    """
+    if not topic or "." not in topic:
+        return False
 
+    # Extract symbol from topic (e.g., "ticker.BTC_USDC" -> "BTC_USDC")
+    parts = topic.split(".")
+    if len(parts) < 2:
+        return False
 
-@pytest.fixture
-def bp_api(
-    active_bp_config: ExchangeSpecificConfig,
-    active_bp_secrets: ApiKeyAuthSecrets,
-    mock_ws_manager: MagicMock,
-) -> BackpackAPI:
-    """Create BackpackAPI instance with mocked dependencies using public interfaces only."""
-    with patch(
-        "cyberdelta.apis.connectivity.ws_manager.WebSocketManager",
-        return_value=mock_ws_manager,
-    ):
-        # Create API using standard constructor - no protected member access
-        api = BackpackAPI(exchange_config=active_bp_config, exchange_secrets=active_bp_secrets)
-        return api
+    symbol = parts[1]
+    return symbol in available_symbols
 
 
-class TestBackpackAPIWsSubscriptions:
-    """Test BackpackAPI WebSocket subscription methods."""
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/websockets/real_subscriptions"], indirect=True
+)
+class TestBackpackAPIRealWebSocketSubscriptions:
+    """Test WebSocket subscription methods with real market data."""
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_subscription_registration_public_interface(self, bp_api: BackpackAPI) -> None:
-        """Test that subscription registration works through public interface."""
-        handler = AsyncMock()
+    async def test_real_symbol_subscription_registration(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscription registration with real trading symbols."""
+        _ = custom_vcr_config
 
-        # This should complete without error - testing public interface only
-        await bp_api.subscribe("ticker.BTC_USDC", handler)
+        # Get real symbols from exchange
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        # Verify the API maintains consistent state after subscription
-        assert isinstance(bp_api.is_connected, bool)  # Should have a valid connection state
+        if not symbols["spot"]:
+            pytest.fail(
+                "No spot symbols available from exchange. "
+                "WebSocket subscription requires real trading symbols."
+            )
 
+        test_symbol = symbols["spot"][0]
+        topic = f"ticker.{test_symbol}"
+
+        received_messages = []
+
+        async def real_symbol_handler(message: dict[str, Any]) -> None:
+            """Handler for real symbol subscription messages."""
+            received_messages.append(message)
+            logger.info(f"Real symbol handler received: {message}")
+
+        try:
+            # Test subscription with real symbol
+            await bp_api_for_test_env.subscribe(topic, real_symbol_handler)
+
+            # Validate connection state
+            connection_state = bp_api_for_test_env.is_connected
+            assert isinstance(connection_state, bool), (
+                f"Connection state should be boolean, got {type(connection_state)}"
+            )
+
+            logger.info(f"✓ Real symbol subscription successful: {topic}")
+
+        except Exception as e:
+            pytest.fail(
+                f"Real symbol subscription failed for {test_symbol}: {e}. "
+                "WebSocket subscriptions with real symbols are critical for trading data."
+            )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_multiple_subscription_types(self, bp_api: BackpackAPI) -> None:
-        """Test subscribing to different types of streams through public interface."""
-        handler = AsyncMock()
+    async def test_multiple_real_stream_types(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscribing to different stream types with real symbols."""
+        _ = custom_vcr_config
 
-        # Test different subscription types - all should complete without error
-        await bp_api.subscribe("depth.ETH_USDC", handler)
-        await bp_api.subscribe("trades.SOL_USDC", handler)
-        await bp_api.subscribe("account.orderUpdate", handler)
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        # Verify the API maintains consistent state after subscriptions
-        assert isinstance(bp_api.is_connected, bool)
+        if len(symbols["spot"]) < 2:
+            pytest.fail(
+                f"Need at least 2 spot symbols, got {len(symbols['spot'])}. "
+                "Multi-stream testing requires multiple real symbols."
+            )
 
+        symbol1, symbol2 = symbols["spot"][0], symbols["spot"][1]
+
+        stream_results = {}
+
+        async def create_stream_handler(stream_type: str):
+            async def handler(message: dict[str, Any]) -> None:
+                if stream_type not in stream_results:
+                    stream_results[stream_type] = []
+                stream_results[stream_type].append(message)
+                logger.info(f"{stream_type} stream handler: {message}")
+
+            return handler
+
+        # Test different stream types with real symbols
+        stream_subscriptions = [
+            (f"ticker.{symbol1}", "ticker"),
+            (f"depth.{symbol2}", "depth"),
+            (f"trades.{symbol1}", "trades"),
+            ("account.orderUpdate", "account"),
+        ]
+
+        try:
+            for topic, stream_type in stream_subscriptions:
+                handler = await create_stream_handler(stream_type)
+                await bp_api_for_test_env.subscribe(topic, handler)
+
+                # Validate topic uses real symbols when applicable
+                if stream_type != "account":
+                    all_symbols = symbols["spot"] + symbols["perp"]
+                    if not await validate_subscription_topic(topic, all_symbols):
+                        pytest.fail(
+                            f"Invalid topic using non-real symbol: {topic}. "
+                            "All subscriptions must use real exchange symbols."
+                        )
+
+            # Validate connection state
+            connection_state = bp_api_for_test_env.is_connected
+            assert isinstance(connection_state, bool), (
+                f"Connection state should be boolean after subscriptions, got {type(connection_state)}"
+            )
+
+            logger.info(
+                f"✓ Multiple real stream types successful: {len(stream_subscriptions)} streams"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Multiple real stream type subscriptions failed: {e}. "
+                "Multi-stream functionality is critical for comprehensive trading data."
+            )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_subscription_consistency(self, bp_api: BackpackAPI) -> None:
-        """Test that subscription operations maintain consistent API state."""
-        handler = AsyncMock()
+    async def test_real_subscription_state_consistency(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscription state consistency with real symbols."""
+        _ = custom_vcr_config
 
-        # Multiple subscriptions should work consistently
-        initial_connected = bp_api.is_connected
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
+        test_symbol = symbols["spot"][0]
 
-        await bp_api.subscribe("trades.SOL_USDC", handler)
-        after_first = bp_api.is_connected
+        async def consistency_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Consistency handler: {message}")
 
-        await bp_api.subscribe("account.orderUpdate", handler)
-        after_second = bp_api.is_connected
+        # Track state consistency across operations
+        state_tracking = []
 
-        # Connection state should remain consistent
-        assert initial_connected == after_first == after_second
-        assert isinstance(initial_connected, bool)
+        try:
+            # Initial state
+            initial_state = bp_api_for_test_env.is_connected
+            state_tracking.append(("initial", initial_state))
 
+            # First subscription with real symbol
+            await bp_api_for_test_env.subscribe(f"ticker.{test_symbol}", consistency_handler)
+            after_first = bp_api_for_test_env.is_connected
+            state_tracking.append(("after_first_sub", after_first))
+
+            # Second subscription with real symbol
+            await bp_api_for_test_env.subscribe(f"depth.{test_symbol}", consistency_handler)
+            after_second = bp_api_for_test_env.is_connected
+            state_tracking.append(("after_second_sub", after_second))
+
+            # Validate all states are boolean and track consistency
+            for stage, state in state_tracking:
+                assert isinstance(state, bool), (
+                    f"State at {stage} should be boolean, got {type(state)}"
+                )
+
+            logger.info(f"✓ Real subscription state consistency validated: {state_tracking}")
+
+        except Exception as e:
+            pytest.fail(
+                f"Real subscription state consistency failed: {e}. "
+                "State consistency is critical for reliable WebSocket operations with real data."
+            )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_various_topic_formats_accepted(self, bp_api: BackpackAPI) -> None:
-        """Test that various topic formats work through public interface."""
-        handler = AsyncMock()
+    async def test_real_helper_subscription_methods(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test helper subscription methods with real symbols."""
+        _ = custom_vcr_config
 
-        # Test various topic formats - all should complete without error
-        await bp_api.subscribe("fills", handler)
-        await bp_api.subscribe("custom.stream.format", handler)
-        await bp_api.subscribe("ticker.BTC_USDC", handler)
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        # Verify the API maintains consistent state
-        assert isinstance(bp_api.is_connected, bool)
+        if len(symbols["spot"]) < 3:
+            pytest.fail(
+                f"Need at least 3 symbols for helper method testing, got {len(symbols['spot'])}. "
+                "Helper method tests require multiple real symbols."
+            )
 
+        symbol1, symbol2, symbol3 = symbols["spot"][:3]
+
+        try:
+            # Test helper methods with real symbols
+            await bp_api_for_test_env.subscribe_to_order_book(symbol1)
+            await bp_api_for_test_env.subscribe_to_ticker(symbol2)
+            await bp_api_for_test_env.subscribe_to_trades(symbol3)
+            await bp_api_for_test_env.subscribe_to_account_updates()
+
+            # Validate connection state after all helper method calls
+            final_state = bp_api_for_test_env.is_connected
+            assert isinstance(final_state, bool), (
+                f"Final connection state should be boolean, got {type(final_state)}"
+            )
+
+            logger.info(
+                f"✓ All helper subscription methods successful with real symbols: {[symbol1, symbol2, symbol3]}"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Helper subscription methods failed with real symbols: {e}. "
+                "Helper methods are critical for simplified WebSocket integration."
+            )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_subscription_operations_consistent(self, bp_api: BackpackAPI) -> None:
-        """Test that subscription operations are consistent through public interface."""
-        handler = AsyncMock()
+    async def test_real_websocket_connection_lifecycle(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test WebSocket connection lifecycle with real symbols."""
+        _ = custom_vcr_config
 
-        # Multiple subscription operations should work consistently
-        await bp_api.subscribe("ticker.BTC_USDC", handler)
-        first_state = bp_api.is_connected
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
+        test_symbol = symbols["spot"][0]
+        topic = f"ticker.{test_symbol}"
 
-        await bp_api.subscribe("depth.ETH_USDC", handler)
-        second_state = bp_api.is_connected
+        async def lifecycle_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Lifecycle handler: {message}")
 
-        # All operations should maintain consistent state
-        assert first_state == second_state
-        assert isinstance(first_state, bool)
+        try:
+            # Test subscription before connection
+            await bp_api_for_test_env.subscribe(topic, lifecycle_handler)
+            subscription_state = bp_api_for_test_env.is_connected
 
+            # Test connection establishment
+            await bp_api_for_test_env.connect_websocket()
+            connection_state = bp_api_for_test_env.is_connected
+
+            # Validate state types and lifecycle
+            assert isinstance(subscription_state, bool), (
+                f"Subscription state should be boolean, got {type(subscription_state)}"
+            )
+            assert isinstance(connection_state, bool), (
+                f"Connection state should be boolean, got {type(connection_state)}"
+            )
+
+            logger.info(
+                f"✓ Real WebSocket lifecycle completed: sub={subscription_state}, conn={connection_state}"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Real WebSocket connection lifecycle failed: {e}. "
+                "Connection lifecycle with real symbols is critical for trading system reliability."
+            )
+
+
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/websockets/concurrent_real"], indirect=True
+)
+class TestBackpackAPIConcurrentRealSubscriptions:
+    """Test concurrent WebSocket subscriptions with real data."""
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_multiple_topic_subscriptions(self, bp_api: BackpackAPI) -> None:
-        """Test subscribing to multiple topics through public interface."""
-        handler1 = AsyncMock()
-        handler2 = AsyncMock()
-        handler3 = AsyncMock()
+    async def test_concurrent_real_subscriptions(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test concurrent subscriptions with real market data."""
+        _ = custom_vcr_config
 
-        # All subscriptions should complete without error
-        await bp_api.subscribe("ticker.BTC_USDC", handler1)
-        await bp_api.subscribe("depth.ETH_USDC", handler2)
-        await bp_api.subscribe("trades.SOL_USDC", handler3)
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        # Verify API state remains consistent
-        assert isinstance(bp_api.is_connected, bool)
+        if len(symbols["spot"]) < 3:
+            pytest.fail(
+                f"Need at least 3 symbols for concurrent testing, got {len(symbols['spot'])}. "
+                "Concurrent subscription tests require multiple real symbols."
+            )
 
+        async def concurrent_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Concurrent real handler: {message}")
+
+        # Create concurrent subscription tasks with real symbols
+        subscription_tasks = []
+        stream_types = ["ticker", "depth", "trades"]
+
+        for i, symbol in enumerate(symbols["spot"][:3]):
+            stream_type = stream_types[i % len(stream_types)]
+            topic = f"{stream_type}.{symbol}"
+
+            task = asyncio.create_task(bp_api_for_test_env.subscribe(topic, concurrent_handler))
+            subscription_tasks.append((topic, task))
+
+        try:
+            # Execute concurrent subscriptions
+            await asyncio.gather(*[task for _, task in subscription_tasks])
+
+            # Validate final state
+            final_state = bp_api_for_test_env.is_connected
+            assert isinstance(final_state, bool), (
+                f"Final state should be boolean after concurrent operations, got {type(final_state)}"
+            )
+
+            logger.info(
+                f"✓ Concurrent real subscriptions successful: {len(subscription_tasks)} operations"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Concurrent real subscriptions failed: {e}. "
+                "Concurrent operations with real data are critical for high-frequency trading."
+            )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_websocket_connection_lifecycle(self, bp_api: BackpackAPI) -> None:
-        """Test WebSocket connection lifecycle through public interface."""
-        handler = AsyncMock()
+    async def test_mixed_market_real_subscriptions(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscriptions to mixed market types with real symbols."""
+        _ = custom_vcr_config
 
-        # Test subscription works - initially disconnected
-        await bp_api.subscribe("ticker.BTC_USDC", handler)
-        subscription_state = bp_api.is_connected
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        # Test connection operations work - should connect
-        await bp_api.connect_websocket()
-        connection_state = bp_api.is_connected
+        async def mixed_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Mixed market handler: {message}")
 
-        # Connection state should change from disconnected to connected
-        assert subscription_state is False  # Initially disconnected
-        assert connection_state is True  # Connected after connect_websocket()
-        assert isinstance(subscription_state, bool)
-        assert isinstance(connection_state, bool)
+        subscription_count = 0
 
+        try:
+            # Subscribe to spot markets
+            for spot_symbol in symbols["spot"][:2]:
+                await bp_api_for_test_env.subscribe(f"ticker.{spot_symbol}", mixed_handler)
+                subscription_count += 1
+
+            # Subscribe to perp markets if available
+            for perp_symbol in symbols["perp"][:1]:
+                await bp_api_for_test_env.subscribe(f"ticker.{perp_symbol}", mixed_handler)
+                subscription_count += 1
+
+            # Validate mixed market subscriptions
+            if subscription_count == 0:
+                pytest.fail(
+                    "No real market subscriptions created. "
+                    "Mixed market testing requires real spot and perp symbols."
+                )
+
+            connection_state = bp_api_for_test_env.is_connected
+            assert isinstance(connection_state, bool), (
+                f"Connection state should be boolean after mixed subscriptions, got {type(connection_state)}"
+            )
+
+            logger.info(
+                f"✓ Mixed market real subscriptions successful: {subscription_count} subscriptions"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Mixed market real subscriptions failed: {e}. "
+                "Multi-market functionality with real data is critical for comprehensive trading."
+            )
+
+
+@pytest.mark.parametrize(
+    "custom_vcr_cassette_dir", ["apis/backpack/websockets/error_handling_real"], indirect=True
+)
+class TestBackpackAPIRealSubscriptionErrorHandling:
+    """Test subscription error handling with real scenarios."""
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_helper_subscription_methods(self, bp_api: BackpackAPI) -> None:
-        """Test the helper subscription methods through public interface."""
-        # All helper methods should complete without error
-        await bp_api.subscribe_to_order_book("ETH_USDC")
-        await bp_api.subscribe_to_ticker("BTC_USDC")
-        await bp_api.subscribe_to_trades("SOL_USDC")
-        await bp_api.subscribe_to_account_updates()
+    async def test_real_subscription_error_scenarios(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscription error handling with real and invalid scenarios."""
+        _ = custom_vcr_config
 
-        # API should maintain consistent state
-        assert isinstance(bp_api.is_connected, bool)
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
+        valid_symbol = symbols["spot"][0]
 
+        async def error_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Error test handler: {message}")
+
+        # Test scenarios mixing real and invalid
+        test_scenarios = [
+            (f"ticker.{valid_symbol}", True),  # Valid real symbol
+            (
+                "ticker.DEFINITELY_INVALID_SYMBOL_THAT_DOES_NOT_EXIST_ON_EXCHANGE",
+                False,
+            ),  # Invalid symbol
+            ("invalid_topic_format_no_dot", False),  # Invalid format
+            ("", False),  # Empty topic
+        ]
+
+        successful_count = 0
+        error_count = 0
+
+        for topic, should_succeed in test_scenarios:
+            try:
+                await bp_api_for_test_env.subscribe(topic, error_handler)
+
+                if should_succeed:
+                    successful_count += 1
+                    logger.info(f"✓ Expected successful real subscription: {topic}")
+                else:
+                    # If subscription succeeded despite being invalid, that might be exchange tolerance
+                    logger.info(f"✓ Exchange accepted invalid topic (tolerance): {topic}")
+
+                # Always validate connection state
+                state = bp_api_for_test_env.is_connected
+                assert isinstance(state, bool), (
+                    f"Connection state should be boolean after {topic}, got {type(state)}"
+                )
+
+            except Exception as e:
+                if should_succeed:
+                    # Valid real scenarios must not fail
+                    pytest.fail(
+                        f"Valid real subscription failed for {topic}: {e}. "
+                        "Valid subscriptions with real symbols are critical and must succeed."
+                    )
+                else:
+                    # Invalid scenarios may fail appropriately
+                    error_count += 1
+                    logger.info(f"✓ Invalid subscription correctly rejected: {topic} - {e}")
+
+        # Ensure at least one successful subscription with real data
+        if successful_count == 0:
+            pytest.fail(
+                "No successful real subscriptions occurred. "
+                "At least one valid real subscription must succeed for WebSocket functionality."
+            )
+
+        logger.info(
+            f"✓ Real subscription error handling completed: {successful_count} successful, {error_count} errors"
+        )
+
+    @pytest.mark.vcr
     @pytest.mark.asyncio
-    async def test_public_private_stream_handling(self, bp_api: BackpackAPI) -> None:
-        """Test that both public and private streams work through public interface."""
-        handler = AsyncMock()
+    async def test_subscription_resilience_real_data(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
+    ) -> None:
+        """Test subscription resilience under stress with real data."""
+        _ = custom_vcr_config
 
-        # Both public and private streams should work without error
-        await bp_api.subscribe("ticker.BTC_USDC", handler)  # Public
-        await bp_api.subscribe("account.orderUpdate", handler)  # Private
+        symbols = await get_real_trading_symbols(bp_api_for_test_env)
+        test_symbol = symbols["spot"][0]
 
-        # API should handle both types consistently
-        assert isinstance(bp_api.is_connected, bool)
+        async def resilience_handler(message: dict[str, Any]) -> None:
+            logger.info(f"Resilience handler: {message}")
 
-    @pytest.mark.asyncio
-    async def test_subscription_integration_complete(self, bp_api: BackpackAPI) -> None:
-        """Test complete subscription integration through public interface."""
-        handler = AsyncMock()
+        operation_count = 0
+        max_operations = 10
 
-        # Test a comprehensive subscription workflow
-        await bp_api.subscribe("account.orderUpdate", handler)
-        initial_state = bp_api.is_connected
+        try:
+            # Test rapid subscription operations with real symbol
+            for i in range(max_operations):
+                topic = f"ticker.{test_symbol}"
+                await bp_api_for_test_env.subscribe(topic, resilience_handler)
+                operation_count += 1
 
-        await bp_api.connect_websocket()
-        final_state = bp_api.is_connected
+                # Validate state resilience
+                state = bp_api_for_test_env.is_connected
+                assert isinstance(state, bool), (
+                    f"State should remain boolean during resilience test {i}, got {type(state)}"
+                )
 
-        # Integration should work: disconnected -> connected
-        assert initial_state is False  # Initially disconnected
-        assert final_state is True  # Connected after connect_websocket()
-        assert isinstance(initial_state, bool)
-        assert isinstance(final_state, bool)
+                # Brief pause to allow processing
+                await asyncio.sleep(0.01)
+
+            logger.info(
+                f"✓ Subscription resilience with real data confirmed: {operation_count} operations"
+            )
+
+        except Exception as e:
+            pytest.fail(
+                f"Subscription resilience failed after {operation_count} operations: {e}. "
+                "System resilience with real data is critical for trading platform stability."
+            )

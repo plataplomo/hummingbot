@@ -9,7 +9,6 @@ from typing import Any, TypeGuard
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
@@ -215,12 +214,12 @@ class HyperliquidResponseHandler:
         user_address: str,
     ) -> HyperliquidRawUserStateResponse:
         """Validates the /info response for user_state.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         All transformation logic delegated to preprocessing mapper when needed.
         """
         context = f"info (user state for {user_address})"
-        
+
         # Type validation at boundary
         if not isinstance(raw_response_content, dict):
             raise APIError(
@@ -228,7 +227,7 @@ class HyperliquidResponseHandler:
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-            
+
         try:
             # Pydantic validation at boundary - no business logic here
             return HyperliquidRawUserStateResponse.model_validate(raw_response_content)
@@ -245,12 +244,12 @@ class HyperliquidResponseHandler:
         user_address: str,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Validates the /info response for open_orders.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         Returns validated Raw model for service layer transformation.
         """
         context = f"info (open orders for {user_address})"
-        
+
         # Type validation at boundary
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -258,7 +257,7 @@ class HyperliquidResponseHandler:
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-            
+
         try:
             # Pydantic validation at boundary - list of orders
             return HyperliquidRawOpenOrdersResponse.model_validate(raw_response_content)
@@ -275,12 +274,12 @@ class HyperliquidResponseHandler:
         user_address: str,
     ) -> HyperliquidRawUserFillsResponse:
         """Validates the /info response for user_fills.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         Trade history transformation handled by service layer mappers.
         """
         context = f"info (user fills for {user_address})"
-        
+
         # Type validation at boundary
         if not isinstance(raw_response_content, list):
             raise APIError(
@@ -288,7 +287,7 @@ class HyperliquidResponseHandler:
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-            
+
         try:
             # Pydantic validation at boundary - list of fills
             return HyperliquidRawUserFillsResponse.model_validate(raw_response_content)
@@ -338,17 +337,17 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawOrderBookResponse:
         """Validates the /info response for l2Book.
-        
+
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
         """
         # Basic type validation
         if not isinstance(raw_response_content, dict):
             raise APIError(
                 message=f"Unexpected L2 book response format: expected dict, "
-                       f"got {type(raw_response_content).__name__}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Direct Pydantic validation - no business logic
         try:
             return HyperliquidRawOrderBookResponse.model_validate(raw_response_content)
@@ -365,20 +364,22 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawPublicTrade]:
         """Validates the /info response for recentTrades.
-        
+
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
         """
         # Basic type validation
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected recent trades response format: expected list, "
-                       f"got {type(raw_response_content).__name__}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Direct Pydantic validation - no business logic
         try:
-            return [HyperliquidRawPublicTrade.model_validate(trade) for trade in raw_response_content]
+            return [
+                HyperliquidRawPublicTrade.model_validate(trade) for trade in raw_response_content
+            ]
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, f"recent trades ({symbol})", raw_response_content
@@ -400,10 +401,10 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected candle snapshot response format: expected list, "
-                       f"got {type(raw_response_content).__name__}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Direct Pydantic validation - no business logic
         try:
             return HyperliquidRawCandleSnapshot.model_validate(raw_response_content)
@@ -426,10 +427,10 @@ class HyperliquidResponseHandler:
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected order status response format: expected list, "
-                       f"got {type(raw_response_content).__name__}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Direct Pydantic validation - no business logic
         try:
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
@@ -443,17 +444,17 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse,
     ) -> list[HyperliquidRawAssetCtx]:
         """Validates the /info response for spot asset contexts.
-        
+
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
         """
         # Basic type validation
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected spot asset contexts response format: expected list, "
-                       f"got {type(raw_response_content).__name__}",
+                f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Direct Pydantic validation - no business logic
         try:
             return [HyperliquidRawAssetCtx.model_validate(item) for item in raw_response_content]
@@ -516,7 +517,6 @@ class HyperliquidResponseHandler:
                 context,
                 raw_response_content,
             ) from e
-
 
     @staticmethod
     def handle_query_order_history_response(

@@ -373,7 +373,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.INVALID_REQUEST.value,
                 original_exception=e,
             ) from e
-            
+
         # Security: Only log sanitized information
         self.logger.debug(f"[HL_AUTH] Action type: {action_payload_dict.get('type', 'unknown')}")
         self.logger.debug(f"[HL_AUTH] Msgpacked action size: {len(msgpacked_action)} bytes")
@@ -407,9 +407,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
-        
+
         # Security: Don't log the actual hash value
-        self.logger.debug(f"[HL_AUTH] Action hash computed successfully")
+        self.logger.debug("[HL_AUTH] Action hash computed successfully")
 
         # Construct phantom_agent_message for EIP-712
         # SDK uses "a" for mainnet, "b" for testnet
@@ -432,8 +432,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Sign the message with enhanced security
         try:
             # Security: Only log domain information, not sensitive message details
-            self.logger.debug(f"[HL_AUTH] EIP-712 domain name: {structured_data_to_sign['domain'].get('name', 'unknown')}")
-            self.logger.debug(f"[HL_AUTH] EIP-712 primaryType: {structured_data_to_sign.get('primaryType', 'unknown')}")
+            domain_dict = structured_data_to_sign["domain"]
+            if isinstance(domain_dict, dict):
+                self.logger.debug(
+                    f"[HL_AUTH] EIP-712 domain name: {domain_dict.get('name', 'unknown')}"
+                )
+            primary_type = structured_data_to_sign.get("primaryType", "unknown")
+            self.logger.debug(f"[HL_AUTH] EIP-712 primaryType: {primary_type}")
 
             # Generate signable message
             try:
@@ -447,7 +452,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 ) from e
 
             # Security: Don't log the actual signable message hash as it may be sensitive
-            self.logger.debug(f"[HL_AUTH] EIP-712 message encoded successfully")
+            self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
 
             # Sign the message
             try:
@@ -461,7 +466,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 ) from e
 
             # Validate signature components
-            if not hasattr(signed_message_obj, 'r') or not hasattr(signed_message_obj, 's') or not hasattr(signed_message_obj, 'v'):
+            if (
+                not hasattr(signed_message_obj, "r")
+                or not hasattr(signed_message_obj, "s")
+                or not hasattr(signed_message_obj, "v")
+            ):
                 raise APIError(
                     "Invalid signature object: missing r, s, or v components",
                     code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -469,8 +478,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Convert signature components to hex with proper padding
             try:
-                r_hex = to_hex(signed_message_obj.r)
-                s_hex = to_hex(signed_message_obj.s)
+                r_hex: str = to_hex(signed_message_obj.r)
+                s_hex: str = to_hex(signed_message_obj.s)
 
                 # Pad to 64 hex characters if needed (0x + 64 chars = 66 total)
                 if len(r_hex) < 66:
@@ -479,9 +488,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     s_hex = "0x" + s_hex[2:].zfill(64)
 
                 # Validate hex format
-                if not r_hex.startswith('0x') or len(r_hex) != 66:
+                if not r_hex.startswith("0x") or len(r_hex) != 66:
                     raise ValueError(f"Invalid r component format: {r_hex}")
-                if not s_hex.startswith('0x') or len(s_hex) != 66:
+                if not s_hex.startswith("0x") or len(s_hex) != 66:
                     raise ValueError(f"Invalid s component format: {s_hex}")
 
                 signature_dict: dict[str, Any] = {
@@ -489,9 +498,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     "s": s_hex,
                     "v": signed_message_obj.v,
                 }
-                
+
                 # Security: Log signature creation success without exposing values
-                self.logger.debug(f"[HL_AUTH] Signature components generated successfully")
+                self.logger.debug("[HL_AUTH] Signature components generated successfully")
                 self.logger.debug(f"[HL_AUTH] Signature v value: {signed_message_obj.v}")
                 self.logger.debug(f"[HL_AUTH] Signing account: {self._account.address}")
             except Exception as e:
@@ -534,7 +543,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Security: Log successful body construction without sensitive data
             self.logger.debug(f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields")
-            
+
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to construct HTTP body: {e}")
             raise APIError(
@@ -556,9 +565,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         safe_value = str(value).strip()
                         if safe_value:  # Only add non-empty values
                             final_headers[key] = safe_value
-                            
+
             self.logger.debug(f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers")
-            
+
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to prepare headers: {e}")
             raise APIError(

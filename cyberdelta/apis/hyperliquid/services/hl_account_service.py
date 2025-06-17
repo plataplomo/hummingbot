@@ -191,7 +191,7 @@ class HyperliquidAccountService:
             elif not isinstance(raw_data, list) or not raw_data:
                 raise APIError(
                     message=(
-                        f"Unexpected raw user state response format, expected non-empty list or dict, "
+                        f"Unexpected user state response format, expected non-empty list or dict, "
                         f"got {type(raw_data)}"
                     ),
                     code=APIErrorCode.INVALID_RESPONSE.value,

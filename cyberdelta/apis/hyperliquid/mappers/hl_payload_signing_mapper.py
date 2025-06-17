@@ -78,7 +78,7 @@ class HyperliquidPayloadSigningMapper:
             # Input validation
             if not isinstance(data, dict):
                 raise TypeError(f"Expected dict, got {type(data).__name__}")
-                
+
             payload_dict = data.copy()
 
             # Handle Pydantic models in the orders field
@@ -95,7 +95,7 @@ class HyperliquidPayloadSigningMapper:
                         except Exception as e:
                             raise TransformationError(
                                 f"Failed to convert order at index {i} to dict: {e}",
-                                code=APIErrorCode.TRANSFORMATION_FAILED.value,
+                                code=APIErrorCode.TRANSFORMATION_FAILED.name,
                             ) from e
                     elif isinstance(order, dict):
                         # Already a dict - validate it has expected structure
@@ -103,9 +103,7 @@ class HyperliquidPayloadSigningMapper:
                             raise ValueError(f"Order dict at index {i} missing required fields")
                         orders_for_signing.append(order)
                     else:
-                        raise TypeError(
-                            f"Invalid order type at index {i}: {type(order).__name__}"
-                        )
+                        raise TypeError(f"Invalid order type at index {i}: {type(order).__name__}")
                 payload_dict["orders"] = orders_for_signing
 
             # Handle other potential Pydantic models in the action field
@@ -117,12 +115,12 @@ class HyperliquidPayloadSigningMapper:
                 except Exception as e:
                     raise TransformationError(
                         f"Failed to convert action to dict: {e}",
-                        code=APIErrorCode.TRANSFORMATION_FAILED.value,
+                        code=APIErrorCode.TRANSFORMATION_FAILED.name,
                     ) from e
 
             # Validate the result is serializable
             self._validate_serializable(payload_dict)
-            
+
             return payload_dict
 
         except TransformationError:
@@ -131,7 +129,7 @@ class HyperliquidPayloadSigningMapper:
             self.logger.error(f"Failed to convert payload to signing format: {e}")
             raise TransformationError(
                 f"Failed to convert payload to signing format: {e}",
-                code=APIErrorCode.TRANSFORMATION_FAILED.value,
+                code=APIErrorCode.TRANSFORMATION_FAILED.name,
                 original_exception=e,
             ) from e
 
@@ -167,7 +165,7 @@ class HyperliquidPayloadSigningMapper:
             self.logger.error(f"Failed to clean payload for signing: {e}")
             raise TransformationError(
                 f"Failed to clean payload for signing: {e}",
-                code=APIErrorCode.TRANSFORMATION_FAILED.value,
+                code=APIErrorCode.TRANSFORMATION_FAILED.name,
                 original_exception=e,
             ) from e
 
@@ -247,18 +245,16 @@ class HyperliquidPayloadSigningMapper:
         Returns:
             True if it looks like an Ethereum address
         """
-        if not isinstance(value, str):
-            return False
         return len(value) == 42 and value.lower().startswith("0x")
-    
-    def _validate_serializable(self, data: Any) -> None:
+
+    def _validate_serializable(self, data: object) -> None:
         """Validate that data is msgpack serializable.
-        
+
         Architecture: Boundary validation to ensure data can be signed.
-        
+
         Args:
             data: Data to validate
-            
+
         Raises:
             ValueError: If data contains non-serializable types
         """
@@ -270,7 +266,7 @@ class HyperliquidPayloadSigningMapper:
         elif isinstance(data, list):
             for item in data:
                 self._validate_serializable(item)
-        elif not isinstance(data, (str, int, float, bool, type(None))):
+        elif not isinstance(data, str | int | float | bool | type(None)):
             # Check for Pydantic models that weren't converted
             if hasattr(data, "model_dump"):
                 raise ValueError(f"Unconverted Pydantic model: {type(data).__name__}")

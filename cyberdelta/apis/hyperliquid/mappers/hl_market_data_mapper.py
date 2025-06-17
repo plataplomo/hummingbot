@@ -224,7 +224,7 @@ class HyperliquidMarketDataMapper:
 
         Returns:
             List of (price, size) tuples
-            
+
         Raises:
             TransformationError: If parsing fails
         """
@@ -766,7 +766,7 @@ class HyperliquidMarketDataMapper:
 
         Returns:
             Market object with available metadata
-            
+
         Raises:
             TransformationError: If market creation fails
         """
@@ -821,7 +821,7 @@ class HyperliquidMarketDataMapper:
             raise TransformationError(
                 f"Failed to create market from asset definition: {e}",
                 field_name="asset_def",
-                source_value=asset_def.name if hasattr(asset_def, 'name') else str(asset_def),
+                source_value=asset_def.name if hasattr(asset_def, "name") else str(asset_def),
                 original_exception=e,
             ) from e
 

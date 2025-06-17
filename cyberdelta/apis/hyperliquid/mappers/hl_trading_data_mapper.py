@@ -125,19 +125,19 @@ class HyperliquidTradingDataMapper:
             status_map = {
                 "open": OrderStatus.OPEN,
                 "filled": OrderStatus.FILLED,
-                "canceled": OrderStatus.CANCELED,  # Note: Hyperliquid uses "canceled" not "cancelled"
+                "canceled": OrderStatus.CANCELED,  # Hyperliquid uses "canceled"
                 "rejected": OrderStatus.REJECTED,
                 # Map expired to UNKNOWN since we don't have an EXPIRED status
                 "expired": OrderStatus.UNKNOWN,
             }
             mapped_status = status_map.get(hl_status.lower(), OrderStatus.UNKNOWN)
-            
+
             if mapped_status == OrderStatus.UNKNOWN and hl_status.lower() not in status_map:
                 logger.warning(
                     f"[HyperliquidTradingDataMapper] Unknown order status '{hl_status}', "
                     f"mapping to UNKNOWN"
                 )
-            
+
             return mapped_status
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md

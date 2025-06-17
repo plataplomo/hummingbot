@@ -104,14 +104,14 @@ class BackpackTradingDataMapper:
 
         """
         bp_type_lower = bp_type.lower()
-        
+
         # If there's a trigger price, it indicates this was a stop/take profit order
         if trigger_price:
             if bp_type_lower == "market":
                 return OrderType.STOP_MARKET
             elif bp_type_lower == "limit":
                 return OrderType.STOP_LIMIT
-        
+
         type_map = {
             "limit": OrderType.LIMIT,
             "market": OrderType.MARKET,
@@ -241,7 +241,7 @@ class BackpackTradingDataMapper:
             allow_none=True,
             field_name="quantity",
         )
-        
+
         # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
         if quantity_requested is None or quantity_requested == Decimal("0"):
             if raw_order.triggerQuantity:
@@ -250,7 +250,7 @@ class BackpackTradingDataMapper:
                     allow_none=False,
                     field_name="triggerQuantity",
                 )
-        
+
         if quantity_requested is None or quantity_requested <= Decimal("0"):
             raise TransformationError("quantity_requested is required and must be > 0")
 

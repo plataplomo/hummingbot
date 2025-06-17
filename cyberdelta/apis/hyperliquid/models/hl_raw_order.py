@@ -53,7 +53,7 @@ class HyperliquidRawOrderType(BaseModel):
     """Represents the 'orderType' field which can be a limit, market, or trigger type.
 
     Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}},
-    {"market": {}}, or {"trigger": {...}}. This model is used as a field in HyperliquidRawPlaceOrderAction.
+    {"market": {}}, or {"trigger": {...}}. Used as field in HyperliquidRawPlaceOrderAction.
     """
 
     limit: HyperliquidRawLimitOrderTypeDetails | None = Field(default=None)

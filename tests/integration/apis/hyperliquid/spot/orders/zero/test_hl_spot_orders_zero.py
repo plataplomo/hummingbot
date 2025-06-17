@@ -17,7 +17,7 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -81,7 +81,7 @@ class TestHyperliquidSpotOrdersZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order history retrieval - currently not implemented."""
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)
 
         args = GetOrderHistoryArgs(

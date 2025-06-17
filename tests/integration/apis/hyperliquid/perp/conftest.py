@@ -11,7 +11,8 @@ import pytest
 def hl_perp_test_config() -> dict[str, list[str] | list[Decimal] | Decimal | int]:
     """Hyperliquid perp test configuration."""
     return {
-        "symbols": ["BTC-PERP", "ETH-PERP", "SOL-PERP"],
+        # REMOVED HARDCODED SYMBOLS - SECURITY VIOLATION
+        # Must get available perp symbols from exchange API
         "min_position_size": Decimal("0.001"),
         "test_sizes": [Decimal("0.001"), Decimal("0.01"), Decimal("0.1")],
         "max_leverage": 20,
