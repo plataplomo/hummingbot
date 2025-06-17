@@ -35,7 +35,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
@@ -119,16 +119,14 @@ class TestHyperliquidWebSocketIntegration:
         try:
             # Get initial ticker via REST for comparison
             rest_ticker = await hl_api_for_test_env.get_ticker(test_symbol)
+            assert rest_ticker is not None, f"Failed to get ticker for {test_symbol}"
 
             # Simulate WebSocket ticker update with same data format
             ws_ticker = Ticker(
                 symbol=test_symbol,
                 price=rest_ticker.price,
                 timestamp=datetime.now(UTC),
-                volume_24h=getattr(rest_ticker, "volume_24h", Decimal("0")),
-                high_24h=getattr(rest_ticker, "high_24h", rest_ticker.price),
-                low_24h=getattr(rest_ticker, "low_24h", rest_ticker.price),
-                exchange="hyperliquid",
+                volume=getattr(rest_ticker, "volume", Decimal("0")),
             )
 
             # Process through ticker handler
@@ -148,11 +146,12 @@ class TestHyperliquidWebSocketIntegration:
             assert isinstance(processed_ticker.price, Decimal), (
                 "WebSocket model transformation must preserve Decimal precision"
             )
-            assert processed_ticker.exchange == "hyperliquid", (
-                "WebSocket model transformation must preserve exchange"
-            )
+            # Exchange is not a field in the core Ticker model
+            # It's inferred from which API instance created the ticker
 
             # Compare with REST API data for consistency
+            assert processed_ticker.price is not None, "Processed ticker must have a price"
+            assert rest_ticker.price is not None, "REST ticker must have a price"
             price_difference = abs(processed_ticker.price - rest_ticker.price)
             max_allowed_difference = rest_ticker.price * Decimal("0.001")  # 0.1%
 
@@ -195,7 +194,7 @@ class TestHyperliquidWebSocketIntegration:
             )
 
             # Validate financial precision in order data
-            assert isinstance(order_update.quantity, Decimal), (
+            assert isinstance(order_update.quantity_requested, Decimal), (
                 "WebSocket order quantity must be Decimal for financial precision"
             )
             assert isinstance(order_update.price, Decimal), (
@@ -247,11 +246,16 @@ class TestHyperliquidWebSocketIntegration:
                 symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=safe_quantity,
+                quantity_requested=safe_quantity,
                 price=safe_price,
                 exchange="hyperliquid",
                 created_at=datetime.now(UTC),
                 status=placed_order.status,
+                time_in_force=TimeInForce.GTC,
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
             )
 
             # Process through order handler
@@ -275,11 +279,16 @@ class TestHyperliquidWebSocketIntegration:
                 symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=safe_quantity,
+                quantity_requested=safe_quantity,
                 price=safe_price,
                 exchange="hyperliquid",
                 created_at=ws_order_placed.created_at,
-                status="CANCELLED",  # Simulate cancelled status
+                status=OrderStatus.CANCELED,
+                time_in_force=TimeInForce.GTC,
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
             )
 
             await order_handler(ws_order_cancelled)
@@ -297,7 +306,7 @@ class TestHyperliquidWebSocketIntegration:
                 assert order_event.symbol == test_symbol, (
                     "WebSocket order events must maintain symbol consistency"
                 )
-                assert isinstance(order_event.quantity, Decimal), (
+                assert isinstance(order_event.quantity_requested, Decimal), (
                     "WebSocket order events must maintain Decimal precision"
                 )
                 assert isinstance(order_event.price, Decimal), (
@@ -305,11 +314,15 @@ class TestHyperliquidWebSocketIntegration:
                 )
 
             # Validate that order data matches between REST and WebSocket
-            rest_vs_ws_quantity_diff = abs(placed_order.quantity - ws_order_placed.quantity)
+            rest_vs_ws_quantity_diff = abs(
+                placed_order.quantity_requested - ws_order_placed.quantity_requested
+            )
             assert rest_vs_ws_quantity_diff == Decimal("0"), (
                 "WebSocket order quantity must exactly match REST API order"
             )
 
+            assert placed_order.price is not None, "REST order price must not be None"
+            assert ws_order_placed.price is not None, "WebSocket order price must not be None"
             rest_vs_ws_price_diff = abs(placed_order.price - ws_order_placed.price)
             assert rest_vs_ws_price_diff == Decimal("0"), (
                 "WebSocket order price must exactly match REST API order"
@@ -338,10 +351,7 @@ class TestHyperliquidWebSocketIntegration:
             symbol=test_symbol,
             price=Decimal("100.00"),
             timestamp=current_time,  # Current timestamp
-            volume_24h=Decimal("1000.0"),
-            high_24h=Decimal("105.0"),
-            low_24h=Decimal("95.0"),
-            exchange="hyperliquid",
+            volume=Decimal("1000.0"),
         )
 
         # Validate fresh data is accepted
@@ -356,10 +366,7 @@ class TestHyperliquidWebSocketIntegration:
             symbol=test_symbol,
             price=Decimal("100.00"),
             timestamp=stale_timestamp,
-            volume_24h=Decimal("1000.0"),
-            high_24h=Decimal("105.0"),
-            low_24h=Decimal("95.0"),
-            exchange="hyperliquid",
+            volume=Decimal("1000.0"),
         )
 
         # Validate stale data detection
@@ -380,10 +387,7 @@ class TestHyperliquidWebSocketIntegration:
                 symbol=test_symbol,
                 price=Decimal("100.00"),
                 timestamp=naive_timestamp,  # This should cause issues
-                volume_24h=Decimal("1000.0"),
-                high_24h=Decimal("105.0"),
-                low_24h=Decimal("95.0"),
-                exchange="hyperliquid",
+                volume=Decimal("1000.0"),
             )
 
             # Check if timestamp is timezone-naive
@@ -413,7 +417,7 @@ class TestHyperliquidWebSocketIntegration:
         connection_attempts = 0
         max_attempts = 3
 
-        async def simulate_connection_with_retry():
+        async def simulate_connection_with_retry() -> dict[str, str | int]:
             nonlocal connection_attempts
 
             for attempt in range(max_attempts):
@@ -442,6 +446,9 @@ class TestHyperliquidWebSocketIntegration:
                     wait_time = 2**attempt  # 1s, 2s, 4s...
                     await asyncio.sleep(wait_time)
                     continue
+            
+            # Should never reach here due to pytest.fail above
+            return {"status": "failed", "attempt": max_attempts}
 
         # Test connection retry logic
         connection_result = await simulate_connection_with_retry()
@@ -491,12 +498,11 @@ class TestHyperliquidWebSocketIntegration:
                 raise APIError(
                     message=f"Subscription failed for symbol {invalid_symbol}",
                     code="INVALID_SYMBOL",
-                    status_code=400,
                 )
 
             except APIError as e:
                 # Subscription failures should be handled gracefully but reported
-                if "INVALID_SYMBOL" in e.code:
+                if "INVALID_SYMBOL" in str(e.code):
                     logger.info(f"Correctly handled subscription failure: {e}")
                     return True
                 else:
@@ -541,10 +547,7 @@ class TestHyperliquidWebSocketIntegration:
                     symbol=ticker_data["symbol"],
                     price=Decimal(ticker_data["price"]),
                     timestamp=datetime.fromisoformat(ticker_data["timestamp"]),
-                    volume_24h=Decimal(ticker_data["volume"]),
-                    high_24h=Decimal(ticker_data["price"]),
-                    low_24h=Decimal(ticker_data["price"]),
-                    exchange="hyperliquid",
+                    volume=Decimal(ticker_data["volume"]),
                 )
 
                 # Validate the ticker
@@ -576,16 +579,13 @@ class TestHyperliquidWebSocketIntegration:
         # Test 2: Concurrent message handling
         concurrent_tasks = 5
 
-        async def process_concurrent_message(message_id: int):
+        async def process_concurrent_message(message_id: int) -> Ticker:
             """Process a WebSocket message concurrently."""
             ticker = Ticker(
                 symbol=test_symbol,
                 price=Decimal(f"100.{message_id:02d}"),  # Unique price per message
                 timestamp=datetime.now(UTC),
-                volume_24h=Decimal("1000.0"),
-                high_24h=Decimal(f"105.{message_id:02d}"),
-                low_24h=Decimal(f"95.{message_id:02d}"),
-                exchange="hyperliquid",
+                volume=Decimal("1000.0"),
             )
 
             # Simulate some processing

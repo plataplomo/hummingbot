@@ -528,7 +528,7 @@ class HyperliquidAPI(ExchangeAPI):
         """Cancel all orders for a given symbol, or all if symbol is None."""
         return await self.trading_service.cancel_all_orders(symbol=symbol)
 
-    async def get_account_summary(self) -> MarginAccountSummary | None:
+    async def get_account_summary(self) -> MarginAccountSummary:
         """Get account summary information."""
         return await self.account_service.get_account_summary()
 

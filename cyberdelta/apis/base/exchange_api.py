@@ -813,7 +813,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_account_summary(self) -> MarginAccountSummary | None:
+    async def get_account_summary(self) -> MarginAccountSummary:
         """Fetch the account summary for the exchange."""
         raise NotImplementedError
 

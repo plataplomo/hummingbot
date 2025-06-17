@@ -430,7 +430,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
 
-    async def get_account_summary(self) -> MarginAccountSummary | None:
+    async def get_account_summary(self) -> MarginAccountSummary:
         """Retrieve general account information or summary from the clearinghouse state."""
         # Service Input Parameter Validation
         frame = inspect.currentframe()

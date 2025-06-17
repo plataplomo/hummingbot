@@ -98,10 +98,27 @@ class HyperliquidPayloadSigningMapper:
                                 code=APIErrorCode.TRANSFORMATION_FAILED.name,
                             ) from e
                     elif isinstance(order, dict):
-                        # Already a dict - validate it has expected structure
-                        if not all(key in order for key in ["a", "b", "p", "s"]):
-                            raise ValueError(f"Order dict at index {i} missing required fields")
-                        orders_for_signing.append(order)
+                        # Already a dict - check if it has short field names or aliased names
+                        if all(key in order for key in ["a", "b", "p", "s"]):
+                            # Already has short field names
+                            orders_for_signing.append(order)
+                        elif all(
+                            key in order for key in ["asset_index", "is_buy", "limit_px", "size"]
+                        ):
+                            # Has aliased names - need to convert to short names
+                            order_dict = {
+                                "a": order["asset_index"],
+                                "b": order["is_buy"],
+                                "p": order["limit_px"],
+                                "s": order["size"],
+                                "r": order["reduce_only"],
+                                "t": order["order_type_details"],
+                            }
+                            if "client_order_id" in order and order["client_order_id"] is not None:
+                                order_dict["c"] = order["client_order_id"]
+                            orders_for_signing.append(order_dict)
+                        else:
+                            raise ValueError(f"Order dict at index {i} has unexpected field names")
                     else:
                         raise TypeError(f"Invalid order type at index {i}: {type(order).__name__}")
                 payload_dict["orders"] = orders_for_signing

@@ -45,12 +45,16 @@ class HyperliquidRawHistoricalOrder(BaseModel):
         alias="cloid",
     )  # Adjusted from RawOptionalNonEmptyString64HL
     asset: RawAssetString64HL = Field(..., alias="asset")
-    coin: RawAssetString64HL | None = Field(None, alias="coin")  # Sometimes returned instead of asset
+    coin: RawAssetString64HL | None = Field(
+        None, alias="coin"
+    )  # Sometimes returned instead of asset
     side: RawSideStr = Field(..., alias="side")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
     sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
-    order_type: RawDefaultString | dict[str, object] = Field(..., alias="orderType")  # Can be string or dict
+    order_type: RawDefaultString | dict[str, object] = Field(
+        ..., alias="orderType"
+    )  # Can be string or dict
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
     remaining_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="remainingSz")
     status: RawHistoricalOrderStatusHL = Field(..., alias="status")  # KEY CHANGE

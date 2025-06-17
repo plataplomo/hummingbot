@@ -67,7 +67,7 @@ async def create_websocket_topics(symbols: list[str]) -> list[str]:
     Returns:
         List of WebSocket topics
     """
-    topics = []
+    topics: list[str] = []
     stream_types = ["ticker", "depth", "trades"]
 
     for i, symbol in enumerate(symbols):
@@ -98,7 +98,7 @@ class TestBackpackAPIWebSocketIntegration:
         test_symbol = available_symbols[0]
         topic = f"ticker.{test_symbol}"
 
-        received_messages = []
+        received_messages: list[dict[str, Any]] = []
 
         async def integration_handler(
             message: dict[str, Any], full_message: dict[str, Any]
@@ -145,7 +145,7 @@ class TestBackpackAPIWebSocketIntegration:
 
         topics = await create_websocket_topics(available_symbols)
 
-        subscription_results = []
+        subscription_results: list[dict[str, Any]] = []
 
         async def multi_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             subscription_results.append(message)
@@ -186,7 +186,9 @@ class TestBackpackAPIWebSocketIntegration:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def lifecycle_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Lifecycle handler: {message}")
 
         try:
@@ -207,7 +209,8 @@ class TestBackpackAPIWebSocketIntegration:
             )
 
             logger.info(
-                f"✓ WebSocket lifecycle integration completed: sub={subscription_state}, conn={connection_state}"
+                f"✓ WebSocket lifecycle integration completed: "
+                f"sub={subscription_state}, conn={connection_state}"
             )
 
         except Exception as e:
@@ -247,7 +250,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             logger.info(f"Concurrent integration handler: {message}")
 
         # Create concurrent subscription tasks
-        subscription_tasks = []
+        subscription_tasks: list[tuple[str, Any]] = []
         for topic in topics:
             task = asyncio.create_task(bp_api_for_test_env.subscribe(topic, concurrent_handler))
             subscription_tasks.append((topic, task))
@@ -259,11 +262,13 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             # Validate final connection state
             final_state = bp_api_for_test_env.is_connected
             assert isinstance(final_state, bool), (
-                f"Final state should be boolean after concurrent operations, got {type(final_state)}"
+                f"Final state should be boolean after concurrent operations, "
+                f"got {type(final_state)}"
             )
 
             logger.info(
-                f"✓ Concurrent WebSocket integration successful: {len(subscription_tasks)} operations"
+                f"✓ Concurrent WebSocket integration successful: "
+                f"{len(subscription_tasks)} operations"
             )
 
         except Exception as e:
@@ -308,7 +313,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                     successful_count += 1
                     logger.info(f"✓ Expected successful integration: {topic}")
                 else:
-                    # If subscription succeeded despite being invalid, that might be exchange tolerance
+                    # If subscription succeeded despite being invalid,
+                    # that might be exchange tolerance
                     logger.info(f"✓ Exchange accepted invalid topic (tolerance): {topic}")
 
                 # Always validate connection state
@@ -337,7 +343,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             )
 
         logger.info(
-            f"✓ Integration error handling completed: {successful_count} successful, {error_count} errors"
+            f"✓ Integration error handling completed: {successful_count} successful, "
+            f"{error_count} errors"
         )
 
     @pytest.mark.vcr
@@ -356,7 +363,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             logger.info(f"State consistency handler: {message}")
 
         # Track state changes throughout operations
-        state_history = []
+        state_history: list[tuple[str, Any]] = []
 
         try:
             # Initial state
@@ -429,11 +436,12 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
 
                 # Brief async pause to allow for processing
                 from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait
                     timeout=0.01,
                     poll_interval=0.01,
-                    message="Processing delay"
+                    message="Processing delay",
                 )
 
             logger.info(

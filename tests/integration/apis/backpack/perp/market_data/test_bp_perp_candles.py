@@ -548,7 +548,8 @@ class TestBackpackPerpCandles:
                     # For 1h perp candles, validate range is not zero or negative
                     # Market volatility is natural and should not be artificially constrained
                     assert range_percentage >= Decimal("0"), (
-                        f"Perp candle {i}: price range percentage cannot be negative: {range_percentage}%"
+                        f"Perp candle {i}: price range percentage cannot be negative: "
+                        f"{range_percentage}%"
                     )
 
     @pytest.mark.vcr()

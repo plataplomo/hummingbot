@@ -57,7 +57,8 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
     except Exception as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
-            "WebSocket subscription tests require real market data and cannot use hardcoded symbols."
+            "WebSocket subscription tests require real market data and "
+            "cannot use hardcoded symbols."
         ) from e
 
 
@@ -107,7 +108,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        received_messages = []
+        received_messages: list[dict[str, Any]] = []
 
         async def subscription_handler(
             message: dict[str, Any], full_message: dict[str, Any]
@@ -310,7 +311,7 @@ class TestBackpackAPIWebSocketSubscriptions:
             logger.info(f"Concurrent handler: {message}")
 
         # Create concurrent subscription tasks
-        subscription_tasks = []
+        subscription_tasks: list[tuple[str, Any]] = []
         for i, symbol in enumerate(symbols["spot"][:3]):
             stream_types = ["ticker", "depth", "trades"]
             topic = f"{stream_types[i]}.{symbol}"
@@ -325,7 +326,8 @@ class TestBackpackAPIWebSocketSubscriptions:
             # Validate final state
             final_state = bp_api_for_test_env.is_connected
             assert isinstance(final_state, bool), (
-                f"Final state should be boolean after concurrent operations, got {type(final_state)}"
+                f"Final state should be boolean after concurrent operations, "
+                f"got {type(final_state)}"
             )
 
             logger.info(
@@ -373,7 +375,8 @@ class TestBackpackAPIWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Connection lifecycle completed: subscription={subscription_state}, connection={connection_state}"
+                f"✓ Connection lifecycle completed: "
+                f"subscription={subscription_state}, connection={connection_state}"
             )
 
         except Exception as e:
@@ -426,7 +429,8 @@ class TestBackpackAPIAdvancedSubscriptions:
 
             connection_state = bp_api_for_test_env.is_connected
             assert isinstance(connection_state, bool), (
-                f"Connection state should be boolean after mixed subscriptions, got {type(connection_state)}"
+                f"Connection state should be boolean after mixed subscriptions, "
+                f"got {type(connection_state)}"
             )
 
             logger.info(
@@ -504,5 +508,6 @@ class TestBackpackAPIAdvancedSubscriptions:
             )
 
         logger.info(
-            f"✓ Error handling test completed: {successful_subscriptions} successful, {handled_errors} handled errors"
+            f"✓ Error handling test completed: {successful_subscriptions} successful, "
+            f"{handled_errors} handled errors"
         )

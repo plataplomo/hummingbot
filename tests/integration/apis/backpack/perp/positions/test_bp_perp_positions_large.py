@@ -6,7 +6,6 @@ No hardcoded values - everything calculated dynamically from account state.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from decimal import ROUND_DOWN, Decimal
 from typing import Any, TypedDict
@@ -14,7 +13,6 @@ from typing import Any, TypedDict
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
 from cyberdelta.apis.models.service_args_models import (
     GetMaxOrderQuantityArgs,
     PlaceOrderArgs,
@@ -23,6 +21,7 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.test_helpers import (
     get_current_market_price,
     get_market_constraints,
+    wait_for_condition,
 )
 
 
@@ -71,18 +70,20 @@ class TestBackpackPerpLargePositions:
                         time_in_force=TimeInForce.IOC,
                     )
                     try:
-                        close_order = await api.place_order(place_args)
-                        
+                        await api.place_order(place_args)
+
                         # Wait for position to be closed
-                        async def position_closed():
+                        position_symbol = position.symbol
+
+                        async def position_closed(symbol: str = position_symbol) -> bool:
                             current_positions = await api.get_positions()
-                            return not any(p.symbol == position.symbol for p in current_positions)
-                        
+                            return not any(p.symbol == symbol for p in current_positions)
+
                         await wait_for_condition(
                             position_closed,
                             timeout=5.0,
                             poll_interval=0.1,
-                            message=f"Position {position.symbol} was not closed"
+                            message=f"Position {position.symbol} was not closed",
                         )
                     except Exception as e:
                         # Log and ignore errors when closing positions in cleanup
@@ -138,17 +139,17 @@ class TestBackpackPerpLargePositions:
         """Find the absolute maximum position using exchange's max order endpoint."""
         # Close all positions first
         await self._close_all_positions(api)
-        
+
         # Wait for all positions to be confirmed closed
-        async def all_positions_closed():
+        async def all_positions_closed() -> bool:
             positions = await api.get_positions()
             return len(positions) == 0
-            
+
         await wait_for_condition(
             all_positions_closed,
             timeout=5.0,
             poll_interval=0.1,
-            message="All positions were not closed"
+            message="All positions were not closed",
         )
 
         # Get constraints

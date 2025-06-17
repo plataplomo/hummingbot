@@ -211,9 +211,12 @@ class HyperliquidTestHelpers:
             # Sell orders: price above market
             test_price = market_price * (Decimal("1") + offset_multiplier)
 
-        # Round to tick size
+        # Round to tick size (properly)
         tick_size = constraints["tick_size"]
-        return (test_price / tick_size).quantize(Decimal("1")) * tick_size
+        # Round to the nearest tick and ensure no floating point errors
+        from decimal import ROUND_HALF_UP
+        rounded_ticks = (test_price / tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        return rounded_ticks * tick_size
 
     @staticmethod
     async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: str) -> Decimal:
@@ -283,9 +286,11 @@ class HyperliquidTestHelpers:
 
             affordable_quantity = notional_value / price
 
-            # Round to step size
+            # Round to step size (properly)
             step_size = constraints["step_size"]
-            rounded_quantity = (affordable_quantity / step_size).quantize(Decimal("1")) * step_size
+            from decimal import ROUND_HALF_UP
+            rounded_ticks = (affordable_quantity / step_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            rounded_quantity = rounded_ticks * step_size
 
             # Ensure it meets minimum requirements
             return max(rounded_quantity, min_quantity)

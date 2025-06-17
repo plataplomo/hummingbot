@@ -76,6 +76,8 @@ class TestHyperliquidAccountSummaryPrivate:
         # Get initial account summary to establish baseline
         initial_summary = await hl_api_for_test_env.get_account_summary()
 
+        # Account summary is guaranteed to exist (raises on error)
+
         # Validate initial account summary structure
         assert isinstance(initial_summary, MarginAccountSummary), (
             "Account summary should be MarginAccountSummary instance"
@@ -98,27 +100,31 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get symbol details to ensure we use valid order size
         symbol_mapping = await get_exchange_symbol_mapping(hl_api_for_test_env)
-        symbol_details = symbol_mapping["symbol_details"].get(test_symbol, {})
+        _ = symbol_mapping["symbol_details"].get(test_symbol, {})
 
         # Get current market price first
         current_price = await HyperliquidTestHelpers.get_current_market_price(
             hl_api_for_test_env, test_symbol
         )
 
-        # Calculate safe limit price (50% below market to ensure it won't fill)
-        safe_limit_price = current_price * Decimal("0.5")
-        safe_limit_price = safe_limit_price.quantize(Decimal("1"))
-        
-        # Calculate minimum quantity for $10 order value
-        min_order_value = Decimal("10")
-        min_qty_for_value = (min_order_value / safe_limit_price).quantize(Decimal("0.00001"), rounding="ROUND_UP")
-        
-        # Use the larger of min_quantity from symbol details or calculated min for $10
-        min_qty = symbol_details.get("min_quantity", Decimal("0.00001"))
-        order_qty = max(min_qty, min_qty_for_value)
+        # Get safe test price using test helper with explicit tolerance
+        safe_limit_price = await HyperliquidTestHelpers.get_dynamic_test_price(
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            Decimal("50"),  # 50% below market
+        )
+
+        # Get minimal order size using test helper that meets exchange requirements
+        order_qty = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, safe_limit_price
+        )
 
         # Log for debugging
-        logger.info(f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} (50% below market), Order qty: {order_qty}")
+        logger.info(
+            f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} "
+            f"(50% below market), Order qty: {order_qty}"
+        )
 
         # Define order parameters that should impact account metrics (but still testnet-safe)
         impact_order_args = PlaceOrderArgs(
@@ -136,6 +142,8 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get updated account summary to validate impact
         updated_summary = await hl_api_for_test_env.get_account_summary()
+
+        # Account summary is guaranteed to exist (raises on error)
 
         # Validate MarginAccountSummary model consistency after order
         assert isinstance(updated_summary, MarginAccountSummary), (
@@ -211,12 +219,20 @@ class TestHyperliquidAccountSummaryPrivate:
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
+        # Get current market price and calculate minimum order size for $10 minimum
+        _ = await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, test_symbol)
+
+        # Get minimal order size using test helper that meets exchange requirements
+        order_qty = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
         # Execute a market order that should create/modify a position
         position_order_args = PlaceOrderArgs(
             symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.001"),  # Small size for testnet
+            quantity=order_qty,  # Calculated size that meets $10 minimum
             time_in_force=TimeInForce.IOC,
         )
 
@@ -226,6 +242,8 @@ class TestHyperliquidAccountSummaryPrivate:
 
             # Get account summary after position operation
             post_position_summary = await hl_api_for_test_env.get_account_summary()
+
+            # Account summary is guaranteed to exist (raises on error)
 
             # Validate account summary structure remains consistent
             assert isinstance(post_position_summary, MarginAccountSummary), (
@@ -253,7 +271,7 @@ class TestHyperliquidAccountSummaryPrivate:
                 symbol=test_symbol,
                 side=OrderSide.SELL,  # Opposite side to close
                 order_type=OrderType.MARKET,
-                quantity=Decimal("0.001"),  # Same size to close
+                quantity=order_qty,  # Same size to close
                 time_in_force=TimeInForce.IOC,
             )
 
@@ -297,9 +315,11 @@ class TestHyperliquidAccountSummaryPrivate:
         # Get current account summary to understand available margin
         current_summary = await hl_api_for_test_env.get_account_summary()
 
+        # Account summary is guaranteed to exist (raises on error)
+
         # Calculate an order size that would likely exceed available margin
         # Use a multiplier approach based on available equity
-        if current_summary is not None and current_summary.available_equity > Decimal("0"):
+        if current_summary.available_equity > Decimal("0"):
             # Order value much larger than available equity
             stress_order_value = current_summary.available_equity * Decimal("100")
             # Assuming $1 per unit for simplicity in stress test
@@ -337,14 +357,15 @@ class TestHyperliquidAccountSummaryPrivate:
         # Verify account summary remains consistent after failed operation
         post_error_summary = await hl_api_for_test_env.get_account_summary()
 
+        # Account summary is guaranteed to exist (raises on error)
+
         # Account summary should be unchanged after failed operation
-        if current_summary is not None and post_error_summary is not None:
-            assert post_error_summary.total_equity == current_summary.total_equity, (
-                "Total equity should be unchanged after failed margin operation"
-            )
-            assert post_error_summary.available_equity == current_summary.available_equity, (
-                "Available equity should be unchanged after failed margin operation"
-            )
+        assert post_error_summary.total_equity == current_summary.total_equity, (
+            "Total equity should be unchanged after failed margin operation"
+        )
+        assert post_error_summary.available_equity == current_summary.available_equity, (
+            "Available equity should be unchanged after failed margin operation"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -361,15 +382,15 @@ class TestHyperliquidAccountSummaryPrivate:
         # Get account summary to validate precision
         summary = await hl_api_for_test_env.get_account_summary()
 
+        # Account summary is guaranteed to exist (raises on error)
+
         # Validate all financial fields are proper Decimals (not floats)
-        financial_fields = []
-        if summary is not None:
-            financial_fields = [
-                ("total_equity", summary.total_equity),
-                ("available_equity", summary.available_equity),
-                ("total_unrealized_pnl", summary.total_unrealized_pnl),
-                ("total_initial_margin_required", summary.total_initial_margin_required),
-            ]
+        financial_fields = [
+            ("total_equity", summary.total_equity),
+            ("available_equity", summary.available_equity),
+            ("total_unrealized_pnl", summary.total_unrealized_pnl),
+            ("total_initial_margin_required", summary.total_initial_margin_required),
+        ]
 
         for field_name, field_value in financial_fields:
             assert isinstance(field_value, Decimal), (
@@ -389,15 +410,23 @@ class TestHyperliquidAccountSummaryPrivate:
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
-        # Test with a small precision order to validate precision preservation
+        # Get current market price and calculate minimum order size for precision test
+        precision_test_price = await HyperliquidTestHelpers.get_current_market_price(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Get minimal order size using test helper that meets exchange requirements
+        precision_qty = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, precision_test_price
+        )
+
+        # Test with a proper precision order that meets exchange minimums
         precision_order_args = PlaceOrderArgs(
             symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("0.000001"),  # Very small quantity
-            price=await HyperliquidTestHelpers.get_current_market_price(
-                hl_api_for_test_env, test_symbol
-            ),  # Current market price from exchange
+            quantity=precision_qty,  # Calculated size that meets exchange requirements
+            price=precision_test_price,  # Current market price from exchange
             time_in_force=TimeInForce.GTC,
         )
 
@@ -407,17 +436,17 @@ class TestHyperliquidAccountSummaryPrivate:
             # Get updated summary after precision order
             precision_summary = await hl_api_for_test_env.get_account_summary()
 
+            # Account summary is guaranteed to exist (raises on error)
+
             # Validate precision is maintained in updated summary
-            precision_fields = []
-            if precision_summary is not None:
-                precision_fields = [
-                    ("total_equity", precision_summary.total_equity),
-                    ("available_equity", precision_summary.available_equity),
-                    (
-                        "total_initial_margin_required",
-                        precision_summary.total_initial_margin_required,
-                    ),
-                ]
+            precision_fields = [
+                ("total_equity", precision_summary.total_equity),
+                ("available_equity", precision_summary.available_equity),
+                (
+                    "total_initial_margin_required",
+                    precision_summary.total_initial_margin_required,
+                ),
+            ]
 
             for field_name, field_value in precision_fields:
                 assert isinstance(field_value, Decimal), (
@@ -466,17 +495,28 @@ class TestHyperliquidAccountSummaryPrivate:
         # Get baseline account summary
         baseline = await hl_api_for_test_env.get_account_summary()
 
+        # Account summary is guaranteed to exist (raises on error)
+
         # Validate baseline consistency
-        if baseline is not None:
-            assert baseline.available_equity <= baseline.total_equity, (
-                "Baseline: Available equity should not exceed total equity"
-            )
+        assert baseline.available_equity <= baseline.total_equity, (
+            "Baseline: Available equity should not exceed total equity"
+        )
 
         # Get available symbol from exchange instead of hardcoding
         from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
+
+        # Get current market price and calculate minimum order size for consistency test
+        consistency_price = await HyperliquidTestHelpers.get_current_market_price(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Get minimal order size using test helper that meets exchange requirements
+        consistency_qty = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY, consistency_price
+        )
 
         # Execute a series of operations and validate consistency at each step
         operations = [
@@ -485,10 +525,8 @@ class TestHyperliquidAccountSummaryPrivate:
                 symbol=test_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal("0.001"),
-                price=await HyperliquidTestHelpers.get_current_market_price(
-                    hl_api_for_test_env, test_symbol
-                ),
+                quantity=consistency_qty,  # Calculated size that meets exchange requirements
+                price=consistency_price,
                 time_in_force=TimeInForce.GTC,
             ),
         ]
@@ -504,22 +542,23 @@ class TestHyperliquidAccountSummaryPrivate:
                 # Get account summary after operation
                 post_op_summary = await hl_api_for_test_env.get_account_summary()
 
-                # Validate consistency constraints
-                if post_op_summary is not None:
-                    assert post_op_summary.available_equity <= post_op_summary.total_equity, (
-                        f"Operation {i + 1}: Available equity should not exceed total equity"
-                    )
-                    assert post_op_summary.available_equity >= Decimal("0"), (
-                        f"Operation {i + 1}: Available equity should be non-negative"
-                    )
-                    assert isinstance(post_op_summary.total_equity, Decimal), (
-                        f"Operation {i + 1}: total_equity must remain Decimal"
-                    )
+                # Account summary is guaranteed to exist (raises on error)
 
-                    # Validate account summary structure integrity
-                    assert post_op_summary.exchange == "hyperliquid", (
-                        f"Operation {i + 1}: Exchange should remain consistent"
-                    )
+                # Validate consistency constraints
+                assert post_op_summary.available_equity <= post_op_summary.total_equity, (
+                    f"Operation {i + 1}: Available equity should not exceed total equity"
+                )
+                assert post_op_summary.available_equity >= Decimal("0"), (
+                    f"Operation {i + 1}: Available equity should be non-negative"
+                )
+                assert isinstance(post_op_summary.total_equity, Decimal), (
+                    f"Operation {i + 1}: total_equity must remain Decimal"
+                )
+
+                # Validate account summary structure integrity
+                assert post_op_summary.exchange == "hyperliquid", (
+                    f"Operation {i + 1}: Exchange should remain consistent"
+                )
 
             except APIError as e:
                 # Operations failing isn't acceptable - investigate and fail

@@ -414,8 +414,8 @@ class HyperliquidRequestBuilder:
         Returns:
             HyperliquidApiCancelOrderRequest: Validated Raw API model
         """
-        action_model = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
-        return HyperliquidApiCancelOrderRequest(type="cancel", action=action_model)
+        cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
+        return HyperliquidApiCancelOrderRequest(type="cancel", action=cancel_action)
 
     @staticmethod
     def build_order_status_payload(

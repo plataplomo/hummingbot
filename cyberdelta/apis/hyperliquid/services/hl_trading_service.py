@@ -19,6 +19,9 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.mappers.hl_payload_preprocessing_mapper import (
+    HyperliquidPayloadPreprocessingMapper,
+)
 
 # Internal Domain Models & Mappers
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
@@ -117,6 +120,115 @@ class HyperliquidTradingService:
         self._action_endpoint = "/exchange"
         self._info_endpoint = "/info"
 
+    def _validate_authentication(self, action: str) -> None:
+        """Validate authentication requirements for actions that need signing."""
+        if not self._authenticator:
+            raise APIError(
+                "HL authenticator not initialized (e.g., missing/invalid private key).",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+        self._validate_wallet_address(action)
+
+    def _validate_wallet_address(self, action: str) -> None:
+        """Validate wallet address is available for the given action."""
+        if not self._wallet_address:
+            raise APIError(
+                f"Wallet address is required to {action}.",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+    async def _execute_exchange_action(
+        self,
+        request_payload_model: HyperliquidApiPlaceOrderRequest | HyperliquidApiCancelOrderRequest,
+    ) -> tuple[HyperliquidRawExchangeResponse, int]:
+        """Execute an exchange action request and return the response."""
+        raw_content, http_status, _ = await self._http_client_requester(
+            method="POST",
+            endpoint=self._action_endpoint,
+            data=request_payload_model,
+            is_signed=True,
+            serialize_none_as_null=True,
+        )
+        if raw_content is None:
+            _error_msg_no_content = (
+                f"Exchange action ({request_payload_model.type}) returned no content."
+            )
+            raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
+
+        exchange_response = self._response_handler.handle_exchange_response(
+            raw_content,
+            action_type=request_payload_model.type,
+        )
+        return exchange_response, http_status
+
+    def _handle_service_error(
+        self,
+        error: Exception,
+        current_method: str,
+        context: str,
+        status_code: int = 0,
+        raw_response_content: str | None = None,
+    ) -> APIError:
+        """Handle service errors in a standardized way."""
+        if isinstance(error, TransformationError):
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
+                f"data for {context}: {error}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to process/transform exchange data.",
+                original_exception=error,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            )
+        elif isinstance(error, ValidationError):
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Internal data validation "
+                f"failed for {context}: {error}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Internal data validation failed.",
+                original_exception=error,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            )
+        elif isinstance(error, (ValueError, TypeError)):
+            # Distinguish input validation from internal errors
+            error_msg = str(error)
+            if current_method in error_msg:
+                # Re-raise input validation errors
+                raise error
+            else:
+                logger.error(
+                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                    f"for {context}: {error}",
+                    exc_info=True,
+                )
+                return APIError(
+                    code=APIErrorCode.UNKNOWN.value,
+                    message="Service internal logic error.",
+                    original_exception=error,
+                    http_status=status_code if status_code != 0 else None,
+                    exchange_message=raw_response_content,
+                )
+        else:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"for {context}: {error}",
+                exc_info=True,
+            )
+            return APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected service failure.",
+                original_exception=error,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            )
+
     async def _place_order_raw(
         self,
         place_order_payload: HyperliquidApiPlaceOrderRequest,
@@ -127,38 +239,13 @@ class HyperliquidTradingService:
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
         # Early authentication checks - fail fast if auth requirements not met
-        if not self._authenticator:
-            raise APIError(
-                "HL authenticator not initialized (e.g., missing/invalid private key).",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        _error_msg_wallet_addr = "Wallet address is required for placing an order."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        self._validate_authentication("placing an order")
 
         # Use the payload directly - it's already in the correct format
         request_payload_model = place_order_payload
 
         try:
-            raw_content, http_status, _ = await self._http_client_requester(
-                method="POST",
-                endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=False, exclude_none=True),
-                is_signed=True,
-                serialize_none_as_null=True,
-            )
-            if raw_content is None:
-                _error_msg_no_content = (
-                    f"Exchange action ({request_payload_model.type}) returned no content."
-                )
-                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
-
-            exchange_response = self._response_handler.handle_exchange_response(
-                raw_content,
-                action_type=request_payload_model.type,
-            )
-            return exchange_response, http_status
+            return await self._execute_exchange_action(request_payload_model)
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error placing order raw: {e.message}")
             raise
@@ -177,15 +264,7 @@ class HyperliquidTradingService:
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
         # Early authentication checks - fail fast if auth requirements not met
-        if not self._authenticator:
-            raise APIError(
-                "HL authenticator not initialized (e.g., missing/invalid private key).",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
-
-        _error_msg_wallet_addr = "Wallet address is required for cancelling an order."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        self._validate_authentication("cancelling an order")
 
         request_payload_model: HyperliquidApiCancelOrderRequest = HyperliquidApiCancelOrderRequest(
             type="cancel",
@@ -193,24 +272,9 @@ class HyperliquidTradingService:
         )
 
         try:
-            raw_content, http_status, _ = await self._http_client_requester(
-                method="POST",
-                endpoint=self._action_endpoint,
-                data=request_payload_model.model_dump(by_alias=False, exclude_none=True),
-                is_signed=True,
-                serialize_none_as_null=True,
-            )
-            if raw_content is None:
-                _error_msg_no_content = (
-                    f"Exchange action ({request_payload_model.type}) returned no content."
-                )
-                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
-
-            exchange_response = self._response_handler.handle_exchange_response(
-                raw_content,
-                action_type=request_payload_model.type,
-            )
-            return exchange_response, http_status
+            # Debug logging to see what's being sent
+            logger.debug(f"Cancel order payload: {request_payload_model.model_dump(by_alias=True)}")
+            return await self._execute_exchange_action(request_payload_model)
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error cancelling order raw: {e.message}")
             raise
@@ -224,9 +288,13 @@ class HyperliquidTradingService:
 
         Returns a list of HyperliquidRawOpenOrder Pydantic models.
         """
-        _error_msg_wallet_addr = "Wallet address is required to fetch open orders."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        self._validate_wallet_address("fetch open orders")
+        # _validate_wallet_address guarantees wallet_address is not None
+        if self._wallet_address is None:
+            raise RuntimeError(
+                "Wallet address validation failed unexpectedly. "
+                "This should not happen after _validate_wallet_address."
+            )
 
         request_payload_model = self._request_builder.build_open_orders_payload(
             GetOpenOrdersArgs(wallet_address=self._wallet_address)
@@ -246,7 +314,7 @@ class HyperliquidTradingService:
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
                     raw_response_content,
-                    user_address=self._wallet_address,
+                    user_address=self._wallet_address,  # Already asserted not None above
                 )
             )
             return validated_response.items
@@ -270,9 +338,13 @@ class HyperliquidTradingService:
         The actual response from HL for orderStatus is a HyperliquidRawHistoricalOrderResponse,
         which contains the HyperliquidRawHistoricalOrder.
         """
-        _error_msg_wallet_addr = "Wallet address is required to fetch order status."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        self._validate_wallet_address("fetch order status")
+        # _validate_wallet_address guarantees wallet_address is not None
+        if self._wallet_address is None:
+            raise RuntimeError(
+                "Wallet address validation failed unexpectedly. "
+                "This should not happen after _validate_wallet_address."
+            )
 
         request_payload_model: HyperliquidRawOrderStatusRequestPayload = (
             self._request_builder.build_order_status_payload(
@@ -299,10 +371,17 @@ class HyperliquidTradingService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
+            # Preprocess the response to handle nested structure
+            preprocessed_response = (
+                HyperliquidPayloadPreprocessingMapper.preprocess_order_status_response(
+                    raw_response_content
+                )
+            )
+
             historical_order_response: HyperliquidRawHistoricalOrderResponse = (
                 self._response_handler.handle_info_order_status_response(
-                    raw_response_content,
-                    user_address=self._wallet_address,
+                    preprocessed_response,
+                    user_address=self._wallet_address,  # Already asserted not None above
                     order_id=order_id,
                 )
             )
@@ -486,22 +565,12 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
-            raise self._handle_place_order_transformation_error(
-                e_transform, current_method, args.symbol, status_code, raw_response_content
-            ) from e_transform
-        except ValidationError as e_val:
-            raise self._handle_place_order_validation_error(
-                e_val, current_method, args.symbol, status_code, raw_response_content
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            raise self._handle_place_order_service_logic_error(
-                e_service_logic, current_method, args.symbol
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            raise self._handle_place_order_unexpected_error(
-                e_unexpected, current_method, args.symbol, status_code, raw_response_content
-            ) from e_unexpected
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            if isinstance(e, APIError):
+                raise
+            raise self._handle_service_error(
+                e, current_method, args.symbol, status_code, raw_response_content
+            ) from e
 
     def _validate_place_order_params(self, args: PlaceOrderArgs, current_method: str) -> None:
         """Validate order parameters for Hyperliquid exchange.
@@ -661,14 +730,10 @@ class HyperliquidTradingService:
             APIErrorCode.INVALID_RESPONSE.value,
         )
 
-    async def _process_place_order_response(
-        self,
-        raw_exchange_response: HyperliquidRawExchangeResponse,
-        http_status: int,
-        args: PlaceOrderArgs,
-    ) -> Order:
-        """Process the place order response and return the internal Order."""
-        # Check if this is an error response
+    def _check_error_response(
+        self, raw_exchange_response: HyperliquidRawExchangeResponse, http_status: int
+    ) -> None:
+        """Check if the response is an error and raise appropriate exception."""
         if raw_exchange_response.status == "err" and raw_exchange_response.response:
             if isinstance(raw_exchange_response.response, str):
                 # Use the error mapper to get the specific error code for this message
@@ -678,9 +743,21 @@ class HyperliquidTradingService:
                 )
                 raise mapped_error
 
-        # Process successful response
-        if raw_exchange_response.data and raw_exchange_response.data.statuses:
-            first_status = raw_exchange_response.data.statuses[0]
+    async def _process_place_order_response(
+        self,
+        raw_exchange_response: HyperliquidRawExchangeResponse,
+        http_status: int,
+        args: PlaceOrderArgs,
+    ) -> Order:
+        """Process the place order response and return the internal Order."""
+        # Check if this is an error response
+        self._check_error_response(raw_exchange_response, http_status)
+
+        # Process successful response using the normalized property
+        response_data = raw_exchange_response.response_data
+
+        if response_data and response_data.statuses:
+            first_status = response_data.statuses[0]
 
             # Process the status - moved business logic from ResponseHandler
             processed_status = self._process_exchange_status(first_status, "place_order")
@@ -715,16 +792,49 @@ class HyperliquidTradingService:
         logger.info(
             f"Order placed with OID: {new_oid}. Re-fetching for full details.",
         )
-        internal_order = await self.get_order(
-            GetOrderArgs(symbol=args.symbol, order_id=str(new_oid)),
-        )
-        if internal_order:
-            return internal_order
-        else:
-            raise APIError(
-                f"Order placed (OID {new_oid}) but failed to re-fetch details.",
-                APIErrorCode.UNKNOWN.value,
+
+        try:
+            internal_order = await self.get_order(
+                GetOrderArgs(symbol=args.symbol, order_id=str(new_oid)),
             )
+            if internal_order:
+                return internal_order
+        except APIError as e:
+            # If order status fetch fails, create a minimal Order object
+            logger.warning(
+                f"Failed to fetch full order details for OID {new_oid}: {e}. "
+                "Creating minimal order object."
+            )
+
+        # Create a minimal order object with the information we have
+        from datetime import UTC, datetime
+
+        from cyberdelta.core.models.market.order import Order
+
+        # Generate a client order ID if none provided
+        client_order_id = (
+            args.client_order_id or f"HL_{new_oid}_{int(datetime.now(UTC).timestamp())}"
+        )
+
+        return Order(
+            exchange="hyperliquid",
+            exchange_order_id=str(new_oid),
+            symbol=args.symbol,
+            side=args.side,
+            order_type=args.order_type,
+            quantity_requested=args.quantity,
+            price=args.price,
+            time_in_force=args.time_in_force,
+            status=OrderStatus.OPEN,  # We know it's resting/open
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            reduce_only=args.reduce_only,
+            post_only=args.post_only,
+            client_order_id=client_order_id,
+        )
 
     async def _handle_filled_order(
         self, filled_info: HyperliquidRawExchangeStatusFilled, args: PlaceOrderArgs
@@ -758,98 +868,6 @@ class HyperliquidTradingService:
                 f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
                 APIErrorCode.UNKNOWN.value,
             )
-
-    def _handle_place_order_transformation_error(
-        self,
-        e_transform: TransformationError,
-        current_method: str,
-        symbol: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle transformation errors for place_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-            f"data for {symbol}: {e_transform}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Failed to process/transform exchange data.",
-            original_exception=e_transform,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_place_order_validation_error(
-        self,
-        e_val: ValidationError,
-        current_method: str,
-        symbol: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle validation errors for place_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Internal data validation "
-            f"failed for {symbol}: {e_val}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Internal data validation failed.",
-            original_exception=e_val,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_place_order_service_logic_error(
-        self,
-        e_service_logic: ValueError | TypeError,
-        current_method: str,
-        symbol: str,
-    ) -> APIError:
-        """Handle service logic errors for place_order."""
-        # Distinguish input validation from internal errors per ERROR_HANDLING.md
-        error_msg = str(e_service_logic)
-        if current_method in error_msg and any(
-            param in error_msg for param in ["symbol", "quantity", "price", "side", "order_type"]
-        ):
-            # Re-raise input validation errors
-            raise e_service_logic
-        else:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
-                exc_info=True,
-            )
-            return APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            )
-
-    def _handle_place_order_unexpected_error(
-        self,
-        e_unexpected: Exception,
-        current_method: str,
-        symbol: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle unexpected errors for place_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for {symbol}: {e_unexpected}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Unexpected service failure.",
-            original_exception=e_unexpected,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Retrieve all open orders, optionally filtered by symbol.
@@ -1024,22 +1042,12 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
-            raise self._handle_cancel_order_transformation_error(
-                e_transform, current_method, order_id_int, status_code, raw_response_content
-            ) from e_transform
-        except ValidationError as e_val:
-            raise self._handle_cancel_order_validation_error(
-                e_val, current_method, order_id_int, status_code, raw_response_content
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            raise self._handle_cancel_order_service_logic_error(
-                e_service_logic, current_method, order_id_int
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            raise self._handle_cancel_order_unexpected_error(
-                e_unexpected, current_method, order_id_int, status_code, raw_response_content
-            ) from e_unexpected
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            if isinstance(e, APIError):
+                raise
+            raise self._handle_service_error(
+                e, current_method, f"order {order_id_int}", status_code, raw_response_content
+            ) from e
 
     def _validate_and_prepare_cancel_order_params(
         self, args: CancelOrderArgs, current_method: str
@@ -1074,18 +1082,13 @@ class HyperliquidTradingService:
     ) -> bool:
         """Process the cancel order response and return success status."""
         # Check if this is an error response
-        if raw_exchange_response.status == "err" and raw_exchange_response.response:
-            if isinstance(raw_exchange_response.response, str):
-                # Use the error mapper to get the specific error code for this message
-                mapped_error = self._error_mapper.map_string_error(
-                    raw_exchange_response.response,
-                    http_status=http_status,
-                )
-                raise mapped_error
+        self._check_error_response(raw_exchange_response, http_status)
 
-        # Process successful response
-        if raw_exchange_response.data and raw_exchange_response.data.statuses:
-            first_status = raw_exchange_response.data.statuses[0]
+        # Process successful response using the normalized property
+        response_data = raw_exchange_response.response_data
+
+        if response_data and response_data.statuses:
+            first_status = response_data.statuses[0]
 
             # Process the status - moved business logic from ResponseHandler
             processed_status = self._process_exchange_status(first_status, "cancel_order")
@@ -1106,98 +1109,6 @@ class HyperliquidTradingService:
 
         # If we reach here, something unexpected happened
         raise APIError("Failed to cancel order or parse response.", APIErrorCode.UNKNOWN.value)
-
-    def _handle_cancel_order_transformation_error(
-        self,
-        e_transform: TransformationError,
-        current_method: str,
-        order_id_int: int,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle transformation errors for cancel_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-            f"data for order {order_id_int}: {e_transform}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Failed to process/transform exchange data.",
-            original_exception=e_transform,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_cancel_order_validation_error(
-        self,
-        e_val: ValidationError,
-        current_method: str,
-        order_id_int: int,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle validation errors for cancel_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Internal data validation "
-            f"failed for order {order_id_int}: {e_val}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Internal data validation failed.",
-            original_exception=e_val,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_cancel_order_service_logic_error(
-        self,
-        e_service_logic: ValueError | TypeError,
-        current_method: str,
-        order_id_int: int,
-    ) -> APIError:
-        """Handle service logic errors for cancel_order."""
-        # Distinguish input validation from internal errors per ERROR_HANDLING.md
-        error_msg = str(e_service_logic)
-        if current_method in error_msg and any(
-            param in error_msg for param in ["order_id", "symbol"]
-        ):
-            # Re-raise input validation errors
-            raise e_service_logic
-        else:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for order {order_id_int}: {e_service_logic}",
-                exc_info=True,
-            )
-            return APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            )
-
-    def _handle_cancel_order_unexpected_error(
-        self,
-        e_unexpected: Exception,
-        current_method: str,
-        order_id_int: int,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle unexpected errors for cancel_order."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for order {order_id_int}: {e_unexpected}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Unexpected service failure.",
-            original_exception=e_unexpected,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders, optionally filtered by symbol.
@@ -1242,28 +1153,16 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors from get_open_orders, cancel_order, etc.
             raise
-        except TransformationError as e_transform:
-            raise self._handle_cancel_all_orders_transformation_error(
-                e_transform, current_method, status_code, raw_response_content
-            ) from e_transform
-        except ValidationError as e_val:
-            raise self._handle_cancel_all_orders_validation_error(
-                e_val, current_method, status_code, raw_response_content
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            raise self._handle_cancel_all_orders_service_logic_error(
-                e_service_logic, current_method, status_code, raw_response_content
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            raise self._handle_cancel_all_orders_unexpected_error(
-                e_unexpected, current_method, status_code, raw_response_content
-            ) from e_unexpected
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            if isinstance(e, APIError):
+                raise
+            raise self._handle_service_error(
+                e, current_method, "cancel all orders", status_code, raw_response_content
+            ) from e
 
     def _validate_cancel_all_orders_prerequisites(self) -> None:
         """Validate prerequisites for cancelling all orders."""
-        _error_msg_wallet_addr = "Wallet address is required to cancel all orders."
-        if not self._wallet_address:
-            raise APIError(_error_msg_wallet_addr, APIErrorCode.AUTHENTICATION_FAILED.value)
+        self._validate_wallet_address("cancel all orders")
 
     async def _process_all_order_cancellations(
         self, open_orders_internal: list[Order]
@@ -1414,96 +1313,6 @@ class HyperliquidTradingService:
             status=CancelOrderResultStatus.UNKNOWN,
         )
 
-    def _handle_cancel_all_orders_transformation_error(
-        self,
-        e_transform: TransformationError,
-        current_method: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle transformation errors for cancel_all_orders."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-            f"data for cancel all orders: {e_transform}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Failed to process/transform exchange data.",
-            original_exception=e_transform,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_cancel_all_orders_validation_error(
-        self,
-        e_val: ValidationError,
-        current_method: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle validation errors for cancel_all_orders."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Internal data validation "
-            f"failed for cancel all orders: {e_val}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message="Internal data validation failed.",
-            original_exception=e_val,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
-    def _handle_cancel_all_orders_service_logic_error(
-        self,
-        e_service_logic: ValueError | TypeError,
-        current_method: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle service logic errors for cancel_all_orders."""
-        # Distinguish input validation from internal errors per ERROR_HANDLING.md
-        error_msg = str(e_service_logic)
-        if current_method in error_msg and any(param in error_msg for param in ["symbol"]):
-            # Re-raise input validation errors
-            raise e_service_logic
-        else:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for cancel all orders: {e_service_logic}",
-                exc_info=True,
-            )
-            return APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            )
-
-    def _handle_cancel_all_orders_unexpected_error(
-        self,
-        e_unexpected: Exception,
-        current_method: str,
-        status_code: int,
-        raw_response_content: str | None,
-    ) -> APIError:
-        """Handle unexpected errors for cancel_all_orders."""
-        logger.error(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for cancel all orders: {e_unexpected}",
-            exc_info=True,
-        )
-        return APIError(
-            code=APIErrorCode.UNKNOWN.value,
-            message="Unexpected service failure.",
-            original_exception=e_unexpected,
-            http_status=status_code if status_code != 0 else None,
-            exchange_message=raw_response_content,
-        )
-
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Fetch all open orders, optionally filtering by symbol.
 
@@ -1526,61 +1335,9 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors from get_open_orders method
             raise
-        except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Internal data validation failed.",
-                original_exception=e_val,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            # Distinguish input validation from internal errors per ERROR_HANDLING.md
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and any(param in error_msg for param in ["symbol"]):
-                # Re-raise input validation errors
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            if isinstance(e, APIError):
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                    f"{e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected
+            raise self._handle_service_error(
+                e, current_method, "get all open orders", status_code, raw_response_content
+            ) from e

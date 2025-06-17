@@ -92,12 +92,17 @@ class BackpackTradingDataMapper:
         return status_map.get(bp_status.lower(), OrderStatus.UNKNOWN)
 
     @staticmethod
-    def _map_type_to_internal(bp_type: str, trigger_price: str | None = None) -> OrderType:
+    def _map_type_to_internal(
+        bp_type: str,
+        trigger_price: str | None = None,
+        raw_order: BackpackRawOrder | None = None,
+    ) -> OrderType:
         """Map a Backpack order type string to internal OrderType enum.
 
         Args:
             bp_type: Raw order type string from Backpack
             trigger_price: Trigger price if present (indicates stop/take profit order)
+            raw_order: Raw order object to check for specific trigger price fields
 
         Returns:
             OrderType: Mapped internal enum value
@@ -107,10 +112,18 @@ class BackpackTradingDataMapper:
 
         # If there's a trigger price, it indicates this was a stop/take profit order
         if trigger_price:
-            if bp_type_lower == "market":
-                return OrderType.STOP_MARKET
-            elif bp_type_lower == "limit":
-                return OrderType.STOP_LIMIT
+            # Check if this is a take profit order by examining specific fields
+            if raw_order and raw_order.takeProfitTriggerPrice:
+                if bp_type_lower == "market":
+                    return OrderType.TAKE_PROFIT_MARKET
+                elif bp_type_lower == "limit":
+                    return OrderType.TAKE_PROFIT_LIMIT
+            # Otherwise it's a stop loss order
+            else:
+                if bp_type_lower == "market":
+                    return OrderType.STOP_MARKET
+                elif bp_type_lower == "limit":
+                    return OrderType.STOP_LIMIT
 
         type_map = {
             "limit": OrderType.LIMIT,
@@ -179,7 +192,7 @@ class BackpackTradingDataMapper:
         try:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(side)
-            mapped_type = BackpackTradingDataMapper._map_type_to_internal(order_type)
+            mapped_type = BackpackTradingDataMapper._map_type_to_internal(order_type, None, None)
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(status)
             mapped_tif = BackpackTradingDataMapper._map_time_in_force(time_in_force or "gtc")
 
@@ -356,7 +369,7 @@ class BackpackTradingDataMapper:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order.side)
             mapped_type = BackpackTradingDataMapper._map_type_to_internal(
-                raw_order.orderType, raw_order.triggerPrice
+                raw_order.orderType, raw_order.triggerPrice, raw_order
             )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(raw_order.status)
             mapped_tif = BackpackTradingDataMapper._map_time_in_force(
@@ -480,7 +493,7 @@ class BackpackTradingDataMapper:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order_update.side)
             mapped_type = BackpackTradingDataMapper._map_type_to_internal(
-                raw_order_update.order_type, None
+                raw_order_update.order_type, None, None
             )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(
                 raw_order_update.order_status,

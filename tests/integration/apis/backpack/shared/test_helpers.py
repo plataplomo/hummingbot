@@ -10,8 +10,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
-from typing import TYPE_CHECKING, Callable, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # =============================================================================
@@ -32,24 +33,24 @@ T = TypeVar('T')
 
 
 async def wait_for_condition(
-    condition_fn: Callable[[], bool | Callable[[], bool]],
+    condition_fn: Callable[[], bool] | Callable[[], Awaitable[bool]],
     timeout: float = 30.0,
     poll_interval: float = 0.1,
     message: str = "Condition not met",
 ) -> None:
     """Wait for a condition to be met with polling.
-    
+
     Args:
         condition_fn: Function that returns True when condition is met
         timeout: Maximum time to wait in seconds
         poll_interval: Time between polls in seconds
         message: Error message if timeout occurs
-        
+
     Raises:
         TimeoutError: If condition is not met within timeout
     """
     start_time = time.time()
-    
+
     while time.time() - start_time < timeout:
         try:
             # Handle both sync and async condition functions
@@ -57,50 +58,50 @@ async def wait_for_condition(
                 result = await condition_fn()
             else:
                 result = condition_fn()
-                
+
             if result:
                 return
         except Exception:
             # Continue polling on transient errors
-            pass
-            
+            logger.debug("Transient error during polling, continuing...")
+
         await asyncio.sleep(poll_interval)
-    
+
     raise TimeoutError(f"{message} after {timeout} seconds")
 
 
 async def wait_for_value(
-    value_fn: Callable[[], T | Callable[[], T]],
+    value_fn: Callable[[], T] | Callable[[], Awaitable[T]],
     expected_value: T,
     timeout: float = 30.0,
     poll_interval: float = 0.1,
     message: str | None = None,
 ) -> T:
     """Wait for a function to return an expected value.
-    
+
     Args:
         value_fn: Function that returns the value to check
         expected_value: The value to wait for
         timeout: Maximum time to wait in seconds
         poll_interval: Time between polls in seconds
         message: Error message if timeout occurs
-        
+
     Returns:
         The expected value once obtained
-        
+
     Raises:
         TimeoutError: If expected value is not obtained within timeout
     """
     if message is None:
         message = f"Expected value {expected_value} not obtained"
-        
+
     async def check_value() -> bool:
         if asyncio.iscoroutinefunction(value_fn):
             value = await value_fn()
         else:
             value = value_fn()
-        return value == expected_value
-        
+        return bool(value == expected_value)
+
     await wait_for_condition(check_value, timeout, poll_interval, message)
     return expected_value
 
@@ -585,7 +586,7 @@ QUANTITY_TOLERANCE_PERCENT = Decimal("0.01")  # 0.01% for quantity comparisons
 # 0.01% accounts for these adjustments while catching significant errors.
 
 EQUITY_TOLERANCE_PERCENT = Decimal("0.1")  # 0.1% for equity calculations
-# Justification: Equity calculations involve multiple components (spot, perp, 
+# Justification: Equity calculations involve multiple components (spot, perp,
 # collateral) each with their own precision. 0.1% aggregates these variances.
 
 # Fixed value tolerances
@@ -778,7 +779,8 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
                     params["initial_margin_factor"] = Decimal(account_summary.bp_details.imf_raw)
                 except (ValueError, TypeError, AttributeError) as e:
                     raise ValueError(
-                        f"Failed to parse initial margin factor '{account_summary.bp_details.imf_raw}': {e}. "
+                        f"Failed to parse initial margin factor "
+                        f"'{account_summary.bp_details.imf_raw}': {e}. "
                         "Margin factors must be valid decimal values."
                     ) from e
 
@@ -789,7 +791,8 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
                     )
                 except (ValueError, TypeError, AttributeError) as e:
                     raise ValueError(
-                        f"Failed to parse maintenance margin factor '{account_summary.bp_details.mmf_raw}': {e}. "
+                        f"Failed to parse maintenance margin factor "
+                        f"'{account_summary.bp_details.mmf_raw}': {e}. "
                         "Margin factors must be valid decimal values."
                     ) from e
 
@@ -834,8 +837,6 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
             f"Failed to get margin parameters: {e}. "
             "Margin parameter retrieval is critical for risk management tests."
         ) from e
-            "has_open_orders": Decimal("0"),
-        }
 
 
 async def validate_margin_consistency(

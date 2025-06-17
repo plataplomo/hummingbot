@@ -1,0 +1,202 @@
+"""CyberDeltaEngine: Hyperliquid Payload Preprocessing Mapper.
+
+------------------------------------------------
+
+This module provides the HyperliquidPayloadPreprocessingMapper class for preprocessing
+raw API response payloads before Pydantic validation.
+
+Responsibilities:
+- Flatten nested response structures
+- Map field names for consistency
+- Add reasonable defaults for missing fields
+- Prepare raw responses for clean Pydantic validation
+
+Architecture Compliance:
+- Handles RAW data transformation before Pydantic validation
+- Keeps response handlers focused on pure validation
+- No business logic, only structural transformations
+- Clear separation of concerns per ERROR_HANDLING.md
+"""
+
+from typing import Any
+
+from cyberdelta.config.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+class HyperliquidPayloadPreprocessingMapper:
+    """Preprocesses raw Hyperliquid API response payloads before validation.
+
+    This mapper handles structural transformations that need to occur before
+    Pydantic validation, ensuring response handlers remain focused on pure
+    validation without business logic.
+
+    Architecture Compliance:
+    - Works at the RAW data boundary before Pydantic models
+    - No business logic, only structural transformations
+    - Maintains clean separation between preprocessing and validation
+    """
+
+    @staticmethod
+    def preprocess_order_status_response(raw_data: Any) -> dict[str, Any]:
+        """Preprocess order status response to flatten nested structure.
+
+        The Hyperliquid API can return order status in various formats:
+        - List format: [{"order": {...}}]
+        - Nested format: {'order': {'order': {...}, 'status': '...', 'statusTimestamp': ...}, 'status': 'order'}
+        - Direct dict format: {"order": {...}}
+        - Error formats: "Order not found", ["Order not found"], [], None
+
+        This method normalizes all formats to a structure that matches HyperliquidRawHistoricalOrderResponse.
+
+        Args:
+            raw_data: Raw response from Hyperliquid order status endpoint
+
+        Returns:
+            Preprocessed data ready for Pydantic validation
+
+        Raises:
+            APIError: For order not found or invalid response formats
+        """
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        # Handle list format (common in tests and some API responses)
+        if isinstance(raw_data, list):
+            # Handle empty list
+            if len(raw_data) == 0:
+                raise APIError(
+                    message="Order not found (empty list).",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+                )
+
+            # Get first item from list
+            status_item = raw_data[0]
+
+            # Handle string responses in list
+            if isinstance(status_item, str):
+                if "Order not found" in status_item:
+                    raise APIError(
+                        message=f"Order not found (string response: {status_item!r})",
+                        code=APIErrorCode.ORDER_NOT_FOUND.value,
+                        metadata={"original_response_item": status_item},
+                    )
+                else:
+                    raise APIError(
+                        message=f"Unexpected order status response: {status_item}",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        metadata={"original_response_item": status_item},
+                    )
+
+            # Handle non-dict items
+            if not isinstance(status_item, dict):
+                raise APIError(
+                    message=f"Order status response list: expected dict, got {type(status_item).__name__}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    metadata={"original_response_item": status_item},
+                )
+
+            # Use the dict from the list for further processing
+            raw_data = status_item
+
+        # Handle direct string response
+        elif isinstance(raw_data, str):
+            if "Order not found" in raw_data:
+                raise APIError(
+                    message=f"Order not found (direct string: {raw_data!r})",
+                    code=APIErrorCode.ORDER_NOT_FOUND.value,
+                    metadata={"original_response": raw_data},
+                )
+            else:
+                raise APIError(
+                    message=f"Invalid order status response format: got string {raw_data!r}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
+
+        # Handle None response
+        elif raw_data is None:
+            raise APIError(
+                message="Order status response is None",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        # Now we should have a dict
+        if not isinstance(raw_data, dict):
+            raise APIError(
+                message=f"Order status response: expected dict after preprocessing, got {type(raw_data).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+        # Handle the nested structure
+        if "order" in raw_data and isinstance(raw_data["order"], dict):
+            order_wrapper = raw_data["order"]
+
+            # Check if we have the deeply nested structure
+            if "order" in order_wrapper and isinstance(order_wrapper["order"], dict):
+                # Extract the actual order data
+                inner_order = order_wrapper["order"]
+
+                # Map 'coin' to 'asset' if asset is not present
+                # (Hyperliquid sometimes returns 'coin' instead of 'asset')
+                if "coin" in inner_order and "asset" not in inner_order:
+                    inner_order["asset"] = inner_order["coin"]
+
+                # Add status fields from the wrapper if they exist
+                if "status" in order_wrapper:
+                    inner_order["status"] = order_wrapper["status"]
+                if "statusTimestamp" in order_wrapper:
+                    inner_order["statusTimestamp"] = order_wrapper["statusTimestamp"]
+
+                # Add reasonable defaults for missing fields
+                # If remainingSz is missing but we have sz, assume full size remaining for open orders
+                if "remainingSz" not in inner_order and "sz" in inner_order:
+                    # Only add default if status indicates it's an open order
+                    status = inner_order.get("status", "").lower()
+                    if status in ["open", "pending", "untriggered"]:
+                        inner_order["remainingSz"] = inner_order["sz"]
+
+                # Return the flattened structure expected by HyperliquidRawHistoricalOrderResponse
+                return {"order": inner_order}
+            else:
+                # The wrapper itself might be the order data
+                # Just ensure it's wrapped properly
+                return {"order": order_wrapper}
+
+        # If we don't have the expected nested structure, check if it's already flattened
+        if "oid" in raw_data and "asset" in raw_data:
+            # It's already a flat order object, wrap it
+            return {"order": raw_data}
+
+        # Return as-is if it's already in the expected format
+        return raw_data
+
+    @staticmethod
+    def preprocess_user_state_response(raw_data: dict[str, Any]) -> dict[str, Any]:
+        """Preprocess user state response if needed.
+
+        Currently, user state responses don't require preprocessing,
+        but this method is here for consistency and future needs.
+
+        Args:
+            raw_data: Raw response from Hyperliquid user state endpoint
+
+        Returns:
+            Preprocessed data (currently unchanged)
+        """
+        return raw_data
+
+    @staticmethod
+    def preprocess_open_orders_response(raw_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Preprocess open orders response if needed.
+
+        Currently, open orders responses don't require preprocessing,
+        but this method is here for consistency and future needs.
+
+        Args:
+            raw_data: Raw response from Hyperliquid open orders endpoint
+
+        Returns:
+            Preprocessed data (currently unchanged)
+        """
+        return raw_data

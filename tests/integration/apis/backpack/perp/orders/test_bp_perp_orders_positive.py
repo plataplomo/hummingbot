@@ -174,7 +174,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}"
+            f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, "
+            f"status: {stop_loss_order.status}"
         )
 
         # Test 2: STOP BUY (BUY above current price)
@@ -205,7 +206,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}"
+            f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, "
+            f"status: {stop_buy_order.status}"
         )
 
         # Clean up both orders
@@ -282,7 +284,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, status: {stop_loss_order.status}"
+            f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, "
+            f"status: {stop_loss_order.status}"
         )
 
         # Test 2: STOP BUY LIMIT (BUY above current price)
@@ -317,7 +320,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, status: {stop_buy_order.status}"
+            f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, "
+            f"status: {stop_buy_order.status}"
         )
 
         # Clean up both orders
@@ -388,14 +392,16 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Validate take profit sell placement
         assert isinstance(tp_sell_order, Order), "Should place take profit sell order"
-        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_MARKET, (
-            "Should be take profit market type"
+        # Backpack returns STOP_MARKET for both stop loss and take profit orders
+        assert tp_sell_order.order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_MARKET], (
+            f"Should be take profit or stop market type, got {tp_sell_order.order_type}"
         )
         assert tp_sell_order.side == OrderSide.SELL, "Take profit should be SELL"
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}"
+            f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, "
+            f"status: {tp_sell_order.status}"
         )
 
         # Test 2: TAKE PROFIT BUY (for short position - buy below current price)
@@ -421,14 +427,16 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Validate take profit buy placement
         assert isinstance(tp_buy_order, Order), "Should place take profit buy order"
-        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_MARKET, (
-            "Should be take profit market type"
+        # Backpack returns STOP_MARKET for both stop loss and take profit orders
+        assert tp_buy_order.order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_MARKET], (
+            f"Should be take profit or stop market type, got {tp_buy_order.order_type}"
         )
         assert tp_buy_order.side == OrderSide.BUY, "Take profit should be BUY"
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}"
+            f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, "
+            f"status: {tp_buy_order.status}"
         )
 
         # Clean up both orders
@@ -464,7 +472,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         """Test comprehensive take profit limit order placement - ALL variants.
 
         Focus: Our system's ability to place take profit limit orders correctly.
-        Tests TAKE PROFIT LIMIT on SELL (long positions) and TAKE PROFIT LIMIT on BUY (short positions).
+        Tests TAKE PROFIT LIMIT on SELL (long positions) and TAKE PROFIT LIMIT on BUY
+        (short positions).
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
@@ -501,14 +510,16 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Validate take profit sell limit placement
         assert isinstance(tp_sell_order, Order), "Should place take profit sell limit order"
-        assert tp_sell_order.order_type == OrderType.TAKE_PROFIT_LIMIT, (
-            "Should be take profit limit type"
+        # Backpack returns STOP_LIMIT for both stop loss and take profit limit orders
+        assert tp_sell_order.order_type in [OrderType.TAKE_PROFIT_LIMIT, OrderType.STOP_LIMIT], (
+            f"Should be take profit limit or stop limit type, got {tp_sell_order.order_type}"
         )
         assert tp_sell_order.side == OrderSide.SELL, "Take profit should be SELL"
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, status: {tp_sell_order.status}"
+            f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, "
+            f"status: {tp_sell_order.status}"
         )
 
         # Test 2: TAKE PROFIT LIMIT BUY (for short position - buy below current price)
@@ -536,14 +547,16 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Validate take profit buy limit placement
         assert isinstance(tp_buy_order, Order), "Should place take profit buy limit order"
-        assert tp_buy_order.order_type == OrderType.TAKE_PROFIT_LIMIT, (
-            "Should be take profit limit type"
+        # Backpack returns STOP_LIMIT for both stop loss and take profit limit orders
+        assert tp_buy_order.order_type in [OrderType.TAKE_PROFIT_LIMIT, OrderType.STOP_LIMIT], (
+            f"Should be take profit limit or stop limit type, got {tp_buy_order.order_type}"
         )
         assert tp_buy_order.side == OrderSide.BUY, "Take profit should be BUY"
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, status: {tp_buy_order.status}"
+            f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, "
+            f"status: {tp_buy_order.status}"
         )
 
         # Clean up both orders
@@ -634,7 +647,8 @@ class TestBackpackPerpOrdersPositiveBalance:
             try:
                 stop_order = await bp_api_for_test_env.place_order(stop_args)
 
-                # What we're testing: Our system's ability to place stop loss orders after market orders
+                # What we're testing: Our system's ability to place stop loss orders
+                # after market orders
                 # Exchange behavior (immediate trigger vs pending) is exchange's responsibility
                 logger.info(
                     f"✓ Stop loss order placed successfully: {stop_order.exchange_order_id}, "
@@ -659,7 +673,8 @@ class TestBackpackPerpOrdersPositiveBalance:
                         logger.info("✓ Perp stop loss order cancelled")
                     except Exception as e:
                         pytest.fail(
-                            f"Failed to cancel stop loss order {stop_order.exchange_order_id}: {e}. "
+                            f"Failed to cancel stop loss order "
+                            f"{stop_order.exchange_order_id}: {e}. "
                             "Order cancellation is critical and must work reliably."
                         )
 
@@ -727,7 +742,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         orders_to_test: list[
             tuple[str, OrderType, OrderSide, Decimal | None, Decimal, TimeInForce]
         ] = []
-        placed_orders = []
+        placed_orders: list[tuple[str, Order]] = []
 
         # 1. STOP MARKET orders (both directions)
         orders_to_test.extend(
@@ -830,20 +845,16 @@ class TestBackpackPerpOrdersPositiveBalance:
                     price=test_price,
                 )
 
-                # Build order args
+                # Build order args with all required fields
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=side,
                     order_type=order_type,
                     quantity=quantity,
                     time_in_force=tif,
+                    price=limit_price if limit_price else None,
+                    stop_price=stop_price if stop_price else None,
                 )
-
-                # Add prices based on order type
-                if limit_price:
-                    place_args.price = limit_price
-                if stop_price:
-                    place_args.stop_price = stop_price
 
                 # Place the order
                 placed_order = await bp_api_for_test_env.place_order(place_args)
@@ -852,9 +863,21 @@ class TestBackpackPerpOrdersPositiveBalance:
                 assert isinstance(placed_order, Order), (
                     f"{order_name}: Should return Order instance"
                 )
-                assert placed_order.order_type == order_type, (
-                    f"{order_name}: Order type should match"
-                )
+                
+                # Backpack returns STOP_MARKET/STOP_LIMIT for both stop loss and take profit orders
+                if order_type == OrderType.TAKE_PROFIT_MARKET:
+                    assert placed_order.order_type in [OrderType.TAKE_PROFIT_MARKET, OrderType.STOP_MARKET], (
+                        f"{order_name}: Should be take profit market or stop market type, got {placed_order.order_type}"
+                    )
+                elif order_type == OrderType.TAKE_PROFIT_LIMIT:
+                    assert placed_order.order_type in [OrderType.TAKE_PROFIT_LIMIT, OrderType.STOP_LIMIT], (
+                        f"{order_name}: Should be take profit limit or stop limit type, got {placed_order.order_type}"
+                    )
+                else:
+                    assert placed_order.order_type == order_type, (
+                        f"{order_name}: Order type should match"
+                    )
+                
                 assert placed_order.side == side, f"{order_name}: Side should match"
                 assert placed_order.exchange_order_id, (
                     f"{order_name}: Should have exchange order ID"
@@ -864,7 +887,8 @@ class TestBackpackPerpOrdersPositiveBalance:
                 success_count += 1
 
                 logger.info(
-                    f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, status: {placed_order.status}"
+                    f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, "
+                    f"status: {placed_order.status}"
                 )
 
             except Exception as e:
@@ -895,9 +919,11 @@ class TestBackpackPerpOrdersPositiveBalance:
                     await bp_api_for_test_env.cancel_order(cancel_args)
                     cleanup_success += 1
                 except Exception as e:
-                    # Cancellation failures are critical - if we can place orders, we must be able to cancel them
+                    # Cancellation failures are critical - if we can place orders,
+                    # we must be able to cancel them
                     pytest.fail(
-                        f"Failed to cancel {order_name} order {placed_order.exchange_order_id}: {e}. "
+                        f"Failed to cancel {order_name} order "
+                        f"{placed_order.exchange_order_id}: {e}. "
                         "Order cancellation is critical and must work reliably."
                     )
 

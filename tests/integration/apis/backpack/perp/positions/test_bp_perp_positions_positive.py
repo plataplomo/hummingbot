@@ -85,16 +85,16 @@ async def create_test_perp_position(
 
             # Wait for position to be created
             from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
-            
-            async def position_exists():
-                positions = await bp_api.get_positions()
-                return any(p.symbol == test_symbol for p in positions)
-            
+
+            async def position_exists() -> bool:
+                positions = await api.get_positions()
+                return any(p.symbol == symbol for p in positions)
+
             await wait_for_condition(
                 position_exists,
                 timeout=5.0,
                 poll_interval=0.1,
-                message=f"Position for {test_symbol} was not created"
+                message=f"Position for {symbol} was not created",
             )
 
             return order.exchange_order_id, min_quantity

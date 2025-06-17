@@ -120,6 +120,15 @@ def create_raw_historical_order(
         remainingSz=remaining_sz,
         status=status,
         statusTimestamp=timestamp + 5000,
+        # Optional fields that mypy now requires
+        coin=None,
+        triggerCondition=None,
+        isTrigger=None,
+        triggerPx=None,
+        children=None,
+        isPositionTpsl=None,
+        origSz=None,
+        tif=None,
     )
 
 

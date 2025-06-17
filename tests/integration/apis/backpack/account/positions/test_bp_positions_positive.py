@@ -128,8 +128,6 @@ class TestBackpackPositionsPositive:
 
     async def _open_test_position(self, bp_api: BackpackAPI, symbol: str) -> None:
         """Open a test position for the given symbol."""
-        import asyncio
-
         from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
         from cyberdelta.core.models.enums import OrderType, TimeInForce
         from tests.integration.apis.backpack.shared.test_helpers import (
@@ -160,16 +158,16 @@ class TestBackpackPositionsPositive:
 
         # Wait for position to be reflected
         from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
-        
-        async def position_exists():
+
+        async def position_exists() -> bool:
             positions = await bp_api.get_positions(symbol=symbol)
             return len(positions) > 0 and positions[0].size != Decimal("0")
-        
+
         await wait_for_condition(
             position_exists,
             timeout=5.0,
             poll_interval=0.1,
-            message=f"Position for {symbol} was not created"
+            message=f"Position for {symbol} was not created",
         )
 
     async def _close_position(self, bp_api: BackpackAPI, symbol: str) -> None:

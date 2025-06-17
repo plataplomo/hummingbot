@@ -140,7 +140,7 @@ class TestHyperliquidAPIComponentIntegration:
             "Placed order must have exchange order ID"
         )
         assert placed_order.symbol == test_symbol, "Order symbol must match requested symbol"
-        assert isinstance(placed_order.quantity, Decimal), (
+        assert isinstance(placed_order.quantity_requested, Decimal), (
             "Order quantity must be Decimal for financial precision"
         )
         assert isinstance(placed_order.price, Decimal), (
@@ -165,7 +165,9 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Check if margin usage increased (order should reserve margin)
         if (
-            updated_account.total_initial_margin_required
+            updated_account.total_initial_margin_required is not None
+            and initial_account.total_initial_margin_required is not None
+            and updated_account.total_initial_margin_required
             > initial_account.total_initial_margin_required
         ):
             margin_increase = (
@@ -196,6 +198,7 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Final account state should reflect order removal
         final_account = await hl_api_for_test_env.get_account_summary()
+        assert final_account is not None, "Final account summary must not be None"
 
         # Account equity should be unchanged (no fills occurred)
         equity_change = abs(final_account.total_equity - initial_account.total_equity)
@@ -397,6 +400,7 @@ class TestHyperliquidAPIComponentIntegration:
         # Step 1: Get the same symbol data from different services
         market_data = await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
         ticker_data = await hl_api_for_test_env.get_ticker(test_symbol)
+        assert ticker_data is not None, "Ticker data must not be None"
 
         # Step 2: Validate symbol consistency
         assert market_data.symbol == ticker_data.symbol == test_symbol, (
@@ -404,6 +408,7 @@ class TestHyperliquidAPIComponentIntegration:
         )
 
         # Step 3: Validate financial data types are consistent
+        assert ticker_data.price is not None, "Ticker price must not be None"
         financial_fields = [
             (market_data.tick_size, "market tick_size"),
             (market_data.step_size, "market step_size"),
@@ -436,6 +441,7 @@ class TestHyperliquidAPIComponentIntegration:
             hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10.0")
         )
         safe_quantity = market_data.min_quantity
+        assert safe_quantity is not None, "Safe quantity must not be None"
 
         order_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -452,15 +458,17 @@ class TestHyperliquidAPIComponentIntegration:
         assert placed_order.symbol == test_symbol, "Order symbol must be consistent with input"
 
         # Validate order maintains precision consistency
-        assert isinstance(placed_order.quantity, Decimal), (
+        assert isinstance(placed_order.quantity_requested, Decimal), (
             "Order quantity must maintain Decimal precision"
         )
         assert isinstance(placed_order.price, Decimal), (
             "Order price must maintain Decimal precision"
         )
+        assert placed_order.price is not None, "Order price must not be None"
 
         # Validate order respects market constraints
-        assert placed_order.quantity >= market_data.min_quantity, (
+        assert market_data.min_quantity is not None, "Market min quantity must not be None"
+        assert placed_order.quantity_requested >= market_data.min_quantity, (
             "Order quantity must respect market minimum"
         )
 
@@ -493,16 +501,20 @@ class TestHyperliquidAPIComponentIntegration:
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Define concurrent operations across different services
-        async def get_account_data():
-            return await hl_api_for_test_env.get_account_summary()
+        async def get_account_data() -> MarginAccountSummary:
+            result = await hl_api_for_test_env.get_account_summary()
+            assert result is not None, "Account summary must not be None"
+            return result
 
-        async def get_market_data():
+        async def get_market_data() -> Market:
             return await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
 
-        async def get_ticker_data():
-            return await hl_api_for_test_env.get_ticker(test_symbol)
+        async def get_ticker_data() -> Ticker:
+            result = await hl_api_for_test_env.get_ticker(test_symbol)
+            assert result is not None, "Ticker must not be None"
+            return result
 
-        async def get_open_orders():
+        async def get_open_orders() -> list[Order]:
             return await hl_api_for_test_env.get_open_orders()
 
         # Execute operations concurrently
@@ -521,14 +533,22 @@ class TestHyperliquidAPIComponentIntegration:
             if isinstance(result, Exception):
                 pytest.fail(f"Concurrent operation {i} failed: {result}")
 
-        account_data, market_data, ticker_data, open_orders = results
+        # Type cast results after confirming they're not exceptions
+        account_data = results[0]
+        market_data = results[1] 
+        ticker_data = results[2]
+        open_orders = results[3]
 
         # Validate data consistency despite concurrent execution
-        assert account_data.exchange == "hyperliquid", (
+        assert hasattr(account_data, "exchange") and account_data.exchange == "hyperliquid", (
             "Account data must maintain exchange consistency"
         )
-        assert market_data.symbol == test_symbol, "Market data must maintain symbol consistency"
-        assert ticker_data.symbol == test_symbol, "Ticker data must maintain symbol consistency"
+        assert hasattr(market_data, "symbol") and market_data.symbol == test_symbol, (
+            "Market data must maintain symbol consistency"
+        )
+        assert hasattr(ticker_data, "symbol") and ticker_data.symbol == test_symbol, (
+            "Ticker data must maintain symbol consistency"
+        )
         assert isinstance(open_orders, list), "Open orders must return list consistently"
 
         # Validate timing consistency (operations should complete reasonably quickly)
@@ -540,12 +560,15 @@ class TestHyperliquidAPIComponentIntegration:
             )
 
         # Validate financial data precision maintained across concurrent calls
-        financial_values = [
-            account_data.total_equity,
-            account_data.available_equity,
-            market_data.tick_size,
-            ticker_data.price,
-        ]
+        financial_values = []
+        if hasattr(account_data, "total_equity"):
+            financial_values.append(account_data.total_equity)
+        if hasattr(account_data, "available_equity"):
+            financial_values.append(account_data.available_equity)
+        if hasattr(market_data, "tick_size"):
+            financial_values.append(market_data.tick_size)
+        if hasattr(ticker_data, "price") and ticker_data.price is not None:
+            financial_values.append(ticker_data.price)
 
         for value in financial_values:
             assert isinstance(value, Decimal), (

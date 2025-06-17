@@ -135,6 +135,14 @@ class HyperliquidMarketDataMapper:
             # Get current timestamp for ticker timestamp
             timestamp = datetime.now(UTC)
 
+            # Ensure symbol is not None
+            if raw_asset_ctx.name is None:
+                raise TransformationError(
+                    "Asset context name is required for ticker",
+                    field_name="name",
+                    source_value=None,
+                )
+
             return Ticker(
                 symbol=raw_asset_ctx.name,
                 timestamp=timestamp,

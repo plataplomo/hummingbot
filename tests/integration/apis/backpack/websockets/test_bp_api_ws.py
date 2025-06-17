@@ -177,11 +177,13 @@ class TestBackpackAPIWebSocketBasicOperations:
                 f"Connection status should be boolean, got {type(initial_status)}"
             )
             assert isinstance(after_subscription_status, bool), (
-                f"Connection status should be boolean after subscription, got {type(after_subscription_status)}"
+                f"Connection status should be boolean after subscription, "
+                f"got {type(after_subscription_status)}"
             )
 
             logger.info(
-                f"✓ Connection status validation passed: {initial_status} -> {after_subscription_status}"
+                f"✓ Connection status validation passed: "
+                f"{initial_status} -> {after_subscription_status}"
             )
 
         except Exception as e:
@@ -211,7 +213,7 @@ class TestBackpackAPIWebSocketLifecycle:
         test_symbol = available_symbols[0]
         topics = await get_websocket_topics_for_symbol(test_symbol)
 
-        received_messages = []
+        received_messages: list[dict[str, Any]] = []
 
         async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             received_messages.append(message)
@@ -264,7 +266,7 @@ class TestBackpackAPIWebSocketLifecycle:
             logger.info(f"Concurrent handler: {message}")
 
         # Create subscription tasks for multiple symbols
-        subscription_tasks = []
+        subscription_tasks: list[tuple[str, Any]] = []
         for symbol in available_symbols:
             topic = f"ticker.{symbol}"
             task = asyncio.create_task(bp_api_for_test_env.subscribe(topic, concurrent_handler))

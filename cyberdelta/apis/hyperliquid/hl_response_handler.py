@@ -422,16 +422,17 @@ class HyperliquidResponseHandler:
         """Validates the /info response for order_status.
 
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
+        No data transformation - that's handled by preprocessing mapper.
         """
         # Basic type validation
-        if not isinstance(raw_response_content, list):
+        if not isinstance(raw_response_content, dict):
             raise APIError(
-                message=f"Unexpected order status response format: expected list, "
+                message=f"Unexpected order status response format: expected dict, "
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        # Direct Pydantic validation - no business logic
+        # Direct Pydantic validation - no business logic or transformation
         try:
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
         except ValidationError as e:

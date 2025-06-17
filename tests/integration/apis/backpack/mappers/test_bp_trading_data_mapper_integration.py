@@ -130,7 +130,7 @@ class TestTradingDataMapperIntegration:
             side=raw_order.side,
             order_type=raw_order.orderType,
             status=raw_order.status,
-            quantity=raw_order.quantity,
+            quantity=raw_order.quantity or "0",
             price=raw_order.price,
             client_order_id=raw_order.clientId,
             time_in_force=raw_order.timeInForce,

@@ -595,15 +595,25 @@ class HyperliquidTradingDataMapper:
         """Parse all components needed for historical Order creation."""
         # Map enums
         side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
+        
+        # Handle order_type that can be string or dict
+        order_type_dict: dict[str, Any]
+        if isinstance(raw_historical_order.order_type, str):
+            # Convert string order type to dict format
+            order_type_dict = {raw_historical_order.order_type.lower(): {}}
+        else:
+            # Already a dict
+            order_type_dict = raw_historical_order.order_type
+        
         order_type = HyperliquidTradingDataMapper._map_type_to_internal(
-            raw_historical_order.order_type,
+            order_type_dict,
             trigger,
         )
         status = HyperliquidTradingDataMapper._map_status_to_internal(
             raw_historical_order.status,
         )
         time_in_force = HyperliquidTradingDataMapper._map_time_in_force(
-            raw_historical_order.order_type,
+            order_type_dict,
         )
 
         # Parse quantities and price

@@ -57,7 +57,8 @@ async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
     except Exception as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
-            "WebSocket subscription tests require real market data and cannot use hardcoded symbols."
+            "WebSocket subscription tests require real market data and "
+            "cannot use hardcoded symbols."
         ) from e
 
 
@@ -111,7 +112,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        received_messages = []
+        received_messages: list[dict[str, Any]] = []
 
         async def real_symbol_handler(
             message: dict[str, Any], full_message: dict[str, Any]
@@ -196,7 +197,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             # Validate connection state
             connection_state = bp_api_for_test_env.is_connected
             assert isinstance(connection_state, bool), (
-                f"Connection state should be boolean after subscriptions, got {type(connection_state)}"
+                f"Connection state should be boolean after subscriptions, "
+                f"got {type(connection_state)}"
             )
 
             logger.info(
@@ -228,7 +230,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             logger.info(f"Consistency handler: {message}")
 
         # Track state consistency across operations
-        state_tracking = []
+        state_tracking: list[tuple[str, Any]] = []
 
         try:
             # Initial state
@@ -293,7 +295,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ All helper subscription methods successful with real symbols: {[symbol1, symbol2, symbol3]}"
+                f"✓ All helper subscription methods successful with real symbols: "
+                f"{[symbol1, symbol2, symbol3]}"
             )
 
         except Exception as e:
@@ -322,7 +325,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         try:
             # Test subscription before connection
             await bp_api_for_test_env.subscribe(topic, lifecycle_handler)
-            subscription_state = bp_api_for_test_env.is_connected
+            subscription_state = bp_api_for_test_env.is_connected  # noqa: F841
 
             # Test connection establishment
             await bp_api_for_test_env.connect_websocket()
@@ -337,7 +340,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Real WebSocket lifecycle completed: sub={subscription_state}, conn={connection_state}"
+                f"✓ Real WebSocket lifecycle completed: "
+                f"sub={subscription_state}, conn={connection_state}"
             )
 
         except Exception as e:
@@ -367,15 +371,18 @@ class TestBackpackAPIConcurrentRealSubscriptions:
 
         if len(symbols["spot"]) < 3:
             pytest.fail(
-                f"Need at least 3 symbols for concurrent testing, got {len(symbols['spot'])}. "
+                f"Need at least 3 symbols for concurrent testing, "
+                f"got {len(symbols['spot'])}. "
                 "Concurrent subscription tests require multiple real symbols."
             )
 
-        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def concurrent_handler(
+            message: dict[str, Any], full_message: dict[str, Any]
+        ) -> None:
             logger.info(f"Concurrent real handler: {message}")
 
         # Create concurrent subscription tasks with real symbols
-        subscription_tasks = []
+        subscription_tasks: list[tuple[str, Any]] = []
         stream_types = ["ticker", "depth", "trades"]
 
         for i, symbol in enumerate(symbols["spot"][:3]):
@@ -392,7 +399,8 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             # Validate final state
             final_state = bp_api_for_test_env.is_connected
             assert isinstance(final_state, bool), (
-                f"Final state should be boolean after concurrent operations, got {type(final_state)}"
+                f"Final state should be boolean after concurrent operations, "
+                f"got {type(final_state)}"
             )
 
             logger.info(
@@ -442,7 +450,8 @@ class TestBackpackAPIConcurrentRealSubscriptions:
 
             connection_state = bp_api_for_test_env.is_connected
             assert isinstance(connection_state, bool), (
-                f"Connection state should be boolean after mixed subscriptions, got {type(connection_state)}"
+                f"Connection state should be boolean after mixed subscriptions, "
+                f"got {type(connection_state)}"
             )
 
             logger.info(
@@ -498,10 +507,15 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
                 if should_succeed:
                     successful_count += 1
-                    logger.info(f"✓ Expected successful real subscription: {topic}")
+                    logger.info(
+                        f"✓ Expected successful real subscription: {topic}"
+                    )
                 else:
-                    # If subscription succeeded despite being invalid, that might be exchange tolerance
-                    logger.info(f"✓ Exchange accepted invalid topic (tolerance): {topic}")
+                    # If subscription succeeded despite being invalid,
+                    # that might be exchange tolerance
+                    logger.info(
+                        f"✓ Exchange accepted invalid topic (tolerance): {topic}"
+                    )
 
                 # Always validate connection state
                 state = bp_api_for_test_env.is_connected
@@ -529,7 +543,8 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
             )
 
         logger.info(
-            f"✓ Real subscription error handling completed: {successful_count} successful, {error_count} errors"
+            f"✓ Real subscription error handling completed: "
+            f"{successful_count} successful, {error_count} errors"
         )
 
     @pytest.mark.vcr
@@ -566,11 +581,12 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
                 # Brief pause to allow processing
                 from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait
                     timeout=0.01,
                     poll_interval=0.01,
-                    message="Processing delay"
+                    message="Processing delay",
                 )
 
             logger.info(
