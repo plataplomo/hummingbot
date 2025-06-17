@@ -227,8 +227,8 @@ class HyperliquidTestHelpers:
         else:
             # Handle special cases like 'n', 'N', 'F' - fallback to string analysis
             tick_str = str(tick_size)
-            if '.' in tick_str:
-                tick_decimal_places = len(tick_str.split('.')[1])
+            if "." in tick_str:
+                tick_decimal_places = len(tick_str.split(".")[1])
             else:
                 tick_decimal_places = 0
         price_precision = Decimal(10) ** (-tick_decimal_places)
