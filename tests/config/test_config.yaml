@@ -37,7 +37,7 @@ exchanges:
       allMids: 2                     # All Mid Prices
       meta: 2                        # Meta info
       metaAndAssetCtxs: 2           # Meta and Asset Contexts  
-      clearinghouseState: 10         # Clearinghouse State
+      clearinghouseState: 2         # Clearinghouse State
       openOrders: 1                  # Open Orders
       userFills: 1                   # User Fills
       fundingHistory: 2              # Funding History
@@ -48,7 +48,7 @@ exchanges:
     default_info_weight: 20          # Default weight for unlisted /info types
     exchange_action_base_ip_weight: 1 # Base IP weight for /exchange actions
     address_action_safety_net:
-      rate_per_minute: 300           # Client-side safety net for address actions
+      rate_per_minute: 1200           # Client-side safety net for address actions HL docs rate limit = 1200
     websocket_send_rate_per_minute: 1800  # 30 msg/sec, under HL's 2000/min limit
     symbols:
       # Map internal symbol names to exchange-specific symbols
