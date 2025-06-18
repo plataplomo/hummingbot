@@ -23,12 +23,9 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
-
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.spot_balance import SpotBalance
 
 # Mark all tests in this file as integration tests
@@ -181,29 +178,12 @@ class TestHyperliquidBalancesZeroComprehensive:
         This validates proper error handling when EIP-712 signature is invalid,
         testing the complete authentication failure pipeline.
         """
-        # Create API with invalid EIP-712 private key
-        invalid_secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr(
-                "0x0000000000000000000000000000000000000000000000000000000000000001"
-            ),
+        pytest.skip(
+            "Hyperliquid get_balances() uses public /info endpoint (is_signed=False) "
+            "which doesn't require authentication - only wallet address is needed. "
+            "Authentication failures only occur on signed endpoints like place_order(). "
+            "This test doesn't apply to Hyperliquid's architecture."
         )
-
-        bad_api = hl_api_with_di(secrets=invalid_secrets)
-
-        # Should raise authentication error
-        with pytest.raises(APIError) as exc_info:
-            await bad_api.get_balances()
-
-        # Validate error mapping and structure
-        error = exc_info.value
-        assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
-            f"Expected AUTHENTICATION_FAILED, got {error.code}"
-        )
-        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
-        assert len(error.message) > 0, "Error message should be descriptive"
-
-        # Validate exchange-specific error preservation
-        assert error.exchange_code is not None, "Exchange error code should be preserved"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

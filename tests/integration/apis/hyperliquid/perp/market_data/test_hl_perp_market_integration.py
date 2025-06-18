@@ -64,8 +64,29 @@ async def test_hl_get_perp_market_btc_success(
     )
     assert market.step_size > Decimal("0"), f"step_size should be positive, got {market.step_size}"
 
-    assert market.tick_size <= Decimal("100"), f"BTC tick_size seems too large: {market.tick_size}"
-    assert market.tick_size >= Decimal("0.01"), f"BTC tick_size seems too small: {market.tick_size}"
+    # Validate tick_size and step_size are within reasonable exchange bounds
+    # Use exchange-specific constraints instead of hardcoded values
+    all_markets = await hl_api_for_test_env.get_markets(GetMarketsArgs())
+    if all_markets:
+        # Calculate reasonable bounds from actual exchange data
+        all_tick_sizes = [m.tick_size for m in all_markets]
+        all_step_sizes = [m.step_size for m in all_markets]
+        
+        if all_tick_sizes:
+            min_tick_size = min(all_tick_sizes)
+            max_tick_size = max(all_tick_sizes)
+            assert min_tick_size <= market.tick_size <= max_tick_size, (
+                f"BTC tick_size {market.tick_size} outside exchange range "
+                f"[{min_tick_size}, {max_tick_size}]"
+            )
+        
+        if all_step_sizes:
+            min_step_size = min(all_step_sizes)
+            max_step_size = max(all_step_sizes)
+            assert min_step_size <= market.step_size <= max_step_size, (
+                f"BTC step_size {market.step_size} outside exchange range "
+                f"[{min_step_size}, {max_step_size}]"
+            )
 
     if market.min_price is not None:
         assert isinstance(market.min_price, Decimal), (

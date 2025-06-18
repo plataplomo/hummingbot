@@ -107,13 +107,26 @@ class TestHyperliquidAccountSummaryPrivate:
             hl_api_for_test_env, test_symbol
         )
 
-        # Get safe test price using test helper with explicit tolerance
-        safe_limit_price = await HyperliquidTestHelpers.get_dynamic_test_price(
-            hl_api_for_test_env,
-            test_symbol,
-            OrderSide.BUY,
-            Decimal("50"),  # 50% below market
+        # Get market constraints for dynamic pricing
+        market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
         )
+
+        # Calculate safe test price using market constraints - below market to avoid fills
+        # Use tick size to ensure price is exchange-compliant
+        tick_size = market_constraints["tick_size"]
+        # Calculate discount based on market volatility or use conservative default
+        discount_ratio = market_constraints.get("safe_discount_ratio", Decimal("0.3"))
+        price_discount_ticks = max(
+            int(current_price * discount_ratio / tick_size), 1
+        )  # Safe discount below market, at least 1 tick
+        safe_limit_price = current_price - (tick_size * price_discount_ticks)
+
+        # Ensure price respects tick size
+        # Ensure price respects tick size using exchange-specific rounding
+        tick_precision = market_constraints.get("tick_precision", 0)
+        rounding_factor = Decimal("1") if tick_precision == 0 else Decimal("0.1") ** tick_precision
+        safe_limit_price = (safe_limit_price / tick_size).quantize(rounding_factor) * tick_size
 
         # Get minimal order size using test helper that meets exchange requirements
         order_qty = await HyperliquidTestHelpers.get_minimal_order_size(
@@ -128,7 +141,7 @@ class TestHyperliquidAccountSummaryPrivate:
         # Log for debugging
         logger.info(
             f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} "
-            f"(50% below market), Order qty: {order_qty}"
+            f"(30% below market), Order qty: {order_qty}"
         )
         logger.info(
             f"Market constraints - tick_size: {market_info.tick_size}, "
@@ -148,83 +161,75 @@ class TestHyperliquidAccountSummaryPrivate:
             time_in_force=TimeInForce.GTC,
         )
 
-        # Execute the order placement - handle expected business logic errors
-        placed_order = None
-        try:
-            placed_order = await hl_api_for_test_env.place_order(impact_order_args)
-            assert placed_order.exchange_order_id is not None, "Order should be placed successfully"
+        # Execute the order placement - all failures are critical for account testing
+        placed_order = await hl_api_for_test_env.place_order(impact_order_args)
+        assert placed_order.exchange_order_id is not None, (
+            "Order must be placed successfully for account impact testing"
+        )
 
-            # Get updated account summary to validate impact
-            updated_summary = await hl_api_for_test_env.get_account_summary()
+        # Get updated account summary to validate impact
+        updated_summary = await hl_api_for_test_env.get_account_summary()
 
-            # Account summary is guaranteed to exist (raises on error)
+        # Account summary is guaranteed to exist (raises on error)
 
-            # Validate MarginAccountSummary model consistency after order
-            assert isinstance(updated_summary, MarginAccountSummary), (
-                "Updated summary should be MarginAccountSummary instance"
+        # Validate MarginAccountSummary model consistency after order
+        assert isinstance(updated_summary, MarginAccountSummary), (
+            "Updated summary should be MarginAccountSummary instance"
+        )
+        assert updated_summary.exchange == "hyperliquid", (
+            f"Exchange should remain 'hyperliquid', got {updated_summary.exchange}"
+        )
+
+        # Validate Decimal precision for all financial fields
+        assert isinstance(updated_summary.total_equity, Decimal), (
+            f"total_equity must be Decimal, got {type(updated_summary.total_equity)}"
+        )
+        assert isinstance(updated_summary.available_equity, Decimal), (
+            f"available_equity must be Decimal, got {type(updated_summary.available_equity)}"
+        )
+        assert isinstance(updated_summary.total_initial_margin_required, Decimal), (
+            f"total_initial_margin_required must be Decimal, got "
+            f"{type(updated_summary.total_initial_margin_required)}"
+        )
+
+        # Validate logical account constraints
+        assert updated_summary.available_equity <= updated_summary.total_equity, (
+            f"Available equity ({updated_summary.available_equity}) should not exceed "
+            f"total equity ({updated_summary.total_equity})"
+        )
+
+        # Use exchange-specific minimum balance instead of hardcoded zero
+        min_balance = market_constraints.get("min_balance", Decimal("0"))
+        assert updated_summary.available_equity >= min_balance, (
+            f"Available equity should be at least minimum balance {min_balance}, "
+            f"got {updated_summary.available_equity}"
+        )
+
+        # For open orders, margin should potentially be affected
+        # Type narrowing: assertions above guarantee both are Decimal
+        assert isinstance(initial_margin_used, Decimal)
+        assert isinstance(updated_summary.total_initial_margin_required, Decimal)
+        if updated_summary.total_initial_margin_required > initial_margin_used:
+            # Margin increased due to order, validate the increase is reasonable
+            margin_increase = updated_summary.total_initial_margin_required - initial_margin_used
+            # Use exchange-specific minimum margin instead of hardcoded zero
+            min_margin_increase = market_constraints.get("min_margin", Decimal("0.000001"))
+            assert margin_increase >= min_margin_increase, (
+                f"Margin increase should be at least {min_margin_increase}, got {margin_increase}"
             )
-            assert updated_summary.exchange == "hyperliquid", (
-                f"Exchange should remain 'hyperliquid', got {updated_summary.exchange}"
-            )
 
-            # Validate Decimal precision for all financial fields
-            assert isinstance(updated_summary.total_equity, Decimal), (
-                f"total_equity must be Decimal, got {type(updated_summary.total_equity)}"
-            )
-            assert isinstance(updated_summary.available_equity, Decimal), (
-                f"available_equity must be Decimal, got {type(updated_summary.available_equity)}"
-            )
-            assert isinstance(updated_summary.total_initial_margin_required, Decimal), (
-                f"total_initial_margin_required must be Decimal, got "
-                f"{type(updated_summary.total_initial_margin_required)}"
-            )
+        # Clean up - cancel the order to restore account state (cancellation is critical)
+        from cyberdelta.apis.models.service_args_models import CancelOrderArgs
 
-            # Validate logical account constraints
-            assert updated_summary.available_equity <= updated_summary.total_equity, (
-                f"Available equity ({updated_summary.available_equity}) should not exceed "
-                f"total equity ({updated_summary.total_equity})"
-            )
-            assert updated_summary.available_equity >= Decimal("0"), (
-                f"Available equity should be non-negative, got {updated_summary.available_equity}"
-            )
-
-            # For open orders, margin should potentially be affected
-            # Type narrowing: assertions above guarantee both are Decimal
-            assert isinstance(initial_margin_used, Decimal)
-            assert isinstance(updated_summary.total_initial_margin_required, Decimal)
-            if updated_summary.total_initial_margin_required > initial_margin_used:
-                # Margin increased due to order, validate the increase is reasonable
-                margin_increase = (
-                    updated_summary.total_initial_margin_required - initial_margin_used
-                )
-                assert margin_increase > Decimal("0"), (
-                    f"Margin increase should be positive, got {margin_increase}"
-                )
-
-        except APIError as e:
-            # Distinguish expected business logic errors from system failures
-            if any(phrase in e.message.lower() for phrase in ["minimum", "value", "$10"]):
-                # Expected business logic error - order correctly rejected due to minimum value
-                logger.info(f"Order correctly rejected due to minimum value requirement: {e}")
-                pytest.skip(f"Order below exchange minimum value requirement: {e.message}")
-            else:
-                # Unexpected system error
-                pytest.fail(f"Unexpected API error in order placement: {e}")
-
-        # Clean up - cancel the order to restore account state (if order was placed)
-        if placed_order and placed_order.exchange_order_id:
-            from cyberdelta.apis.models.service_args_models import CancelOrderArgs
-
-            cancel_args = CancelOrderArgs(
-                order_id=placed_order.exchange_order_id,
-                symbol=test_symbol,
-            )
-            cancellation_result = await hl_api_for_test_env.cancel_order(cancel_args)
-            if not cancellation_result:
-                pytest.fail(
-                    f"Order cancellation is critical and must succeed. "
-                    f"Failed to cancel order {placed_order.exchange_order_id}."
-                )
+        cancel_args = CancelOrderArgs(
+            order_id=placed_order.exchange_order_id,
+            symbol=test_symbol,
+        )
+        cancellation_result = await hl_api_for_test_env.cancel_order(cancel_args)
+        assert cancellation_result, (
+            f"Order cancellation is critical and must succeed. "
+            f"Failed to cancel order {placed_order.exchange_order_id}."
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -244,7 +249,7 @@ class TestHyperliquidAccountSummaryPrivate:
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
 
-        # Get current market price and calculate minimum order size for $10 minimum
+        # Get current market price and calculate minimum order size for position test
         _ = await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, test_symbol)
 
         # Get minimal order size using test helper that meets exchange requirements
@@ -257,67 +262,53 @@ class TestHyperliquidAccountSummaryPrivate:
             symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=order_qty,  # Calculated size that meets $10 minimum
+            quantity=order_qty,  # Calculated size that meets exchange requirements
             time_in_force=TimeInForce.IOC,
         )
 
-        try:
-            position_order = await hl_api_for_test_env.place_order(position_order_args)
-            assert position_order.exchange_order_id is not None, "Position order should succeed"
+        # Position operations must succeed for proper account testing
+        position_order = await hl_api_for_test_env.place_order(position_order_args)
+        assert position_order.exchange_order_id is not None, (
+            "Position order must succeed for account summary testing"
+        )
 
-            # Get account summary after position operation
-            post_position_summary = await hl_api_for_test_env.get_account_summary()
+        # Get account summary after position operation
+        post_position_summary = await hl_api_for_test_env.get_account_summary()
 
-            # Account summary is guaranteed to exist (raises on error)
+        # Account summary is guaranteed to exist (raises on error)
 
-            # Validate account summary structure remains consistent
-            assert isinstance(post_position_summary, MarginAccountSummary), (
-                "Post-position summary should be MarginAccountSummary instance"
-            )
+        # Validate account summary structure remains consistent
+        assert isinstance(post_position_summary, MarginAccountSummary), (
+            "Post-position summary should be MarginAccountSummary instance"
+        )
 
-            # Validate financial field types
-            assert isinstance(post_position_summary.total_equity, Decimal), (
-                "total_equity must remain Decimal after position operations"
-            )
-            assert isinstance(post_position_summary.total_unrealized_pnl, Decimal), (
-                "total_unrealized_pnl must be Decimal after position operations"
-            )
+        # Validate financial field types
+        assert isinstance(post_position_summary.total_equity, Decimal), (
+            "total_equity must remain Decimal after position operations"
+        )
+        assert isinstance(post_position_summary.total_unrealized_pnl, Decimal), (
+            "total_unrealized_pnl must be Decimal after position operations"
+        )
 
-            # If a position was created, unrealized PnL might be non-zero
-            # (This is acceptable as it reflects real market conditions)
+        # If a position was created, unrealized PnL might be non-zero
+        # (This is acceptable as it reflects real market conditions)
 
-            # Validate account constraints are maintained
-            assert post_position_summary.available_equity <= post_position_summary.total_equity, (
-                "Available equity constraint should be maintained after position operations"
-            )
+        # Validate account constraints are maintained
+        assert post_position_summary.available_equity <= post_position_summary.total_equity, (
+            "Available equity constraint should be maintained after position operations"
+        )
 
-            # Attempt to close position for cleanup
-            close_position_args = PlaceOrderArgs(
-                symbol=test_symbol,
-                side=OrderSide.SELL,  # Opposite side to close
-                order_type=OrderType.MARKET,
-                quantity=order_qty,  # Same size to close
-                time_in_force=TimeInForce.IOC,
-            )
+        # Attempt to close position for cleanup - critical for test isolation
+        close_position_args = PlaceOrderArgs(
+            symbol=test_symbol,
+            side=OrderSide.SELL,  # Opposite side to close
+            order_type=OrderType.MARKET,
+            quantity=order_qty,  # Same size to close
+            time_in_force=TimeInForce.IOC,
+        )
 
-            try:
-                await hl_api_for_test_env.place_order(close_position_args)
-            except APIError as e:
-                # Position closure is critical for test isolation
-                pytest.fail(
-                    f"Failed to close position: {e}. "
-                    "Position closure is critical for test isolation and financial safety."
-                )
-
-        except APIError as e:
-            # Distinguish between expected business errors and system failures
-            if "insufficient" in e.message.lower() or "minimum" in e.message.lower():
-                # Expected business logic error - order correctly rejected
-                logger.info(f"Order correctly rejected due to business rules: {e}")
-            else:
-                # Unexpected system error
-                pytest.fail(f"Unexpected error in position order: {e}")
-            pytest.skip(f"Position order failed due to market conditions: {e.message}")
+        # Position closure is critical for test isolation and financial safety
+        await hl_api_for_test_env.place_order(close_position_args)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -342,13 +333,27 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Account summary is guaranteed to exist (raises on error)
 
+        # Get market constraints to calculate realistic stress test parameters
+        market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
+        )
+
         # Calculate an order size that would likely exceed available margin
-        # Use a multiplier approach based on available equity
-        if current_summary.available_equity > Decimal("0"):
-            # Order value much larger than available equity
-            stress_order_value = current_summary.available_equity * Decimal("100")
-            # Assuming $1 per unit for simplicity in stress test
-            stress_quantity = stress_order_value
+        # Use market-based calculation instead of arbitrary multiplier
+        max_position_value = market_constraints.get("max_position_value")
+        # Use exchange-specific minimum equity threshold
+        min_equity_threshold = market_constraints.get("min_equity_for_trading", Decimal("0"))
+        if max_position_value and current_summary.available_equity > min_equity_threshold:
+            # Order value much larger than available equity but within exchange limits
+            max_stress_multiplier = market_constraints.get("max_stress_multiplier", Decimal("50"))
+            stress_multiplier = min(
+                max_position_value / current_summary.available_equity, max_stress_multiplier
+            )
+            stress_order_value = current_summary.available_equity * stress_multiplier
+            current_price = await HyperliquidTestHelpers.get_current_market_price(
+                hl_api_for_test_env, test_symbol
+            )
+            stress_quantity = stress_order_value / current_price
         else:
             # Get unreasonably large quantity from exchange constraints instead of hardcoded value
             stress_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
@@ -455,53 +460,42 @@ class TestHyperliquidAccountSummaryPrivate:
             time_in_force=TimeInForce.GTC,
         )
 
-        try:
-            precision_order = await hl_api_for_test_env.place_order(precision_order_args)
+        # Precision order must succeed for proper testing
+        precision_order = await hl_api_for_test_env.place_order(precision_order_args)
 
-            # Get updated summary after precision order
-            precision_summary = await hl_api_for_test_env.get_account_summary()
+        # Get updated summary after precision order
+        precision_summary = await hl_api_for_test_env.get_account_summary()
 
-            # Account summary is guaranteed to exist (raises on error)
+        # Account summary is guaranteed to exist (raises on error)
 
-            # Validate precision is maintained in updated summary
-            precision_fields = [
-                ("total_equity", precision_summary.total_equity),
-                ("available_equity", precision_summary.available_equity),
-                (
-                    "total_initial_margin_required",
-                    precision_summary.total_initial_margin_required,
-                ),
-            ]
+        # Validate precision is maintained in updated summary
+        precision_fields = [
+            ("total_equity", precision_summary.total_equity),
+            ("available_equity", precision_summary.available_equity),
+            (
+                "total_initial_margin_required",
+                precision_summary.total_initial_margin_required,
+            ),
+        ]
 
-            for field_name, field_value in precision_fields:
-                assert isinstance(field_value, Decimal), (
-                    f"{field_name} must remain Decimal after precision operations"
-                )
+        for field_name, field_value in precision_fields:
+            assert isinstance(field_value, Decimal), (
+                f"{field_name} must remain Decimal after precision operations"
+            )
 
-            # Clean up precision order
-            from cyberdelta.apis.models.service_args_models import CancelOrderArgs
+        # Clean up precision order - critical for test isolation
+        from cyberdelta.apis.models.service_args_models import CancelOrderArgs
 
-            if precision_order.exchange_order_id is not None:
-                cancel_args = CancelOrderArgs(
-                    order_id=precision_order.exchange_order_id,
-                    symbol=test_symbol,
-                )
-                cancellation_result = await hl_api_for_test_env.cancel_order(cancel_args)
-                if not cancellation_result:
-                    pytest.fail(
-                        f"Order cancellation is critical and must succeed. "
-                        f"Failed to cancel order {precision_order.exchange_order_id}."
-                    )
-
-        except APIError as e:
-            # Distinguish expected business errors from system failures
-            if any(phrase in e.message.lower() for phrase in ["minimum", "size", "precision"]):
-                # Expected business logic error - order correctly rejected
-                logger.info(f"Order correctly rejected due to size constraints: {e}")
-                pytest.skip(f"Exchange has minimum order size requirements: {e.message}")
-            else:
-                # Unexpected system error
-                pytest.fail(f"Unexpected error in order placement: {e}")
+        if precision_order.exchange_order_id is not None:
+            cancel_args = CancelOrderArgs(
+                order_id=precision_order.exchange_order_id,
+                symbol=test_symbol,
+            )
+            cancellation_result = await hl_api_for_test_env.cancel_order(cancel_args)
+            assert cancellation_result, (
+                f"Order cancellation is critical and must succeed. "
+                f"Failed to cancel order {precision_order.exchange_order_id}."
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -520,16 +514,22 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Account summary is guaranteed to exist (raises on error)
 
-        # Validate baseline consistency
+        # Get market constraints for validation
+        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
+
+        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
+        market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
+        )
+
+        # Validate baseline consistency using exchange-specific constraints
+        min_balance = market_constraints.get("min_balance", Decimal("0"))
         assert baseline.available_equity <= baseline.total_equity, (
             "Baseline: Available equity should not exceed total equity"
         )
-
-        # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
-
-        # Use a major crypto symbol that should always have data
-        test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
+        assert baseline.available_equity >= min_balance, (
+            f"Baseline: Available equity should be at least {min_balance}"
+        )
 
         # Get current market price and calculate minimum order size for consistency test
         consistency_price = await HyperliquidTestHelpers.get_current_market_price(
@@ -557,40 +557,33 @@ class TestHyperliquidAccountSummaryPrivate:
         placed_orders: list[Order] = []
 
         for i, operation in enumerate(operations):
-            try:
-                # Execute operation
-                order = await hl_api_for_test_env.place_order(operation)
-                placed_orders.append(order)
+            # Execute operation - all operations must succeed for consistency testing
+            order = await hl_api_for_test_env.place_order(operation)
+            placed_orders.append(order)
 
-                # Get account summary after operation
-                post_op_summary = await hl_api_for_test_env.get_account_summary()
+            # Get account summary after operation
+            post_op_summary = await hl_api_for_test_env.get_account_summary()
 
-                # Account summary is guaranteed to exist (raises on error)
+            # Account summary is guaranteed to exist (raises on error)
 
-                # Validate consistency constraints
-                assert post_op_summary.available_equity <= post_op_summary.total_equity, (
-                    f"Operation {i + 1}: Available equity should not exceed total equity"
-                )
-                assert post_op_summary.available_equity >= Decimal("0"), (
-                    f"Operation {i + 1}: Available equity should be non-negative"
-                )
-                assert isinstance(post_op_summary.total_equity, Decimal), (
-                    f"Operation {i + 1}: total_equity must remain Decimal"
-                )
+            # Validate consistency constraints using exchange-specific minimums
+            assert post_op_summary.available_equity <= post_op_summary.total_equity, (
+                f"Operation {i + 1}: Available equity should not exceed total equity"
+            )
+            assert post_op_summary.available_equity >= min_balance, (
+                f"Operation {i + 1}: Available equity should be at least minimum balance "
+                f"{min_balance}"
+            )
+            assert isinstance(post_op_summary.total_equity, Decimal), (
+                f"Operation {i + 1}: total_equity must remain Decimal"
+            )
 
-                # Validate account summary structure integrity
-                assert post_op_summary.exchange == "hyperliquid", (
-                    f"Operation {i + 1}: Exchange should remain consistent"
-                )
+            # Validate account summary structure integrity
+            assert post_op_summary.exchange == "hyperliquid", (
+                f"Operation {i + 1}: Exchange should remain consistent"
+            )
 
-            except APIError as e:
-                # Operations failing isn't acceptable - investigate and fail
-                pytest.fail(
-                    f"Operation {i + 1} failed: {e.message}. "
-                    "Trading operations must work reliably for stress testing."
-                )
-
-        # Clean up all placed orders
+        # Clean up all placed orders - critical for test isolation
         for order in placed_orders:
             if order.exchange_order_id:
                 from cyberdelta.apis.models.service_args_models import CancelOrderArgs
@@ -600,8 +593,7 @@ class TestHyperliquidAccountSummaryPrivate:
                     symbol=test_symbol,
                 )
                 cancellation_result = await hl_api_for_test_env.cancel_order(cancel_args)
-                if not cancellation_result:
-                    pytest.fail(
-                        f"Order cancellation is critical and must succeed. "
-                        f"Failed to cancel order {order.exchange_order_id}."
-                    )
+                assert cancellation_result, (
+                    f"Order cancellation is critical and must succeed. "
+                    f"Failed to cancel order {order.exchange_order_id}."
+                )

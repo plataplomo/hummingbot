@@ -117,6 +117,33 @@ def mock_hl_user_fill_mapper() -> MagicMock:
     return mock_mapper
 
 
+@pytest.fixture
+def mock_hl_account_service() -> MagicMock:
+    """Provide mock HyperliquidAccountService."""
+    from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+
+    mock_service = MagicMock(spec=HyperliquidAccountService)
+    return mock_service
+
+
+@pytest.fixture
+def mock_hl_trading_service() -> MagicMock:
+    """Provide mock HyperliquidTradingService."""
+    from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+
+    mock_service = MagicMock(spec=HyperliquidTradingService)
+    return mock_service
+
+
+@pytest.fixture
+def mock_hl_market_data_service() -> MagicMock:
+    """Provide mock HyperliquidMarketDataService."""
+    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
+
+    mock_service = MagicMock(spec=HyperliquidMarketDataService)
+    return mock_service
+
+
 # REMOVED MOCK FIXTURES - SECURITY VIOLATION
 # Mocking of financial operations (place_order, get_balances, get_ticker, etc.)
 # is FORBIDDEN in integration tests as it bypasses real exchange validation.

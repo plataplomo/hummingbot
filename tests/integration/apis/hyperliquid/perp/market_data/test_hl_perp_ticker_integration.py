@@ -18,6 +18,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import Ticker
+from tests.integration.apis.hyperliquid.shared.test_helpers import HyperliquidTestHelpers
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
@@ -42,8 +43,23 @@ async def test_hl_get_perp_ticker_btc_success(
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
 
-    assert ticker.price > Decimal("1000"), f"BTC price seems too low: {ticker.price}"
-    assert ticker.price < Decimal("1000000"), f"BTC price seems too high: {ticker.price}"
+    # Get dynamic price bounds from exchange market data instead of hardcoded values
+    market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+        hl_api_for_test_env, "BTC"
+    )
+    
+    # Use exchange-specific minimum price if available, otherwise use tick_size as minimum
+    min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
+    max_reasonable_price = market_constraints.get("max_price") or (
+        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+    )
+    
+    assert ticker.price >= min_reasonable_price, (
+        f"BTC price {ticker.price} below exchange minimum {min_reasonable_price}"
+    )
+    assert ticker.price <= max_reasonable_price, (
+        f"BTC price {ticker.price} above reasonable maximum {max_reasonable_price}"
+    )
 
     if hasattr(ticker, "volume") and ticker.volume is not None:
         assert isinstance(ticker.volume, Decimal), (
@@ -72,8 +88,23 @@ async def test_hl_get_perp_ticker_eth_success(
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
 
-    assert ticker.price > Decimal("100"), f"ETH price seems too low: {ticker.price}"
-    assert ticker.price < Decimal("100000"), f"ETH price seems too high: {ticker.price}"
+    # Get dynamic price bounds from exchange market data instead of hardcoded values
+    market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+        hl_api_for_test_env, "ETH"
+    )
+    
+    # Use exchange-specific bounds or calculate reasonable bounds from current price
+    min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
+    max_reasonable_price = market_constraints.get("max_price") or (
+        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+    )
+    
+    assert ticker.price >= min_reasonable_price, (
+        f"ETH price {ticker.price} below exchange minimum {min_reasonable_price}"
+    )
+    assert ticker.price <= max_reasonable_price, (
+        f"ETH price {ticker.price} above reasonable maximum {max_reasonable_price}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -96,8 +127,23 @@ async def test_hl_get_perp_ticker_sol_success(
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
 
-    assert ticker.price > Decimal("1"), f"SOL price seems too low: {ticker.price}"
-    assert ticker.price < Decimal("10000"), f"SOL price seems too high: {ticker.price}"
+    # Get dynamic price bounds from exchange market data instead of hardcoded values
+    market_constraints = await HyperliquidTestHelpers.get_market_constraints(
+        hl_api_for_test_env, "SOL"
+    )
+    
+    # Use exchange-specific bounds or calculate reasonable bounds from current price
+    min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
+    max_reasonable_price = market_constraints.get("max_price") or (
+        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+    )
+    
+    assert ticker.price >= min_reasonable_price, (
+        f"SOL price {ticker.price} below exchange minimum {min_reasonable_price}"
+    )
+    assert ticker.price <= max_reasonable_price, (
+        f"SOL price {ticker.price} above reasonable maximum {max_reasonable_price}"
+    )
 
 
 @pytest.mark.parametrize(

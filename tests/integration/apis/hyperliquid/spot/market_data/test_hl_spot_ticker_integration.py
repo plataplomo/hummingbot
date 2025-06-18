@@ -178,18 +178,19 @@ async def test_hl_get_spot_ticker_empty_symbol_handling(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:
-    """Test HyperliquidAPI.get_ticker() with empty symbol."""
-    try:
-        ticker = await hl_api_for_test_env.get_ticker("")
-
-        assert ticker is None, f"Expected None for empty symbol, got {ticker}"
-
-    except (APIError, ValueError) as e:
-        # Validation or API failures are system errors - don't hide them
-        pytest.fail(
-            f"Failed ticker validation: {e}. "
-            "Ticker data validation is critical for trading decisions."
-        )
+    """Test HyperliquidAPI.get_ticker() with empty symbol - should raise validation error."""
+    # Empty symbol should raise validation error, not return None
+    # This is proper input validation behavior
+    with pytest.raises(ValueError) as exc_info:
+        await hl_api_for_test_env.get_ticker("")
+    
+    error_message = str(exc_info.value)
+    assert "symbol" in error_message.lower(), (
+        f"Error message should mention symbol: {error_message}"
+    )
+    assert "non-empty" in error_message.lower(), (
+        f"Error message should mention non-empty requirement: {error_message}"
+    )
 
 
 @pytest.mark.parametrize(

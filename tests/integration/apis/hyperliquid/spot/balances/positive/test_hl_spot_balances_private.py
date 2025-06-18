@@ -23,6 +23,8 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     TransferArgs,
     WithdrawArgs,
@@ -46,7 +48,7 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test L2 USD transfer operation - currently expects NotImplementedError."""
+        """Test L2 USD transfer operation - currently expects APIError with not-implemented status."""
         transfer_args = TransferArgs(
             asset="USDC",
             amount=Decimal("1.0"),
@@ -54,11 +56,24 @@ class TestHyperliquidSpotBalancesPrivate:
             to_account_type="perp",
         )
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             await hl_api_for_test_env.transfer(transfer_args)
 
-        assert "transfer not yet implemented" in str(exc_info.value), (
-            "Should indicate transfer is not yet implemented"
+        api_error = exc_info.value
+        assert api_error.code == APIErrorCode.UNKNOWN.value, (
+            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        )
+        assert "service failure" in api_error.message.lower(), (
+            f"Should indicate service failure: {api_error.message}"
+        )
+        assert api_error.original_exception is not None, (
+            "Should have original exception details"
+        )
+        assert isinstance(api_error.original_exception, NotImplementedError), (
+            "Original exception should be NotImplementedError"
+        )
+        assert "transfer not yet implemented" in str(api_error.original_exception), (
+            "Original exception should indicate transfer is not yet implemented"
         )
 
     @pytest.mark.vcr
@@ -68,18 +83,31 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test token withdrawal operation - currently expects NotImplementedError."""
+        """Test token withdrawal operation - currently expects APIError with not-implemented status."""
         withdraw_args = WithdrawArgs(
             asset="USDC",
             amount=Decimal("1.0"),
             address="0x742d35Cc6634C0532925a3b8D8F3b6B4E7c5bD92",
         )
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             await hl_api_for_test_env.withdraw(withdraw_args)
 
-        assert "withdraw not yet implemented" in str(exc_info.value), (
-            "Should indicate withdraw is not yet implemented"
+        api_error = exc_info.value
+        assert api_error.code == APIErrorCode.UNKNOWN.value, (
+            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        )
+        assert "service failure" in api_error.message.lower(), (
+            f"Should indicate service failure: {api_error.message}"
+        )
+        assert api_error.original_exception is not None, (
+            "Should have original exception details"
+        )
+        assert isinstance(api_error.original_exception, NotImplementedError), (
+            "Original exception should be NotImplementedError"
+        )
+        assert "withdraw not yet implemented" in str(api_error.original_exception), (
+            "Original exception should indicate withdraw is not yet implemented"
         )
 
     @pytest.mark.vcr
@@ -89,18 +117,31 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test ETH withdrawal operation - currently expects NotImplementedError."""
+        """Test ETH withdrawal operation - currently expects APIError with not-implemented status."""
         eth_withdraw_args = WithdrawArgs(
             asset="ETH",
             amount=Decimal("0.001"),
             address="0x742d35Cc6634C0532925a3b8D8F3b6B4E7c5bD92",
         )
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             await hl_api_for_test_env.withdraw(eth_withdraw_args)
 
-        assert "withdraw not yet implemented" in str(exc_info.value), (
-            "Should indicate withdraw is not yet implemented"
+        api_error = exc_info.value
+        assert api_error.code == APIErrorCode.UNKNOWN.value, (
+            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        )
+        assert "service failure" in api_error.message.lower(), (
+            f"Should indicate service failure: {api_error.message}"
+        )
+        assert api_error.original_exception is not None, (
+            "Should have original exception details"
+        )
+        assert isinstance(api_error.original_exception, NotImplementedError), (
+            "Original exception should be NotImplementedError"
+        )
+        assert "withdraw not yet implemented" in str(api_error.original_exception), (
+            "Original exception should indicate withdraw is not yet implemented"
         )
 
     @pytest.mark.vcr
@@ -171,8 +212,8 @@ class TestHyperliquidSpotBalancesPrivate:
             address="0x742d35Cc6634C0532925a3b8D8F3b6B4E7c5bD92",
         )
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(APIError):
             await hl_api_for_test_env.transfer(valid_transfer_args)
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(APIError):
             await hl_api_for_test_env.withdraw(valid_withdraw_args)

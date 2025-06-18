@@ -60,7 +60,7 @@ class HyperliquidTestHelpers:
 
             # Fallback to trying common symbols if meta doesn't work
             common_symbols = ["BTC", "ETH", "SOL"]
-            available_symbols = []
+            available_symbols: list[str] = []
 
             for symbol in common_symbols:
                 try:
@@ -172,6 +172,92 @@ class HyperliquidTestHelpers:
 
     # REMOVED _get_fallback_price - SECURITY VIOLATION
     # Hardcoded fallback prices are forbidden in trading tests
+
+    # Funding Rate Utilities
+
+    @staticmethod
+    async def get_funding_rate_bounds(api: HyperliquidAPI, symbol: str) -> dict[str, Decimal]:
+        """Get exchange-specific funding rate bounds for a symbol.
+
+        Args:
+            api: HyperliquidAPI instance
+            symbol: Trading symbol (e.g., "BTC", "ETH")
+
+        Returns:
+            Dict with min_rate, max_rate, typical_range
+
+        Raises:
+            RuntimeError: If unable to get funding rate bounds from exchange
+        """
+        try:
+            # Get market information to understand funding rate constraints
+            market = await api.get_market(GetMarketArgs(symbol=symbol))
+            if not market:
+                raise RuntimeError(
+                    f"Failed to get market data for {symbol}. "
+                    "Funding rate tests require real market data and cannot use hardcoded bounds."
+                )
+
+            # Hyperliquid typically uses ±0.75% daily max (±0.0075 per 8hr period)
+            # But we should get this from actual market data if available
+
+            # Try to get historical funding rates to determine actual bounds
+            from datetime import UTC, datetime, timedelta
+
+            from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
+
+            # Get last 7 days of funding data to establish bounds
+            end_time = datetime.now(UTC)
+            start_time = end_time - timedelta(days=7)
+
+            try:
+                args = GetHistoricalFundingRatesArgs(
+                    symbol=symbol,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
+
+                historical_rates = await api.get_historical_funding_rates(args)
+
+                if historical_rates and len(historical_rates) > 0:
+                    # Calculate actual observed bounds from recent data
+                    rates: list[Decimal] = []
+                    for rate_entry in historical_rates:
+                        # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
+                        if (
+                            rate_entry.funding_rate is not None
+                            and rate_entry.funding_rate.is_finite()
+                        ):
+                            rates.append(rate_entry.funding_rate)
+
+                    if rates:
+                        min_observed: Decimal = min(rates)
+                        max_observed: Decimal = max(rates)
+
+                        # Add 50% buffer to observed range for safety
+                        range_buffer: Decimal = (max_observed - min_observed) * Decimal("0.5")
+
+                        return {
+                            "min_rate": min_observed - range_buffer,
+                            "max_rate": max_observed + range_buffer,
+                            "typical_range": max_observed - min_observed,
+                        }
+
+            except Exception as e:
+                logger.debug(f"Could not get historical funding rates for bounds: {e}")
+
+            # If no historical data available, fail rather than use hardcoded values
+            raise RuntimeError(
+                f"Failed to determine funding rate bounds for {symbol} from exchange data. "
+                "Cannot get historical funding rates to establish realistic bounds. "
+                "Funding rate tests require real exchange data and cannot use hardcoded bounds."
+            )
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to get funding rate bounds for {symbol}: {e}. "
+                "Funding rate tests require real exchange constraints."
+            ) from e
 
     # Dynamic Pricing Utilities
 
