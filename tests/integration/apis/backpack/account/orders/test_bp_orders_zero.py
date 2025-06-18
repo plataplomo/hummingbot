@@ -27,7 +27,7 @@ from tests.integration.apis.backpack.shared.test_helpers import (
     TEST_SYMBOL_ETH_USDC,
     generate_invalid_order_id,
     get_dynamic_test_price,
-    get_minimal_order_size,
+    get_minimal_order_size_for_zero_balance_test,
     get_unreasonably_large_price,
     get_unreasonably_large_quantity,
 )
@@ -166,7 +166,7 @@ class TestBackpackOrdersZero:
         side = OrderSide.BUY
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
-        test_quantity = await get_minimal_order_size(
+        test_quantity = await get_minimal_order_size_for_zero_balance_test(
             bp_api_for_zero_balance_test, symbol, side, test_price
         )
 
@@ -299,7 +299,7 @@ class TestBackpackOrdersZero:
         side = OrderSide.BUY
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
-        test_quantity = await get_minimal_order_size(
+        test_quantity = await get_minimal_order_size_for_zero_balance_test(
             bp_api_for_zero_balance_test, symbol, side, test_price
         )
 

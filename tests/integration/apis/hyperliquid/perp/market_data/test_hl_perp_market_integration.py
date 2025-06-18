@@ -71,7 +71,7 @@ async def test_hl_get_perp_market_btc_success(
         # Calculate reasonable bounds from actual exchange data
         all_tick_sizes = [m.tick_size for m in all_markets]
         all_step_sizes = [m.step_size for m in all_markets]
-        
+
         if all_tick_sizes:
             min_tick_size = min(all_tick_sizes)
             max_tick_size = max(all_tick_sizes)
@@ -79,7 +79,7 @@ async def test_hl_get_perp_market_btc_success(
                 f"BTC tick_size {market.tick_size} outside exchange range "
                 f"[{min_tick_size}, {max_tick_size}]"
             )
-        
+
         if all_step_sizes:
             min_step_size = min(all_step_sizes)
             max_step_size = max(all_step_sizes)

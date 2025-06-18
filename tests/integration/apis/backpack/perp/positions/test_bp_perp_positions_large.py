@@ -19,6 +19,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.test_helpers import (
+    get_available_symbols,
     get_current_market_price,
     get_market_constraints,
     wait_for_condition,
@@ -77,7 +78,13 @@ class TestBackpackPerpLargePositions:
 
                         async def position_closed(symbol: str = position_symbol) -> bool:
                             current_positions = await api.get_positions()
-                            return not any(p.symbol == symbol for p in current_positions)
+                            # Position is closed when it has zero size, not when it's removed from the list
+                            symbol_position = next(
+                                (p for p in current_positions if p.symbol == symbol), None
+                            )
+                            return symbol_position is None or abs(symbol_position.size) <= Decimal(
+                                "0.001"
+                            )
 
                         await wait_for_condition(
                             position_closed,
@@ -140,10 +147,11 @@ class TestBackpackPerpLargePositions:
         # Close all positions first
         await self._close_all_positions(api)
 
-        # Wait for all positions to be confirmed closed
+        # Wait for all positions to be confirmed closed (zero size)
         async def all_positions_closed() -> bool:
             positions = await api.get_positions()
-            return len(positions) == 0
+            # Positions are closed when they have zero size, not when they're removed from the list
+            return all(abs(position.size) <= Decimal("0.001") for position in positions)
 
         await wait_for_condition(
             all_positions_closed,
@@ -192,7 +200,16 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test creating position at absolute maximum of available margin."""
-        symbol = "SOL_USDC_PERP"
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        symbol = available_symbols[0]  # Use first available perp symbol
 
         try:
             # Find maximum using exchange limits
@@ -244,7 +261,16 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that adding one step beyond maximum fails."""
-        symbol = "SOL_USDC_PERP"
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        symbol = available_symbols[0]  # Use first available perp symbol
 
         try:
             # Find and create maximum position
@@ -292,7 +318,16 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test position at max minus two steps - edge case that should succeed."""
-        symbol = "SOL_USDC_PERP"
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        symbol = available_symbols[0]  # Use first available perp symbol
 
         try:
             # Find maximum
@@ -338,7 +373,16 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that position at max plus two steps fails - negative edge case."""
-        symbol = "SOL_USDC_PERP"
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        symbol = available_symbols[0]  # Use first available perp symbol
 
         try:
             # Find maximum
@@ -379,7 +423,17 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test exhausting all margin across multiple symbols."""
-        symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        # Use first 3 available symbols (or all if less than 3)
+        symbols = available_symbols[:3]
 
         try:
             # Start clean
@@ -450,7 +504,16 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that reducing positions works even at max margin."""
-        symbol = "SOL_USDC_PERP"
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        symbol = available_symbols[0]  # Use first available perp symbol
 
         try:
             # Create maximum position
@@ -491,7 +554,17 @@ class TestBackpackPerpLargePositions:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that different symbols have different max positions due to IMF."""
-        symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP"]
+        # Get available perp symbols from exchange (fail-fast approach)
+        available_symbols = await get_available_symbols(
+            bp_api_for_large_balance_test, market_type="perp"
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        # Use first 2 available symbols (or all if less than 2)
+        symbols = available_symbols[:2]
         max_sizes: dict[str, dict[str, Decimal]] = {}
 
         try:

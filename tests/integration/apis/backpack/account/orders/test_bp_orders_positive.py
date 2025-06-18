@@ -65,7 +65,8 @@ class TestBackpackOrdersPositive:
             for order in orders:
                 assert isinstance(order, Order)
                 assert order.exchange == "backpack"
-                assert order.status == OrderStatus.OPEN
+                # Open orders can have various statuses including TRIGGER_PENDING for stop orders
+                assert order.status in [OrderStatus.OPEN, OrderStatus.TRIGGER_PENDING]
 
                 # Required fields
                 assert isinstance(order.exchange_order_id, str)

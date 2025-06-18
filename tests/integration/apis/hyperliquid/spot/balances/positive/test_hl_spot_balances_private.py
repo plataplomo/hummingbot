@@ -66,9 +66,7 @@ class TestHyperliquidSpotBalancesPrivate:
         assert "service failure" in api_error.message.lower(), (
             f"Should indicate service failure: {api_error.message}"
         )
-        assert api_error.original_exception is not None, (
-            "Should have original exception details"
-        )
+        assert api_error.original_exception is not None, "Should have original exception details"
         assert isinstance(api_error.original_exception, NotImplementedError), (
             "Original exception should be NotImplementedError"
         )
@@ -100,9 +98,7 @@ class TestHyperliquidSpotBalancesPrivate:
         assert "service failure" in api_error.message.lower(), (
             f"Should indicate service failure: {api_error.message}"
         )
-        assert api_error.original_exception is not None, (
-            "Should have original exception details"
-        )
+        assert api_error.original_exception is not None, "Should have original exception details"
         assert isinstance(api_error.original_exception, NotImplementedError), (
             "Original exception should be NotImplementedError"
         )
@@ -134,9 +130,7 @@ class TestHyperliquidSpotBalancesPrivate:
         assert "service failure" in api_error.message.lower(), (
             f"Should indicate service failure: {api_error.message}"
         )
-        assert api_error.original_exception is not None, (
-            "Should have original exception details"
-        )
+        assert api_error.original_exception is not None, "Should have original exception details"
         assert isinstance(api_error.original_exception, NotImplementedError), (
             "Original exception should be NotImplementedError"
         )

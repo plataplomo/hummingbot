@@ -38,7 +38,7 @@ from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.backpack.shared.test_helpers import (
     get_dynamic_test_price,
     get_market_constraints,
-    get_minimal_order_size,
+    get_minimal_order_size_for_zero_balance_test,
 )
 
 # Mark all tests in this file
@@ -76,7 +76,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         # Get minimal quantity for this market
-        minimal_quantity = await get_minimal_order_size(
+        minimal_quantity = await get_minimal_order_size_for_zero_balance_test(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=OrderSide.BUY,
@@ -155,7 +155,7 @@ class TestBackpackPerpOrdersZeroBalance:
         current_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test, symbol, OrderSide.BUY
         )
-        minimal_quantity = await get_minimal_order_size(
+        minimal_quantity = await get_minimal_order_size_for_zero_balance_test(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=OrderSide.BUY,
@@ -355,7 +355,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         # Get minimal quantity for short position
-        minimal_quantity = await get_minimal_order_size(
+        minimal_quantity = await get_minimal_order_size_for_zero_balance_test(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=OrderSide.SELL,
@@ -396,7 +396,7 @@ class TestBackpackPerpOrdersZeroBalance:
         )
 
         # Get minimal quantity for TIF tests
-        minimal_quantity = await get_minimal_order_size(
+        minimal_quantity = await get_minimal_order_size_for_zero_balance_test(
             api=bp_api_for_zero_balance_test,
             symbol=symbol,
             side=OrderSide.BUY,

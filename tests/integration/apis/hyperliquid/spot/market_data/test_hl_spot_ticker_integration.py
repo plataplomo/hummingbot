@@ -183,7 +183,7 @@ async def test_hl_get_spot_ticker_empty_symbol_handling(
     # This is proper input validation behavior
     with pytest.raises(ValueError) as exc_info:
         await hl_api_for_test_env.get_ticker("")
-    
+
     error_message = str(exc_info.value)
     assert "symbol" in error_message.lower(), (
         f"Error message should mention symbol: {error_message}"

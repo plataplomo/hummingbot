@@ -47,13 +47,13 @@ async def test_hl_get_perp_ticker_btc_success(
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env, "BTC"
     )
-    
+
     # Use exchange-specific minimum price if available, otherwise use tick_size as minimum
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
         ticker.price * Decimal("100")  # Allow 100x current price as upper bound
     )
-    
+
     assert ticker.price >= min_reasonable_price, (
         f"BTC price {ticker.price} below exchange minimum {min_reasonable_price}"
     )
@@ -92,13 +92,13 @@ async def test_hl_get_perp_ticker_eth_success(
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env, "ETH"
     )
-    
+
     # Use exchange-specific bounds or calculate reasonable bounds from current price
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
         ticker.price * Decimal("100")  # Allow 100x current price as upper bound
     )
-    
+
     assert ticker.price >= min_reasonable_price, (
         f"ETH price {ticker.price} below exchange minimum {min_reasonable_price}"
     )
@@ -131,13 +131,13 @@ async def test_hl_get_perp_ticker_sol_success(
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env, "SOL"
     )
-    
+
     # Use exchange-specific bounds or calculate reasonable bounds from current price
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
         ticker.price * Decimal("100")  # Allow 100x current price as upper bound
     )
-    
+
     assert ticker.price >= min_reasonable_price, (
         f"SOL price {ticker.price} below exchange minimum {min_reasonable_price}"
     )

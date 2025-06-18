@@ -96,7 +96,7 @@ async def test_hl_get_perp_market_data_eth_1h_success(
         for candle in candles:
             assert isinstance(candle, Candle), "Should be Candle model"
             assert candle.symbol == "ETH", f"Wrong symbol: {candle.symbol}"
-            
+
             # Validate ETH price using current market data instead of hardcoded value
             # Get current market price to validate historical candle is reasonable
             try:
@@ -106,7 +106,7 @@ async def test_hl_get_perp_market_data_eth_1h_success(
                 # Allow historical prices to be within 50% of current price (reasonable range)
                 min_reasonable = current_price * Decimal("0.5")
                 max_reasonable = current_price * Decimal("2.0")
-                
+
                 assert min_reasonable <= candle.close <= max_reasonable, (
                     f"ETH historical price {candle.close} outside reasonable range "
                     f"[{min_reasonable}, {max_reasonable}] vs current {current_price}"

@@ -138,7 +138,9 @@ def mock_hl_trading_service() -> MagicMock:
 @pytest.fixture
 def mock_hl_market_data_service() -> MagicMock:
     """Provide mock HyperliquidMarketDataService."""
-    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
+    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
+        HyperliquidMarketDataService,
+    )
 
     mock_service = MagicMock(spec=HyperliquidMarketDataService)
     return mock_service

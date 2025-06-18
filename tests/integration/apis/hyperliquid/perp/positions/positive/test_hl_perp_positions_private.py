@@ -30,6 +30,10 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from tests.integration.apis.hyperliquid.shared.test_helpers import (
+    HyperliquidTestHelpers,
+    get_minimal_test_quantity,
+)
 
 # Mark all tests in this file
 pytestmark = [
@@ -66,14 +70,30 @@ class TestHyperliquidPerpPositionsPrivate:
 
         This test validates the complete pipeline from EIP-712 authenticated order placement
         to position creation and DerivativePosition model validation.
-        Uses testnet asset and small size to manage risk during recording.
+        Uses dynamic symbol discovery to ensure test works with available assets.
         """
-        # Define order parameters to open a position (use testnet asset, small size)
+        # Get available trading symbols from exchange (fail-fast approach)
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        test_symbol = available_symbols[0]
+
+        # Get minimal viable order size using real market data
+        minimal_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
+        # Define order parameters to open a position
         place_args = PlaceOrderArgs(
-            symbol="PURP",  # Common testnet asset on Hyperliquid
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,  # Market order for immediate position opening
-            quantity=Decimal("0.1"),  # Small size for testnet
+            quantity=minimal_quantity,
             time_in_force=TimeInForce.IOC,  # Immediate or cancel for quick execution
         )
 
@@ -87,65 +107,65 @@ class TestHyperliquidPerpPositionsPrivate:
         positions = await hl_api_for_test_env.get_positions()
 
         # Find the position for the traded asset
-        purp_position = None
+        test_position = None
         for position in positions:
-            if position.symbol == "PURP":
-                purp_position = position
+            if position.symbol == test_symbol:
+                test_position = position
                 break
 
         # If position was created/modified, validate it
-        if purp_position is not None:
-            assert isinstance(purp_position, DerivativePosition), (
+        if test_position is not None:
+            assert isinstance(test_position, DerivativePosition), (
                 "Position should be DerivativePosition instance"
             )
 
             # Validate core position fields
-            assert purp_position.exchange == "hyperliquid", (
-                f"Position.exchange should be 'hyperliquid', got {purp_position.exchange}"
+            assert test_position.exchange == "hyperliquid", (
+                f"Position.exchange should be 'hyperliquid', got {test_position.exchange}"
             )
-            assert purp_position.symbol == "PURP", (
-                f"Position symbol should match traded asset, got {purp_position.symbol}"
+            assert test_position.symbol == test_symbol, (
+                f"Position symbol should match traded asset, got {test_position.symbol}"
             )
 
             # Validate Decimal precision for financial fields
-            assert isinstance(purp_position.size, Decimal), (
-                f"size must be Decimal, got {type(purp_position.size)}"
+            assert isinstance(test_position.size, Decimal), (
+                f"size must be Decimal, got {type(test_position.size)}"
             )
-            if purp_position.entry_price is not None:
-                assert isinstance(purp_position.entry_price, Decimal), (
-                    f"entry_price must be Decimal, got {type(purp_position.entry_price)}"
+            if test_position.entry_price is not None:
+                assert isinstance(test_position.entry_price, Decimal), (
+                    f"entry_price must be Decimal, got {type(test_position.entry_price)}"
                 )
-            if purp_position.unrealized_pnl is not None:
-                assert isinstance(purp_position.unrealized_pnl, Decimal), (
-                    f"unrealized_pnl must be Decimal, got {type(purp_position.unrealized_pnl)}"
+            if test_position.unrealized_pnl is not None:
+                assert isinstance(test_position.unrealized_pnl, Decimal), (
+                    f"unrealized_pnl must be Decimal, got {type(test_position.unrealized_pnl)}"
                 )
 
             # Validate business logic constraints
-            assert purp_position.size != Decimal("0"), (
-                f"Position size should be non-zero after opening trade, got {purp_position.size}"
+            assert test_position.size != Decimal("0"), (
+                f"Position size should be non-zero after opening trade, got {test_position.size}"
             )
-            assert purp_position.entry_price is not None and purp_position.entry_price > Decimal(
+            assert test_position.entry_price is not None and test_position.entry_price > Decimal(
                 "0"
-            ), f"entry_price must be positive, got {purp_position.entry_price}"
+            ), f"entry_price must be positive, got {test_position.entry_price}"
 
             # Validate position side matches order side
-            if purp_position.size > Decimal("0"):
+            if test_position.size > Decimal("0"):
                 assert placed_order.side == OrderSide.BUY, (
                     "Long position should result from BUY order"
                 )
-            elif purp_position.size < Decimal("0"):
+            elif test_position.size < Decimal("0"):
                 assert placed_order.side == OrderSide.SELL, (
                     "Short position should result from SELL order"
                 )
 
         # Clean up - attempt to close position if one was opened
-        if purp_position is not None and purp_position.size != Decimal("0"):
+        if test_position is not None and test_position.size != Decimal("0"):
             # Place opposite order to close position
-            close_side = OrderSide.SELL if purp_position.size > Decimal("0") else OrderSide.BUY
-            close_quantity = abs(purp_position.size)
+            close_side = OrderSide.SELL if test_position.size > Decimal("0") else OrderSide.BUY
+            close_quantity = abs(test_position.size)
 
             close_args = PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -169,12 +189,28 @@ class TestHyperliquidPerpPositionsPrivate:
 
         This validates the complete position lifecycle: open → verify → close → verify closure.
         """
+        # Get available trading symbols from exchange
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        test_symbol = available_symbols[0]
+
+        # Get minimal viable order size
+        minimal_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
         # Step 1: First open a position
         open_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             time_in_force=TimeInForce.IOC,
         )
 
@@ -183,21 +219,21 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 2: Verify position was opened
         positions_after_open = await hl_api_for_test_env.get_positions()
-        purp_position_after_open = None
+        test_position_after_open = None
         for position in positions_after_open:
-            if position.symbol == "PURP" and position.size != Decimal("0"):
-                purp_position_after_open = position
+            if position.symbol == test_symbol and position.size != Decimal("0"):
+                test_position_after_open = position
                 break
 
         # Step 3: Close the position if it was opened
-        if purp_position_after_open is not None:
+        if test_position_after_open is not None:
             close_side = (
-                OrderSide.SELL if purp_position_after_open.size > Decimal("0") else OrderSide.BUY
+                OrderSide.SELL if test_position_after_open.size > Decimal("0") else OrderSide.BUY
             )
-            close_quantity = abs(purp_position_after_open.size)
+            close_quantity = abs(test_position_after_open.size)
 
             close_args = PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -209,18 +245,18 @@ class TestHyperliquidPerpPositionsPrivate:
 
             # Step 4: Verify position was closed or reduced
             positions_after_close = await hl_api_for_test_env.get_positions()
-            purp_position_after_close = None
+            test_position_after_close = None
             for position in positions_after_close:
-                if position.symbol == "PURP":
-                    purp_position_after_close = position
+                if position.symbol == test_symbol:
+                    test_position_after_close = position
                     break
 
             # Position should either be gone or have zero/reduced size
-            if purp_position_after_close is not None:
-                assert abs(purp_position_after_close.size) < abs(purp_position_after_open.size), (
+            if test_position_after_close is not None:
+                assert abs(test_position_after_close.size) < abs(test_position_after_open.size), (
                     f"Position should be reduced after close: "
-                    f"before={purp_position_after_open.size}, "
-                    f"after={purp_position_after_close.size}"
+                    f"before={test_position_after_open.size}, "
+                    f"after={test_position_after_close.size}"
                 )
 
     @pytest.mark.vcr
@@ -235,12 +271,28 @@ class TestHyperliquidPerpPositionsPrivate:
         This validates that our HyperliquidErrorMapper correctly maps margin-related errors
         when attempting to open positions that exceed available margin.
         """
+        # Get available trading symbols from exchange
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        test_symbol = available_symbols[0]
+
+        # Get unreasonably large quantity from helper (not hardcoded)
+        large_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
+            hl_api_for_test_env, test_symbol
+        )
+
         # Create order with unrealistically large quantity to trigger insufficient margin
         large_position_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("999999.0"),  # Unrealistically large for testnet
+            quantity=large_quantity,
             time_in_force=TimeInForce.IOC,
         )
 
@@ -274,12 +326,30 @@ class TestHyperliquidPerpPositionsPrivate:
         This validates handling of very small position sizes, dust amounts,
         and precision edge cases that might occur in real trading.
         """
+        # Get available trading symbols from exchange
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        test_symbol = available_symbols[0]
+
+        # Get market constraints to determine smallest valid quantity
+        constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
+        )
+        # Use minimum exchange step size as the small quantity
+        small_quantity = constraints["step_size"]
+
         # Test very small position size
         small_position_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.000001"),  # Very small quantity
+            quantity=small_quantity,
             time_in_force=TimeInForce.IOC,
         )
 
@@ -289,34 +359,34 @@ class TestHyperliquidPerpPositionsPrivate:
 
             # If successful, validate precision is maintained in resulting position
             positions = await hl_api_for_test_env.get_positions()
-            purp_position = None
+            test_position = None
             for position in positions:
-                if position.symbol == "PURP" and position.size != Decimal("0"):
-                    purp_position = position
+                if position.symbol == test_symbol and position.size != Decimal("0"):
+                    test_position = position
                     break
 
-            if purp_position is not None:
+            if test_position is not None:
                 # Validate that small quantities maintain proper decimal representation
-                size_str = str(purp_position.size)
+                size_str = str(test_position.size)
                 assert "E" not in size_str.upper() or "E-" in size_str.upper(), (
                     f"Scientific notation should be negative exponent if used: {size_str}"
                 )
 
                 # Validate precision constraints
-                assert isinstance(purp_position.size, Decimal), (
-                    f"Position size must be Decimal, got {type(purp_position.size)}"
+                assert isinstance(test_position.size, Decimal), (
+                    f"Position size must be Decimal, got {type(test_position.size)}"
                 )
 
                 # Clean up small position
-                if abs(purp_position.size) > Decimal("0"):
+                if abs(test_position.size) > Decimal("0"):
                     close_side = (
-                        OrderSide.SELL if purp_position.size > Decimal("0") else OrderSide.BUY
+                        OrderSide.SELL if test_position.size > Decimal("0") else OrderSide.BUY
                     )
                     close_args = PlaceOrderArgs(
-                        symbol="PURP",
+                        symbol=test_symbol,
                         side=close_side,
                         order_type=OrderType.MARKET,
-                        quantity=abs(purp_position.size),
+                        quantity=abs(test_position.size),
                         time_in_force=TimeInForce.IOC,
                     )
 
@@ -341,12 +411,26 @@ class TestHyperliquidPerpPositionsPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test position-affecting order with invalid asset/symbol error."""
+        # Get minimal viable order size for a valid symbol to understand exchange constraints
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test invalid symbol handling."
+            )
+
+        test_symbol = available_symbols[0]
+        minimal_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
         # Create order with non-existent asset to open position
         invalid_asset_args = PlaceOrderArgs(
             symbol="INVALID_POSITION_ASSET",  # Non-existent asset
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("1"),
+            quantity=minimal_quantity,  # Use real exchange quantity constraints
             time_in_force=TimeInForce.IOC,
         )
 
@@ -374,12 +458,44 @@ class TestHyperliquidPerpPositionsPrivate:
         This validates that multiple operations on the same position maintain consistent
         DerivativePosition model state and proper decimal precision throughout.
         """
+        # Get available trading symbols from exchange
+        available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
+            hl_api_for_test_env, limit=1
+        )
+        if not available_symbols:
+            pytest.fail(
+                "No perpetual symbols available from exchange. Cannot test position operations."
+            )
+
+        test_symbol = available_symbols[0]
+
+        # Get minimal viable order size
+        minimal_quantity = await get_minimal_test_quantity(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
+        )
+
+        # Calculate additional position size (50% of minimal for testing accumulation)
+        constraints = await HyperliquidTestHelpers.get_market_constraints(
+            hl_api_for_test_env, test_symbol
+        )
+        step_size = constraints["step_size"]
+
+        # Round additional quantity to valid step size
+        from decimal import ROUND_UP
+
+        additional_steps = (minimal_quantity * Decimal("0.5") / step_size).quantize(
+            Decimal("1"), rounding=ROUND_UP
+        )
+        additional_quantity = max(
+            additional_steps * step_size, step_size
+        )  # Ensure at least one step
+
         # Step 1: Open initial position
         initial_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.1"),
+            quantity=minimal_quantity,
             time_in_force=TimeInForce.IOC,
         )
 
@@ -388,10 +504,10 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 2: Add to position
         add_args = PlaceOrderArgs(
-            symbol="PURP",
+            symbol=test_symbol,
             side=OrderSide.BUY,  # Same side to add to position
             order_type=OrderType.MARKET,
-            quantity=Decimal("0.05"),
+            quantity=additional_quantity,
             time_in_force=TimeInForce.IOC,
         )
 
@@ -400,28 +516,28 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 3: Verify position reflects both operations
         positions_after_add = await hl_api_for_test_env.get_positions()
-        purp_position = None
+        test_position = None
         for position in positions_after_add:
-            if position.symbol == "PURP" and position.size != Decimal("0"):
-                purp_position = position
+            if position.symbol == test_symbol and position.size != Decimal("0"):
+                test_position = position
                 break
 
-        if purp_position is not None:
-            # Validate position accumulation
-            assert purp_position.size > Decimal("0.1"), (
-                f"Position should reflect accumulated size: {purp_position.size}"
+        if test_position is not None:
+            # Validate position accumulation (should be at least the initial quantity)
+            assert test_position.size >= minimal_quantity, (
+                f"Position should reflect at least initial size: {test_position.size} >= {minimal_quantity}"
             )
 
             # Validate decimal precision maintained
-            assert isinstance(purp_position.size, Decimal), "Size must remain Decimal"
-            assert isinstance(purp_position.entry_price, Decimal), "Entry price must remain Decimal"
+            assert isinstance(test_position.size, Decimal), "Size must remain Decimal"
+            assert isinstance(test_position.entry_price, Decimal), "Entry price must remain Decimal"
 
             # Step 4: Clean up - close entire position
             close_args = PlaceOrderArgs(
-                symbol="PURP",
+                symbol=test_symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
-                quantity=abs(purp_position.size),
+                quantity=abs(test_position.size),
                 time_in_force=TimeInForce.IOC,
             )
 

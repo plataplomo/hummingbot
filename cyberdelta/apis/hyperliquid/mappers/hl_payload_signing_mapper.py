@@ -25,13 +25,21 @@ to prevent signature validation failures in the trading engine.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Protocol
 
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+class ModelDumpable(Protocol):
+    """Protocol for objects that have a model_dump method."""
+
+    def model_dump(self, *, by_alias: bool = False, exclude_none: bool = False) -> dict[str, Any]:
+        """Dump model to dictionary."""
+        ...
 
 
 class HyperliquidPayloadSigningMapper:
@@ -62,24 +70,19 @@ class HyperliquidPayloadSigningMapper:
         """
         self.logger = logger_param or get_logger(__name__)
 
-    def _convert_pydantic_order_to_dict(self, order: Any, index: int) -> dict[str, Any]:
+    def _convert_pydantic_order_to_dict(self, order: ModelDumpable, index: int) -> dict[str, Any]:
         """Convert a Pydantic order model to dict format.
-        
+
         Args:
-            order: Pydantic model with model_dump() method - using Any because this method
-                   is called after hasattr() check confirms presence of model_dump()
+            order: Pydantic model with model_dump() method
             index: Order index for error reporting
-            
+
         Returns:
             Dictionary representation of the order
-            
-        Note:
-            Using Any type is necessary here because this method handles polymorphic
-            data after runtime type checking with hasattr(order, "model_dump").
-            The caller ensures order is a Pydantic model before calling this method.
         """
         try:
-            return order.model_dump(by_alias=False, exclude_none=True)
+            result: dict[str, Any] = order.model_dump(by_alias=False, exclude_none=True)
+            return result
         except Exception as e:
             raise TransformationError(
                 f"Failed to convert order at index {index} to dict: {e}",
@@ -100,23 +103,17 @@ class HyperliquidPayloadSigningMapper:
             order_dict["c"] = order["client_order_id"]
         return order_dict
 
-    def _process_single_order(self, order: Any, index: int) -> dict[str, Any]:
+    def _process_single_order(
+        self, order: ModelDumpable | dict[str, Any], index: int
+    ) -> dict[str, Any]:
         """Process a single order for signing conversion.
-        
+
         Args:
-            order: Order data - can be either a Pydantic model or dictionary - using Any
-                   because this method performs runtime type checking to handle both cases
+            order: Order data - can be either a Pydantic model or dictionary
             index: Order index for error reporting
-            
+
         Returns:
             Dictionary representation ready for signing
-            
-        Note:
-            Using Any type is necessary here because this method handles polymorphic
-            data that can be either:
-            1. Pydantic models (detected via hasattr(order, "model_dump"))
-            2. Plain dictionaries (detected via isinstance(order, dict))
-            Runtime type checking is used to handle each case appropriately.
         """
         if hasattr(order, "model_dump"):
             # It's a Pydantic model
@@ -134,9 +131,11 @@ class HyperliquidPayloadSigningMapper:
         else:
             raise TypeError(f"Invalid order type at index {index}: {type(order).__name__}")
 
-    def _convert_orders_list(self, orders: list[Any]) -> list[dict[str, Any]]:
+    def _convert_orders_list(
+        self, orders: list[ModelDumpable | dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Convert list of orders to signing format."""
-        orders_for_signing = []
+        orders_for_signing: list[dict[str, Any]] = []
         for i, order in enumerate(orders):
             converted_order = self._process_single_order(order, i)
             orders_for_signing.append(converted_order)
