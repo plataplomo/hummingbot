@@ -84,7 +84,7 @@ class HyperliquidPayloadSigningMapper:
             # CRITICAL: Use by_alias=True to get short field names directly
             # This ensures we get 'a', 'b', 'p', etc. instead of 'asset_index', 'is_buy', etc.
             raw_dict: dict[str, Any] = order.model_dump(by_alias=True, exclude_none=True)
-            
+
             # Return the dict as-is, field ordering is preserved in Python 3.7+
             return raw_dict
         except Exception as e:
@@ -102,9 +102,9 @@ class HyperliquidPayloadSigningMapper:
             "p": order["limit_px"],
             "s": order["size"],
             "r": order["reduce_only"],
-            "t": order["order_type_details"]
+            "t": order["order_type_details"],
         }
-        
+
         if "client_order_id" in order and order["client_order_id"] is not None:
             order_dict["c"] = order["client_order_id"]
         return order_dict
@@ -136,7 +136,7 @@ class HyperliquidPayloadSigningMapper:
                 raise ValueError(f"Order dict at index {index} has unexpected field names")
         else:
             raise TypeError(f"Invalid order type at index {index}: {type(order).__name__}")
-        
+
         return order_dict
 
     def _convert_orders_list(
@@ -162,70 +162,90 @@ class HyperliquidPayloadSigningMapper:
                     code=APIErrorCode.TRANSFORMATION_FAILED.name,
                 ) from e
 
+    def _is_cancel_payload_in_correct_format(self, data: dict[str, Any]) -> bool:
+        """Check if cancel payload is already in correct format."""
+        if data.get("type") != "cancel" or "cancels" not in data:
+            return False
+            
+        if not isinstance(data["cancels"], list) or len(data["cancels"]) == 0:
+            return False
+            
+        first_cancel = data["cancels"][0]
+        return (
+            isinstance(first_cancel, dict)
+            and "a" in first_cancel
+            and "o" in first_cancel
+        )
+    
+    def _handle_orders_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
+        """Handle orders field conversion."""
+        if "orders" not in data:
+            return
+            
+        if isinstance(data["orders"], list):
+            payload["orders"] = self._convert_orders_list(data["orders"])
+        else:
+            payload["orders"] = data["orders"]
+    
+    def _handle_action_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
+        """Handle action field conversion."""
+        if "action" not in data:
+            return
+            
+        if hasattr(data["action"], "model_dump"):
+            # Convert Pydantic model to dict with aliases
+            payload["action"] = data["action"].model_dump(by_alias=True, exclude_none=True)
+        else:
+            payload["action"] = data["action"]
+    
+    def _handle_cancels_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
+        """Handle cancels field conversion."""
+        if "cancels" not in data:
+            return
+            
+        if isinstance(data["cancels"], list):
+            cancels_list = []
+            for cancel_item in data["cancels"]:
+                if hasattr(cancel_item, "model_dump"):
+                    # Convert Pydantic model to dict
+                    # Don't use by_alias since we already have short field names
+                    cancel_dict = cancel_item.model_dump(exclude_none=True)
+                    # Simple dict structure
+                    cancels_list.append({"a": cancel_dict["a"], "o": cancel_dict["o"]})
+                else:
+                    # Already a dict - just ensure correct structure
+                    cancels_list.append({"a": cancel_item["a"], "o": cancel_item["o"]})
+            payload["cancels"] = cancels_list
+        else:
+            payload["cancels"] = data["cancels"]
+
     def convert_payload_to_signing_format(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convert payload with Pydantic models to dict format for signing."""
         try:
             # For cancel payloads, return as-is if already in correct format
-            if data.get("type") == "cancel" and "cancels" in data:
-                # If cancels is already a list of dicts with correct structure, return as-is
-                if isinstance(data["cancels"], list) and len(data["cancels"]) > 0:
-                    first_cancel = data["cancels"][0]
-                    if isinstance(first_cancel, dict) and "a" in first_cancel and "o" in first_cancel:
-                        # Already in correct format
-                        return data
-            
+            if self._is_cancel_payload_in_correct_format(data):
+                return data
+
             # Build payload with simple dict structure
             payload = {}
-            
+
             # Add fields in the expected order
             if "type" in data:
                 payload["type"] = data["type"]
-            
+
             # Handle orders (for order placement)
-            if "orders" in data:
-                if isinstance(data["orders"], list):
-                    payload["orders"] = self._convert_orders_list(data["orders"])
-                else:
-                    payload["orders"] = data["orders"]
-            
+            self._handle_orders_field(data, payload)
+
             # Handle action (for transfers, withdrawals, etc.)
-            if "action" in data:
-                if hasattr(data["action"], "model_dump"):
-                    # Convert Pydantic model to dict with aliases
-                    payload["action"] = data["action"].model_dump(
-                        by_alias=True, exclude_none=True
-                    )
-                else:
-                    payload["action"] = data["action"]
-            
+            self._handle_action_field(data, payload)
+
             # Handle cancels (for order cancellations)
-            if "cancels" in data:
-                if isinstance(data["cancels"], list):
-                    cancels_list = []
-                    for cancel_item in data["cancels"]:
-                        if hasattr(cancel_item, "model_dump"):
-                            # Convert Pydantic model to dict
-                            # Don't use by_alias since we already have short field names
-                            cancel_dict = cancel_item.model_dump(exclude_none=True)
-                            # Simple dict structure
-                            cancels_list.append({
-                                "a": cancel_dict["a"],
-                                "o": cancel_dict["o"]
-                            })
-                        else:
-                            # Already a dict - just ensure correct structure
-                            cancels_list.append({
-                                "a": cancel_item["a"],
-                                "o": cancel_item["o"]
-                            })
-                    payload["cancels"] = cancels_list
-                else:
-                    payload["cancels"] = data["cancels"]
-            
+            self._handle_cancels_field(data, payload)
+
             # Add grouping last (for order placement)
             if "grouping" in data:
                 payload["grouping"] = data["grouping"]
-            
+
             # Add any other fields that might be present
             for key, value in data.items():
                 if key not in payload:

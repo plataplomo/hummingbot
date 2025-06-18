@@ -56,7 +56,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
     This class tests the basic order management workflow:
     - Create a single limit order with a random symbol
     - Cancel that specific order
-    
+
     All operations use real market data and dynamic test helpers to ensure
     robustness across different market conditions and account states.
     """
@@ -93,12 +93,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             market_price = await HyperliquidTestHelpers.get_current_market_price(
                 hl_api_for_test_env, symbol
             )
-            
+
             # Use 10% below market for buy order to avoid accidental fills
             test_price = await get_safe_test_price(
                 hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=Decimal("10")
             )
-            
+
             test_quantity = await get_minimal_test_quantity(
                 hl_api_for_test_env, symbol, OrderSide.BUY
             )
@@ -144,8 +144,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
 
             # Validate Decimal precision for all financial fields
             assert isinstance(placed_order.quantity_requested, Decimal), (
-                f"quantity_requested must be Decimal, got "
-                f"{type(placed_order.quantity_requested)}"
+                f"quantity_requested must be Decimal, got {type(placed_order.quantity_requested)}"
             )
             assert isinstance(placed_order.price, Decimal), (
                 f"price must be Decimal, got {type(placed_order.price)}"
@@ -153,10 +152,11 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             assert isinstance(placed_order.quantity_filled, Decimal), (
                 f"quantity_filled must be Decimal, got {type(placed_order.quantity_filled)}"
             )
-            
+
             # Verify exact values match
             assert placed_order.quantity_requested == test_quantity, (
-                f"Quantity mismatch: requested {test_quantity}, got {placed_order.quantity_requested}"
+                f"Quantity mismatch: requested {test_quantity}, "
+                f"got {placed_order.quantity_requested}"
             )
             assert placed_order.price == test_price, (
                 f"Price mismatch: requested {test_price}, got {placed_order.price}"
@@ -183,35 +183,36 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         try:
             open_orders = await hl_api_for_test_env.get_open_orders()
             logger.info(f"Found {len(open_orders)} open orders")
-            
+
             if not open_orders:
                 # No existing orders, create one to cancel
                 logger.info("No open orders found, creating one to test cancellation")
-                
+
                 available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
                     hl_api_for_test_env, limit=5
                 )
-                
+
                 if not available_symbols:
                     pytest.skip(
                         "No perpetual symbols available from the exchange. "
                         "This test requires at least one available perpetual symbol."
                     )
-                
+
                 symbol = available_symbols[0]
-                
-                market_price = await HyperliquidTestHelpers.get_current_market_price(
+
+                # Get market price for minimal test quantity calculation
+                await HyperliquidTestHelpers.get_current_market_price(
                     hl_api_for_test_env, symbol
                 )
-                
+
                 test_price = await get_safe_test_price(
                     hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=Decimal("10")
                 )
-                
+
                 test_quantity = await get_minimal_test_quantity(
                     hl_api_for_test_env, symbol, OrderSide.BUY
                 )
-                
+
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=OrderSide.BUY,
@@ -220,27 +221,25 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                     price=test_price,
                     time_in_force=TimeInForce.GTC,
                 )
-                
+
                 placed_order = await hl_api_for_test_env.place_order(place_args)
                 logger.info(f"Created order to cancel: {placed_order.exchange_order_id}")
                 order_to_cancel = placed_order
             else:
                 # Use the most recent open order
-                # Sort by timestamp (most recent first) if available, otherwise use last in list
-                if hasattr(open_orders[0], 'timestamp') and open_orders[0].timestamp:
+                # Sort by created_at (most recent first) if available, otherwise use last in list
+                if hasattr(open_orders[0], "created_at") and open_orders[0].created_at:
                     order_to_cancel = sorted(
-                        open_orders, 
-                        key=lambda x: x.timestamp if x.timestamp else 0, 
-                        reverse=True
+                        open_orders, key=lambda x: x.created_at if x.created_at else 0, reverse=True
                     )[0]
                 else:
                     order_to_cancel = open_orders[-1]  # Last order in list
-                    
+
                 logger.info(
                     f"Using existing order {order_to_cancel.exchange_order_id} "
                     f"for symbol {order_to_cancel.symbol} to test cancellation"
                 )
-                
+
         except Exception as e:
             pytest.fail(f"Failed to get open orders or create order: {e}")
 
@@ -254,7 +253,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         try:
             # Brief wait to ensure order is processed
             await asyncio.sleep(1)
-            
+
             # Optional: Verify order exists before cancelling
             open_orders = await hl_api_for_test_env.get_open_orders()
             order_exists = any(order.exchange_order_id == order_id for order in open_orders)
@@ -285,7 +284,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             order_still_exists = any(
                 order.exchange_order_id == order_id for order in updated_open_orders
             )
-            
+
             assert not order_still_exists, (
                 f"Order {order_id} should not appear in open orders after cancellation"
             )

@@ -746,9 +746,40 @@ class TestHyperliquidTradingServiceOrders:
         )
         mock_hl_request_builder.build_open_orders_payload.return_value = mock_payload
 
+        # Update mock response to use simple order format
+        simple_mock_response_content = [
+            {
+                "coin": "BTC",
+                "limitPx": "50000.0",
+                "oid": 123456,
+                "side": "B",
+                "sz": "0.5",
+                "timestamp": 1234567890000,
+                "origSz": "0.5",
+            },
+            {
+                "coin": "BTC",
+                "limitPx": "51000.0",
+                "oid": 123457,
+                "side": "A",
+                "sz": "0.3",
+                "timestamp": 1234567891000,
+                "origSz": "0.3",
+            },
+        ]
+        mock_http_client_requester.return_value = (
+            simple_mock_response_content,
+            200,
+            {"content-type": "application/json"},
+        )
+        
         # Mock response handler to return raw Pydantic model
-        mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(mock_response_content)
-        mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
+        mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
+            simple_mock_response_content
+        )
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = (
+            mock_raw_response
+        )
 
         # Mock the mapper to return internal Orders
         expected_orders = [
@@ -781,7 +812,7 @@ class TestHyperliquidTradingServiceOrders:
                 signal_id=None,
             ),
         ]
-        mock_hl_trading_mapper.transform_raw_order_to_internal.side_effect = expected_orders
+        mock_hl_trading_mapper.transform_raw_simple_order_to_internal.side_effect = expected_orders
 
         result = await hl_trading_service.get_open_orders(symbol=symbol)
 
@@ -799,19 +830,13 @@ class TestHyperliquidTradingServiceOrders:
             is_signed=True,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
-            mock_response_content,
+            simple_mock_response_content,
             user_address=wallet_address,
         )
-        mock_hl_trading_mapper.transform_raw_order_to_internal.assert_has_calls(
+        mock_hl_trading_mapper.transform_raw_simple_order_to_internal.assert_has_calls(
             [
-                call(
-                    raw_order=mock_raw_response.root[0].order,
-                    trigger=mock_raw_response.root[0].trigger,
-                ),
-                call(
-                    raw_order=mock_raw_response.root[1].order,
-                    trigger=mock_raw_response.root[1].trigger,
-                ),
+                call(raw_simple_order=mock_raw_response.root[0]),
+                call(raw_simple_order=mock_raw_response.root[1]),
             ],
             any_order=False,
         )

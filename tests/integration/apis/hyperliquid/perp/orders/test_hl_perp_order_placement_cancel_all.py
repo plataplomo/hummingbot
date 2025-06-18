@@ -37,7 +37,6 @@ from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from tests.integration.apis.hyperliquid.shared.test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
-    get_safe_test_price,
 )
 
 logger = get_logger(__name__)
@@ -79,14 +78,15 @@ class TestHyperliquidPerpOrdersComprehensive:
         with different price levels, using dynamic market data and proper test helpers
         that adhere to TESTING_SECURITY_RULES.md requirements.
         """
-        # Get one symbol from exchange to use for all orders to avoid symbol-related signature issues
+        # Get one symbol from exchange to use for all orders
+        # to avoid symbol-related signature issues
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env, limit=1
         )
-        
+
         if not available_symbols:
             pytest.skip("No symbols available from exchange for testing")
-            
+
         test_symbol = available_symbols[0]
 
         placed_orders: list[Order] = []
@@ -102,16 +102,16 @@ class TestHyperliquidPerpOrdersComprehensive:
             test_quantity = await get_minimal_test_quantity(
                 hl_api_for_test_env, test_symbol, OrderSide.BUY
             )
-            
+
             # Place 6 buy limit orders using the same symbol
             for i in range(6):
                 # Use varying tolerance to create different price levels (2% to 7% below market)
                 tolerance_percent = Decimal("2") + (Decimal("1") * i)  # 2%, 3%, 4%, 5%, 6%, 7%
-                
+
                 # Calculate price locally instead of calling API again
                 offset_multiplier = tolerance_percent / Decimal("100")
                 test_price = market_price * (Decimal("1") - offset_multiplier)
-                
+
                 # Round to tick size
                 tick_size = market_constraints.get("tick_size", Decimal("0.01"))
                 test_price = (test_price / tick_size).quantize(Decimal("1")) * tick_size
@@ -130,12 +130,12 @@ class TestHyperliquidPerpOrdersComprehensive:
                 start_time = time.time()
                 placed_order = await hl_api_for_test_env.place_order(place_args)
                 end_time = time.time()
-                
+
                 logger.info(
-                    f"Order {i+1}/6 placed in {end_time - start_time:.3f}s - "
+                    f"Order {i + 1}/6 placed in {end_time - start_time:.3f}s - "
                     f"ID: {placed_order.exchange_order_id}"
                 )
-                
+
                 placed_orders.append(placed_order)
 
                 # Validate each placed order
@@ -194,7 +194,6 @@ class TestHyperliquidPerpOrdersComprehensive:
             await self._cleanup_orders_on_failure(hl_api_for_test_env, placed_orders)
             pytest.fail(f"Failed to place 6 buy limit orders: {e}")
 
-
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_cancel_one_order(
@@ -207,21 +206,22 @@ class TestHyperliquidPerpOrdersComprehensive:
         This test validates individual order cancellation functionality
         by fetching open orders from the exchange and cancelling one.
         """
+        order_id = None  # Initialize to avoid unbound variable
         try:
             # Get open orders from exchange
             open_orders = await hl_api_for_test_env.get_open_orders()
-            
+
             if not open_orders:
                 pytest.fail(
                     "No open orders found to test cancellation. "
                     "Expected at least one open order from previous test."
                 )
-            
+
             # Select the first order for cancellation
             order_to_cancel = open_orders[0]
             order_id = order_to_cancel.exchange_order_id
             symbol = order_to_cancel.symbol
-            
+
             assert order_id is not None, "Order ID should not be None"
 
             # Cancel the order
@@ -239,7 +239,6 @@ class TestHyperliquidPerpOrdersComprehensive:
             await self._verify_order_cancellation_using_public_api(
                 hl_api_for_test_env, order_id, timeout_seconds=30
             )
-
 
         except APIError as e:
             # Distinguish expected business errors from system errors
@@ -264,7 +263,7 @@ class TestHyperliquidPerpOrdersComprehensive:
         """
         # Get open orders from exchange
         open_orders = await hl_api_for_test_env.get_open_orders()
-        
+
         if len(open_orders) < 2:
             pytest.fail(
                 f"Insufficient open orders for batch cancellation test. "
@@ -275,7 +274,6 @@ class TestHyperliquidPerpOrdersComprehensive:
         orders_to_cancel = open_orders[:2]
 
         try:
-
             # Prepare cancellation arguments for both orders
             order_1: Order = orders_to_cancel[0]
             order_2: Order = orders_to_cancel[1]
@@ -398,7 +396,6 @@ class TestHyperliquidPerpOrdersComprehensive:
                         hl_api_for_test_env, successfully_cancelled_ids, timeout_seconds=30
                     )
 
-
             # Final validation - total results should not exceed initial order count
             assert total_attempts <= initial_order_count, (
                 f"Cannot attempt to cancel more orders ({total_attempts}) "
@@ -476,7 +473,6 @@ class TestHyperliquidPerpOrdersComprehensive:
                 await self._verify_all_orders_cancelled_using_public_api(
                     api, successfully_cancelled_order_ids, timeout_seconds=15
                 )
-
 
     def _validate_cancel_all_results(
         self, cancel_results: list[CancelOrderResult], initial_order_ids: set[str]
@@ -636,4 +632,3 @@ class TestHyperliquidPerpOrdersComprehensive:
             f"{timeout_seconds} seconds: {remaining_orders}. "
             f"cancel_all_orders verification failed."
         )
-

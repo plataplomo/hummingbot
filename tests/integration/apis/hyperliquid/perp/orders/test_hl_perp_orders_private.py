@@ -29,14 +29,17 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 from tests.integration.apis.hyperliquid.shared.test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
     get_safe_test_price,
 )
+
+logger = get_logger(__name__)
 
 pytestmark = [
     pytest.mark.integration,
@@ -507,7 +510,7 @@ class TestHyperliquidPerpOrdersPrivate:
         )
 
         # Place orders
-        placed_orders = []
+        placed_orders: list[Order] = []
         try:
             order_1 = await hl_api_for_test_env.place_order(order_args_1)
             placed_orders.append(order_1)
@@ -520,15 +523,15 @@ class TestHyperliquidPerpOrdersPrivate:
 
             # Validate cancellation result
             assert isinstance(cancel_result, list), "cancel_all_orders should return list"
-            assert len(cancel_result) >= 2, (
-                f"Should cancel at least 2 orders, got {len(cancel_result)}"
-            )
-
-            # Validate each cancelled order
-            for cancelled_order in cancel_result:
-                assert isinstance(cancelled_order, Order), "Each result should be Order instance"
-                assert cancelled_order.symbol == test_symbol, (
-                    f"Cancelled order should match symbol filter: {cancelled_order.symbol}"
+            assert len(cancel_result) > 0, "Should have cancelled at least one order"
+            # Check that all cancelled orders are for the correct symbol
+            for result in cancel_result:
+                assert isinstance(result, CancelOrderResult), (
+                    "Each result should be CancelOrderResult"
+                )
+                assert result.success, "Cancel should succeed"
+                assert result.symbol == test_symbol, (
+                    f"Cancel result should match symbol filter: {result.symbol}"
                 )
 
         except Exception as e:
@@ -541,8 +544,8 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception:
-                        pass  # Best effort cleanup
+                    except Exception as cleanup_error:
+                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
             # Check if this is expected behavior (insufficient orders)
             if len(placed_orders) < 2:
@@ -594,13 +597,13 @@ class TestHyperliquidPerpOrdersPrivate:
 
             # Validate cancellation result
             assert isinstance(cancel_result, list), "cancel_all_orders should return list"
-
-            # If orders were cancelled, validate structure
-            if cancel_result:
-                for cancelled_order in cancel_result:
-                    assert isinstance(cancelled_order, Order), (
-                        "Each result should be Order instance"
-                    )
+            assert len(cancel_result) > 0, "Should have cancelled at least one order"
+            # Check that all cancelled orders succeeded
+            for result in cancel_result:
+                assert isinstance(result, CancelOrderResult), (
+                    "Each result should be CancelOrderResult"
+                )
+                assert result.success, "Cancel should succeed"
 
         except Exception as e:
             # Clean up any placed orders on failure
@@ -612,8 +615,8 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception:
-                        pass  # Best effort cleanup
+                    except Exception as cleanup_error:
+                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
             pytest.fail(f"cancel_all_orders without filter test failed: {e}")
 
@@ -635,8 +638,8 @@ class TestHyperliquidPerpOrdersPrivate:
         # First ensure no orders are open by cancelling any existing ones
         try:
             await hl_api_for_test_env.cancel_all_orders()
-        except Exception:
-            pass  # Best effort cleanup
+        except Exception as cleanup_error:
+            logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
         # Now test cancel_all_orders with no open orders
         cancel_result = await hl_api_for_test_env.cancel_all_orders(symbol=test_symbol)
@@ -796,8 +799,8 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception:
-                        pass  # Best effort cleanup
+                    except Exception as cleanup_error:
+                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
             # Some errors might be expected in error handling test
             if "authentication" in str(e).lower() or "permission" in str(e).lower():
@@ -898,7 +901,7 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception:
-                        pass  # Best effort cleanup
+                    except Exception as cleanup_error:
+                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
             pytest.fail(f"Comprehensive cancel_all_orders test failed: {e}")

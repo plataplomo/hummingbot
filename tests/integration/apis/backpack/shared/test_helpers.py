@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.core.models.spot_balance import SpotBalance
 
 if TYPE_CHECKING:
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -337,7 +338,7 @@ def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool
     if exchange_name.lower() == "backpack":
         # Backpack uses underscore format like "SOL_USDC" for spot
         # and "SOL_USDC_PERP" for perpetuals
-        if not symbol or not isinstance(symbol, str):
+        if not symbol:
             return False
 
         # Check for valid characters (alphanumeric and underscores)
@@ -617,6 +618,92 @@ async def get_minimal_order_size_for_zero_balance_test(
         ) from e
 
 
+async def _get_quote_currency_balance(
+    balances: dict[str, SpotBalance], quote_currency: str
+) -> tuple[SpotBalance | None, str]:
+    """Get balance object for quote currency, handling alternative names."""
+    if quote_currency in balances:
+        return balances[quote_currency], quote_currency
+    elif quote_currency == "USDC" and "USD" in balances:
+        return balances["USD"], "USD"
+    elif quote_currency == "USD" and "USDC" in balances:
+        return balances["USDC"], "USDC"
+    else:
+        return None, quote_currency
+
+
+def _log_balance_details(
+    found_currency: str, balance_obj: SpotBalance, available_balance: Decimal
+) -> None:
+    """Log balance details for debugging."""
+    total_balance = balance_obj.total_quantity
+    available_quantity = balance_obj.available_quantity
+    
+    if balance_obj.bp_details and balance_obj.bp_details.lend_quantity:
+        logger.info(
+            f"{found_currency} balance - total: {total_balance}, "
+            f"spot_available: {available_quantity}, "
+            f"lent: {balance_obj.bp_details.lend_quantity}, "
+            f"using_total_for_trading: {available_balance} (auto-lending active)"
+        )
+    else:
+        logger.info(
+            f"{found_currency} balance - total: {total_balance}, "
+            f"available: {available_quantity}, "
+            f"using_for_trading: {available_balance}"
+        )
+
+
+async def _check_buy_order_balance(
+    api: BackpackAPI, symbol: str, min_quantity: Decimal, price: Decimal
+) -> None:
+    """Check if there's sufficient balance for a buy order."""
+    # Extract quote currency from symbol using existing helper
+    _, quote_currency = get_base_quote_assets(symbol)
+
+    # Get current balances
+    balances = await api.get_balances()
+
+    # Check if quote currency exists in balances
+    balance_obj, found_currency = await _get_quote_currency_balance(balances, quote_currency)
+
+    if balance_obj:
+        total_balance = balance_obj.total_quantity
+        # According to Backpack's auto-lending feature documentation:
+        # - Lent funds remain "fully available for trading"
+        # - For order placement, we should use total_quantity as available for trading
+        available_balance = total_balance
+
+        # Log balance details for debugging
+        _log_balance_details(found_currency, balance_obj, available_balance)
+    else:
+        # No balance for quote currency
+        total_balance = Decimal("0")
+        available_balance = Decimal("0")
+
+    if total_balance == Decimal("0"):
+        raise RuntimeError(
+            f"No {quote_currency} balance available for {symbol} buy order. "
+            "Test requires funded account with appropriate assets."
+        )
+
+    # Calculate maximum affordable quantity (with minimal buffer for fees)
+    # User has confirmed they have sufficient balance, use 98% to account for small fees
+    max_affordable_quantity = (available_balance * Decimal("0.98")) / price
+
+    if max_affordable_quantity < min_quantity:
+        # User has confirmed sufficient balance - this is an auto-lending detection issue
+        # Log the discrepancy but allow test to proceed with minimum quantity
+        logger.warning(
+            f"Balance calculation discrepancy for {symbol} order. "
+            f"Required: {min_quantity * price} {quote_currency}, "
+            f"Available: {available_balance} {quote_currency}, "
+            f"Total: {total_balance} {quote_currency}, "
+            f"Max affordable: {max_affordable_quantity} (with 2% fee buffer). "
+            "User confirmed sufficient balance - proceeding with minimum order size."
+        )
+
+
 async def get_minimal_order_size(
     api: BackpackAPI, symbol: str, side: OrderSide, price: Decimal
 ) -> Decimal:
@@ -649,79 +736,7 @@ async def get_minimal_order_size(
 
         # For buy orders, we must check if we have enough balance
         if side == OrderSide.BUY:
-            # Extract quote currency from symbol using existing helper
-            base_asset, quote_currency = get_base_quote_assets(symbol)
-
-            # Get current balances
-            balances = await api.get_balances()
-
-            # Check if quote currency exists in balances
-            # Also check for alternative currency names (USD vs USDC)
-            balance_obj = None
-            found_currency = quote_currency
-
-            if quote_currency in balances:
-                balance_obj = balances[quote_currency]
-            elif quote_currency == "USDC" and "USD" in balances:
-                balance_obj = balances["USD"]
-                found_currency = "USD"
-            elif quote_currency == "USD" and "USDC" in balances:
-                balance_obj = balances["USDC"]
-                found_currency = "USDC"
-
-            if balance_obj:
-                total_balance = balance_obj.total_quantity
-                available_quantity = balance_obj.available_quantity
-
-                # According to Backpack's auto-lending feature documentation:
-                # - Lent funds remain "fully available for trading"
-                # - The enhanced balance logic correctly shows total_quantity including lent amounts
-                # - For order placement, we should use total_quantity as available for trading
-                available_balance = total_balance
-
-                # Log balance details for debugging
-                if balance_obj.bp_details and balance_obj.bp_details.lend_quantity:
-                    logger.info(
-                        f"{found_currency} balance - total: {total_balance}, "
-                        f"spot_available: {available_quantity}, "
-                        f"lent: {balance_obj.bp_details.lend_quantity}, "
-                        f"using_total_for_trading: {available_balance} (auto-lending active)"
-                    )
-                else:
-                    logger.info(
-                        f"{found_currency} balance - total: {total_balance}, "
-                        f"available: {available_quantity}, "
-                        f"using_for_trading: {available_balance}"
-                    )
-            else:
-                # No balance for quote currency
-                total_balance = Decimal("0")
-                available_balance = Decimal("0")
-
-            if total_balance == Decimal("0"):
-                raise RuntimeError(
-                    f"No {quote_currency} balance available for {symbol} buy order. "
-                    "Test requires funded account with appropriate assets."
-                )
-
-            # Calculate maximum affordable quantity (with minimal buffer for fees)
-            # User has confirmed they have sufficient balance, use 98% to account for small fees
-            max_affordable_quantity = (available_balance * Decimal("0.98")) / price
-
-            if max_affordable_quantity < min_quantity:
-                # User has confirmed sufficient balance - this is an auto-lending detection issue
-                # Log the discrepancy but allow test to proceed with minimum quantity
-                logger.warning(
-                    f"Balance calculation discrepancy for {symbol} order. "
-                    f"Required: {min_quantity * price} {quote_currency}, "
-                    f"Available: {available_balance} {quote_currency}, "
-                    f"Total: {total_balance} {quote_currency}, "
-                    f"Max affordable: {max_affordable_quantity} (with 2% fee buffer). "
-                    "User confirmed sufficient balance - proceeding with minimum order size."
-                )
-
-            # Use minimum required quantity (don't try to use more than needed)
-            test_quantity = min_quantity
+            await _check_buy_order_balance(api, symbol, min_quantity, price)
 
         # Quantize to step size
         quantized_quantity = test_quantity.quantize(step_size)
@@ -734,12 +749,14 @@ async def get_minimal_order_size(
         # Provide more specific error messages for common issues
         if "invalid symbol format" in error_msg:
             raise RuntimeError(
-                f"Failed to calculate minimal order size for {symbol}: Invalid symbol format: {symbol}. "
+                f"Failed to calculate minimal order size for {symbol}: "
+                f"Invalid symbol format: {symbol}. "
                 "This test requires real market constraints and sufficient balance."
             ) from e
         elif "symbol not found" in error_msg or "market not found" in error_msg:
             raise RuntimeError(
-                f"Failed to calculate minimal order size for {symbol}: Symbol not found in available markets. "
+                f"Failed to calculate minimal order size for {symbol}: "
+                f"Symbol not found in available markets. "
                 "This test requires real market constraints and sufficient balance."
             ) from e
         else:

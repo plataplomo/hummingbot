@@ -35,8 +35,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 
 # Imports for open orders
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-    HyperliquidRawOpenOrder,
     HyperliquidRawOpenOrdersResponse,  # Type for raw_order.trigger
+    HyperliquidRawSimpleOpenOrder,
 )
 
 # Import modules for user fills handling
@@ -918,16 +918,15 @@ class HyperliquidAccountService:
     ) -> list[Order]:
         """Map validated open orders to internal Order objects."""
         internal_orders: list[Order] = []
-        raw_orders_list: list[HyperliquidRawOpenOrder] = []
+        raw_orders_list: list[HyperliquidRawSimpleOpenOrder] = []
 
         if validated_response and validated_response.items:
             raw_orders_list = validated_response.items
 
-        for raw_order in raw_orders_list:  # raw_order is HyperliquidRawOpenOrder
-            # Use transform_raw_order_to_internal, passing .order and .trigger
-            internal_order = self._trading_mapper.transform_raw_order_to_internal(
-                raw_order=raw_order.order,  # This is HyperliquidRawOrderData
-                trigger=raw_order.trigger,  # This is HyperliquidRawTriggerData | None
+        for raw_order in raw_orders_list:  # raw_order is HyperliquidRawSimpleOpenOrder
+            # Use transform_raw_simple_order_to_internal for simple order format
+            internal_order = self._trading_mapper.transform_raw_simple_open_order_to_internal(
+                raw_simple_order=raw_order
             )
             internal_orders.append(internal_order)
 

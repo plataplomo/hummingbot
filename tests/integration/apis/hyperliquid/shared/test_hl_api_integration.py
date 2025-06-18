@@ -194,7 +194,7 @@ class TestHyperliquidAPIComponentIntegration:
             )
 
         # Step 8: Wait for cancellation to be reflected and validate final state
-        await HyperliquidTestHelpers._wait_for_order_cancellation(hl_api_for_test_env, test_symbol)
+        await HyperliquidTestHelpers.wait_for_order_cancellation(hl_api_for_test_env, test_symbol)
 
         # Final account state should reflect order removal
         final_account = await hl_api_for_test_env.get_account_summary()
@@ -532,14 +532,13 @@ class TestHyperliquidAPIComponentIntegration:
         ticker_data: Ticker | Exception,
     ) -> None:
         """Validate financial data precision in concurrent results."""
-        financial_values = []
-        if hasattr(account_data, "total_equity"):
+        financial_values: list[Decimal] = []
+        if isinstance(account_data, MarginAccountSummary):
             financial_values.append(account_data.total_equity)
-        if hasattr(account_data, "available_equity"):
             financial_values.append(account_data.available_equity)
-        if hasattr(market_data, "tick_size"):
+        if isinstance(market_data, Market):
             financial_values.append(market_data.tick_size)
-        if hasattr(ticker_data, "price") and ticker_data.price is not None:
+        if isinstance(ticker_data, Ticker) and ticker_data.price is not None:
             financial_values.append(ticker_data.price)
 
         for value in financial_values:
@@ -586,5 +585,5 @@ class TestHyperliquidAPIComponentIntegration:
         end_time = datetime.now(UTC)
 
         await self._validate_concurrent_operation_results(
-            results, test_symbol, start_time, end_time
+            list(results), test_symbol, start_time, end_time
         )

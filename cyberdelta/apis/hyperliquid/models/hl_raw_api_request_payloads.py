@@ -81,7 +81,7 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
         Literal["order"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("order")
-    
+
     orders: list[HyperliquidRawOrderItemSpec]
     grouping: Literal["na"] = Field(default="na")
 
@@ -96,7 +96,7 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
         Literal["cancel"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("cancel")
-    
+
     cancels: list[HyperliquidRawCancelItem]
 
     model_config = ConfigDict(extra="forbid", frozen=True)

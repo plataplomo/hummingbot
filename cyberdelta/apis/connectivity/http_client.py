@@ -148,7 +148,7 @@ class HttpClient:
                 # Create optimized connector for better connection pooling
                 connector = aiohttp.TCPConnector(
                     limit=100,  # Total connection pool size
-                    limit_per_host=30,  # Connections per host  
+                    limit_per_host=30,  # Connections per host
                     ttl_dns_cache=300,  # DNS cache timeout in seconds
                     keepalive_timeout=30,  # Keep connections alive for 30s
                     force_close=False,  # Reuse connections

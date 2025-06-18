@@ -458,7 +458,8 @@ class TestBackpackOrdersZeroBalance:
             # Note: May have conditional orders (STOP_MARKET, STOP_LIMIT) from other tests
             # These don't require immediate funds and can exist with zero balance
             logger.info(
-                f"✓ Step 4: Open orders query succeeded, found {len(open_orders)} orders (may include conditional orders)"
+                f"✓ Step 4: Open orders query succeeded, found {len(open_orders)} orders "
+                f"(may include conditional orders)"
             )
 
         except APIError as open_exc:
@@ -569,8 +570,8 @@ class TestBackpackOrdersZeroBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-                except Exception:
-                    pass  # Ignore cancellation errors in cleanup
+                except Exception as cleanup_error:
+                    logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
         except APIError as e:
             # If it fails, check for expected error codes
@@ -680,7 +681,8 @@ class TestBackpackOrdersZeroBalance:
             assert order.exchange_order_id is not None
             assert order.order_type == OrderType.TAKE_PROFIT_MARKET
             logger.info(
-                f"✓ Take profit market order accepted as conditional order: {order.exchange_order_id}"
+                f"✓ Take profit market order accepted as conditional order: "
+                f"{order.exchange_order_id}"
             )
 
             # Clean up the order if it was created
@@ -691,8 +693,8 @@ class TestBackpackOrdersZeroBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-                except Exception:
-                    pass  # Ignore cancellation errors in cleanup
+                except Exception as cleanup_error:
+                    logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
 
         except APIError as e:
             # If it fails, check for expected error codes
@@ -1202,7 +1204,7 @@ class TestBackpackOrdersZeroBalance:
         current_price = current_price.quantize(tick_size)
 
         # Test cases that should fail at Pydantic validation level
-        pydantic_validation_cases = [
+        pydantic_validation_cases: list[dict[str, Any]] = [
             {
                 "name": "zero_quantity",
                 "params": {
@@ -1266,14 +1268,15 @@ class TestBackpackOrdersZeroBalance:
                 # Verify the error message contains expected validation
                 error_str = str(ve)
                 assert test_case["expected_validation"] in error_str, (
-                    f"Edge case '{test_case['name']}' failed validation but with unexpected error: {error_str}"
+                    f"Edge case '{test_case['name']}' failed validation but with "
+                    f"unexpected error: {error_str}"
                 )
                 logger.info(
                     f"✓ Edge case '{test_case['name']}' correctly rejected by Pydantic validation"
                 )
 
         # Test cases that pass Pydantic but should fail at API level
-        api_validation_cases = [
+        api_validation_cases: list[dict[str, Any]] = [
             {
                 "name": "below_min_quantity",
                 "params": {

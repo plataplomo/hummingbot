@@ -45,7 +45,6 @@ from pydantic import (
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
-    RawCloidString64HL,
     RawFiniteDecimalStr,
     RawLaxEthereumAddressStrHL,
     RawNonNegativeFiniteDecimalStr,
@@ -155,20 +154,20 @@ class HyperliquidRawOrder(BaseModel):
 
 class HyperliquidRawSimpleOpenOrder(BaseModel):
     """Simple structure for open orders from the openOrders endpoint.
-    
+
     This model matches the actual API response from the openOrders endpoint,
     which returns a flat structure with these fields directly at the top level.
-    
+
     Fields:
         coin: Asset name (e.g., "ATOM", "ETH", "SOL")
         limit_px: Limit price as decimal string
         oid: Order ID
         side: Side ('B' for buy, 'A' for sell)
-        sz: Current size as decimal string  
+        sz: Current size as decimal string
         timestamp: Order timestamp in milliseconds
         orig_sz: Original size as decimal string
     """
-    
+
     coin: RawAssetString64HL = Field(..., alias="coin")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
     oid: RawNonNegativeInt = Field(..., alias="oid")

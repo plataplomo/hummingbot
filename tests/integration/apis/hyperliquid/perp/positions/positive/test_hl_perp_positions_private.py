@@ -30,6 +30,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
@@ -61,6 +62,57 @@ class TestHyperliquidPerpPositionsPrivate:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    async def _validate_position_fields(
+        self, test_position: DerivativePosition, test_symbol: str
+    ) -> None:
+        """Validate core position fields and financial data types."""
+        assert isinstance(test_position, DerivativePosition), (
+            "Position should be DerivativePosition instance"
+        )
+
+        # Validate core position fields
+        assert test_position.exchange == "hyperliquid", (
+            f"Position.exchange should be 'hyperliquid', got {test_position.exchange}"
+        )
+        assert test_position.symbol == test_symbol, (
+            f"Position symbol should match traded asset, got {test_position.symbol}"
+        )
+
+        # Validate Decimal precision for financial fields
+        assert isinstance(test_position.size, Decimal), (
+            f"size must be Decimal, got {type(test_position.size)}"
+        )
+        if test_position.entry_price is not None:
+            assert isinstance(test_position.entry_price, Decimal), (
+                f"entry_price must be Decimal, got {type(test_position.entry_price)}"
+            )
+        if test_position.unrealized_pnl is not None:
+            assert isinstance(test_position.unrealized_pnl, Decimal), (
+                f"unrealized_pnl must be Decimal, got {type(test_position.unrealized_pnl)}"
+            )
+
+    async def _validate_position_business_logic(
+        self, test_position: DerivativePosition, placed_order: Order
+    ) -> None:
+        """Validate business logic constraints for the position."""
+        # Validate business logic constraints
+        assert test_position.size != Decimal("0"), (
+            f"Position size should be non-zero after opening trade, got {test_position.size}"
+        )
+        assert test_position.entry_price is not None and test_position.entry_price > Decimal(
+            "0"
+        ), f"entry_price must be positive, got {test_position.entry_price}"
+
+        # Validate position side matches order side
+        if test_position.size > Decimal("0"):
+            assert placed_order.side == OrderSide.BUY, (
+                "Long position should result from BUY order"
+            )
+        elif test_position.size < Decimal("0"):
+            assert placed_order.side == OrderSide.SELL, (
+                "Short position should result from SELL order"
+            )
+
     async def test_position_opening_order_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -115,48 +167,8 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # If position was created/modified, validate it
         if test_position is not None:
-            assert isinstance(test_position, DerivativePosition), (
-                "Position should be DerivativePosition instance"
-            )
-
-            # Validate core position fields
-            assert test_position.exchange == "hyperliquid", (
-                f"Position.exchange should be 'hyperliquid', got {test_position.exchange}"
-            )
-            assert test_position.symbol == test_symbol, (
-                f"Position symbol should match traded asset, got {test_position.symbol}"
-            )
-
-            # Validate Decimal precision for financial fields
-            assert isinstance(test_position.size, Decimal), (
-                f"size must be Decimal, got {type(test_position.size)}"
-            )
-            if test_position.entry_price is not None:
-                assert isinstance(test_position.entry_price, Decimal), (
-                    f"entry_price must be Decimal, got {type(test_position.entry_price)}"
-                )
-            if test_position.unrealized_pnl is not None:
-                assert isinstance(test_position.unrealized_pnl, Decimal), (
-                    f"unrealized_pnl must be Decimal, got {type(test_position.unrealized_pnl)}"
-                )
-
-            # Validate business logic constraints
-            assert test_position.size != Decimal("0"), (
-                f"Position size should be non-zero after opening trade, got {test_position.size}"
-            )
-            assert test_position.entry_price is not None and test_position.entry_price > Decimal(
-                "0"
-            ), f"entry_price must be positive, got {test_position.entry_price}"
-
-            # Validate position side matches order side
-            if test_position.size > Decimal("0"):
-                assert placed_order.side == OrderSide.BUY, (
-                    "Long position should result from BUY order"
-                )
-            elif test_position.size < Decimal("0"):
-                assert placed_order.side == OrderSide.SELL, (
-                    "Short position should result from SELL order"
-                )
+            await self._validate_position_fields(test_position, test_symbol)
+            await self._validate_position_business_logic(test_position, placed_order)
 
         # Clean up - attempt to close position if one was opened
         if test_position is not None and test_position.size != Decimal("0"):
@@ -525,7 +537,8 @@ class TestHyperliquidPerpPositionsPrivate:
         if test_position is not None:
             # Validate position accumulation (should be at least the initial quantity)
             assert test_position.size >= minimal_quantity, (
-                f"Position should reflect at least initial size: {test_position.size} >= {minimal_quantity}"
+                f"Position should reflect at least initial size: "
+                f"{test_position.size} >= {minimal_quantity}"
             )
 
             # Validate decimal precision maintained

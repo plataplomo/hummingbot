@@ -444,8 +444,7 @@ class HyperliquidRequestBuilder:
             HyperliquidApiCancelOrderRequest: Validated Raw API model
         """
         # Create cancel item with short field names as per official SDK
-        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import HyperliquidRawCancelItem
-        
+
         cancel_item = HyperliquidRawCancelItem(a=asset_index, o=order_id)
         return HyperliquidApiCancelOrderRequest(type="cancel", cancels=[cancel_item])
 

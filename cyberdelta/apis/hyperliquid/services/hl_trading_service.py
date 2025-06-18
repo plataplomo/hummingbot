@@ -40,7 +40,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-    HyperliquidRawOpenOrder,
     HyperliquidRawOpenOrdersResponse,
     HyperliquidRawSimpleOpenOrder,
 )
@@ -734,15 +733,15 @@ class HyperliquidTradingService:
     def _process_string_status(self, status_raw: str, action_description: str) -> dict[str, Any]:
         """Process string status."""
         status_lower = status_raw.lower()
-        
+
         # Handle success statuses
         if status_lower in ["success", "ok", "accepted"]:
             return {"success": status_raw}
-            
+
         # Handle canceled status
         if status_lower == "canceled":
             return {"canceled": {"type": "string"}}
-            
+
         # Any other string is treated as an error
         logger.warning(
             f"Encountered direct string status for {action_description}: '{status_raw}'. "
@@ -1092,7 +1091,9 @@ class HyperliquidTradingService:
                 order_id=order_id_int,
             )
             # Pass the full request payload to the raw method
-            raw_exchange_response, http_status = await self._cancel_order_raw(cancel_request_payload)
+            raw_exchange_response, http_status = await self._cancel_order_raw(
+                cancel_request_payload
+            )
             status_code = http_status
 
             # Process the cancellation response
@@ -1144,10 +1145,11 @@ class HyperliquidTradingService:
         """Process the cancel order response and return success status."""
         # Debug logging to understand the response
         logger.debug(
-            f"[{self._exchange_name}] Cancel order response - status: {raw_exchange_response.status}, "
+            f"[{self._exchange_name}] Cancel order response - "
+            f"status: {raw_exchange_response.status}, "
             f"response: {raw_exchange_response.response}, data: {raw_exchange_response.data}"
         )
-        
+
         # Check if this is an error response
         self._check_error_response(raw_exchange_response, http_status)
 

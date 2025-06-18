@@ -78,7 +78,8 @@ class TestBackpackPerpLargePositions:
 
                         async def position_closed(symbol: str = position_symbol) -> bool:
                             current_positions = await api.get_positions()
-                            # Position is closed when it has zero size, not when it's removed from the list
+                            # Position is closed when it has zero size,
+                            # not when it's removed from the list
                             symbol_position = next(
                                 (p for p in current_positions if p.symbol == symbol), None
                             )

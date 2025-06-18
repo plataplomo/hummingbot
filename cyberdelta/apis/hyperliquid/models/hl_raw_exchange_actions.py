@@ -66,10 +66,6 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
 
-
-
-
-
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
     """Represents the 'action' details for an L2 USD transfer."""
 
@@ -81,20 +77,18 @@ class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
 
 class HyperliquidRawCancelItem(BaseModel):
     """Represents a single cancel item in the cancels array.
-    
+
     Based on official SDK: uses short field names 'a' for asset and 'o' for oid.
     This is used in the 'cancels' array for cancel order requests.
-    
+
     Example:
         {"type": "cancel", "cancels": [{"a": 0, "o": 12345}]}
     """
-    
+
     a: RawNonNegativeInt = Field(..., description="Asset index")
     o: RawNonNegativeInt = Field(..., description="Order ID to cancel")
-    
+
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
 
 
 class HyperliquidRawUpdateLeverageAction(BaseModel):

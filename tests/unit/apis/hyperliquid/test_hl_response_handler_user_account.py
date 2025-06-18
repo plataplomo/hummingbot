@@ -110,8 +110,8 @@ class TestHandleInfoOpenOrdersResponse:
         )
         assert isinstance(response, HyperliquidRawOpenOrdersResponse)
         assert len(response.items) == 2
-        assert response.items[0].order.asset == "ETH-PERP"
-        assert response.items[0].order.oid == 6001
+        assert response.items[0].coin == "ETH-PERP"
+        assert response.items[0].oid == 6001
 
     def test_empty_orders_list(self, user_address: str) -> None:
         """Test handling empty open orders response."""
@@ -428,26 +428,15 @@ class TestUserAccountEdgeCases:
 
     def test_open_orders_with_trigger_orders(self, user_address: str) -> None:
         """Test open orders response containing trigger orders."""
+        # The openOrders endpoint returns simplified order format
         trigger_order = {
-            "order": {
-                "asset": "BTC-PERP",
-                "limitPx": "46000.0",
-                "oid": 7001,
-                "reduceOnly": True,
-                "side": "A",
-                "sz": "0.1",
-                "timestamp": 1678889700000,
-                "orderType": {"trigger": {"triggerPx": "47000.0", "tpsl": "tp", "isMarket": False}},
-                "remainingSz": "0.1",
-                "status": "open",
-                "statusTimestamp": 1678889701000,
-                "cloid": "triggerOrder1",
-            },
-            "trigger": {
-                "triggerPx": "47000.0",
-                "tpsl": "tp",
-                "isMarket": False,
-            },
+            "coin": "BTC-PERP",
+            "limitPx": "46000.0",
+            "oid": 7001,
+            "side": "A",
+            "sz": "0.1",
+            "timestamp": 1678889700000,
+            "origSz": "0.1",
         }
         raw_data = [trigger_order]
         response = HyperliquidResponseHandler.handle_info_open_orders_response(
@@ -455,6 +444,6 @@ class TestUserAccountEdgeCases:
             user_address=user_address,
         )
         assert len(response.items) == 1
-        assert response.items[0].order.asset == "BTC-PERP"
-        assert response.items[0].trigger is not None
-        assert response.items[0].trigger.trigger_px == "47000.0"
+        assert response.items[0].coin == "BTC-PERP"
+        assert response.items[0].oid == 7001
+        assert response.items[0].limit_px == "46000.0"

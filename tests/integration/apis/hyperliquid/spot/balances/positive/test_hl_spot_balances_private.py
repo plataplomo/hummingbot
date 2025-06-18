@@ -48,7 +48,10 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test L2 USD transfer operation - currently expects APIError with not-implemented status."""
+        """Test L2 USD transfer operation.
+        
+        Currently expects APIError with not-implemented status.
+        """
         transfer_args = TransferArgs(
             asset="USDC",
             amount=Decimal("1.0"),
@@ -81,7 +84,10 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test token withdrawal operation - currently expects APIError with not-implemented status."""
+        """Test token withdrawal operation.
+        
+        Currently expects APIError with not-implemented status.
+        """
         withdraw_args = WithdrawArgs(
             asset="USDC",
             amount=Decimal("1.0"),
@@ -113,7 +119,10 @@ class TestHyperliquidSpotBalancesPrivate:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test ETH withdrawal operation - currently expects APIError with not-implemented status."""
+        """Test ETH withdrawal operation.
+        
+        Currently expects APIError with not-implemented status.
+        """
         eth_withdraw_args = WithdrawArgs(
             asset="ETH",
             amount=Decimal("0.001"),

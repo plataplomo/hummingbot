@@ -469,8 +469,6 @@ class TestHyperliquidWebSocketIntegration:
         except Exception as e:
             pytest.fail(f"Unexpected error in message parsing: {e}")
 
-        return False
-
     async def _test_subscription_failure_handling(self) -> bool:
         """Test WebSocket subscription failure handling."""
         # Simulate subscription to invalid symbol
@@ -494,8 +492,6 @@ class TestHyperliquidWebSocketIntegration:
 
         except Exception as e:
             pytest.fail(f"Subscription failure handling failed: {e}")
-
-        return False
 
     @pytest.mark.asyncio
     async def test_websocket_error_handling_and_reconnection(

@@ -10,7 +10,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiPlaceOrderRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawCancelItem,
     HyperliquidRawOrderItemSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (

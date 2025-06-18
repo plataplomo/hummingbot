@@ -565,7 +565,7 @@ class HyperliquidTestHelpers:
             ) from e
 
     @staticmethod
-    async def _wait_for_order_cancellation(
+    async def wait_for_order_cancellation(
         api: HyperliquidAPI, symbol: str | None = None, timeout: int = 30
     ) -> None:
         """Wait for order cancellation to complete with proper verification and adaptive polling."""
@@ -765,7 +765,7 @@ class HyperliquidTestHelpers:
             await api.cancel_all_orders(symbol=symbol)
 
             # Verify cancellation completed instead of fixed sleep
-            await HyperliquidTestHelpers._wait_for_order_cancellation(api, symbol)
+            await HyperliquidTestHelpers.wait_for_order_cancellation(api, symbol)
 
         except Exception as e:
             # Order cleanup failures are critical in trading tests
