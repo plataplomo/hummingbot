@@ -39,72 +39,54 @@ class HyperliquidPayloadPreprocessingMapper:
     """
 
     @staticmethod
-    def preprocess_order_status_response(raw_data: Any) -> dict[str, Any]:
-        """Preprocess order status response to flatten nested structure.
-
-        The Hyperliquid API can return order status in various formats:
-        - List format: [{"order": {...}}]
-        - Nested format: {'order': {'order': {...}, 'status': '...', 'statusTimestamp': ...},
-          'status': 'order'}
-        - Direct dict format: {"order": {...}}
-        - Error formats: "Order not found", ["Order not found"], [], None
-
-        This method normalizes all formats to a structure that matches
-        HyperliquidRawHistoricalOrderResponse.
-
-        Args:
-            raw_data: Raw response from Hyperliquid order status endpoint
-
-        Returns:
-            Preprocessed data ready for Pydantic validation
-
-        Raises:
-            APIError: For order not found or invalid response formats
-        """
+    def _handle_list_format_response(raw_data: list[Any]) -> dict[str, Any]:
+        """Handle list format order status responses."""
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
-        # Handle list format (common in tests and some API responses)
-        if isinstance(raw_data, list):
-            # Handle empty list
-            if len(raw_data) == 0:
+        # Handle empty list
+        if len(raw_data) == 0:
+            raise APIError(
+                message="Order not found (empty list).",
+                code=APIErrorCode.ORDER_NOT_FOUND.value,
+            )
+
+        # Get first item from list
+        status_item = raw_data[0]
+
+        # Handle string responses in list
+        if isinstance(status_item, str):
+            if "Order not found" in status_item:
                 raise APIError(
-                    message="Order not found (empty list).",
+                    message=f"Order not found (string response: {status_item!r})",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
+                    metadata={"original_response_item": status_item},
                 )
-
-            # Get first item from list
-            status_item = raw_data[0]
-
-            # Handle string responses in list
-            if isinstance(status_item, str):
-                if "Order not found" in status_item:
-                    raise APIError(
-                        message=f"Order not found (string response: {status_item!r})",
-                        code=APIErrorCode.ORDER_NOT_FOUND.value,
-                        metadata={"original_response_item": status_item},
-                    )
-                else:
-                    raise APIError(
-                        message=f"Unexpected order status response: {status_item}",
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                        metadata={"original_response_item": status_item},
-                    )
-
-            # Handle non-dict items
-            if not isinstance(status_item, dict):
+            else:
                 raise APIError(
-                    message=f"Order status response list: expected dict, "
-                    f"got {type(status_item).__name__}",
+                    message=f"Unexpected order status response: {status_item}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     metadata={"original_response_item": status_item},
                 )
 
-            # Use the dict from the list for further processing
-            raw_data = status_item
+        # Handle non-dict items
+        if not isinstance(status_item, dict):
+            raise APIError(
+                message=f"Order status response list: expected dict, "
+                f"got {type(status_item).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"original_response_item": status_item},
+            )
 
-        # Handle direct string response
-        elif isinstance(raw_data, str):
+        return status_item
+
+    @staticmethod
+    def _handle_string_or_none_response(raw_data: str | None) -> None:
+        """Handle string or None responses by raising appropriate errors."""
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        if isinstance(raw_data, str):
             if "Order not found" in raw_data:
                 raise APIError(
                     message=f"Order not found (direct string: {raw_data!r})",
@@ -116,15 +98,60 @@ class HyperliquidPayloadPreprocessingMapper:
                     message=f"Invalid order status response format: got string {raw_data!r}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
-
-        # Handle None response
         elif raw_data is None:
             raise APIError(
                 message="Order status response is None",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        # Now we should have a dict
+    @staticmethod
+    def _process_nested_order_structure(order_wrapper: dict[str, Any]) -> dict[str, Any]:
+        """Process nested order structure and flatten it."""
+        # Check if we have the deeply nested structure
+        if "order" in order_wrapper and isinstance(order_wrapper["order"], dict):
+            # Extract the actual order data
+            inner_order = order_wrapper["order"]
+
+            # Map 'coin' to 'asset' if asset is not present
+            if "coin" in inner_order and "asset" not in inner_order:
+                inner_order["asset"] = inner_order["coin"]
+
+            # Add status fields from the wrapper if they exist
+            if "status" in order_wrapper:
+                inner_order["status"] = order_wrapper["status"]
+            if "statusTimestamp" in order_wrapper:
+                inner_order["statusTimestamp"] = order_wrapper["statusTimestamp"]
+
+            # Add reasonable defaults for missing fields
+            if "remainingSz" not in inner_order and "sz" in inner_order:
+                # Only add default if status indicates it's an open order
+                status = inner_order.get("status", "").lower()
+                if status in ["open", "pending", "untriggered"]:
+                    inner_order["remainingSz"] = inner_order["sz"]
+
+            return {"order": inner_order}
+        else:
+            # The wrapper itself might be the order data
+            return {"order": order_wrapper}
+
+    @staticmethod
+    def preprocess_order_status_response(
+        raw_data: dict[str, Any] | list[Any] | str | None,
+    ) -> dict[str, Any]:
+        """Preprocess order status response to flatten nested structure."""
+        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+        # Handle list format
+        if isinstance(raw_data, list):
+            raw_data = HyperliquidPayloadPreprocessingMapper._handle_list_format_response(raw_data)
+
+        # Handle string or None responses
+        elif isinstance(raw_data, str | type(None)):
+            HyperliquidPayloadPreprocessingMapper._handle_string_or_none_response(raw_data)
+            # This will always raise, so we never reach here
+
+        # Validate we have a dict after preprocessing
         if not isinstance(raw_data, dict):
             raise APIError(
                 message=f"Order status response: expected dict after preprocessing, "
@@ -134,38 +161,9 @@ class HyperliquidPayloadPreprocessingMapper:
 
         # Handle the nested structure
         if "order" in raw_data and isinstance(raw_data["order"], dict):
-            order_wrapper = raw_data["order"]
-
-            # Check if we have the deeply nested structure
-            if "order" in order_wrapper and isinstance(order_wrapper["order"], dict):
-                # Extract the actual order data
-                inner_order = order_wrapper["order"]
-
-                # Map 'coin' to 'asset' if asset is not present
-                # (Hyperliquid sometimes returns 'coin' instead of 'asset')
-                if "coin" in inner_order and "asset" not in inner_order:
-                    inner_order["asset"] = inner_order["coin"]
-
-                # Add status fields from the wrapper if they exist
-                if "status" in order_wrapper:
-                    inner_order["status"] = order_wrapper["status"]
-                if "statusTimestamp" in order_wrapper:
-                    inner_order["statusTimestamp"] = order_wrapper["statusTimestamp"]
-
-                # Add reasonable defaults for missing fields
-                # If remainingSz is missing but we have sz, assume full size remaining
-                if "remainingSz" not in inner_order and "sz" in inner_order:
-                    # Only add default if status indicates it's an open order
-                    status = inner_order.get("status", "").lower()
-                    if status in ["open", "pending", "untriggered"]:
-                        inner_order["remainingSz"] = inner_order["sz"]
-
-                # Return the flattened structure expected by HyperliquidRawHistoricalOrderResponse
-                return {"order": inner_order}
-            else:
-                # The wrapper itself might be the order data
-                # Just ensure it's wrapped properly
-                return {"order": order_wrapper}
+            return HyperliquidPayloadPreprocessingMapper._process_nested_order_structure(
+                raw_data["order"]
+            )
 
         # If we don't have the expected nested structure, check if it's already flattened
         if "oid" in raw_data and "asset" in raw_data:

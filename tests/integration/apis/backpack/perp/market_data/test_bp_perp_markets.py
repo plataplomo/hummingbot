@@ -648,7 +648,8 @@ class TestBackpackPerpMarkets:
         # This validates the tick size can represent funding-adjusted prices properly
         if funding_payment > Decimal("0"):
             # Check that the funding payment can be represented with the market's precision
-            # The funding payment should be expressible as a multiple of tick_size when applied to price
+            # The funding payment should be expressible as a multiple of tick_size
+            # when applied to price
             price_with_funding = actual_price + funding_payment
             # Ensure the price with funding can be properly quantized to tick size
             quantized_price = price_with_funding.quantize(market.tick_size)

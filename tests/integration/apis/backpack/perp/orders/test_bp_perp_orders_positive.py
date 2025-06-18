@@ -870,14 +870,16 @@ class TestBackpackPerpOrdersPositiveBalance:
                         OrderType.TAKE_PROFIT_MARKET,
                         OrderType.STOP_MARKET,
                     ], (
-                        f"{order_name}: Should be take profit market or stop market type, got {placed_order.order_type}"
+                        f"{order_name}: Should be take profit market or stop market type, "
+                        f"got {placed_order.order_type}"
                     )
                 elif order_type == OrderType.TAKE_PROFIT_LIMIT:
                     assert placed_order.order_type in [
                         OrderType.TAKE_PROFIT_LIMIT,
                         OrderType.STOP_LIMIT,
                     ], (
-                        f"{order_name}: Should be take profit limit or stop limit type, got {placed_order.order_type}"
+                        f"{order_name}: Should be take profit limit or stop limit type, "
+                        f"got {placed_order.order_type}"
                     )
                 else:
                     assert placed_order.order_type == order_type, (

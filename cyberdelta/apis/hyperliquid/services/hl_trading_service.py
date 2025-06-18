@@ -644,97 +644,132 @@ class HyperliquidTradingService:
 
         return mapping[tif]
 
+    def _process_pydantic_status(
+        self, status_raw: HyperliquidRawExchangeStatusObject, action_description: str
+    ) -> dict[str, Any]:
+        """Process Pydantic model status."""
+        if status_raw.resting:
+            return {"resting": status_raw.resting}
+        elif status_raw.filled:
+            return {"filled": status_raw.filled}
+        elif status_raw.error:
+            return {"error": status_raw.error}
+        else:
+            raise APIError(
+                f"Unknown status structure for {action_description}",
+                APIErrorCode.INVALID_RESPONSE.value,
+            )
+
+    def _process_dict_resting_status(
+        self, status_raw: dict[str, Any], action_description: str
+    ) -> dict[str, Any]:
+        """Process dict resting status."""
+        oid = status_raw["resting"].get("oid")
+        if not isinstance(oid, int):
+            raise APIError(
+                f"Invalid or missing 'oid' in resting status for {action_description}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_status": status_raw},
+            )
+        return {"resting": HyperliquidRawExchangeStatusResting(oid=oid)}
+
+    def _process_dict_filled_status(
+        self, status_raw: dict[str, Any], action_description: str
+    ) -> dict[str, Any]:
+        """Process dict filled status."""
+        filled_details = status_raw["filled"]
+        oid = filled_details.get("oid")
+        total_sz = filled_details.get("totalSz")
+        avg_px = filled_details.get("avgPx")
+
+        if not isinstance(oid, int):
+            raise APIError(
+                f"Invalid or missing 'oid' in filled status for {action_description}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_status": status_raw},
+            )
+
+        if not isinstance(total_sz, str) or not isinstance(avg_px, str):
+            raise APIError(
+                f"Invalid filled status data for {action_description}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_status": status_raw},
+            )
+
+        return {
+            "filled": HyperliquidRawExchangeStatusFilled(
+                oid=oid,
+                totalSz=total_sz,
+                avgPx=avg_px,
+            )
+        }
+
+    def _process_dict_canceled_status(
+        self, status_raw: dict[str, Any], action_description: str
+    ) -> dict[str, Any]:
+        """Process dict canceled status."""
+        oid = status_raw["canceled"].get("oid")
+        if not isinstance(oid, int):
+            raise APIError(
+                f"Invalid or missing 'oid' in canceled status for {action_description}",
+                APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"raw_status": status_raw},
+            )
+        return {"canceled": {"oid": oid}}
+
+    def _process_dict_status(
+        self, status_raw: dict[str, Any], action_description: str
+    ) -> dict[str, Any]:
+        """Process dict status for backwards compatibility."""
+        # Check for resting status
+        if "resting" in status_raw and isinstance(status_raw["resting"], dict):
+            return self._process_dict_resting_status(status_raw, action_description)
+
+        # Check for filled status
+        if "filled" in status_raw and isinstance(status_raw["filled"], dict):
+            return self._process_dict_filled_status(status_raw, action_description)
+
+        # Check for canceled status
+        if "canceled" in status_raw and isinstance(status_raw["canceled"], dict):
+            return self._process_dict_canceled_status(status_raw, action_description)
+
+        # Check for error status
+        if "error" in status_raw and isinstance(status_raw["error"], str):
+            return {"error": status_raw["error"]}
+
+        # No recognized status found
+        return {}
+
+    def _process_string_status(self, status_raw: str, action_description: str) -> dict[str, Any]:
+        """Process string status."""
+        if status_raw.lower() == "canceled":
+            return {"canceled": {"type": "string"}}
+        # Any other string is treated as an error
+        logger.warning(
+            f"Encountered direct string status for {action_description}: '{status_raw}'. "
+            f"Treating as error."
+        )
+        return {"error": status_raw}
+
     def _process_exchange_status(
         self,
         status_raw: object,
         action_description: str,
     ) -> dict[str, Any]:
-        """Process raw exchange status into a standardized format.
-
-        Moved from ResponseHandler to maintain separation of concerns.
-        Returns a dict with the status type as key and details as value.
-        """
-        # Handle Pydantic model status (HyperliquidRawExchangeStatusObject)
+        """Process raw exchange status into a standardized format."""
+        # Handle Pydantic model status
         if isinstance(status_raw, HyperliquidRawExchangeStatusObject):
-            if status_raw.resting:
-                return {"resting": status_raw.resting}
-            elif status_raw.filled:
-                return {"filled": status_raw.filled}
-            elif status_raw.error:
-                return {"error": status_raw.error}
-            else:
-                raise APIError(
-                    f"Unknown status structure for {action_description}",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                )
+            return self._process_pydantic_status(status_raw, action_description)
 
         # Handle dict status (for backwards compatibility)
         elif isinstance(status_raw, dict):
-            # Check for resting status
-            if "resting" in status_raw and isinstance(status_raw["resting"], dict):
-                oid = status_raw["resting"].get("oid")
-                if not isinstance(oid, int):
-                    raise APIError(
-                        f"Invalid or missing 'oid' in resting status for {action_description}",
-                        APIErrorCode.INVALID_RESPONSE.value,
-                        metadata={"raw_status": status_raw},
-                    )
-                return {"resting": HyperliquidRawExchangeStatusResting(oid=oid)}
-
-            # Check for filled status
-            if "filled" in status_raw and isinstance(status_raw["filled"], dict):
-                filled_details = status_raw["filled"]
-                oid = filled_details.get("oid")
-                total_sz = filled_details.get("totalSz")
-                avg_px = filled_details.get("avgPx")
-
-                if not isinstance(oid, int):
-                    raise APIError(
-                        f"Invalid or missing 'oid' in filled status for {action_description}",
-                        APIErrorCode.INVALID_RESPONSE.value,
-                        metadata={"raw_status": status_raw},
-                    )
-
-                if not isinstance(total_sz, str) or not isinstance(avg_px, str):
-                    raise APIError(
-                        f"Invalid filled status data for {action_description}",
-                        APIErrorCode.INVALID_RESPONSE.value,
-                        metadata={"raw_status": status_raw},
-                    )
-
-                return {
-                    "filled": HyperliquidRawExchangeStatusFilled(
-                        oid=oid,
-                        totalSz=total_sz,
-                        avgPx=avg_px,
-                    )
-                }
-
-            # Check for canceled status
-            if "canceled" in status_raw and isinstance(status_raw["canceled"], dict):
-                oid = status_raw["canceled"].get("oid")
-                if not isinstance(oid, int):
-                    raise APIError(
-                        f"Invalid or missing 'oid' in canceled status for {action_description}",
-                        APIErrorCode.INVALID_RESPONSE.value,
-                        metadata={"raw_status": status_raw},
-                    )
-                return {"canceled": {"oid": oid}}
-
-            # Check for error status
-            if "error" in status_raw and isinstance(status_raw["error"], str):
-                return {"error": status_raw["error"]}
+            result = self._process_dict_status(status_raw, action_description)
+            if result:  # If we found a recognized status
+                return result
 
         # Handle string status
         elif isinstance(status_raw, str):
-            if status_raw.lower() == "canceled":
-                return {"canceled": {"type": "string"}}
-            # Any other string is treated as an error
-            logger.warning(
-                f"Encountered direct string status for {action_description}: '{status_raw}'. "
-                f"Treating as error."
-            )
-            return {"error": status_raw}
+            return self._process_string_status(status_raw, action_description)
 
         # Unknown status type
         raise APIError(
@@ -774,7 +809,7 @@ class HyperliquidTradingService:
             # Process the status - moved business logic from ResponseHandler
             processed_status = self._process_exchange_status(first_status, "place_order")
 
-            if isinstance(processed_status, dict) and "error" in processed_status:
+            if "error" in processed_status:
                 # Use the error mapper for error messages
                 mapped_error = self._error_mapper.map_string_error(
                     processed_status["error"],
@@ -783,16 +818,15 @@ class HyperliquidTradingService:
                 raise mapped_error
 
             # Handle successful statuses
-            if isinstance(processed_status, dict):
-                if "resting" in processed_status:
-                    return await self._handle_resting_order(processed_status["resting"], args)
-                elif "filled" in processed_status:
-                    return await self._handle_filled_order(processed_status["filled"], args)
-                elif "canceled" in processed_status:
-                    raise APIError(
-                        f"Order was canceled unexpectedly: {processed_status}",
-                        APIErrorCode.UNKNOWN.value,
-                    )
+            if "resting" in processed_status:
+                return await self._handle_resting_order(processed_status["resting"], args)
+            elif "filled" in processed_status:
+                return await self._handle_filled_order(processed_status["filled"], args)
+            elif "canceled" in processed_status:
+                raise APIError(
+                    f"Order was canceled unexpectedly: {processed_status}",
+                    APIErrorCode.UNKNOWN.value,
+                )
 
         raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
 
@@ -913,25 +947,7 @@ class HyperliquidTradingService:
         try:
             # Core operational logic
             raw_open_orders = await self._get_open_orders_raw()
-            internal_orders: list[Order] = []
-
-            for raw_open_order_item_wrapper in raw_open_orders:
-                raw_order_details = raw_open_order_item_wrapper.order
-                raw_trigger_details = raw_open_order_item_wrapper.trigger
-
-                if symbol is None or raw_order_details.asset.upper() == symbol.upper():
-                    try:
-                        mapped_order = self._trading_mapper.transform_raw_order_to_internal(
-                            raw_order=raw_order_details,
-                            trigger=raw_trigger_details,
-                        )
-                        internal_orders.append(mapped_order)
-                    except Exception as e:
-                        logger.error(
-                            f"[{self._exchange_name}] Error mapping raw open order to "
-                            f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}",
-                        )
-                        # Continue processing other orders
+            internal_orders = self._process_raw_orders_to_internal(raw_open_orders, symbol)
 
             logger.info(
                 f"[{self._exchange_name}] Retrieved {len(internal_orders)} open orders "
@@ -942,35 +958,74 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            return self._handle_get_open_orders_error(
+                e, current_method, status_code, raw_response_content
+            )
+
+    def _process_raw_orders_to_internal(
+        self, raw_open_orders: list[Any], symbol: str | None
+    ) -> list[Order]:
+        """Process raw open orders and convert to internal Order objects."""
+        internal_orders: list[Order] = []
+
+        for raw_open_order_item_wrapper in raw_open_orders:
+            raw_order_details = raw_open_order_item_wrapper.order
+            raw_trigger_details = raw_open_order_item_wrapper.trigger
+
+            if symbol is None or raw_order_details.asset.upper() == symbol.upper():
+                try:
+                    mapped_order = self._trading_mapper.transform_raw_order_to_internal(
+                        raw_order=raw_order_details,
+                        trigger=raw_trigger_details,
+                    )
+                    internal_orders.append(mapped_order)
+                except Exception as e:
+                    logger.error(
+                        f"[{self._exchange_name}] Error mapping raw open order to "
+                        f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}",
+                    )
+                    # Continue processing other orders
+
+        return internal_orders
+
+    def _handle_get_open_orders_error(
+        self,
+        error: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> list[Order]:
+        """Handle errors during get_open_orders processing."""
+        if isinstance(error, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
+                f"data: {error}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=error,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
+            ) from error
+        elif isinstance(error, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
+                f"failed: {error}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=error,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
+            ) from error
+        elif isinstance(error, ValueError | TypeError):
             # Distinguish input validation from internal errors per ERROR_HANDLING.md
-            error_msg = str(e_service_logic)
+            error_msg = str(error)
             if current_method in error_msg and any(
                 param in error_msg for param in ["order_id", "symbol"]
             ):
@@ -979,27 +1034,26 @@ class HyperliquidTradingService:
             else:
                 logger.error(
                     f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                    f"{e_service_logic}",
+                    f"{error}",
                     exc_info=True,
                 )
                 raise APIError(
                     code=APIErrorCode.UNKNOWN.value,
                     message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                ) from e_service_logic
-        except Exception as e_unexpected:
+                    original_exception=error,
+                ) from error
+        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
+                f"[{self._exchange_name}] {current_method}: Unexpected service failure: {error}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
-                original_exception=e_unexpected,
+                original_exception=error,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_unexpected
+            ) from error
 
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Cancel a specific order and return True if successful.
@@ -1105,7 +1159,7 @@ class HyperliquidTradingService:
             # Process the status - moved business logic from ResponseHandler
             processed_status = self._process_exchange_status(first_status, "cancel_order")
 
-            if isinstance(processed_status, dict) and "error" in processed_status:
+            if "error" in processed_status:
                 # Use the error mapper for error messages
                 mapped_error = self._error_mapper.map_string_error(
                     processed_status["error"],
@@ -1218,37 +1272,62 @@ class HyperliquidTradingService:
             status=CancelOrderResultStatus.FAILED,
         )
 
-    async def _attempt_single_order_cancellation(self, order_to_cancel: Order) -> CancelOrderResult:
-        """Attempt to cancel a single order and return the result."""
+    def _validate_exchange_order_id(self, order_to_cancel: Order) -> str:
+        """Validate and return exchange order ID."""
         order_id_to_cancel_str = order_to_cancel.exchange_order_id
-        order_symbol_for_cancel = order_to_cancel.symbol
-
-        # DEFENSIVE CHECK: exchange_order_id should not be None at this point
         if order_id_to_cancel_str is None:
             raise ValueError("exchange_order_id is None")
+        return order_id_to_cancel_str
+
+    async def _execute_cancel_request(
+        self, order_id_int: int, order_symbol_for_cancel: str
+    ) -> bool:
+        """Execute the cancellation request and return success status."""
+        logger.debug(
+            f"Attempting to cancel order {order_id_int} for symbol {order_symbol_for_cancel}",
+        )
+
+        cancel_args = CancelOrderArgs(
+            order_id=str(order_id_int),
+            symbol=order_symbol_for_cancel,
+        )
+        return await self.cancel_order(args=cancel_args)
+
+    def _create_success_result(
+        self,
+        order_to_cancel: Order,
+        order_id_int: int,
+        order_symbol_for_cancel: str,
+        success_flag: bool,
+    ) -> CancelOrderResult:
+        """Create a successful cancellation result."""
+        return CancelOrderResult(
+            symbol=order_symbol_for_cancel,
+            order_id=str(order_id_int),
+            client_order_id=order_to_cancel.client_order_id,
+            success=success_flag,
+            message="Successfully canceled." if success_flag else "Failed to cancel via API.",
+            status=CancelOrderResultStatus.SUCCESS
+            if success_flag
+            else CancelOrderResultStatus.FAILED,
+        )
+
+    async def _attempt_single_order_cancellation(self, order_to_cancel: Order) -> CancelOrderResult:
+        """Attempt to cancel a single order and return the result."""
+        # Initialize variables for use in exception handlers
+        order_symbol_for_cancel = order_to_cancel.symbol
+        order_id_to_cancel_str = order_to_cancel.exchange_order_id or "unknown"
 
         try:
+            order_id_to_cancel_str = self._validate_exchange_order_id(order_to_cancel)
+
             order_id_int = int(order_id_to_cancel_str)
-            logger.debug(
-                f"Attempting to cancel order {order_id_int} for symbol {order_symbol_for_cancel}",
+            success_flag = await self._execute_cancel_request(order_id_int, order_symbol_for_cancel)
+
+            return self._create_success_result(
+                order_to_cancel, order_id_int, order_symbol_for_cancel, success_flag
             )
 
-            cancel_args = CancelOrderArgs(
-                order_id=str(order_id_int),
-                symbol=order_symbol_for_cancel,
-            )
-            success_flag = await self.cancel_order(args=cancel_args)
-
-            return CancelOrderResult(
-                symbol=order_symbol_for_cancel,
-                order_id=str(order_id_int),
-                client_order_id=order_to_cancel.client_order_id,
-                success=success_flag,
-                message="Successfully canceled." if success_flag else "Failed to cancel via API.",
-                status=CancelOrderResultStatus.SUCCESS
-                if success_flag
-                else CancelOrderResultStatus.FAILED,
-            )
         except ValueError:
             return self._create_invalid_order_id_result(
                 order_to_cancel, order_id_to_cancel_str, order_symbol_for_cancel

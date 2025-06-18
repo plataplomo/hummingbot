@@ -249,8 +249,10 @@ class HyperliquidTestHelpers:
             f"Price calculation for {symbol}: market={market_price}, "
             f"tolerance={tolerance_percent}%, side={side.value}"
         )
+        operator = "-" if side == OrderSide.BUY else "+"
         logger.info(
-            f"Step 1 - test_price calculation: {market_price} * (1 {'-' if side == OrderSide.BUY else '+'} {tolerance_percent / 100}) = {test_price}"
+            f"Step 1 - test_price calculation: {market_price} * "
+            f"(1 {operator} {tolerance_percent / 100}) = {test_price}"
         )
         logger.info(
             f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
@@ -376,7 +378,8 @@ class HyperliquidTestHelpers:
             if final_notional > max_affordable_notional:
                 raise RuntimeError(
                     f"Required notional value {final_notional} exceeds 20% of account equity "
-                    f"({max_affordable_notional}). Cannot safely test with minimum $10 order on this account."
+                    f"({max_affordable_notional}). Cannot safely test with minimum $10 order "
+                    f"on this account."
                 )
 
             logger.info(

@@ -486,6 +486,67 @@ class TestHyperliquidAPIComponentIntegration:
             )
             await hl_api_for_test_env.cancel_order(cancel_args)
 
+    async def _validate_concurrent_operation_results(
+        self,
+        results: list[Any],
+        test_symbol: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> None:
+        """Validate results from concurrent operations."""
+        # Validate all operations completed successfully
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                pytest.fail(f"Concurrent operation {i} failed: {result}")
+
+        # Type cast results after confirming they're not exceptions
+        account_data, market_data, ticker_data, open_orders = results
+
+        # Validate data consistency despite concurrent execution
+        assert hasattr(account_data, "exchange") and account_data.exchange == "hyperliquid", (
+            "Account data must maintain exchange consistency"
+        )
+        assert hasattr(market_data, "symbol") and market_data.symbol == test_symbol, (
+            "Market data must maintain symbol consistency"
+        )
+        assert hasattr(ticker_data, "symbol") and ticker_data.symbol == test_symbol, (
+            "Ticker data must maintain symbol consistency"
+        )
+        assert isinstance(open_orders, list), "Open orders must return list consistently"
+
+        # Validate timing consistency
+        total_time = end_time - start_time
+        if total_time > timedelta(seconds=10):
+            pytest.fail(
+                f"Concurrent operations took {total_time}, may indicate "
+                "performance issues or rate limiting problems"
+            )
+
+        # Validate financial data precision maintained across concurrent calls
+        self._validate_financial_precision(account_data, market_data, ticker_data)
+
+    def _validate_financial_precision(
+        self,
+        account_data: MarginAccountSummary | Exception,
+        market_data: Market | Exception,
+        ticker_data: Ticker | Exception,
+    ) -> None:
+        """Validate financial data precision in concurrent results."""
+        financial_values = []
+        if hasattr(account_data, "total_equity"):
+            financial_values.append(account_data.total_equity)
+        if hasattr(account_data, "available_equity"):
+            financial_values.append(account_data.available_equity)
+        if hasattr(market_data, "tick_size"):
+            financial_values.append(market_data.tick_size)
+        if hasattr(ticker_data, "price") and ticker_data.price is not None:
+            financial_values.append(ticker_data.price)
+
+        for value in financial_values:
+            assert isinstance(value, Decimal), (
+                "Financial precision must be maintained in concurrent operations"
+            )
+
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_concurrent_service_operations(
@@ -493,11 +554,7 @@ class TestHyperliquidAPIComponentIntegration:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test that concurrent operations across services maintain consistency.
-
-        Validates that the API can handle concurrent operations across different
-        services without data corruption or race conditions.
-        """
+        """Test that concurrent operations across services maintain consistency."""
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Define concurrent operations across different services
@@ -528,49 +585,6 @@ class TestHyperliquidAPIComponentIntegration:
         )
         end_time = datetime.now(UTC)
 
-        # Validate all operations completed successfully
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                pytest.fail(f"Concurrent operation {i} failed: {result}")
-
-        # Type cast results after confirming they're not exceptions
-        account_data = results[0]
-        market_data = results[1]
-        ticker_data = results[2]
-        open_orders = results[3]
-
-        # Validate data consistency despite concurrent execution
-        assert hasattr(account_data, "exchange") and account_data.exchange == "hyperliquid", (
-            "Account data must maintain exchange consistency"
+        await self._validate_concurrent_operation_results(
+            results, test_symbol, start_time, end_time
         )
-        assert hasattr(market_data, "symbol") and market_data.symbol == test_symbol, (
-            "Market data must maintain symbol consistency"
-        )
-        assert hasattr(ticker_data, "symbol") and ticker_data.symbol == test_symbol, (
-            "Ticker data must maintain symbol consistency"
-        )
-        assert isinstance(open_orders, list), "Open orders must return list consistently"
-
-        # Validate timing consistency (operations should complete reasonably quickly)
-        total_time = end_time - start_time
-        if total_time > timedelta(seconds=10):
-            pytest.fail(
-                f"Concurrent operations took {total_time}, may indicate "
-                "performance issues or rate limiting problems"
-            )
-
-        # Validate financial data precision maintained across concurrent calls
-        financial_values = []
-        if hasattr(account_data, "total_equity"):
-            financial_values.append(account_data.total_equity)
-        if hasattr(account_data, "available_equity"):
-            financial_values.append(account_data.available_equity)
-        if hasattr(market_data, "tick_size"):
-            financial_values.append(market_data.tick_size)
-        if hasattr(ticker_data, "price") and ticker_data.price is not None:
-            financial_values.append(ticker_data.price)
-
-        for value in financial_values:
-            assert isinstance(value, Decimal), (
-                "Financial precision must be maintained in concurrent operations"
-            )

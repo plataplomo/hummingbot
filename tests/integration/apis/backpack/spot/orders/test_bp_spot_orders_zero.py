@@ -858,7 +858,8 @@ class TestBackpackOrdersZeroBalance:
                         f"got: {order.status.value}"
                     )
                     logger.info(
-                        f"✓ {test_case['name']} conditional order placed successfully: {order.status.value}"
+                        f"✓ {test_case['name']} conditional order placed successfully: "
+                        f"{order.status.value}"
                     )
                 else:
                     # Non-conditional orders should not succeed with zero balance
@@ -873,7 +874,8 @@ class TestBackpackOrdersZeroBalance:
                     f"{api_error.code} - {api_error.message}"
                 )
                 logger.info(
-                    f"✓ {test_case['name']} correctly failed: {api_error.code} - {api_error.message}"
+                    f"✓ {test_case['name']} correctly failed: {api_error.code} - "
+                    f"{api_error.message}"
                 )
 
         logger.info(f"✓ All {len(order_type_tests)} order types tested with zero balance")

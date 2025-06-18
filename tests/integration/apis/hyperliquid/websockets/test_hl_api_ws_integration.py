@@ -401,21 +401,9 @@ class TestHyperliquidWebSocketIntegration:
             # Expected - naive timestamps should cause problems
             logger.info(f"Correctly rejected naive timestamp: {e}")
 
-    @pytest.mark.asyncio
-    async def test_websocket_error_handling_and_reconnection(
-        self,
-        hl_api_for_test_env: HyperliquidAPI,
-    ) -> None:
-        """Test WebSocket error handling and reconnection logic.
-
-        Validates that WebSocket failures are handled properly and
-        do not cause silent failures in trading operations.
-        """
-        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-
-        # Test 1: Connection failure handling
+    async def _test_connection_retry_logic(self, max_attempts: int = 3) -> int:
+        """Test WebSocket connection retry logic."""
         connection_attempts = 0
-        max_attempts = 3
 
         async def simulate_connection_with_retry() -> dict[str, str | int]:
             nonlocal connection_attempts
@@ -425,7 +413,6 @@ class TestHyperliquidWebSocketIntegration:
 
                 try:
                     # Simulate connection attempt
-                    # In real implementation, this would be actual WebSocket connection
                     if attempt < 2:  # Fail first 2 attempts
                         raise ConnectionError(
                             f"WebSocket connection failed (attempt {attempt + 1})"
@@ -455,63 +442,81 @@ class TestHyperliquidWebSocketIntegration:
         assert connection_result["status"] == "connected", (
             "WebSocket connection retry logic must eventually succeed"
         )
+        return connection_attempts
+
+    async def _test_message_parsing_error_handling(self, test_symbol: str) -> bool:
+        """Test WebSocket message parsing error handling."""
+        import json
+
+        # Simulate invalid JSON message
+        invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol + '"}'
+
+        try:
+            # In real implementation, this would parse WebSocket message
+            parsed_data = json.loads(invalid_json)
+
+            # Try to create Ticker from invalid data
+            Decimal(parsed_data["price"])  # This should fail
+
+            # If we get here, something is wrong
+            pytest.fail("Invalid WebSocket message should have failed parsing")
+
+        except (ValueError, json.JSONDecodeError) as e:
+            # Expected - invalid data should fail
+            logger.info(f"Correctly rejected invalid WebSocket message: {e}")
+            return True
+
+        except Exception as e:
+            pytest.fail(f"Unexpected error in message parsing: {e}")
+
+        return False
+
+    async def _test_subscription_failure_handling(self) -> bool:
+        """Test WebSocket subscription failure handling."""
+        # Simulate subscription to invalid symbol
+        invalid_symbol = "DEFINITELY_INVALID_SYMBOL_XYZ"
+
+        try:
+            # In real implementation, this would attempt WebSocket subscription
+            # For testing, we simulate the failure
+            raise APIError(
+                message=f"Subscription failed for symbol {invalid_symbol}",
+                code="INVALID_SYMBOL",
+            )
+
+        except APIError as e:
+            # Subscription failures should be handled gracefully but reported
+            if "INVALID_SYMBOL" in str(e.code):
+                logger.info(f"Correctly handled subscription failure: {e}")
+                return True
+            else:
+                pytest.fail(f"Unexpected subscription error: {e}")
+
+        except Exception as e:
+            pytest.fail(f"Subscription failure handling failed: {e}")
+
+        return False
+
+    @pytest.mark.asyncio
+    async def test_websocket_error_handling_and_reconnection(
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+    ) -> None:
+        """Test WebSocket error handling and reconnection logic."""
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
+
+        # Test 1: Connection failure handling
+        connection_attempts = await self._test_connection_retry_logic()
         assert connection_attempts == 3, (
             f"Expected 3 connection attempts, got {connection_attempts}"
         )
 
         # Test 2: Message parsing error handling
-        async def test_message_parsing() -> bool | None:
-            # Simulate invalid JSON message
-            invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol + '"}'
-
-            try:
-                # In real implementation, this would parse WebSocket message
-                import json
-
-                parsed_data = json.loads(invalid_json)
-
-                # Try to create Ticker from invalid data
-                Decimal(parsed_data["price"])  # This should fail
-
-                # If we get here, something is wrong
-                pytest.fail("Invalid WebSocket message should have failed parsing")
-
-            except (ValueError, json.JSONDecodeError) as e:
-                # Expected - invalid data should fail
-                logger.info(f"Correctly rejected invalid WebSocket message: {e}")
-                return True
-
-            except Exception as e:
-                pytest.fail(f"Unexpected error in message parsing: {e}")
-
-        parsing_success = await test_message_parsing()
+        parsing_success = await self._test_message_parsing_error_handling(test_symbol)
         assert parsing_success, "WebSocket message parsing error handling must work"
 
         # Test 3: Subscription failure handling
-        async def test_subscription_failure() -> bool | None:
-            # Simulate subscription to invalid symbol
-            invalid_symbol = "DEFINITELY_INVALID_SYMBOL_XYZ"
-
-            try:
-                # In real implementation, this would attempt WebSocket subscription
-                # For testing, we simulate the failure
-                raise APIError(
-                    message=f"Subscription failed for symbol {invalid_symbol}",
-                    code="INVALID_SYMBOL",
-                )
-
-            except APIError as e:
-                # Subscription failures should be handled gracefully but reported
-                if "INVALID_SYMBOL" in str(e.code):
-                    logger.info(f"Correctly handled subscription failure: {e}")
-                    return True
-                else:
-                    pytest.fail(f"Unexpected subscription error: {e}")
-
-            except Exception as e:
-                pytest.fail(f"Subscription failure handling failed: {e}")
-
-        subscription_success = await test_subscription_failure()
+        subscription_success = await self._test_subscription_failure_handling()
         assert subscription_success, "WebSocket subscription error handling must work"
 
     @pytest.mark.asyncio

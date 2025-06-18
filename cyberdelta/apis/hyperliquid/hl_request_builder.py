@@ -152,25 +152,24 @@ class HyperliquidRequestBuilder:
 
     @staticmethod
     def _decimal_to_wire_format(value: Decimal | None) -> str:
-        """Convert decimal to Hyperliquid wire format with comprehensive validation.
+        """Convert a Decimal to the string wire format with validation.
 
-        Implements the exact SDK's float_to_wire function behavior with enhanced
-        safety checks and Pydantic-compliant error handling.
+        This is the authoritative conversion method that ensures all decimal values
+        sent to Hyperliquid API are properly formatted. The wire format must be
+        decimal-represented for financial precision.
 
         Args:
-            value: Decimal value to convert (None returns "0")
+            value: Decimal value to convert to wire format, or None for market orders
 
         Returns:
-            String representation in Hyperliquid wire format
+            str: String representation ready for API transmission
 
         Raises:
-            ValueError: If conversion causes precision loss or value is invalid
+            ValueError: If the decimal value is not finite or if formatting fails
+            TypeError: If the value is not a Decimal type
         """
         if value is None:
             return "0"
-
-        if not isinstance(value, Decimal):
-            raise TypeError(f"Expected Decimal, got {type(value).__name__}: {value}")
 
         HyperliquidRequestBuilder._validate_decimal_input(value)
         rounded = HyperliquidRequestBuilder._format_and_validate_precision(value)

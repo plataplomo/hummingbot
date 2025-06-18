@@ -1,4 +1,22 @@
-"""Hyperliquid EIP-712 authentication implementation."""
+"""CyberDeltaEngine: Hyperliquid EIP-712 Authentication.
+
+------------------------------------------------
+
+This module provides authentication capabilities for the Hyperliquid exchange using
+EIP-712 signing standard. It handles wallet setup, nonce management, and request
+signing for both mainnet and testnet environments.
+
+Core Features:
+- EIP-712 structured data signing for exchange requests
+- Secure wallet management with multiple initialization options
+- Automatic nonce management with timestamp-based sequences
+- Comprehensive validation and error handling
+
+Security Notes:
+- Private keys are handled securely via SecretStr and LocalAccount
+- No sensitive data is logged in production
+- All signatures use cryptographically secure methods
+"""
 
 from __future__ import annotations
 
@@ -6,7 +24,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     pass
@@ -37,6 +55,25 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+class SignatureObject(Protocol):
+    """Protocol for signature objects from eth_account signing."""
+
+    @property
+    def r(self) -> int:
+        """ECDSA signature r component."""
+        ...
+
+    @property
+    def s(self) -> int:
+        """ECDSA signature s component."""
+        ...
+
+    @property
+    def v(self) -> int:
+        """ECDSA signature recovery id."""
+        ...
 
 
 def address_to_bytes(address: str) -> bytes:
@@ -321,24 +358,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 f"Only /exchange endpoint is supported.",
             )
 
-    async def _prepare_exchange_request(
-        self,
-        method: str,
-        path: str,
-        params: dict[str, Any] | None,
-        data: dict[str, Any] | None,
-        headers: Mapping[str, Any] | None,
-    ) -> AuthenticatedRequestComponents:
-        """Prepare and sign a Hyperliquid /exchange request using sign_l1_action scheme.
-
-        This implements the SDK's sign_l1_action flow:
-        1. msgpack the action payload
-        2. Hash action + nonce + vault_address + expires_after with keccak
-        3. Use hash as connectionId in EIP-712 Agent message
-        4. Sign Agent message with "Exchange" domain
-        5. Return JSON body with action, nonce, signature (no X-HL-* headers)
-        """
-        # Input validation
+    def _validate_exchange_request_data(self, data: dict[str, Any] | None) -> None:
+        """Validate exchange request data format."""
         if not isinstance(data, dict):
             msg = (
                 "Invalid 'data' for Hyperliquid /exchange request: "
@@ -347,25 +368,20 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}")
             raise ValueError(msg)
 
+    def _prepare_action_payload(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convert and clean the action payload for signing."""
         # Convert the payload to a format suitable for signing
-        # The request builder provides Pydantic models, we need dicts for msgpack
         action_payload_dict = self._signing_mapper.convert_payload_to_signing_format(data)
 
-        # Clean the payload for signing using the signing mapper
-        action_payload_dict = self._signing_mapper.clean_raw_payload_for_signing(
-            action_payload_dict
-        )
+        # Clean the payload for signing
+        return self._signing_mapper.clean_raw_payload_for_signing(action_payload_dict)
 
-        # Generate nonce
-        current_nonce_ms: int = await self._get_next_nonce_ms()
-
-        # Define vault_address and expires_after for hash (None for standard user trades)
-        vault_address_for_hash: str | None = None
-        expires_after_for_hash: int | None = None
-
-        # Calculate action_hash (mimicking SDK's action_hash function)
+    def _compute_action_hash(
+        self, action_payload_dict: dict[str, Any], current_nonce_ms: int
+    ) -> bytes:
+        """Compute action hash using msgpack and keccak."""
         try:
-            msgpacked_action = msgpack.packb(action_payload_dict)
+            msgpacked_action: bytes = msgpack.packb(action_payload_dict)
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to msgpack action payload: {e}")
             raise APIError(
@@ -378,28 +394,30 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self.logger.debug(f"[HL_AUTH] Action type: {action_payload_dict.get('type', 'unknown')}")
         self.logger.debug(f"[HL_AUTH] Msgpacked action size: {len(msgpacked_action)} bytes")
 
+        # Build hash input components
         action_hash_data_parts: list[bytes] = [msgpacked_action]
         action_hash_data_parts.append(current_nonce_ms.to_bytes(8, "big"))
         self.logger.debug(f"[HL_AUTH] Nonce: {current_nonce_ms}")
-        # Security: Don't log sensitive nonce bytes
 
+        # Add vault address (None for standard user trades)
+        vault_address_for_hash: str | None = None
         if vault_address_for_hash is not None:
             action_hash_data_parts.append(b"\x01")
             action_hash_data_parts.append(address_to_bytes(vault_address_for_hash))
         else:
             action_hash_data_parts.append(b"\x00")
 
-        # Note: expires_after handling - SDK only adds expires_after when not None
+        # Add expires_after if present
+        expires_after_for_hash: int | None = None
         if expires_after_for_hash is not None:
             action_hash_data_parts.append(b"\x00")
             action_hash_data_parts.append(expires_after_for_hash.to_bytes(8, "big"))
 
-        action_hash_input_bytes: bytes = b"".join(action_hash_data_parts)
-        # Security: Don't log full hash input as it may contain sensitive data
+        action_hash_input_bytes = b"".join(action_hash_data_parts)
         self.logger.debug(f"[HL_AUTH] Action hash input size: {len(action_hash_input_bytes)} bytes")
 
         try:
-            action_hash_bytes: bytes = keccak(action_hash_input_bytes)
+            return keccak(action_hash_input_bytes)
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to compute action hash: {e}")
             raise APIError(
@@ -408,20 +426,105 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 original_exception=e,
             ) from e
 
-        # Security: Don't log the actual hash value
-        self.logger.debug("[HL_AUTH] Action hash computed successfully")
-
-        # Construct phantom_agent_message for EIP-712
-        # SDK uses "a" for mainnet, "b" for testnet
-        source_char: str = "a" if self._is_mainnet_env else "b"
-        phantom_agent_message: dict[str, Any] = {
+    def _create_phantom_agent_message(self, action_hash_bytes: bytes) -> dict[str, Any]:
+        """Create phantom agent message for EIP-712 signing."""
+        source_char = "a" if self._is_mainnet_env else "b"
+        phantom_agent_message = {
             "source": source_char,
             "connectionId": action_hash_bytes,
         }
         self.logger.debug(f"[HL_AUTH] Phantom agent source: {source_char}")
-        # Security: Don't log connectionId details as they contain hash data
+        return phantom_agent_message
 
-        # Construct structured_data_to_sign for EIP-712
+    def _format_signature_components(self, signed_message_obj: SignatureObject) -> dict[str, Any]:
+        """Format signature components with proper validation and padding."""
+        # Validate signature components
+        if (
+            not hasattr(signed_message_obj, "r")
+            or not hasattr(signed_message_obj, "s")
+            or not hasattr(signed_message_obj, "v")
+        ):
+            raise APIError(
+                "Invalid signature object: missing r, s, or v components",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        # Convert signature components to hex with proper padding
+        try:
+            r_hex: str = to_hex(signed_message_obj.r)
+            s_hex: str = to_hex(signed_message_obj.s)
+
+            # Pad to 64 hex characters if needed (0x + 64 chars = 66 total)
+            if len(r_hex) < 66:
+                r_hex = "0x" + r_hex[2:].zfill(64)
+            if len(s_hex) < 66:
+                s_hex = "0x" + s_hex[2:].zfill(64)
+
+            # Validate hex format
+            if not r_hex.startswith("0x") or len(r_hex) != 66:
+                raise ValueError(f"Invalid r component format: {r_hex}")
+            if not s_hex.startswith("0x") or len(s_hex) != 66:
+                raise ValueError(f"Invalid s component format: {s_hex}")
+
+            signature_dict = {
+                "r": r_hex,
+                "s": s_hex,
+                "v": signed_message_obj.v,
+            }
+
+            # Security: Log signature creation success without exposing values
+            self.logger.debug("[HL_AUTH] Signature components generated successfully")
+            self.logger.debug(f"[HL_AUTH] Signature v value: {signed_message_obj.v}")
+            self.logger.debug(f"[HL_AUTH] Signing account: {self._account.address}")
+
+            return signature_dict
+        except Exception as e:
+            self.logger.error(f"[HL_AUTH] Failed to format signature components: {e}")
+            raise APIError(
+                f"Failed to format signature: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
+
+    async def _prepare_exchange_request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
+    ) -> AuthenticatedRequestComponents:
+        """Prepare and sign a Hyperliquid /exchange request using sign_l1_action scheme."""
+        # Input validation
+        self._validate_exchange_request_data(data)
+        # DEFENSIVE CHECK: Ensure data is not None after validation
+        if data is None:
+            raise ValueError("Data cannot be None after validation")
+
+        # Prepare core components
+        action_payload_dict = self._prepare_action_payload(data)
+        current_nonce_ms = await self._get_next_nonce_ms()
+        action_hash_bytes = self._compute_action_hash(action_payload_dict, current_nonce_ms)
+        phantom_agent_message = self._create_phantom_agent_message(action_hash_bytes)
+
+        # Sign the structured data
+        signature_dict = self._sign_eip712_message(phantom_agent_message)
+
+        # Construct final request components
+        final_http_body = self._construct_http_body(
+            action_payload_dict, current_nonce_ms, signature_dict
+        )
+        final_headers = self._prepare_request_headers(headers)
+
+        return AuthenticatedRequestComponents(
+            headers=final_headers,
+            params=params,
+            data=final_http_body,
+        )
+
+    def _sign_eip712_message(self, phantom_agent_message: dict[str, Any]) -> dict[str, Any]:
+        """Sign the EIP-712 message and return signature components."""
+        # Construct structured data for EIP-712 signing
         structured_data_to_sign = {
             "domain": self._exchange_action_domain.model_dump(by_alias=True),
             "message": phantom_agent_message,
@@ -429,7 +532,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "types": self._exchange_action_agent_types.model_dump(by_alias=True),
         }
 
-        # Sign the message with enhanced security
         try:
             # Security: Only log domain information, not sensitive message details
             domain_dict = structured_data_to_sign["domain"]
@@ -440,76 +542,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             primary_type = structured_data_to_sign.get("primaryType", "unknown")
             self.logger.debug(f"[HL_AUTH] EIP-712 primaryType: {primary_type}")
 
-            # Generate signable message
-            try:
-                signable_message = encode_typed_data(full_message=structured_data_to_sign)
-            except Exception as e:
-                self.logger.error(f"[HL_AUTH] Failed to encode EIP-712 typed data: {e}")
-                raise APIError(
-                    f"Failed to encode EIP-712 message: {e}",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                    original_exception=e,
-                ) from e
+            # Generate and sign EIP-712 message
+            signable_message = self._encode_and_sign_message(structured_data_to_sign)
+            return self._format_signature_components(signable_message)
 
-            # Security: Don't log the actual signable message hash as it may be sensitive
-            self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
-
-            # Sign the message
-            try:
-                signed_message_obj = self._account.sign_message(signable_message)
-            except Exception as e:
-                self.logger.error(f"[HL_AUTH] Failed to sign EIP-712 message: {e}")
-                raise APIError(
-                    f"Failed to sign EIP-712 message: {e}",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                    original_exception=e,
-                ) from e
-
-            # Validate signature components
-            if (
-                not hasattr(signed_message_obj, "r")
-                or not hasattr(signed_message_obj, "s")
-                or not hasattr(signed_message_obj, "v")
-            ):
-                raise APIError(
-                    "Invalid signature object: missing r, s, or v components",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                )
-
-            # Convert signature components to hex with proper padding
-            try:
-                r_hex: str = to_hex(signed_message_obj.r)
-                s_hex: str = to_hex(signed_message_obj.s)
-
-                # Pad to 64 hex characters if needed (0x + 64 chars = 66 total)
-                if len(r_hex) < 66:
-                    r_hex = "0x" + r_hex[2:].zfill(64)
-                if len(s_hex) < 66:
-                    s_hex = "0x" + s_hex[2:].zfill(64)
-
-                # Validate hex format
-                if not r_hex.startswith("0x") or len(r_hex) != 66:
-                    raise ValueError(f"Invalid r component format: {r_hex}")
-                if not s_hex.startswith("0x") or len(s_hex) != 66:
-                    raise ValueError(f"Invalid s component format: {s_hex}")
-
-                signature_dict: dict[str, Any] = {
-                    "r": r_hex,
-                    "s": s_hex,
-                    "v": signed_message_obj.v,
-                }
-
-                # Security: Log signature creation success without exposing values
-                self.logger.debug("[HL_AUTH] Signature components generated successfully")
-                self.logger.debug(f"[HL_AUTH] Signature v value: {signed_message_obj.v}")
-                self.logger.debug(f"[HL_AUTH] Signing account: {self._account.address}")
-            except Exception as e:
-                self.logger.error(f"[HL_AUTH] Failed to format signature components: {e}")
-                raise APIError(
-                    f"Failed to format signature: {e}",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                    original_exception=e,
-                ) from e
         except Exception as e:
             self.logger.error(
                 f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid Exchange "
@@ -522,7 +558,37 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 original_exception=e,
             ) from e
 
-        # Construct final HTTP JSON body with validation
+    def _encode_and_sign_message(self, structured_data_to_sign: dict[str, Any]) -> SignatureObject:
+        """Encode and sign the EIP-712 message."""
+        try:
+            signable_message = encode_typed_data(full_message=structured_data_to_sign)
+        except Exception as e:
+            self.logger.error(f"[HL_AUTH] Failed to encode EIP-712 typed data: {e}")
+            raise APIError(
+                f"Failed to encode EIP-712 message: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
+
+        self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
+
+        try:
+            return self._account.sign_message(signable_message)
+        except Exception as e:
+            self.logger.error(f"[HL_AUTH] Failed to sign EIP-712 message: {e}")
+            raise APIError(
+                f"Failed to sign EIP-712 message: {e}",
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
+
+    def _construct_http_body(
+        self,
+        action_payload_dict: dict[str, Any],
+        current_nonce_ms: int,
+        signature_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Construct the final HTTP request body."""
         try:
             # Validate all required components are present
             if not action_payload_dict:
@@ -533,6 +599,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 raise ValueError("Nonce must be positive")
 
             # The SDK always includes vaultAddress and expiresAfter, even when None
+            # For standard user trades, these are None
+            vault_address_for_hash: str | None = None
+            expires_after_for_hash: int | None = None
+
             final_http_body: dict[str, Any] = {
                 "action": action_payload_dict,
                 "nonce": current_nonce_ms,
@@ -543,6 +613,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Security: Log successful body construction without sensitive data
             self.logger.debug(f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields")
+            return final_http_body
 
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to construct HTTP body: {e}")
@@ -552,41 +623,28 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 original_exception=e,
             ) from e
 
-        # Prepare HTTP headers with validation (no X-HL-* auth headers for /exchange)
+    def _prepare_request_headers(self, headers: Mapping[str, Any] | None) -> dict[str, str]:
+        """Prepare HTTP headers for the request."""
         try:
             final_headers: dict[str, str] = {"Content-Type": "application/json"}
             if headers:
                 for key, value in headers.items():
                     if key != "Content-Type":  # Don't override Content-Type
                         # Validate header values are safe strings
-                        if not isinstance(key, str) or not key.strip():
-                            self.logger.warning(f"[HL_AUTH] Skipping invalid header key: {key!r}")
+                        if not key.strip():
+                            self.logger.warning(f"[HL_AUTH] Skipping empty header key: {key!r}")
                             continue
                         safe_value = str(value).strip()
                         if safe_value:  # Only add non-empty values
                             final_headers[key] = safe_value
 
             self.logger.debug(f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers")
+            return final_headers
 
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to prepare headers: {e}")
             raise APIError(
                 f"Failed to prepare request headers: {e}",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                original_exception=e,
-            ) from e
-
-        # Final validation and return
-        try:
-            return AuthenticatedRequestComponents(
-                headers=final_headers,
-                params=params,
-                data=final_http_body,
-            )
-        except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to create authenticated request components: {e}")
-            raise APIError(
-                f"Failed to create authenticated request: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e

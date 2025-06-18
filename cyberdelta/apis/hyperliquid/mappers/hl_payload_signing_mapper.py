@@ -35,105 +35,137 @@ logger = get_logger(__name__)
 
 
 class HyperliquidPayloadSigningMapper:
-    """Maps Raw API payloads to signing format for Hyperliquid EIP-712 authentication.
+    """Transforms Pydantic models to signing format for Hyperliquid authentication.
 
-    This mapper handles the RAW → SIGNING transformation boundary, ensuring:
-    1. Pydantic models are converted to plain dictionaries
-    2. Null/None fields are removed appropriately
-    3. Ethereum addresses are normalized to lowercase
-    4. Order type structures are cleaned
-    5. Payload is ready for msgpack serialization and signing
+    This class handles the conversion of Pydantic models and data structures
+    into the exact format required for Hyperliquid's EIP-712 signing process.
+    It ensures proper field mapping, null value handling, and address normalization.
 
-    Architecture Compliance:
-    - Works with Raw models from cyberdelta/apis/hyperliquid/models/
-    - No business logic, only data transformation for signing
-    - Comprehensive error handling
-    - Clear logging for debugging signature issues
+    Key Features:
+    - Converts Pydantic models to dict format using model_dump()
+    - Handles nested structures and lists of orders
+    - Removes null/None fields that should be omitted from signing
+    - Normalizes Ethereum addresses to lowercase for consistent hashing
+    - Validates final payload is JSON serializable
+
+    Usage:
+        mapper = HyperliquidPayloadSigningMapper()
+        signing_payload = mapper.convert_payload_to_signing_format(raw_data)
+        cleaned_payload = mapper.clean_raw_payload_for_signing(payload)
     """
 
     def __init__(self, logger_param: logging.Logger | None = None) -> None:
         """Initialize the payload signing mapper.
 
         Args:
-            logger_param: Optional logger for transformation events
+            logger_param: Optional logger instance. If None, creates a new logger.
         """
         self.logger = logger_param or get_logger(__name__)
 
-    def convert_payload_to_signing_format(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Convert payload with Pydantic models to dict format for signing.
-
-        Architecture Compliance: Handles the RAW → SIGNING transformation with
-        proper Pydantic boundary protection and validation.
-
+    def _convert_pydantic_order_to_dict(self, order: Any, index: int) -> dict[str, Any]:
+        """Convert a Pydantic order model to dict format.
+        
         Args:
-            data: Payload that may contain Pydantic models
-
+            order: Pydantic model with model_dump() method - using Any because this method
+                   is called after hasattr() check confirms presence of model_dump()
+            index: Order index for error reporting
+            
         Returns:
-            Dictionary suitable for msgpack serialization and signing
-
-        Raises:
-            TransformationError: If conversion fails
+            Dictionary representation of the order
+            
+        Note:
+            Using Any type is necessary here because this method handles polymorphic
+            data after runtime type checking with hasattr(order, "model_dump").
+            The caller ensures order is a Pydantic model before calling this method.
         """
         try:
-            # Input validation
-            if not isinstance(data, dict):
-                raise TypeError(f"Expected dict, got {type(data).__name__}")
+            return order.model_dump(by_alias=False, exclude_none=True)
+        except Exception as e:
+            raise TransformationError(
+                f"Failed to convert order at index {index} to dict: {e}",
+                code=APIErrorCode.TRANSFORMATION_FAILED.name,
+            ) from e
 
+    def _convert_aliased_order_dict(self, order: dict[str, Any]) -> dict[str, Any]:
+        """Convert order dict with aliased names to short field names."""
+        order_dict = {
+            "a": order["asset_index"],
+            "b": order["is_buy"],
+            "p": order["limit_px"],
+            "s": order["size"],
+            "r": order["reduce_only"],
+            "t": order["order_type_details"],
+        }
+        if "client_order_id" in order and order["client_order_id"] is not None:
+            order_dict["c"] = order["client_order_id"]
+        return order_dict
+
+    def _process_single_order(self, order: Any, index: int) -> dict[str, Any]:
+        """Process a single order for signing conversion.
+        
+        Args:
+            order: Order data - can be either a Pydantic model or dictionary - using Any
+                   because this method performs runtime type checking to handle both cases
+            index: Order index for error reporting
+            
+        Returns:
+            Dictionary representation ready for signing
+            
+        Note:
+            Using Any type is necessary here because this method handles polymorphic
+            data that can be either:
+            1. Pydantic models (detected via hasattr(order, "model_dump"))
+            2. Plain dictionaries (detected via isinstance(order, dict))
+            Runtime type checking is used to handle each case appropriately.
+        """
+        if hasattr(order, "model_dump"):
+            # It's a Pydantic model
+            return self._convert_pydantic_order_to_dict(order, index)
+        elif isinstance(order, dict):
+            # Already a dict - check field name format
+            if all(key in order for key in ["a", "b", "p", "s"]):
+                # Already has short field names
+                return order
+            elif all(key in order for key in ["asset_index", "is_buy", "limit_px", "size"]):
+                # Has aliased names - need to convert to short names
+                return self._convert_aliased_order_dict(order)
+            else:
+                raise ValueError(f"Order dict at index {index} has unexpected field names")
+        else:
+            raise TypeError(f"Invalid order type at index {index}: {type(order).__name__}")
+
+    def _convert_orders_list(self, orders: list[Any]) -> list[dict[str, Any]]:
+        """Convert list of orders to signing format."""
+        orders_for_signing = []
+        for i, order in enumerate(orders):
+            converted_order = self._process_single_order(order, i)
+            orders_for_signing.append(converted_order)
+        return orders_for_signing
+
+    def _convert_action_field(self, payload_dict: dict[str, Any]) -> None:
+        """Convert action field if it's a Pydantic model."""
+        if "action" in payload_dict and hasattr(payload_dict["action"], "model_dump"):
+            try:
+                payload_dict["action"] = payload_dict["action"].model_dump(
+                    by_alias=False, exclude_none=True
+                )
+            except Exception as e:
+                raise TransformationError(
+                    f"Failed to convert action to dict: {e}",
+                    code=APIErrorCode.TRANSFORMATION_FAILED.name,
+                ) from e
+
+    def convert_payload_to_signing_format(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convert payload with Pydantic models to dict format for signing."""
+        try:
             payload_dict = data.copy()
 
             # Handle Pydantic models in the orders field
             if "orders" in payload_dict and isinstance(payload_dict["orders"], list):
-                # Convert Pydantic models to dicts for signing
-                orders_for_signing = []
-                for i, order in enumerate(payload_dict["orders"]):
-                    if hasattr(order, "model_dump"):
-                        # It's a Pydantic model - convert to dict with proper field names
-                        # Architecture: Use by_alias=False to get internal field names for signing
-                        try:
-                            order_dict = order.model_dump(by_alias=False, exclude_none=True)
-                            orders_for_signing.append(order_dict)
-                        except Exception as e:
-                            raise TransformationError(
-                                f"Failed to convert order at index {i} to dict: {e}",
-                                code=APIErrorCode.TRANSFORMATION_FAILED.name,
-                            ) from e
-                    elif isinstance(order, dict):
-                        # Already a dict - check if it has short field names or aliased names
-                        if all(key in order for key in ["a", "b", "p", "s"]):
-                            # Already has short field names
-                            orders_for_signing.append(order)
-                        elif all(
-                            key in order for key in ["asset_index", "is_buy", "limit_px", "size"]
-                        ):
-                            # Has aliased names - need to convert to short names
-                            order_dict = {
-                                "a": order["asset_index"],
-                                "b": order["is_buy"],
-                                "p": order["limit_px"],
-                                "s": order["size"],
-                                "r": order["reduce_only"],
-                                "t": order["order_type_details"],
-                            }
-                            if "client_order_id" in order and order["client_order_id"] is not None:
-                                order_dict["c"] = order["client_order_id"]
-                            orders_for_signing.append(order_dict)
-                        else:
-                            raise ValueError(f"Order dict at index {i} has unexpected field names")
-                    else:
-                        raise TypeError(f"Invalid order type at index {i}: {type(order).__name__}")
-                payload_dict["orders"] = orders_for_signing
+                payload_dict["orders"] = self._convert_orders_list(payload_dict["orders"])
 
             # Handle other potential Pydantic models in the action field
-            if "action" in payload_dict and hasattr(payload_dict["action"], "model_dump"):
-                try:
-                    payload_dict["action"] = payload_dict["action"].model_dump(
-                        by_alias=False, exclude_none=True
-                    )
-                except Exception as e:
-                    raise TransformationError(
-                        f"Failed to convert action to dict: {e}",
-                        code=APIErrorCode.TRANSFORMATION_FAILED.name,
-                    ) from e
+            self._convert_action_field(payload_dict)
 
             # Validate the result is serializable
             self._validate_serializable(payload_dict)

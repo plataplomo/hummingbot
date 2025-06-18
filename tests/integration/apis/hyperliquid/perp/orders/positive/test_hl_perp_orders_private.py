@@ -538,7 +538,8 @@ class TestHyperliquidPerpOrdersPrivate:
                     "Order placement is a critical operation that must work reliably."
                 )
 
-        # Step 2: Wait for all orders to be placed and visible before cancelling (fixes race condition)
+        # Step 2: Wait for all orders to be placed and visible before cancelling
+        # (fixes race condition)
         if placed_orders:
             # Verify all orders are properly placed before attempting cancellation
             for placed_order in placed_orders:
