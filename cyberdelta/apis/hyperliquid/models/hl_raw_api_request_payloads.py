@@ -18,7 +18,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 # Action specific payloads (previously built actions)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawCancelOrderAction,
+    HyperliquidRawCancelItem,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
     HyperliquidRawOrderItemSpec,
@@ -81,17 +81,9 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
         Literal["order"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("order")
-    # Following the official Hyperliquid SDK structure which uses "orders" not "actions"
-    # Based on the official Python SDK, order placement uses "orders" field
-    # This matches the actual API specification used by the official SDK
-
-    orders: list[HyperliquidRawOrderItemSpec]  # Only accept validated Pydantic models
-
-    # The official SDK includes this field with value "na"
-    grouping: Literal["na"] = Field(
-        default="na",
-        description="Grouping type for orders, 'na' means not applicable",
-    )
+    
+    orders: list[HyperliquidRawOrderItemSpec]
+    grouping: Literal["na"] = Field(default="na")
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -104,7 +96,8 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
         Literal["cancel"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field("cancel")
-    action: HyperliquidRawCancelOrderAction
+    
+    cancels: list[HyperliquidRawCancelItem]
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 

@@ -153,6 +153,32 @@ class HyperliquidRawOrder(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
+class HyperliquidRawSimpleOpenOrder(BaseModel):
+    """Simple structure for open orders from the openOrders endpoint.
+    
+    This model matches the actual API response from the openOrders endpoint,
+    which returns a flat structure with these fields directly at the top level.
+    
+    Fields:
+        coin: Asset name (e.g., "ATOM", "ETH", "SOL")
+        limit_px: Limit price as decimal string
+        oid: Order ID
+        side: Side ('B' for buy, 'A' for sell)
+        sz: Current size as decimal string  
+        timestamp: Order timestamp in milliseconds
+        orig_sz: Original size as decimal string
+    """
+    
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    side: RawSideStr = Field(..., alias="side")
+    sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
+    timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
+    orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
 class HyperliquidRawOpenOrder(BaseModel):
     """Structure for one open order (with optional trigger).
 
@@ -166,17 +192,17 @@ class HyperliquidRawOpenOrder(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
-class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawOpenOrder]]):
+class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOrder]]):
     """Array of open orders from openOrders response.
 
     Fields:
-        __root__: List of HyperliquidRawOpenOrder
+        __root__: List of HyperliquidRawSimpleOpenOrder
     """
 
-    root: list[HyperliquidRawOpenOrder]
+    root: list[HyperliquidRawSimpleOpenOrder]
 
     @property
-    def items(self) -> list[HyperliquidRawOpenOrder]:
+    def items(self) -> list[HyperliquidRawSimpleOpenOrder]:
         """Return the validated list of open orders with full type safety.
 
         This is the preferred way to access the root data in Pydantic v2.
@@ -289,30 +315,9 @@ class HyperliquidRawModifyOrderRequest(BaseModel):
 
 
 # --- Cancel Requests ---
-class HyperliquidRawCancelRequest(BaseModel):
-    """Cancel request payload (by exchange OID).
-
-    Fields:
-        asset: Asset index (RawNonNegativeInt).
-        oid: Order ID (RawNonNegativeInt).
-    """
-
-    asset: RawNonNegativeInt = Field(..., alias="asset")
-    oid: RawNonNegativeInt = Field(..., alias="oid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
-
-
-class HyperliquidRawCancelByCloidRequest(BaseModel):
-    """Cancel request payload (by client OID).
-
-    Fields:
-        asset: Asset index (RawNonNegativeInt)
-        cloid: Client order ID (RawCloidString64HL)
-    """
-
-    asset: RawNonNegativeInt = Field(..., alias="asset")
-    cloid: RawCloidString64HL = Field(..., alias="cloid")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+# NOTE: Cancel request models have been moved to hl_raw_exchange_actions.py
+# The HyperliquidRawCancelItem model is used for the actual API payloads
+# with short field names (a, o) as required by the Hyperliquid SDK
 
 
 # --- Exchange Action/Response Models ---

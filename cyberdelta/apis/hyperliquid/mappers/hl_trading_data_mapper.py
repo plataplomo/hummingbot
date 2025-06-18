@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
+    HyperliquidRawSimpleOpenOrder,
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.models.api_error import TransformationError
@@ -364,6 +365,80 @@ class HyperliquidTradingDataMapper:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawOrder to Order: {e}",
                 source_data=raw_order.model_dump(),
+            ) from e
+
+    def transform_raw_simple_open_order_to_internal(
+        self, raw_simple_order: HyperliquidRawSimpleOpenOrder
+    ) -> Order:
+        """Transforms a HyperliquidRawSimpleOpenOrder to an Internal Order model.
+
+        This method handles the flat structure returned by the openOrders endpoint,
+        which differs from the nested structure of other order endpoints.
+
+        Args:
+            raw_simple_order: Validated raw simple order data from Hyperliquid
+
+        Returns:
+            Order: Internal domain model with populated fields
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # Parse basic components from flat structure
+            side = HyperliquidTradingDataMapper._map_side_to_internal(raw_simple_order.side)
+            
+            # For simple open orders, we know they are limit orders and open status
+            order_type = OrderType.LIMIT
+            status = OrderStatus.OPEN
+            time_in_force = TimeInForce.GTC  # Default for open orders
+            
+            # Parse quantities and price
+            quantity_requested = parse_decimal_value(raw_simple_order.orig_sz, field_name="orig_sz")
+            quantity_filled = quantity_requested - parse_decimal_value(raw_simple_order.sz, field_name="sz") 
+            price = parse_decimal_value(raw_simple_order.limit_px, field_name="limit_px")
+            
+            # For simple orders, these are not available
+            average_fill_price = None if quantity_filled == Decimal("0") else None
+            stop_price = None
+            trigger_by = None
+            
+            # Parse timestamp
+            created_at = parse_datetime_utc(raw_simple_order.timestamp, field_name="timestamp")
+            updated_at = created_at  # No separate updated timestamp in simple orders
+            
+            # Create Order object  
+            return Order(
+                exchange_order_id=str(raw_simple_order.oid),
+                # client_order_id will use default UUID generation
+                symbol=raw_simple_order.coin,
+                side=side,
+                order_type=order_type,
+                status=status,
+                time_in_force=time_in_force,
+                quantity_requested=quantity_requested,
+                quantity_filled=quantity_filled,
+                price=price,
+                average_fill_price=average_fill_price,
+                stop_price=stop_price,
+                trigger_by=trigger_by,
+                created_at=created_at,
+                updated_at=updated_at,
+                exchange=ExchangeName.HYPERLIQUID.value,
+                hl_details=None,  # Could be populated if needed
+            )
+
+        except TransformationError:
+            # Re-raise TransformationError as-is
+            raise
+        except Exception as e:
+            logger.error(
+                f"[HyperliquidTradingDataMapper] Failed to transform simple order: {e}. "
+                f"Raw order: {raw_simple_order.model_dump_json()}"
+            )
+            raise TransformationError(
+                f"Failed to transform HyperliquidRawSimpleOpenOrder to Order: {e}",
+                source_data=raw_simple_order.model_dump(),
             ) from e
 
     @staticmethod

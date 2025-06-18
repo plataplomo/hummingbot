@@ -218,3 +218,21 @@ def test_ip_ban_detection(
     # IP ban errors should not have retry_after set (Hyperliquid doesn't provide it)
     if expected_code == APIErrorCode.IP_BAN_SUSPECTED:
         assert error.retry_after is None
+
+
+def test_map_hl_order_ownership_error(
+    hyperliquid_error_mapper: HyperliquidErrorMapper,
+) -> None:
+    """Test mapping Hyperliquid's error for order ownership issues."""
+    error_body_str = "L1 error: User or API Wallet 0x123... does not exist for oid 34020485897"
+    error = hyperliquid_error_mapper.map_exchange_error(
+        status_code=400,
+        error_body=error_body_str,
+        error_data=None,
+        request_path="/exchange",
+    )
+    assert isinstance(error, APIError)
+    assert error.code == APIErrorCode.ORDER_NOT_FOUND.value
+    assert error.http_status == 400
+    assert "does not exist for oid" in error.message
+    assert error.exchange_message == error_body_str

@@ -66,24 +66,8 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
 
-# Model for the overall BATCH order placement action (signed payload)
-class HyperliquidRawBatchPlaceOrderActionPayload(BaseModel):
-    """Represents the action payload for placing one or more orders in a batch.
-
-    This forms part of the signed message for the /exchange endpoint and contains
-    the order specifications for batch order placement operations.
-
-    Corresponds to the 'action' field when 'type' is 'order' for batch operations.
-    """
-
-    type: Literal["order"] = "order"
-    grouping: Literal["na"] = "na"
-    orders: list[HyperliquidRawOrderItemSpec]
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-# --- New Models to Add ---
 
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
@@ -95,13 +79,22 @@ class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
 
-class HyperliquidRawCancelOrderAction(BaseModel):
-    """Represents the 'action' payload for cancelling an order."""
+class HyperliquidRawCancelItem(BaseModel):
+    """Represents a single cancel item in the cancels array.
+    
+    Based on official SDK: uses short field names 'a' for asset and 'o' for oid.
+    This is used in the 'cancels' array for cancel order requests.
+    
+    Example:
+        {"type": "cancel", "cancels": [{"a": 0, "o": 12345}]}
+    """
+    
+    a: RawNonNegativeInt = Field(..., description="Asset index")
+    o: RawNonNegativeInt = Field(..., description="Order ID to cancel")
+    
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-    asset: RawNonNegativeInt
-    oid: RawNonNegativeInt
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 
 
 class HyperliquidRawUpdateLeverageAction(BaseModel):

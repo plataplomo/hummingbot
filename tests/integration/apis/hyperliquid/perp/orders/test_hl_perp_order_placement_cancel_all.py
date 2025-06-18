@@ -101,10 +101,9 @@ class TestHyperliquidPerpOrdersComprehensive:
                 )
                 # Use varying tolerance to create different price levels (5% to 15% below market)
                 tolerance_percent = Decimal("5") + (Decimal("2") * i)  # 5%, 7%, 9%, 11%, 13%, 15%
-                safe_tolerance = market_price * (tolerance_percent / Decimal("100"))
 
                 test_price = await get_safe_test_price(
-                    hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=safe_tolerance
+                    hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=tolerance_percent
                 )
                 test_quantity = await get_minimal_test_quantity(
                     hl_api_for_test_env, symbol, OrderSide.BUY

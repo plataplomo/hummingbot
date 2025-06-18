@@ -60,6 +60,7 @@ HYPERLIQUID_ERROR_STRINGS = {
     "order was never placed": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
     "already canceled": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
     "already filled": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
+    "does not exist for oid": HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED,
     "invalid twap duration": HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION,
     "twap was never placed": HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED,
     "twap already canceled": HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED,

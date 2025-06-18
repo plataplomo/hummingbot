@@ -102,6 +102,9 @@ class HyperliquidErrorMapper(IErrorMapper):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
         if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
+        # Check for specific "does not exist for oid" pattern (order ownership issue)
+        if HyperliquidErrorMapper._regex_match(msg, r"does not exist for oid"):
+            return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
         if HyperliquidErrorMapper._regex_match(msg, r"does not exist"):
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
         return HyperliquidAPIErrorCategory.UNKNOWN
@@ -182,6 +185,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             r"already canceled",
             r"already filled",
             r"order not found",
+            r"L1 error:.*does not exist for oid",  # Order ownership/existence issue
         ]
         if HyperliquidErrorMapper._regex_match(msg, order_not_found_patterns):
             return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED

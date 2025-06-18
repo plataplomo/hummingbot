@@ -29,9 +29,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiPlaceOrderRequest,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawCancelOrderAction,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusFilled,
@@ -45,6 +42,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrder,
     HyperliquidRawOpenOrdersResponse,
+    HyperliquidRawSimpleOpenOrder,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
@@ -143,7 +141,8 @@ class HyperliquidTradingService:
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Execute an exchange action request and return the response."""
         # Convert Pydantic model to dictionary for HTTP client (exchange-agnostic boundary)
-        request_payload_dict = request_payload_model.model_dump(by_alias=False, exclude_none=True)
+        # CRITICAL: Must use by_alias=True to get short field names for Hyperliquid
+        request_payload_dict = request_payload_model.model_dump(by_alias=True, exclude_none=True)
 
         raw_content, http_status, _ = await self._http_client_requester(
             method="POST",
@@ -259,25 +258,17 @@ class HyperliquidTradingService:
 
     async def _cancel_order_raw(
         self,
-        cancel_action: HyperliquidRawCancelOrderAction,
+        cancel_request_payload: HyperliquidApiCancelOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
-        """Private method to cancel an order, using the raw action model.
+        """Private method to cancel an order, using the full request payload.
 
-        The builder wraps this in HyperliquidApiCancelOrderRequest.
         Returns the raw exchange response Pydantic model and HTTP status code.
         """
         # Early authentication checks - fail fast if auth requirements not met
         self._validate_authentication("cancelling an order")
 
-        request_payload_model: HyperliquidApiCancelOrderRequest = HyperliquidApiCancelOrderRequest(
-            type="cancel",
-            action=cancel_action,
-        )
-
         try:
-            # Debug logging to see what's being sent
-            logger.debug(f"Cancel order payload: {request_payload_model.model_dump(by_alias=True)}")
-            return await self._execute_exchange_action(request_payload_model)
+            return await self._execute_exchange_action(cancel_request_payload)
         except APIError as e:
             logger.error(f"[{self._exchange_name}] API error cancelling order raw: {e.message}")
             raise
@@ -286,10 +277,10 @@ class HyperliquidTradingService:
             _error_msg_unexpected = f"Unexpected error cancelling order raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
-    async def _get_open_orders_raw(self) -> list[HyperliquidRawOpenOrder]:
+    async def _get_open_orders_raw(self) -> list[HyperliquidRawSimpleOpenOrder]:
         """Private method to fetch raw open orders.
 
-        Returns a list of HyperliquidRawOpenOrder Pydantic models.
+        Returns a list of HyperliquidRawSimpleOpenOrder Pydantic models.
         """
         self._validate_wallet_address("fetch open orders")
         # _validate_wallet_address guarantees wallet_address is not None
@@ -742,8 +733,16 @@ class HyperliquidTradingService:
 
     def _process_string_status(self, status_raw: str, action_description: str) -> dict[str, Any]:
         """Process string status."""
-        if status_raw.lower() == "canceled":
+        status_lower = status_raw.lower()
+        
+        # Handle success statuses
+        if status_lower in ["success", "ok", "accepted"]:
+            return {"success": status_raw}
+            
+        # Handle canceled status
+        if status_lower == "canceled":
             return {"canceled": {"type": "string"}}
+            
         # Any other string is treated as an error
         logger.warning(
             f"Encountered direct string status for {action_description}: '{status_raw}'. "
@@ -964,26 +963,23 @@ class HyperliquidTradingService:
             )
 
     def _process_raw_orders_to_internal(
-        self, raw_open_orders: list[Any], symbol: str | None
+        self, raw_open_orders: list[HyperliquidRawSimpleOpenOrder], symbol: str | None
     ) -> list[Order]:
         """Process raw open orders and convert to internal Order objects."""
         internal_orders: list[Order] = []
 
-        for raw_open_order_item_wrapper in raw_open_orders:
-            raw_order_details = raw_open_order_item_wrapper.order
-            raw_trigger_details = raw_open_order_item_wrapper.trigger
-
-            if symbol is None or raw_order_details.asset.upper() == symbol.upper():
+        for raw_simple_order in raw_open_orders:
+            # Convert symbol filter to use 'coin' field from simple order
+            if symbol is None or raw_simple_order.coin.upper() == symbol.upper():
                 try:
-                    mapped_order = self._trading_mapper.transform_raw_order_to_internal(
-                        raw_order=raw_order_details,
-                        trigger=raw_trigger_details,
+                    mapped_order = self._trading_mapper.transform_raw_simple_open_order_to_internal(
+                        raw_simple_order=raw_simple_order
                     )
                     internal_orders.append(mapped_order)
                 except Exception as e:
                     logger.error(
-                        f"[{self._exchange_name}] Error mapping raw open order to "
-                        f"internal: {e}. Raw order: {raw_order_details.model_dump_json()}",
+                        f"[{self._exchange_name}] Error mapping raw simple open order to "
+                        f"internal: {e}. Raw order: {raw_simple_order.model_dump_json()}",
                     )
                     # Continue processing other orders
 
@@ -1095,9 +1091,8 @@ class HyperliquidTradingService:
                 asset_index=asset_index,
                 order_id=order_id_int,
             )
-            # Extract the action for the raw method
-            cancel_action = cancel_request_payload.action
-            raw_exchange_response, http_status = await self._cancel_order_raw(cancel_action)
+            # Pass the full request payload to the raw method
+            raw_exchange_response, http_status = await self._cancel_order_raw(cancel_request_payload)
             status_code = http_status
 
             # Process the cancellation response
@@ -1147,6 +1142,12 @@ class HyperliquidTradingService:
         order_id_int: int,
     ) -> bool:
         """Process the cancel order response and return success status."""
+        # Debug logging to understand the response
+        logger.debug(
+            f"[{self._exchange_name}] Cancel order response - status: {raw_exchange_response.status}, "
+            f"response: {raw_exchange_response.response}, data: {raw_exchange_response.data}"
+        )
+        
         # Check if this is an error response
         self._check_error_response(raw_exchange_response, http_status)
 

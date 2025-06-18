@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshotRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawCancelOrderAction,
+    HyperliquidRawCancelItem,
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
     HyperliquidRawOrderItemSpec,
@@ -443,8 +443,11 @@ class HyperliquidRequestBuilder:
         Returns:
             HyperliquidApiCancelOrderRequest: Validated Raw API model
         """
-        cancel_action = HyperliquidRawCancelOrderAction(asset=asset_index, oid=order_id)
-        return HyperliquidApiCancelOrderRequest(type="cancel", action=cancel_action)
+        # Create cancel item with short field names as per official SDK
+        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import HyperliquidRawCancelItem
+        
+        cancel_item = HyperliquidRawCancelItem(a=asset_index, o=order_id)
+        return HyperliquidApiCancelOrderRequest(type="cancel", cancels=[cancel_item])
 
     @staticmethod
     def build_order_status_payload(

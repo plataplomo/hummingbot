@@ -10,7 +10,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiPlaceOrderRequest,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
-    HyperliquidRawCancelOrderAction,
+    HyperliquidRawCancelItem,
     HyperliquidRawOrderItemSpec,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
@@ -248,10 +248,10 @@ class TestHyperliquidRequestBuilderTrading:
         )
         assert isinstance(request_model, HyperliquidApiCancelOrderRequest)
         assert request_model.type == "cancel"
-        action = request_model.action
-        assert isinstance(action, HyperliquidRawCancelOrderAction)
-        assert action.asset == asset_index + 1
-        assert action.oid == 12345
+        assert len(request_model.cancels) == 1
+        cancel_item = request_model.cancels[0]
+        assert cancel_item.a == asset_index + 1
+        assert cancel_item.o == 12345
 
     def test_build_order_status_payload(self, valid_wallet_address: str) -> None:
         """Test build_order_status_payload with valid inputs."""
@@ -365,8 +365,8 @@ class TestHyperliquidRequestBuilderTrading:
             asset_index=0,
             order_id=1001,
         )
-        assert request_0.action.asset == 0
-        assert request_0.action.oid == 1001
+        assert request_0.cancels[0].a == 0
+        assert request_0.cancels[0].o == 1001
 
         # Test with larger asset index
         args_high = CancelOrderArgs(
@@ -378,8 +378,8 @@ class TestHyperliquidRequestBuilderTrading:
             asset_index=99,
             order_id=9999,
         )
-        assert request_high.action.asset == 99
-        assert request_high.action.oid == 9999
+        assert request_high.cancels[0].a == 99
+        assert request_high.cancels[0].o == 9999
 
     def test_build_order_status_payload_edge_cases(self, valid_wallet_address: str) -> None:
         """Test build_order_status_payload with edge case order IDs."""
