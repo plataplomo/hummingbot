@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
@@ -25,15 +25,12 @@ from cyberdelta.apis.hyperliquid.models.signing_validators import (
 
 
 # Model for ETH specific withdrawal action (part of the signed payload)
-class HyperliquidRawEthWithdrawalActionPayload(
-    BaseModel, 
-    EthereumAddressNormalizer
-):
+class HyperliquidRawEthWithdrawalActionPayload(BaseModel, EthereumAddressNormalizer):
     """Represents the specific action payload for withdrawing ETH to L1.
 
     This forms part of the signed message for the /exchange endpoint and contains
     the amount and destination address for ETH withdrawals to Layer 1.
-    
+
     Includes automatic Ethereum address normalization for the destination field.
     """
 
@@ -76,7 +73,7 @@ class HyperliquidRawOrderItemSpec(BaseModel):
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
     """Represents the 'action' details for an L2 USD transfer.
-    
+
     Includes automatic serialization for signing.
     """
 

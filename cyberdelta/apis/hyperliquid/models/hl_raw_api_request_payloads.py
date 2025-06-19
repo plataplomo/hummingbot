@@ -33,7 +33,7 @@ from cyberdelta.utils.parsing import validate_str_field
 # --- /exchange endpoint: L2 USD Transfer --- #
 class HyperliquidApiL2UsdTransferRequest(BaseModel):
     """Top-level request payload for an L2 USD transfer.
-    
+
     Includes automatic serialization for signing.
     """
 
@@ -49,7 +49,7 @@ class HyperliquidApiL2UsdTransferRequest(BaseModel):
 # --- /exchange endpoint: Withdrawals (ETH and other tokens) --- #
 class HyperliquidApiEthWithdrawalRequest(BaseModel):
     """Top-level request payload for an ETH withdrawal.
-    
+
     Includes automatic serialization for signing.
     """
 
@@ -64,7 +64,7 @@ class HyperliquidApiEthWithdrawalRequest(BaseModel):
 
 class HyperliquidApiTokenWithdrawalRequest(BaseModel):
     """Top-level request payload for a generic token withdrawal (to L1).
-    
+
     Includes automatic serialization for signing.
     """
 
@@ -85,7 +85,7 @@ class HyperliquidApiTokenWithdrawalRequest(BaseModel):
 # --- /exchange endpoint: Place Order --- #
 class HyperliquidApiPlaceOrderRequest(BaseModel):
     """Top-level request payload for placing one or more orders.
-    
+
     Includes automatic serialization for signing that:
     - Removes None/null values
     - Ensures proper field ordering
@@ -106,7 +106,7 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
 # --- /exchange endpoint: Cancel Order --- #
 class HyperliquidApiCancelOrderRequest(BaseModel):
     """Top-level request payload for cancelling an order.
-    
+
     Includes automatic serialization for signing.
     """
 
@@ -123,7 +123,7 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
 # --- /exchange endpoint: Update Leverage --- #
 class HyperliquidApiUpdateLeverageRequest(BaseModel):
     """Top-level request payload for updating leverage.
-    
+
     Includes automatic serialization for signing.
     """
 

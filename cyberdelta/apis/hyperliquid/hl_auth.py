@@ -284,7 +284,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ],
         )
 
-
     @property
     def wallet_address(self) -> str:
         """The Ethereum wallet address associated with this authenticator."""
@@ -366,10 +365,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _prepare_action_payload(self, data: dict[str, Any]) -> dict[str, Any]:
         """Prepare the action payload for signing using Pydantic model serialization.
-        
+
         This method ensures all payloads go through proper Pydantic validation
         and serialization, providing consistent signing behavior.
-        
+
         For Hyperliquid, we need to use the actual field names (not aliases) because
         the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
         """
@@ -380,7 +379,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             if isinstance(result, dict):
                 return result
             raise ValueError(f"Expected dict from model_dump, got {type(result)}")
-        
+
         # For dict data, convert to GenericSigningPayload for consistent handling
         try:
             generic_payload = GenericSigningPayload.from_dict(data)

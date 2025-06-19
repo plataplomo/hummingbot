@@ -184,7 +184,7 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
         self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
         self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
-        
+
         # Create serialization strategy via factory
         self._hl_serialization_strategy = factory.create_serialization_strategy()
 
@@ -198,61 +198,13 @@ class HyperliquidAPI(ExchangeAPI):
         # Create Hyperliquid-specific rate limit strategy
         hl_strategy = HyperliquidRateLimitStrategy(exchange_config)
 
-        # Construct config dict for super().__init__
-        config_dict_for_super = {
-            "exchange_name": exchange_config.exchange_name.value,
-            "rest_endpoint": self.active_api_base_url,  # Use active URL
-            "ws_url": self.active_ws_url,  # Use active URL
-            # Include optional HTTP/WS settings with correct field names
-            "default_request_timeout": exchange_config.request_timeout_seconds,
-            "max_retries": exchange_config.max_retries,
-            "retry_delay_seconds": exchange_config.retry_delay_seconds,
-            "ping_interval": exchange_config.ws_ping_interval_seconds,
-            "reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
-            "max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
-            "connection_timeout": exchange_config.ws_connection_timeout_seconds,
-        }
-
-        # Remove None values from config_dict_for_super before passing to super()
-        config_dict_for_super_cleaned = {
-            k: v for k, v in config_dict_for_super.items() if v is not None
-        }
-
-        # Construct secrets dict for super().__init__
-        # Check if we have the correct auth type for Hyperliquid
-        from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-
-        secrets_dict_for_super: dict[str, str | None]
-        if isinstance(exchange_secrets, PrivateKeyAuthSecrets):
-            secrets_dict_for_super = {
-                "private_key": exchange_secrets.private_key.get_secret_value()
-                if exchange_secrets.private_key
-                else None,
-                "passphrase": exchange_secrets.passphrase.get_secret_value()
-                if exchange_secrets.passphrase
-                else None,
-                "wallet_address": self._wallet_address,
-            }
-        else:
-            # This should not happen if secrets validation is working correctly
-            logger.error(
-                f"Hyperliquid API received wrong auth type: {exchange_secrets.auth_type}. "
-                f"Expected 'private_key'. Authentication will fail.",
-            )
-            secrets_dict_for_super = {
-                "private_key": None,
-                "passphrase": None,
-                "wallet_address": self._wallet_address,
-            }
-
         super().__init__(
             exchange_name=exchange_config.exchange_name.value,
-            config=config_dict_for_super_cleaned,
-            secrets=secrets_dict_for_super,
+            config=exchange_config,
+            secrets=exchange_secrets,
             authenticator=self._hl_authenticator,
             error_mapper=self._hyperliquid_error_mapper,
             rate_limit_strategy=hl_strategy,
-            exchange_config=exchange_config,
             serialization_strategy=self._hl_serialization_strategy,
         )
 

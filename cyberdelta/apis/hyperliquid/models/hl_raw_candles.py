@@ -94,8 +94,8 @@ class HyperliquidRawCandleSnapshot(BaseModel):
     @classmethod
     def preprocess_candle_response(cls, values: object) -> dict[str, object]:
         """Preprocess candle snapshot response before validation.
-        
-        This handles the preprocessing logic that was previously in the 
+
+        This handles the preprocessing logic that was previously in the
         HyperliquidResponsePreprocessingMapper.preprocess_candle_snapshot_response method.
         """
         # Handle empty list response (no candle data available)
@@ -112,15 +112,13 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                     "s": "ok",  # status
                 }
             # If it's a non-empty list, something is wrong
-            raise ValueError(
-                "Candle snapshot response must be a dict, not a list"
-            )
-        
+            raise ValueError("Candle snapshot response must be a dict, not a list")
+
         if not isinstance(values, dict):
             raise ValueError(
                 f"Candle snapshot response must be a dict, got {type(values).__name__}"
             )
-        
+
         return values
 
     @model_validator(mode="after")

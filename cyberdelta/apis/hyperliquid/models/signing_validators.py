@@ -12,10 +12,10 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
 
 def normalize_ethereum_address(address: str) -> str:
     """Normalize an Ethereum address to lowercase for consistent signing.
-    
+
     Args:
         address: Ethereum address string
-        
+
     Returns:
         Lowercase Ethereum address
     """
@@ -26,10 +26,9 @@ def normalize_ethereum_address(address: str) -> str:
 
 class EthereumAddressNormalizer:
     """Mixin class that provides Ethereum address normalization validators."""
-    
+
     @field_validator(
-        "destination", "address", "from_address", "to_address", 
-        mode="before", check_fields=False
+        "destination", "address", "from_address", "to_address", mode="before", check_fields=False
     )
     @classmethod
     def normalize_address_fields(cls, v: str | Any) -> str | Any:  # noqa: ANN401
@@ -41,11 +40,11 @@ class EthereumAddressNormalizer:
 
 class SigningPayloadSerializer:
     """Mixin class that provides serialization for signing payloads."""
-    
+
     @model_serializer(mode="wrap")
     def serialize_for_signing(self, serializer: Any, info: Any) -> dict[str, Any]:
         """Serialize model for signing, removing None values and ensuring proper order.
-        
+
         This serializer:
         1. Respects the by_alias setting from model_dump
         2. Excludes None/null values
@@ -54,28 +53,28 @@ class SigningPayloadSerializer:
         # Get the default serialization with the same settings as model_dump
         # The info object contains serialization context including by_alias setting
         data = serializer(self)
-        
+
         # Clean the data for signing
         return self._clean_for_signing(data)
-    
+
     def _clean_for_signing(self, data: dict[str, Any]) -> dict[str, Any]:
         """Recursively clean data for signing."""
         return self._clean_dict_recursive(data)
-    
+
     def _clean_dict_recursive(self, data: dict[str, Any]) -> dict[str, Any]:
         """Helper method to recursively clean dictionary data."""
         cleaned = {}
-        
+
         for key, value in data.items():
             if value is None:
                 continue
-                
+
             cleaned_value = self._clean_value(value)
             if cleaned_value is not None:
                 cleaned[key] = cleaned_value
-                
+
         return cleaned
-    
+
     def _clean_value(self, value: Any) -> Any:  # noqa: ANN401
         """Clean a single value for signing."""
         if isinstance(value, dict):
@@ -85,7 +84,7 @@ class SigningPayloadSerializer:
             return self._clean_list(value)
         else:
             return value
-    
+
     def _clean_list(self, lst: list[Any]) -> list[Any] | None:
         """Clean a list for signing."""
         cleaned_list = []
@@ -101,12 +100,12 @@ class SigningPayloadSerializer:
 
 class OrderTypeCleanerMixin:
     """Mixin for cleaning order type structures."""
-    
+
     @field_validator("order_type_details", "t", mode="after", check_fields=False)
     @classmethod
     def clean_order_type(cls, v: dict[str, Any] | Any) -> dict[str, Any] | Any:
         """Clean order type structure by removing null limit/market fields.
-        
+
         Transforms: {"limit": {...}, "market": null} -> {"limit": {...}}
         """
         if isinstance(v, dict) and "limit" in v and "market" in v:
@@ -119,18 +118,18 @@ class OrderTypeCleanerMixin:
 
 class GenericSigningPayload(BaseModel, SigningPayloadSerializer):
     """Generic model for handling arbitrary signing payloads.
-    
+
     This model can accept any dict structure and properly serialize it
     for signing. Used as a fallback when the authenticator receives
     raw dict data instead of typed Pydantic models.
     """
-    
+
     model_config = ConfigDict(extra="allow", frozen=True)
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GenericSigningPayload":
         """Create a GenericSigningPayload from a dictionary.
-        
+
         This handles the conversion of arbitrary dict structures
         into a Pydantic model that can be properly serialized.
         """

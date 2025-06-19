@@ -85,25 +85,25 @@ class HyperliquidRawFundingHistoryRequestPayload(BaseModel):
 
 class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingHistoryItem]]):
     """Response model for list of historical funding rates.
-    
+
     This RootModel validates an array of funding history items, handling
     all preprocessing and validation for the list structure.
     """
-    
+
     root: list[HyperliquidRawFundingHistoryItem]
-    
+
     @property
     def items(self) -> list[HyperliquidRawFundingHistoryItem]:
         """Return the validated list of funding history items."""
         return self.root
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     @field_validator("root", mode="before")
     @classmethod
     def validate_funding_list(cls, v: object) -> list[dict[str, object]]:
         """Validate and preprocess the list of funding history items.
-        
+
         This validator handles:
         - Type checking that input is a list
         - Validating each item is a dictionary
@@ -114,7 +114,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
                 f"Unexpected historical_funding_rates response format: expected list, "
                 f"got {type(v).__name__}"
             )
-        
+
         validated_items: list[dict[str, object]] = []
         for i, item in enumerate(v):
             if not isinstance(item, dict):
@@ -122,7 +122,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
                     f"Expected dict for historical funding rate item, "
                     f"got {type(item).__name__} at index {i}"
                 )
-            
+
             validated_items.append(cast(dict[str, object], item))
-        
+
         return validated_items

@@ -7,7 +7,6 @@ Hyperliquid Exchange API responses related to historical or any-status orders,
 such as those from 'queryOrderHistory' or 'orderStatus' (when the order might not be open).
 """
 
-
 from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
@@ -126,7 +125,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
     @classmethod
     def preprocess_order_status_response(cls, data: object) -> dict[str, object]:
         """Handle various response formats from the orderStatus API endpoint.
-        
+
         This validator replaces the preprocessing mapper logic by handling:
         - List responses (including empty lists and string items)
         - String responses (e.g., "Order not found")
@@ -137,7 +136,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
         # Handle list format responses
         if isinstance(data, list):
             data = cls._handle_list_response(data)
-        
+
         # Handle string or None responses
         elif isinstance(data, str):
             cls._handle_string_response(data)
@@ -146,7 +145,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 message="Order status response is None",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # At this point, data should be a dict
         if not isinstance(data, dict):
             raise APIError(
@@ -154,10 +153,10 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 f"got {type(data).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-        
+
         # Handle nested or flat order structures
         return cls._normalize_order_structure(data)
-    
+
     @classmethod
     def _handle_list_response(cls, data: list[object]) -> dict[str, object]:
         """Handle list format responses."""
@@ -166,9 +165,9 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 message="Order not found (empty list).",
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
             )
-        
+
         status_item = data[0]
-        
+
         # Handle string responses in list
         if isinstance(status_item, str):
             if "Order not found" in status_item:
@@ -183,7 +182,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     metadata={"original_response_item": status_item},
                 )
-        
+
         # Handle non-dict items
         if not isinstance(status_item, dict):
             raise APIError(
@@ -192,9 +191,9 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 metadata={"original_response_item": status_item},
             )
-        
+
         return status_item
-    
+
     @classmethod
     def _handle_string_response(cls, data: str) -> None:
         """Handle string responses - always raises an error."""
@@ -209,14 +208,14 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 message=f"Invalid order status response format: got string {data!r}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-    
+
     @classmethod
     def _normalize_order_structure(cls, data: dict[str, object]) -> dict[str, object]:
         """Normalize nested or flat order structures."""
         # Handle nested order structures
         if "order" in data and isinstance(data["order"], dict):
             nested_data = cast(dict[str, object], data["order"])
-            
+
             # Check for double nesting (order.order)
             if "order" in nested_data and isinstance(nested_data["order"], dict):
                 # Extract from double nesting
@@ -228,25 +227,17 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 inner_order = nested_data
                 status = data.get("status", "open")
                 status_timestamp = data.get("statusTimestamp")
-            
-            return {
-                "order": inner_order,
-                "status": status,
-                "statusTimestamp": status_timestamp
-            }
-        
+
+            return {"order": inner_order, "status": status, "statusTimestamp": status_timestamp}
+
         # Handle flat order structure
         if "oid" in data and ("asset" in data or "coin" in data):
             # It's already a flat order object, wrap it
             status = data.get("status", "open")
             status_timestamp = data.get("statusTimestamp")
-            
-            return {
-                "order": data,
-                "status": status,
-                "statusTimestamp": status_timestamp
-            }
-        
+
+            return {"order": data, "status": status, "statusTimestamp": status_timestamp}
+
         # Return as-is if it's already in the expected format
         return data
 
@@ -255,25 +246,25 @@ class HyperliquidRawHistoricalOrdersResponse(
     RootModel[list[HyperliquidRawHistoricalOrderResponse]]
 ):
     """Response model for list of historical orders from historicalOrders endpoint.
-    
+
     This RootModel validates an array of historical order responses, handling
     any preprocessing needed for the list structure.
     """
-    
+
     root: list[HyperliquidRawHistoricalOrderResponse]
-    
+
     @property
     def items(self) -> list[HyperliquidRawHistoricalOrderResponse]:
         """Return the validated list of historical orders."""
         return self.root
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     @field_validator("root", mode="before")
     @classmethod
     def validate_orders_list(cls, v: object) -> list[dict[str, object]]:
         """Validate and preprocess the list of historical orders.
-        
+
         This validator handles:
         - Type checking that input is a list
         - Filtering out non-dict items with warnings
@@ -281,18 +272,19 @@ class HyperliquidRawHistoricalOrdersResponse(
         """
         if not isinstance(v, list):
             raise ValueError(f"Expected a list of orders, got {type(v).__name__}")
-        
+
         validated_items: list[dict[str, object]] = []
         for i, item in enumerate(v):
             if not isinstance(item, dict):
                 # Log warning but skip non-dict items
                 from cyberdelta.config.logging_config import get_logger
+
                 logger = get_logger(__name__)
                 logger.warning(
                     f"Skipping non-dict item in historical orders list at index {i}: {item!r}"
                 )
                 continue
-            
+
             validated_items.append(cast(dict[str, object], item))
-        
+
         return validated_items

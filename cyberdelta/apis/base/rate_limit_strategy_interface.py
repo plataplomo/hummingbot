@@ -24,7 +24,9 @@ class RateLimitStrategy(ABC):
     """
 
     @abstractmethod
-    async def prepare_and_acquire(self, request_context: RateLimitRequestContext) -> dict[str, Any] | None:
+    async def prepare_and_acquire(
+        self, request_context: RateLimitRequestContext
+    ) -> dict[str, Any] | None:
         """Prepares for and acquires necessary rate limit tokens/permissions.
 
         Can optionally modify and return the request data payload if needed

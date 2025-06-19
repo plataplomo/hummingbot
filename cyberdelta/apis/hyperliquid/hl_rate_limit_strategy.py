@@ -11,7 +11,6 @@ This strategy manages dual rate limiters:
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy

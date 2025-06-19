@@ -54,7 +54,7 @@ class HyperliquidRawOrderType(BaseModel):
 
     Uses a dictionary structure as per Hyperliquid's format, e.g., {"limit": {...}},
     {"market": {}}, or {"trigger": {...}}. Used as field in HyperliquidRawPlaceOrderAction.
-    
+
     Includes automatic cleaning to ensure only one non-null type is serialized.
     """
 
@@ -63,21 +63,21 @@ class HyperliquidRawOrderType(BaseModel):
     trigger: HyperliquidRawTriggerInfo | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", frozen=True)
-    
+
     @model_serializer(mode="wrap")
     def serialize_order_type(self, serializer: Any) -> dict[str, Any]:  # noqa: ANN401
         """Serialize order type ensuring only non-null fields are included.
-        
+
         This ensures the order type is properly formatted for signing:
         - {"limit": {...}} when it's a limit order
         - {"market": {}} when it's a market order
         - {"trigger": {...}} when it's a trigger order
         """
         data = serializer(self)
-        
+
         # Remove None values to get clean structure
         cleaned = {k: v for k, v in data.items() if v is not None}
-        
+
         return cleaned
 
 

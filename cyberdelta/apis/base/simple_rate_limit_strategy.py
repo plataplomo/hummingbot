@@ -10,8 +10,6 @@ have straightforward rate limiting without complex IP weight calculations.
 
 from __future__ import annotations
 
-from typing import Any
-
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime

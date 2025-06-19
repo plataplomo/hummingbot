@@ -40,6 +40,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -101,8 +102,8 @@ class ExchangeAPI(ABC):
     def __init__(
         self,
         exchange_name: str,
-        config: dict[str, Any],
-        secrets: dict[str, str | None],
+        config: ExchangeSpecificConfig,
+        secrets: AnyExchangeSecrets,
         error_mapper: IErrorMapper,
         loop: asyncio.AbstractEventLoop | None = None,
         authenticator: IAuthenticator | None = None,
@@ -116,15 +117,15 @@ class ExchangeAPI(ABC):
 
         Args:
             exchange_name: Name of the exchange (e.g., 'hyperliquid', 'backpack')
-            config: Dictionary of configuration parameters including endpoints, rate limits
-            secrets: Dictionary of API keys and secrets for authentication
+            config: Exchange-specific configuration model
+            secrets: Exchange secrets configuration model
             error_mapper: Instance of an IErrorMapper implementation.
             loop: Optional event loop for rate limiters
             authenticator: Optional authenticator instance for signed requests.
             http_client: Optional HttpClient instance for dependency injection (testing)
             ws_manager: Optional WebSocketManager instance for dependency injection (testing)
             rate_limit_strategy: Optional rate limiting strategy instance
-            exchange_config: Optional ExchangeSpecificConfig for creating default strategy
+            exchange_config: Optional ExchangeSpecificConfig for backward compatibility
             serialization_strategy: Optional payload serialization strategy for model conversion
 
         """
@@ -140,8 +141,10 @@ class ExchangeAPI(ABC):
         self.loop = self._setup_event_loop(loop)
 
         # Setup rate limiting
-        self.rate_limit_strategy = self._setup_rate_limiting(rate_limit_strategy, exchange_config)
-        self.exchange_config = exchange_config
+        self.rate_limit_strategy = self._setup_rate_limiting(
+            rate_limit_strategy, exchange_config or config
+        )
+        self.exchange_config = exchange_config or config
 
         # Setup HTTP client
         self.rest_endpoint, self._http_client = self._setup_http_client(http_client)
@@ -218,13 +221,13 @@ class ExchangeAPI(ABC):
     def _setup_http_client(self, http_client: HttpClient | None) -> tuple[str, HttpClient]:
         """Setup HTTP client and return endpoint and client."""
         if http_client is not None:
-            # Extract endpoint from existing client or config
-            rest_endpoint = self._config.get("rest_endpoint", "")
+            # Extract endpoint from config model
+            rest_endpoint = str(self._config.api_base_url_mainnet)
             if not rest_endpoint:
                 raise ValueError(
-                    f"[{self.exchange_name}] Missing 'rest_endpoint' in config",
+                    f"[{self.exchange_name}] Missing 'api_base_url_mainnet' in config",
                 )
-            return str(rest_endpoint), http_client
+            return rest_endpoint, http_client
 
         # Create HTTP client config
         http_config_data = self._build_http_config_data()
@@ -243,19 +246,27 @@ class ExchangeAPI(ABC):
         return rest_endpoint, new_http_client
 
     def _build_http_config_data(self) -> dict[str, Any]:
-        """Build HTTP client configuration data from config."""
-        http_config_data: dict[str, Any] = {}
+        """Build HTTP client configuration data from config model."""
+        # Determine the active endpoint based on environment
+        if self._config.is_mainnet_environment:
+            rest_endpoint = str(self._config.api_base_url_mainnet)
+        elif self._config.api_base_url_testnet:
+            rest_endpoint = str(self._config.api_base_url_testnet)
+        else:
+            # Fallback to mainnet if testnet not configured
+            rest_endpoint = str(self._config.api_base_url_mainnet)
 
-        # Required field: rest_endpoint
-        if "rest_endpoint" in self._config and self._config["rest_endpoint"] is not None:
-            http_config_data["rest_endpoint"] = self._config["rest_endpoint"]
+        http_config_data: dict[str, Any] = {
+            "rest_endpoint": rest_endpoint,
+        }
 
-        # Optional fields - only include if explicitly provided
-        optional_fields = ["default_request_timeout", "max_retries", "retry_delay_seconds"]
-
-        for field in optional_fields:
-            if field in self._config and self._config[field] is not None:
-                http_config_data[field] = self._config[field]
+        # Map optional fields from config model
+        if self._config.request_timeout_seconds is not None:
+            http_config_data["default_request_timeout"] = self._config.request_timeout_seconds
+        if self._config.max_retries is not None:
+            http_config_data["max_retries"] = self._config.max_retries
+        if self._config.retry_delay_seconds is not None:
+            http_config_data["retry_delay_seconds"] = self._config.retry_delay_seconds
 
         return http_config_data
 
@@ -266,7 +277,7 @@ class ExchangeAPI(ABC):
     ) -> tuple[str | None, WebSocketManager | None]:
         """Setup WebSocket manager and return endpoint and manager."""
         if ws_manager is not None:
-            ws_endpoint = self._config.get("ws_url")
+            ws_endpoint = self._validate_ws_endpoint()
             return ws_endpoint, ws_manager
 
         # Validate WebSocket endpoint
@@ -280,17 +291,18 @@ class ExchangeAPI(ABC):
 
     def _validate_ws_endpoint(self) -> str | None:
         """Validate and return WebSocket endpoint."""
-        ws_endpoint = self._config.get("ws_url")
+        # Determine WebSocket URL based on environment
+        if self._config.is_mainnet_environment:
+            ws_endpoint = str(self._config.ws_url_mainnet) if self._config.ws_url_mainnet else None
+        elif self._config.ws_url_testnet:
+            ws_endpoint = str(self._config.ws_url_testnet)
+        else:
+            # Fallback to mainnet if testnet not configured
+            ws_endpoint = str(self._config.ws_url_mainnet) if self._config.ws_url_mainnet else None
 
-        if ws_endpoint and not isinstance(ws_endpoint, str):
+        if not ws_endpoint:
             logger.warning(
-                f"[{self.exchange_name}] Invalid 'ws_url' in config (must be str). "
-                f"WebSocket functionality will be disabled.",
-            )
-            return None
-        elif not ws_endpoint:
-            logger.warning(
-                f"[{self.exchange_name}] Missing 'ws_url' in config. "
+                f"[{self.exchange_name}] Missing WebSocket URL in config. "
                 f"WebSocket functionality will be disabled.",
             )
             return None
@@ -318,20 +330,18 @@ class ExchangeAPI(ABC):
         )
 
     def _build_ws_config_data(self, ws_endpoint: str) -> dict[str, Any]:
-        """Build WebSocket configuration data."""
+        """Build WebSocket configuration data from config model."""
         ws_config_data = {"ws_url": ws_endpoint}
 
-        # Optional fields
-        optional_ws_fields = [
-            "ping_interval",
-            "reconnect_delay",
-            "max_reconnect_attempts",
-            "connection_timeout",
-        ]
-
-        for field in optional_ws_fields:
-            if field in self._config and self._config[field] is not None:
-                ws_config_data[field] = self._config[field]
+        # Map optional fields from config model
+        if self._config.ws_ping_interval_seconds is not None:
+            ws_config_data["ping_interval"] = self._config.ws_ping_interval_seconds
+        if self._config.ws_reconnect_delay_seconds is not None:
+            ws_config_data["reconnect_delay"] = self._config.ws_reconnect_delay_seconds
+        if self._config.ws_max_reconnect_attempts is not None:
+            ws_config_data["max_reconnect_attempts"] = self._config.ws_max_reconnect_attempts
+        if self._config.ws_connection_timeout_seconds is not None:
+            ws_config_data["connection_timeout"] = self._config.ws_connection_timeout_seconds
 
         return ws_config_data
 

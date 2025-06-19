@@ -185,58 +185,13 @@ class BackpackAPI(ExchangeAPI):
             default_request_weight=1,
         )
 
-        config_dict_for_super = {
-            "exchange_name": exchange_config.exchange_name.value,
-            "rest_endpoint": rest_endpoint_str,
-            "ws_url": ws_endpoint_str,
-            # Include optional HTTP/WS settings with correct field names
-            "default_request_timeout": exchange_config.request_timeout_seconds,
-            "max_retries": exchange_config.max_retries,
-            "retry_delay_seconds": exchange_config.retry_delay_seconds,
-            "ping_interval": exchange_config.ws_ping_interval_seconds,
-            "reconnect_delay": exchange_config.ws_reconnect_delay_seconds,
-            "max_reconnect_attempts": exchange_config.ws_max_reconnect_attempts,
-            "connection_timeout": exchange_config.ws_connection_timeout_seconds,
-        }
-
-        # Remove None values from config_dict_for_super before passing to super()
-        config_dict_for_super_cleaned = {
-            k: v for k, v in config_dict_for_super.items() if v is not None
-        }
-
-        # Construct secrets dict for super().__init__
-        # Check if we have the correct auth type for Backpack
-        from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-
-        secrets_dict_for_super: dict[str, str | None]
-        if isinstance(exchange_secrets, ApiKeyAuthSecrets):
-            secrets_dict_for_super = {
-                "BACKPACK_API_KEY": exchange_secrets.api_key.get_secret_value()
-                if exchange_secrets.api_key
-                else None,
-                "BACKPACK_API_SECRET": exchange_secrets.api_secret.get_secret_value()
-                if exchange_secrets.api_secret
-                else None,
-            }
-        else:
-            # This should not happen if secrets validation is working correctly
-            logger.error(
-                f"Backpack API received wrong auth type: {exchange_secrets.auth_type}. "
-                f"Expected 'api_key'. Authentication will fail.",
-            )
-            secrets_dict_for_super = {
-                "BACKPACK_API_KEY": None,
-                "BACKPACK_API_SECRET": None,
-            }
-
         super().__init__(
             exchange_name=exchange_config.exchange_name.value,
-            config=config_dict_for_super_cleaned,
-            secrets=secrets_dict_for_super,
+            config=exchange_config,
+            secrets=exchange_secrets,
             authenticator=self._bp_authenticator,
             error_mapper=self._backpack_error_mapper,
             rate_limit_strategy=bp_strategy,
-            exchange_config=exchange_config,
         )
 
         # Initialize WebSocket message router

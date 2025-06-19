@@ -98,7 +98,7 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Validates the /info response expected to be MetaAndAssetCtxs.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         All structure validation is delegated to the model's validator.
         """
@@ -115,7 +115,6 @@ class HyperliquidResponseHandler:
                 status_code,
                 headers,
             ) from e
-
 
     @staticmethod
     def handle_info_user_state_response(
@@ -251,12 +250,11 @@ class HyperliquidResponseHandler:
         Preprocessing (including None handling) is delegated to the model's validator.
         """
         context = f"L2 book ({symbol})"
-        
+
         try:
             # Pass symbol through validation context for None response handling
             return HyperliquidRawOrderBookResponse.model_validate(
-                raw_response_content,
-                context={"symbol": symbol}
+                raw_response_content, context={"symbol": symbol}
             )
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
@@ -276,7 +274,7 @@ class HyperliquidResponseHandler:
         All list validation is delegated to the RootModel.
         """
         context = f"recent trades ({symbol})"
-        
+
         try:
             # Use RootModel for validation - it handles list structure
             validated_response = HyperliquidRawRecentTradesResponse.model_validate(
@@ -414,12 +412,12 @@ class HyperliquidResponseHandler:
         user_address: str,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
         """Validates the historicalOrders response.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         All list validation and item filtering is delegated to the RootModel.
         """
         context = f"historicalOrders (for {user_address})"
-        
+
         try:
             # Use RootModel for validation - it handles list structure and filtering
             validated_response = HyperliquidRawHistoricalOrdersResponse.model_validate(
@@ -439,12 +437,12 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawFundingHistoryItem]:
         """Validates the /info response for historical funding rates.
-        
+
         Architecture Compliance: Pure validation with Pydantic boundary protection.
         All list validation and error handling is delegated to the RootModel.
         """
         context = "historical_funding_rates"
-        
+
         try:
             # Use RootModel for validation - it handles all preprocessing
             validated_response = HyperliquidRawFundingHistoryResponse.model_validate(
@@ -457,17 +455,18 @@ class HyperliquidResponseHandler:
             if e.errors():
                 first_error = e.errors()[0]
                 # Check if it's a type error at the root level
-                if (first_error.get("loc") == () and 
-                    "expected list" in str(first_error.get("msg", ""))):
+                if first_error.get("loc") == () and "expected list" in str(
+                    first_error.get("msg", "")
+                ):
                     error_message = str(first_error.get("msg"))
                     logger.error(f"{error_message}. Raw: {raw_response_content!r}")
                     raise APIError(
-                        message=error_message,
-                        code=APIErrorCode.INVALID_RESPONSE.value
+                        message=error_message, code=APIErrorCode.INVALID_RESPONSE.value
                     ) from e
                 # Check if it's an item type error
-                elif (len(first_error.get("loc", ())) > 1 and 
-                      "Expected dict" in str(first_error.get("msg", ""))):
+                elif len(first_error.get("loc", ())) > 1 and "Expected dict" in str(
+                    first_error.get("msg", "")
+                ):
                     error_message = str(first_error.get("msg"))
                     logger.error(
                         f"[HyperliquidResponseHandler] {error_message}. "
@@ -477,7 +476,7 @@ class HyperliquidResponseHandler:
                         message=error_message,
                         code=APIErrorCode.INVALID_RESPONSE.value,
                     ) from e
-            
+
             # Default error handling
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content, status_code, headers

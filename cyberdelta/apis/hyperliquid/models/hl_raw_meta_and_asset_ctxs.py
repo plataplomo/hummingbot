@@ -149,26 +149,23 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     @classmethod
     def preprocess_tuple_response(cls, values: object) -> dict[str, object]:
         """Transform [meta, assetCtxs] tuple into dict structure for validation.
-        
+
         This validator replaces the preprocessing mapper logic by handling the
         tuple response format from the metaAndAssetCtxs endpoint.
         """
         # Validate input structure
         list_obj = cls._validate_input_structure(values)
         meta_dict, asset_ctxs_list = cls._extract_tuple_elements(list_obj)
-        
+
         # Preprocess meta section
         preprocessed_meta = cls._preprocess_meta_dict(meta_dict)
-        
+
         # Preprocess asset contexts with name enrichment from universe
         preprocessed_asset_ctxs = cls._preprocess_asset_ctxs_list(
             asset_ctxs_list, preprocessed_meta
         )
-        
-        return {
-            "meta": preprocessed_meta,
-            "asset_ctxs": preprocessed_asset_ctxs
-        }
+
+        return {"meta": preprocessed_meta, "asset_ctxs": preprocessed_asset_ctxs}
 
     @classmethod
     def _validate_input_structure(cls, obj: object) -> list[object]:
@@ -207,9 +204,9 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         """Preprocess the meta dictionary for Pydantic validation."""
         # Create a mutable copy for preprocessing
         meta_data = dict(meta_dict)
-        
+
         # Keep marginTables field if present (model handles it as optional)
-        
+
         # Preprocess universe items
         if "universe" in meta_data and isinstance(meta_data["universe"], list):
             preprocessed_universe: list[object] = []
@@ -224,7 +221,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
                 else:
                     preprocessed_universe.append(item)
             meta_data["universe"] = preprocessed_universe
-        
+
         return meta_data
 
     @classmethod
@@ -235,29 +232,29 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     ) -> list[dict[str, object]]:
         """Preprocess asset contexts list with name enrichment from universe."""
         preprocessed_ctxs: list[dict[str, object]] = []
-        
+
         # Extract universe for name enrichment
         universe = preprocessed_meta.get("universe", [])
         if not isinstance(universe, list):
             universe = []
-        
+
         for i, item_obj in enumerate(asset_ctxs_list):
             if not isinstance(item_obj, dict):
                 raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
-            
+
             item_dict = cast(dict[str, object], item_obj)
-            
+
             # Create a copy to avoid modifying original
             processed_item = dict(item_dict)
-            
+
             # Add name from universe if available and not already present
             if i < len(universe) and "name" not in processed_item:
                 universe_item = universe[i]
                 if isinstance(universe_item, dict) and "name" in universe_item:
                     processed_item["name"] = universe_item["name"]
-            
+
             preprocessed_ctxs.append(processed_item)
-        
+
         return preprocessed_ctxs
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

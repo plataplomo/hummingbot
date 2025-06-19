@@ -4,22 +4,22 @@ This module provides Pydantic models for rate limiting context and data structur
 replacing dict usage with type-safe models.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class RateLimitRequestContext(BaseModel):
     """Context information for rate limiting decisions.
-    
+
     This model replaces the dict[str, Any] request_context used in rate limiting.
     """
-    
+
     exchange_name: str = Field(..., description="Name of the exchange")
     method: str = Field(..., description="HTTP method (GET, POST, etc.)")
     endpoint: str = Field(..., description="API endpoint path")
-    action_payload: Optional[dict[str, Any]] = Field(None, description="Request payload data")
+    action_payload: dict[str, Any] | None = Field(None, description="Request payload data")
     request_weight: int = Field(1, description="Weight of this request for rate limiting")
-    endpoint_group: Optional[str] = Field(None, description="Logical group for the endpoint")
-    
+    endpoint_group: str | None = Field(None, description="Logical group for the endpoint")
+
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -855,7 +855,7 @@ class TestHyperliquidTradingServiceOrders:
 
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = asset_index
-        
+
         # Configure the mock to return a cancel request with proper type attribute
         mock_cancel_request = MagicMock()
         mock_cancel_request.type = "cancel"
@@ -889,7 +889,7 @@ class TestHyperliquidTradingServiceOrders:
 
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = asset_index
-        
+
         # Configure the mock to return a cancel request with proper type attribute
         mock_cancel_request = MagicMock()
         mock_cancel_request.type = "cancel"
