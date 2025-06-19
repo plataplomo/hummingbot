@@ -163,10 +163,16 @@ async def test_asset_index_resolution() -> None:
     except APIError as e:
         logger.info(f"  ✓ Correctly raised APIError: {e.message}\n")
 
-    # Test 6: Show the complete cache
-    logger.info("Test 6: Asset index cache contents:")
-    for symbol, index in indexer._asset_to_index_cache.items():
+    # Test 6: Verify known assets are in cache
+    logger.info("Test 6: Verifying known assets are cached:")
+    # We know these were fetched, so they should resolve from cache
+    known_assets = [("BTC", 0), ("ETH", 1), ("SOL", 5)]
+    for symbol, expected_index in known_assets:
+        index = await indexer.get_asset_index(symbol)
         logger.info(f"  {symbol}: {index}")
+        if index != expected_index:
+            raise AssertionError(f"Expected {symbol} to have index {expected_index}, got {index}")
+    logger.info("  ✓ All known assets verified")
 
     logger.info("\n✅ All asset index resolution tests passed!")
     logger.info("\nKey takeaways:")

@@ -29,11 +29,11 @@ import shutil
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from cyberdelta.config import get_app_settings, get_secrets_config
 from cyberdelta.config.config_models import AppSettings
-from cyberdelta.config.secrets_models import SecretsConfig
+from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
 # Configure logging for the example
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -58,13 +58,13 @@ EXAMPLE_SECRETS_SOURCE = EXAMPLES_DIR / "secrets_example.yaml"
 # --- Helper Functions ---
 
 
-def _log_dict(d: dict[str, Any], indent: int = 0) -> None:
+def _log_dict(d: dict[str, object], indent: int = 0) -> None:
     """Recursively logs a dictionary with indentation for display purposes."""
     for key, value in d.items():
         prefix = "  " * indent + f"{key}:"
         if isinstance(value, dict):
             logger.info(prefix)
-            _log_dict(value, indent + 1)
+            _log_dict(cast(dict[str, object], value), indent + 1)
         else:
             logger.info(f"{prefix} {value}")
 
@@ -240,37 +240,50 @@ def _display_risk_info(app_settings: AppSettings) -> None:
         logger.info("No circuit breaker configurations found.")
 
 
+def _display_exchange_credential_status(exchange_name: str, exchange_secrets: object) -> None:
+    """Display credential status for a single exchange."""
+    # Check if API key is configured (without showing actual values)
+    if hasattr(exchange_secrets, "api_key") and getattr(exchange_secrets, "api_key", None):
+        api_key = getattr(exchange_secrets, "api_key", None)
+        if isinstance(api_key, str):
+            api_key_str = api_key
+            masked_key = api_key_str[-4:] if len(api_key_str) >= 4 else "****"
+            logger.info(f"    API Key: Set (ending with ...{masked_key})")
+        else:
+            logger.info("    API Key: Set (complex structure)")
+    else:
+        logger.info("    API Key: Not Set")
+
+    # Check api_secret only for ApiKeyAuthSecrets
+    if isinstance(exchange_secrets, ApiKeyAuthSecrets):
+        if exchange_secrets.api_secret:
+            logger.info("    API Secret: Set")
+        else:
+            logger.info("    API Secret: Not Set")
+    else:  # PrivateKeyAuthSecrets
+        if hasattr(exchange_secrets, "private_key") and getattr(
+            exchange_secrets, "private_key", None
+        ):
+            logger.info("    Private Key: Set")
+        else:
+            logger.info("    Private Key: Not Set")
+
+
 def _display_credentials_status(app_settings: AppSettings, secrets_config: SecretsConfig) -> None:
     """Display API credentials status without exposing secrets."""
     logger.info("\n=== API Credentials Status (from SecretsConfig) ===")
     exchanges = app_settings.exchanges
-    if exchanges:
-        for exchange_name in exchanges.keys():
-            logger.info(f"  - {exchange_name}")
-            if exchange_name in secrets_config.exchanges:
-                exchange_secrets = secrets_config.exchanges[exchange_name]
-                # Check if API key is configured (without showing actual values)
-                if hasattr(exchange_secrets, "api_key") and getattr(
-                    exchange_secrets, "api_key", None
-                ):
-                    api_key = getattr(exchange_secrets, "api_key", None)
-                    if isinstance(api_key, str):
-                        api_key_str = api_key
-                        masked_key = api_key_str[-4:] if len(api_key_str) >= 4 else "****"
-                        logger.info(f"    API Key: Set (ending with ...{masked_key})")
-                    else:
-                        logger.info("    API Key: Set (complex structure)")
-                else:
-                    logger.info("    API Key: Not Set")
-
-                if hasattr(exchange_secrets, "api_secret") and exchange_secrets.api_secret:
-                    logger.info("    API Secret: Set")
-                else:
-                    logger.info("    API Secret: Not Set")
-            else:
-                logger.info("    No secrets configured for this exchange")
-    else:
+    if not exchanges:
         logger.info("Exchange configuration missing, cannot check API credential status.")
+        return
+
+    for exchange_name in exchanges.keys():
+        logger.info(f"  - {exchange_name}")
+        if exchange_name in secrets_config.exchanges:
+            exchange_secrets = secrets_config.exchanges[exchange_name]
+            _display_exchange_credential_status(exchange_name, exchange_secrets)
+        else:
+            logger.info("    No secrets configured for this exchange")
 
     logger.info("\n=== Individual Secret Retrieval Example ===")
     # Example of retrieving a specific secret using the new system

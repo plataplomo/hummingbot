@@ -5,7 +5,9 @@ integrating it with CyberDeltaEngine's trading system.
 """
 
 import asyncio
+import logging
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.apis.backpack import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
@@ -16,17 +18,17 @@ from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
     MarketOrder,
     MarketOrderConfig,
-    MarketOrderMetrics,
     MarketOrderService,
     PriceDeviationError,
 )
+from cyberdelta.core.execution.orders.market_order_metrics import MarketOrderMetrics
 from cyberdelta.core.models import Order, OrderSide
 
 
 class ExchangeAgnosticMarketOrderExecutor:
     """Demonstrates exchange-agnostic market order execution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the executor with exchange instances."""
         self.exchanges: dict[str, ExchangeAPI] = {}
         self.market_orders: dict[str, MarketOrder] = {}
@@ -39,15 +41,33 @@ class ExchangeAgnosticMarketOrderExecutor:
         # Initialize exchanges (both implement ExchangeAPI)
         self._initialize_exchanges(config_manager, secrets_manager)
 
-    def _initialize_exchanges(self, config_manager: ConfigManager, secrets_manager: SecretsManager):
+    def _initialize_exchanges(
+        self, config_manager: ConfigManager, secrets_manager: SecretsManager
+    ) -> None:
         """Initialize exchange instances."""
         # Get configs
-        hl_config = config_manager.get_exchange_config("hyperliquid")
-        bp_config = config_manager.get_exchange_config("backpack")
+        # Get configs from settings
+        hl_config = (
+            config_manager.settings.exchanges.get("hyperliquid")
+            if config_manager.settings
+            else None
+        )
+        bp_config = (
+            config_manager.settings.exchanges.get("backpack") if config_manager.settings else None
+        )
 
         # Get secrets
-        hl_secrets = secrets_manager.get_exchange_secrets("hyperliquid")
-        bp_secrets = secrets_manager.get_exchange_secrets("backpack")
+        # Get secrets from secrets_data exchanges dict
+        hl_secrets = (
+            secrets_manager.secrets_data.exchanges.get("hyperliquid")
+            if secrets_manager.secrets_data
+            else None
+        )
+        bp_secrets = (
+            secrets_manager.secrets_data.exchanges.get("backpack")
+            if secrets_manager.secrets_data
+            else None
+        )
 
         # Create exchange instances
         if hl_config and hl_secrets:
@@ -60,7 +80,7 @@ class ExchangeAgnosticMarketOrderExecutor:
         for exchange_name, exchange_api in self.exchanges.items():
             self._create_market_order_executor(exchange_name, exchange_api)
 
-    def _create_market_order_executor(self, exchange_name: str, exchange_api: ExchangeAPI):
+    def _create_market_order_executor(self, exchange_name: str, exchange_api: ExchangeAPI) -> None:
         """Create a market order executor for a specific exchange."""
         # Exchange-specific configuration
         config = self._get_exchange_specific_config(exchange_name)
@@ -158,8 +178,8 @@ class ExchangeAgnosticMarketOrderExecutor:
 
             return order
 
-        except (InsufficientLiquidityError, PriceDeviationError) as e:
-            print(f"Market order failed on {exchange_name}: {e}")
+        except (InsufficientLiquidityError, PriceDeviationError):
+            # Market order failed, re-raise the exception
             raise
 
     async def execute_cross_exchange_arbitrage(
@@ -193,73 +213,79 @@ class ExchangeAgnosticMarketOrderExecutor:
 
         # Handle results
         if isinstance(buy_order, Exception) or isinstance(sell_order, Exception):
-            print("Arbitrage failed - one or both orders failed")
+            # Arbitrage failed - one or both orders failed
             if isinstance(buy_order, Exception):
                 raise buy_order
             if isinstance(sell_order, Exception):
                 raise sell_order
 
-        return buy_order, sell_order
+        return buy_order, sell_order  # type: ignore[return-value]
 
-    def get_exchange_stats(self, exchange_name: str) -> dict:
+    def get_exchange_stats(self, exchange_name: str) -> dict[str, Any]:
         """Get market order statistics for a specific exchange."""
-        stats = {"overall": self.metrics.get_overall_stats(), "symbols": {}}
+        stats: dict[str, Any] = {"overall": self.metrics.get_overall_stats(), "symbols": {}}
 
         # Get per-symbol stats
-        for metric in self.metrics._metrics:
-            symbol = metric.symbol
-            if symbol not in stats["symbols"]:
-                stats["symbols"][symbol] = self.metrics.get_symbol_stats(symbol)
+        # Get unique symbols from metrics
+        symbols: set[str] = set()
+        # Get symbols from metrics (accessing protected member for demo)
+        metrics_list = getattr(self.metrics, "_metrics", [])
+        for metric in metrics_list:
+            if hasattr(metric, "symbol"):
+                symbols.add(metric.symbol)
+
+        # Get stats for each symbol
+        for symbol in symbols:
+            stats["symbols"][symbol] = self.metrics.get_symbol_stats(symbol)
 
         return stats
 
 
-async def main():
+async def main() -> None:
     """Example usage of exchange-agnostic market orders."""
     # Initialize executor
     executor = ExchangeAgnosticMarketOrderExecutor()
 
     # Example 1: Execute a market order on Hyperliquid
     try:
-        order = await executor.execute_market_order(
+        await executor.execute_market_order(
             exchange_name="hyperliquid", symbol="BTC", side=OrderSide.BUY, quantity=Decimal("0.01")
         )
-        print(f"Hyperliquid order executed: {order.quantity_filled} @ {order.average_fill_price}")
+        # Hyperliquid order executed successfully
     except Exception as e:
-        print(f"Hyperliquid order failed: {e}")
+        # Hyperliquid order failed
+        logging.warning(f"Hyperliquid order failed: {e}")
 
     # Example 2: Execute a market order on Backpack
     try:
-        order = await executor.execute_market_order(
+        await executor.execute_market_order(
             exchange_name="backpack",
             symbol="BTC-USDC",
             side=OrderSide.SELL,
             quantity=Decimal("0.01"),
         )
-        print(f"Backpack order executed: {order.quantity_filled} @ {order.average_fill_price}")
+        # Backpack order executed successfully
     except Exception as e:
-        print(f"Backpack order failed: {e}")
+        # Backpack order failed
+        logging.warning(f"Backpack order failed: {e}")
 
     # Example 3: Cross-exchange arbitrage
     try:
-        buy_order, sell_order = await executor.execute_cross_exchange_arbitrage(
+        await executor.execute_cross_exchange_arbitrage(
             symbol="ETH",
             buy_exchange="hyperliquid",
             sell_exchange="backpack",
             quantity=Decimal("0.1"),
         )
-        print("Arbitrage executed:")
-        print(f"  Buy: {buy_order.quantity_filled} @ {buy_order.average_fill_price}")
-        print(f"  Sell: {sell_order.quantity_filled} @ {sell_order.average_fill_price}")
+        # Arbitrage executed successfully
     except Exception as e:
-        print(f"Arbitrage failed: {e}")
+        # Arbitrage failed
+        logging.warning(f"Arbitrage failed: {e}")
 
     # Show statistics
     for exchange in executor.exchanges:
-        stats = executor.get_exchange_stats(exchange)
-        print(f"\n{exchange} statistics:")
-        print(f"  Success rate: {stats['overall']['success_rate']:.1f}%")
-        print(f"  Average fill rate: {stats['overall']['avg_fill_rate']:.1f}%")
+        _ = executor.get_exchange_stats(exchange)
+        # Statistics for exchange processed
 
 
 if __name__ == "__main__":

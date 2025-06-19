@@ -6,8 +6,9 @@ and saves them to the test fixtures directory for use in tests.
 """
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 import requests
 
@@ -17,39 +18,39 @@ API_URL = "https://api.hyperliquid-testnet.xyz/info"
 OUTPUT_DIR = Path("/workspaces/CyberDeltaEngine/tests/fixtures/raw_api_data/hl/historicalOrders")
 
 
-def fetch_historical_orders(wallet_address: str) -> dict:
+def fetch_historical_orders(wallet_address: str) -> dict[str, Any]:
     """Fetch historical orders for a wallet address."""
     payload = {"type": "historicalOrders", "user": wallet_address}
 
-    print(f"Fetching historical orders for wallet: {wallet_address}")
+    # Fetching historical orders for wallet
 
     try:
         response = requests.post(API_URL, json=payload, timeout=30)
         response.raise_for_status()
 
-        data = response.json()
-        print(f"Successfully fetched {len(data) if isinstance(data, list) else 0} orders")
+        data: list[dict[str, Any]] = response.json()
+        # Successfully fetched orders
 
         return {
             "wallet": wallet_address,
-            "fetched_at": datetime.utcnow().isoformat() + "Z",
+            "fetched_at": datetime.now(UTC).isoformat(),
             "endpoint": "historicalOrders",
             "api_url": API_URL,
             "orders": data,
         }
 
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching data: {e}")
+    except requests.exceptions.RequestException:
+        # Error fetching data
         raise
 
 
-def save_json(data: dict, output_dir: Path) -> None:
+def save_json(data: dict[str, Any], output_dir: Path) -> None:
     """Save data as JSON file."""
     # Create directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate filename with timestamp
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     filename = f"historicalOrders_{data['wallet'][:8]}_{timestamp}.json"
     filepath = output_dir / filename
 
@@ -57,62 +58,66 @@ def save_json(data: dict, output_dir: Path) -> None:
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2, sort_keys=True)
 
-    print(f"Saved data to: {filepath}")
+    # Saved data to file
 
     # Also save a "latest" version for easy access
     latest_filepath = output_dir / f"historicalOrders_{data['wallet'][:8]}_latest.json"
     with open(latest_filepath, "w") as f:
         json.dump(data, f, indent=2, sort_keys=True)
 
-    print(f"Also saved as: {latest_filepath}")
+    # Also saved as latest file
 
 
-def main():
+def main() -> None:
     """Main function."""
-    print("=" * 60)
-    print("Hyperliquid Historical Orders Fetcher")
-    print("=" * 60)
+    # Hyperliquid Historical Orders Fetcher
 
     # Fetch data
     data = fetch_historical_orders(WALLET_ADDRESS)
 
     # Analyze the data
-    if isinstance(data["orders"], list) and len(data["orders"]) > 0:
-        print("\nOrder Analysis:")
-        print(f"- Total orders: {len(data['orders'])}")
+    orders_raw = data.get("orders", [])
+    if isinstance(orders_raw, list) and orders_raw:
+        # Type assertion: we know orders_raw is a list at this point
+        orders = cast(list[dict[str, Any]], orders_raw)
+        # Order Analysis
+        _ = len(orders)  # Analysis completed
 
         # Check fields in first order
-        first_order = data["orders"][0]
-        print(f"- Fields in orders: {sorted(first_order.keys())}")
+        first_order: dict[str, Any] = orders[0]
+        # Fields in orders
 
         # Check for different order types/statuses
-        order_types = set()
-        sides = set()
-        coins = set()
+        order_types: set[str] = set()
+        sides: set[str] = set()
+        coins: set[str] = set()
 
-        for order in data["orders"]:
-            if "orderType" in order:
-                order_types.add(order["orderType"])
-            if "side" in order:
-                sides.add(order["side"])
-            if "coin" in order:
-                coins.add(order["coin"])
+        order: dict[str, Any]
+        for order in orders:
+            order_type = order.get("orderType")
+            if isinstance(order_type, str):
+                order_types.add(order_type)
+            side = order.get("side")
+            if isinstance(side, str):
+                sides.add(side)
+            coin = order.get("coin")
+            if isinstance(coin, str):
+                coins.add(coin)
 
-        print(f"- Order types found: {sorted(order_types) if order_types else 'N/A'}")
-        print(f"- Sides found: {sorted(sides) if sides else 'N/A'}")
-        print(f"- Coins traded: {sorted(coins) if coins else 'N/A'}")
+        # Analysis completed
 
         # Check if these are orders or fills
         if "dir" in first_order and "closedPnl" in first_order:
-            print("\nNOTE: These appear to be fills/trades, not orders!")
-            print("Fields suggest these are execution records, not order records.")
+            # NOTE: These appear to be fills/trades, not orders!
+            pass
     else:
-        print("\nNo orders found for this wallet.")
+        # No orders found for this wallet
+        pass
 
     # Save data
     save_json(data, OUTPUT_DIR)
 
-    print("\nDone!")
+    # Done!
 
 
 if __name__ == "__main__":

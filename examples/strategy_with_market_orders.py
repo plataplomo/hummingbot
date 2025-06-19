@@ -5,6 +5,7 @@ in an exchange-agnostic manner.
 """
 
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.core.execution.orders import (
@@ -13,25 +14,25 @@ from cyberdelta.core.execution.orders import (
     MarketOrderConfig,
     MarketOrderService,
 )
-from cyberdelta.core.models import OrderSide, OrderType, TradeSignal
+from cyberdelta.core.models import Order, OrderSide, OrderType, SignalType, TimeInForce, TradeSignal
 from cyberdelta.core.strategy import Strategy
 
 
 class MarketOrderStrategy(Strategy):
     """Example strategy that uses market orders for immediate execution."""
 
-    def __init__(self, name: str = "MarketOrderStrategy"):
+    def __init__(self, name: str = "MarketOrderStrategy", symbol: str = "BTC") -> None:
         """Initialize the strategy."""
-        super().__init__(name)
+        super().__init__(name, symbol)
         self.market_orders: dict[str, MarketOrder] = {}
         self._initialize_market_orders()
 
-    def _initialize_market_orders(self):
+    def _initialize_market_orders(self) -> None:
         """Initialize market order executors for each exchange."""
         # This would be called after exchanges are set up
         pass
 
-    def add_exchange_market_order(self, exchange_name: str, exchange_api: ExchangeAPI):
+    def add_exchange_market_order(self, exchange_name: str, exchange_api: ExchangeAPI) -> None:
         """Add a market order executor for an exchange.
 
         This method demonstrates the exchange-agnostic pattern - any exchange
@@ -54,15 +55,16 @@ class MarketOrderStrategy(Strategy):
         This is where your strategy logic would determine when to trade.
         For this example, we'll create a simple signal.
         """
-        signals = []
+        signals: list[TradeSignal] = []
 
         # Example: Generate a buy signal when conditions are met
         if self._should_buy():
             signal = TradeSignal(
                 symbol="BTC",
+                signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
+                price=Decimal("50000"),  # Required field - would get from market data
                 quantity=Decimal("0.1"),
-                order_type=OrderType.MARKET,  # Specify market order
                 exchange="hyperliquid",
                 confidence=0.8,
                 metadata={
@@ -90,10 +92,11 @@ class MarketOrderStrategy(Strategy):
         This method shows how to handle signal execution with market orders
         in an exchange-agnostic way.
         """
-        exchange_name = signal.exchange
+        # Handle single exchange or list of exchanges
+        exchange_name = signal.exchange if isinstance(signal.exchange, str) else signal.exchange[0]
 
         # Check if we should use market order
-        if signal.metadata.get("use_market_order", False):
+        if signal.metadata and signal.metadata.get("use_market_order", False):
             if exchange_name not in self.market_orders:
                 # Initialize market order for this exchange if not already done
                 self.add_exchange_market_order(exchange_name, exchange_api)
@@ -105,17 +108,19 @@ class MarketOrderStrategy(Strategy):
                 order = await market_order.execute_market_order(
                     symbol=signal.symbol,
                     side=signal.side,
-                    quantity=signal.quantity,
-                    max_slippage=signal.metadata.get("max_slippage", Decimal("0.01")),
+                    quantity=signal.quantity or Decimal("0.1"),  # Default if None
+                    max_slippage=(
+                        signal.metadata.get("max_slippage", Decimal("0.01"))
+                        if signal.metadata
+                        else Decimal("0.01")
+                    ),
                 )
 
-                print(
-                    f"Market order executed: {order.quantity_filled} @ {order.average_fill_price}"
-                )
+                # Market order executed successfully
                 return order
 
-            except InsufficientLiquidityError as e:
-                print(f"Insufficient liquidity for {signal.symbol}: {e}")
+            except InsufficientLiquidityError:
+                # Insufficient liquidity for order
                 # Could fall back to limit order here
                 return None
 
@@ -126,12 +131,12 @@ class MarketOrderStrategy(Strategy):
 class ArbitrageStrategyWithMarketOrders(Strategy):
     """Arbitrage strategy that uses market orders for speed."""
 
-    def __init__(self, name: str = "MarketArbitrage"):
+    def __init__(self, name: str = "MarketArbitrage", symbol: str = "BTC") -> None:
         """Initialize the arbitrage strategy."""
-        super().__init__(name)
+        super().__init__(name, symbol)
         self.market_orders: dict[str, MarketOrder] = {}
 
-    def setup_market_orders(self, exchanges: dict[str, ExchangeAPI]):
+    def setup_market_orders(self, exchanges: dict[str, ExchangeAPI]) -> None:
         """Set up market order executors for all exchanges.
 
         This demonstrates how the same market order interface works
@@ -154,7 +159,7 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
 
     async def execute_arbitrage(
         self,
-        opportunity: dict,
+        opportunity: dict[str, Any],
         buy_exchange: str,
         sell_exchange: str,
     ) -> tuple[Order, Order]:
@@ -163,8 +168,8 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
         The exchange-agnostic design allows us to execute the same
         market order logic on any exchange.
         """
-        symbol = opportunity["symbol"]
-        quantity = opportunity["quantity"]
+        symbol: str = opportunity["symbol"]
+        quantity: Decimal = opportunity["quantity"]
 
         # Execute simultaneously for speed
         import asyncio
@@ -186,8 +191,8 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
 
         # Calculate profit
         if buy_order.average_fill_price and sell_order.average_fill_price:
-            profit = (sell_order.average_fill_price - buy_order.average_fill_price) * quantity
-            print(f"Arbitrage profit: ${profit}")
+            # Calculate profit
+            _ = (sell_order.average_fill_price - buy_order.average_fill_price) * quantity
 
         return buy_order, sell_order
 
@@ -196,12 +201,12 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
 class MarketOrderEngine:
     """Example of integrating market orders with the main engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the engine with market order support."""
         self.exchanges: dict[str, ExchangeAPI] = {}
         self.market_orders: dict[str, MarketOrder] = {}
 
-    def add_exchange(self, name: str, exchange_api: ExchangeAPI):
+    def add_exchange(self, name: str, exchange_api: ExchangeAPI) -> None:
         """Add an exchange with automatic market order support.
 
         This shows how any exchange implementing ExchangeAPI automatically
@@ -249,5 +254,6 @@ class MarketOrderEngine:
                 order_type=order_type,
                 quantity=quantity,
                 price=price,
+                time_in_force=TimeInForce.IOC,
             )
             return await exchange_api.place_order(args)
