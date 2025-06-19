@@ -30,6 +30,37 @@ from cyberdelta.core.models.market import FundingRate
 pytest_plugins = ["tests.unit.apis.hyperliquid.services.conftest_market_data"]
 
 
+def create_asset_ctx(
+    name: str,
+    funding: str,
+    mark_px: str,
+    prev_day_px: str,
+    day_ntl_vlm: str,
+    impact_px: str | None = None,
+    open_interest: str | None = None,
+    premium: str | None = None,
+    oracle_px: str | None = None,
+    mid_px: str | None = None,
+    impact_pxs: list[str] | None = None,
+    day_base_vlm: str | None = None,
+) -> HyperliquidRawAssetCtx:
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    return HyperliquidRawAssetCtx(
+        name=name,
+        funding=funding,
+        markPx=mark_px,
+        prevDayPx=prev_day_px,
+        dayNtlVlm=day_ntl_vlm,
+        impactPx=impact_px,
+        openInterest=open_interest or "1000000.00",
+        premium=premium or "0.0001",
+        oraclePx=oracle_px or mark_px,  # Default to mark price
+        midPx=mid_px or mark_px,  # Default to mark price
+        impactPxs=impact_pxs or [str(float(mark_px) - 5), str(float(mark_px) + 5)],
+        dayBaseVlm=day_base_vlm or str(float(day_ntl_vlm) / float(mark_px)),
+    )
+
+
 class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     """Tests for the HyperliquidMarketDataService funding rate functionality."""
 
@@ -42,21 +73,21 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
         symbol_to_find = "BTC"
 
-        mock_raw_asset_ctx_btc = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_btc = create_asset_ctx(
             name="BTC",
             funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
+            mark_px="50000.0",
+            prev_day_px="49000.0",
+            day_ntl_vlm="1000",
+            impact_px="50001.0",
         )
-        mock_raw_asset_ctx_eth = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_eth = create_asset_ctx(
             name="ETH",
             funding="0.0002",
-            markPx="3000.0",
-            prevDayPx="2900.0",
-            dayNtlVlm="500",
-            impactPx="3001.0",
+            mark_px="3000.0",
+            prev_day_px="2900.0",
+            day_ntl_vlm="500",
+            impact_px="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
             marginTables=None,
@@ -640,13 +671,13 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         """Test get_funding_rate handles unexpected mapper exceptions."""
         symbol = "BTC"
 
-        mock_raw_asset_ctx_btc = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_btc = create_asset_ctx(
             name="BTC",
             funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
+            mark_px="50000.0",
+            prev_day_px="49000.0",
+            day_ntl_vlm="1000",
+            impact_px="50001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
             marginTables=None,

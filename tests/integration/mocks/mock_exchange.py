@@ -41,6 +41,8 @@ from cyberdelta.apis.models.service_args_models import (
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
 from cyberdelta.config import AppSettings
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -148,10 +150,11 @@ class MockExchangeAPI(ExchangeAPI):
             config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
 
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
+        from typing import cast
         super().__init__(
             exchange_name,
-            config_copy,
-            secrets,
+            cast(ExchangeSpecificConfig, config_copy),
+            cast(AnyExchangeSecrets, secrets),
             error_mapper=mock_error_mapper,
         )  # Pass the modified copy
         self.full_config = config_obj  # Store the full config object if provided

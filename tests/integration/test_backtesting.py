@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any  # Added for type hints
 
 import pandas as pd
-import pandas.core.series
 import pytest
 
 from cyberdelta.backtesting import BacktestEngine

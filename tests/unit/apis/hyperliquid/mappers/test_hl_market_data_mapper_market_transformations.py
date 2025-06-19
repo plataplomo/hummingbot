@@ -72,6 +72,12 @@ def create_asset_ctx(
         prevDayPx=prev_day_px,
         dayNtlVlm=day_ntl_vlm,
         impactPx=impact_px,
+        openInterest="1000000.00",  # Required field
+        premium="0.0002",  # Required field (can be None)
+        oraclePx="3000.00",  # Required field
+        midPx="3000.25",  # Required field (can be None)
+        impactPxs=["2999.50", "3001.50"],  # Required field (can be None)
+        dayBaseVlm="16666.67",  # Required field
     )
 
 

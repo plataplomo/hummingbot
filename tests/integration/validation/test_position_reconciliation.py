@@ -289,8 +289,8 @@ class TestPositionReconciliationSystem:
         portfolio_tracker: MagicMock,
     ) -> None:
         """Test system initialization."""
-        assert reconciliation_system._portfolio_tracker == portfolio_tracker
-        assert reconciliation_system._config == config
+        assert reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage] == portfolio_tracker
+        assert reconciliation_system._config  # pyright: ignore[reportPrivateUsage] == config
 
         # Check that the system properly extracted values from the mock config
         assert reconciliation_system.reconciliation_threshold == 0.05
@@ -299,8 +299,8 @@ class TestPositionReconciliationSystem:
         assert reconciliation_system.check_interval.total_seconds() == 600.0
         assert isinstance(reconciliation_system.reconciliation_interval, timedelta)
         assert reconciliation_system.reconciliation_interval.total_seconds() == 600.0
-        assert reconciliation_system._discrepancy_threshold_percent == Decimal("0.05")
-        assert reconciliation_system._action_mode == "log"
+        assert reconciliation_system._discrepancy_threshold_percent  # pyright: ignore[reportPrivateUsage] == Decimal("0.05")
+        assert reconciliation_system._action_mode  # pyright: ignore[reportPrivateUsage] == "log"
 
     def test_register_portfolio_tracker(
         self,
@@ -315,7 +315,7 @@ class TestPositionReconciliationSystem:
             "backpack": AsyncMock(spec=ExchangeAPI),
         }
         reconciliation_system.register_portfolio_tracker(new_tracker)
-        assert reconciliation_system._portfolio_tracker == new_tracker
+        assert reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage] == new_tracker
 
     @pytest.mark.asyncio
     async def test_check_positions_interval(
@@ -323,7 +323,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test position check interval logic."""
-        portfolio_tracker_mock = reconciliation_system._portfolio_tracker
+        portfolio_tracker_mock = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
 
         portfolio_tracker_mock.api_clients = {
             "hyperliquid": AsyncMock(spec=ExchangeAPI),
@@ -432,7 +432,7 @@ class TestPositionReconciliationSystem:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using patch.object
         with patch.object(
-            reconciliation_system._portfolio_tracker,
+            reconciliation_system._portfolio_tracker,  # pyright: ignore[reportPrivateUsage]
             "get_positions_by_exchange",
             return_value=[],
         ):
@@ -472,7 +472,7 @@ class TestPositionReconciliationSystem:
         mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
         mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-        portfolio_tracker = reconciliation_system._portfolio_tracker
+        portfolio_tracker = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
         portfolio_tracker.api_clients = {
             "hyperliquid": mock_hl_api_client,
             "backpack": mock_bp_api_client,
@@ -653,7 +653,7 @@ class TestPositionReconciliationSystem:
         # The method _record_discrepancy is designed to record a single discrepancy event.
         if results["discrepancies"]:
             detail_to_record = results["discrepancies"][0]
-            recorded_historical_item = reconciliation_system._record_discrepancy(
+            recorded_historical_item = reconciliation_system._record_discrepancy(  # pyright: ignore[reportPrivateUsage]
                 exchange_id=exchange,
                 symbol=detail_to_record.symbol,
                 discrepancy_type=detail_to_record.discrepancy_type,
@@ -883,7 +883,7 @@ class TestPositionReconciliationSystem:
         """Test checking positions and identifying discrepancies."""
         # Mock the portfolio tracker method using patch.object
         with patch.object(
-            reconciliation_system._portfolio_tracker,
+            reconciliation_system._portfolio_tracker,  # pyright: ignore[reportPrivateUsage]
             "get_positions_by_exchange",
             return_value=[],
         ):
@@ -923,7 +923,7 @@ class TestPositionReconciliationSystem:
             mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
             mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-            portfolio_tracker = reconciliation_system._portfolio_tracker
+            portfolio_tracker = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
             portfolio_tracker.api_clients = {
                 "hyperliquid": mock_hl_api_client,
                 "backpack": mock_bp_api_client,

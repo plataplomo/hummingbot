@@ -98,6 +98,37 @@ def hyperliquid_market_data_service(
     )
 
 
+def create_asset_ctx(
+    name: str,
+    funding: str,
+    mark_px: str,
+    prev_day_px: str,
+    day_ntl_vlm: str,
+    impact_px: str | None = None,
+    open_interest: str | None = None,
+    premium: str | None = None,
+    oracle_px: str | None = None,
+    mid_px: str | None = None,
+    impact_pxs: list[str] | None = None,
+    day_base_vlm: str | None = None,
+) -> HyperliquidRawAssetCtx:
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    return HyperliquidRawAssetCtx(
+        name=name,
+        funding=funding,
+        markPx=mark_px,
+        prevDayPx=prev_day_px,
+        dayNtlVlm=day_ntl_vlm,
+        impactPx=impact_px,
+        openInterest=open_interest or "1000000.00",
+        premium=premium or "0.0001",
+        oraclePx=oracle_px or mark_px,  # Default to mark price
+        midPx=mid_px or mark_px,  # Default to mark price
+        impactPxs=impact_pxs or [str(float(mark_px) - 5), str(float(mark_px) + 5)],
+        dayBaseVlm=day_base_vlm or str(float(day_ntl_vlm) / float(mark_px)),
+    )
+
+
 class TestHyperliquidMarketDataService:
     """Unit tests for the HyperliquidMarketDataService class."""
 
@@ -162,21 +193,21 @@ class TestHyperliquidMarketDataService:
         """Test get_ticker successfully retrieves and processes ticker data."""
         symbol_to_find = "BTC"
 
-        mock_raw_asset_ctx_btc = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_btc = create_asset_ctx(
             name="BTC",
             funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
+            mark_px="50000.0",
+            prev_day_px="49000.0",
+            day_ntl_vlm="1000",
+            impact_px="50001.0",
         )
-        mock_raw_asset_ctx_eth = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_eth = create_asset_ctx(
             name="ETH",
             funding="0.0002",
-            markPx="3000.0",
-            prevDayPx="2900.0",
-            dayNtlVlm="500",
-            impactPx="3001.0",
+            mark_px="3000.0",
+            prev_day_px="2900.0",
+            day_ntl_vlm="500",
+            impact_px="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
             marginTables=None,
@@ -274,21 +305,21 @@ class TestHyperliquidMarketDataService:
         symbol_to_find = "ETH"
         current_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
 
-        mock_raw_asset_ctx_btc = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_btc = create_asset_ctx(
             name="BTC",
             funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
+            mark_px="50000.0",
+            prev_day_px="49000.0",
+            day_ntl_vlm="1000",
+            impact_px="50001.0",
         )
-        mock_raw_asset_ctx_eth = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx_eth = create_asset_ctx(
             name="ETH",
             funding="0.0002",  # Target funding rate
-            markPx="3000.0",
-            prevDayPx="2900.0",
-            dayNtlVlm="500",
-            impactPx="3001.0",
+            mark_px="3000.0",
+            prev_day_px="2900.0",
+            day_ntl_vlm="500",
+            impact_px="3001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
             marginTables=None,
@@ -835,13 +866,13 @@ class TestHyperliquidMarketDataService:
                 ],
             ),
             asset_ctxs=[
-                HyperliquidRawAssetCtx(
+                create_asset_ctx(
                     name="BTC",
                     funding="0.0001",
-                    markPx="50000",
-                    prevDayPx="49000",
-                    dayNtlVlm="100",
-                    impactPx="50001",
+                    mark_px="50000",
+                    prev_day_px="49000",
+                    day_ntl_vlm="100",
+                    impact_px="50001",
                 ),
             ],
         )
@@ -1519,13 +1550,13 @@ class TestHyperliquidMarketDataService:
         symbol = "BTC"
 
         # Setup successful response handling up to mapper
-        mock_raw_asset_ctx = HyperliquidRawAssetCtx(
+        mock_raw_asset_ctx = create_asset_ctx(
             name="BTC",
             funding="0.0001",
-            markPx="50000.0",
-            prevDayPx="49000.0",
-            dayNtlVlm="1000",
-            impactPx="50001.0",
+            mark_px="50000.0",
+            prev_day_px="49000.0",
+            day_ntl_vlm="1000",
+            impact_px="50001.0",
         )
         mock_meta_response = HyperliquidRawMetaResponse(
             marginTables=None,
@@ -1955,13 +1986,13 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                 ],
             ),
             asset_ctxs=[
-                HyperliquidRawAssetCtx(
+                create_asset_ctx(
                     name="BTC",
                     funding="0.0001",
-                    markPx="50100",
-                    prevDayPx="50000",
-                    dayNtlVlm="1000000",
-                    impactPx="50098",
+                    mark_px="50100",
+                    prev_day_px="50000",
+                    day_ntl_vlm="1000000",
+                    impact_px="50098",
                 )
             ],
         )
@@ -2046,13 +2077,13 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                 ],
             ),
             asset_ctxs=[
-                HyperliquidRawAssetCtx(
+                create_asset_ctx(
                     name="BTC",
                     funding="0.0001",
-                    markPx="50100",
-                    prevDayPx="50000",
-                    dayNtlVlm="1000000",
-                    impactPx="50098",
+                    mark_px="50100",
+                    prev_day_px="50000",
+                    day_ntl_vlm="1000000",
+                    impact_px="50098",
                 )
             ],
         )

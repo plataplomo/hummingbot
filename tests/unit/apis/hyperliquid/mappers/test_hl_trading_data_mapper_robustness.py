@@ -83,41 +83,36 @@ def create_raw_order(
 def create_raw_historical_order(
     side: str = "B",
     status: str = "filled",
-    order_type: dict[str, Any] | None = None,
+    order_type_str: str = "limit",
     limit_px: str = "100.25",
     sz: str = "10.0",
     remaining_sz: str = "2.5",
     oid: int = 98765,
     cloid: str | None = "test_historical_001",
-    asset: str = "SOL-PERP",
+    coin: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
     """Create a HyperliquidRawHistoricalOrder with customizable parameters."""
-    if order_type is None:
-        order_type = {"limit": {"tif": "Ioc"}}
-
     return HyperliquidRawHistoricalOrder(
         oid=oid,
         cloid=cloid,
-        asset=asset,
+        coin=coin,
         side=side,
         limitPx=limit_px,
         sz=sz,
         timestamp=timestamp,
-        orderType=order_type,
+        orderType=order_type_str,
         reduceOnly=False,
-        remainingSz=remaining_sz,
+        origSz=sz,  # Use sz as origSz
+        tif="Ioc",
         status=status,
         statusTimestamp=timestamp + 5000,
-        # Optional fields that mypy now requires
-        coin=None,
+        # Optional fields
         triggerCondition=None,
         isTrigger=None,
         triggerPx=None,
         children=None,
         isPositionTpsl=None,
-        origSz=None,
-        tif=None,
     )
 
 
@@ -487,7 +482,7 @@ class TestComplexIntegrationScenarios:
         filled_order = create_raw_historical_order(
             oid=12345,
             cloid="rapid_order_001",
-            asset="BTC-PERP",
+            coin="BTC-PERP",
             limit_px="50000.0",
             sz="1.0",
             status="filled",

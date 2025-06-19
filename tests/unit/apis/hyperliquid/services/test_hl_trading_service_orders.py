@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -570,17 +571,18 @@ class TestHyperliquidTradingServiceOrders:
             "order": {
                 "oid": int(order_id),
                 "cloid": None,
-                "asset": "BTC",
+                "coin": "BTC",
                 "side": "B",
                 "limitPx": "50000.0",
                 "sz": "0.5",
                 "timestamp": 1234567890000,
                 "orderType": {"limit": {"tif": "Gtc"}},
                 "reduceOnly": False,
-                "remainingSz": "0.5",
-                "status": "open",
-                "statusTimestamp": 1234567890000,
+                "origSz": "0.5",
+                "tif": "Gtc",
             },
+            "status": "open",
+            "statusTimestamp": 1234567890000,
         }
         mock_http_client_requester.return_value = (
             mock_response_content,
@@ -591,15 +593,26 @@ class TestHyperliquidTradingServiceOrders:
         # Mock response handler to return historical order response
         from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
             HyperliquidRawHistoricalOrder,
+            HyperliquidRawHistoricalOrderData,
             HyperliquidRawHistoricalOrderResponse,
         )
 
-        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate(
+        mock_historical_order_data = HyperliquidRawHistoricalOrderData.model_validate(
             mock_response_content["order"],
         )
         mock_historical_order_response = HyperliquidRawHistoricalOrderResponse(
-            order=mock_historical_order,
+            order=mock_historical_order_data,
+            status=str(mock_response_content["status"]),
+            statusTimestamp=int(str(mock_response_content["statusTimestamp"])),
         )
+        
+        # For the mapper, create a full HyperliquidRawHistoricalOrder with all fields
+        from typing import cast
+        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate({
+            **cast(dict[str, Any], mock_response_content["order"]),
+            "status": mock_response_content["status"],
+            "statusTimestamp": mock_response_content["statusTimestamp"],
+        })
         mock_hl_response_handler.handle_info_order_status_response.return_value = (
             mock_historical_order_response
         )

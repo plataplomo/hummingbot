@@ -36,6 +36,37 @@ Mapper = HyperliquidMarketDataMapper
 # --- Fixtures ---
 
 
+def create_asset_ctx(
+    name: str,
+    funding: str,
+    mark_px: str,
+    prev_day_px: str,
+    day_ntl_vlm: str,
+    impact_px: str | None = None,
+    open_interest: str | None = None,
+    premium: str | None = None,
+    oracle_px: str | None = None,
+    mid_px: str | None = None,
+    impact_pxs: list[str] | None = None,
+    day_base_vlm: str | None = None,
+) -> HyperliquidRawAssetCtx:
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    return HyperliquidRawAssetCtx(
+        name=name,
+        funding=funding,
+        markPx=mark_px,
+        prevDayPx=prev_day_px,
+        dayNtlVlm=day_ntl_vlm,
+        impactPx=impact_px,
+        openInterest=open_interest or "1000000.00",
+        premium=premium or "0.0001",
+        oraclePx=oracle_px or mark_px,  # Default to mark price
+        midPx=mid_px or mark_px,  # Default to mark price
+        impactPxs=impact_pxs or [str(float(mark_px) - 5), str(float(mark_px) + 5)],
+        dayBaseVlm=day_base_vlm or str(float(day_ntl_vlm) / float(mark_px)),
+    )
+
+
 @pytest.fixture
 def market_data_mapper() -> HyperliquidMarketDataMapper:
     """Provide an instance of HyperliquidMarketDataMapper."""
@@ -45,26 +76,38 @@ def market_data_mapper() -> HyperliquidMarketDataMapper:
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
     """Provide a valid HyperliquidRawAssetCtx for ETH-PERP."""
-    return HyperliquidRawAssetCtx(
+    return create_asset_ctx(
         name="ETH-PERP",
         funding="0.00001234",
-        markPx="3010.75",
-        prevDayPx="2950.00",
-        dayNtlVlm="50000000.00",
-        impactPx="3009.50",
+        mark_px="3010.75",
+        prev_day_px="2950.00",
+        day_ntl_vlm="50000000.00",
+        impact_px="3009.50",
+        open_interest="1000000.00",
+        premium="0.0002",
+        oracle_px="3010.00",
+        mid_px="3010.25",
+        impact_pxs=["3009.00", "3012.00"],
+        day_base_vlm="16600.00",
     )
 
 
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture() -> HyperliquidRawAssetCtx:
     """Provide a valid HyperliquidRawAssetCtx for BTC-PERP with no impactPx."""
-    return HyperliquidRawAssetCtx(
+    return create_asset_ctx(
         name="BTC-PERP",
         funding="-0.00000567",
-        markPx="60200.50",
-        prevDayPx="61000.00",
-        dayNtlVlm="120000000.00",
-        impactPx=None,
+        mark_px="60200.50",
+        prev_day_px="61000.00",
+        day_ntl_vlm="120000000.00",
+        impact_px=None,
+        open_interest="2000000.00",
+        premium="-0.0001",
+        oracle_px="60195.00",
+        mid_px="60200.00",
+        impact_pxs=["60195.00", "60205.00"],
+        day_base_vlm="1993.00",
     )
 
 
@@ -114,13 +157,13 @@ class TestTransformRawAssetCtxToTicker:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test ticker transformation with high precision decimal values."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="PRECISION-PERP",
             funding="0.000012345678901234",
-            markPx="3010.123456789012345",
-            prevDayPx="2950.987654321098765",
-            dayNtlVlm="50000000.111111111111111",
-            impactPx="3009.999999999999999",
+            mark_px="3010.123456789012345",
+            prev_day_px="2950.987654321098765",
+            day_ntl_vlm="50000000.111111111111111",
+            impact_px="3009.999999999999999",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -135,13 +178,13 @@ class TestTransformRawAssetCtxToTicker:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test ticker transformation with zero values."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="ZERO-PERP",
             funding="0.0",
-            markPx="0.0",
-            prevDayPx="0.0",
-            dayNtlVlm="0.0",
-            impactPx=None,
+            mark_px="0.0",
+            prev_day_px="0.0",
+            day_ntl_vlm="0.0",
+            impact_px=None,
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -181,13 +224,13 @@ class TestTransformRawAssetCtxToTicker:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test ticker transformation with negative funding rate."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="NEGATIVE-FUND-PERP",
             funding="-0.00005678",
-            markPx="1500.75",
-            prevDayPx="1520.00",
-            dayNtlVlm="25000000.50",
-            impactPx="1500.25",
+            mark_px="1500.75",
+            prev_day_px="1520.00",
+            day_ntl_vlm="25000000.50",
+            impact_px="1500.25",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -202,13 +245,13 @@ class TestTransformRawAssetCtxToTicker:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test ticker transformation with very large values."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="LARGE-VALUES-PERP",
             funding="0.001",  # Large funding rate
-            markPx="999999.99",  # Large price
-            prevDayPx="999888.88",
-            dayNtlVlm="999999999999.99",  # Very large volume
-            impactPx="999999.50",
+            mark_px="999999.99",  # Large price
+            prev_day_px="999888.88",
+            day_ntl_vlm="999999999999.99",  # Very large volume
+            impact_px="999999.50",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -318,13 +361,13 @@ class TestTransformRawAssetCtxToFundingRate:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test funding rate transformation with high precision funding values."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="HIGH-PRECISION-PERP",
             funding="0.000123456789012345",
-            markPx="2000.123456789012345",
-            prevDayPx="2010.987654321098765",
-            dayNtlVlm="30000000.555555555555555",
-            impactPx="2000.111111111111111",
+            mark_px="2000.123456789012345",
+            prev_day_px="2010.987654321098765",
+            day_ntl_vlm="30000000.555555555555555",
+            impact_px="2000.111111111111111",
         )
 
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
@@ -343,13 +386,13 @@ class TestTransformRawAssetCtxToFundingRate:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test funding rate transformation with zero funding rate."""
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="ZERO-FUNDING-PERP",
             funding="0.0",
-            markPx="1000.0",
-            prevDayPx="1000.0",
-            dayNtlVlm="10000000.0",
-            impactPx="1000.0",
+            mark_px="1000.0",
+            prev_day_px="1000.0",
+            day_ntl_vlm="10000000.0",
+            impact_px="1000.0",
         )
 
         funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
@@ -372,13 +415,13 @@ class TestTransformRawAssetCtxToFundingRate:
         ]
 
         for funding_value, description in test_cases:
-            raw_ctx = HyperliquidRawAssetCtx(
+            raw_ctx = create_asset_ctx(
                 name=f"EXTREME-{description.replace(' ', '-').upper()}-PERP",
                 funding=funding_value,
-                markPx="1500.0",
-                prevDayPx="1500.0",
-                dayNtlVlm="20000000.0",
-                impactPx="1500.0",
+                mark_px="1500.0",
+                prev_day_px="1500.0",
+                day_ntl_vlm="20000000.0",
+                impact_px="1500.0",
             )
 
             funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
@@ -428,13 +471,13 @@ class TestCoreBusinessLogicValidation:
         ]
 
         for symbol in symbol_test_cases:
-            raw_ctx = HyperliquidRawAssetCtx(
+            raw_ctx = create_asset_ctx(
                 name=symbol,
                 funding="0.00001",
-                markPx="1000.0",
-                prevDayPx="1000.0",
-                dayNtlVlm="10000000.0",
-                impactPx="1000.0",
+                mark_px="1000.0",
+                prev_day_px="1000.0",
+                day_ntl_vlm="10000000.0",
+                impact_px="1000.0",
             )
 
             ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -473,13 +516,13 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that decimal precision is handled consistently across transformations."""
         high_precision_value = "1234.123456789012345"
-        raw_ctx = HyperliquidRawAssetCtx(
+        raw_ctx = create_asset_ctx(
             name="PRECISION-TEST-PERP",
             funding="0.000123456789012345",
-            markPx=high_precision_value,
-            prevDayPx=high_precision_value,
-            dayNtlVlm="999999999.123456789012345",
-            impactPx=high_precision_value,
+            mark_px=high_precision_value,
+            prev_day_px=high_precision_value,
+            day_ntl_vlm="999999999.123456789012345",
+            impact_px=high_precision_value,
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
@@ -497,13 +540,13 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that optional fields are handled consistently across transformations."""
         # Test with None impact price
-        raw_ctx_no_impact = HyperliquidRawAssetCtx(
+        raw_ctx_no_impact = create_asset_ctx(
             name="NO-IMPACT-PERP",
             funding="0.00001",
-            markPx="2000.0",
-            prevDayPx="2000.0",
-            dayNtlVlm="10000000.0",
-            impactPx=None,
+            mark_px="2000.0",
+            prev_day_px="2000.0",
+            day_ntl_vlm="10000000.0",
+            impact_px=None,
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx_no_impact)

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 
@@ -33,12 +34,14 @@ class TestBackpackRateLimitStrategy:
         """Test that handle_exchange_retry_after triggers IP ban on limiter."""
         # Arrange
         duration_seconds = 10.5
-        request_context = {
-            "exchange_name": "backpack",
-            "method": "GET",
-            "endpoint": "/api/v1/orders",
-            "endpoint_group": "trading",
-        }
+        request_context = RateLimitRequestContext(
+            exchange_name="backpack",
+            method="GET",
+            endpoint="/api/v1/orders",
+            action_payload=None,
+            request_weight=1,
+            endpoint_group="trading",
+        )
 
         # Act
         await strategy.handle_exchange_retry_after(duration_seconds, request_context)
@@ -55,10 +58,14 @@ class TestBackpackRateLimitStrategy:
         """Test handle_exchange_retry_after with missing exchange_name in context."""
         # Arrange
         duration_seconds = 5.0
-        request_context = {
-            "method": "POST",
-            "endpoint": "/api/v1/orders",
-        }
+        request_context = RateLimitRequestContext(
+            exchange_name="",  # Missing exchange name for test case
+            method="POST",
+            endpoint="/api/v1/orders",
+            action_payload=None,
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         # Act
         await strategy.handle_exchange_retry_after(duration_seconds, request_context)
@@ -74,12 +81,14 @@ class TestBackpackRateLimitStrategy:
     ) -> None:
         """Test that prepare_and_acquire works as inherited from SimpleTokenBucketStrategy."""
         # Arrange
-        request_context = {
-            "exchange_name": "backpack",
-            "method": "GET",
-            "endpoint": "/api/v1/markets",
-            "request_weight": 2,
-        }
+        request_context = RateLimitRequestContext(
+            exchange_name="backpack",
+            method="GET",
+            endpoint="/api/v1/markets",
+            action_payload=None,
+            request_weight=2,
+            endpoint_group=None,
+        )
 
         # Act
         await strategy.prepare_and_acquire(request_context)
@@ -98,12 +107,14 @@ class TestBackpackRateLimitStrategy:
     ) -> None:
         """Test prepare_and_acquire with default weight when not specified in context."""
         # Arrange
-        request_context = {
-            "exchange_name": "backpack",
-            "method": "GET",
-            "endpoint": "/api/v1/markets",
-            # No request_weight specified
-        }
+        request_context = RateLimitRequestContext(
+            exchange_name="backpack",
+            method="GET",
+            endpoint="/api/v1/markets",
+            action_payload=None,
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         # Act
         await strategy.prepare_and_acquire(request_context)

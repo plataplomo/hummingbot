@@ -106,7 +106,7 @@ class TestHandleExchangeResponse:
 
 
 class TestHandleQueryOrderHistoryResponse:
-    """Tests for HyperliquidResponseHandler.handle_query_order_history_response."""
+    """Tests for HyperliquidResponseHandler.handle_historical_orders_response."""
 
     def test_valid(
         self,
@@ -116,7 +116,7 @@ class TestHandleQueryOrderHistoryResponse:
         """Test handling a valid raw order history response."""
         raw_data = [valid_raw_historical_order_response, valid_raw_historical_order_response.copy()]
         response_list: list[HyperliquidRawHistoricalOrderResponse] = (
-            HyperliquidResponseHandler.handle_query_order_history_response(
+            HyperliquidResponseHandler.handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
@@ -134,7 +134,7 @@ class TestHandleQueryOrderHistoryResponse:
         """Test list containing a non-dict item. Handler should skip it."""
         raw_data = [valid_raw_historical_order_response.copy(), "not_an_order_dict"]
         # Handler skips invalid items, so no exception is raised
-        response_list = HyperliquidResponseHandler.handle_query_order_history_response(
+        response_list = HyperliquidResponseHandler.handle_historical_orders_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
         )
@@ -172,7 +172,7 @@ class TestHandleQueryOrderHistoryResponse:
             invalid_item,  # Second item is the modified one (missing oid)
         ]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_query_order_history_response(
+            HyperliquidResponseHandler.handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
@@ -189,7 +189,7 @@ class TestHandleQueryOrderHistoryResponse:
         """Test order history response with wrong top-level type (dict instead of list)."""
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_query_order_history_response(
+            HyperliquidResponseHandler.handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
@@ -220,7 +220,7 @@ class TestHandleInfoOrderStatusResponse:
         )
         assert isinstance(response, HyperliquidRawHistoricalOrderResponse)
         assert response.order.oid == 7001
-        assert response.order.status == "filled"
+        assert response.status == "filled"
 
     def test_order_not_found_string_direct(self, user_address: str, order_id: int) -> None:
         """Test handling 'Order not found' string directly."""

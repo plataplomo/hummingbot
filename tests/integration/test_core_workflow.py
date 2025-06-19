@@ -514,7 +514,7 @@ async def test_happy_path_full_cycle(
     # Directly set balances for testing via internal API (necessary for mocks)
     # Consider adding a test-specific method to PortfolioTracker if this pattern persists
     # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
-    portfolio_tracker._update_balance(
+    portfolio_tracker._update_balance(  # pyright: ignore[reportPrivateUsage]  # pyright: ignore[reportPrivateUsage]
         "mock_hl",
         SpotBalance(
             exchange="mock_hl",
@@ -525,7 +525,7 @@ async def test_happy_path_full_cycle(
         ),
     )
     # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
-    portfolio_tracker._update_balance(
+    portfolio_tracker._update_balance(  # pyright: ignore[reportPrivateUsage]
         "mock_bp",
         SpotBalance(
             exchange="mock_bp",
@@ -577,8 +577,8 @@ async def test_happy_path_full_cycle(
 
     # --- ADDED: Configure Mock APIs to fill orders immediately for this test ---
     # DEFENSIVE CHECK: Using protected attribute for test setup. Mypy=[misc] Ruff=[SLF001]
-    mock_hl_api._open_orders_behavior = "fill_immediately"
-    mock_bp_api._open_orders_behavior = "fill_immediately"
+    mock_hl_api._open_orders_behavior = "fill_immediately"  # pyright: ignore[reportPrivateUsage]
+    mock_bp_api._open_orders_behavior = "fill_immediately"  # pyright: ignore[reportPrivateUsage]
     # --- END ADDED ---
 
     # Funding Rates

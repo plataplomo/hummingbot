@@ -13,11 +13,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawQueryOrderHistoryRequestPayload,
+    HyperliquidRawHistoricalOrdersRequestPayload,
 )
 from cyberdelta.apis.models.service_args_models import (
     GetCandleSnapshotArgs,
-    GetOrderHistoryArgsHL,
 )
 
 # Import fixtures from the shared conftest
@@ -37,23 +36,14 @@ class TestHyperliquidRequestBuilderInfoMarket:
         # Ensure model_dump works as expected for this simple model
         assert payload.model_dump() == {"type": "metaAndAssetCtxs"}
 
-    def test_build_order_history_payload(self, valid_wallet_address: str) -> None:
-        """Test build_order_history_payload with valid inputs."""
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        args = GetOrderHistoryArgsHL(
+    def test_build_historical_orders_payload(self, valid_wallet_address: str) -> None:
+        """Test build_historical_orders_payload with valid inputs."""
+        request_model = HyperliquidRequestBuilder.build_historical_orders_payload(
             wallet_address=valid_wallet_address,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
         )
-        request_model = HyperliquidRequestBuilder.build_order_history_payload(
-            args=args,
-        )
-        assert isinstance(request_model, HyperliquidRawQueryOrderHistoryRequestPayload)
-        assert request_model.type == "queryOrderHistory"
+        assert isinstance(request_model, HyperliquidRawHistoricalOrdersRequestPayload)
+        assert request_model.type == "historicalOrders"
         assert request_model.user == valid_wallet_address
-        assert request_model.start_time == start_time_ms
-        assert request_model.end_time == end_time_ms
 
     def test_build_candle_snapshot_payload(self, symbol: str) -> None:
         """Test build_candle_snapshot_payload with valid inputs."""
@@ -105,30 +95,18 @@ class TestHyperliquidRequestBuilderInfoMarket:
         )
         assert payload_15m.req.interval == "15m"
 
-    def test_build_order_history_payload_edge_cases(self, valid_wallet_address: str) -> None:
-        """Test build_order_history_payload with edge case timestamps."""
-        # Test with same start and end time
-        timestamp_ms = int(datetime(2023, 6, 15, 12, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        args = GetOrderHistoryArgsHL(
+    def test_build_historical_orders_payload_multiple_calls(
+        self, valid_wallet_address: str
+    ) -> None:
+        """Test build_historical_orders_payload with multiple calls."""
+        # Test that the method works consistently
+        request_model1 = HyperliquidRequestBuilder.build_historical_orders_payload(
             wallet_address=valid_wallet_address,
-            start_time_ms=timestamp_ms,
-            end_time_ms=timestamp_ms,
         )
-        request_model = HyperliquidRequestBuilder.build_order_history_payload(
-            args=args,
-        )
-        assert request_model.start_time == timestamp_ms
-        assert request_model.end_time == timestamp_ms
-
-        # Test with large timestamp values (year 2030)
-        far_future_ms = int(datetime(2030, 12, 31, 23, 59, 59, tzinfo=UTC).timestamp() * 1000)
-        args_future = GetOrderHistoryArgsHL(
+        request_model2 = HyperliquidRequestBuilder.build_historical_orders_payload(
             wallet_address=valid_wallet_address,
-            start_time_ms=timestamp_ms,
-            end_time_ms=far_future_ms,
         )
-        request_model_future = HyperliquidRequestBuilder.build_order_history_payload(
-            args=args_future,
-        )
-        assert request_model_future.start_time == timestamp_ms
-        assert request_model_future.end_time == far_future_ms
+        
+        # Both should produce the same result
+        assert request_model1.type == request_model2.type
+        assert request_model1.user == request_model2.user

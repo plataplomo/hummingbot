@@ -3,11 +3,11 @@
 Tests the dual-limiter strategy that manages IP weights and address action counts for Hyperliquid.
 """
 
-from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
 from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -41,12 +41,14 @@ class TestHyperliquidRateLimitStrategy:
 
         # Test that the strategy works by making a request
         # This indirectly verifies that limiters were created
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "l2Book", "coin": "BTC"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "l2Book", "coin": "BTC"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         # Should not raise an exception, indicating limiters are properly initialized
         import asyncio
@@ -62,12 +64,14 @@ class TestHyperliquidRateLimitStrategy:
 
         # Test the strategy works with expected timing behavior
         # by checking if it handles rate limiting correctly
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "l2Book", "coin": "BTC"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "l2Book", "coin": "BTC"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         import asyncio
         import time
@@ -91,17 +95,17 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for /exchange endpoint with single action."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/exchange",
-            "action_payload": {"actions": [{"type": "order", "orderType": "Limit"}]},
-            "method": "POST",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/exchange",
+            action_payload={"actions": [{"type": "order", "orderType": "Limit"}]},
+            method="POST",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
+        await strategy.prepare_and_acquire(request_context)
         # Should not modify the payload
-        assert result is None
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_multiple_actions(
@@ -113,16 +117,16 @@ class TestHyperliquidRateLimitStrategy:
 
         # 45 actions: IP weight = 1 + (45 // 40) = 2, address actions = 45
         actions = [{"type": "order"}] * 45
-        request_context: dict[str, Any] = {
-            "endpoint": "/exchange",
-            "action_payload": {"actions": actions},
-            "method": "POST",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/exchange",
+            action_payload={"actions": actions},
+            method="POST",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_known_type(
@@ -132,16 +136,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for /info endpoint with known type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "l2Book", "coin": "BTC"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "l2Book", "coin": "BTC"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_expensive_type(
@@ -151,16 +155,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for expensive /info endpoint type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "userRole", "user": "0x123"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "userRole", "user": "0x123"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_unknown_type(
@@ -170,16 +174,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for unknown /info endpoint type."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "unknownType", "param": "value"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "unknownType", "param": "value"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_info_endpoint_none_payload(
@@ -189,16 +193,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for /info endpoint with None payload."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": None,
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload=None,
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_exchange_endpoint_empty_actions(
@@ -208,16 +212,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for /exchange with empty actions array."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/exchange",
-            "action_payload": {"actions": []},
-            "method": "POST",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/exchange",
+            action_payload={"actions": []},
+            method="POST",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_unknown_endpoint(
@@ -227,16 +231,16 @@ class TestHyperliquidRateLimitStrategy:
         """Test prepare_and_acquire for unknown endpoint."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/unknown",
-            "action_payload": {"param": "value"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/unknown",
+            action_payload={"param": "value"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
 
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_concurrent_calls(
@@ -248,12 +252,14 @@ class TestHyperliquidRateLimitStrategy:
 
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/exchange",
-            "action_payload": {"actions": [{"type": "order"}]},
-            "method": "POST",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/exchange",
+            action_payload={"actions": [{"type": "order"}]},
+            method="POST",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         # Run multiple concurrent calls
         tasks = [strategy.prepare_and_acquire(request_context) for _ in range(3)]
@@ -285,16 +291,16 @@ class TestHyperliquidRateLimitStrategyIntegration:
         """Test with real TokenBucketRateLimiterRuntime instances."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
-        request_context: dict[str, Any] = {
-            "endpoint": "/exchange",
-            "action_payload": {"actions": [{"type": "order"}] * 3},  # 3 actions
-            "method": "POST",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/exchange",
+            action_payload={"actions": [{"type": "order"}] * 3},  # 3 actions
+            method="POST",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
-        result = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
-        assert result is None
+        await strategy.prepare_and_acquire(request_context)
         # Test passes if no exception is raised and result is as expected
 
     @pytest.mark.asyncio
@@ -308,26 +314,24 @@ class TestHyperliquidRateLimitStrategyIntegration:
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
         # Make multiple calls quickly to test rate limiting
-        request_context: dict[str, Any] = {
-            "endpoint": "/info",
-            "action_payload": {"type": "l2Book", "coin": "BTC"},
-            "method": "GET",
-            "exchange_name": "hyperliquid",
-        }
+        request_context = RateLimitRequestContext(
+            endpoint="/info",
+            action_payload={"type": "l2Book", "coin": "BTC"},
+            method="GET",
+            exchange_name="hyperliquid",
+            request_weight=1,
+            endpoint_group=None,
+        )
 
         # First call should be fast
         start_time = time.time()
-        result1 = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
+        await strategy.prepare_and_acquire(request_context)
         first_call_time = time.time() - start_time
 
         # Make more calls to potentially trigger rate limiting
-        result2 = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-        result3 = await strategy.prepare_and_acquire(request_context)  # type: ignore [func-returns-value]
-
+        await strategy.prepare_and_acquire(request_context)
+        await strategy.prepare_and_acquire(request_context)
         # All results should be None (no payload modification)
-        assert result1 is None
-        assert result2 is None
-        assert result3 is None
 
         # First call should be very fast
         assert first_call_time < 0.1

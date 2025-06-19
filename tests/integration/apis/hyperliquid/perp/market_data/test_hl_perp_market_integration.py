@@ -124,7 +124,8 @@ async def test_hl_get_perp_market_btc_success(
         # only_isolated is optional and can be None
         if market.hl_details.only_isolated is not None:
             assert isinstance(market.hl_details.only_isolated, bool), (
-                f"only_isolated should be bool when present, got {type(market.hl_details.only_isolated)}"
+                f"only_isolated should be bool when present, "
+                f"got {type(market.hl_details.only_isolated)}"
             )
 
         assert isinstance(market.hl_details.sz_decimals, int), (

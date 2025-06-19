@@ -97,25 +97,23 @@ def create_raw_historical_order(
     return HyperliquidRawHistoricalOrder(
         oid=oid,
         cloid=cloid,
-        asset=asset,
+        coin=asset,  # Changed from asset to coin
         side=side,
         limitPx=limit_px,
         sz=sz,
         timestamp=timestamp,
-        orderType=order_type,
+        orderType=str(order_type),  # Convert to string
         reduceOnly=False,
-        remainingSz=remaining_sz,
+        origSz=sz,  # Required field
+        tif="Ioc",  # Required field
         status=status,
         statusTimestamp=timestamp + 5000,
-        # Optional fields that mypy now requires
-        coin=None,
+        # Optional fields
         triggerCondition=None,
         isTrigger=None,
         triggerPx=None,
         children=None,
         isPositionTpsl=None,
-        origSz=None,
-        tif=None,
     )
 
 

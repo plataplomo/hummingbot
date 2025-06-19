@@ -34,6 +34,8 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
+from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -70,8 +72,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     def __init__(
         self,
         exchange_name: str,
-        config: dict[str, Any],
-        secrets: dict[str, str | None],
+        config: ExchangeSpecificConfig | dict[str, Any],
+        secrets: AnyExchangeSecrets | dict[str, str | None],
         error_mapper: IErrorMapper,
         loop: asyncio.AbstractEventLoop | None = None,
         authenticator: IAuthenticator | None = None,
@@ -80,6 +82,20 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         rate_limiter_service: MagicMock | None = None,
     ) -> None:
         """Initialize with dependency injection support for testing."""
+        # Convert dict to mock config if needed for testing
+        if isinstance(config, dict):
+            mock_config = MagicMock(spec=ExchangeSpecificConfig)
+            for key, value in config.items():
+                setattr(mock_config, key, value)
+            config = mock_config
+        
+        # Convert dict to mock secrets if needed for testing
+        if isinstance(secrets, dict):
+            mock_secrets = MagicMock(spec=AnyExchangeSecrets)
+            for key, value in secrets.items():
+                setattr(mock_secrets, key, value)
+            secrets = mock_secrets
+            
         super().__init__(
             exchange_name,
             config,

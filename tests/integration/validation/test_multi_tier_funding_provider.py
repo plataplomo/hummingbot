@@ -383,7 +383,7 @@ class TestMultiTierFundingProvider:
 
         # Integrate data - accessing protected method for testing internal behavior
         # pyright: ignore[reportPrivateUsage]
-        integrated = self.provider._integrate_funding_data(
+        integrated = self.provider._integrate_funding_data(  # pyright: ignore[reportPrivateUsage]
             "hyperliquid",
             "BTC-PERP",
             primary_data,

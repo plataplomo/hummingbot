@@ -57,6 +57,37 @@ def market_data_mapper() -> HyperliquidMarketDataMapper:
 # --- Tests for error handling and validation failures ---
 
 
+def create_asset_ctx(
+    name: str,
+    funding: str,
+    mark_px: str,
+    prev_day_px: str,
+    day_ntl_vlm: str,
+    impact_px: str | None = None,
+    open_interest: str | None = None,
+    premium: str | None = None,
+    oracle_px: str | None = None,
+    mid_px: str | None = None,
+    impact_pxs: list[str] | None = None,
+    day_base_vlm: str | None = None,
+) -> HyperliquidRawAssetCtx:
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    return HyperliquidRawAssetCtx(
+        name=name,
+        funding=funding,
+        markPx=mark_px,
+        prevDayPx=prev_day_px,
+        dayNtlVlm=day_ntl_vlm,
+        impactPx=impact_px,
+        openInterest=open_interest or "1000000.00",
+        premium=premium or "0.0001",
+        oraclePx=oracle_px or mark_px,  # Default to mark price
+        midPx=mid_px or mark_px,  # Default to mark price
+        impactPxs=impact_pxs or [str(float(mark_px) - 5), str(float(mark_px) + 5)],
+        dayBaseVlm=day_base_vlm or str(float(day_ntl_vlm) / float(mark_px)),
+    )
+
+
 class TestValidationErrorHandling:
     """Test cases for validation errors and error handling."""
 
@@ -142,13 +173,13 @@ class TestValidationErrorHandling:
             side_effect=ValueError("Simulated parsing error"),
         )
 
-        raw_asset_ctx = HyperliquidRawAssetCtx(
+        raw_asset_ctx = create_asset_ctx(
             name="ERROR-PERP",
             funding="0.00001",
-            markPx="1000.0",
-            prevDayPx="1000.0",
-            dayNtlVlm="10000000.0",
-            impactPx="1000.0",
+            mark_px="1000.0",
+            prev_day_px="1000.0",
+            day_ntl_vlm="10000000.0",
+            impact_px="1000.0",
         )
 
         with pytest.raises(TransformationError, match="Failed to transform"):
@@ -166,13 +197,13 @@ class TestBoundaryValueConditions:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test handling of extremely large numeric values."""
-        large_value_asset_ctx = HyperliquidRawAssetCtx(
+        large_value_asset_ctx = create_asset_ctx(
             name="LARGE-VALUES-PERP",
             funding="0.999999999999999999",  # Very large funding rate
-            markPx="999999999999.999999999999999999",  # Very large price
-            prevDayPx="999999999999.999999999999999999",
-            dayNtlVlm="999999999999999999999.999999999999",  # Very large volume
-            impactPx="999999999999.999999999999999999",
+            mark_px="999999999999.999999999999999999",  # Very large price
+            prev_day_px="999999999999.999999999999999999",
+            day_ntl_vlm="999999999999999999999.999999999999",  # Very large volume
+            impact_px="999999999999.999999999999999999",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(large_value_asset_ctx)
@@ -190,13 +221,13 @@ class TestBoundaryValueConditions:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test handling of extremely small numeric values."""
-        small_value_asset_ctx = HyperliquidRawAssetCtx(
+        small_value_asset_ctx = create_asset_ctx(
             name="SMALL-VALUES-PERP",
             funding="0.000000000000000001",  # Very small funding rate
-            markPx="0.000000000000000001",  # Very small price
-            prevDayPx="0.000000000000000001",
-            dayNtlVlm="0.000000000000000001",  # Very small volume
-            impactPx="0.000000000000000001",
+            mark_px="0.000000000000000001",  # Very small price
+            prev_day_px="0.000000000000000001",
+            day_ntl_vlm="0.000000000000000001",  # Very small volume
+            impact_px="0.000000000000000001",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(small_value_asset_ctx)
@@ -214,13 +245,13 @@ class TestBoundaryValueConditions:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test handling of zero values in various contexts."""
-        zero_values_asset_ctx = HyperliquidRawAssetCtx(
+        zero_values_asset_ctx = create_asset_ctx(
             name="ZERO-VALUES-PERP",
             funding="0",
-            markPx="0",  # Zero price (might be invalid in some contexts)
-            prevDayPx="0",
-            dayNtlVlm="0",
-            impactPx=None,
+            mark_px="0",  # Zero price (might be invalid in some contexts)
+            prev_day_px="0",
+            day_ntl_vlm="0",
+            impact_px=None,
         )
 
         # Ticker transformation should handle zero price
@@ -247,13 +278,13 @@ class TestBoundaryValueConditions:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test handling of negative values where appropriate."""
-        negative_funding_asset_ctx = HyperliquidRawAssetCtx(
+        negative_funding_asset_ctx = create_asset_ctx(
             name="NEGATIVE-FUNDING-PERP",
             funding="-0.00012345",  # Negative funding is valid
-            markPx="1000.0",
-            prevDayPx="1000.0",
-            dayNtlVlm="10000000.0",
-            impactPx="1000.0",
+            mark_px="1000.0",
+            prev_day_px="1000.0",
+            day_ntl_vlm="10000000.0",
+            impact_px="1000.0",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(negative_funding_asset_ctx)
@@ -274,13 +305,13 @@ class TestBoundaryValueConditions:
         """Test handling of maximum allowed string lengths."""
         max_length_symbol = "A" * 55 + "-PERP"  # 64 characters total (within limit)
 
-        max_length_asset_ctx = HyperliquidRawAssetCtx(
+        max_length_asset_ctx = create_asset_ctx(
             name=max_length_symbol,
             funding="0.00001",
-            markPx="1000.0",
-            prevDayPx="1000.0",
-            dayNtlVlm="10000000.0",
-            impactPx="1000.0",
+            mark_px="1000.0",
+            prev_day_px="1000.0",
+            day_ntl_vlm="10000000.0",
+            impact_px="1000.0",
         )
 
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(max_length_asset_ctx)
@@ -306,13 +337,13 @@ class TestUnicodeAndEncodingSupport:
         ]
 
         for symbol in unicode_symbols:
-            unicode_asset_ctx = HyperliquidRawAssetCtx(
+            unicode_asset_ctx = create_asset_ctx(
                 name=symbol,
                 funding="0.00001",
-                markPx="1000.0",
-                prevDayPx="1000.0",
-                dayNtlVlm="10000000.0",
-                impactPx="1000.0",
+                mark_px="1000.0",
+                prev_day_px="1000.0",
+                day_ntl_vlm="10000000.0",
+                impact_px="1000.0",
             )
 
             ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(unicode_asset_ctx)
@@ -418,13 +449,13 @@ class TestPerformanceAndMemory:
         ]
 
         for i, precision_value in enumerate(high_precision_decimals):
-            precision_asset_ctx = HyperliquidRawAssetCtx(
+            precision_asset_ctx = create_asset_ctx(
                 name=f"PRECISION-{i}-PERP",  # Keep name short
                 funding="0.00001",
-                markPx=precision_value,
-                prevDayPx=precision_value,
-                dayNtlVlm=precision_value,
-                impactPx=precision_value,
+                mark_px=precision_value,
+                prev_day_px=precision_value,
+                day_ntl_vlm=precision_value,
+                impact_px=precision_value,
             )
 
             ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(precision_asset_ctx)
@@ -576,13 +607,13 @@ class TestErrorRecoveryScenarios:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that data remains consistent across multiple transformations."""
-        base_asset_ctx = HyperliquidRawAssetCtx(
+        base_asset_ctx = create_asset_ctx(
             name="CONSISTENCY-PERP",
             funding="0.00012345",
-            markPx="1234.567890",
-            prevDayPx="1230.000000",
-            dayNtlVlm="987654321.123456",
-            impactPx="1234.500000",
+            mark_px="1234.567890",
+            prev_day_px="1230.000000",
+            day_ntl_vlm="987654321.123456",
+            impact_px="1234.500000",
         )
 
         # Transform multiple times
