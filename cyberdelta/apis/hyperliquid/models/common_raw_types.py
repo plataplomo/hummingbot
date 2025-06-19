@@ -653,7 +653,15 @@ RawOrderStatusHL = Annotated[
 ]
 
 # ADDED: More permissive status for historical/any orders
-_ALLOWED_HISTORICAL_ORDER_STATUSES_HL = {"open", "filled", "canceled", "rejected", "expired"}
+_ALLOWED_HISTORICAL_ORDER_STATUSES_HL = {
+    "open",
+    "filled",
+    "canceled",
+    "rejected",
+    "expired",
+    "minTradeNtlRejected",  # Order rejected due to minimum trade notional requirement
+    "unknownOid",  # Order ID not found
+}
 RawHistoricalOrderStatusHL = Annotated[
     str,  # Base type
     WrapValidator(

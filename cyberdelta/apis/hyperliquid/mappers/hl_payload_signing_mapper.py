@@ -109,6 +109,22 @@ class HyperliquidPayloadSigningMapper:
             order_dict["c"] = order["client_order_id"]
         return order_dict
 
+    def _process_single_order_model(self, order: ModelDumpable, index: int) -> dict[str, Any]:
+        """Process a single Pydantic order model for signing conversion."""
+        return self._convert_pydantic_order_to_dict(order, index)
+
+    def _process_single_order_dict(self, order: dict[str, Any], index: int) -> dict[str, Any]:
+        """Process a single order dictionary for signing conversion."""
+        # Check field name format
+        if all(key in order for key in ["a", "b", "p", "s"]):
+            # Already has short field names
+            return order
+        elif all(key in order for key in ["asset_index", "is_buy", "limit_px", "size"]):
+            # Has aliased names - need to convert to short names
+            return self._convert_aliased_order_dict(order)
+        else:
+            raise ValueError(f"Order dict at index {index} has unexpected field names")
+
     def _process_single_order(
         self, order: ModelDumpable | dict[str, Any], index: int
     ) -> dict[str, Any]:
@@ -121,23 +137,13 @@ class HyperliquidPayloadSigningMapper:
         Returns:
             Dictionary representation ready for signing with correct field ordering
         """
-        if hasattr(order, "model_dump"):
-            # It's a Pydantic model
-            order_dict = self._convert_pydantic_order_to_dict(order, index)
-        elif isinstance(order, dict):
-            # Already a dict - check field name format
-            if all(key in order for key in ["a", "b", "p", "s"]):
-                # Already has short field names
-                order_dict = order
-            elif all(key in order for key in ["asset_index", "is_buy", "limit_px", "size"]):
-                # Has aliased names - need to convert to short names
-                order_dict = self._convert_aliased_order_dict(order)
-            else:
-                raise ValueError(f"Order dict at index {index} has unexpected field names")
+        if isinstance(order, dict):
+            # Already a dict - dispatch to dict handler
+            return self._process_single_order_dict(order, index)
         else:
-            raise TypeError(f"Invalid order type at index {index}: {type(order).__name__}")
-
-        return order_dict
+            # Must be a Pydantic model since it's not a dict
+            # and we only accept ModelDumpable | dict[str, Any]
+            return self._process_single_order_model(order, index)
 
     def _convert_orders_list(
         self, orders: list[ModelDumpable | dict[str, Any]]
@@ -166,43 +172,39 @@ class HyperliquidPayloadSigningMapper:
         """Check if cancel payload is already in correct format."""
         if data.get("type") != "cancel" or "cancels" not in data:
             return False
-            
+
         if not isinstance(data["cancels"], list) or len(data["cancels"]) == 0:
             return False
-            
+
         first_cancel = data["cancels"][0]
-        return (
-            isinstance(first_cancel, dict)
-            and "a" in first_cancel
-            and "o" in first_cancel
-        )
-    
+        return isinstance(first_cancel, dict) and "a" in first_cancel and "o" in first_cancel
+
     def _handle_orders_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
         """Handle orders field conversion."""
         if "orders" not in data:
             return
-            
+
         if isinstance(data["orders"], list):
             payload["orders"] = self._convert_orders_list(data["orders"])
         else:
             payload["orders"] = data["orders"]
-    
+
     def _handle_action_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
         """Handle action field conversion."""
         if "action" not in data:
             return
-            
+
         if hasattr(data["action"], "model_dump"):
             # Convert Pydantic model to dict with aliases
             payload["action"] = data["action"].model_dump(by_alias=True, exclude_none=True)
         else:
             payload["action"] = data["action"]
-    
+
     def _handle_cancels_field(self, data: dict[str, Any], payload: dict[str, Any]) -> None:
         """Handle cancels field conversion."""
         if "cancels" not in data:
             return
-            
+
         if isinstance(data["cancels"], list):
             cancels_list = []
             for cancel_item in data["cancels"]:

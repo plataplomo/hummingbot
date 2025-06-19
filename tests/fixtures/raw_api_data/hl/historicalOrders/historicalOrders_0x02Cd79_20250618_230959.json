@@ -1,0 +1,7 @@
+{
+  "api_url": "https://api.hyperliquid.xyz/info",
+  "endpoint": "historicalOrders",
+  "fetched_at": "2025-06-18T23:09:59.222732Z",
+  "orders": [],
+  "wallet": "0x02Cd79f858bEF99588Cc2E650f2A4Fbf2baE8CB5"
+}

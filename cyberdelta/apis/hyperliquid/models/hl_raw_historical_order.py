@@ -31,55 +31,86 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 # or would be handled if needed. The main change is the status.
 
 
-class HyperliquidRawHistoricalOrder(BaseModel):
-    """Core historical order details with extended status support.
-
-    Similar to HyperliquidRawOrder but uses RawHistoricalOrderStatusHL for broader
-    status compatibility, allowing validation of orders in any state including
-    filled, canceled, and other historical statuses.
-    """
+class HyperliquidRawHistoricalOrderData(BaseModel):
+    """Order details from historicalOrders endpoint - the 'order' object only."""
 
     oid: RawNonNegativeInt = Field(..., alias="oid")
-    cloid: RawCloidString64HL | None = Field(
-        None,
-        alias="cloid",
-    )  # Adjusted from RawOptionalNonEmptyString64HL
-    asset: RawAssetString64HL = Field(..., alias="asset")
-    coin: RawAssetString64HL | None = Field(
-        None, alias="coin"
-    )  # Sometimes returned instead of asset
+    cloid: RawCloidString64HL | None = Field(None, alias="cloid")
+    coin: RawAssetString64HL = Field(..., alias="coin")  # The symbol/asset
     side: RawSideStr = Field(..., alias="side")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
     sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
-    order_type: RawDefaultString | dict[str, object] = Field(
-        ..., alias="orderType"
-    )  # Can be string or dict
+    order_type: RawDefaultString = Field(..., alias="orderType")
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
-    remaining_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="remainingSz")
-    status: RawHistoricalOrderStatusHL = Field(..., alias="status")  # KEY CHANGE
-    status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
+    orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
+    tif: RawDefaultString = Field(..., alias="tif")
     # Additional fields that may be present
     trigger_condition: RawDefaultString | None = Field(None, alias="triggerCondition")
     is_trigger: RawStrictBool | None = Field(None, alias="isTrigger")
     trigger_px: RawFiniteDecimalStr | None = Field(None, alias="triggerPx")
     children: list[object] | None = Field(None, alias="children")
     is_position_tpsl: RawStrictBool | None = Field(None, alias="isPositionTpsl")
-    orig_sz: RawNonNegativeFiniteDecimalStr | None = Field(None, alias="origSz")
-    tif: RawDefaultString | None = Field(None, alias="tif")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
+class HyperliquidRawHistoricalOrder(BaseModel):
+    """Complete historical order model combining order data with status.
+
+    This model is used by the mapper and includes all fields needed for
+    transformation to internal Order model.
+    """
+
+    # All fields from HyperliquidRawHistoricalOrderData
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    cloid: RawCloidString64HL | None = Field(None, alias="cloid")
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    side: RawSideStr = Field(..., alias="side")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
+    timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
+    order_type: RawDefaultString = Field(..., alias="orderType")
+    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
+    orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
+    tif: RawDefaultString = Field(..., alias="tif")
+    trigger_condition: RawDefaultString | None = Field(None, alias="triggerCondition")
+    is_trigger: RawStrictBool | None = Field(None, alias="isTrigger")
+    trigger_px: RawFiniteDecimalStr | None = Field(None, alias="triggerPx")
+    children: list[object] | None = Field(None, alias="children")
+    is_position_tpsl: RawStrictBool | None = Field(None, alias="isPositionTpsl")
+
+    # Status fields from the parent level
+    status: RawHistoricalOrderStatusHL = Field(..., alias="status")
+    status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
+
+    # For compatibility with mapper - provide asset field from coin
+    @property
+    def asset(self) -> str:
+        """Get asset name from coin field for compatibility with mappers."""
+        return self.coin
+
+    # For compatibility - remaining_sz is always the current sz for historical orders
+    @property
+    def remaining_sz(self) -> str:
+        """Get remaining size which equals current size for historical orders."""
+        return self.sz
+
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
 class HyperliquidRawHistoricalOrderResponse(BaseModel):
-    """Response structure for historical order query endpoints.
+    """Response structure for each item in the historicalOrders endpoint response.
 
-    This model wraps a single historical order's details and is used for endpoints
-    that return individual order information. It embeds HyperliquidRawHistoricalOrder
-    to provide complete order data with extended status support.
+    This represents each item in the array returned by historicalOrders, with
+    status and statusTimestamp at the top level alongside the order object.
     """
 
-    order: HyperliquidRawHistoricalOrder = Field(
+    order: HyperliquidRawHistoricalOrderData = Field(
         ...,
-        description="The details of the queried historical order.",
+        description="The order details.",
     )
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    status: RawHistoricalOrderStatusHL = Field(..., alias="status")
+    status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

@@ -201,9 +201,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 symbol = available_symbols[0]
 
                 # Get market price for minimal test quantity calculation
-                await HyperliquidTestHelpers.get_current_market_price(
-                    hl_api_for_test_env, symbol
-                )
+                await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, symbol)
 
                 test_price = await get_safe_test_price(
                     hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=Decimal("10")

@@ -396,7 +396,7 @@ class HyperliquidTradingDataMapper:
             # Parse quantities and price
             quantity_requested = parse_decimal_value(raw_simple_order.orig_sz, field_name="orig_sz")
             quantity_sz = parse_decimal_value(raw_simple_order.sz, field_name="sz")
-            
+
             # Calculate quantity filled if both values are available
             if quantity_requested is not None and quantity_sz is not None:
                 quantity_filled = quantity_requested - quantity_sz
@@ -697,14 +697,8 @@ class HyperliquidTradingDataMapper:
         # Map enums
         side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
 
-        # Handle order_type that can be string or dict
-        order_type_dict: dict[str, Any]
-        if isinstance(raw_historical_order.order_type, str):
-            # Convert string order type to dict format
-            order_type_dict = {raw_historical_order.order_type.lower(): {}}
-        else:
-            # Already a dict
-            order_type_dict = raw_historical_order.order_type
+        # Convert string order type to dict format for processing
+        order_type_dict: dict[str, Any] = {raw_historical_order.order_type.lower(): {}}
 
         order_type = HyperliquidTradingDataMapper._map_type_to_internal(
             order_type_dict,

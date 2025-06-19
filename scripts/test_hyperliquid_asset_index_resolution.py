@@ -66,31 +66,55 @@ async def test_asset_index_resolution() -> None:
         meta=HyperliquidRawMetaResponse(
             universe=[
                 HyperliquidRawAssetDefinition(
-                    name="BTC", szDecimals=8, maxLeverage=50, onlyIsolated=False,
-                    marginTableId=0, isDelisted=False
+                    name="BTC",
+                    szDecimals=8,
+                    maxLeverage=50,
+                    onlyIsolated=False,
+                    marginTableId=0,
+                    isDelisted=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="ETH", szDecimals=18, maxLeverage=50, onlyIsolated=False,
-                    marginTableId=0, isDelisted=False
+                    name="ETH",
+                    szDecimals=18,
+                    maxLeverage=50,
+                    onlyIsolated=False,
+                    marginTableId=0,
+                    isDelisted=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="ARB", szDecimals=18, maxLeverage=20, onlyIsolated=False,
-                    marginTableId=1, isDelisted=False
+                    name="ARB",
+                    szDecimals=18,
+                    maxLeverage=20,
+                    onlyIsolated=False,
+                    marginTableId=1,
+                    isDelisted=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="OP", szDecimals=18, maxLeverage=20, onlyIsolated=False,
-                    marginTableId=1, isDelisted=False
+                    name="OP",
+                    szDecimals=18,
+                    maxLeverage=20,
+                    onlyIsolated=False,
+                    marginTableId=1,
+                    isDelisted=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="MATIC", szDecimals=18, maxLeverage=20, onlyIsolated=False,
-                    marginTableId=1, isDelisted=False
+                    name="MATIC",
+                    szDecimals=18,
+                    maxLeverage=20,
+                    onlyIsolated=False,
+                    marginTableId=1,
+                    isDelisted=False,
                 ),
                 HyperliquidRawAssetDefinition(
-                    name="SOL", szDecimals=9, maxLeverage=50, onlyIsolated=False,
-                    marginTableId=0, isDelisted=False
+                    name="SOL",
+                    szDecimals=9,
+                    maxLeverage=50,
+                    onlyIsolated=False,
+                    marginTableId=0,
+                    isDelisted=False,
                 ),
             ],
-            marginTables=None  # Optional field - use alias
+            marginTables=None,  # Optional field - use alias
         ),
         asset_ctxs=[],
     )

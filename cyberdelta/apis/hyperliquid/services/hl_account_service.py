@@ -51,7 +51,6 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOpenOrdersArgs,
     GetOrderHistoryArgs,
-    GetOrderHistoryArgsHL,
     GetTradeHistoryArgs,
     GetUserFillsArgs,
     GetUserStateArgs,
@@ -510,7 +509,7 @@ class HyperliquidAccountService:
             ) from e_unexpected
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Retrieve historical order data using the 'queryOrderHistory' endpoint."""
+        """Retrieve historical order data using the 'historicalOrders' endpoint."""
         self._validate_order_history_args(args)
 
         # Initialize context for error handling
@@ -528,6 +527,15 @@ class HyperliquidAccountService:
                 )
             raw_historical_orders = self._process_order_history_response(raw_data)
             internal_orders = self._map_historical_orders_to_internal(raw_historical_orders)
+
+            # Filter by time range since historicalOrders endpoint doesn't support time filtering
+            if args.start_time and args.end_time:
+                internal_orders = [
+                    order
+                    for order in internal_orders
+                    if order.created_at and args.start_time <= order.created_at <= args.end_time
+                ]
+
             return self._filter_orders_by_symbol(internal_orders, args.symbol)
 
         except APIError:
@@ -560,7 +568,7 @@ class HyperliquidAccountService:
     async def _fetch_order_history_data(
         self, args: GetOrderHistoryArgs
     ) -> tuple[ParsedJsonResponse | None, int, str | None]:
-        """Fetch raw order history data from API."""
+        """Fetch raw order history data from API using historicalOrders endpoint."""
         if not self._wallet_address:
             raise APIError(
                 message="Wallet address is required to fetch order history for Hyperliquid.",
@@ -569,23 +577,11 @@ class HyperliquidAccountService:
 
         endpoint_path = "/info"
 
-        # Validate required datetime arguments
-        if args.start_time is None:
-            raise ValueError("start_time is required")
-        if args.end_time is None:
-            raise ValueError("end_time is required")
-
-        start_time_ms = int(args.start_time.timestamp() * 1000)
-        end_time_ms = int(args.end_time.timestamp() * 1000)
-
-        payload_model = self._request_builder.build_order_history_payload(
-            GetOrderHistoryArgsHL(
-                wallet_address=self._wallet_address,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
-            )
+        # Use the historicalOrders endpoint which doesn't accept time parameters
+        payload_model = self._request_builder.build_historical_orders_payload(
+            wallet_address=self._wallet_address,
         )
-        payload_dict = payload_model.model_dump()
+        payload_dict = payload_model.model_dump(by_alias=True, exclude_none=True)
 
         logger.debug(
             f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
@@ -626,13 +622,24 @@ class HyperliquidAccountService:
             )
 
         raw_historical_order_responses: list[HyperliquidRawHistoricalOrderResponse] = (
-            self._response_handler.handle_query_order_history_response(
+            self._response_handler.handle_historical_orders_response(
                 raw_response_content=raw_data,
                 user_address=self._wallet_address,
             )
         )
 
-        return [resp.order for resp in raw_historical_order_responses]
+        # Create combined order models with status for the mapper
+        combined_orders: list[HyperliquidRawHistoricalOrder] = []
+        for resp in raw_historical_order_responses:
+            # Combine order data with status fields
+            combined_data = {
+                **resp.order.model_dump(by_alias=True),
+                "status": resp.status,
+                "statusTimestamp": resp.status_timestamp,
+            }
+            combined_orders.append(HyperliquidRawHistoricalOrder.model_validate(combined_data))
+
+        return combined_orders
 
     def _map_historical_orders_to_internal(
         self, raw_orders: list[HyperliquidRawHistoricalOrder]

@@ -99,15 +99,13 @@ class TestHyperliquidPerpPositionsPrivate:
         assert test_position.size != Decimal("0"), (
             f"Position size should be non-zero after opening trade, got {test_position.size}"
         )
-        assert test_position.entry_price is not None and test_position.entry_price > Decimal(
-            "0"
-        ), f"entry_price must be positive, got {test_position.entry_price}"
+        assert test_position.entry_price is not None and test_position.entry_price > Decimal("0"), (
+            f"entry_price must be positive, got {test_position.entry_price}"
+        )
 
         # Validate position side matches order side
         if test_position.size > Decimal("0"):
-            assert placed_order.side == OrderSide.BUY, (
-                "Long position should result from BUY order"
-            )
+            assert placed_order.side == OrderSide.BUY, "Long position should result from BUY order"
         elif test_position.size < Decimal("0"):
             assert placed_order.side == OrderSide.SELL, (
                 "Short position should result from SELL order"

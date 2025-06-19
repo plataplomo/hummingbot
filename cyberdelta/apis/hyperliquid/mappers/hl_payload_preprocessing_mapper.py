@@ -52,7 +52,7 @@ class HyperliquidPayloadPreprocessingMapper:
             )
 
         # Get first item from list
-        status_item = raw_data[0]
+        status_item: Any = raw_data[0]
 
         # Handle string responses in list
         if isinstance(status_item, str):
@@ -78,7 +78,9 @@ class HyperliquidPayloadPreprocessingMapper:
                 metadata={"original_response_item": status_item},
             )
 
-        return status_item
+        # Ensure type compatibility with return type
+        result: dict[str, Any] = status_item
+        return result
 
     @staticmethod
     def _handle_string_or_none_response(raw_data: str | None) -> None:
@@ -110,7 +112,7 @@ class HyperliquidPayloadPreprocessingMapper:
         # Check if we have the deeply nested structure
         if "order" in order_wrapper and isinstance(order_wrapper["order"], dict):
             # Extract the actual order data
-            inner_order = order_wrapper["order"]
+            inner_order: dict[str, Any] = order_wrapper["order"]
 
             # Map 'coin' to 'asset' if asset is not present
             if "coin" in inner_order and "asset" not in inner_order:

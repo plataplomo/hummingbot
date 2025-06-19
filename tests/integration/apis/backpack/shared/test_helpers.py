@@ -638,7 +638,7 @@ def _log_balance_details(
     """Log balance details for debugging."""
     total_balance = balance_obj.total_quantity
     available_quantity = balance_obj.available_quantity
-    
+
     if balance_obj.bp_details and balance_obj.bp_details.lend_quantity:
         logger.info(
             f"{found_currency} balance - total: {total_balance}, "

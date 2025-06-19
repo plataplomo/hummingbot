@@ -49,7 +49,7 @@ class TestHyperliquidSpotBalancesPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test L2 USD transfer operation.
-        
+
         Currently expects APIError with not-implemented status.
         """
         transfer_args = TransferArgs(
@@ -85,7 +85,7 @@ class TestHyperliquidSpotBalancesPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test token withdrawal operation.
-        
+
         Currently expects APIError with not-implemented status.
         """
         withdraw_args = WithdrawArgs(
@@ -120,7 +120,7 @@ class TestHyperliquidSpotBalancesPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test ETH withdrawal operation.
-        
+
         Currently expects APIError with not-implemented status.
         """
         eth_withdraw_args = WithdrawArgs(

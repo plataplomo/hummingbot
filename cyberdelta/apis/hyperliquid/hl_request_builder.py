@@ -41,9 +41,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
+    HyperliquidRawHistoricalOrdersRequestPayload,
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawOrderType,
-    HyperliquidRawQueryOrderHistoryRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
@@ -70,7 +70,6 @@ from cyberdelta.apis.models.service_args_models import (
     GetHistoricalFundingRatesArgs,
     GetL2BookArgs,
     GetOpenOrdersArgs,
-    GetOrderHistoryArgsHL,
     GetRecentTradesArgs,
     GetUserFillsArgs,
     GetUserStateArgs,
@@ -293,25 +292,23 @@ class HyperliquidRequestBuilder:
             )
 
     @staticmethod
-    def build_order_history_payload(
-        args: GetOrderHistoryArgsHL,
-    ) -> HyperliquidRawQueryOrderHistoryRequestPayload:
-        """Build the Pydantic model for querying order history.
+    def build_historical_orders_payload(
+        wallet_address: str,
+    ) -> HyperliquidRawHistoricalOrdersRequestPayload:
+        """Build the Pydantic model for fetching historical orders.
 
-        Following proper Request Builder Pattern: Takes internal Args model and
-        returns Raw Pydantic models.
+        Uses 'historicalOrders' endpoint which returns all historical orders.
+        Time filtering must be done after fetching the results.
 
         Args:
-            args: Validated GetOrderHistoryArgsHL containing history query parameters
+            wallet_address: User's wallet address
 
         Returns:
-            HyperliquidRawQueryOrderHistoryRequestPayload: Validated Raw API model
+            HyperliquidRawHistoricalOrdersRequestPayload: Validated Raw API model
         """
-        return HyperliquidRawQueryOrderHistoryRequestPayload(
-            type="queryOrderHistory",
-            user=args.wallet_address,
-            startTime=args.start_time_ms,
-            endTime=args.end_time_ms,
+        return HyperliquidRawHistoricalOrdersRequestPayload(
+            type="historicalOrders",
+            user=wallet_address,
         )
 
     @staticmethod

@@ -347,6 +347,7 @@ class HyperliquidTradingService:
                 )
             )
         )
+        preprocessed_response = None  # Initialize for access in except block
         try:
             raw_response_content, _, _ = await self._http_client_requester(
                 method="POST",
@@ -379,13 +380,35 @@ class HyperliquidTradingService:
                 )
             )
             if historical_order_response and historical_order_response.order:
-                return historical_order_response.order
+                # Construct HyperliquidRawHistoricalOrder from response components
+                order_data = historical_order_response.order
+                return HyperliquidRawHistoricalOrder(
+                    **order_data.model_dump(by_alias=True),
+                    status=historical_order_response.status,
+                    statusTimestamp=historical_order_response.status_timestamp,
+                )
             return None
 
         except APIError as e:
-            if e.code == APIErrorCode.ORDER_NOT_FOUND.value or "Order not found" in e.message:
-                logger.info(f"[{self._exchange_name}] Order OID {order_id} not found via API.")
-                return None
+            # Check if this is a validation error that indicates "unknownOid" response
+            if e.code == APIErrorCode.INVALID_RESPONSE.value:
+                # Extract the original validation error if available
+                if isinstance(e.original_exception, ValidationError):
+                    # Check if the preprocessed response has "unknownOid" status
+                    if (
+                        preprocessed_response
+                        and preprocessed_response.get("status") == "unknownOid"
+                    ):
+                        # This is a known "order not found" response from Hyperliquid
+                        # Raise a proper ORDER_NOT_FOUND error
+                        raise APIError(
+                            message=f"Order {order_id} not found",
+                            code=APIErrorCode.ORDER_NOT_FOUND.value,
+                            exchange_message="unknownOid",
+                            http_status=200,  # Hyperliquid returns 200 for unknownOid
+                        ) from e
+
+            # For other errors, log and re-raise
             logger.error(
                 f"[{self._exchange_name}] API error fetching order status raw for OID {order_id}: "
                 f"{e.message}",

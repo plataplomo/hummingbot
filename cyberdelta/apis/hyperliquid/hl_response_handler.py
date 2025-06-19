@@ -386,10 +386,23 @@ class HyperliquidResponseHandler:
 
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
         """
-        # Basic type validation
-        if not isinstance(raw_response_content, list):
+        # Handle empty list case - Hyperliquid returns [] when no data available
+        if isinstance(raw_response_content, list) and len(raw_response_content) == 0:
+            # Return empty candle snapshot structure
+            return HyperliquidRawCandleSnapshot(
+                t=[],  # timestamps
+                o=[],  # open prices
+                h=[],  # high prices
+                l=[],  # low prices
+                c=[],  # close prices
+                v=[],  # volumes
+                s="ok",  # status
+            )
+
+        # For non-empty responses, expect a dictionary structure
+        if not isinstance(raw_response_content, dict):
             raise APIError(
-                message=f"Unexpected candle snapshot response format: expected list, "
+                message=f"Unexpected candle snapshot response format: expected dict, "
                 f"got {type(raw_response_content).__name__}",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
@@ -509,12 +522,12 @@ class HyperliquidResponseHandler:
             ) from e
 
     @staticmethod
-    def handle_query_order_history_response(
+    def handle_historical_orders_response(
         raw_response_content: RawJsonResponse,
         user_address: str,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
-        """Validates the /query_order_history response."""
-        context = f"query_order_history (for {user_address})"
+        """Validates the historicalOrders response."""
+        context = f"historicalOrders (for {user_address})"
         if not isinstance(raw_response_content, list):
             raise APIError(
                 message=f"Unexpected {context} response format: expected list, "

@@ -121,9 +121,11 @@ async def test_hl_get_perp_market_btc_success(
             f"max_leverage should be 1-1000, got {market.hl_details.max_leverage}"
         )
 
-        assert isinstance(market.hl_details.only_isolated, bool), (
-            f"only_isolated should be bool, got {type(market.hl_details.only_isolated)}"
-        )
+        # only_isolated is optional and can be None
+        if market.hl_details.only_isolated is not None:
+            assert isinstance(market.hl_details.only_isolated, bool), (
+                f"only_isolated should be bool when present, got {type(market.hl_details.only_isolated)}"
+            )
 
         assert isinstance(market.hl_details.sz_decimals, int), (
             f"sz_decimals should be int, got {type(market.hl_details.sz_decimals)}"

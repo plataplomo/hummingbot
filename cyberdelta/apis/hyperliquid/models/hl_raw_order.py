@@ -22,7 +22,6 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawOptionalNonEmptyString64HL,
     RawStrictBool,
     RawTifStr,
-    RawTimestampMsInt,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.utils.parsing import validate_str_field
@@ -89,18 +88,16 @@ class HyperliquidRawPlaceOrderAction(BaseModel):
     )
 
 
-class HyperliquidRawQueryOrderHistoryRequestPayload(BaseModel):
-    """Request payload for the 'queryOrderHistory' info type.
+class HyperliquidRawHistoricalOrdersRequestPayload(BaseModel):
+    """Request payload for the 'historicalOrders' info type.
 
-    Timestamps are in milliseconds.
+    This endpoint returns all historical orders without time filtering.
     """
 
     type: Annotated[
-        Literal["queryOrderHistory"],
+        Literal["historicalOrders"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32, allow_empty=False)),
-    ] = Field("queryOrderHistory")
+    ] = Field("historicalOrders")
     user: RawLaxEthereumAddressStrHL = Field(..., description="User's wallet address")
-    start_time: RawTimestampMsInt = Field(..., alias="startTime")
-    end_time: RawTimestampMsInt = Field(..., alias="endTime")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

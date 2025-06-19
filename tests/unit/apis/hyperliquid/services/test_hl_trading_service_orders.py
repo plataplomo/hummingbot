@@ -772,14 +772,12 @@ class TestHyperliquidTradingServiceOrders:
             200,
             {"content-type": "application/json"},
         )
-        
+
         # Mock response handler to return raw Pydantic model
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
             simple_mock_response_content
         )
-        mock_hl_response_handler.handle_info_open_orders_response.return_value = (
-            mock_raw_response
-        )
+        mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
         # Mock the mapper to return internal Orders
         expected_orders = [
