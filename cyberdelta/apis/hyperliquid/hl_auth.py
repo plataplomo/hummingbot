@@ -42,13 +42,13 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
-from cyberdelta.apis.hyperliquid.mappers.hl_payload_signing_mapper import (
-    HyperliquidPayloadSigningMapper,
-)
 from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     EIP712TypeField,
     HyperliquidAgentDomainData,
     HyperliquidAgentTypes,
+)
+from cyberdelta.apis.hyperliquid.models.signing_validators import (
+    GenericSigningPayload,
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -123,7 +123,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self._setup_wallet_properties()
         self._setup_nonce_management()
         self._setup_eip712_configuration(chain_id)
-        self._setup_transformation_layer()
 
         self.logger.info(
             f"HyperliquidEip712Authenticator initialized for address: {self.wallet_address} "
@@ -285,9 +284,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ],
         )
 
-    def _setup_transformation_layer(self) -> None:
-        """Setup the transformation layer for payload cleaning."""
-        self._signing_mapper = HyperliquidPayloadSigningMapper(logger_param=self.logger)
 
     @property
     def wallet_address(self) -> str:
@@ -369,12 +365,29 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             raise ValueError(msg)
 
     def _prepare_action_payload(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Convert and clean the action payload for signing."""
-        # Convert the payload to a format suitable for signing
-        action_payload_dict = self._signing_mapper.convert_payload_to_signing_format(data)
-
-        # Clean the payload for signing
-        return self._signing_mapper.clean_raw_payload_for_signing(action_payload_dict)
+        """Prepare the action payload for signing using Pydantic model serialization.
+        
+        This method ensures all payloads go through proper Pydantic validation
+        and serialization, providing consistent signing behavior.
+        
+        For Hyperliquid, we need to use the actual field names (not aliases) because
+        the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
+        """
+        # If the data is already a Pydantic model, serialize it directly
+        if hasattr(data, "model_dump"):
+            # For Hyperliquid, use by_alias=False to get the short field names (a, b, p, etc.)
+            result = data.model_dump(by_alias=False, exclude_none=True)
+            if isinstance(result, dict):
+                return result
+            raise ValueError(f"Expected dict from model_dump, got {type(result)}")
+        
+        # For dict data, convert to GenericSigningPayload for consistent handling
+        try:
+            generic_payload = GenericSigningPayload.from_dict(data)
+            return generic_payload.model_dump(by_alias=False, exclude_none=True)
+        except Exception as e:
+            self.logger.error(f"Failed to create GenericSigningPayload: {e}")
+            raise ValueError(f"Invalid payload structure: {e}") from e
 
     def _compute_action_hash(
         self, action_payload_dict: dict[str, Any], current_nonce_ms: int

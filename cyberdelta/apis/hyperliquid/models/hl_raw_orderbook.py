@@ -31,7 +31,7 @@ real-time and historical order book data.
     # ...then transform to internal order book model
 """
 
-from typing import Annotated, Literal, TypeGuard, cast
+from typing import Annotated, Any, Literal, TypeGuard, cast
 
 from pydantic import (
     BaseModel,
@@ -40,6 +40,7 @@ from pydantic import (
     Field,
     ValidationInfo,
     field_validator,
+    model_validator,
 )
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
@@ -103,6 +104,37 @@ class HyperliquidRawL2Book(BaseModel):
     levels: list[list[HyperliquidRawBookLevel]] = Field(..., alias="levels")
     time: RawInt = Field(..., alias="time")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+    
+    @model_validator(mode="before")
+    @classmethod
+    def preprocess_orderbook_response(
+        cls, values: object, info: ValidationInfo
+    ) -> dict[str, Any]:
+        """Preprocess order book response before validation.
+        
+        This handles the preprocessing logic that was previously in the 
+        HyperliquidResponsePreprocessingMapper.preprocess_l2_book_response method.
+        Specifically handles None responses by returning an empty order book structure.
+        """
+        # Handle None response (no order book data available)
+        if values is None:
+            # Get symbol from validation context if available
+            symbol = "UNKNOWN"
+            if info.context and "symbol" in info.context:
+                symbol = str(info.context["symbol"])
+            
+            return {
+                "coin": symbol,
+                "levels": [[], []],  # [bids, asks] - both empty lists
+                "time": 0,  # zero timestamp for empty book
+            }
+        
+        if not isinstance(values, dict):
+            raise ValueError(
+                f"Order book response must be a dict, got {type(values).__name__}"
+            )
+        
+        return values
 
     @field_validator("levels", mode="before")
     @classmethod

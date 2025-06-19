@@ -90,6 +90,39 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def preprocess_candle_response(cls, values: object) -> dict[str, object]:
+        """Preprocess candle snapshot response before validation.
+        
+        This handles the preprocessing logic that was previously in the 
+        HyperliquidResponsePreprocessingMapper.preprocess_candle_snapshot_response method.
+        """
+        # Handle empty list response (no candle data available)
+        if isinstance(values, list):
+            if len(values) == 0:
+                # Return a minimal empty candle snapshot with proper OHLCV structure
+                return {
+                    "t": [],  # timestamps
+                    "o": [],  # open prices
+                    "h": [],  # high prices
+                    "l": [],  # low prices
+                    "c": [],  # close prices
+                    "v": [],  # volumes
+                    "s": "ok",  # status
+                }
+            # If it's a non-empty list, something is wrong
+            raise ValueError(
+                "Candle snapshot response must be a dict, not a list"
+            )
+        
+        if not isinstance(values, dict):
+            raise ValueError(
+                f"Candle snapshot response must be a dict, got {type(values).__name__}"
+            )
+        
+        return values
+
     @model_validator(mode="after")
     def check_list_lengths(self) -> Self:
         """Check that all OHLCV lists have the same length as the timestamp list."""

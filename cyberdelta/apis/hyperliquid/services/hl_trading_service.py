@@ -19,10 +19,8 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
-from cyberdelta.apis.hyperliquid.mappers.hl_payload_preprocessing_mapper import (
-    HyperliquidPayloadPreprocessingMapper,
-)
 
+# Preprocessing is now handled by Pydantic model validators
 # Internal Domain Models & Mappers
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -140,8 +138,9 @@ class HyperliquidTradingService:
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Execute an exchange action request and return the response."""
         # Convert Pydantic model to dictionary for HTTP client (exchange-agnostic boundary)
-        # CRITICAL: Must use by_alias=True to get short field names for Hyperliquid
-        request_payload_dict = request_payload_model.model_dump(by_alias=True, exclude_none=True)
+        # CRITICAL: Must use by_alias=False to get short field names for Hyperliquid
+        # The field names (a, b, p, etc.) are what Hyperliquid expects, not the aliases
+        request_payload_dict = request_payload_model.model_dump(by_alias=False, exclude_none=True)
 
         raw_content, http_status, _ = await self._http_client_requester(
             method="POST",
@@ -347,7 +346,6 @@ class HyperliquidTradingService:
                 )
             )
         )
-        preprocessed_response = None  # Initialize for access in except block
         try:
             raw_response_content, _, _ = await self._http_client_requester(
                 method="POST",
@@ -365,16 +363,10 @@ class HyperliquidTradingService:
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
 
-            # Preprocess the response to handle nested structure
-            preprocessed_response = (
-                HyperliquidPayloadPreprocessingMapper.preprocess_order_status_response(
-                    raw_response_content
-                )
-            )
-
+            # Pass the raw response directly - model validator will handle preprocessing
             historical_order_response: HyperliquidRawHistoricalOrderResponse = (
                 self._response_handler.handle_info_order_status_response(
-                    preprocessed_response,
+                    raw_response_content,
                     user_address=self._wallet_address,  # Already asserted not None above
                     order_id=order_id,
                 )
@@ -394,10 +386,10 @@ class HyperliquidTradingService:
             if e.code == APIErrorCode.INVALID_RESPONSE.value:
                 # Extract the original validation error if available
                 if isinstance(e.original_exception, ValidationError):
-                    # Check if the preprocessed response has "unknownOid" status
+                    # Check if the raw response has "unknownOid" status
                     if (
-                        preprocessed_response
-                        and preprocessed_response.get("status") == "unknownOid"
+                        isinstance(raw_response_content, dict)
+                        and raw_response_content.get("status") == "unknownOid"
                     ):
                         # This is a known "order not found" response from Hyperliquid
                         # Raise a proper ORDER_NOT_FOUND error

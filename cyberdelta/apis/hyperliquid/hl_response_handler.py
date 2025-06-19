@@ -16,9 +16,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
+    HyperliquidRawFundingHistoryResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
+    HyperliquidRawHistoricalOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -32,6 +34,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
+    HyperliquidRawRecentTradesResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
@@ -94,43 +97,16 @@ class HyperliquidResponseHandler:
         status_code: int | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
-        """Validates the /info response expected to be MetaAndAssetCtxs."""
+        """Validates the /info response expected to be MetaAndAssetCtxs.
+        
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        All structure validation is delegated to the model's validator.
+        """
         context = "info (MetaAndAssetCtxs)"
 
-        # Validate basic structure
-        HyperliquidResponseHandler._validate_meta_asset_ctxs_structure(
-            raw_response_content, context, status_code, headers
-        )
-
         try:
-            # After validation, we know raw_response_content is a 2-element list
-            if not isinstance(raw_response_content, list) or len(raw_response_content) != 2:
-                raise APIError(
-                    message=f"Unexpected {context} response format: not a 2-element list",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            meta_data_raw = raw_response_content[0]
-            asset_ctxs_data_raw = raw_response_content[1]
-
-            # Cast to proper types after validation confirms the structure
-            if not isinstance(meta_data_raw, dict):
-                raise APIError(
-                    message=f"Unexpected {context} response format: first element is not dict",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            if not isinstance(asset_ctxs_data_raw, list):
-                raise APIError(
-                    message=f"Unexpected {context} response format: second element is not list",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            # Direct Pydantic validation - no business logic
+            # Direct Pydantic validation - all preprocessing handled by model
             return HyperliquidRawMetaAndAssetCtxsResponse.model_validate(raw_response_content)
-
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e,
@@ -139,63 +115,7 @@ class HyperliquidResponseHandler:
                 status_code,
                 headers,
             ) from e
-        except Exception as e_generic:
-            logger.error(
-                f"[{HyperliquidResponseHandler.__name__}] Unexpected generic error processing "
-                f"{context}: {e_generic}. Raw: {raw_response_content!r}",
-            )
-            raise APIError(
-                message=f"Unexpected error processing {context}: {e_generic}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e_generic,
-                http_status=status_code,
-            ) from e_generic
 
-    @staticmethod
-    def _validate_meta_asset_ctxs_structure(
-        raw_response_content: RawJsonResponse,
-        context: str,
-        status_code: int | None,
-        headers: Mapping[str, str] | None,
-    ) -> None:
-        """Validate the basic structure of meta and asset contexts response."""
-        if not isinstance(raw_response_content, list):
-            logger.error(
-                f"Unexpected {context} format. "
-                f"Status: {status_code}, Headers: {headers}, Raw: {raw_response_content!r}",
-            )
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        if len(raw_response_content) != 2:
-            raise APIError(
-                message=f"Unexpected {context} response format: expected 2-element list, "
-                f"got {len(raw_response_content)} elements",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        meta_data_raw, asset_ctxs_data_raw = raw_response_content
-
-        if not isinstance(meta_data_raw, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: first element (meta) "
-                f"expected dict, got {type(meta_data_raw).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        if not isinstance(asset_ctxs_data_raw, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: second element (asset_ctxs) "
-                f"expected list, got {type(asset_ctxs_data_raw).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
 
     @staticmethod
     def handle_info_user_state_response(
@@ -327,22 +247,20 @@ class HyperliquidResponseHandler:
     ) -> HyperliquidRawOrderBookResponse:
         """Validates the /info response for l2Book.
 
-        Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        Preprocessing (including None handling) is delegated to the model's validator.
         """
-        # Basic type validation
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected L2 book response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
-
-        # Direct Pydantic validation - no business logic
+        context = f"L2 book ({symbol})"
+        
         try:
-            return HyperliquidRawOrderBookResponse.model_validate(raw_response_content)
+            # Pass symbol through validation context for None response handling
+            return HyperliquidRawOrderBookResponse.model_validate(
+                raw_response_content,
+                context={"symbol": symbol}
+            )
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, f"L2 book ({symbol})", raw_response_content
+                e, context, raw_response_content
             ) from e
 
     @staticmethod
@@ -354,24 +272,21 @@ class HyperliquidResponseHandler:
     ) -> list[HyperliquidRawPublicTrade]:
         """Validates the /info response for recentTrades.
 
-        Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        All list validation is delegated to the RootModel.
         """
-        # Basic type validation
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected recent trades response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
-
-        # Direct Pydantic validation - no business logic
+        context = f"recent trades ({symbol})"
+        
         try:
-            return [
-                HyperliquidRawPublicTrade.model_validate(trade) for trade in raw_response_content
-            ]
+            # Use RootModel for validation - it handles list structure
+            validated_response = HyperliquidRawRecentTradesResponse.model_validate(
+                raw_response_content
+            )
+            # Return the items from the RootModel
+            return validated_response.items
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, f"recent trades ({symbol})", raw_response_content
+                e, context, raw_response_content
             ) from e
 
     @staticmethod
@@ -385,29 +300,9 @@ class HyperliquidResponseHandler:
         """Validates the /info response for candle_snapshot.
 
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
+        Empty list handling is done by the model's preprocessing validator.
         """
-        # Handle empty list case - Hyperliquid returns [] when no data available
-        if isinstance(raw_response_content, list) and len(raw_response_content) == 0:
-            # Return empty candle snapshot structure
-            return HyperliquidRawCandleSnapshot(
-                t=[],  # timestamps
-                o=[],  # open prices
-                h=[],  # high prices
-                l=[],  # low prices
-                c=[],  # close prices
-                v=[],  # volumes
-                s="ok",  # status
-            )
-
-        # For non-empty responses, expect a dictionary structure
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected candle snapshot response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
-
-        # Direct Pydantic validation - no business logic
+        # Direct Pydantic validation - preprocessing is handled by the model
         try:
             return HyperliquidRawCandleSnapshot.model_validate(raw_response_content)
         except ValidationError as e:
@@ -424,17 +319,9 @@ class HyperliquidResponseHandler:
         """Validates the /info response for order_status.
 
         Architecture Compliance: Only structural validation per ERROR_HANDLING.md.
-        No data transformation - that's handled by preprocessing mapper.
+        All data transformation and error handling is done by the model's preprocessing validator.
         """
-        # Basic type validation
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected order status response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
-
-        # Direct Pydantic validation - no business logic or transformation
+        # Direct Pydantic validation - preprocessing is handled by the model
         try:
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
         except ValidationError as e:
@@ -526,31 +413,24 @@ class HyperliquidResponseHandler:
         raw_response_content: RawJsonResponse,
         user_address: str,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
-        """Validates the historicalOrders response."""
+        """Validates the historicalOrders response.
+        
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        All list validation and item filtering is delegated to the RootModel.
+        """
         context = f"historicalOrders (for {user_address})"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+        
+        try:
+            # Use RootModel for validation - it handles list structure and filtering
+            validated_response = HyperliquidRawHistoricalOrdersResponse.model_validate(
+                raw_response_content
             )
-        validated_orders: list[HyperliquidRawHistoricalOrderResponse] = []
-        for item_index, item in enumerate(raw_response_content):
-            if not isinstance(item, dict):
-                logger.warning(
-                    f"Skipping non-dict item in {context} list at index {item_index}: {item!r}",
-                )
-                continue
-            try:
-                # Validate each item against the new historical order model
-                validated_orders.append(HyperliquidRawHistoricalOrderResponse.model_validate(item))
-            except ValidationError as e:
-                raise HyperliquidResponseHandler._handle_validation_error(
-                    e,
-                    (f"single order history item (index {item_index}) in {context}"),
-                    item,
-                ) from e
-        return validated_orders
+            # Return the items from the RootModel
+            return validated_response.items
+        except ValidationError as e:
+            raise HyperliquidResponseHandler._handle_validation_error(
+                e, context, raw_response_content
+            ) from e
 
     @staticmethod
     def handle_historical_funding_rates_response(
@@ -558,57 +438,47 @@ class HyperliquidResponseHandler:
         status_code: int | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawFundingHistoryItem]:
-        """Validates the /info response for historical funding rates."""
+        """Validates the /info response for historical funding rates.
+        
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        All list validation and error handling is delegated to the RootModel.
+        """
         context = "historical_funding_rates"
-        if not isinstance(raw_response_content, list):
-            # Construct the more specific error message expected by the test
-            error_message = (
-                f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}"
+        
+        try:
+            # Use RootModel for validation - it handles all preprocessing
+            validated_response = HyperliquidRawFundingHistoryResponse.model_validate(
+                raw_response_content
             )
-            logger.error(f"{error_message}. Raw: {raw_response_content!r}")
-            raise APIError(message=error_message, code=APIErrorCode.INVALID_RESPONSE.value)
-
-        validated_rates: list[HyperliquidRawFundingHistoryItem] = []
-        for i, item_raw in enumerate(raw_response_content):
-            if not isinstance(item_raw, dict):
-                # Revert to a more specific message about type mismatch for this test
-                error_message = (
-                    f"Expected dict for historical funding rate item, "
-                    f"got {type(item_raw).__name__} at index {i}"
-                )
-                logger.error(
-                    f"[HyperliquidResponseHandler] {error_message}. "
-                    f"Raw item: {item_raw!r}. Full raw response: {raw_response_content!r}",
-                )
-                raise APIError(
-                    message=error_message,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
-            try:
-                # Assuming HyperliquidRawFundingHistoryItem.model_validate exists and is correct
-                validated_item = HyperliquidRawFundingHistoryItem.model_validate(item_raw)
-                validated_rates.append(validated_item)
-            except ValidationError as e:
-                error_message = (
-                    f"Invalid single funding history item (index {i}) in {context} "
-                    f"response from exchange. Details: {e.errors()}"
-                )
-                logger.error(
-                    f"{error_message} Full raw response: {raw_response_content!r}. "
-                    f"Raw item: {item_raw!r}",
-                )
-                raise APIError(
-                    message=error_message,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    original_exception=e,  # Pass the original ValidationError
-                ) from e
-            except Exception as e:  # Catch any other unexpected error
-                error_message = f"Unexpected error processing item at index {i} in {context}: {e}"
-                logger.error(f"[HyperliquidResponseHandler] {error_message}")
-                raise APIError(
-                    message=error_message,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    original_exception=e,
-                ) from e
-        return validated_rates
+            # Return the items from the RootModel
+            return validated_response.items
+        except ValidationError as e:
+            # Extract the first error for specific error messages expected by tests
+            if e.errors():
+                first_error = e.errors()[0]
+                # Check if it's a type error at the root level
+                if (first_error.get("loc") == () and 
+                    "expected list" in str(first_error.get("msg", ""))):
+                    error_message = str(first_error.get("msg"))
+                    logger.error(f"{error_message}. Raw: {raw_response_content!r}")
+                    raise APIError(
+                        message=error_message,
+                        code=APIErrorCode.INVALID_RESPONSE.value
+                    ) from e
+                # Check if it's an item type error
+                elif (len(first_error.get("loc", ())) > 1 and 
+                      "Expected dict" in str(first_error.get("msg", ""))):
+                    error_message = str(first_error.get("msg"))
+                    logger.error(
+                        f"[HyperliquidResponseHandler] {error_message}. "
+                        f"Full raw response: {raw_response_content!r}"
+                    )
+                    raise APIError(
+                        message=error_message,
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                    ) from e
+            
+            # Default error handling
+            raise HyperliquidResponseHandler._handle_validation_error(
+                e, context, raw_response_content, status_code, headers
+            ) from e

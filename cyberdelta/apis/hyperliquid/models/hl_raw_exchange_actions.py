@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
@@ -19,14 +19,22 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
 )
+from cyberdelta.apis.hyperliquid.models.signing_validators import (
+    EthereumAddressNormalizer,
+)
 
 
 # Model for ETH specific withdrawal action (part of the signed payload)
-class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
+class HyperliquidRawEthWithdrawalActionPayload(
+    BaseModel, 
+    EthereumAddressNormalizer
+):
     """Represents the specific action payload for withdrawing ETH to L1.
 
     This forms part of the signed message for the /exchange endpoint and contains
     the amount and destination address for ETH withdrawals to Layer 1.
+    
+    Includes automatic Ethereum address normalization for the destination field.
     """
 
     amount: RawFiniteDecimalStr
@@ -63,11 +71,14 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     t: HyperliquidRawOrderType = Field(..., alias="order_type_details")
     c: RawOptionalNonEmptyString64HL | None = Field(default=None, alias="client_order_id")
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):
-    """Represents the 'action' details for an L2 USD transfer."""
+    """Represents the 'action' details for an L2 USD transfer.
+    
+    Includes automatic serialization for signing.
+    """
 
     chain: Literal["L2"]
     payload: HyperliquidRawL2UsdTransferPayload
@@ -80,6 +91,7 @@ class HyperliquidRawCancelItem(BaseModel):
 
     Based on official SDK: uses short field names 'a' for asset and 'o' for oid.
     This is used in the 'cancels' array for cancel order requests.
+    Includes automatic serialization for signing.
 
     Example:
         {"type": "cancel", "cancels": [{"a": 0, "o": 12345}]}
@@ -96,6 +108,7 @@ class HyperliquidRawUpdateLeverageAction(BaseModel):
 
     This forms part of the signed message for the /exchange endpoint and contains
     the asset index, leverage mode (cross/isolated), and leverage value.
+    Includes automatic serialization for signing.
     """
 
     asset: RawNonNegativeInt = Field(description="Asset index from meta response")

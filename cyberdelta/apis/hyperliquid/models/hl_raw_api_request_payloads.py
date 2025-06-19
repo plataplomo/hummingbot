@@ -32,7 +32,10 @@ from cyberdelta.utils.parsing import validate_str_field
 
 # --- /exchange endpoint: L2 USD Transfer --- #
 class HyperliquidApiL2UsdTransferRequest(BaseModel):
-    """Top-level request payload for an L2 USD transfer."""
+    """Top-level request payload for an L2 USD transfer.
+    
+    Includes automatic serialization for signing.
+    """
 
     type: Annotated[
         Literal["usdTransfer"],
@@ -45,7 +48,10 @@ class HyperliquidApiL2UsdTransferRequest(BaseModel):
 
 # --- /exchange endpoint: Withdrawals (ETH and other tokens) --- #
 class HyperliquidApiEthWithdrawalRequest(BaseModel):
-    """Top-level request payload for an ETH withdrawal."""
+    """Top-level request payload for an ETH withdrawal.
+    
+    Includes automatic serialization for signing.
+    """
 
     type: Annotated[
         Literal["withdrawEth"],
@@ -57,7 +63,10 @@ class HyperliquidApiEthWithdrawalRequest(BaseModel):
 
 
 class HyperliquidApiTokenWithdrawalRequest(BaseModel):
-    """Top-level request payload for a generic token withdrawal (to L1)."""
+    """Top-level request payload for a generic token withdrawal (to L1).
+    
+    Includes automatic serialization for signing.
+    """
 
     type: Annotated[
         Literal["withdraw"],
@@ -75,7 +84,13 @@ class HyperliquidApiTokenWithdrawalRequest(BaseModel):
 
 # --- /exchange endpoint: Place Order --- #
 class HyperliquidApiPlaceOrderRequest(BaseModel):
-    """Top-level request payload for placing one or more orders."""
+    """Top-level request payload for placing one or more orders.
+    
+    Includes automatic serialization for signing that:
+    - Removes None/null values
+    - Ensures proper field ordering
+    - Cleans nested structures
+    """
 
     type: Annotated[
         Literal["order"],
@@ -90,7 +105,10 @@ class HyperliquidApiPlaceOrderRequest(BaseModel):
 
 # --- /exchange endpoint: Cancel Order --- #
 class HyperliquidApiCancelOrderRequest(BaseModel):
-    """Top-level request payload for cancelling an order."""
+    """Top-level request payload for cancelling an order.
+    
+    Includes automatic serialization for signing.
+    """
 
     type: Annotated[
         Literal["cancel"],
@@ -104,7 +122,10 @@ class HyperliquidApiCancelOrderRequest(BaseModel):
 
 # --- /exchange endpoint: Update Leverage --- #
 class HyperliquidApiUpdateLeverageRequest(BaseModel):
-    """Top-level request payload for updating leverage."""
+    """Top-level request payload for updating leverage.
+    
+    Includes automatic serialization for signing.
+    """
 
     type: Annotated[
         Literal["updateLeverage"],

@@ -20,13 +20,22 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawPositiveFiniteDecimalStr,
     RawStrictEthereumAddressStrHL,
 )
+from cyberdelta.apis.hyperliquid.models.signing_validators import (
+    EthereumAddressNormalizer,
+    SigningPayloadSerializer,
+)
 from cyberdelta.utils.parsing import validate_str_field
 
 
-class HyperliquidRawL2UsdTransferPayload(BaseModel):
+class HyperliquidRawL2UsdTransferPayload(
+    BaseModel,
+    EthereumAddressNormalizer,
+    SigningPayloadSerializer
+):
     """Payload for an L2 USDC transfer action.
 
     Corresponds to action type "usdTransfer" with chain "L2".
+    Includes automatic Ethereum address normalization for the destination field.
     """
 
     destination: RawStrictEthereumAddressStrHL = Field(
@@ -42,10 +51,15 @@ class HyperliquidRawL2UsdTransferPayload(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class HyperliquidRawWithdrawalToL1ActionPayload(BaseModel):
+class HyperliquidRawWithdrawalToL1ActionPayload(
+    BaseModel,
+    EthereumAddressNormalizer,
+    SigningPayloadSerializer
+):
     """Payload for withdrawing funds to L1.
 
     Corresponds to action type "withdraw".
+    Includes automatic Ethereum address normalization for the destination field.
     """
 
     token: RawDefaultString = Field(

@@ -37,9 +37,9 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Self, cast
+from typing import Annotated, Any, Literal, cast
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawAssetString64HL,
@@ -90,6 +90,12 @@ class HyperliquidRawAssetCtx(BaseModel):
         prev_day_px (str): Previous day's price as a decimal string.
         day_ntl_vlm (str): Daily notional volume as a decimal string.
         impact_px (Optional[str]): Impact price as a decimal string, or None.
+        open_interest (str): Current open interest as a decimal string.
+        premium (str): Premium as a decimal string.
+        oracle_px (str): Oracle price as a decimal string.
+        mid_px (str): Mid price as a decimal string.
+        impact_pxs (list[str], optional): Impact prices as list of decimal strings.
+        day_base_vlm (str): Daily base volume as a decimal string.
     """
 
     name: RawAssetString64HL | None = Field(None, alias="name")
@@ -98,6 +104,12 @@ class HyperliquidRawAssetCtx(BaseModel):
     prev_day_px: RawFiniteDecimalStr = Field(..., alias="prevDayPx")
     day_ntl_vlm: RawFiniteDecimalStr = Field(..., alias="dayNtlVlm")
     impact_px: RawFiniteDecimalStr | None = Field(None, alias="impactPx")
+    open_interest: RawFiniteDecimalStr = Field(..., alias="openInterest")
+    premium: RawFiniteDecimalStr | None = Field(None, alias="premium")
+    oracle_px: RawFiniteDecimalStr = Field(..., alias="oraclePx")
+    mid_px: RawFiniteDecimalStr | None = Field(None, alias="midPx")
+    impact_pxs: list[RawFiniteDecimalStr] | None = Field(None, alias="impactPxs")
+    day_base_vlm: RawFiniteDecimalStr = Field(..., alias="dayBaseVlm")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -121,45 +133,42 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     """Strict boundary model for the [meta, assetCtxs] tuple response.
 
     This model validates the raw structure of the 2-tuple response from the 'metaAndAssetCtxs'
-    endpoint, containing both meta information and asset contexts. It provides custom validation
-    logic to handle the tuple format returned by the API.
+    endpoint, containing both meta information and asset contexts. It uses Pydantic's
+    model_validator to handle the tuple format returned by the API.
     Never use for internal business logic.
 
     Fields:
         meta (HyperliquidRawMetaResponse): Meta/universe information.
         asset_ctxs (List[HyperliquidRawAssetCtx]): List of asset context objects.
-
-    Usage:
-        Use the custom classmethod `model_validate` to parse and validate a raw list response.
     """
 
     meta: HyperliquidRawMetaResponse
     asset_ctxs: list[HyperliquidRawAssetCtx]
 
+    @model_validator(mode="before")
     @classmethod
-    def model_validate(
-        cls,
-        obj: object,
-        *,
-        strict: bool | None = None,
-        from_attributes: bool | None = None,
-        context: dict[str, Any] | None = None,
-        by_alias: bool | None = None,
-        by_name: bool | None = None,
-    ) -> Self:
-        """Validate the [meta, assetCtxs] tuple response structure."""
-        list_obj = cls._validate_input_structure(obj)
+    def preprocess_tuple_response(cls, values: object) -> dict[str, object]:
+        """Transform [meta, assetCtxs] tuple into dict structure for validation.
+        
+        This validator replaces the preprocessing mapper logic by handling the
+        tuple response format from the metaAndAssetCtxs endpoint.
+        """
+        # Validate input structure
+        list_obj = cls._validate_input_structure(values)
         meta_dict, asset_ctxs_list = cls._extract_tuple_elements(list_obj)
-
-        meta = cls._validate_meta_section(
-            meta_dict, strict=strict, context=context, from_attributes=from_attributes
+        
+        # Preprocess meta section
+        preprocessed_meta = cls._preprocess_meta_dict(meta_dict)
+        
+        # Preprocess asset contexts with name enrichment from universe
+        preprocessed_asset_ctxs = cls._preprocess_asset_ctxs_list(
+            asset_ctxs_list, preprocessed_meta
         )
-
-        validated_asset_ctxs = cls._validate_asset_contexts_section(
-            asset_ctxs_list, strict=strict, context=context, from_attributes=from_attributes
-        )
-
-        return cls(meta=meta, asset_ctxs=validated_asset_ctxs)
+        
+        return {
+            "meta": preprocessed_meta,
+            "asset_ctxs": preprocessed_asset_ctxs
+        }
 
     @classmethod
     def _validate_input_structure(cls, obj: object) -> list[object]:
@@ -194,84 +203,62 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         return meta_dict, asset_ctxs_list_of_objects
 
     @classmethod
-    def _validate_meta_section(
-        cls,
-        meta_dict: dict[str, Any],
-        *,
-        strict: bool | None,
-        context: dict[str, Any] | None,
-        from_attributes: bool | None,
-    ) -> HyperliquidRawMetaResponse:
-        """Validate the meta section."""
-        return HyperliquidRawMetaResponse.model_validate(
-            meta_dict,
-            strict=strict,
-            context=context,
-            from_attributes=from_attributes,
-        )
+    def _preprocess_meta_dict(cls, meta_dict: dict[str, object]) -> dict[str, object]:
+        """Preprocess the meta dictionary for Pydantic validation."""
+        # Create a mutable copy for preprocessing
+        meta_data = dict(meta_dict)
+        
+        # Keep marginTables field if present (model handles it as optional)
+        
+        # Preprocess universe items
+        if "universe" in meta_data and isinstance(meta_data["universe"], list):
+            preprocessed_universe: list[object] = []
+            for item in meta_data["universe"]:
+                if isinstance(item, dict):
+                    # Create a copy to avoid modifying original
+                    item_copy = dict(item)
+                    # Add 'onlyIsolated' if missing with default False
+                    if "onlyIsolated" not in item_copy:
+                        item_copy["onlyIsolated"] = False
+                    preprocessed_universe.append(item_copy)
+                else:
+                    preprocessed_universe.append(item)
+            meta_data["universe"] = preprocessed_universe
+        
+        return meta_data
 
     @classmethod
-    def _validate_asset_contexts_section(
+    def _preprocess_asset_ctxs_list(
         cls,
         asset_ctxs_list: list[object],
-        *,
-        strict: bool | None,
-        context: dict[str, Any] | None,
-        from_attributes: bool | None,
-    ) -> list[HyperliquidRawAssetCtx]:
-        """Validate the asset contexts section."""
-        validated_asset_ctxs: list[HyperliquidRawAssetCtx] = []
-        allowed_json_keys = cls._get_allowed_asset_ctx_keys()
-
+        preprocessed_meta: dict[str, object],
+    ) -> list[dict[str, object]]:
+        """Preprocess asset contexts list with name enrichment from universe."""
+        preprocessed_ctxs: list[dict[str, object]] = []
+        
+        # Extract universe for name enrichment
+        universe = preprocessed_meta.get("universe", [])
+        if not isinstance(universe, list):
+            universe = []
+        
         for i, item_obj in enumerate(asset_ctxs_list):
-            validated_ctx = cls._validate_single_asset_context(
-                item_obj,
-                i,
-                allowed_json_keys,
-                strict=strict,
-                context=context,
-                from_attributes=from_attributes,
-            )
-            validated_asset_ctxs.append(validated_ctx)
-
-        return validated_asset_ctxs
-
-    @classmethod
-    def _get_allowed_asset_ctx_keys(cls) -> set[str]:
-        """Get allowed JSON keys for HyperliquidRawAssetCtx."""
-        allowed_json_keys: set[str] = set()
-        for field_name, field_info in HyperliquidRawAssetCtx.model_fields.items():
-            allowed_json_keys.add(field_name)
-            if field_info.alias and field_info.alias != field_name:
-                allowed_json_keys.add(field_info.alias)
-        return allowed_json_keys
-
-    @classmethod
-    def _validate_single_asset_context(
-        cls,
-        item_obj: object,
-        index: int,
-        allowed_keys: set[str],
-        *,
-        strict: bool | None,
-        context: dict[str, Any] | None,
-        from_attributes: bool | None,
-    ) -> HyperliquidRawAssetCtx:
-        """Validate a single asset context item."""
-        if not isinstance(item_obj, dict):
-            raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{index}] must be a dictionary")
-
-        item_dict_original = cast(dict[str, Any], item_obj)
-
-        # Filter to keep only valid keys
-        item_dict_filtered = {k: v for k, v in item_dict_original.items() if k in allowed_keys}
-
-        return HyperliquidRawAssetCtx.model_validate(
-            item_dict_filtered,
-            strict=strict,
-            context=context,
-            from_attributes=from_attributes,
-        )
+            if not isinstance(item_obj, dict):
+                raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
+            
+            item_dict = cast(dict[str, object], item_obj)
+            
+            # Create a copy to avoid modifying original
+            processed_item = dict(item_dict)
+            
+            # Add name from universe if available and not already present
+            if i < len(universe) and "name" not in processed_item:
+                universe_item = universe[i]
+                if isinstance(universe_item, dict) and "name" in universe_item:
+                    processed_item["name"] = universe_item["name"]
+            
+            preprocessed_ctxs.append(processed_item)
+        
+        return preprocessed_ctxs
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
