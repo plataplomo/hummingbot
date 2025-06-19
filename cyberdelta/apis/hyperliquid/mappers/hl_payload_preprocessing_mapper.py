@@ -111,27 +111,32 @@ class HyperliquidPayloadPreprocessingMapper:
         """Process nested order structure and flatten it."""
         # Check if we have the deeply nested structure
         if "order" in order_wrapper and isinstance(order_wrapper["order"], dict):
-            # Extract the actual order data
-            inner_order: dict[str, Any] = order_wrapper["order"]
+            nested_data: dict[str, Any] = order_wrapper["order"]
+            
+            # Check for double nesting (order.order)
+            if "order" in nested_data and isinstance(nested_data["order"], dict):
+                # Extract the actual order data from double nesting
+                inner_order: dict[str, Any] = nested_data["order"]
+                
+                # Get status and timestamp from the middle layer
+                status = nested_data.get("status", "open")
+                status_timestamp = nested_data.get("statusTimestamp")
+            else:
+                # Single level nesting
+                inner_order = nested_data
+                # Get status from wrapper
+                status = order_wrapper.get("status", "open")
+                status_timestamp = order_wrapper.get("statusTimestamp")
 
-            # Map 'coin' to 'asset' if asset is not present
-            if "coin" in inner_order and "asset" not in inner_order:
-                inner_order["asset"] = inner_order["coin"]
+            # Don't add extra fields to inner_order since the model has extra="forbid"
+            # The mapper will handle these transformations later
 
-            # Add status fields from the wrapper if they exist
-            if "status" in order_wrapper:
-                inner_order["status"] = order_wrapper["status"]
-            if "statusTimestamp" in order_wrapper:
-                inner_order["statusTimestamp"] = order_wrapper["statusTimestamp"]
-
-            # Add reasonable defaults for missing fields
-            if "remainingSz" not in inner_order and "sz" in inner_order:
-                # Only add default if status indicates it's an open order
-                status = inner_order.get("status", "").lower()
-                if status in ["open", "pending", "untriggered"]:
-                    inner_order["remainingSz"] = inner_order["sz"]
-
-            return {"order": inner_order}
+            # Return the structure expected by HyperliquidRawHistoricalOrderResponse
+            return {
+                "order": inner_order,
+                "status": status,
+                "statusTimestamp": status_timestamp
+            }
         else:
             # The wrapper itself might be the order data
             return {"order": order_wrapper}
@@ -163,14 +168,29 @@ class HyperliquidPayloadPreprocessingMapper:
 
         # Handle the nested structure
         if "order" in raw_data and isinstance(raw_data["order"], dict):
-            return HyperliquidPayloadPreprocessingMapper._process_nested_order_structure(
-                raw_data["order"]
-            )
+            result = HyperliquidPayloadPreprocessingMapper._process_nested_order_structure(raw_data)
+            logger.debug(f"preprocess_order_status_response output (nested): {result}")
+            return result
 
         # If we don't have the expected nested structure, check if it's already flattened
-        if "oid" in raw_data and "asset" in raw_data:
+        if "oid" in raw_data and ("asset" in raw_data or "coin" in raw_data):
             # It's already a flat order object, wrap it
-            return {"order": raw_data}
+            # Ensure coin is mapped to asset if needed
+            if "coin" in raw_data and "asset" not in raw_data:
+                raw_data["asset"] = raw_data["coin"]
+            
+            # Extract status and statusTimestamp if present
+            status = raw_data.get("status", "open")
+            status_timestamp = raw_data.get("statusTimestamp")
+            
+            # Create the expected structure
+            result = {
+                "order": raw_data,
+                "status": status,
+                "statusTimestamp": status_timestamp
+            }
+            logger.debug(f"preprocess_order_status_response output (flat): {result}")
+            return result
 
         # Return as-is if it's already in the expected format
         return raw_data
