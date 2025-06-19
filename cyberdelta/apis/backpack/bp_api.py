@@ -153,20 +153,14 @@ class BackpackAPI(ExchangeAPI):
         self._bp_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
         self._bp_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
 
-        # Construct config dict for super().__init__
-        # Determine the appropriate URLs based on environment
-        if exchange_config.is_mainnet_environment:
-            rest_endpoint_str = str(exchange_config.api_base_url_mainnet)
-            ws_endpoint_str = str(exchange_config.ws_url_mainnet)
-        else:
+        # Validate URLs based on environment
+        if not exchange_config.is_mainnet_environment:
             if exchange_config.api_base_url_testnet is None:
                 raise ValueError("Testnet API URL not configured but testnet environment requested")
             if exchange_config.ws_url_testnet is None:
                 raise ValueError(
                     "Testnet WebSocket URL not configured but testnet environment requested",
                 )
-            rest_endpoint_str = str(exchange_config.api_base_url_testnet)
-            ws_endpoint_str = str(exchange_config.ws_url_testnet)
 
         # Create Backpack's simple rate limit strategy
         # The rate limit parameters (rate, bucket_size) are derived from the static

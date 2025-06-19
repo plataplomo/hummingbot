@@ -331,7 +331,7 @@ class ExchangeAPI(ABC):
 
     def _build_ws_config_data(self, ws_endpoint: str) -> dict[str, Any]:
         """Build WebSocket configuration data from config model."""
-        ws_config_data = {"ws_url": ws_endpoint}
+        ws_config_data: dict[str, Any] = {"ws_url": ws_endpoint}
 
         # Map optional fields from config model
         if self._config.ws_ping_interval_seconds is not None:

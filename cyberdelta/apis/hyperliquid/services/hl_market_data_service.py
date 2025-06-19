@@ -56,6 +56,7 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.mid_prices import MidPrices
 
 logger = get_logger(__name__)
 
@@ -1635,3 +1636,88 @@ class HyperliquidMarketDataService:
                 message="Unexpected error occurred.",
                 original_exception=e_unhandled,
             ) from e_unhandled
+
+    async def get_all_mids(self) -> MidPrices:
+        """Fetch all mid prices efficiently for market order pricing.
+
+        Uses the /info endpoint with {"type": "allMids"} to get a mapping
+        of all symbol mid prices in a single request.
+
+        Returns:
+            MidPrices: Model containing symbol to mid price mapping
+
+        Raises:
+            APIError: If the API request fails or the response is invalid
+        """
+        frame = inspect.currentframe()
+        current_method = frame.f_code.co_name if frame is not None else "get_all_mids"
+
+        # Initialize context for error handling
+        raw_response_content: ParsedJsonResponse | None = None
+        status_code: int = 0
+
+        try:
+            # Build request payload
+            endpoint_path = "/info"
+            request_payload_model = self._request_builder.build_all_mids_request_payload()
+            request_payload_data_dict = request_payload_model.model_dump(
+                by_alias=True,
+                exclude_none=True,
+            )
+
+            headers: Mapping[str, str] = {}
+
+            # Make the API request
+            raw_response_content, status_code, headers = await self._http_client_requester(
+                method="POST",
+                endpoint=endpoint_path,
+                data=request_payload_data_dict,
+                is_signed=False,
+                endpoint_group="public",
+                request_weight=2,  # AllMids has weight 2
+            )
+
+            if raw_response_content is None:
+                raise APIError(
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    message="Received empty response from server.",
+                    http_status=status_code,
+                )
+
+            # Parse response with proper validation
+            raw_all_mids = self._response_handler.handle_all_mids_response(
+                raw_response_content, status_code, headers
+            )
+
+            # Transform to internal MidPrices model
+            return self._mapper.transform_raw_all_mids_to_internal(raw_all_mids)
+
+        except APIError:
+            # Re-raise APIErrors as-is
+            raise
+        except ValidationError as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Validation error: {e}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message="Failed to validate AllMids response",
+                original_exception=e,
+                http_status=status_code,
+                exchange_message=str(raw_response_content) if raw_response_content else None,
+            ) from e
+        except Exception as e:
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Unexpected error: {e}. "
+                f"Status: {status_code}, Raw: {raw_response_content}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error fetching all mid prices",
+                original_exception=e,
+                http_status=status_code,
+                exchange_message=str(raw_response_content) if raw_response_content else None,
+            ) from e

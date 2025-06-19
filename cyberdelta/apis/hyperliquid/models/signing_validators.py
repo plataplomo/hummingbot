@@ -103,7 +103,7 @@ class OrderTypeCleanerMixin:
 
     @field_validator("order_type_details", "t", mode="after", check_fields=False)
     @classmethod
-    def clean_order_type(cls, v: dict[str, Any] | Any) -> dict[str, Any] | Any:
+    def clean_order_type(cls, v: dict[str, Any] | object) -> dict[str, Any] | object:
         """Clean order type structure by removing null limit/market fields.
 
         Transforms: {"limit": {...}, "market": null} -> {"limit": {...}}

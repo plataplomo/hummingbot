@@ -35,7 +35,7 @@ from .margin_account import (
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from .market import FundingRate, OrderBook, Ticker, Trade
+from .market import FundingRate, MidPrices, OrderBook, Ticker, Trade
 from .market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
@@ -76,6 +76,7 @@ __all__ = [
     "Ticker",
     "OrderBook",
     "FundingRate",
+    "MidPrices",
     # New Operation Models
     "Transfer",
     "HyperliquidTransferDetails",

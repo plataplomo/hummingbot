@@ -13,6 +13,7 @@ exchange-specific enrichment data.
 from .candle import Candle
 from .funding_rate import FundingRate
 from .market import Market
+from .mid_prices import MidPrices
 from .order import Order
 from .order_book import OrderBook
 from .ticker import Ticker
@@ -26,4 +27,5 @@ __all__ = [
     "Ticker",
     "Candle",
     "Market",
+    "MidPrices",
 ]

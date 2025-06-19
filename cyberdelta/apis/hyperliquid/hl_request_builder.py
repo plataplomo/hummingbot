@@ -9,6 +9,9 @@ from __future__ import annotations
 from decimal import Decimal
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
+    HyperliquidRawAllMidsRequestPayload,
+)
 
 # Specific model imports for type hints and construction
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -187,6 +190,20 @@ class HyperliquidRequestBuilder:
         Payload: {"type": "metaAndAssetCtxs"}
         """
         return HyperliquidRawMetaAndAssetCtxsRequestPayload(type="metaAndAssetCtxs")
+
+    @staticmethod
+    def build_all_mids_request_payload() -> HyperliquidRawAllMidsRequestPayload:
+        """Build the Pydantic model for fetching all mid prices via /info.
+
+        Architecture Compliance: Pure factory method returning validated Pydantic model.
+        No args needed as this is a static request type.
+
+        Returns:
+            HyperliquidRawAllMidsRequestPayload: Validated request payload
+
+        Payload: {"type": "allMids"}
+        """
+        return HyperliquidRawAllMidsRequestPayload(type="allMids")
 
     @staticmethod
     def build_l2_book_request_payload(args: GetL2BookArgs) -> HyperliquidRawL2BookRequestPayload:

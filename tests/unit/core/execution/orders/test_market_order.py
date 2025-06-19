@@ -1,0 +1,418 @@
+"""Integration tests for MarketOrder execution flow."""
+
+import asyncio
+from decimal import Decimal
+from unittest.mock import AsyncMock
+
+import pytest
+
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.core.execution.orders.errors import MarketOrderError
+from cyberdelta.core.execution.orders.market_order import MarketOrder
+from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
+from cyberdelta.core.models import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import Order
+
+
+class TestMarketOrder:
+    """Test cases for MarketOrder executor."""
+
+    @pytest.fixture
+    def mock_exchange_api(self) -> AsyncMock:
+        """Create a mock exchange API."""
+        api = AsyncMock()
+        api.exchange_name = "test_exchange"
+        return api
+
+    @pytest.fixture
+    def mock_market_order_service(self) -> AsyncMock:
+        """Create a mock market order service."""
+        service = AsyncMock(spec=MarketOrderService)
+        service.calculate_aggressive_price.return_value = Decimal("50100")
+        return service
+
+    @pytest.fixture
+    def default_config(self) -> MarketOrderConfig:
+        """Create default market order config."""
+        return MarketOrderConfig()
+
+    @pytest.fixture
+    def market_order(
+        self,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+        default_config: MarketOrderConfig,
+    ) -> MarketOrder:
+        """Create MarketOrder instance."""
+        return MarketOrder(
+            exchange_api=mock_exchange_api,
+            market_order_service=mock_market_order_service,
+            config=default_config,
+        )
+
+    @pytest.fixture
+    def filled_order(self) -> Order:
+        """Create a filled order response."""
+        return Order(
+            exchange_order_id="12345",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("1"),
+            price=Decimal("50100"),
+            status=OrderStatus.FILLED,
+            quantity_filled=Decimal("1"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+    @pytest.fixture
+    def partial_fill_order(self) -> Order:
+        """Create a partially filled order response."""
+        return Order(
+            exchange_order_id="12346",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("10"),
+            price=Decimal("50100"),
+            status=OrderStatus.PARTIALLY_FILLED,
+            quantity_filled=Decimal("6"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+    @pytest.fixture
+    def cancelled_order(self) -> Order:
+        """Create a cancelled order response."""
+        return Order(
+            exchange_order_id="12347",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("10"),
+            price=Decimal("50100"),
+            status=OrderStatus.CANCELED,
+            quantity_filled=Decimal("0"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+    async def test_execute_market_order_success(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+        filled_order: Order,
+    ) -> None:
+        """Test successful market order execution."""
+        mock_exchange_api.place_order.return_value = filled_order
+
+        result = await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("1"),
+        )
+
+        # Verify service called correctly
+        mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("1"),
+            max_slippage=None,
+        )
+
+        # Verify order placed with correct args
+        mock_exchange_api.place_order.assert_called_once()
+        args = mock_exchange_api.place_order.call_args[0][0]
+        assert isinstance(args, PlaceOrderArgs)
+        assert args.symbol == "BTC"
+        assert args.side == OrderSide.BUY
+        assert args.order_type == OrderType.LIMIT
+        assert args.quantity == Decimal("1")
+        assert args.price == Decimal("50100")
+        assert args.time_in_force == TimeInForce.IOC
+
+        # Verify result
+        assert result.status == OrderStatus.FILLED
+        assert result.quantity_filled == Decimal("1")
+
+    async def test_execute_market_order_partial_fill(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+        partial_fill_order: Order,
+    ) -> None:
+        """Test market order with partial fill."""
+        mock_exchange_api.place_order.return_value = partial_fill_order
+
+        result = await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("10"),
+        )
+
+        assert result.status == OrderStatus.PARTIALLY_FILLED
+        assert result.quantity_filled == Decimal("6")
+
+    async def test_execute_market_order_cancelled(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+        cancelled_order: Order,
+    ) -> None:
+        """Test market order that gets cancelled."""
+        mock_exchange_api.place_order.return_value = cancelled_order
+
+        result = await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("10"),
+        )
+
+        assert result.status == OrderStatus.CANCELED
+        assert result.quantity_filled == Decimal("0")
+
+    async def test_execute_market_order_disabled(self, market_order: MarketOrder) -> None:
+        """Test error when market orders are disabled."""
+        market_order._config = MarketOrderConfig(enabled=False)
+
+        with pytest.raises(MarketOrderError, match="Market orders are disabled"):
+            await market_order.execute_market_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                quantity=Decimal("1"),
+            )
+
+    async def test_execute_market_order_with_slippage(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+        filled_order: Order,
+    ) -> None:
+        """Test market order with custom slippage."""
+        mock_exchange_api.place_order.return_value = filled_order
+
+        await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("1"),
+            max_slippage=Decimal("0.01"),  # 1% max slippage
+        )
+
+        # Verify slippage passed to service
+        mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("1"),
+            max_slippage=Decimal("0.01"),
+        )
+
+    async def test_execute_market_order_with_client_id(
+        self, market_order: MarketOrder, mock_exchange_api: AsyncMock, filled_order: Order
+    ) -> None:
+        """Test market order with client order ID."""
+        mock_exchange_api.place_order.return_value = filled_order
+
+        await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("1"),
+            client_order_id="MY_ORDER_123",
+        )
+
+        # Verify client ID passed
+        args = mock_exchange_api.place_order.call_args[0][0]
+        assert args.client_order_id == "MY_ORDER_123"
+
+    async def test_execute_market_order_timeout(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+    ) -> None:
+        """Test market order timeout."""
+
+        # Make place_order hang
+        async def slow_order(*args: object, **kwargs: object) -> None:
+            await asyncio.sleep(30)  # Longer than timeout
+
+        mock_exchange_api.place_order.side_effect = slow_order
+
+        with pytest.raises(MarketOrderError, match="timed out"):
+            await market_order.execute_market_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                quantity=Decimal("1"),
+            )
+
+    async def test_execute_market_order_with_retry(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+    ) -> None:
+        """Test market order with retry logic."""
+        # First attempt: partial fill
+        order1 = Order(
+            exchange_order_id="1",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("10"),
+            price=Decimal("50100"),
+            status=OrderStatus.PARTIALLY_FILLED,
+            quantity_filled=Decimal("6"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        # Second attempt: fill remaining
+        order2 = Order(
+            exchange_order_id="2",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("4"),
+            price=Decimal("50100"),
+            status=OrderStatus.FILLED,
+            quantity_filled=Decimal("4"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        mock_exchange_api.place_order.side_effect = [order1, order2]
+
+        result = await market_order.execute_market_order_with_retry(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("10"),
+            max_retries=1,
+        )
+
+        # Should have called place_order twice
+        assert mock_exchange_api.place_order.call_count == 2
+
+        # Total filled should be 10
+        assert result.quantity_filled == Decimal("10")
+
+    async def test_execute_market_order_with_retry_no_fill(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        cancelled_order: Order,
+    ) -> None:
+        """Test retry with no fills."""
+        mock_exchange_api.place_order.return_value = cancelled_order
+
+        result = await market_order.execute_market_order_with_retry(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("10"),
+            max_retries=2,
+        )
+
+        # Should have tried 3 times (initial + 2 retries)
+        assert mock_exchange_api.place_order.call_count == 3
+
+        # No fills
+        assert result.quantity_filled == Decimal("0")
+        assert result.status == OrderStatus.CANCELED
+
+    def test_validate_order_parameters(self, market_order: MarketOrder) -> None:
+        """Test order parameter validation."""
+        # Valid parameters
+        market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("1"))
+
+        # Invalid symbol
+        with pytest.raises(ValueError, match="Symbol must be"):
+            market_order.validate_order_parameters("", OrderSide.BUY, Decimal("1"))
+
+        # Invalid side
+        with pytest.raises(ValueError, match="Side must be"):
+            market_order.validate_order_parameters("BTC", "BUY", Decimal("1"))  # type: ignore[arg-type]
+
+        # Invalid quantity
+        with pytest.raises(ValueError, match="Quantity must be"):
+            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("0"))
+
+        # Non-finite quantity
+        with pytest.raises(ValueError, match="Quantity must be finite"):
+            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("Infinity"))
+
+    async def test_service_error_propagation(
+        self, market_order: MarketOrder, mock_market_order_service: AsyncMock
+    ) -> None:
+        """Test that service errors are propagated correctly."""
+        mock_market_order_service.calculate_aggressive_price.side_effect = ValueError("Test error")
+
+        with pytest.raises(ValueError, match="Test error"):
+            await market_order.execute_market_order(
+                symbol="BTC",
+                side=OrderSide.BUY,
+                quantity=Decimal("1"),
+            )
+
+    async def test_sell_order_execution(
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+    ) -> None:
+        """Test sell order execution."""
+        sell_order = Order(
+            exchange_order_id="12348",
+            exchange="test_exchange",
+            symbol="BTC",
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("1"),
+            price=Decimal("49900"),
+            status=OrderStatus.FILLED,
+            quantity_filled=Decimal("1"),
+            time_in_force=TimeInForce.IOC,
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        mock_exchange_api.place_order.return_value = sell_order
+        mock_market_order_service.calculate_aggressive_price.return_value = Decimal("49900")
+
+        result = await market_order.execute_market_order(
+            symbol="BTC",
+            side=OrderSide.SELL,
+            quantity=Decimal("1"),
+        )
+
+        # Verify sell side passed correctly
+        args = mock_exchange_api.place_order.call_args[0][0]
+        assert args.side == OrderSide.SELL
+        assert args.price == Decimal("49900")
+
+        assert result.status == OrderStatus.FILLED

@@ -106,7 +106,7 @@ class TestHyperliquidRequestBuilderInfoMarket:
         request_model2 = HyperliquidRequestBuilder.build_historical_orders_payload(
             wallet_address=valid_wallet_address,
         )
-        
+
         # Both should produce the same result
         assert request_model1.type == request_model2.type
         assert request_model1.user == request_model2.user

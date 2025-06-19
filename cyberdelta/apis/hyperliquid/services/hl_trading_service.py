@@ -551,13 +551,15 @@ class HyperliquidTradingService:
             if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
                 tif_str = self._map_time_in_force_to_hyperliquid(effective_tif)
 
-            # Validate market orders are not supported without proper pricing
+            # Validate market orders are not supported natively by Hyperliquid API
             if args.order_type == OrderType.MARKET:
                 raise ValueError(
-                    f"[{current_method}] Market orders are not currently supported. "
-                    "Market order implementation requires integration with real-time "
-                    "market data service to calculate safe aggressive pricing. "
-                    "Use limit orders instead."
+                    f"[{current_method}] Market orders are not supported by Hyperliquid API. "
+                    "Hyperliquid does not provide a native market order endpoint. "
+                    "To execute market-like orders, use the MarketOrder component from "
+                    "cyberdelta.core.execution.orders which implements aggressive IoC limit "
+                    "orders. "
+                    "Example: from cyberdelta.core.execution.orders import MarketOrder"
                 )
 
             # Use the request builder to create the proper payload format

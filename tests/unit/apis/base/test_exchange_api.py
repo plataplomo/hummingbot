@@ -88,14 +88,14 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
             for key, value in config.items():
                 setattr(mock_config, key, value)
             config = mock_config
-        
+
         # Convert dict to mock secrets if needed for testing
         if isinstance(secrets, dict):
             mock_secrets = MagicMock(spec=AnyExchangeSecrets)
             for key, value in secrets.items():
                 setattr(mock_secrets, key, value)
             secrets = mock_secrets
-            
+
         super().__init__(
             exchange_name,
             config,

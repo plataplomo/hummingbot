@@ -151,6 +151,7 @@ class MockExchangeAPI(ExchangeAPI):
 
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
         from typing import cast
+
         super().__init__(
             exchange_name,
             cast(ExchangeSpecificConfig, config_copy),

@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
@@ -478,6 +479,27 @@ class HyperliquidResponseHandler:
                     ) from e
 
             # Default error handling
+            raise HyperliquidResponseHandler._handle_validation_error(
+                e, context, raw_response_content, status_code, headers
+            ) from e
+
+    @staticmethod
+    def handle_all_mids_response(
+        raw_response_content: RawJsonResponse,
+        status_code: int | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> HyperliquidRawAllMids:
+        """Validates the /info response for allMids.
+
+        Architecture Compliance: Pure validation with Pydantic boundary protection.
+        Returns validated mapping of symbol to mid price.
+        """
+        context = "all mids"
+
+        try:
+            # Use the RootModel validation for the dict structure
+            return HyperliquidRawAllMids.model_validate(raw_response_content)
+        except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e, context, raw_response_content, status_code, headers
             ) from e

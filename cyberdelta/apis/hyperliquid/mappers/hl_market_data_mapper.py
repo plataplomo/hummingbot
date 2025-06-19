@@ -24,6 +24,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
@@ -45,6 +46,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails
+from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -865,3 +867,37 @@ class HyperliquidMarketDataMapper:
         return HyperliquidMarketDataMapper._create_market_from_asset_definition(
             asset_def, asset_ctx
         )
+
+    @staticmethod
+    def transform_raw_all_mids_to_internal(
+        raw_all_mids: HyperliquidRawAllMids,
+    ) -> MidPrices:
+        """Transform Hyperliquid AllMids response to internal MidPrices model.
+
+        Args:
+            raw_all_mids: Validated HyperliquidRawAllMids model containing symbol->price mapping
+
+        Returns:
+            MidPrices: Internal model containing symbol to mid price mapping
+
+        Raises:
+            TransformationError: If transformation fails
+        """
+        try:
+            # The raw model already has validated the structure
+            # We just need to convert string prices to Decimal
+            prices = {}
+            for symbol, price_str in raw_all_mids.root.items():
+                # Use our standard decimal parsing utility
+                decimal_price = parse_decimal_value(
+                    price_str, allow_none=False, field_name=f"mid_price[{symbol}]"
+                )
+                if decimal_price is not None:
+                    prices[symbol] = decimal_price
+
+            # Create and return MidPrices instance
+            return MidPrices(
+                prices=prices, timestamp=datetime.now(UTC), exchange=ExchangeName.HYPERLIQUID.value
+            )
+        except Exception as e:
+            raise TransformationError(f"Failed to transform AllMids response: {e}") from e

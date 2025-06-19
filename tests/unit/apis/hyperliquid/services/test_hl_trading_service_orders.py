@@ -605,14 +605,17 @@ class TestHyperliquidTradingServiceOrders:
             status=str(mock_response_content["status"]),
             statusTimestamp=int(str(mock_response_content["statusTimestamp"])),
         )
-        
+
         # For the mapper, create a full HyperliquidRawHistoricalOrder with all fields
         from typing import cast
-        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate({
-            **cast(dict[str, Any], mock_response_content["order"]),
-            "status": mock_response_content["status"],
-            "statusTimestamp": mock_response_content["statusTimestamp"],
-        })
+
+        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate(
+            {
+                **cast(dict[str, Any], mock_response_content["order"]),
+                "status": mock_response_content["status"],
+                "statusTimestamp": mock_response_content["statusTimestamp"],
+            }
+        )
         mock_hl_response_handler.handle_info_order_status_response.return_value = (
             mock_historical_order_response
         )
