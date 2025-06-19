@@ -137,15 +137,11 @@ class HyperliquidTradingService:
         request_payload_model: HyperliquidApiPlaceOrderRequest | HyperliquidApiCancelOrderRequest,
     ) -> tuple[HyperliquidRawExchangeResponse, int]:
         """Execute an exchange action request and return the response."""
-        # Convert Pydantic model to dictionary for HTTP client (exchange-agnostic boundary)
-        # CRITICAL: Must use by_alias=False to get short field names for Hyperliquid
-        # The field names (a, b, p, etc.) are what Hyperliquid expects, not the aliases
-        request_payload_dict = request_payload_model.model_dump(by_alias=False, exclude_none=True)
-
+        # Pass model directly - the ExchangeAPI handles proper serialization via strategy
         raw_content, http_status, _ = await self._http_client_requester(
             method="POST",
             endpoint=self._action_endpoint,
-            data=request_payload_dict,
+            data=request_payload_model,
             is_signed=True,
             serialize_none_as_null=True,
         )

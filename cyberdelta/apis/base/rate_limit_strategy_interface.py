@@ -12,6 +12,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
+
 
 class RateLimitStrategy(ABC):
     """Abstract base class for rate limiting strategies.
@@ -22,7 +24,7 @@ class RateLimitStrategy(ABC):
     """
 
     @abstractmethod
-    async def prepare_and_acquire(self, request_context: dict[str, Any]) -> dict[str, Any] | None:
+    async def prepare_and_acquire(self, request_context: RateLimitRequestContext) -> dict[str, Any] | None:
         """Prepares for and acquires necessary rate limit tokens/permissions.
 
         Can optionally modify and return the request data payload if needed
@@ -30,9 +32,7 @@ class RateLimitStrategy(ABC):
         Should raise APIError(code=RATE_LIMITED) if acquisition times out or fails.
 
         Args:
-            request_context: Dict containing details like 'method', 'endpoint',
-                             'action_payload', 'exchange_name', 'request_weight',
-                             'endpoint_group'.
+            request_context: RateLimitRequestContext model containing request details.
 
         Returns:
             Optionally, a modified action_payload dict, or None if no modifications.
@@ -47,7 +47,7 @@ class RateLimitStrategy(ABC):
     async def handle_exchange_retry_after(
         self,
         duration_seconds: float,
-        request_context: dict[str, Any],
+        request_context: RateLimitRequestContext,
     ) -> None:
         """Optional method for strategies to react to retry_after directives from exchanges.
 
@@ -60,9 +60,7 @@ class RateLimitStrategy(ABC):
 
         Args:
             duration_seconds: The exchange-advised delay in seconds.
-            request_context: Context of the request that was rate-limited,
-                             containing details like 'exchange_name', 'method',
-                             'endpoint', 'endpoint_group'.
+            request_context: RateLimitRequestContext model with request details.
 
         """
         pass

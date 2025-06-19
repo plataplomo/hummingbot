@@ -855,6 +855,11 @@ class TestHyperliquidTradingServiceOrders:
 
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = asset_index
+        
+        # Configure the mock to return a cancel request with proper type attribute
+        mock_cancel_request = MagicMock()
+        mock_cancel_request.type = "cancel"
+        mock_hl_request_builder.build_cancel_order_payload.return_value = mock_cancel_request
 
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -884,6 +889,11 @@ class TestHyperliquidTradingServiceOrders:
 
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
         mock_get_asset_index_callable.return_value = asset_index
+        
+        # Configure the mock to return a cancel request with proper type attribute
+        mock_cancel_request = MagicMock()
+        mock_cancel_request.type = "cancel"
+        mock_hl_request_builder.build_cancel_order_payload.return_value = mock_cancel_request
 
         # Mock successful exchange response
         mock_response_content = {
@@ -913,7 +923,8 @@ class TestHyperliquidTradingServiceOrders:
         # Note: cancel_order creates HyperliquidRawCancelOrderAction directly,
         # doesn't use request builder
         mock_http_client_requester.assert_called_once()
+        # The response handler is called with the mock's type attribute
         mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
             mock_response_content,
-            action_type="cancel",
+            action_type=mock_cancel_request.type,
         )

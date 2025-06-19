@@ -9,8 +9,7 @@ This strategy inherits all the basic token bucket functionality from SimpleToken
 and adds the ability to react to explicit retry-after directives from Backpack's error messages.
 """
 
-from typing import Any
-
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.logging_config import get_logger
@@ -42,7 +41,7 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
     async def handle_exchange_retry_after(
         self,
         duration_seconds: float,
-        request_context: dict[str, Any],
+        request_context: RateLimitRequestContext,
     ) -> None:
         """React to an explicit retry-after directive from Backpack.
 
@@ -52,12 +51,10 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
 
         Args:
             duration_seconds: The exchange-advised delay in seconds.
-            request_context: Context of the request that was rate-limited,
-                           containing details like 'exchange_name', 'method',
-                           'endpoint', 'endpoint_group'.
+            request_context: RateLimitRequestContext with request details.
 
         """
-        exchange_name = request_context.get("exchange_name", "N/A")
+        exchange_name = request_context.exchange_name
         logger.info(
             f"BackpackRateLimitStrategy: Received exchange-advised retry_after of "
             f"{duration_seconds:.2f}s. Triggering temporary pause on limiter for "

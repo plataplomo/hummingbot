@@ -15,6 +15,9 @@ from pydantic import SecretStr
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
+from cyberdelta.apis.hyperliquid.hl_payload_serialization_strategy import (
+    HyperliquidSerializationStrategy,
+)
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
@@ -203,6 +206,15 @@ class HyperliquidAPIComponentsFactory:
 
         """
         return HyperliquidTradingDataMapper()
+
+    def create_serialization_strategy(self) -> HyperliquidSerializationStrategy:
+        """Create a HyperliquidSerializationStrategy instance.
+
+        Returns:
+            Configured serialization strategy instance
+
+        """
+        return HyperliquidSerializationStrategy()
 
     def create_market_data_service(
         self,

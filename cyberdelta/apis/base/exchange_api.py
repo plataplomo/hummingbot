@@ -19,6 +19,11 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
+from cyberdelta.apis.base.payload_serialization_strategy import (
+    DefaultSerializationStrategy,
+    PayloadSerializationStrategy,
+)
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.connectivity.connectivity_models import (
@@ -105,6 +110,7 @@ class ExchangeAPI(ABC):
         ws_manager: WebSocketManager | None = None,
         rate_limit_strategy: RateLimitStrategy | None = None,
         exchange_config: ExchangeSpecificConfig | None = None,
+        serialization_strategy: PayloadSerializationStrategy | None = None,
     ) -> None:
         """Initialize the exchange API client.
 
@@ -119,6 +125,7 @@ class ExchangeAPI(ABC):
             ws_manager: Optional WebSocketManager instance for dependency injection (testing)
             rate_limit_strategy: Optional rate limiting strategy instance
             exchange_config: Optional ExchangeSpecificConfig for creating default strategy
+            serialization_strategy: Optional payload serialization strategy for model conversion
 
         """
         self.exchange_name = exchange_name
@@ -127,6 +134,7 @@ class ExchangeAPI(ABC):
         self.error_mapper = error_mapper
         self._authenticator = authenticator
         self._ws_handlers: dict[str, MessageHandler] = {}
+        self._serialization_strategy = serialization_strategy or DefaultSerializationStrategy()
 
         # Initialize event loop
         self.loop = self._setup_event_loop(loop)
@@ -431,10 +439,7 @@ class ExchangeAPI(ABC):
     ) -> dict[str, Any] | None:
         """Prepare data for HttpClient - handle Pydantic model serialization."""
         if isinstance(data, BaseModel):
-            return data.model_dump(
-                by_alias=True,
-                exclude_none=not serialize_none_as_null,
-            )
+            return self._serialization_strategy.serialize_model(data, serialize_none_as_null)
         elif isinstance(data, dict) or data is None:
             return data
         else:
@@ -453,14 +458,14 @@ class ExchangeAPI(ABC):
     ) -> None:
         """Apply rate limiting if strategy is configured."""
         if self.rate_limit_strategy:
-            request_context = {
-                "exchange_name": self.exchange_name,
-                "method": method,
-                "endpoint": endpoint,
-                "action_payload": data_dict,
-                "request_weight": request_weight,
-                "endpoint_group": endpoint_group,
-            }
+            request_context = RateLimitRequestContext(
+                exchange_name=self.exchange_name,
+                method=method,
+                endpoint=endpoint,
+                action_payload=data_dict,
+                request_weight=request_weight,
+                endpoint_group=endpoint_group,
+            )
             await self.rate_limit_strategy.prepare_and_acquire(request_context)
 
     async def _execute_http_request(

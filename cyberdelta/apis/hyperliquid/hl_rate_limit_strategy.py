@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
@@ -83,7 +84,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             f"rate={aa_rate_rps:.2f} actions/sec, bucket={aa_bucket} actions",
         )
 
-    async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
+    async def prepare_and_acquire(self, request_context: RateLimitRequestContext) -> None:
         """Acquire necessary rate limit permissions for a Hyperliquid request.
 
         This method:
@@ -92,11 +93,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         3. Acquires tokens from the appropriate limiter(s)
 
         Args:
-            request_context: Dict containing request details including:
-                - endpoint: The API endpoint path
-                - action_payload: The request payload (optional)
-                - method: HTTP method (for logging)
-                - exchange_name: Exchange name (for logging)
+            request_context: RateLimitRequestContext containing request details
 
         Returns:
             None - Hyperliquid doesn't modify request payloads for rate limiting.
@@ -105,9 +102,9 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             APIError: If rate limit acquisition fails or times out.
 
         """
-        endpoint = request_context.get("endpoint", "")
-        action_payload = request_context.get("action_payload")
-        method = request_context.get("method", "")
+        endpoint = request_context.endpoint
+        action_payload = request_context.action_payload
+        method = request_context.method
 
         # Calculate costs using the weighter
         ip_cost = self._request_weighter.get_ip_weight(endpoint, action_payload)
@@ -149,7 +146,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
     async def handle_exchange_retry_after(
         self,
         duration_seconds: float,
-        request_context: dict[str, Any],
+        request_context: RateLimitRequestContext,
     ) -> None:
         """Handles exchange-advised retry_after directives.
 
@@ -167,7 +164,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         """
         logger.info(
             f"HyperliquidRateLimitStrategy: Received exchange-advised retry_after of "
-            f"{duration_seconds:.2f}s for {request_context.get('exchange_name', 'Hyperliquid')}. "
+            f"{duration_seconds:.2f}s for {request_context.exchange_name}. "
             f"Applying as a temporary IP ban on the main pool.",
         )
         await self.trigger_ip_ban_on_main_pool(duration_seconds)

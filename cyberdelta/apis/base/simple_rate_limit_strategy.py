@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
@@ -38,18 +39,17 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         self.limiter = limiter
         self.default_request_weight = default_request_weight
 
-    async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
+    async def prepare_and_acquire(self, request_context: RateLimitRequestContext) -> None:
         """Acquire tokens from the bucket based on request weight.
 
         Args:
-            request_context: Dict containing request details. Uses 'request_weight'
-                           if present, otherwise falls back to default_request_weight.
+            request_context: RateLimitRequestContext containing request details.
 
         Returns:
             None - this strategy does not modify the request payload.
 
         """
-        cost = request_context.get("request_weight", self.default_request_weight)
+        cost = request_context.request_weight
         if cost > 0:  # Only acquire if cost is positive
             await self.limiter.acquire(tokens_to_consume=cost)
         return None  # Does not modify data payload
@@ -57,7 +57,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
     async def handle_exchange_retry_after(
         self,
         duration_seconds: float,
-        request_context: dict[str, Any],
+        request_context: RateLimitRequestContext,
     ) -> None:
         """Reacts to an exchange-advised retry_after directive.
 
@@ -65,7 +65,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
 
         Args:
             duration_seconds: The exchange-advised delay in seconds.
-            request_context: Context of the request that was rate-limited.
+            request_context: RateLimitRequestContext with request details.
 
         """
         if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
@@ -74,7 +74,7 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
 
             logger = logging.getLogger(__name__)
             logger.info(
-                f"SimpleTokenBucketStrategy for {request_context.get('exchange_name', 'N/A')}: "
+                f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
                 f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
                 f"Triggering temporary pause on its limiter.",
             )

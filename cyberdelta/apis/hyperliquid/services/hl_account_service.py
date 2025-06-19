@@ -1286,7 +1286,7 @@ class HyperliquidAccountService:
                         _, status_code, _ = await self._http_client_requester(
                             method="POST",
                             endpoint="/exchange",
-                            data=request_payload.model_dump(),
+                            data=request_payload,
                             is_signed=True,
                             endpoint_group="exchange",
                             request_weight=1,

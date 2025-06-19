@@ -184,6 +184,9 @@ class HyperliquidAPI(ExchangeAPI):
         self._hl_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
         self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
         self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
+        
+        # Create serialization strategy via factory
+        self._hl_serialization_strategy = factory.create_serialization_strategy()
 
         # Get wallet address from authenticator if created
         self._wallet_address = (
@@ -250,6 +253,7 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper=self._hyperliquid_error_mapper,
             rate_limit_strategy=hl_strategy,
             exchange_config=exchange_config,
+            serialization_strategy=self._hl_serialization_strategy,
         )
 
         # Use injected HTTP client or create one
