@@ -27,6 +27,14 @@ class HyperliquidSerializationStrategy:
         Returns:
             Dictionary with original field names (not aliases)
         """
+        # Special handling for funding history requests which require camelCase
+        if model.__class__.__name__ == "HyperliquidRawFundingHistoryRequestPayload":
+            return model.model_dump(
+                by_alias=True,  # Use camelCase aliases for funding history
+                exclude_none=True,  # Exclude None values
+                mode="python",  # Ensure python types
+            )
+        
         # For Hyperliquid, we exclude None values to match SDK behavior
         # The 'c' field should not be included when it's None
         return model.model_dump(

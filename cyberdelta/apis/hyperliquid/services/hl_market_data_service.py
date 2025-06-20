@@ -11,7 +11,7 @@ Raw Pydantic Models.
 # Typing and Pydantic
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -867,17 +867,17 @@ class HyperliquidMarketDataService:
         )
 
         endpoint_path = "/info"
-        from datetime import datetime
-
-        # Convert timestamps to datetime objects
-        start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC) if start_time_ms else None
-        end_time = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC) if end_time_ms else None
-
+        
+        # Build payload through request builder
+        # Convert milliseconds back to datetime for the args
+        start_dt = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
+        end_dt = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC) if end_time_ms else None
+        
         payload = self._request_builder.build_historical_funding_rates_payload(
             GetHistoricalFundingRatesArgs(
                 symbol=symbol,
-                start_time=start_time,
-                end_time=end_time,
+                start_time=start_dt,
+                end_time=end_dt,
             )
         )
 
