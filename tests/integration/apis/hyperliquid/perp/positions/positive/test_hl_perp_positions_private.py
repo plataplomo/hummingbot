@@ -111,6 +111,8 @@ class TestHyperliquidPerpPositionsPrivate:
                 "Short position should result from SELL order"
             )
 
+    @pytest.mark.vcr
+    @pytest.mark.asyncio
     async def test_position_opening_order_success_comprehensive(
         self,
         hl_api_for_test_env: HyperliquidAPI,
@@ -306,7 +308,7 @@ class TestHyperliquidPerpPositionsPrivate:
         )
         # Use price 50% below market - won't execute but will trigger margin validation
         non_executable_price = current_price * Decimal("0.5")  # 50% below market
-        
+
         large_position_args = PlaceOrderArgs(
             symbol=test_symbol,
             side=OrderSide.BUY,
@@ -357,12 +359,11 @@ class TestHyperliquidPerpPositionsPrivate:
 
         test_symbol = available_symbols[0]
 
-        # Get market constraints to determine smallest valid quantity
-        constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+        # Get minimal order size that meets $10 minimum requirement
+        # This ensures we meet exchange minimum notional requirements for testnet
+        small_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
+            hl_api_for_test_env, test_symbol, OrderSide.BUY
         )
-        # Use minimum exchange step size as the small quantity
-        small_quantity = constraints["step_size"]
 
         # Test very small position size
         small_position_args = PlaceOrderArgs(
@@ -495,11 +496,6 @@ class TestHyperliquidPerpPositionsPrivate:
         )
 
         # Calculate additional position size (same as minimal to ensure it fills)
-        constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
-        )
-        step_size = constraints["step_size"]
-
         # Use same quantity as initial to ensure order fills
         additional_quantity = minimal_quantity
 
@@ -522,10 +518,10 @@ class TestHyperliquidPerpPositionsPrivate:
             if position.symbol == test_symbol and position.size != Decimal("0"):
                 initial_position = position
                 break
-        
+
         assert initial_position is not None, "Should have position after initial order"
         initial_size = initial_position.size
-        
+
         # Step 2: Add to position
         add_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -547,19 +543,17 @@ class TestHyperliquidPerpPositionsPrivate:
                 break
 
         assert test_position is not None, "Should still have position after add order"
-        
+
         # Validate position accumulation - size should have increased
         assert test_position.size > initial_size, (
-            f"Position size should have increased: "
-            f"{test_position.size} > {initial_size}"
+            f"Position size should have increased: {test_position.size} > {initial_size}"
         )
-        
+
         # Validate the increase is approximately the additional quantity
         # (allowing for partial fills)
         size_increase = test_position.size - initial_size
         assert size_increase > Decimal("0"), (
-            f"Position should have increased by a positive amount: "
-            f"increase={size_increase}"
+            f"Position should have increased by a positive amount: increase={size_increase}"
         )
 
         # Validate decimal precision maintained throughout operations
@@ -567,18 +561,21 @@ class TestHyperliquidPerpPositionsPrivate:
         assert isinstance(test_position.entry_price, Decimal), "Entry price must remain Decimal"
         assert isinstance(initial_position.size, Decimal), "Initial size was Decimal"
         assert isinstance(initial_position.entry_price, Decimal), "Initial entry price was Decimal"
-        
+
         # Validate position state consistency
         assert test_position.symbol == initial_position.symbol, "Symbol should remain consistent"
-        assert test_position.exchange == initial_position.exchange, "Exchange should remain consistent"
-        
-        # Validate that average entry price makes sense (should be between initial and current market)
-        if initial_position.entry_price is not None and test_position.entry_price is not None:
+        assert test_position.exchange == initial_position.exchange, (
+            "Exchange should remain consistent"
+        )
+
+        # Validate that average entry price makes sense
+        # (should be between initial and current market)
+        if initial_position.entry_price and test_position.entry_price:
             # Entry price should be a weighted average after adding to position
             assert test_position.entry_price > Decimal("0"), "Entry price should be positive"
 
         # Step 4: Clean up - close entire position
-        if test_position is not None:
+        if test_position:
             close_args = PlaceOrderArgs(
                 symbol=test_symbol,
                 side=OrderSide.SELL,

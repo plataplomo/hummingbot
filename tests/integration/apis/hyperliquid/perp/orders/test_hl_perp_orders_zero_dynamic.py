@@ -207,7 +207,8 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             APIErrorCode.MIN_NOTIONAL_NOT_MET.value,
         ]
         assert error.code in expected_codes, (
-            f"Should map to INSUFFICIENT_FUNDS or MIN_NOTIONAL_NOT_MET, got {error.code}: {error.message}"
+            f"Should map to INSUFFICIENT_FUNDS or MIN_NOTIONAL_NOT_MET, "
+            f"got {error.code}: {error.message}"
         )
 
         # Check that our dynamic helpers created valid parameters
@@ -358,12 +359,14 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # Large price should be significantly above market (at least 50% higher)
         assert large_price > market_price * Decimal("1.5"), (
-            f"Large price should be higher than market: {large_price} > {market_price * Decimal('1.5')}"
+            f"Large price should be higher than market: "
+            f"{large_price} > {market_price * Decimal('1.5')}"
         )
 
         # Large quantity should be at least as large as max (might equal max for some exchanges)
         assert large_quantity >= constraints["max_quantity"], (
-            f"Large quantity should be at least max: {large_quantity} >= {constraints['max_quantity']}"
+            f"Large quantity should be at least max: "
+            f"{large_quantity} >= {constraints['max_quantity']}"
         )
 
     @pytest.mark.vcr

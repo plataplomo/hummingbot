@@ -34,7 +34,7 @@ class HyperliquidSerializationStrategy:
                 exclude_none=True,  # Exclude None values
                 mode="python",  # Ensure python types
             )
-        
+
         # For Hyperliquid, we exclude None values to match SDK behavior
         # The 'c' field should not be included when it's None
         return model.model_dump(

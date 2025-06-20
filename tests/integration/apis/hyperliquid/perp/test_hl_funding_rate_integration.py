@@ -551,10 +551,10 @@ async def test_hl_funding_rate_boundary_conditions(
 
     # This should fail at validation time
     with pytest.raises(ValidationError) as exc_info:
-        args_reversed = GetHistoricalFundingRatesArgs(
+        GetHistoricalFundingRatesArgs(
             symbol="BTC",
             start_time=reversed_start,
             end_time=reversed_end,
         )
-    
+
     assert "start_time must be before end_time" in str(exc_info.value)

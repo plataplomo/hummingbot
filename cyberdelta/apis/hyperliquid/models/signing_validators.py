@@ -5,9 +5,14 @@ models to prepare data for EIP-712 signing. These validators ensure consistent
 formatting, address normalization, and field ordering required by the signing process.
 """
 
-from typing import Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
+from pydantic_core.core_schema import SerializationInfo
+
+if TYPE_CHECKING:
+    pass
 
 
 def normalize_ethereum_address(address: str) -> str:
@@ -42,7 +47,11 @@ class SigningPayloadSerializer:
     """Mixin class that provides serialization for signing payloads."""
 
     @model_serializer(mode="wrap")
-    def serialize_for_signing(self, serializer: Any, info: Any) -> dict[str, Any]:
+    def serialize_for_signing(
+        self,
+        serializer: Callable[[Any], Any],
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
         """Serialize model for signing, removing None values and ensuring proper order.
 
         This serializer:
@@ -63,7 +72,7 @@ class SigningPayloadSerializer:
 
     def _clean_dict_recursive(self, data: dict[str, Any]) -> dict[str, Any]:
         """Helper method to recursively clean dictionary data."""
-        cleaned = {}
+        cleaned: dict[str, Any] = {}
 
         for key, value in data.items():
             if value is None:
@@ -87,7 +96,7 @@ class SigningPayloadSerializer:
 
     def _clean_list(self, lst: list[Any]) -> list[Any] | None:
         """Clean a list for signing."""
-        cleaned_list = []
+        cleaned_list: list[Any] = []
         for item in lst:
             if isinstance(item, dict):
                 cleaned_item = self._clean_dict_recursive(item)

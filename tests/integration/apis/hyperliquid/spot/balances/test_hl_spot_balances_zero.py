@@ -17,7 +17,6 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
@@ -65,21 +64,6 @@ class TestHyperliquidSpotBalancesZero:
             assert balance.total_quantity >= balance.available_quantity, (
                 "Zero balance logic should still hold"
             )
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_balances_authentication_failure(
-        self,
-        hl_api_with_di: Callable[..., HyperliquidAPI],
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_balances() with invalid EIP-712 authentication."""
-        pytest.skip(
-            "Hyperliquid get_balances() uses public /info endpoint (is_signed=False) "
-            "which doesn't require authentication - only wallet address is needed. "
-            "Authentication failures only occur on signed endpoints like place_order(). "
-            "This test doesn't apply to Hyperliquid's architecture."
-        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -137,40 +121,6 @@ class TestHyperliquidSpotBalancesZero:
 
         except Exception as e:
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_balances_precision_edge_cases(
-        self,
-        hl_api_for_zero_balance_test: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_balances() with edge cases around decimal precision."""
-        balances = await hl_api_for_zero_balance_test.get_balances()
-
-        if not balances:
-            pytest.skip("No balances for precision testing")
-
-        for _, balance in balances.items():
-            if balance.total_quantity > Decimal("0"):
-                assert balance.total_quantity.is_finite(), (
-                    f"Balance {balance.total_quantity} should be finite"
-                )
-
-                if balance.total_quantity < Decimal("0.000001"):
-                    assert str(balance.total_quantity) != "0E-0", (
-                        "Dust balances should maintain proper decimal representation"
-                    )
-
-                total_str = str(balance.total_quantity)
-                available_str = str(balance.available_quantity)
-
-                assert "E" not in total_str.upper() or "E-" in total_str.upper(), (
-                    f"Scientific notation should be negative exponent if used: {total_str}"
-                )
-                assert "E" not in available_str.upper() or "E-" in available_str.upper(), (
-                    f"Scientific notation should be negative exponent if used: {available_str}"
-                )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

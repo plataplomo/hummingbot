@@ -69,7 +69,8 @@ def _wrap_validate_finite_decimal_str(
         raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
 
     # CRITICAL: Use SDK's exact float_to_wire algorithm for consistent signatures
-    # From SDK: rounded = f"{x:.8f}"; normalized = Decimal(rounded).normalize(); return f"{normalized:f}"
+    # From SDK: rounded = f"{x:.8f}"; normalized = Decimal(rounded).normalize();
+    # return f"{normalized:f}"
     # This ensures our strings match exactly what the SDK produces
     x_float = float(d)
     rounded = f"{x_float:.8f}"

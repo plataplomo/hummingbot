@@ -501,7 +501,7 @@ class TestHyperliquidMarketOrderIntegration:
             )
 
     @pytest_asyncio.fixture(autouse=True)
-    async def cleanup(self, hyperliquid_api: HyperliquidAPI) -> AsyncGenerator[None, None]:
+    async def cleanup(self, hyperliquid_api: HyperliquidAPI) -> AsyncGenerator[None]:
         """Clean up any test positions after each test."""
         yield  # Run the test
 

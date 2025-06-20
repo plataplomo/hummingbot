@@ -381,9 +381,11 @@ class HyperliquidTestHelpers:
         # Use exchange maximum or account limits instead of arbitrary multiplier
         max_account_size = await HyperliquidTestHelpers.calculate_maximum_position_size(api, symbol)
         if max_account_size["max_quantity"] > Decimal("0"):
-            return max_account_size["max_quantity"] * Decimal("100000")  # 100,000x account max - absurdly large
+            # 100,000x account max - absurdly large
+            return max_account_size["max_quantity"] * Decimal("100000")
         else:
-            return constraints["max_quantity"] * Decimal("100")  # 100x exchange max if no account limit
+            # 100x exchange max if no account limit
+            return constraints["max_quantity"] * Decimal("100")
 
     # Dynamic Sizing Utilities
 

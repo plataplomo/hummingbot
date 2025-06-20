@@ -26,6 +26,7 @@ VCR: Cannot be used for WebSocket tests - uses real connections with timeouts
 from __future__ import annotations
 
 import asyncio
+import decimal
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -461,7 +462,7 @@ class TestHyperliquidWebSocketIntegration:
             # If we get here, something is wrong
             pytest.fail("Invalid WebSocket message should have failed parsing")
 
-        except (ValueError, json.JSONDecodeError) as e:
+        except (ValueError, json.JSONDecodeError, decimal.InvalidOperation) as e:
             # Expected - invalid data should fail
             logger.info(f"Correctly rejected invalid WebSocket message: {e}")
             return True

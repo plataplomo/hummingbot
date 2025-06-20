@@ -53,6 +53,7 @@ dependencies = [
     "msgpack==1.1.0",
     "cryptography==45.0.3",
     "pytest-freezer==0.4.9",
+    "pytest-timeout==2.4.0",
 ]
 
 [project.optional-dependencies]
@@ -107,6 +108,8 @@ markers = [
     "orders: marks tests as order related tests",
     "positions: marks tests as position related tests",
     "positive_orders: marks tests requiring positive balance for order operations",
+    "requires_network: marks tests that require network connectivity",
+    "no_cover: marks tests to exclude from coverage calculations",
     "positive_positions: marks tests requiring positive balance for position operations",
     "zero_orders: marks tests with zero order scenarios",
     "zero_positions: marks tests with zero position scenarios",

@@ -142,7 +142,7 @@ def test_BackpackRawTrade_real_json_examples() -> None:
 
 
 def test_BackpackRawTrade_creative_corruption_cases() -> None:
-    """Test BackpackRawPublicTrade with creative corruption cases simulating hostile or malformed input.
+    """Test BackpackRawPublicTrade with creative corruption cases simulating hostile/bad input.
 
     Each case is described and should raise a ValidationError (unless otherwise noted).
     """

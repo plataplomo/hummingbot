@@ -1727,7 +1727,8 @@ class BackpackAccountService:
                 )
 
         logger.debug(
-            f"[{self._exchange_name}] Mapped internal trades from fills: {len(internal_trades)} trades",
+            f"[{self._exchange_name}] Mapped internal trades from fills: "
+            f"{len(internal_trades)} trades",
         )
         return internal_trades
 

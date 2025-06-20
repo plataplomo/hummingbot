@@ -867,12 +867,12 @@ class HyperliquidMarketDataService:
         )
 
         endpoint_path = "/info"
-        
+
         # Build payload through request builder
         # Convert milliseconds back to datetime for the args
         start_dt = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
         end_dt = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC) if end_time_ms else None
-        
+
         payload = self._request_builder.build_historical_funding_rates_payload(
             GetHistoricalFundingRatesArgs(
                 symbol=symbol,

@@ -17,18 +17,15 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 
 pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
@@ -190,39 +187,6 @@ class TestHyperliquidAccountSummaryZero:
                 f"Empty account should have minimal initial margin, got "
                 f"{account_summary.total_initial_margin_required}"
             )
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    @pytest.mark.skip(
-        reason="Account summary endpoints do not require authentication in Hyperliquid"
-    )
-    async def test_get_account_summary_authentication_failure(
-        self,
-        hl_api_with_di: Callable[
-            ..., HyperliquidAPI
-        ],  # Factory function for creating API with custom secrets
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_account_summary() with invalid EIP-712 authentication."""
-        # Create API with invalid EIP-712 private key
-        invalid_secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr(
-                "0x0000000000000000000000000000000000000000000000000000000000000003"
-            ),
-        )
-
-        bad_api = hl_api_with_di(secrets=invalid_secrets)
-
-        # Should raise authentication error
-        with pytest.raises(APIError) as exc_info:
-            await bad_api.get_account_summary()
-
-        # Validate error mapping and structure
-        error = exc_info.value
-        assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
-            f"Expected AUTHENTICATION_FAILED, got {error.code}"
-        )
-        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

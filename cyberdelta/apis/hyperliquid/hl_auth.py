@@ -26,6 +26,8 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pydantic import BaseModel
+
 if TYPE_CHECKING:
     pass
 
@@ -243,7 +245,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def _setup_wallet_properties(self) -> None:
         """Setup wallet address properties."""
         # CRITICAL: Lowercase address as recommended by SDK docs
-        # "Issues with upper case characters in address fields. It is recommended to lowercase any address before signing and sending."
+        # "Issues with upper case characters in address fields. It is recommended to
+        # lowercase any address before signing and sending."
         self._wallet_address: str = self._account.address.lower()
 
     def _setup_nonce_management(self) -> None:
@@ -362,7 +365,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}")
             raise ValueError(msg)
 
-    def _prepare_action_payload(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_action_payload(self, data: dict[str, Any] | BaseModel) -> dict[str, Any]:
         """Prepare the action payload for signing using Pydantic model serialization.
 
         This method ensures all payloads go through proper Pydantic validation
@@ -375,52 +378,61 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self.logger.debug(f"[HL_AUTH] Input data has model_dump: {hasattr(data, 'model_dump')}")
 
         # If the data is already a Pydantic model, serialize it directly
-        if hasattr(data, "model_dump"):
-            # For Hyperliquid, use by_alias=False to get the short field names (a, b, p, etc.)
-            # CRITICAL: Do NOT exclude None values as Hyperliquid expects all fields for msgpack order
-            result = data.model_dump(by_alias=False, exclude_none=False, mode="python")
-            self.logger.debug(f"[HL_AUTH] Pydantic model_dump result: {result}")
-            self.logger.debug(f"[HL_AUTH] All model fields present: {list(result.keys())}")
-
-            # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
-            if "orders" in result and result["orders"]:
-                for i, order_item in enumerate(result["orders"]):
-                    # Force serialize the order item to ensure proper structure
-                    if hasattr(order_item, "model_dump"):
-                        # If it's a Pydantic model, dump it excluding None values
-                        order_item_dict = order_item.model_dump(
-                            by_alias=False, exclude_none=True, mode="python"
-                        )
-                        result["orders"][i] = order_item_dict
-                        self.logger.debug(
-                            f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}"
-                        )
-                    elif isinstance(order_item, dict):
-                        # Remove 'c' field if it's None to match SDK behavior
-                        if "c" in order_item and order_item["c"] is None:
-                            del order_item["c"]
-                            self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {i}")
-                        self.logger.debug(f"[HL_AUTH] Order {i} fields: {list(order_item.keys())}")
-
-            if isinstance(result, dict):
-                return result
-            raise ValueError(f"Expected dict from model_dump, got {type(result)}")
+        if isinstance(data, BaseModel):
+            return self._serialize_pydantic_model(data)
 
         # For dict data, ensure we match SDK behavior by removing None 'c' fields
         self.logger.debug(f"[HL_AUTH] Processing dict data: {data}")
-
-        if isinstance(data, dict) and "orders" in data and data["orders"]:
-            for i, order_item in enumerate(data["orders"]):
-                if isinstance(order_item, dict):
-                    # Remove 'c' field if it's None to match SDK behavior
-                    if "c" in order_item and order_item["c"] is None:
-                        del order_item["c"]
-                        self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {i}")
-                    self.logger.debug(f"[HL_AUTH] Order {i} fields: {list(order_item.keys())}")
+        self._process_dict_orders(data)
 
         # Return the dict directly
         self.logger.debug("[HL_AUTH] Returning dict data")
         return data
+
+    def _serialize_pydantic_model(self, data: BaseModel) -> dict[str, Any]:
+        """Serialize a Pydantic model for signing."""
+        # For Hyperliquid, use by_alias=False to get the short field names (a, b, p, etc.)
+        # CRITICAL: Do NOT exclude None values as Hyperliquid expects all fields
+        # for msgpack order
+        result = data.model_dump(by_alias=False, exclude_none=False, mode="python")
+        self.logger.debug(f"[HL_AUTH] Pydantic model_dump result: {result}")
+        self.logger.debug(f"[HL_AUTH] All model fields present: {list(result.keys())}")
+
+        # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
+        if "orders" in result and result["orders"]:
+            self._process_order_items(result["orders"])
+
+        return result
+
+    def _process_order_items(self, orders: list[Any]) -> None:
+        """Process order items to ensure proper structure."""
+        for i, order_item in enumerate(orders):
+            # Force serialize the order item to ensure proper structure
+            if hasattr(order_item, "model_dump"):
+                # If it's a Pydantic model, dump it excluding None values
+                order_item_dict = order_item.model_dump(
+                    by_alias=False, exclude_none=True, mode="python"
+                )
+                orders[i] = order_item_dict
+                self.logger.debug(
+                    f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}"
+                )
+            elif isinstance(order_item, dict):
+                self._remove_none_c_field(order_item, i)
+
+    def _remove_none_c_field(self, order_item: dict[str, Any], index: int) -> None:
+        """Remove 'c' field if it's None to match SDK behavior."""
+        if "c" in order_item and order_item["c"] is None:
+            del order_item["c"]
+            self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {index}")
+        self.logger.debug(f"[HL_AUTH] Order {index} fields: {list(order_item.keys())}")
+
+    def _process_dict_orders(self, data: dict[str, Any]) -> None:
+        """Process orders in dict data to remove None 'c' fields."""
+        if "orders" in data and data["orders"]:
+            for i, order_item in enumerate(data["orders"]):
+                if isinstance(order_item, dict):
+                    self._remove_none_c_field(order_item, i)
 
     def _compute_action_hash(
         self, action_payload_dict: dict[str, Any], current_nonce_ms: int
@@ -642,7 +654,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             self.logger.debug(f"[HL_AUTH] Recovered address: {recovered}")
             if recovered.lower() != self._account.address.lower():
                 self.logger.error(
-                    f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != signing address {self._account.address}"
+                    f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != "
+                    f"signing address {self._account.address}"
                 )
             return signed_msg
         except Exception as e:

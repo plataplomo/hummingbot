@@ -277,11 +277,11 @@ class TestHyperliquidEip712Authenticator:
             chain_id=VALID_CHAIN_ID,
             logger_param=mock_logger,
         )
-        assert auth.wallet_address == VALID_WALLET_ADDRESS
+        assert auth.wallet_address == VALID_WALLET_ADDRESS.lower()
         assert auth.chain_id == VALID_CHAIN_ID
         mock_logger.info.assert_any_call(
             f"HyperliquidEip712Authenticator initialized for address: "
-            f"{VALID_WALLET_ADDRESS} on chain_id: {VALID_CHAIN_ID}",
+            f"{VALID_WALLET_ADDRESS.lower()} on chain_id: {VALID_CHAIN_ID}",
         )
 
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
@@ -304,8 +304,10 @@ class TestHyperliquidEip712Authenticator:
             )
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_auth.Account.recover_message")
     async def test_prepare_request_with_valid_action_payload(
         self,
+        mock_recover: MagicMock,
         auth_with_mock_account: HyperliquidEip712Authenticator,
         mock_account: MagicMock,
     ) -> None:
@@ -319,6 +321,9 @@ class TestHyperliquidEip712Authenticator:
         signed_msg_mock.v = 27
         mock_account.sign_message.return_value = signed_msg_mock
 
+        # Mock the recovery to return the expected address
+        mock_recover.return_value = mock_account.address
+
         auth = auth_with_mock_account
         action_payload = {"type": "order", "orders": [{"coin": "BTC", "is_buy": True, "sz": "0.1"}]}
         result = await auth.prepare_request("POST", "/exchange", None, action_payload, None)
@@ -330,8 +335,10 @@ class TestHyperliquidEip712Authenticator:
         mock_account.sign_message.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch("cyberdelta.apis.hyperliquid.hl_auth.Account.recover_message")
     async def test_signing_failure_raises_api_error(
         self,
+        mock_recover: MagicMock,
         auth_with_mock_account: HyperliquidEip712Authenticator,
         mock_account: MagicMock,
         mock_logger: MagicMock,
@@ -347,6 +354,6 @@ class TestHyperliquidEip712Authenticator:
         assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
         mock_logger.error.assert_called_with(
             "HyperliquidEip712Authenticator: Failed to sign Hyperliquid Exchange "
-            "Agent message: Crypto error",
+            "Agent message: Failed to sign EIP-712 message: Crypto error",
             exc_info=True,
         )

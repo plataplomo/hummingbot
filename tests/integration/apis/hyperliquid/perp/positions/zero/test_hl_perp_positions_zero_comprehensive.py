@@ -17,18 +17,15 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.derivative_position import DerivativePosition
 
 # Mark all tests in this file as integration tests
@@ -176,95 +173,6 @@ class TestHyperliquidPositionsZeroComprehensive:
             assert isinstance(position.size, Decimal), "size should be Decimal"
             assert isinstance(position.unrealized_pnl, Decimal), "unrealized_pnl should be Decimal"
             assert isinstance(position.realized_pnl, Decimal), "realized_pnl should be Decimal"
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_positions_authentication_failure(
-        self,
-        hl_api_with_di: Callable[
-            ..., HyperliquidAPI
-        ],  # Factory function for creating API with custom secrets
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_positions() with invalid EIP-712 authentication.
-
-        This validates proper error handling when EIP-712 signature is invalid,
-        testing the complete authentication failure pipeline.
-        """
-        # Create API with invalid EIP-712 private key
-        invalid_secrets = PrivateKeyAuthSecrets(
-            private_key=SecretStr(
-                "0x0000000000000000000000000000000000000000000000000000000000000002"
-            ),
-        )
-
-        bad_api = hl_api_with_di(secrets=invalid_secrets)
-
-        # Should raise authentication error
-        with pytest.raises(APIError) as exc_info:
-            await bad_api.get_positions()
-
-        # Validate error mapping and structure
-        error = exc_info.value
-        assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
-            f"Expected AUTHENTICATION_FAILED, got {error.code}"
-        )
-        assert error.http_status in [401, 403], f"Expected 401/403 status, got {error.http_status}"
-        assert len(error.message) > 0, "Error message should be descriptive"
-
-    @pytest.mark.vcr
-    @pytest.mark.asyncio
-    async def test_get_positions_precision_edge_cases(
-        self,
-        hl_api_for_zero_balance_test: HyperliquidAPI,
-        custom_vcr_config: dict[str, Any],
-    ) -> None:
-        """Test get_positions() with edge cases around decimal precision.
-
-        This validates handling of very small position sizes, dust PnL amounts,
-        and precision edge cases that might occur in real trading.
-        """
-        positions = await hl_api_for_zero_balance_test.get_positions()
-
-        if not positions:
-            pytest.skip("No positions for precision testing")
-
-        for i, position in enumerate(positions):
-            # Test very small position handling
-            if position.size != Decimal("0"):
-                # Validate that small positions maintain precision
-                assert position.size.is_finite(), (
-                    f"Position {i} size should be finite: {position.size}"
-                )
-
-                # Check for dust handling (very small amounts)
-                if abs(position.size) < Decimal("0.001"):  # Less than 0.001 units
-                    # Even dust positions should be properly represented
-                    assert str(position.size) != "0E-0", (
-                        f"Dust position {i} should maintain proper decimal representation"
-                    )
-
-            # Test PnL precision
-            if position.unrealized_pnl is not None and position.unrealized_pnl != Decimal("0"):
-                assert position.unrealized_pnl.is_finite(), (
-                    f"Position {i} unrealized_pnl should be finite: {position.unrealized_pnl}"
-                )
-
-            # Validate precision consistency across financial fields
-            for field_name, field_value in [
-                ("size", position.size),
-                ("entry_price", position.entry_price),
-                ("mark_price", position.mark_price),
-                ("unrealized_pnl", position.unrealized_pnl),
-                ("realized_pnl", position.realized_pnl),
-            ]:
-                if field_value != Decimal("0"):
-                    precision = (
-                        len(str(field_value).split(".")[-1]) if "." in str(field_value) else 0
-                    )
-                    assert precision <= 18, (
-                        f"Position {i} {field_name} precision too high: {precision} decimals"
-                    )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

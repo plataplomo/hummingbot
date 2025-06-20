@@ -475,10 +475,7 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            logger.error(
-                f"Failed to transform order {raw_order.id}: {e}. "
-                f"average_fill_price={average_fill_price if 'average_fill_price' in locals() else 'NOT SET'}"
-            )
+            logger.error(f"Failed to transform order {raw_order.id}: {e}")
             raise TransformationError(f"Failed to transform BackpackRawOrder to Order: {e}") from e
 
     @staticmethod

@@ -408,7 +408,8 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Verify this is actually testing precision (quantity uses step size properly)
         assert notional_value >= Decimal("10.00"), (
-            f"Test should meet Hyperliquid's minimum notional requirements: {notional_value} >= 10.00"
+            f"Test should meet Hyperliquid's minimum notional requirements: "
+            f"{notional_value} >= 10.00"
         )
 
         try:
@@ -424,7 +425,8 @@ class TestHyperliquidPerpOrdersPrivate:
             # (not just using huge quantities that don't test precision)
             max_reasonable_quantity = min_quantity * Decimal("100")  # Within 100x of minimum
             assert edge_quantity <= max_reasonable_quantity, (
-                f"Precision test should use reasonable quantities: {edge_quantity} <= {max_reasonable_quantity}"
+                f"Precision test should use reasonable quantities: "
+                f"{edge_quantity} <= {max_reasonable_quantity}"
             )
 
             # Clean up the order
@@ -751,7 +753,8 @@ class TestHyperliquidPerpOrdersPrivate:
             open_orders = await hl_api_for_test_env.get_open_orders()
             test_symbol_orders = [order for order in open_orders if order.symbol == test_symbol]
             assert len(test_symbol_orders) > 0, (
-                f"{test_symbol} order should still exist after cancel_all with different symbol filter"
+                f"{test_symbol} order should still exist after cancel_all "
+                f"with different symbol filter"
             )
 
             # Clean up the test symbol order

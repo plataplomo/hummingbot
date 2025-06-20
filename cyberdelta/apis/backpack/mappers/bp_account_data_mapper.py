@@ -1026,7 +1026,7 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def transform_raw_trade_to_internal(raw: BackpackRawPublicTrade) -> Trade | None:
-        """Transform a validated `BackpackRawPublicTrade` object into an internal `Trade` domain model.
+        """Transform a validated `BackpackRawPublicTrade` into an internal `Trade` model.
 
         Note: Backpack REST API for trades typically lacks side information.
         Returns None if essential information cannot be determined.
