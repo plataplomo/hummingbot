@@ -19,7 +19,7 @@ import pytest
 
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Ticker
 
@@ -89,9 +89,9 @@ def create_raw_trade(
     qty: str = "10.0",
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
-) -> BackpackRawTrade:
-    """Create BackpackRawTrade instances for robustness testing."""
-    return BackpackRawTrade(
+) -> BackpackRawPublicTrade:
+    """Create BackpackRawPublicTrade instances for robustness testing."""
+    return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,
         price=price,

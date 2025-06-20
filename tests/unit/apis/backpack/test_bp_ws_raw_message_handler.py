@@ -7,7 +7,7 @@ from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMess
 from cyberdelta.apis.backpack.models import (
     BackpackRawOrderUpdate,
     BackpackRawPositionUpdate,
-    BackpackRawTradeEvent,
+    BackpackRawPublicTradeEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
@@ -90,10 +90,10 @@ def test_handle_ticker_payload_invalid() -> None:
     assert isinstance(excinfo.value.original_exception, ValidationError)
 
 
-# --- Trade Event --- (BackpackRawTradeEvent)
+# --- Trade Event --- (BackpackRawPublicTradeEvent)
 def test_handle_trade_event_payload_valid() -> None:
     """Test handle_trade_event_payload with valid data."""
-    # Based on BackpackRawTradeEvent in bp_raw_trade.py
+    # Based on BackpackRawPublicTradeEvent in bp_raw_trade.py
     valid_payload = {
         "e": "trade",  # event_type
         "E": 1678886400000,  # event_time
@@ -106,7 +106,7 @@ def test_handle_trade_event_payload_valid() -> None:
         "T": 1678886400001,  # engine_timestamp
         "m": True,  # is_buyer_the_maker
     }
-    expected_model = BackpackRawTradeEvent.model_validate(valid_payload)
+    expected_model = BackpackRawPublicTradeEvent.model_validate(valid_payload)
     result = BackpackWsRawMessageHandler.handle_trade_event_payload(valid_payload)
     assert result == expected_model
 

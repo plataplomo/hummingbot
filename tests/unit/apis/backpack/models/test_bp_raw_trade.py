@@ -9,14 +9,14 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawFill,
-    BackpackRawTrade,
-    BackpackRawTradeEvent,
+    BackpackRawPublicTrade,
+    BackpackRawPublicTradeEvent,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# --- BackpackRawTrade ---
+# --- BackpackRawPublicTrade ---
 def valid_trade() -> dict[str, Any]:
     """Return valid trade for testing."""
     return {
@@ -30,8 +30,8 @@ def valid_trade() -> dict[str, Any]:
 
 
 def test_BackpackRawTrade_happy_path() -> None:
-    """Test BackpackRawTrade happy path."""
-    obj = BackpackRawTrade.model_validate(valid_trade())
+    """Test BackpackRawPublicTrade happy path."""
+    obj = BackpackRawPublicTrade.model_validate(valid_trade())
     assert obj.id == "trade123"
     assert obj.symbol == "BTC_USDC"
     assert obj.price == "50000.0"
@@ -40,62 +40,62 @@ def test_BackpackRawTrade_happy_path() -> None:
 
 
 def test_BackpackRawTrade_missing_required_fields() -> None:
-    """Test BackpackRawTrade missing required fields."""
+    """Test BackpackRawPublicTrade missing required fields."""
     for field in ["id", "orderId", "symbol", "price", "qty", "time"]:
         p: dict[str, Any] = valid_trade().copy()
         del p[field]
         with pytest.raises(ValidationError):
-            BackpackRawTrade.model_validate(p)
+            BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_wrong_type_fields() -> None:
-    """Test BackpackRawTrade wrong type fields."""
+    """Test BackpackRawPublicTrade wrong type fields."""
     p: dict[str, Any] = valid_trade().copy()
     p["price"] = [50000.0]
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
     p = valid_trade().copy()
     p["time"] = "notanint"
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_invalid_format_fields() -> None:
-    """Test BackpackRawTrade invalid format fields."""
+    """Test BackpackRawPublicTrade invalid format fields."""
     p: dict[str, Any] = valid_trade().copy()
     p["price"] = "1..0"
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
     p = valid_trade().copy()
     p["symbol"] = ""
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_extra_field() -> None:
-    """Test BackpackRawTrade extra field."""
+    """Test BackpackRawPublicTrade extra field."""
     p: dict[str, Any] = valid_trade().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_corruption_cases() -> None:
-    """Test BackpackRawTrade corruption cases."""
+    """Test BackpackRawPublicTrade corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_trade().copy()
     p["qty"] = "notanumber"
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
     # Null required
     p = valid_trade().copy()
     p["symbol"] = None
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
     # Unicode/control chars
     p = valid_trade().copy()
     p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawTrade.model_validate(p)
+    obj = BackpackRawPublicTrade.model_validate(p)
     assert "BTC_USDC" in obj.symbol
     # Truncated JSON
     bad_json = '{"id": "trade123", "orderId": "order456"'
@@ -104,7 +104,7 @@ def test_BackpackRawTrade_corruption_cases() -> None:
 
 
 def test_BackpackRawTrade_real_json_examples() -> None:
-    """Validate BackpackRawTrade using real JSON payloads from the Backpack OpenAPI spec.
+    """Validate BackpackRawPublicTrade using real JSON payloads from the Backpack OpenAPI spec.
 
     Covers both happy path and edge/boundary values.
     """
@@ -117,7 +117,7 @@ def test_BackpackRawTrade_real_json_examples() -> None:
         "qty": "0.005",
         "time": 1712345678901,
     }
-    obj = BackpackRawTrade.model_validate(real_payload)
+    obj = BackpackRawPublicTrade.model_validate(real_payload)
     assert obj.id == "trade_001"
     assert obj.order_id == "order_abc"
     assert obj.symbol == "BTC_USDC"
@@ -134,7 +134,7 @@ def test_BackpackRawTrade_real_json_examples() -> None:
         "qty": "1000000000",
         "time": 9999999999999,
     }
-    obj = BackpackRawTrade.model_validate(edge_payload)
+    obj = BackpackRawPublicTrade.model_validate(edge_payload)
     assert obj.symbol == "BTC_😀"
     assert obj.price == "0.00000001"
     assert obj.quantity == "1000000000"
@@ -142,7 +142,7 @@ def test_BackpackRawTrade_real_json_examples() -> None:
 
 
 def test_BackpackRawTrade_creative_corruption_cases() -> None:
-    """Test BackpackRawTrade with creative corruption cases simulating hostile or malformed input.
+    """Test BackpackRawPublicTrade with creative corruption cases simulating hostile or malformed input.
 
     Each case is described and should raise a ValidationError (unless otherwise noted).
     """
@@ -171,10 +171,10 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
         p[field] = value
         # Accept SQL injection attempt as valid for raw model (no ValidationError expected)
         if description == "SQL injection attempt in symbol":
-            BackpackRawTrade.model_validate(p)
+            BackpackRawPublicTrade.model_validate(p)
             continue
         try:
-            BackpackRawTrade.model_validate(p)
+            BackpackRawPublicTrade.model_validate(p)
         except ValidationError:
             pass  # Expected
         else:
@@ -187,7 +187,7 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
 
 
 def test_BackpackRawTrade_real_json_edge_case() -> None:
-    """Validate BackpackRawTrade using a real JSON payload with edge values."""
+    """Validate BackpackRawPublicTrade using a real JSON payload with edge values."""
     payload = {
         "id": "trade_999999999999999999",
         "orderId": "order_Ωmega",
@@ -196,7 +196,7 @@ def test_BackpackRawTrade_real_json_edge_case() -> None:
         "qty": "1000000000",
         "time": 9999999999999,
     }
-    obj = BackpackRawTrade.model_validate(payload)
+    obj = BackpackRawPublicTrade.model_validate(payload)
     assert obj.symbol == "BTC_😀"
     assert obj.price == "0.00000001"
     assert obj.quantity == "1000000000"
@@ -208,7 +208,7 @@ def test_BackpackRawTrade_corruption_null_id() -> None:
     p = valid_trade().copy()
     p["id"] = None
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_corruption_binary_orderId() -> None:
@@ -216,7 +216,7 @@ def test_BackpackRawTrade_corruption_binary_orderId() -> None:
     p = valid_trade().copy()
     p["orderId"] = b"\x00\x01"
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_corruption_nested_symbol() -> None:
@@ -224,7 +224,7 @@ def test_BackpackRawTrade_corruption_nested_symbol() -> None:
     p = valid_trade().copy()
     p["symbol"] = {"foo": "bar"}
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_corruption_list_price() -> None:
@@ -232,7 +232,7 @@ def test_BackpackRawTrade_corruption_list_price() -> None:
     p = valid_trade().copy()
     p["price"] = ["50000.0"]
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
 def test_BackpackRawTrade_corruption_garbled_unicode_symbol() -> None:
@@ -240,10 +240,10 @@ def test_BackpackRawTrade_corruption_garbled_unicode_symbol() -> None:
     p = valid_trade().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
     with pytest.raises(ValidationError):
-        BackpackRawTrade.model_validate(p)
+        BackpackRawPublicTrade.model_validate(p)
 
 
-# --- BackpackRawTradeEvent ---
+# --- BackpackRawPublicTradeEvent ---
 def valid_trade_event() -> dict[str, Any]:
     """Return valid trade event for testing."""
     return {
@@ -261,8 +261,8 @@ def valid_trade_event() -> dict[str, Any]:
 
 
 def test_BackpackRawTradeEvent_happy_path() -> None:
-    """Test BackpackRawTradeEvent happy path."""
-    obj = BackpackRawTradeEvent.model_validate(valid_trade_event())
+    """Test BackpackRawPublicTradeEvent happy path."""
+    obj = BackpackRawPublicTradeEvent.model_validate(valid_trade_event())
     assert obj.event_type == "trade"
     assert obj.symbol == "BTC_USDC"
     assert obj.price == "50000.0"
@@ -270,71 +270,71 @@ def test_BackpackRawTradeEvent_happy_path() -> None:
 
 
 def test_BackpackRawTradeEvent_missing_required_fields() -> None:
-    """Test BackpackRawTradeEvent missing required fields."""
+    """Test BackpackRawPublicTradeEvent missing required fields."""
     for field in ["e", "E", "s", "p", "q", "b", "a", "t", "T", "m"]:
         p: dict[str, Any] = valid_trade_event().copy()
         del p[field]
         with pytest.raises(ValidationError):
-            BackpackRawTradeEvent.model_validate(p)
+            BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_wrong_type_fields() -> None:
-    """Test BackpackRawTradeEvent wrong type fields."""
+    """Test BackpackRawPublicTradeEvent wrong type fields."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["m"] = "notabool"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
     p = valid_trade_event().copy()
     p["E"] = "notanint"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_invalid_format_fields() -> None:
-    """Test BackpackRawTradeEvent invalid format fields."""
+    """Test BackpackRawPublicTradeEvent invalid format fields."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["p"] = "1..0"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
     p = valid_trade_event().copy()
     p["s"] = ""
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_extra_field() -> None:
-    """Test BackpackRawTradeEvent extra field."""
+    """Test BackpackRawPublicTradeEvent extra field."""
     p: dict[str, Any] = valid_trade_event().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_corruption_cases() -> None:
-    """Test BackpackRawTradeEvent corruption cases."""
+    """Test BackpackRawPublicTradeEvent corruption cases."""
     # Garbled numerics
     p: dict[str, Any] = valid_trade_event().copy()
     p["q"] = "notanumber"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
     # Null required
     p = valid_trade_event().copy()
     p["s"] = None
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
     # Unicode/control chars
     p = valid_trade_event().copy()
     p["s"] = "BTC_USDC\x00"
-    obj = BackpackRawTradeEvent.model_validate(p)
+    obj = BackpackRawPublicTradeEvent.model_validate(p)
     assert "BTC_USDC" in obj.symbol
     # Boolean edge cases
     p = valid_trade_event().copy()
     p["m"] = 1
-    obj = BackpackRawTradeEvent.model_validate(p)
+    obj = BackpackRawPublicTradeEvent.model_validate(p)
     assert obj.is_buyer_the_maker is True
     p = valid_trade_event().copy()
     p["m"] = 0
-    obj = BackpackRawTradeEvent.model_validate(p)
+    obj = BackpackRawPublicTradeEvent.model_validate(p)
     assert obj.is_buyer_the_maker is False
     # Truncated JSON
     bad_json = '{"e": "trade", "E": 1234567890, "s": "BTC_USDC"'
@@ -343,7 +343,7 @@ def test_BackpackRawTradeEvent_corruption_cases() -> None:
 
 
 def test_BackpackRawTradeEvent_real_json_edge_case() -> None:
-    """Validate BackpackRawTradeEvent using a real JSON payload with edge values."""
+    """Validate BackpackRawPublicTradeEvent using a real JSON payload with edge values."""
     payload = {
         "e": "trade",
         "E": 9223372036854775807,
@@ -356,7 +356,7 @@ def test_BackpackRawTradeEvent_real_json_edge_case() -> None:
         "T": 9223372036854775807,
         "m": True,
     }
-    obj = BackpackRawTradeEvent.model_validate(payload)
+    obj = BackpackRawPublicTradeEvent.model_validate(payload)
     assert obj.symbol == "BTC_😀"
     assert obj.price == "0.00000001"
     assert obj.is_buyer_the_maker is True
@@ -367,7 +367,7 @@ def test_BackpackRawTradeEvent_corruption_null_e() -> None:
     p = valid_trade_event().copy()
     p["e"] = None
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_corruption_binary_s() -> None:
@@ -375,7 +375,7 @@ def test_BackpackRawTradeEvent_corruption_binary_s() -> None:
     p = valid_trade_event().copy()
     p["s"] = b"\x00\x01"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_corruption_nested_p() -> None:
@@ -383,7 +383,7 @@ def test_BackpackRawTradeEvent_corruption_nested_p() -> None:
     p = valid_trade_event().copy()
     p["p"] = {"foo": "bar"}
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_corruption_list_q() -> None:
@@ -391,7 +391,7 @@ def test_BackpackRawTradeEvent_corruption_list_q() -> None:
     p = valid_trade_event().copy()
     p["q"] = ["0.01"]
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
@@ -399,7 +399,7 @@ def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
     p = valid_trade_event().copy()
     p["s"] = "BTC_\udce2\udc28\udc00"
     with pytest.raises(ValidationError):
-        BackpackRawTradeEvent.model_validate(p)
+        BackpackRawPublicTradeEvent.model_validate(p)
 
 
 # --- BackpackRawFill ---

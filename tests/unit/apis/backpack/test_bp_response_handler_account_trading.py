@@ -11,7 +11,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -524,16 +524,18 @@ class TestHandleGetTradeHistoryResponse:
 
     def test_valid(self, valid_raw_trade_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw trade history response."""
-        trades: list[BackpackRawTrade] = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", valid_raw_trade_history),
-            None,
+        trades: list[BackpackRawPublicTrade] = (
+            BackpackResponseHandler.handle_get_trade_history_response(
+                cast("RawJsonResponse", valid_raw_trade_history),
+                None,
+            )
         )
         assert isinstance(trades, list)
         assert len(trades) == 2
 
         # Check first trade
         trade1 = trades[0]
-        assert isinstance(trade1, BackpackRawTrade)
+        assert isinstance(trade1, BackpackRawPublicTrade)
         assert trade1.symbol == "SOL_USDC"
         assert trade1.price == "141.00"
         assert trade1.quantity == "1.5"

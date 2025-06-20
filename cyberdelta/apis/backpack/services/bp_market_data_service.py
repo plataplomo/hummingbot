@@ -39,7 +39,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 
 # Assuming BackpackRawTrade is for individual trades, used in lists
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublicTrade
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Import ParsedJsonResponse
 
 # Base API error models
@@ -521,7 +521,7 @@ class BackpackMarketDataService:
         headers: dict[str, str],
     ) -> list[Trade]:
         """Process and transform recent trades response."""
-        raw_trade_models: list[BackpackRawRecentTrade] = (
+        raw_trade_models: list[BackpackRawRecentPublicTrade] = (
             self._response_handler.handle_get_recent_trades_response(
                 raw_data_list,
                 symbol,

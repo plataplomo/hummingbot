@@ -13,7 +13,10 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawOrderBook,
     BackpackRawTicker,
 )
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import (
+    BackpackRawPublicTrade,
+    BackpackRawRecentPublicTrade,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -214,7 +217,7 @@ class TestHandleGetRecentTradesResponse:
 
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
-        trades: list[BackpackRawRecentTrade] = (
+        trades: list[BackpackRawRecentPublicTrade] = (
             BackpackResponseHandler.handle_get_recent_trades_response(
                 cast("RawJsonResponse", valid_raw_recent_trades),
                 symbol_spot,
@@ -223,7 +226,7 @@ class TestHandleGetRecentTradesResponse:
             )
         )
         assert len(trades) == 2
-        assert isinstance(trades[0], BackpackRawRecentTrade)
+        assert isinstance(trades[0], BackpackRawRecentPublicTrade)
         assert trades[0].id == 1001
         assert trades[0].price == "141.00"
         assert trades[0].quantity == "1.5"
@@ -231,7 +234,7 @@ class TestHandleGetRecentTradesResponse:
         assert trades[0].timestamp == 1678886402000
         assert trades[0].is_buyer_maker is False
 
-        assert isinstance(trades[1], BackpackRawRecentTrade)
+        assert isinstance(trades[1], BackpackRawRecentPublicTrade)
         assert trades[1].id == 1002
         assert trades[1].price == "141.01"
         assert trades[1].quantity == "0.5"
@@ -413,7 +416,7 @@ class TestHandleGetHistoricalTradesResponse:
         symbol_spot: str,
     ) -> None:
         """Test handling a valid raw historical trades response."""
-        trades: list[BackpackRawTrade] = (
+        trades: list[BackpackRawPublicTrade] = (
             BackpackResponseHandler.handle_get_historical_trades_response(
                 cast("RawJsonResponse", valid_raw_historical_trades),
                 symbol_spot,
@@ -424,7 +427,7 @@ class TestHandleGetHistoricalTradesResponse:
         assert isinstance(trades, list)
         assert len(trades) == 2
 
-        assert isinstance(trades[0], BackpackRawTrade)
+        assert isinstance(trades[0], BackpackRawPublicTrade)
         assert trades[0].id == "1001"
         assert trades[0].order_id == "histOrderA"
         assert trades[0].symbol == symbol_spot
@@ -432,7 +435,7 @@ class TestHandleGetHistoricalTradesResponse:
         assert trades[0].quantity == "2.0"
         assert trades[0].time == 1678880000000
 
-        assert isinstance(trades[1], BackpackRawTrade)
+        assert isinstance(trades[1], BackpackRawPublicTrade)
         assert trades[1].id == "1002"
         assert trades[1].order_id == "histOrderB"
         assert trades[1].symbol == symbol_spot

@@ -26,7 +26,6 @@ from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAc
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError, TransformationError
@@ -1665,7 +1664,7 @@ class BackpackAccountService:
         args: GetTradeHistoryArgs,
     ) -> tuple[ParsedJsonResponse, int]:
         """Execute trade history API request."""
-        endpoint_path = "/api/v1/history/fills"
+        endpoint_path = "/wapi/v1/history/fills"
 
         params = self._request_builder.build_get_trade_history_params(
             symbol=args.symbol,
@@ -1707,26 +1706,28 @@ class BackpackAccountService:
         raw_data: ParsedJsonResponse,
         args: GetTradeHistoryArgs,
     ) -> list[Trade]:
-        """Process and transform trade history response."""
-        raw_trades_list: list[BackpackRawTrade] = (
-            self._response_handler.handle_get_trade_history_response(raw_data, args.symbol)
-        )
+        """Process and transform trade history response.
+
+        Since we're using /wapi/v1/history/fills endpoint, we get BackpackRawFill format.
+        """
+        # Use fills handler since we're calling /wapi/v1/history/fills
+        raw_fills_list = self._response_handler.handle_get_fills_response(raw_data, args.symbol)
 
         internal_trades: list[Trade] = []
-        for raw_trade_model in raw_trades_list:
+        for raw_fill_model in raw_fills_list:
             try:
-                trade = self._mapper.transform_raw_trade_to_internal(raw_trade_model)
+                trade = self._mapper.transform_raw_fill_to_internal(raw_fill_model)
                 if trade is not None:  # Mapper can return None
                     internal_trades.append(trade)
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
-                    f"[{self._exchange_name}] Skipping trade history mapping for trade "
-                    f"'{raw_trade_model.id}' due to error: {e_map_item}. Raw: "
-                    f"{raw_trade_model.model_dump_json(exclude_none=True)}",
+                    f"[{self._exchange_name}] Skipping fill mapping for order "
+                    f"'{raw_fill_model.order_id}' due to error: {e_map_item}. Raw: "
+                    f"{raw_fill_model.model_dump_json(exclude_none=True)}",
                 )
 
         logger.debug(
-            f"[{self._exchange_name}] Mapped internal trade history: {len(internal_trades)} trades",
+            f"[{self._exchange_name}] Mapped internal trades from fills: {len(internal_trades)} trades",
         )
         return internal_trades
 

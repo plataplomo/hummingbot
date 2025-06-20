@@ -3,15 +3,19 @@
 These tests verify market order functionality against real Hyperliquid APIs,
 ensuring proper order execution, liquidity checking, and error handling.
 All tests follow TESTING_SECURITY_RULES.md strictly.
+
+Tests use pytest-recording (VCR) for deterministic test execution with cassettes.
 """
 
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
+from cyberdelta.apis.models.service_args_models import GetMarketArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
@@ -25,6 +29,9 @@ from tests.integration.core.execution.orders.test_helpers import MarketOrderTest
 
 logger = get_logger(__name__)
 
+# Mark all tests in this file for VCR cassette recording
+pytestmark = [pytest.mark.integration, pytest.mark.vcr]
+
 # Module-level storage for order data between tests
 _test_order_data: dict[str, str | Decimal | None] = {
     "hyperliquid_buy_order_id": None,
@@ -35,9 +42,15 @@ _test_order_data: dict[str, str | Decimal | None] = {
 class TestHyperliquidMarketOrderIntegration:
     """Integration tests for Hyperliquid market orders."""
 
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["core/execution/orders/hyperliquid"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_market_buy_order_btc_perp(
-        self, hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+        self,
+        hyperliquid_api: HyperliquidAPI,
+        market_order_config: MarketOrderConfig,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing a market buy order for BTC perpetual.
 
@@ -91,7 +104,9 @@ class TestHyperliquidMarketOrderIntegration:
                 f"Order not filled. Status: {filled_order.status}"
             )
             assert filled_order.quantity_filled is not None, "Filled order missing quantity_filled"
-            assert filled_order.quantity_filled > Decimal("0"), "No quantity was filled"
+            assert filled_order.quantity_filled is not None and filled_order.quantity_filled > 0, (
+                "No quantity was filled"
+            )
 
             # Verify order appears in history
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
@@ -116,9 +131,15 @@ class TestHyperliquidMarketOrderIntegration:
                 "Market order execution is a critical operation that must work reliably."
             )
 
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["core/execution/orders/hyperliquid"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_market_sell_previous_buy_btc_perp(
-        self, hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+        self,
+        hyperliquid_api: HyperliquidAPI,
+        market_order_config: MarketOrderConfig,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test selling the BTC bought in previous test.
 
@@ -198,20 +219,23 @@ class TestHyperliquidMarketOrderIntegration:
                 f"Order not filled. Status: {filled_order.status}"
             )
             assert filled_order.quantity_filled is not None, "Filled order missing quantity_filled"
-            assert filled_order.quantity_filled > Decimal("0"), "No quantity was filled"
-
-            # Verify we sold approximately what we bought (allowing for rounding)
-            from decimal import ROUND_DOWN
-
-            expected_quantity = sell_quantity.quantize(Decimal("0.001"), rounding=ROUND_DOWN)
-            actual_quantity = filled_order.quantity_filled.quantize(
-                Decimal("0.001"), rounding=ROUND_DOWN
+            assert filled_order.quantity_filled is not None and filled_order.quantity_filled > 0, (
+                "No quantity was filled"
             )
 
-            assert actual_quantity >= expected_quantity * Decimal("0.99"), (
-                f"Sold quantity {actual_quantity} significantly less than "
-                f"expected {expected_quantity}"
-            )
+            # Verify exact quantity was filled - exchanges should handle exact amounts
+            # No arbitrary tolerances allowed per security rules
+            market = await hyperliquid_api.get_market(GetMarketArgs(symbol=symbol))
+            if market and market.step_size and filled_order.quantity_filled:
+                # Both quantities should be rounded to same step size by exchange
+                steps_requested = int(sell_quantity / market.step_size)
+                steps_filled = int(filled_order.quantity_filled / market.step_size)
+                assert steps_requested == steps_filled, (
+                    f"Filled quantity {filled_order.quantity_filled} does not match "
+                    f"requested {sell_quantity} when rounded to step size {market.step_size}"
+                )
+            else:
+                pytest.fail("Cannot verify quantity without market step size")
 
             # Verify order appears in history
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
@@ -236,9 +260,15 @@ class TestHyperliquidMarketOrderIntegration:
                 "Market order execution is a critical operation that must work reliably."
             )
 
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["core/execution/orders/hyperliquid"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_insufficient_liquidity_error(
-        self, hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+        self,
+        hyperliquid_api: HyperliquidAPI,
+        market_order_config: MarketOrderConfig,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that insufficient liquidity is properly detected and raises error.
 
@@ -257,14 +287,14 @@ class TestHyperliquidMarketOrderIntegration:
             # Calculate total available liquidity on ask side
             total_ask_quantity = sum(price_qty[1] for price_qty in orderbook.asks)
 
-            # Try to buy 2x the available liquidity
-            excessive_quantity = total_ask_quantity * Decimal("2")
+            # Try to buy more than available liquidity
+            # Add one step size to ensure we exceed available
+            market = await hyperliquid_api.get_market(GetMarketArgs(symbol=symbol))
+            if not market or not market.step_size:
+                pytest.fail(f"Cannot get market constraints for {symbol}")
 
-            # Ensure it meets minimum order requirements
-            min_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-                hyperliquid_api, symbol, OrderSide.BUY
-            )
-            excessive_quantity = max(excessive_quantity, min_quantity * Decimal("1000"))
+            # Exceed available liquidity by exactly one step
+            excessive_quantity = total_ask_quantity + market.step_size
 
             logger.info(
                 f"Testing insufficient liquidity with quantity {excessive_quantity} "
@@ -300,9 +330,15 @@ class TestHyperliquidMarketOrderIntegration:
         except Exception as e:
             pytest.fail(f"Expected InsufficientLiquidityError but got {type(e).__name__}: {e}")
 
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["core/execution/orders/hyperliquid"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_price_deviation_protection(
-        self, hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+        self,
+        hyperliquid_api: HyperliquidAPI,
+        market_order_config: MarketOrderConfig,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that excessive price deviation is properly detected.
 
@@ -316,11 +352,21 @@ class TestHyperliquidMarketOrderIntegration:
             hyperliquid_api, symbol, OrderSide.BUY
         )
 
-        # Create config with extremely tight slippage
+        # Get market data to determine realistic tight slippage
+        ticker = await hyperliquid_api.get_ticker(symbol)
+        if not ticker or not ticker.bid or not ticker.ask:
+            pytest.fail(f"Cannot get ticker data for {symbol}")
+
+        # Use half the current spread as tight slippage
+        spread_pct = (ticker.ask - ticker.bid) / ticker.bid
+        tight_slippage = spread_pct / 2
+
+        # Create config with market-based tight slippage
+        # Use existing config's liquidity ratio - no arbitrary values
         tight_config = MarketOrderConfig(
-            default_slippage_pct=Decimal("0.0001"),  # 0.01% - extremely tight
-            max_slippage_pct=Decimal("0.0001"),  # Same as default
-            min_liquidity_ratio=Decimal("2.0"),
+            default_slippage_pct=tight_slippage,
+            max_slippage_pct=tight_slippage,
+            min_liquidity_ratio=market_order_config.min_liquidity_ratio,
             order_timeout_seconds=30,
         )
 
@@ -336,7 +382,7 @@ class TestHyperliquidMarketOrderIntegration:
                 symbol=symbol,
                 side=OrderSide.BUY,
                 quantity=test_quantity,
-                max_slippage=Decimal("0.0001"),  # Explicitly set tight slippage
+                max_slippage=tight_slippage,  # Use market-based tight slippage
             )
 
             # If it didn't fail, that's okay - market might have tight spreads
@@ -359,9 +405,15 @@ class TestHyperliquidMarketOrderIntegration:
                 "Expected either success or PriceDeviationError."
             )
 
+    @pytest.mark.parametrize(
+        "custom_vcr_cassette_dir", ["core/execution/orders/hyperliquid"], indirect=True
+    )
     @pytest.mark.asyncio
     async def test_market_order_metrics_tracking(
-        self, hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+        self,
+        hyperliquid_api: HyperliquidAPI,
+        market_order_config: MarketOrderConfig,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that market order metrics are properly tracked.
 
@@ -406,7 +458,7 @@ class TestHyperliquidMarketOrderIntegration:
 
             # Verify fill details for metrics
             assert filled_order.quantity_filled is not None, "Should have filled quantity"
-            assert filled_order.quantity_filled > Decimal("0"), "Should have positive fill"
+            assert filled_order.quantity_filled > 0, "Should have positive fill"
 
             if filled_order.average_fill_price:
                 logger.info(
@@ -433,8 +485,10 @@ class TestHyperliquidMarketOrderIntegration:
                 )
 
             except Exception as e:
-                logger.error(f"Failed to clean up position: {e}")
-                # Don't fail test for cleanup issues
+                pytest.fail(
+                    f"Failed to clean up position: {e}. "
+                    "Position cleanup is critical and must succeed."
+                )
 
         except Exception as e:
             pytest.fail(
@@ -451,4 +505,8 @@ class TestHyperliquidMarketOrderIntegration:
         try:
             await MarketOrderTestHelpers.cleanup_test_positions(hyperliquid_api, "BTC")
         except Exception as e:
-            logger.error(f"Error during test cleanup: {e}")
+            # Cleanup errors should not be silenced
+            pytest.fail(
+                f"Error during test cleanup: {e}. "
+                "Test cleanup is critical to prevent interference with other tests."
+            )

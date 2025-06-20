@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.core.execution.orders.errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order import MarketOrder
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order

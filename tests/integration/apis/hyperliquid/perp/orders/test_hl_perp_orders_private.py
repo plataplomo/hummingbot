@@ -363,13 +363,37 @@ class TestHyperliquidPerpOrdersPrivate:
             hl_api_for_test_env, test_symbol
         )
 
-        # Use the minimum allowed quantity (edge case)
-        edge_quantity = constraints["min_quantity"]
-
         # Get a safe test price far below market to avoid filling
         edge_price = await get_safe_test_price(
             hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
         )
+
+        # Calculate quantity that meets both minimum quantity AND minimum notional requirements
+        # This ensures the test can actually run instead of being skipped
+        min_quantity = constraints["min_quantity"]
+        step_size = constraints["step_size"]
+        
+        # Hyperliquid has a $10 minimum notional value requirement
+        # Add buffer to ensure we're safely above the minimum due to precision issues
+        MIN_NOTIONAL_USD = Decimal("10.50")  # $10.50 to ensure we're safely above $10.00
+        min_qty_for_notional = MIN_NOTIONAL_USD / edge_price
+        
+        # Use the larger of: exchange min quantity OR quantity for $10.50 notional
+        required_min_quantity = max(min_quantity, min_qty_for_notional)
+        
+        # Round up to next valid step size to ensure we meet minimums
+        from decimal import ROUND_UP
+        rounded_steps = (required_min_quantity / step_size).quantize(
+            Decimal("1"), rounding=ROUND_UP
+        )
+        edge_quantity = rounded_steps * step_size
+        
+        # Ensure we meet exchange minimum quantity
+        if edge_quantity < min_quantity:
+            edge_quantity = min_quantity
+        
+        # Calculate final notional value for verification
+        notional_value = edge_quantity * edge_price
 
         # Create order with edge case precision values
         precision_args = PlaceOrderArgs(
@@ -381,6 +405,11 @@ class TestHyperliquidPerpOrdersPrivate:
             time_in_force=TimeInForce.GTC,
         )
 
+        # Verify this is actually testing precision (quantity uses step size properly)        
+        assert notional_value >= Decimal("10.00"), (
+            f"Test should meet Hyperliquid's minimum notional requirements: {notional_value} >= 10.00"
+        )
+        
         try:
             placed_order = await hl_api_for_test_env.place_order(precision_args)
 
@@ -388,6 +417,13 @@ class TestHyperliquidPerpOrdersPrivate:
             assert placed_order.quantity_requested == edge_quantity, (
                 f"Order quantity precision should be maintained: "
                 f"{placed_order.quantity_requested} vs {edge_quantity}"
+            )
+            
+            # Validate the order actually tests precision at a reasonable level
+            # (not just using huge quantities that don't test precision)
+            max_reasonable_quantity = min_quantity * Decimal("100")  # Within 100x of minimum
+            assert edge_quantity <= max_reasonable_quantity, (
+                f"Precision test should use reasonable quantities: {edge_quantity} <= {max_reasonable_quantity}"
             )
 
             # Clean up the order
@@ -399,13 +435,17 @@ class TestHyperliquidPerpOrdersPrivate:
                 await hl_api_for_test_env.cancel_order(cancel_args)
 
         except APIError as e:
-            # Distinguish expected business logic errors from system failures
-            if any(phrase in e.message.lower() for phrase in ["minimum", "precision", "size"]):
-                # Expected business logic error - order correctly rejected due to precision
-                pytest.skip(f"Exchange has minimum quantity requirements: {e.message}")
+            # Check for minimum notional value errors (common for edge case tests)
+            if "minimum value" in e.message.lower() or "minimum notional" in e.message.lower():
+                pytest.skip(f"Minimum notional value not met for precision test: {e.message}")
+            elif "insufficient" in e.message.lower():
+                pytest.skip(f"Insufficient funds for precision test: {e.message}")
             else:
-                # Unexpected system error
-                pytest.fail(f"Unexpected error in precision edge case test: {e}")
+                # This is a real error that should fail the test
+                pytest.fail(f"Precision edge case test failed unexpectedly: {e.message}")
+        except Exception as e:
+            # Unexpected system error
+            pytest.fail(f"Unexpected error in precision edge case test: {e}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -708,14 +748,14 @@ class TestHyperliquidPerpOrdersPrivate:
 
             # Verify order is still open (wasn't cancelled by non-matching filter)
             open_orders = await hl_api_for_test_env.get_open_orders()
-            purp_orders = [order for order in open_orders if order.symbol == "PURP"]
-            assert len(purp_orders) > 0, (
-                "PURP order should still exist after cancel_all with different symbol filter"
+            test_symbol_orders = [order for order in open_orders if order.symbol == test_symbol]
+            assert len(test_symbol_orders) > 0, (
+                f"{test_symbol} order should still exist after cancel_all with different symbol filter"
             )
 
-            # Clean up the PURP order
+            # Clean up the test symbol order
             try:
-                await hl_api_for_test_env.cancel_all_orders(symbol="PURP")
+                await hl_api_for_test_env.cancel_all_orders(symbol=test_symbol)
             except APIError as e:
                 # Order cancellation is critical - don't hide failures
                 pytest.fail(

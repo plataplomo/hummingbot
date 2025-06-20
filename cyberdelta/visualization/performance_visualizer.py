@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import plotly.express as px  # type: ignore
-import plotly.graph_objects as go  # type: ignore
-from plotly.subplots import make_subplots  # type: ignore
+import plotly.express as px  # type: ignore[import-untyped]
+import plotly.graph_objects as go  # type: ignore[import-untyped]
+from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

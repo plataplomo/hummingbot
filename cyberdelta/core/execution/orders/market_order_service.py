@@ -4,18 +4,21 @@ This service calculates aggressive prices for market order execution and
 manages the business logic for converting market orders into IoC limit orders.
 """
 
-from decimal import Decimal
+from collections.abc import Awaitable, Callable
+from decimal import ROUND_DOWN, Decimal
+from typing import cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketArgs
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.core.execution.orders.errors import (
+from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
+    MarketOrderError,
     PriceDeviationError,
 )
-from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.models import OrderBook, OrderSide
+from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.signal_generator import SignalGenerator
 
 logger = get_logger(__name__)
@@ -60,21 +63,21 @@ class MarketOrderService:
             Decimal: Calculated aggressive price for IoC limit order
 
         Raises:
-            APIError: If market data is unavailable
+            MarketOrderError: If market data is unavailable
             InsufficientLiquidityError: If insufficient liquidity
             PriceDeviationError: If price deviation exceeds limits
         """
         # 1. Get order book for accurate pricing
         order_book = await self._exchange.get_order_book(symbol)
         if not order_book or not order_book.bids or not order_book.asks:
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message=f"Cannot calculate market order price: no order book for {symbol}",
+            raise MarketOrderError(
+                f"Cannot calculate market order price: no order book for {symbol}"
             )
 
         # 2. Check liquidity sufficiency
         available_liquidity = self._calculate_available_liquidity(order_book, side, quantity)
-        if available_liquidity < quantity:
+        required_liquidity = quantity * self._config.min_liquidity_ratio
+        if available_liquidity < required_liquidity:
             raise InsufficientLiquidityError(
                 symbol=symbol,
                 requested_quantity=quantity,
@@ -107,7 +110,7 @@ class MarketOrderService:
         self._validate_price_bounds(aggressive_price, symbol, reference_price)
 
         # 8. Round to tick size if available
-        return self._round_to_tick_size(aggressive_price, symbol)
+        return await self.round_to_tick_size(aggressive_price, symbol)
 
     def _calculate_available_liquidity(
         self, order_book: OrderBook, side: OrderSide, quantity: Decimal
@@ -171,7 +174,7 @@ class MarketOrderService:
 
         Raises:
             PriceDeviationError: If price deviation exceeds limits
-            APIError: If price is invalid
+            MarketOrderError: If price is invalid
         """
         # Maximum deviation from reference price
         max_deviation = self._config.max_price_deviation_pct
@@ -188,12 +191,9 @@ class MarketOrderService:
 
         # Ensure price is positive and finite
         if not aggressive_price.is_finite() or aggressive_price <= Decimal("0"):
-            raise APIError(
-                code=APIErrorCode.PRICE_OUT_OF_RANGE.value,
-                message=f"Invalid aggressive price: {aggressive_price}",
-            )
+            raise MarketOrderError(f"Invalid aggressive price: {aggressive_price}")
 
-    def _round_to_tick_size(self, price: Decimal, symbol: str) -> Decimal:
+    async def round_to_tick_size(self, price: Decimal, symbol: str) -> Decimal:
         """Round price to exchange tick size.
 
         Args:
@@ -203,9 +203,68 @@ class MarketOrderService:
         Returns:
             Decimal: Rounded price
         """
-        # TODO: Get tick size from market metadata when available
-        # For now, return the price as-is
-        return price
+        try:
+            # Get market metadata from exchange
+            market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
+
+            if market and market.tick_size:
+                # Round to nearest tick_size multiple
+                tick_size = market.tick_size
+                rounded = (price / tick_size).quantize(
+                    Decimal("1"), rounding=ROUND_DOWN
+                ) * tick_size
+                logger.debug(
+                    f"Rounded price for {symbol} using tick_size {tick_size}: {price} -> {rounded}"
+                )
+                return rounded
+            else:
+                logger.warning(f"No tick size found for {symbol}, returning original price")
+                return price
+
+        except MarketOrderError:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Failed to get market metadata for {symbol}: {e}, returning original price"
+            )
+            return price
+
+    async def round_to_step_size(self, quantity: Decimal, symbol: str) -> Decimal:
+        """Round quantity to exchange step size.
+
+        Args:
+            quantity: Quantity to round
+            symbol: Trading symbol
+
+        Returns:
+            Decimal: Rounded quantity
+        """
+        try:
+            # Get market metadata from exchange
+            market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
+
+            if market and market.step_size:
+                # Round to nearest step_size multiple
+                step_size = market.step_size
+                rounded = (quantity / step_size).quantize(
+                    Decimal("1"), rounding=ROUND_DOWN
+                ) * step_size
+                logger.debug(
+                    f"Rounded quantity for {symbol} using step_size {step_size}: "
+                    f"{quantity} -> {rounded}"
+                )
+                return rounded
+            else:
+                logger.warning(f"No step size found for {symbol}, returning original quantity")
+                return quantity
+
+        except MarketOrderError:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Failed to get market metadata for {symbol}: {e}, returning original quantity"
+            )
+            return quantity
 
     async def get_reference_price_all_mids(self, symbol: str) -> Decimal | None:
         """Get reference price from AllMids endpoint if available.
@@ -224,9 +283,12 @@ class MarketOrderService:
             if hasattr(self._exchange, "get_all_mids"):
                 get_all_mids_method = getattr(self._exchange, "get_all_mids", None)
                 if get_all_mids_method and callable(get_all_mids_method):
-                    all_mids = await get_all_mids_method()
-                    mid_price: Decimal | None = all_mids.get(symbol)
-                    return mid_price
+                    # Type assertion for dynamic method
+                    typed_method = cast(Callable[[], Awaitable[MidPrices]], get_all_mids_method)
+                    all_mids = await typed_method()
+                    return all_mids.get(symbol)
+        except MarketOrderError:
+            raise
         except Exception as e:
             logger.debug(f"Failed to fetch AllMids: {e}")
 

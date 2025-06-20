@@ -310,6 +310,7 @@ class BackpackTradingDataMapper:
         )
 
         if avg_fill_price is not None:
+            logger.debug(f"Using provided avgFillPrice {avg_fill_price} for order {raw_order.id}")
             return avg_fill_price
 
         # If no avgFillPrice but order has fills, calculate from quote quantity
@@ -320,13 +321,18 @@ class BackpackTradingDataMapper:
 
             if executed_quote is not None and executed_quote > 0:
                 calculated_avg_price = executed_quote / quantity_filled
-                logger.debug(
-                    f"Calculated average fill price {calculated_avg_price} for "
-                    f"order {raw_order.id} from executedQuoteQuantity {executed_quote} "
-                    f"/ executedQuantity {quantity_filled}"
-                )
                 return calculated_avg_price
+            else:
+                logger.warning(
+                    f"Could not calculate average fill price for order {raw_order.id}: "
+                    f"executed_quote={executed_quote}, quantity_filled={quantity_filled}"
+                )
 
+        logger.warning(
+            f"No average fill price available for order {raw_order.id}: "
+            f"avgFillPrice={raw_order.avgFillPrice}, quantity_filled={quantity_filled}, "
+            f"executedQuoteQuantity={raw_order.executedQuoteQuantity}"
+        )
         return None
 
     @staticmethod
@@ -443,6 +449,7 @@ class BackpackTradingDataMapper:
                 else None,
             )
 
+            # Create Order directly with all parameters
             return Order(
                 exchange_order_id=raw_order.id,
                 symbol=raw_order.symbol,
@@ -468,6 +475,10 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
+            logger.error(
+                f"Failed to transform order {raw_order.id}: {e}. "
+                f"average_fill_price={average_fill_price if 'average_fill_price' in locals() else 'NOT SET'}"
+            )
             raise TransformationError(f"Failed to transform BackpackRawOrder to Order: {e}") from e
 
     @staticmethod

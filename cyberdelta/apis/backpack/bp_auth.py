@@ -78,6 +78,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             ("DELETE", "/api/v1/orders"): "orderCancelAll",
             ("GET", "/api/v1/order"): "orderQuery",
             ("GET", "/api/v1/orders"): "orderQueryAll",
+            ("GET", "/api/v1/order/{orderId}"): "orderQuery",  # Order status by ID
             # Deposit endpoints (wapi)
             ("GET", "/wapi/v1/capital/deposits"): "depositQueryAll",
             ("GET", "/wapi/v1/capital/deposit/address"): "depositAddressQuery",
@@ -90,6 +91,9 @@ class BackpackEd25519Authenticator(IAuthenticator):
             ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
             ("GET", "/wapi/v1/history/pnl"): "pnlHistoryQueryAll",
             ("GET", "/wapi/v1/history/settlement"): "settlementHistoryQueryAll",
+            # API v1 history endpoints
+            ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
+            ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
             # Borrow/Lend History endpoints (wapi)
             ("GET", "/wapi/v1/history/borrowLend"): "borrowHistoryQueryAll",
             ("GET", "/wapi/v1/history/borrowLend/positions"): "borrowPositionHistoryQueryAll",

@@ -410,7 +410,7 @@ def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecre
     return secrets
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
     """Environment-aware ExchangeSpecificConfig fixture for Backpack.
 
@@ -419,7 +419,7 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
     return test_app_settings.exchanges["backpack"]
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
     """Environment-aware ApiKeyAuthSecrets fixture for Backpack.
 

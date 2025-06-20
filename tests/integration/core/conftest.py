@@ -26,7 +26,11 @@ from cyberdelta.core.execution.orders import (
 # are imported from tests.fixtures.config_fixtures via tests/conftest.py
 
 
-@pytest_asyncio.fixture(scope="session")
+# Event loop configuration is handled by pytest-asyncio
+# Using loop_scope in asyncio marks instead of redefining event_loop fixture
+
+
+@pytest_asyncio.fixture
 async def hyperliquid_api(
     active_hl_config: ExchangeSpecificConfig,
     active_hl_secrets: PrivateKeyAuthSecrets,
@@ -45,7 +49,7 @@ async def hyperliquid_api(
     await api.close()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def backpack_api(
     active_bp_config: ExchangeSpecificConfig,
     active_bp_secrets: ApiKeyAuthSecrets,

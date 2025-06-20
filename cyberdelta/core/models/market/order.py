@@ -165,10 +165,34 @@ class Order(BaseModel):
             raise ValueError("Field name is unexpectedly None during validation.")
         return validate_str_field(v, field_name=field_name, max_length=64)
 
+    @field_validator("average_fill_price", mode="before")
+    @classmethod
+    def validate_average_fill_price(
+        cls,
+        v: str | int | float | Decimal | None,
+        info: ValidationInfo,
+    ) -> Decimal | None:
+        """Validate average fill price specifically."""
+        if v is None:
+            return None
+        if isinstance(v, Decimal):
+            # Already a Decimal, just validate it
+            if not v.is_finite():
+                raise ValueError("average_fill_price: Value must be finite")
+            # Don't validate positive here, do it in model validator
+            return v
+        # Parse from string/int/float
+        parsed = parse_decimal_value(v, field_name="average_fill_price", allow_none=True)
+        if parsed is None:
+            return None
+        if not parsed.is_finite():
+            raise ValueError("average_fill_price: Value must be finite")
+        # Don't validate positive here, do it in model validator
+        return parsed
+
     @field_validator(
         "price",
         "stop_price",
-        "average_fill_price",
         "quote_quantity_requested",
         mode="before",
     )
@@ -178,7 +202,7 @@ class Order(BaseModel):
         v: str | int | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite and positive if present (via Field)."""
+        """Parse optional decimal, ensuring finite and positive if present."""
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -187,7 +211,7 @@ class Order(BaseModel):
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         if parsed is None:  # Input format was invalid
             return None
-        # Check finiteness. gt=0 handled by Field.
+        # Check finiteness and positive value
         if not parsed.is_finite():
             raise ValueError(f"{field_name}: Value must be finite if provided")
         return parsed

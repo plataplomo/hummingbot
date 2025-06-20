@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -448,7 +448,7 @@ class TestBackpackAccountServiceHistoryOperations:
             "time": 1234567890000,
         }
         mock_raw_response = [mock_raw_trade_data]
-        mock_validated_raw_trades = [BackpackRawTrade.model_validate(mock_raw_trade_data)]
+        mock_validated_raw_trades = [BackpackRawPublicTrade.model_validate(mock_raw_trade_data)]
 
         expected_trade = Trade(
             id="trade_123",
@@ -563,9 +563,9 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         # Create a ValidationError by trying to validate invalid data
         try:
-            from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+            from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 
-            BackpackRawTrade.model_validate({"invalid": "data"})
+            BackpackRawPublicTrade.model_validate({"invalid": "data"})
         except ValidationError as e:
             mock_response_handler.handle_get_trade_history_response.side_effect = e
 

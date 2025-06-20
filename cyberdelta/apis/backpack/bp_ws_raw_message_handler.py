@@ -18,7 +18,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.models import (
     BackpackRawOrderUpdate,
     BackpackRawPositionUpdate,
-    BackpackRawTradeEvent,
+    BackpackRawPublicTradeEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
@@ -103,28 +103,28 @@ class BackpackWsRawMessageHandler:
             ) from e
 
     @staticmethod
-    def handle_trade_event_payload(payload: dict[str, Any]) -> BackpackRawTradeEvent:
+    def handle_trade_event_payload(payload: dict[str, Any]) -> BackpackRawPublicTradeEvent:
         """Validate a raw WebSocket trade event (fill) payload.
 
         This method ensures that a raw dictionary payload, representing a trade
         or fill event from Backpack's WebSocket stream, conforms to the
-        `BackpackRawTradeEvent` Pydantic model.
+        `BackpackRawPublicTradeEvent` Pydantic model.
 
         Args:
             payload: The raw dictionary payload of the WebSocket message,
                      expected to represent a trade event.
 
         Returns:
-            A validated `BackpackRawTradeEvent` instance upon successful validation.
+            A validated `BackpackRawPublicTradeEvent` instance upon successful validation.
 
         Raises:
             APIError: If `pydantic.ValidationError` occurs due to the payload not
-                      matching the `BackpackRawTradeEvent` schema. The error code
+                      matching the `BackpackRawPublicTradeEvent` schema. The error code
                       will be `APIErrorCode.INVALID_RESPONSE`.
 
         """
         try:
-            validated_model = BackpackRawTradeEvent.model_validate(payload)
+            validated_model = BackpackRawPublicTradeEvent.model_validate(payload)
             return validated_model
         except ValidationError as e:
             raise APIError(

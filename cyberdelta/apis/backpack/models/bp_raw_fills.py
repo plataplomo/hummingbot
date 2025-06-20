@@ -58,6 +58,7 @@ class BackpackRawFill(BaseModel):
         timestamp (str): The ISO 8601 timestamp of the fill.
         trade_id (int): The unique ID of the trade.
         client_id (str | None): Optional client-specified order ID (max_length=128).
+        system_order_type (str | None): Optional system order type from the exchange.
 
     """
 
@@ -75,6 +76,7 @@ class BackpackRawFill(BaseModel):
     timestamp: RawBpIsoTimestampString = Field(..., alias="timestamp")
     trade_id: RawBpNonNegativeInt = Field(..., alias="tradeId")
     client_id: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="clientId")
+    system_order_type: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="systemOrderType")
 
 
 # The BackpackRawFillsList model remains structurally the same but benefits from

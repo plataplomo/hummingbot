@@ -38,9 +38,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
-    BackpackRawRecentTrade,
-    BackpackRawTrade,
-    BackpackRawTradeEvent,
+    BackpackRawPublicTrade,
+    BackpackRawPublicTradeEvent,
+    BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
@@ -307,8 +307,8 @@ class BackpackMarketDataMapper:
             ) from e
 
     @staticmethod
-    def transform_raw_trade_to_internal(raw_trade: BackpackRawTrade) -> Trade:
-        """Transform a BackpackRawTrade to an Internal Trade model.
+    def transform_raw_trade_to_internal(raw_trade: BackpackRawPublicTrade) -> Trade:
+        """Transform a BackpackRawPublicTrade to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade data from Backpack
@@ -346,7 +346,7 @@ class BackpackMarketDataMapper:
                 id=raw_trade.id,
                 symbol=raw_trade.symbol,
                 executed_at=executed_at,
-                side=OrderSide.BUY,  # BackpackRawTrade doesn't have side, default to BUY
+                side=OrderSide.BUY,  # BackpackRawPublicTrade doesn't have side, default to BUY
                 order_id=raw_trade.order_id,
                 exchange=ExchangeName.BACKPACK.value,
                 price=price,
@@ -355,13 +355,15 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(f"Failed to transform BackpackRawTrade to Trade: {e}") from e
+            raise TransformationError(
+                f"Failed to transform BackpackRawPublicTrade to Trade: {e}"
+            ) from e
 
     @staticmethod
     def transform_raw_recent_trade_to_internal(
-        raw_trade: BackpackRawRecentTrade, symbol: str
+        raw_trade: BackpackRawRecentPublicTrade, symbol: str
     ) -> Trade:
-        """Transform a BackpackRawRecentTrade to an Internal Trade model.
+        """Transform a BackpackRawRecentPublicTrade to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw recent trade data from Backpack
@@ -415,7 +417,7 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawRecentTrade to Trade: {e}"
+                f"Failed to transform BackpackRawRecentPublicTrade to Trade: {e}"
             ) from e
 
     @staticmethod
@@ -706,8 +708,8 @@ class BackpackMarketDataMapper:
             ) from e
 
     @staticmethod
-    def transform_ws_trade_event_to_internal(raw_trade: BackpackRawTradeEvent) -> Trade:
-        """Transform a BackpackRawTradeEvent to an Internal Trade model.
+    def transform_ws_trade_event_to_internal(raw_trade: BackpackRawPublicTradeEvent) -> Trade:
+        """Transform a BackpackRawPublicTradeEvent to an Internal Trade model.
 
         Args:
             raw_trade: Validated raw trade event data from Backpack WebSocket
@@ -733,7 +735,7 @@ class BackpackMarketDataMapper:
             if quantity is None:
                 raise TransformationError("quantity is required for trade")
 
-            # BackpackRawTradeEvent doesn't have side info, need to determine from order IDs
+            # BackpackRawPublicTradeEvent doesn't have side info, need to determine from order IDs
             # For now, default to BUY (this would need to be enhanced based on maker/taker info)
             side = OrderSide.BUY if raw_trade.is_buyer_the_maker else OrderSide.SELL
 
@@ -759,5 +761,5 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawTradeEvent to Trade: {e}",
+                f"Failed to transform BackpackRawPublicTradeEvent to Trade: {e}",
             ) from e

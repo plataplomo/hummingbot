@@ -7,12 +7,12 @@ Backpack Exchange API. These models are used for boundary validation and transfo
 internal business logic.
 
 Models:
-    - BackpackRawTrade: Validates REST trade/fill objects (id, order_id, symbol, price,
+    - BackpackRawPublicTrade: Validates REST public trade objects (id, order_id, symbol, price,
       quantity, time).
-    - BackpackRawTradeEvent: Validates WebSocket trade event objects (event_type,
+    - BackpackRawRecentPublicTrade: Validates recent public trade objects with maker info.
+    - BackpackRawPublicTradeEvent: Validates WebSocket trade event objects (event_type,
       event_time, symbol, price, quantity, buyer/seller order IDs, trade_id,
       engine_timestamp, is_buyer_the_maker).
-    - BackpackRawFill: Validates fill records from the Backpack /wapi/v1/history/fills
 
 Validation Pattern:
     - All string fields are strictly validated for type, non-emptiness, max length, and valid UTF-8.
@@ -30,14 +30,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.backpack.models.bp_common_raw_types import (
-    RawBpExtendedOrderSideString,
     RawBpFlexibleTimestamp,
-    RawBpIsoTimestampString,
-    RawBpNonEmptyStringMax32,
     RawBpNonEmptyStringMax64,
-    RawBpNonEmptyStringMax128,
     RawBpNonNegativeInt,
-    RawBpOptionalNonEmptyStringMax128,
     RawBpParsableFiniteDecimalString,
     RawBpStrictBool,
 )
@@ -45,7 +40,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 logger = logging.getLogger("cyberdelta.models.raw")
 
 
-class BackpackRawTrade(BaseModel):
+class BackpackRawPublicTrade(BaseModel):
     """Pydantic model for a raw trade/fill from `/api/v1/trades` (Backpack REST API).
 
     This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
@@ -75,7 +70,7 @@ class BackpackRawTrade(BaseModel):
     )
 
 
-class BackpackRawRecentTrade(BaseModel):
+class BackpackRawRecentPublicTrade(BaseModel):
     """Pydantic model for a raw recent trade from `/api/v1/trades` endpoint.
 
     This model matches the actual API response structure for recent public trades,
@@ -105,7 +100,7 @@ class BackpackRawRecentTrade(BaseModel):
     )
 
 
-class BackpackRawTradeEvent(BaseModel):
+class BackpackRawPublicTradeEvent(BaseModel):
     """Pydantic model for a raw trade event from the Backpack WebSocket stream (`trade`).
 
     This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.
@@ -140,57 +135,4 @@ class BackpackRawTradeEvent(BaseModel):
         extra="forbid",
         validate_by_name=True,
         frozen=True,
-    )
-
-
-# --- Raw Fill Model (from History) ---
-
-
-class BackpackRawFill(BaseModel):
-    """Raw Pydantic model for a single fill record from Backpack /wapi/v1/history/fills.
-
-    Corresponds to the OpenAPI schema OrderFill.
-    Performs basic type validation and parsing for numeric/boolean fields.
-    """
-
-    fee: RawBpParsableFiniteDecimalString = Field(..., description="The fee charged on the fill.")
-    fee_symbol: RawBpNonEmptyStringMax32 = Field(
-        ...,
-        alias="feeSymbol",
-        description="The asset that is charged as a fee.",
-    )
-    is_maker: RawBpStrictBool = Field(
-        ...,
-        alias="isMaker",
-        description="Whether the fill was made by the maker.",
-    )
-    order_id: RawBpNonEmptyStringMax128 = Field(
-        ...,
-        alias="orderId",
-        description="The order ID of the fill.",
-    )
-    price: RawBpParsableFiniteDecimalString = Field(..., description="The price of the fill.")
-    quantity: RawBpParsableFiniteDecimalString = Field(..., description="The quantity of the fill.")
-    side: RawBpExtendedOrderSideString = Field(..., description="The side of the fill.")
-    symbol: RawBpNonEmptyStringMax64 = Field(..., description="The market symbol of the fill.")
-    timestamp: RawBpIsoTimestampString = Field(
-        ...,
-        description="The timestamp of the fill (UTC string, e.g., YYYY-MM-DDTHH:MM:SS.ffffffZ)",
-    )
-    trade_id: RawBpNonNegativeInt = Field(
-        ...,
-        alias="tradeId",
-        description="The trade ID of the fill.",
-    )
-    client_id: RawBpOptionalNonEmptyStringMax128 = Field(
-        None,
-        alias="clientId",
-        description="Client id of the order.",
-    )
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
     )

@@ -65,7 +65,11 @@ from .bp_raw_query_params import (
     BackpackRawGetTickerParams,
     BackpackRawGetTradeHistoryParams,
 )
-from .bp_raw_trade import BackpackRawRecentTrade, BackpackRawTrade, BackpackRawTradeEvent
+from .bp_raw_trade import (
+    BackpackRawPublicTrade,
+    BackpackRawPublicTradeEvent,
+    BackpackRawRecentPublicTrade,
+)
 from .bp_raw_transfer import BackpackRawDeposit, BackpackRawLiquidation, BackpackRawWithdrawal
 from .bp_ws_payloads import BackpackRawWsSubscriptionRequest
 
@@ -83,9 +87,9 @@ __all__ = [
     "BackpackRawOrderBook",
     "BackpackRawOrderUpdate",
     # Trade
-    "BackpackRawTrade",
-    "BackpackRawRecentTrade",
-    "BackpackRawTradeEvent",
+    "BackpackRawPublicTrade",
+    "BackpackRawRecentPublicTrade",
+    "BackpackRawPublicTradeEvent",
     # Funding/Market
     "BackpackRawFundingRate",
     "BackpackRawMarkPrice",

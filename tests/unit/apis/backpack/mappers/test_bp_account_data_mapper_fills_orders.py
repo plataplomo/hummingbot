@@ -18,8 +18,9 @@ from unittest.mock import patch
 import pytest
 
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
@@ -118,9 +119,9 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
     is_buyer: bool = True,
-) -> BackpackRawTrade:
-    """Create BackpackRawTrade instances for testing trade transformations."""
-    return BackpackRawTrade(
+) -> BackpackRawPublicTrade:
+    """Create BackpackRawPublicTrade instances for testing trade transformations."""
+    return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,
         price=price,
@@ -463,7 +464,7 @@ class TestTradeTransformation:
         mapper: BackpackAccountDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test that BackpackRawTrade transformation returns None due to missing side info."""
+        """Test that BackpackRawPublicTrade transformation returns None due to missing side info."""
         raw_trade = create_raw_trade(
             id="trade123",
             symbol="SOL-USDC",
@@ -510,7 +511,7 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="price missing/invalid in BackpackRawTrade",
+                match="price missing/invalid in BackpackRawPublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -545,7 +546,7 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="quantity missing/invalid in BackpackRawTrade",
+                match="quantity missing/invalid in BackpackRawPublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 

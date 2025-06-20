@@ -27,7 +27,10 @@ class HyperliquidSerializationStrategy:
         Returns:
             Dictionary with original field names (not aliases)
         """
+        # For Hyperliquid, we exclude None values to match SDK behavior
+        # The 'c' field should not be included when it's None
         return model.model_dump(
-            by_alias=False,  # Critical for Hyperliquid
-            exclude_none=not serialize_none_as_null,
+            by_alias=False,  # Critical for Hyperliquid - use actual field names (a, b, p, etc.)
+            exclude_none=True,  # Exclude None values to match SDK behavior
+            mode="python",  # Ensure python types
         )

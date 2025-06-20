@@ -137,7 +137,7 @@ class TestBackpackPerpPositionsPrivate:
         assert isinstance(position.unrealized_pnl, Decimal)
         assert isinstance(position.realized_pnl, Decimal)
 
-    def _validate_position_prices(self, position: DerivativePosition, index: int) -> None:
+    async def _validate_position_prices(self, position: DerivativePosition, api: BackpackAPI, index: int) -> None:
         """Validate price fields and relationships of a DerivativePosition."""
         if position.size != Decimal("0"):
             if position.entry_price is not None:
@@ -149,12 +149,19 @@ class TestBackpackPerpPositionsPrivate:
         assert size_precision <= 18
 
         if position.entry_price is not None:
-            entry_precision = (
-                len(str(position.entry_price).split(".")[-1])
-                if "." in str(position.entry_price)
-                else 0
+            # Get market constraints from exchange to validate entry_price precision
+            from tests.integration.apis.backpack.shared.test_helpers import get_market_constraints
+            
+            constraints = await get_market_constraints(api, position.symbol)
+            tick_size = constraints["tick_size"]
+            
+            # Validate that entry_price respects the exchange's tick_size precision
+            # Entry prices should be valid multiples of tick_size
+            remainder = position.entry_price % tick_size
+            assert remainder == Decimal("0"), (
+                f"Entry price {position.entry_price} for {position.symbol} doesn't respect "
+                f"exchange tick_size {tick_size}. Remainder: {remainder}"
             )
-            assert entry_precision <= 18
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -195,7 +202,7 @@ class TestBackpackPerpPositionsPrivate:
         for i, position in enumerate(positions):
             self._validate_position_core_fields(position, i)
             self._validate_position_decimal_fields(position, i)
-            self._validate_position_prices(position, i)
+            await self._validate_position_prices(position, bp_api_for_test_env, i)
 
             if position.bp_details:
                 bp_details = position.bp_details

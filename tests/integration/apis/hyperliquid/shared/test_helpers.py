@@ -482,6 +482,61 @@ class HyperliquidTestHelpers:
             ) from e
 
     @staticmethod
+    async def get_minimal_order_size_for_zero_balance(
+        api: HyperliquidAPI,
+        symbol: str,
+        side: OrderSide,
+        price: Decimal | None = None,
+    ) -> Decimal:
+        """Calculate minimal viable order size for zero balance accounts.
+
+        This method returns the exchange minimum quantity without requiring
+        account equity, making it suitable for zero balance testing scenarios.
+
+        Args:
+            api: HyperliquidAPI instance
+            symbol: Trading symbol
+            side: Order side
+            price: Order price (if None, uses current market price)
+
+        Returns:
+            Exchange minimum order quantity (ignores notional requirements)
+
+        Raises:
+            RuntimeError: If unable to determine valid order size
+        """
+        try:
+            constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
+            min_quantity = constraints["min_quantity"]
+            step_size = constraints["step_size"]
+
+            # For zero balance tests, just return the exchange minimum
+            # Round to next valid step size if needed
+            from decimal import ROUND_UP
+
+            rounded_steps = (min_quantity / step_size).quantize(
+                Decimal("1"), rounding=ROUND_UP
+            )
+            final_quantity = rounded_steps * step_size
+
+            # Ensure we meet exchange minimum
+            if final_quantity < min_quantity:
+                final_quantity = min_quantity
+
+            logger.info(
+                f"Calculated minimal order size for zero balance test {symbol}: "
+                f"qty={final_quantity} (exchange minimum)"
+            )
+
+            return final_quantity
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to calculate minimal order size for zero balance test {symbol}: {e}. "
+                "Cannot determine exchange minimum constraints."
+            ) from e
+
+    @staticmethod
     async def validate_order_constraints(
         api: HyperliquidAPI,
         symbol: str,
@@ -827,6 +882,19 @@ async def get_minimal_test_quantity(
 ) -> Decimal:
     """Get minimal test quantity for an order."""
     return await HyperliquidTestHelpers.get_minimal_order_size(api, symbol, side)
+
+
+async def get_minimal_test_quantity_for_zero_balance(
+    api: HyperliquidAPI,
+    symbol: str,
+    side: OrderSide,
+) -> Decimal:
+    """Get minimal test quantity for zero balance accounts.
+    
+    Returns exchange minimum quantity without requiring account equity.
+    Suitable for zero balance testing scenarios.
+    """
+    return await HyperliquidTestHelpers.get_minimal_order_size_for_zero_balance(api, symbol, side)
 
 
 async def get_safe_test_price(

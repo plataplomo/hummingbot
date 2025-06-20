@@ -8,11 +8,11 @@ import pytest
 
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.core.execution.orders.errors import (
+from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
     PriceDeviationError,
 )
-from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import OrderBook, OrderSide
 from cyberdelta.core.models.market.mid_prices import MidPrices
@@ -329,10 +329,11 @@ class TestMarketOrderService:
         with pytest.raises(ValueError, match="Maximum slippage must be positive"):
             service.validate_config()
 
-    def test_round_to_tick_size(self, service: MarketOrderService) -> None:
+    @pytest.mark.asyncio
+    async def test_round_to_tick_size(self, service: MarketOrderService) -> None:
         """Test price rounding to tick size."""
         # Currently just returns the price as-is
-        price = service._round_to_tick_size(Decimal("50123.456789"), "BTC")
+        price = await service.round_to_tick_size(Decimal("50123.456789"), "BTC")
         assert price == Decimal("50123.456789")
 
     @pytest.mark.asyncio

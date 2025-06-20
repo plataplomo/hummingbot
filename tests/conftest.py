@@ -14,6 +14,8 @@ from __future__ import annotations
 # Import all fixtures from the organized modules
 # This makes all fixtures available to tests as if they were defined in this file
 from tests.fixtures.config_fixtures import (
+    active_bp_config,
+    active_bp_secrets,
     active_hl_config,
     active_hl_secrets,
     backpack_config,
@@ -59,6 +61,8 @@ __all__ = [
     "mock_client_session",
     "mock_request",
     # Configuration fixtures
+    "active_bp_config",
+    "active_bp_secrets",
     "active_hl_config",
     "active_hl_secrets",
     "backpack_config",

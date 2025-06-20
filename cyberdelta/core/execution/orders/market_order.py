@@ -10,8 +10,8 @@ from decimal import Decimal
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.core.execution.orders.errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
 
@@ -85,24 +85,28 @@ class MarketOrder:
         )
 
         try:
-            # 2. Calculate aggressive price
+            # 2. Round quantity to exchange step size
+            rounded_quantity = await self._market_order_service.round_to_step_size(quantity, symbol)
+
+            # 3. Calculate aggressive price
             aggressive_price = await self._market_order_service.calculate_aggressive_price(
                 symbol=symbol,
                 side=side,
-                quantity=quantity,
+                quantity=rounded_quantity,
                 max_slippage=max_slippage,
             )
 
             logger.info(
-                f"Calculated aggressive price for {symbol}: {aggressive_price} (side: {side.value})"
+                f"Calculated aggressive price for {symbol}: {aggressive_price} "
+                f"(side: {side.value}, quantity: {quantity} -> {rounded_quantity})"
             )
 
-            # 3. Prepare IoC limit order
+            # 4. Prepare IoC limit order
             order_args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
                 order_type=OrderType.LIMIT,  # Using limit order with IoC
-                quantity=quantity,
+                quantity=rounded_quantity,
                 price=aggressive_price,
                 time_in_force=TimeInForce.IOC,  # Immediate-or-Cancel
                 client_order_id=client_order_id,

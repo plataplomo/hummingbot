@@ -31,12 +31,13 @@ from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPosition,
     BackpackRawPositionUpdate,
 )
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill, BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
@@ -942,11 +943,20 @@ class BackpackAccountDataMapper:
     @staticmethod
     def _parse_optional_order_fields(raw: BackpackRawOrder) -> dict[str, Any]:
         """Parse optional order fields."""
+        quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
+
+        # Calculate average fill price if not provided but order has fills
+        avg_fill_price = parse_decimal_value(raw.avgFillPrice)
+        if avg_fill_price is None and quantity_filled > 0 and raw.executedQuoteQuantity:
+            executed_quote = parse_decimal_value(raw.executedQuoteQuantity, allow_none=True)
+            if executed_quote is not None and executed_quote > 0:
+                avg_fill_price = executed_quote / quantity_filled
+
         return {
-            "quantity_filled": parse_decimal_value(raw.executedQuantity) or Decimal("0.0"),
+            "quantity_filled": quantity_filled,
             "price": parse_decimal_value(raw.price),
             "stop_price": parse_decimal_value(raw.triggerPrice),
-            "avg_fill_price": parse_decimal_value(raw.avgFillPrice),
+            "avg_fill_price": avg_fill_price,
             "executed_quote_quantity": parse_decimal_value(
                 raw.executedQuoteQuantity,
                 allow_none=True,
@@ -1015,8 +1025,8 @@ class BackpackAccountDataMapper:
             raise TransformationError(f"Failed to transform raw order to internal: {e}") from e
 
     @staticmethod
-    def transform_raw_trade_to_internal(raw: BackpackRawTrade) -> Trade | None:
-        """Transform a validated `BackpackRawTrade` object into an internal `Trade` domain model.
+    def transform_raw_trade_to_internal(raw: BackpackRawPublicTrade) -> Trade | None:
+        """Transform a validated `BackpackRawPublicTrade` object into an internal `Trade` domain model.
 
         Note: Backpack REST API for trades typically lacks side information.
         Returns None if essential information cannot be determined.
@@ -1042,11 +1052,11 @@ class BackpackAccountDataMapper:
             timestamp = parse_datetime_utc(raw.time, field_name="time")
 
             if price_dec is None:
-                raise TransformationError("price missing/invalid in BackpackRawTrade")
+                raise TransformationError("price missing/invalid in BackpackRawPublicTrade")
             if quantity_dec is None:
-                raise TransformationError("quantity missing/invalid in BackpackRawTrade")
+                raise TransformationError("quantity missing/invalid in BackpackRawPublicTrade")
             if timestamp is None:
-                raise TransformationError("time missing/invalid in BackpackRawTrade")
+                raise TransformationError("time missing/invalid in BackpackRawPublicTrade")
 
             # Backpack REST API for recent trades doesn't provide side
             logger.warning(

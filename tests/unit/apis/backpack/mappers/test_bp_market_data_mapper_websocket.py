@@ -21,7 +21,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawTickerEvent,
 )
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTradeEvent
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTradeEvent
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
@@ -97,9 +97,9 @@ def create_raw_trade_event(
     buyer_id: str = "buyer123",
     seller_id: str = "seller123",
     trade_time: int = 1705314600000,
-) -> BackpackRawTradeEvent:
-    """Create BackpackRawTradeEvent instances for WebSocket testing."""
-    return BackpackRawTradeEvent(
+) -> BackpackRawPublicTradeEvent:
+    """Create BackpackRawPublicTradeEvent instances for WebSocket testing."""
+    return BackpackRawPublicTradeEvent(
         s=s,
         p=p,
         q=q,
@@ -458,7 +458,7 @@ class TestWebSocketTradeEventTransformation:
         mapper: BackpackMarketDataMapper,
         test_timestamp_ms: int,
     ) -> None:
-        """Test successful transformation of BackpackRawTradeEvent to internal Trade."""
+        """Test successful transformation of BackpackRawPublicTradeEvent to internal Trade."""
         raw_trade = create_raw_trade_event(
             s="SOL-USDC",
             p="100.50",
@@ -550,7 +550,9 @@ class TestWebSocketTradeEventTransformation:
 
         # The mapper should raise TransformationError for zero values since
         # Trade model validates price > 0 and quantity > 0
-        with pytest.raises(TransformationError, match="Failed to transform BackpackRawTradeEvent"):
+        with pytest.raises(
+            TransformationError, match="Failed to transform BackpackRawPublicTradeEvent"
+        ):
             mapper.transform_ws_trade_event_to_internal(raw_trade)
 
     def test_transform_ws_trade_event_with_very_long_id(
@@ -584,7 +586,7 @@ class TestWebSocketTradeEventTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="Failed to transform BackpackRawTradeEvent",
+                match="Failed to transform BackpackRawPublicTradeEvent",
             ):
                 mapper.transform_ws_trade_event_to_internal(raw_trade)
 
@@ -630,7 +632,7 @@ class TestWebSocketTradeEventTransformation:
         """Test WebSocket trade event transformation in real-time scenarios."""
         # Simulate rapid succession of trades with different timestamps
         base_time = 1705314600000
-        trade_events: list[BackpackRawTradeEvent] = []
+        trade_events: list[BackpackRawPublicTradeEvent] = []
 
         for i in range(5):
             trade_events.append(

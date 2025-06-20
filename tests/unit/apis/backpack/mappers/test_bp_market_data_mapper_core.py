@@ -30,7 +30,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawQuantityFilter,
     BackpackRawTicker,
 )
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawTrade
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
@@ -109,9 +109,9 @@ def create_raw_trade(
     qty: str = "10.0",
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
-) -> BackpackRawTrade:
-    """Create BackpackRawTrade instances for testing trade transformations."""
-    return BackpackRawTrade(
+) -> BackpackRawPublicTrade:
+    """Create BackpackRawPublicTrade instances for testing trade transformations."""
+    return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,
         price=price,
@@ -722,7 +722,7 @@ class TestTradeTransformation:
         mapper: BackpackMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawTrade to internal Trade."""
+        """Test successful transformation of BackpackRawPublicTrade to internal Trade."""
         raw_trade = create_raw_trade(
             id="trade123",
             symbol="SOL-USDC",
@@ -750,7 +750,7 @@ class TestTradeTransformation:
         test_timestamp: str,
     ) -> None:
         """Test that missing price raises TransformationError."""
-        # Cannot create BackpackRawTrade with None price, so patch parsing to return None
+        # Cannot create BackpackRawPublicTrade with None price, so patch parsing to return None
         raw_trade = create_raw_trade(price="100.50", time=test_timestamp)
 
         with patch(
@@ -767,7 +767,7 @@ class TestTradeTransformation:
         test_timestamp: str,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
-        # Cannot create BackpackRawTrade with None qty, so patch parsing to return None
+        # Cannot create BackpackRawPublicTrade with None qty, so patch parsing to return None
         raw_trade = create_raw_trade(qty="10.0", time=test_timestamp)
 
         with patch(
@@ -833,7 +833,7 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="Failed to transform BackpackRawTrade to Trade",
+                match="Failed to transform BackpackRawPublicTrade to Trade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -860,7 +860,7 @@ class TestTradeTransformation:
         test_timestamp: str,
     ) -> None:
         """Test trade transformation with maximum allowed trade ID length."""
-        long_id = "a" * 64  # 64 character ID (max allowed by BackpackRawTrade.id)
+        long_id = "a" * 64  # 64 character ID (max allowed by BackpackRawPublicTrade.id)
         raw_trade = create_raw_trade(
             id=long_id,
             time=test_timestamp,

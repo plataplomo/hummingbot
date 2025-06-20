@@ -47,9 +47,6 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     HyperliquidAgentDomainData,
     HyperliquidAgentTypes,
 )
-from cyberdelta.apis.hyperliquid.models.signing_validators import (
-    GenericSigningPayload,
-)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
@@ -372,27 +369,71 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         For Hyperliquid, we need to use the actual field names (not aliases) because
         the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
         """
+        self.logger.debug(f"[HL_AUTH] Input data type: {type(data)}")
+        self.logger.debug(f"[HL_AUTH] Input data has model_dump: {hasattr(data, 'model_dump')}")
+
         # If the data is already a Pydantic model, serialize it directly
         if hasattr(data, "model_dump"):
             # For Hyperliquid, use by_alias=False to get the short field names (a, b, p, etc.)
-            result = data.model_dump(by_alias=False, exclude_none=True)
+            # CRITICAL: Do NOT exclude None values as Hyperliquid expects all fields for msgpack order
+            result = data.model_dump(by_alias=False, exclude_none=False, mode="python")
+            self.logger.debug(f"[HL_AUTH] Pydantic model_dump result: {result}")
+            self.logger.debug(f"[HL_AUTH] All model fields present: {list(result.keys())}")
+
+            # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
+            if "orders" in result and result["orders"]:
+                for i, order_item in enumerate(result["orders"]):
+                    # Force serialize the order item to ensure proper structure
+                    if hasattr(order_item, "model_dump"):
+                        # If it's a Pydantic model, dump it excluding None values
+                        order_item_dict = order_item.model_dump(by_alias=False, exclude_none=True, mode="python")
+                        result["orders"][i] = order_item_dict
+                        self.logger.debug(f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}")
+                    elif isinstance(order_item, dict):
+                        # Remove 'c' field if it's None to match SDK behavior
+                        if "c" in order_item and order_item["c"] is None:
+                            del order_item["c"]
+                            self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {i}")
+                        self.logger.debug(f"[HL_AUTH] Order {i} fields: {list(order_item.keys())}")
+
             if isinstance(result, dict):
                 return result
             raise ValueError(f"Expected dict from model_dump, got {type(result)}")
 
-        # For dict data, convert to GenericSigningPayload for consistent handling
-        try:
-            generic_payload = GenericSigningPayload.from_dict(data)
-            return generic_payload.model_dump(by_alias=False, exclude_none=True)
-        except Exception as e:
-            self.logger.error(f"Failed to create GenericSigningPayload: {e}")
-            raise ValueError(f"Invalid payload structure: {e}") from e
+        # For dict data, ensure we match SDK behavior by removing None 'c' fields
+        self.logger.debug(f"[HL_AUTH] Processing dict data: {data}")
+        
+        if isinstance(data, dict) and "orders" in data and data["orders"]:
+            for i, order_item in enumerate(data["orders"]):
+                if isinstance(order_item, dict):
+                    # Remove 'c' field if it's None to match SDK behavior
+                    if "c" in order_item and order_item["c"] is None:
+                        del order_item["c"]
+                        self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {i}")
+                    self.logger.debug(f"[HL_AUTH] Order {i} fields: {list(order_item.keys())}")
+
+        # Return the dict directly
+        self.logger.debug("[HL_AUTH] Returning dict data")
+        return data
 
     def _compute_action_hash(
         self, action_payload_dict: dict[str, Any], current_nonce_ms: int
     ) -> bytes:
         """Compute action hash using msgpack and keccak."""
         try:
+            # Log the exact payload structure being msgpacked
+            self.logger.debug(f"[HL_AUTH] Action payload keys: {list(action_payload_dict.keys())}")
+            if "orders" in action_payload_dict and action_payload_dict["orders"]:
+                order = action_payload_dict["orders"][0]
+                self.logger.debug(f"[HL_AUTH] First order keys: {list(order.keys())}")
+                # Check if 'c' field is present and its value
+                if "c" in order:
+                    self.logger.debug(
+                        f"[HL_AUTH] Field 'c' value: {order['c']} (type: {type(order['c'])})"
+                    )
+                else:
+                    self.logger.debug("[HL_AUTH] Field 'c' is missing from order!")
+
             msgpacked_action: bytes = msgpack.packb(action_payload_dict)
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to msgpack action payload: {e}")
@@ -583,9 +624,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ) from e
 
         self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
-
+        
+        # Debug: Try to recover address before returning
         try:
-            return self._account.sign_message(signable_message)
+            signed_msg = self._account.sign_message(signable_message)
+            # Verify recovery
+            recovered = Account.recover_message(signable_message, vrs=[signed_msg.v, signed_msg.r, signed_msg.s])
+            self.logger.debug(f"[HL_AUTH] Signing with account: {self._account.address}")
+            self.logger.debug(f"[HL_AUTH] Recovered address: {recovered}")
+            if recovered.lower() != self._account.address.lower():
+                self.logger.error(f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != signing address {self._account.address}")
+            return signed_msg
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to sign EIP-712 message: {e}")
             raise APIError(

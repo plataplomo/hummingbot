@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.models.api_error import TransformationError
 
 
