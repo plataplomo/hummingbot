@@ -698,7 +698,19 @@ class HyperliquidTradingDataMapper:
         side = HyperliquidTradingDataMapper._map_side_to_internal(raw_historical_order.side)
 
         # Convert string order type to dict format for processing
-        order_type_dict: dict[str, Any] = {raw_historical_order.order_type.lower(): {}}
+        # Use the TIF field from historical order data when available
+        order_type_lower = raw_historical_order.order_type.lower()
+
+        # Check if historical order has TIF information
+        tif_from_raw = getattr(raw_historical_order, "tif", None)
+        if tif_from_raw and order_type_lower == "limit":
+            # For limit orders, preserve the TIF from the raw data
+            order_type_dict: dict[str, Any] = {"limit": {"tif": tif_from_raw}}
+        elif order_type_lower == "market":
+            # Market orders in Hyperliquid are limit IOC orders
+            order_type_dict = {"limit": {"tif": "Ioc"}}
+        else:
+            order_type_dict = {order_type_lower: {}}
 
         order_type = HyperliquidTradingDataMapper._map_type_to_internal(
             order_type_dict,
@@ -753,14 +765,14 @@ class HyperliquidTradingDataMapper:
         raw_historical_order: HyperliquidRawHistoricalOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
         """Parse quantities and price for historical orders."""
-        # Parse quantities
+        # Parse quantities - use orig_sz for quantity_requested (sz is remaining quantity)
         quantity_requested = parse_decimal_value(
-            raw_historical_order.sz,
+            raw_historical_order.orig_sz,
             allow_none=False,
-            field_name="sz",
+            field_name="orig_sz",
         )
         if quantity_requested is None:
-            raise TransformationError("quantity_requested (sz) is required")
+            raise TransformationError("quantity_requested (orig_sz) is required")
 
         # For historical orders, calculate filled quantity from original size and remaining
         remaining_sz = parse_decimal_value(

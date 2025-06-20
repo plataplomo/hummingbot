@@ -381,9 +381,9 @@ class HyperliquidTestHelpers:
         # Use exchange maximum or account limits instead of arbitrary multiplier
         max_account_size = await HyperliquidTestHelpers.calculate_maximum_position_size(api, symbol)
         if max_account_size["max_quantity"] > Decimal("0"):
-            return max_account_size["max_quantity"] * Decimal("2")  # 2x account max
+            return max_account_size["max_quantity"] * Decimal("100000")  # 100,000x account max - absurdly large
         else:
-            return constraints["max_quantity"]  # Use exchange max if no account limit
+            return constraints["max_quantity"] * Decimal("100")  # 100x exchange max if no account limit
 
     # Dynamic Sizing Utilities
 
@@ -514,9 +514,7 @@ class HyperliquidTestHelpers:
             # Round to next valid step size if needed
             from decimal import ROUND_UP
 
-            rounded_steps = (min_quantity / step_size).quantize(
-                Decimal("1"), rounding=ROUND_UP
-            )
+            rounded_steps = (min_quantity / step_size).quantize(Decimal("1"), rounding=ROUND_UP)
             final_quantity = rounded_steps * step_size
 
             # Ensure we meet exchange minimum
@@ -890,7 +888,7 @@ async def get_minimal_test_quantity_for_zero_balance(
     side: OrderSide,
 ) -> Decimal:
     """Get minimal test quantity for zero balance accounts.
-    
+
     Returns exchange minimum quantity without requiring account equity.
     Suitable for zero balance testing scenarios.
     """

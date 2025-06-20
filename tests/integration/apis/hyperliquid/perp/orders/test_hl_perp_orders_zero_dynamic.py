@@ -150,9 +150,11 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         # The actual price should be close to the expected 5% below market
         expected_price = market_price * Decimal("0.95")  # 5% below market
         price_difference_percent = abs(test_price - expected_price) / market_price * Decimal("100")
-        
+
         # Allow some flexibility due to tick size rounding (within 6% tolerance)
-        assert test_price < market_price, f"BUY test price should be below market: {test_price} < {market_price}"
+        assert test_price < market_price, (
+            f"BUY test price should be below market: {test_price} < {market_price}"
+        )
         assert price_difference_percent <= Decimal("6.0"), (
             f"Test price should be reasonably close to expected 5% offset: "
             f"difference is {price_difference_percent}% of market price"
@@ -200,7 +202,10 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # Validate error mapping - could be either insufficient funds or minimum notional
         error = exc_info.value
-        expected_codes = [APIErrorCode.INSUFFICIENT_FUNDS.value, APIErrorCode.MIN_NOTIONAL_NOT_MET.value]
+        expected_codes = [
+            APIErrorCode.INSUFFICIENT_FUNDS.value,
+            APIErrorCode.MIN_NOTIONAL_NOT_MET.value,
+        ]
         assert error.code in expected_codes, (
             f"Should map to INSUFFICIENT_FUNDS or MIN_NOTIONAL_NOT_MET, got {error.code}: {error.message}"
         )

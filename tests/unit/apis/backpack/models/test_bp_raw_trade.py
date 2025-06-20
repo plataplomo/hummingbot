@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
-    BackpackRawFill,
     BackpackRawPublicTrade,
     BackpackRawPublicTradeEvent,
 )

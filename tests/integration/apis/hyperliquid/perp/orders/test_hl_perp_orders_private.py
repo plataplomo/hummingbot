@@ -372,26 +372,27 @@ class TestHyperliquidPerpOrdersPrivate:
         # This ensures the test can actually run instead of being skipped
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
-        
+
         # Hyperliquid has a $10 minimum notional value requirement
         # Add buffer to ensure we're safely above the minimum due to precision issues
         MIN_NOTIONAL_USD = Decimal("10.50")  # $10.50 to ensure we're safely above $10.00
         min_qty_for_notional = MIN_NOTIONAL_USD / edge_price
-        
+
         # Use the larger of: exchange min quantity OR quantity for $10.50 notional
         required_min_quantity = max(min_quantity, min_qty_for_notional)
-        
+
         # Round up to next valid step size to ensure we meet minimums
         from decimal import ROUND_UP
+
         rounded_steps = (required_min_quantity / step_size).quantize(
             Decimal("1"), rounding=ROUND_UP
         )
         edge_quantity = rounded_steps * step_size
-        
+
         # Ensure we meet exchange minimum quantity
         if edge_quantity < min_quantity:
             edge_quantity = min_quantity
-        
+
         # Calculate final notional value for verification
         notional_value = edge_quantity * edge_price
 
@@ -405,11 +406,11 @@ class TestHyperliquidPerpOrdersPrivate:
             time_in_force=TimeInForce.GTC,
         )
 
-        # Verify this is actually testing precision (quantity uses step size properly)        
+        # Verify this is actually testing precision (quantity uses step size properly)
         assert notional_value >= Decimal("10.00"), (
             f"Test should meet Hyperliquid's minimum notional requirements: {notional_value} >= 10.00"
         )
-        
+
         try:
             placed_order = await hl_api_for_test_env.place_order(precision_args)
 
@@ -418,7 +419,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 f"Order quantity precision should be maintained: "
                 f"{placed_order.quantity_requested} vs {edge_quantity}"
             )
-            
+
             # Validate the order actually tests precision at a reasonable level
             # (not just using huge quantities that don't test precision)
             max_reasonable_quantity = min_quantity * Decimal("100")  # Within 100x of minimum

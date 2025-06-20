@@ -242,7 +242,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _setup_wallet_properties(self) -> None:
         """Setup wallet address properties."""
-        self._wallet_address: str = self._account.address
+        # CRITICAL: Lowercase address as recommended by SDK docs
+        # "Issues with upper case characters in address fields. It is recommended to lowercase any address before signing and sending."
+        self._wallet_address: str = self._account.address.lower()
 
     def _setup_nonce_management(self) -> None:
         """Setup nonce management for timestamp-based nonces."""
@@ -386,9 +388,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     # Force serialize the order item to ensure proper structure
                     if hasattr(order_item, "model_dump"):
                         # If it's a Pydantic model, dump it excluding None values
-                        order_item_dict = order_item.model_dump(by_alias=False, exclude_none=True, mode="python")
+                        order_item_dict = order_item.model_dump(
+                            by_alias=False, exclude_none=True, mode="python"
+                        )
                         result["orders"][i] = order_item_dict
-                        self.logger.debug(f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}")
+                        self.logger.debug(
+                            f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}"
+                        )
                     elif isinstance(order_item, dict):
                         # Remove 'c' field if it's None to match SDK behavior
                         if "c" in order_item and order_item["c"] is None:
@@ -402,7 +408,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # For dict data, ensure we match SDK behavior by removing None 'c' fields
         self.logger.debug(f"[HL_AUTH] Processing dict data: {data}")
-        
+
         if isinstance(data, dict) and "orders" in data and data["orders"]:
             for i, order_item in enumerate(data["orders"]):
                 if isinstance(order_item, dict):
@@ -624,16 +630,20 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ) from e
 
         self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
-        
+
         # Debug: Try to recover address before returning
         try:
             signed_msg = self._account.sign_message(signable_message)
             # Verify recovery
-            recovered = Account.recover_message(signable_message, vrs=[signed_msg.v, signed_msg.r, signed_msg.s])
+            recovered = Account.recover_message(
+                signable_message, vrs=[signed_msg.v, signed_msg.r, signed_msg.s]
+            )
             self.logger.debug(f"[HL_AUTH] Signing with account: {self._account.address}")
             self.logger.debug(f"[HL_AUTH] Recovered address: {recovered}")
             if recovered.lower() != self._account.address.lower():
-                self.logger.error(f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != signing address {self._account.address}")
+                self.logger.error(
+                    f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != signing address {self._account.address}"
+                )
             return signed_msg
         except Exception as e:
             self.logger.error(f"[HL_AUTH] Failed to sign EIP-712 message: {e}")

@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+import pytest_asyncio
 
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs
@@ -352,14 +353,17 @@ class TestHyperliquidMarketOrderIntegration:
             hyperliquid_api, symbol, OrderSide.BUY
         )
 
-        # Get market data to determine realistic tight slippage
-        ticker = await hyperliquid_api.get_ticker(symbol)
-        if not ticker or not ticker.bid or not ticker.ask:
-            pytest.fail(f"Cannot get ticker data for {symbol}")
+        # Get market data to determine realistic tight slippage from order book
+        order_book = await hyperliquid_api.get_order_book(symbol)
+        if not order_book or not order_book.bids or not order_book.asks:
+            pytest.fail(f"Cannot get order book data for {symbol}")
+
+        best_bid = order_book.bids[0][0]  # First bid price
+        best_ask = order_book.asks[0][0]  # First ask price
 
         # Use half the current spread as tight slippage
-        spread_pct = (ticker.ask - ticker.bid) / ticker.bid
-        tight_slippage = spread_pct / 2
+        spread_pct = (best_ask - best_bid) / best_bid
+        tight_slippage = spread_pct / Decimal("2")
 
         # Create config with market-based tight slippage
         # Use existing config's liquidity ratio - no arbitrary values
@@ -496,8 +500,8 @@ class TestHyperliquidMarketOrderIntegration:
                 "Market order execution and metrics tracking must work reliably."
             )
 
-    @pytest.fixture(autouse=True)
-    async def cleanup(self, hyperliquid_api: HyperliquidAPI) -> AsyncGenerator[None]:
+    @pytest_asyncio.fixture(autouse=True)
+    async def cleanup(self, hyperliquid_api: HyperliquidAPI) -> AsyncGenerator[None, None]:
         """Clean up any test positions after each test."""
         yield  # Run the test
 

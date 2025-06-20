@@ -76,7 +76,9 @@ class BackpackRawFill(BaseModel):
     timestamp: RawBpIsoTimestampString = Field(..., alias="timestamp")
     trade_id: RawBpNonNegativeInt = Field(..., alias="tradeId")
     client_id: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="clientId")
-    system_order_type: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="systemOrderType")
+    system_order_type: RawBpOptionalNonEmptyStringMax128 | None = Field(
+        None, alias="systemOrderType"
+    )
 
 
 # The BackpackRawFillsList model remains structurally the same but benefits from

@@ -137,7 +137,9 @@ class TestBackpackPerpPositionsPrivate:
         assert isinstance(position.unrealized_pnl, Decimal)
         assert isinstance(position.realized_pnl, Decimal)
 
-    async def _validate_position_prices(self, position: DerivativePosition, api: BackpackAPI, index: int) -> None:
+    async def _validate_position_prices(
+        self, position: DerivativePosition, api: BackpackAPI, index: int
+    ) -> None:
         """Validate price fields and relationships of a DerivativePosition."""
         if position.size != Decimal("0"):
             if position.entry_price is not None:
@@ -151,10 +153,10 @@ class TestBackpackPerpPositionsPrivate:
         if position.entry_price is not None:
             # Get market constraints from exchange to validate entry_price precision
             from tests.integration.apis.backpack.shared.test_helpers import get_market_constraints
-            
+
             constraints = await get_market_constraints(api, position.symbol)
             tick_size = constraints["tick_size"]
-            
+
             # Validate that entry_price respects the exchange's tick_size precision
             # Entry prices should be valid multiples of tick_size
             remainder = position.entry_price % tick_size

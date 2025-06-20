@@ -10,7 +10,8 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
+from decimal import Decimal
+from typing import Any, cast
 
 from pydantic import ValidationError
 
@@ -44,11 +45,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
+    GetL2BookArgs,
     GetOpenOrdersArgs,
     GetOrderArgs,
     HyperliquidGetOrderStatusArgs,
@@ -58,11 +61,13 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
+    OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.utils.parsing import parse_decimal_value
 
 logger = get_logger(__name__)
@@ -342,6 +347,10 @@ class HyperliquidTradingService:
                 )
             )
         )
+        
+        # Initialize raw_response_content before try block
+        raw_response_content: ParsedJsonResponse | None = None
+        
         try:
             raw_response_content, _, _ = await self._http_client_requester(
                 method="POST",
@@ -551,16 +560,12 @@ class HyperliquidTradingService:
             if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
                 tif_str = self._map_time_in_force_to_hyperliquid(effective_tif)
 
-            # Validate market orders are not supported natively by Hyperliquid API
+            # ⚠️ WARNING: THIN MARKET ORDER IMPLEMENTATION - MISSING RISK CONTROLS
+            # This is a backwards compatibility hack that bypasses our sophisticated 
+            # MarketOrder business logic. Use cyberdelta.core.execution.orders.MarketOrder 
+            # for proper slippage protection, liquidity validation, and risk management.
             if args.order_type == OrderType.MARKET:
-                raise ValueError(
-                    f"[{current_method}] Market orders are not supported by Hyperliquid API. "
-                    "Hyperliquid does not provide a native market order endpoint. "
-                    "To execute market-like orders, use the MarketOrder component from "
-                    "cyberdelta.core.execution.orders which implements aggressive IoC limit "
-                    "orders. "
-                    "Example: from cyberdelta.core.execution.orders import MarketOrder"
-                )
+                return await self._execute_thin_market_order(args)
 
             # Use the request builder to create the proper payload format
             place_order_payload = self._request_builder.build_place_order_payload(
@@ -774,7 +779,9 @@ class HyperliquidTradingService:
 
         # Handle dict status (for backwards compatibility)
         elif isinstance(status_raw, dict):
-            result = self._process_dict_status(status_raw, action_description)
+            # Type assertion for pyright - we know it's a dict after isinstance check
+            status_dict = cast(dict[str, Any], status_raw)
+            result = self._process_dict_status(status_dict, action_description)
             if result:  # If we found a recognized status
                 return result
 
@@ -1418,6 +1425,139 @@ class HyperliquidTradingService:
             success=False,
             message=str(e_generic),
             status=CancelOrderResultStatus.UNKNOWN,
+        )
+
+    async def _execute_thin_market_order(self, args: PlaceOrderArgs) -> Order:
+        """Execute thin market order implementation - WARNING: MISSING RISK CONTROLS.
+        
+        This is a backwards compatibility hack that converts market orders to aggressive
+        IOC limit orders. It bypasses sophisticated risk management like slippage protection,
+        liquidity validation, and price deviation checks.
+        
+        For proper market order execution with full risk controls, use:
+        cyberdelta.core.execution.orders.MarketOrder
+        
+        Args:
+            args: Market order arguments to convert
+            
+        Returns:
+            Executed order result
+            
+        Raises:
+            APIError: If order book fetch or order execution fails
+        """
+        # Get order book using existing infrastructure
+        order_book = await self._get_order_book_for_thin_market_order(args.symbol)
+        
+        # Extract aggressive price - use multiple levels if needed to ensure fill
+        # WARNING: This uses up to 3 price levels to ensure IOC orders fill
+        
+        if args.side == OrderSide.BUY:
+            if not order_book.asks:
+                raise APIError(
+                    f"No ask levels available for market buy of {args.symbol}",
+                    APIErrorCode.ORDER_REJECTED.value
+                )
+            # Use the 3rd ask level (or best available) to ensure aggressive fill
+            ask_index = min(2, len(order_book.asks) - 1)  # Index 2 = 3rd level
+            aggressive_price = order_book.asks[ask_index][0]
+        else:  # SELL
+            if not order_book.bids:
+                raise APIError(
+                    f"No bid levels available for market sell of {args.symbol}",
+                    APIErrorCode.ORDER_REJECTED.value
+                )
+            # Use the 3rd bid level (or best available) to ensure aggressive fill
+            bid_index = min(2, len(order_book.bids) - 1)  # Index 2 = 3rd level
+            aggressive_price = order_book.bids[bid_index][0]
+        
+        # Convert to IOC limit order
+        limit_args = PlaceOrderArgs(
+            symbol=args.symbol,
+            side=args.side,
+            order_type=OrderType.LIMIT,  # Convert to limit
+            quantity=args.quantity,
+            price=aggressive_price,      # Aggressive market-taking price
+            time_in_force=TimeInForce.IOC,  # Immediate or cancel
+            client_order_id=args.client_order_id,
+            post_only=False  # Ensure market-taking behavior
+        )
+        
+        # Recursive call with limit order (no circular dependency)
+        return await self.place_order(limit_args)
+
+    async def _get_order_book_for_thin_market_order(self, symbol: str) -> OrderBook:
+        """Get order book for thin market order using existing infrastructure.
+        
+        Reuses all existing request building, HTTP client, response handling,
+        and mapping infrastructure to avoid code duplication.
+        
+        Args:
+            symbol: Trading symbol to get order book for
+            
+        Returns:
+            OrderBook with current bid/ask levels
+            
+        Raises:
+            APIError: If order book fetch fails
+        """
+        # Reuse existing request builder
+        request_payload = self._request_builder.build_l2_book_request_payload(
+            GetL2BookArgs(symbol=symbol)
+        )
+        
+        # Reuse existing HTTP client
+        raw_response_content_parsed, status_code, headers = await self._http_client_requester(
+            method="POST",
+            endpoint=self._info_endpoint,
+            data=request_payload.model_dump(by_alias=True, exclude_none=True),
+            is_signed=False,
+        )
+        
+        # Reuse existing response handler
+        validated_response = self._response_handler.handle_info_l2_book_response(
+            raw_response_content_parsed, symbol, status_code, headers
+        )
+        
+        # We need access to market data mapper to transform the response
+        # This is the only missing piece - trading service doesn't have market data mapper
+        # For now, let's create a minimal transformation
+        return self._minimal_transform_to_order_book(validated_response)
+
+    def _minimal_transform_to_order_book(self, raw_book: HyperliquidRawL2Book) -> OrderBook:
+        """Minimal transformation to OrderBook - WARNING: Simplified implementation.
+        
+        This is a simplified transformation that bypasses the full market data mapper.
+        Use proper market data service for complete transformation logic.
+        """
+        # Convert to OrderBook format
+        from datetime import UTC, datetime
+        
+        bids: list[tuple[Decimal, Decimal]] = []
+        asks: list[tuple[Decimal, Decimal]] = []
+        
+        if raw_book.levels and len(raw_book.levels) >= 2:
+            # Hyperliquid format: levels[0] = bids, levels[1] = asks
+            for bid_level in raw_book.levels[0]:
+                price = parse_decimal_value(bid_level.px)
+                size = parse_decimal_value(bid_level.sz)
+                if price is not None and size is not None:
+                    bids.append((price, size))
+            
+            for ask_level in raw_book.levels[1]:
+                price = parse_decimal_value(ask_level.px)
+                size = parse_decimal_value(ask_level.sz)
+                if price is not None and size is not None:
+                    asks.append((price, size))
+        
+        # Convert timestamp from milliseconds to datetime
+        timestamp = datetime.fromtimestamp(raw_book.time / 1000, tz=UTC)
+        
+        return OrderBook(
+            symbol=raw_book.coin,
+            bids=bids,
+            asks=asks,
+            timestamp=timestamp
         )
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:

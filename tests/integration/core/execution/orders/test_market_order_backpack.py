@@ -370,10 +370,10 @@ class TestBackpackMarketOrderIntegration:
 
             # Get filled quantity from history - PERP markets need more time
             buy_filled_qty = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-                backpack_api, 
+                backpack_api,
                 buy_order.exchange_order_id or buy_order.client_order_id,
-                max_retries=10,  # More retries for PERP markets  
-                retry_delay=3.0  # Longer delay for PERP markets
+                max_retries=10,  # More retries for PERP markets
+                retry_delay=3.0,  # Longer delay for PERP markets
             )
 
             # PERP markets may have timing delays for orders to appear in history
@@ -402,10 +402,10 @@ class TestBackpackMarketOrderIntegration:
 
             # Verify sell order filled - PERP markets need more time to appear in history
             sell_filled_qty = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-                backpack_api, 
+                backpack_api,
                 sell_order.exchange_order_id or sell_order.client_order_id,
                 max_retries=10,  # More retries for PERP markets
-                retry_delay=3.0  # Longer delay for PERP markets
+                retry_delay=3.0,  # Longer delay for PERP markets
             )
             assert sell_filled_qty is not None and sell_filled_qty > 0, (
                 f"Sell order {sell_order.exchange_order_id} not filled"

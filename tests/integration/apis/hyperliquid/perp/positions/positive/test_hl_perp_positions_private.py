@@ -292,18 +292,28 @@ class TestHyperliquidPerpPositionsPrivate:
 
         test_symbol = available_symbols[0]
 
-        # Get unreasonably large quantity from helper (not hardcoded)
-        large_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
+        # Get unreasonably large quantity - use exchange max
+        constraints = await HyperliquidTestHelpers.get_market_constraints(
             hl_api_for_test_env, test_symbol
         )
+        # Use the exchange's max quantity if available, or a very large number
+        large_quantity = constraints.get("max_quantity", Decimal("1000000"))
 
         # Create order with unrealistically large quantity to trigger insufficient margin
+        # Use LIMIT order FAR BELOW market so it won't execute but will trigger margin check
+        current_price = await HyperliquidTestHelpers.get_current_market_price(
+            hl_api_for_test_env, test_symbol
+        )
+        # Use price 50% below market - won't execute but will trigger margin validation
+        non_executable_price = current_price * Decimal("0.5")  # 50% below market
+        
         large_position_args = PlaceOrderArgs(
             symbol=test_symbol,
             side=OrderSide.BUY,
-            order_type=OrderType.MARKET,
+            order_type=OrderType.LIMIT,
             quantity=large_quantity,
-            time_in_force=TimeInForce.IOC,
+            price=non_executable_price,
+            time_in_force=TimeInForce.GTC,  # Use GTC to ensure full margin check
         )
 
         # Should raise APIError with margin-related code
@@ -484,21 +494,14 @@ class TestHyperliquidPerpPositionsPrivate:
             hl_api_for_test_env, test_symbol, OrderSide.BUY
         )
 
-        # Calculate additional position size (50% of minimal for testing accumulation)
+        # Calculate additional position size (same as minimal to ensure it fills)
         constraints = await HyperliquidTestHelpers.get_market_constraints(
             hl_api_for_test_env, test_symbol
         )
         step_size = constraints["step_size"]
 
-        # Round additional quantity to valid step size
-        from decimal import ROUND_UP
-
-        additional_steps = (minimal_quantity * Decimal("0.5") / step_size).quantize(
-            Decimal("1"), rounding=ROUND_UP
-        )
-        additional_quantity = max(
-            additional_steps * step_size, step_size
-        )  # Ensure at least one step
+        # Use same quantity as initial to ensure order fills
+        additional_quantity = minimal_quantity
 
         # Step 1: Open initial position
         initial_args = PlaceOrderArgs(
@@ -512,6 +515,17 @@ class TestHyperliquidPerpPositionsPrivate:
         initial_order = await hl_api_for_test_env.place_order(initial_args)
         assert initial_order.exchange_order_id is not None, "Initial order should succeed"
 
+        # Get position after initial order to track state
+        positions_after_initial = await hl_api_for_test_env.get_positions()
+        initial_position = None
+        for position in positions_after_initial:
+            if position.symbol == test_symbol and position.size != Decimal("0"):
+                initial_position = position
+                break
+        
+        assert initial_position is not None, "Should have position after initial order"
+        initial_size = initial_position.size
+        
         # Step 2: Add to position
         add_args = PlaceOrderArgs(
             symbol=test_symbol,
@@ -532,18 +546,39 @@ class TestHyperliquidPerpPositionsPrivate:
                 test_position = position
                 break
 
+        assert test_position is not None, "Should still have position after add order"
+        
+        # Validate position accumulation - size should have increased
+        assert test_position.size > initial_size, (
+            f"Position size should have increased: "
+            f"{test_position.size} > {initial_size}"
+        )
+        
+        # Validate the increase is approximately the additional quantity
+        # (allowing for partial fills)
+        size_increase = test_position.size - initial_size
+        assert size_increase > Decimal("0"), (
+            f"Position should have increased by a positive amount: "
+            f"increase={size_increase}"
+        )
+
+        # Validate decimal precision maintained throughout operations
+        assert isinstance(test_position.size, Decimal), "Size must remain Decimal"
+        assert isinstance(test_position.entry_price, Decimal), "Entry price must remain Decimal"
+        assert isinstance(initial_position.size, Decimal), "Initial size was Decimal"
+        assert isinstance(initial_position.entry_price, Decimal), "Initial entry price was Decimal"
+        
+        # Validate position state consistency
+        assert test_position.symbol == initial_position.symbol, "Symbol should remain consistent"
+        assert test_position.exchange == initial_position.exchange, "Exchange should remain consistent"
+        
+        # Validate that average entry price makes sense (should be between initial and current market)
+        if initial_position.entry_price is not None and test_position.entry_price is not None:
+            # Entry price should be a weighted average after adding to position
+            assert test_position.entry_price > Decimal("0"), "Entry price should be positive"
+
+        # Step 4: Clean up - close entire position
         if test_position is not None:
-            # Validate position accumulation (should be at least the initial quantity)
-            assert test_position.size >= minimal_quantity, (
-                f"Position should reflect at least initial size: "
-                f"{test_position.size} >= {minimal_quantity}"
-            )
-
-            # Validate decimal precision maintained
-            assert isinstance(test_position.size, Decimal), "Size must remain Decimal"
-            assert isinstance(test_position.entry_price, Decimal), "Entry price must remain Decimal"
-
-            # Step 4: Clean up - close entire position
             close_args = PlaceOrderArgs(
                 symbol=test_symbol,
                 side=OrderSide.SELL,

@@ -65,6 +65,7 @@ def create_raw_fill(
         timestamp=timestamp,
         tradeId=trade_id,
         clientId=client_id,
+        systemOrderType=None,
     )
 
 

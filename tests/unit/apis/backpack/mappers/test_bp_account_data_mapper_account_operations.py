@@ -159,6 +159,7 @@ def create_raw_fill(
         timestamp=timestamp,
         orderId=order_id,
         clientId=client_id,
+        systemOrderType=None,
     )
 
 

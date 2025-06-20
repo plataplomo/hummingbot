@@ -41,14 +41,14 @@ class MarketOrderTestHelpers:
         try:
             # Get available markets from the exchange dynamically
             from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-            
+
             markets = await exchange_api.get_markets(GetMarketsArgs())
             if not markets:
                 raise RuntimeError(
                     f"No markets available from {exchange_name}. "
                     "Cannot run tests without available markets."
                 )
-            
+
             # For Hyperliquid, get perpetual markets
             if exchange_name == "hyperliquid":
                 # Filter for perpetual markets
@@ -58,21 +58,21 @@ class MarketOrderTestHelpers:
                         "No perpetual markets available on Hyperliquid. "
                         "Market order tests require perpetual markets."
                     )
-                
+
                 # Prefer BTC market if available, otherwise use first available
                 btc_markets = [m for m in perp_markets if "BTC" in m.symbol.upper()]
                 if btc_markets:
                     return btc_markets[0].symbol
-                
+
                 # Return first available perpetual symbol
                 return perp_markets[0].symbol
-                
+
             # For Backpack, get spot markets
             elif exchange_name == "backpack":
                 # Debug: print available market types
                 market_types = set(m.market_type for m in markets)
                 logger.info(f"Available market types on Backpack: {market_types}")
-                
+
                 # Filter for spot markets - Backpack returns "SPOT" in uppercase
                 spot_markets = [m for m in markets if m.market_type.upper() == "SPOT"]
                 if not spot_markets:
@@ -85,27 +85,27 @@ class MarketOrderTestHelpers:
                         # Use first available market as fallback
                         logger.info(f"Using first available market: {markets[0].symbol}")
                         return markets[0].symbol
-                    
+
                     raise RuntimeError(
                         f"No markets available on Backpack. Market types found: {market_types}"
                     )
-                
+
                 # Prefer BTC_USDC if available
                 btc_usdc_markets = [m for m in spot_markets if m.symbol == "BTC_USDC"]
                 if btc_usdc_markets:
                     return btc_usdc_markets[0].symbol
-                
+
                 # Otherwise look for any BTC market
                 btc_markets = [m for m in spot_markets if "BTC" in m.symbol.upper()]
                 if btc_markets:
                     return btc_markets[0].symbol
-                
+
                 # Return first available spot symbol
                 return spot_markets[0].symbol
-                
+
             else:
                 raise RuntimeError(f"Unknown exchange: {exchange_name}")
-                
+
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get test symbol from {exchange_name}: {e}. "
@@ -132,6 +132,26 @@ class MarketOrderTestHelpers:
             RuntimeError: If unable to determine minimal quantity
         """
         try:
+            # For Hyperliquid, use specialized helpers that handle $10 minimum notional requirement
+            from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+
+            if isinstance(exchange_api, HyperliquidAPI):
+                from tests.integration.apis.hyperliquid.shared.test_helpers import (
+                    HyperliquidTestHelpers,
+                )
+
+                minimal_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
+                    exchange_api, symbol, side
+                )
+
+                logger.info(
+                    f"Using Hyperliquid minimal order size for {symbol}: {minimal_quantity} "
+                    f"(meets $10 minimum notional requirement)"
+                )
+
+                return minimal_quantity
+
+            # For other exchanges, use exchange minimum
             # Get market constraints from exchange - NO FALLBACKS
             market = await exchange_api.get_market(GetMarketArgs(symbol=symbol))
             if not market:
@@ -242,23 +262,49 @@ class MarketOrderTestHelpers:
         """
         import time
 
-        start_time = time.time()
+        loop_start_time = time.time()
 
-        while time.time() - start_time < max_wait_seconds:
+        while time.time() - loop_start_time < max_wait_seconds:
             try:
-                # Get recent order history
-                history_args = GetOrderHistoryArgs(limit=20)
+                # Get recent order history - Hyperliquid requires start_time and end_time
+                from datetime import UTC, datetime, timedelta
+
+                end_time = datetime.now(UTC)
+                start_time = end_time - timedelta(hours=1)  # Look back 1 hour
+
+                history_args = GetOrderHistoryArgs(
+                    limit=50, start_time=start_time, end_time=end_time
+                )
                 orders = await exchange_api.get_order_history(history_args)
+
+                logger.debug(
+                    f"Retrieved {len(orders) if orders else 0} orders from history, looking for {order.exchange_order_id}"
+                )
 
                 if orders:
                     # Check if our order is in the history
-                    for historical_order in orders:
-                        if historical_order.exchange_order_id == order.exchange_order_id:
-                            logger.info(f"Order {order.exchange_order_id} found in history")
+                    for i, historical_order in enumerate(orders):
+                        logger.debug(
+                            f"Order {i + 1}: {historical_order.exchange_order_id} (status: {historical_order.status}, symbol: {historical_order.symbol})"
+                        )
+
+                        # Compare both as strings to handle type mismatches
+                        if str(historical_order.exchange_order_id) == str(order.exchange_order_id):
+                            logger.info(
+                                f"✅ Order {order.exchange_order_id} found in history at position {i + 1}"
+                            )
                             return True
-                        if historical_order.client_order_id == order.client_order_id:
-                            logger.info(f"Order {order.client_order_id} found in history")
+                        if (
+                            historical_order.client_order_id
+                            and order.client_order_id
+                            and str(historical_order.client_order_id) == str(order.client_order_id)
+                        ):
+                            logger.info(
+                                f"✅ Order {order.client_order_id} found in history by client ID at position {i + 1}"
+                            )
                             return True
+                else:
+                    logger.debug("No orders returned from get_order_history")
 
                 # Also check trades history
                 trades_args = GetTradeHistoryArgs(limit=20)
@@ -271,12 +317,15 @@ class MarketOrderTestHelpers:
                             return True
 
             except Exception as e:
-                elapsed = int(time.time() - start_time)
+                elapsed = int(time.time() - loop_start_time)
                 logger.debug(f"Error checking order history after {elapsed}s: {e}")
 
             # Wait before next attempt
             await asyncio.sleep(poll_interval)
 
+        logger.warning(
+            f"verify_order_in_history timed out after {max_wait_seconds}s for order {order.exchange_order_id}"
+        )
         return False
 
     @staticmethod
@@ -301,13 +350,25 @@ class MarketOrderTestHelpers:
             Filled quantity if found, None otherwise
         """
         import asyncio
-        
+
         for attempt in range(max_retries):
             try:
-                logger.debug(f"Attempt {attempt + 1}/{max_retries}: Looking for order {order_id} in history")
-                
+                logger.debug(
+                    f"Attempt {attempt + 1}/{max_retries}: Looking for order {order_id} in history"
+                )
+
                 # Check order history first - this is more reliable for all market types
-                history_args = GetOrderHistoryArgs(limit=50)
+                # Hyperliquid requires start_time and end_time parameters
+                from datetime import UTC, datetime, timedelta
+                
+                end_time = datetime.now(UTC)
+                start_time = end_time - timedelta(hours=1)  # Look back 1 hour
+                
+                history_args = GetOrderHistoryArgs(
+                    limit=50,
+                    start_time=start_time,
+                    end_time=end_time
+                )
                 orders = await exchange_api.get_order_history(history_args)
 
                 if orders:
@@ -319,7 +380,7 @@ class MarketOrderTestHelpers:
                             f"client_id={historical_order.client_order_id}, "
                             f"filled={historical_order.quantity_filled}"
                         )
-                        
+
                         if (
                             historical_order.exchange_order_id == order_id
                             or historical_order.client_order_id == order_id
@@ -334,7 +395,9 @@ class MarketOrderTestHelpers:
                                 )
                                 return historical_order.quantity_filled
                             else:
-                                logger.debug(f"Found order {order_id} but quantity_filled is {historical_order.quantity_filled}")
+                                logger.debug(
+                                    f"Found order {order_id} but quantity_filled is {historical_order.quantity_filled}"
+                                )
 
                 # Also try trades - but handle potential 404s for PERP markets gracefully
                 try:
@@ -345,7 +408,7 @@ class MarketOrderTestHelpers:
                         logger.debug(f"Retrieved {len(trades)} trades from history")
                         total_filled = Decimal("0")
                         matching_trades = 0
-                        
+
                         for trade in trades:
                             logger.debug(
                                 f"Checking trade: order_id={trade.order_id}, "
@@ -362,20 +425,26 @@ class MarketOrderTestHelpers:
                             return total_filled
                         else:
                             logger.debug(f"No matching trades found for order {order_id}")
-                            
+
                 except Exception as trade_error:
                     # Trades endpoint may not be available for all market types (e.g., PERP markets)
                     logger.debug(f"Trade history access failed for order {order_id}: {trade_error}")
 
                 # If this is not the last attempt, wait before retrying
                 if attempt < max_retries - 1:
-                    logger.debug(f"Order {order_id} not found in history, waiting {retry_delay}s before retry {attempt + 2}")
+                    logger.debug(
+                        f"Order {order_id} not found in history, waiting {retry_delay}s before retry {attempt + 2}"
+                    )
                     await asyncio.sleep(retry_delay)
                 else:
-                    logger.warning(f"Order {order_id} not found in history after {max_retries} attempts")
+                    logger.warning(
+                        f"Order {order_id} not found in history after {max_retries} attempts"
+                    )
 
             except Exception as e:
-                logger.error(f"Error getting filled quantity from history (attempt {attempt + 1}): {e}")
+                logger.error(
+                    f"Error getting filled quantity from history (attempt {attempt + 1}): {e}"
+                )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
 

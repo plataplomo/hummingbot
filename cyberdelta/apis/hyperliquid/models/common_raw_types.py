@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import (
     Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
 )
+from decimal import Decimal
 from typing import Annotated
 
 from pydantic import (
@@ -66,7 +67,17 @@ def _wrap_validate_finite_decimal_str(
         # Align with test_hl_raw_user_fills.py for 'inf'/'NaN' messages
         # and test_hl_raw_candles.py for 'Invalid finite decimal string'
         raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
-    return handler(s)
+
+    # CRITICAL: Use SDK's exact float_to_wire algorithm for consistent signatures
+    # From SDK: rounded = f"{x:.8f}"; normalized = Decimal(rounded).normalize(); return f"{normalized:f}"
+    # This ensures our strings match exactly what the SDK produces
+    x_float = float(d)
+    rounded = f"{x_float:.8f}"
+    if rounded == "-0":
+        rounded = "0"
+    normalized = Decimal(rounded).normalize()
+    result = f"{normalized:f}"
+    return handler(result)
 
 
 def _wrap_validate_lax_eth_address_str(

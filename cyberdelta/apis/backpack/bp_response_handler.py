@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 
 # BackpackRawApiError import removed as validation is the focus here. Error mapping is separate.
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
@@ -531,8 +532,6 @@ class BackpackResponseHandler:
 
         This endpoint returns BackpackRawFill format, different from BackpackRawPublicTrade.
         """
-        from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-
         context = f"fills history ({symbol or 'all'})"
         if not isinstance(raw_response_content, list):
             raise APIError(
