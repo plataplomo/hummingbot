@@ -7,7 +7,7 @@ Hyperliquid Exchange API responses related to historical or any-status orders,
 such as those from 'queryOrderHistory' or 'orderStatus' (when the order might not be open).
 """
 
-from typing import cast
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 # Logger removed - no longer needed after refactoring to Pydantic validators
 
@@ -123,7 +124,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def preprocess_order_status_response(cls, data: object) -> dict[str, object]:
+    def preprocess_order_status_response(cls, data: object) -> dict[str, Any]:
         """Handle various response formats from the orderStatus API endpoint.
 
         This validator replaces the preprocessing mapper logic by handling:
@@ -134,7 +135,8 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
         - Flat order structures
         """
         # Handle list format responses
-        if isinstance(data, list):
+        if is_list_any(data):
+            # data is now properly typed as list[Any] due to TypeGuard
             data = cls._handle_list_response(data)
 
         # Handle string or None responses
@@ -147,7 +149,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
             )
 
         # At this point, data should be a dict
-        if not isinstance(data, dict):
+        if not is_dict_str_any(data):
             raise APIError(
                 message=f"Order status response: expected dict after preprocessing, "
                 f"got {type(data).__name__}",
@@ -155,10 +157,11 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
             )
 
         # Handle nested or flat order structures
+        # data is now properly typed as dict[str, Any] due to TypeGuard
         return cls._normalize_order_structure(data)
 
     @classmethod
-    def _handle_list_response(cls, data: list[object]) -> dict[str, object]:
+    def _handle_list_response(cls, data: list[Any]) -> dict[str, Any]:
         """Handle list format responses."""
         if len(data) == 0:
             raise APIError(
@@ -184,7 +187,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 )
 
         # Handle non-dict items
-        if not isinstance(status_item, dict):
+        if not is_dict_str_any(status_item):
             raise APIError(
                 message=f"Order status response list: expected dict, "
                 f"got {type(status_item).__name__}",
@@ -192,6 +195,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 metadata={"original_response_item": status_item},
             )
 
+        # status_item is now properly typed as dict[str, Any] due to TypeGuard
         return status_item
 
     @classmethod
@@ -210,16 +214,18 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
             )
 
     @classmethod
-    def _normalize_order_structure(cls, data: dict[str, object]) -> dict[str, object]:
+    def _normalize_order_structure(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Normalize nested or flat order structures."""
         # Handle nested order structures
-        if "order" in data and isinstance(data["order"], dict):
-            nested_data = cast(dict[str, object], data["order"])
+        if "order" in data and is_dict_str_any(data["order"]):
+            # data["order"] is now properly typed as dict[str, Any] due to TypeGuard
+            nested_data = data["order"]
 
             # Check for double nesting (order.order)
-            if "order" in nested_data and isinstance(nested_data["order"], dict):
+            if "order" in nested_data and is_dict_str_any(nested_data["order"]):
                 # Extract from double nesting
-                inner_order = cast(dict[str, object], nested_data["order"])
+                # nested_data["order"] is now properly typed as dict[str, Any] due to TypeGuard
+                inner_order = nested_data["order"]
                 status = nested_data.get("status", "open")
                 status_timestamp = nested_data.get("statusTimestamp")
             else:
@@ -262,7 +268,7 @@ class HyperliquidRawHistoricalOrdersResponse(
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_orders_list(cls, v: object) -> list[dict[str, object]]:
+    def validate_orders_list(cls, v: object) -> list[dict[str, Any]]:
         """Validate and preprocess the list of historical orders.
 
         This validator handles:
@@ -270,12 +276,13 @@ class HyperliquidRawHistoricalOrdersResponse(
         - Filtering out non-dict items with warnings
         - Ensuring all items are dictionaries for further validation
         """
-        if not isinstance(v, list):
+        if not is_list_any(v):
             raise ValueError(f"Expected a list of orders, got {type(v).__name__}")
 
-        validated_items: list[dict[str, object]] = []
+        # v is now properly typed as list[Any] due to TypeGuard
+        validated_items: list[dict[str, Any]] = []
         for i, item in enumerate(v):
-            if not isinstance(item, dict):
+            if not is_dict_str_any(item):
                 # Log warning but skip non-dict items
                 from cyberdelta.config.logging_config import get_logger
 
@@ -285,6 +292,7 @@ class HyperliquidRawHistoricalOrdersResponse(
                 )
                 continue
 
-            validated_items.append(cast(dict[str, object], item))
+            # item is now properly typed as dict[str, Any] due to TypeGuard
+            validated_items.append(item)
 
         return validated_items

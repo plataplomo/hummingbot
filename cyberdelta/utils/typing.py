@@ -45,3 +45,31 @@ def is_potential_decimal_input(val: object) -> TypeGuard[PotentialDecimalInput]:
 
     """
     return isinstance(val, str | int | float | Decimal)
+
+
+def is_dict_str_any(val: object) -> TypeGuard[dict[str, Any]]:
+    """Check if the value is a dict with string keys and Any values.
+
+    Used as a TypeGuard to narrow the type for static analysis after validation.
+
+    Args:
+        val: The value to check.
+
+    Returns:
+        True if val is a dict[str, Any], False otherwise.
+    """
+    return isinstance(val, dict)
+
+
+def is_list_any(val: object) -> TypeGuard[list[Any]]:
+    """Check if the value is a list of Any.
+
+    Used as a TypeGuard to narrow the type for static analysis after validation.
+
+    Args:
+        val: The value to check.
+
+    Returns:
+        True if val is a list[Any], False otherwise.
+    """
+    return isinstance(val, list)

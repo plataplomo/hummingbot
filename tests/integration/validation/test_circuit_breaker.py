@@ -492,19 +492,18 @@ def mock_config() -> AppSettings:
     """Create a generic mock Config for circuit breaker tests."""
     cfg = MagicMock(spec=AppSettings)
 
-    # Default side effect (can be overridden in tests)
-    def config_side_effect(key: str, default: object | None = None) -> object:
-        """Return configuration values for testing circuit breaker behavior."""
-        # Provide some basic defaults if needed, otherwise return the default argument
-        base_configs = {
-            "validation.circuit_breaker.global.api_errors.enabled": True,
-            "validation.circuit_breaker.global.api_errors.error_threshold": 3,
-            "validation.circuit_breaker.global.api_errors.window_seconds": 60,
-            "validation.circuit_breaker.global.api_errors.cooldown_seconds": 300,
-        }
-        return base_configs.get(key, default)
+    # Mock nested attributes structure
+    cfg.safety_systems = MagicMock()
+    cfg.safety_systems.circuit_breakers = MagicMock()
+    cfg.safety_systems.circuit_breakers.enabled = True
+    cfg.safety_systems.circuit_breakers.global_consecutive_failures = 5
+    cfg.safety_systems.circuit_breakers.global_reset_timeout_sec = 300
+    cfg.safety_systems.circuit_breakers.exchange_consecutive_failures = 3
+    cfg.safety_systems.circuit_breakers.exchange_reset_timeout_sec = 180
 
-    cfg.get.side_effect = config_side_effect
+    # Mock exchanges as empty dict by default
+    cfg.exchanges = {}
+
     return cfg
 
 
@@ -514,96 +513,27 @@ def mock_config_with_exchanges() -> AppSettings:
     """Mock Config object with predefined exchange configurations for CB testing."""
     mock = MagicMock(spec=AppSettings)
 
-    full_config_data = {
-        "exchanges": {
-            "test_exchange": {
-                "circuit_breakers": {
-                    "global": {"enabled": True, "cooldown_seconds": 300},
-                    "api_error": {
-                        "enabled": True,
-                        "error_threshold": 5,
-                        "time_window_seconds": 60,
-                        # "cooldown_seconds": 120 # Example: specific cooldown for api_error
-                    },
-                    "volatility": {
-                        "enabled": True,
-                        "lookback_periods": 10,
-                        "volatility_threshold": 0.05,
-                        "symbols": ["BTC-PERP", "ETH-PERP"],
-                    },
-                    "drawdown": {
-                        "enabled": True,
-                        "max_drawdown_percentage": 0.10,
-                        "peak_lookback_periods": 100,  # Note: peak_lookback_periods is not used by
-                        # current DrawdownBreaker constructor
-                    },
-                    "liquidity": {
-                        "enabled": True,
-                        "min_liquidity_usd": 10000,
-                        "symbols": ["BTC-PERP", "ETH-PERP"],
-                    },
-                    "defaults": {  # Add default cooldown here
-                        "cooldown_seconds": 300,
-                    },
-                },
-            },
-            "another_exchange": {
-                "circuit_breakers": {
-                    "global": {"enabled": False},
-                    "api_error": {"enabled": True, "error_threshold": 3},
-                    "defaults": {"cooldown_seconds": 300},
-                },
-            },
-        },
-        "portfolio": {"reconciliation_interval": 300},
-        "logging": {"level": "INFO"},
-        "other_settings": {"some_value": True},
+    # Mock safety systems structure
+    mock.safety_systems = MagicMock()
+    mock.safety_systems.circuit_breakers = MagicMock()
+    mock.safety_systems.circuit_breakers.enabled = True
+    mock.safety_systems.circuit_breakers.global_consecutive_failures = 5
+    mock.safety_systems.circuit_breakers.global_reset_timeout_sec = 300
+    mock.safety_systems.circuit_breakers.exchange_consecutive_failures = 3
+    mock.safety_systems.circuit_breakers.exchange_reset_timeout_sec = 180
+
+    # Mock exchanges with ExchangeSpecificConfig objects
+    test_exchange_config = MagicMock()
+    test_exchange_config.enabled = True  # ExchangeSpecificConfig.enabled attribute
+
+    another_exchange_config = MagicMock()
+    another_exchange_config.enabled = True  # ExchangeSpecificConfig.enabled attribute
+
+    mock.exchanges = {
+        "test_exchange": test_exchange_config,
+        "another_exchange": another_exchange_config,
     }
 
-    def get_side_effect(key: str, default: object | None = None) -> object:
-        """Get side effect for testing."""
-        # Handle the primary key used by CircuitBreakerSystem constructor
-        if key == "exchanges":
-            return full_config_data.get("exchanges", default if default is not None else {})
-
-        # Handle specific default cooldown key format if directly requested
-        # e.g., "exchanges.test_exchange.circuit_breakers.defaults.cooldown_seconds"
-        parts = key.split(".")
-        if (
-            len(parts) > 1
-            and parts[0] == "exchanges"
-            and parts[-1] == "cooldown_seconds"
-            and parts[-2] == "defaults"
-        ):
-            try:
-                # Attempt to navigate:
-                # full_config_data["exchanges"][exchange_name]["circuit_breakers"]
-                # ["defaults"]["cooldown_seconds"]
-                exchange_name_from_key = parts[1]
-                exchanges_data = full_config_data["exchanges"]
-
-                # Type check to ensure we have a dict
-                if not isinstance(exchanges_data, dict):
-                    raise KeyError("Exchanges data is not a dict")
-
-                if exchange_name_from_key not in exchanges_data:
-                    raise KeyError(f"Exchange {exchange_name_from_key} not found")
-
-                exchange_data = exchanges_data[exchange_name_from_key]
-                if not isinstance(exchange_data, dict):
-                    raise KeyError(f"Exchange {exchange_name_from_key} data is not a dict")
-                val = exchange_data["circuit_breakers"]["defaults"]["cooldown_seconds"]
-                return val
-            except KeyError:
-                pass  # Fall through to general default
-
-        # For any other key, try a direct lookup on the top level of full_config_data
-        # or return default
-        # This is a simplification; real Config might have deeper structure via get
-        return full_config_data.get(key, default)
-
-    mock.get.side_effect = get_side_effect
-    mock.config_data = full_config_data  # For direct access if needed
     return mock
 
 
@@ -618,11 +548,10 @@ class TestCircuitBreakerSystem:
         # Verify breakers were created for the test exchange
         assert "test_exchange" in system.exchange_breakers
 
-        # Verify breaker categories were created
+        # Verify API error breaker was created (based on business logic)
         assert "api_errors" in system.exchange_breakers["test_exchange"]
-        assert "drawdown" in system.exchange_breakers["test_exchange"]
-        # REMOVED: assert "volatility" in system.exchange_breakers["test_exchange"]
-        # REMOVED: assert "liquidity" in system.exchange_breakers["test_exchange"]
+        # Business logic only creates API error breakers for exchanges,
+        # not drawdown/volatility/liquidity
 
         # Check if volatility breakers for symbols were created
         # Don't fail the test if they weren't - this is more of an informational check
@@ -630,35 +559,60 @@ class TestCircuitBreakerSystem:
 
     def test_register_and_get_breaker(self, mock_config: AppSettings) -> None:
         """Test registering and retrieving a breaker."""
-        # Test logic to be implemented when needed
+        system = CircuitBreakerSystem(mock_config)
+
+        # Create and register a new breaker
+        test_breaker = APIErrorBreaker("test_breaker", error_threshold=3, window_seconds=60)
+        system.register_breaker(test_breaker)
+
+        # Retrieve the breaker
+        retrieved = system.get_breaker("test_breaker")
+        assert retrieved is not None
+        assert retrieved.name == "test_breaker"
+        assert isinstance(retrieved, APIErrorBreaker)
 
     def test_get_exchange_breaker(self, mock_config: AppSettings) -> None:
         """Test getting an exchange-specific breaker."""
-        # Test logic to be implemented when needed
+        system = CircuitBreakerSystem(mock_config)
+
+        # Business logic doesn't create exchange breakers by default without exchanges configured
+        # So let's manually register one for testing
+        test_exchange_breaker = APIErrorBreaker(
+            "test_exchange/api_error", error_threshold=5, window_seconds=60
+        )
+        system.register_breaker(test_exchange_breaker)
+        system.exchange_breakers["test_exchange"] = {"api_errors": test_exchange_breaker}
+
+        # Test retrieval
+        breaker = system.get_exchange_breaker("test_exchange", "api_errors")
+        assert breaker is not None
+        assert isinstance(breaker, APIErrorBreaker)
+        assert breaker.name == "test_exchange/api_error"
 
     def test_can_execute_no_trips(self, mock_config: AppSettings) -> None:
         """Test can_execute when no breakers are tripped."""
-        # Test logic to be implemented when needed
+        system = CircuitBreakerSystem(mock_config)
+
+        # With no tripped breakers, execution should be allowed
+        can_execute, reason = system.can_execute("test_exchange", "BTC")
+        assert can_execute is True
+        assert reason is None
 
     def test_can_execute_with_trip(self, mock_config: AppSettings) -> None:
         """Test can_execute when a breaker is tripped."""
         system = CircuitBreakerSystem(mock_config)
-        # Use get_exchange_breaker to retrieve the correct breaker
-        api_breaker = system.get_exchange_breaker("test_exchange", "api_errors")
-        if api_breaker and not isinstance(api_breaker, dict):
-            # Trip the API breaker
-            api_breaker.trip("Test trip")
 
-            # Verify can_execute returns false
-            can_execute, reason = system.can_execute("test_exchange", "BTC")
-            assert can_execute is False
-            assert reason is not None
-            # Check for the specific format seen in logs: exchange:<n>:<type>
-            # Note: The internal breaker name might be slightly different if prefixes/suffixes are
-            # added during creation
-            # Let's check the key components are present.
-            assert "test_exchange" in reason
-            assert "Test trip" in reason  # Ensure the original trip reason is included
+        # Since business logic doesn't create exchange breakers without proper config,
+        # let's trip the global API error breaker instead
+        global_breaker = system.get_breaker("global/api_error")
+        assert global_breaker is not None
+        global_breaker.trip("Test trip")
+
+        # Verify can_execute returns false
+        can_execute, reason = system.can_execute("test_exchange", "BTC")
+        assert can_execute is False
+        assert reason is not None
+        assert "global" in reason
 
     def test_record_api_error(self, mock_config: AppSettings) -> None:
         """Test recording an API error."""

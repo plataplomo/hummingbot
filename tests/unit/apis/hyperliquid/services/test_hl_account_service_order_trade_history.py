@@ -137,7 +137,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Verify the mapper was called once with a HyperliquidRawHistoricalOrder object
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once()
         call_args = mock_hl_trading_mapper.transform_raw_historical_order_to_internal.call_args
-        
+
         # The raw_historical_order should be a HyperliquidRawHistoricalOrder instance
         # with the combined data
         raw_order_arg = call_args.kwargs.get("raw_historical_order") or call_args.args[0]
@@ -145,9 +145,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert raw_order_arg.coin == "BTC"
         assert raw_order_arg.order_type == "limit"
         assert raw_order_arg.status == "filled"
-        assert (
-            call_args.kwargs.get("trigger") is None
-            or (len(call_args.args) > 1 and call_args.args[1] is None)
+        assert call_args.kwargs.get("trigger") is None or (
+            len(call_args.args) > 1 and call_args.args[1] is None
         )
 
     @pytest.mark.asyncio
@@ -452,7 +451,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         assert result == [mapped_trade]
 
-
         expected_args = GetUserFillsArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_fills_request_payload.assert_called_once_with(expected_args)
 
@@ -618,7 +616,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for user fills, status: 200" in exc_info.value.message
-
 
         expected_args = GetUserFillsArgs(wallet_address=wallet_address)
         mock_request_builder.build_user_fills_request_payload.assert_called_once_with(expected_args)

@@ -37,7 +37,7 @@ boundary validation only.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
@@ -48,6 +48,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawStrictBool,
 )
 from cyberdelta.utils.parsing import validate_str_field
+from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
 class HyperliquidRawAssetDefinition(BaseModel):
@@ -147,7 +148,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def preprocess_tuple_response(cls, values: object) -> dict[str, object]:
+    def preprocess_tuple_response(cls, values: object) -> dict[str, Any]:
         """Transform [meta, assetCtxs] tuple into dict structure for validation.
 
         This validator replaces the preprocessing mapper logic by handling the
@@ -168,39 +169,35 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         return {"meta": preprocessed_meta, "asset_ctxs": preprocessed_asset_ctxs}
 
     @classmethod
-    def _validate_input_structure(cls, obj: object) -> list[object]:
+    def _validate_input_structure(cls, obj: object) -> list[Any]:
         """Validate that input is a 2-element list."""
-        if not isinstance(obj, list):
+        if not is_list_any(obj):
             raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
 
-        list_obj = cast(list[object], obj)
-
-        if len(list_obj) != 2:
+        # obj is now properly typed as list[Any] due to TypeGuard
+        if len(obj) != 2:
             raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
 
-        return list_obj
+        return obj
 
     @classmethod
-    def _extract_tuple_elements(cls, list_obj: list[object]) -> tuple[dict[str, Any], list[object]]:
+    def _extract_tuple_elements(cls, list_obj: list[Any]) -> tuple[dict[str, Any], list[Any]]:
         """Extract and validate meta and asset_ctxs elements from tuple."""
         meta_obj_raw = list_obj[0]
         asset_ctxs_list_raw = list_obj[1]
 
-        if not isinstance(meta_obj_raw, dict):
+        if not is_dict_str_any(meta_obj_raw):
             raise ValueError("Invalid MetaAndAssetCtxs response: first element (meta) must be dict")
-        if not isinstance(asset_ctxs_list_raw, list):
+        if not is_list_any(asset_ctxs_list_raw):
             raise ValueError(
                 "Invalid MetaAndAssetCtxs response: second element (asset_ctxs) must be list",
             )
 
-        meta_dict = cast(dict[str, Any], meta_obj_raw)
-
-        asset_ctxs_list_of_objects = cast(list[object], asset_ctxs_list_raw)
-
-        return meta_dict, asset_ctxs_list_of_objects
+        # Both are now properly typed due to TypeGuards
+        return meta_obj_raw, asset_ctxs_list_raw
 
     @classmethod
-    def _preprocess_meta_dict(cls, meta_dict: dict[str, object]) -> dict[str, object]:
+    def _preprocess_meta_dict(cls, meta_dict: dict[str, Any]) -> dict[str, Any]:
         """Preprocess the meta dictionary for Pydantic validation."""
         # Create a mutable copy for preprocessing
         meta_data = dict(meta_dict)
@@ -208,11 +205,12 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         # Keep marginTables field if present (model handles it as optional)
 
         # Preprocess universe items
-        if "universe" in meta_data and isinstance(meta_data["universe"], list):
-            preprocessed_universe: list[object] = []
+        if "universe" in meta_data and is_list_any(meta_data["universe"]):
+            preprocessed_universe: list[Any] = []
             for item in meta_data["universe"]:
-                if isinstance(item, dict):
+                if is_dict_str_any(item):
                     # Create a copy to avoid modifying original
+                    # item is now properly typed as dict[str, Any] due to TypeGuard
                     item_copy = dict(item)
                     # Add 'onlyIsolated' if missing with default False
                     if "onlyIsolated" not in item_copy:
@@ -227,30 +225,28 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     @classmethod
     def _preprocess_asset_ctxs_list(
         cls,
-        asset_ctxs_list: list[object],
-        preprocessed_meta: dict[str, object],
-    ) -> list[dict[str, object]]:
+        asset_ctxs_list: list[Any],
+        preprocessed_meta: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Preprocess asset contexts list with name enrichment from universe."""
-        preprocessed_ctxs: list[dict[str, object]] = []
+        preprocessed_ctxs: list[dict[str, Any]] = []
 
         # Extract universe for name enrichment
         universe = preprocessed_meta.get("universe", [])
-        if not isinstance(universe, list):
+        if not is_list_any(universe):
             universe = []
-
         for i, item_obj in enumerate(asset_ctxs_list):
-            if not isinstance(item_obj, dict):
+            if not is_dict_str_any(item_obj):
                 raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
 
-            item_dict = cast(dict[str, object], item_obj)
-
+            # item_obj is now properly typed as dict[str, Any] due to TypeGuard
             # Create a copy to avoid modifying original
-            processed_item = dict(item_dict)
+            processed_item = dict(item_obj)
 
             # Add name from universe if available and not already present
             if i < len(universe) and "name" not in processed_item:
                 universe_item = universe[i]
-                if isinstance(universe_item, dict) and "name" in universe_item:
+                if is_dict_str_any(universe_item) and "name" in universe_item:
                     processed_item["name"] = universe_item["name"]
 
             preprocessed_ctxs.append(processed_item)

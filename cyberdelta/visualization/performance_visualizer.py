@@ -8,6 +8,8 @@ NOTE: Many linter/type errors in this file are due to incomplete type stubs in p
 These do not represent real runtime risks and are not actionable in user code.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 

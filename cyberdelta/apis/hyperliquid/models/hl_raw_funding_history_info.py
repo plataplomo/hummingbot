@@ -7,7 +7,7 @@ responses from Hyperliquid's INFO endpoints (e.g., /info).
 These models are used for initial validation of the external API contract.
 """
 
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, RootModel, field_validator
 
@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawHlTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
+from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
 class HyperliquidRawFundingHistoryItem(BaseModel):
@@ -101,7 +102,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_funding_list(cls, v: object) -> list[dict[str, object]]:
+    def validate_funding_list(cls, v: object) -> list[dict[str, Any]]:
         """Validate and preprocess the list of funding history items.
 
         This validator handles:
@@ -109,20 +110,21 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
         - Validating each item is a dictionary
         - Providing detailed error messages for malformed items
         """
-        if not isinstance(v, list):
+        if not is_list_any(v):
             raise ValueError(
                 f"Unexpected historical_funding_rates response format: expected list, "
                 f"got {type(v).__name__}"
             )
 
-        validated_items: list[dict[str, object]] = []
+        validated_items: list[dict[str, Any]] = []
         for i, item in enumerate(v):
-            if not isinstance(item, dict):
+            if not is_dict_str_any(item):
                 raise ValueError(
                     f"Expected dict for historical funding rate item, "
                     f"got {type(item).__name__} at index {i}"
                 )
 
-            validated_items.append(cast(dict[str, object], item))
+            # item is now properly typed as dict[str, Any] due to TypeGuard
+            validated_items.append(item)
 
         return validated_items

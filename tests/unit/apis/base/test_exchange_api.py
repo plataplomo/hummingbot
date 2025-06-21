@@ -306,6 +306,20 @@ def base_config() -> dict[str, Any]:
         "rate_limits": {"default_rate": 10, "default_bucket_size": 10},
         "ws_endpoint": "wss://test.ws.endpoint",
         "rest_endpoint": "https://test.rest.endpoint",
+        "rate_limit_per_minute": 60,
+        "is_mainnet_environment": True,
+        "api_base_url_mainnet": "https://test.rest.endpoint",
+        "api_base_url_testnet": "https://test.rest.endpoint",
+        "ws_url_mainnet": "wss://test.ws.endpoint",
+        "ws_url_testnet": "wss://test.ws.endpoint",
+        "request_timeout_seconds": None,
+        "max_retries": None,
+        "retry_delay_seconds": None,
+        "ws_ping_interval_seconds": None,
+        "ws_reconnect_delay_seconds": None,
+        "ws_max_reconnect_attempts": None,
+        "ws_connection_timeout_seconds": None,
+        "websocket_send_rate_per_minute": None,
     }
 
 
@@ -378,6 +392,20 @@ class TestExchangeAPIInitialization:
         custom_config = {
             "rate_limits": {"default_rate": 20, "default_bucket_size": 20},
             "rest_endpoint": "https://custom.api.endpoint",
+            "rate_limit_per_minute": 60,
+            "is_mainnet_environment": True,
+            "api_base_url_mainnet": "https://custom.api.endpoint",
+            "api_base_url_testnet": "https://custom.api.endpoint",
+            "ws_url_mainnet": "wss://custom.ws.endpoint",
+            "ws_url_testnet": "wss://custom.ws.endpoint",
+            "request_timeout_seconds": None,
+            "max_retries": None,
+            "retry_delay_seconds": None,
+            "ws_ping_interval_seconds": None,
+            "ws_reconnect_delay_seconds": None,
+            "ws_max_reconnect_attempts": None,
+            "ws_connection_timeout_seconds": None,
+            "websocket_send_rate_per_minute": None,
         }
 
         api = exchange_api_with_di(config=custom_config)

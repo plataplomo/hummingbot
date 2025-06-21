@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
 from pydantic_core.core_schema import SerializationInfo
 
+from cyberdelta.utils.typing import is_dict_str_any, is_list_any
+
 if TYPE_CHECKING:
     pass
 
@@ -86,10 +88,12 @@ class SigningPayloadSerializer:
 
     def _clean_value(self, value: Any) -> Any:  # noqa: ANN401
         """Clean a single value for signing."""
-        if isinstance(value, dict):
+        if is_dict_str_any(value):
+            # value is now properly typed as dict[str, Any] due to TypeGuard
             cleaned_dict = self._clean_dict_recursive(value)
             return cleaned_dict if cleaned_dict else None
-        elif isinstance(value, list):
+        elif is_list_any(value):
+            # value is now properly typed as list[Any] due to TypeGuard
             return self._clean_list(value)
         else:
             return value
@@ -98,7 +102,8 @@ class SigningPayloadSerializer:
         """Clean a list for signing."""
         cleaned_list: list[Any] = []
         for item in lst:
-            if isinstance(item, dict):
+            if is_dict_str_any(item):
+                # item is now properly typed as dict[str, Any] due to TypeGuard
                 cleaned_item = self._clean_dict_recursive(item)
                 if cleaned_item:
                     cleaned_list.append(cleaned_item)
@@ -117,7 +122,8 @@ class OrderTypeCleanerMixin:
 
         Transforms: {"limit": {...}, "market": null} -> {"limit": {...}}
         """
-        if isinstance(v, dict) and "limit" in v and "market" in v:
+        if is_dict_str_any(v) and "limit" in v and "market" in v:
+            # v is now properly typed as dict[str, Any] due to TypeGuard
             if v["limit"] is None and v["market"] is not None:
                 return {"market": v["market"]}
             elif v["market"] is None and v["limit"] is not None:

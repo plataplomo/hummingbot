@@ -886,7 +886,7 @@ class HyperliquidMarketDataMapper:
         try:
             # The raw model already has validated the structure
             # We just need to convert string prices to Decimal
-            prices = {}
+            prices: dict[str, Decimal] = {}
             for symbol, price_str in raw_all_mids.root.items():
                 # Use our standard decimal parsing utility
                 decimal_price = parse_decimal_value(

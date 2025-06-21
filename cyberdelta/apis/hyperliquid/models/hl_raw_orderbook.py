@@ -51,6 +51,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawPositiveFiniteDecimalStr,
 )
 from cyberdelta.utils.parsing import validate_str_field
+from cyberdelta.utils.typing import is_dict_str_any
 
 
 def is_list(obj: object) -> TypeGuard[list[object]]:
@@ -127,9 +128,10 @@ class HyperliquidRawL2Book(BaseModel):
                 "time": 0,  # zero timestamp for empty book
             }
 
-        if not isinstance(values, dict):
+        if not is_dict_str_any(values):
             raise ValueError(f"Order book response must be a dict, got {type(values).__name__}")
 
+        # values is now properly typed as dict[str, Any] due to TypeGuard
         return values
 
     @field_validator("levels", mode="before")

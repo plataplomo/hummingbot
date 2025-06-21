@@ -28,6 +28,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 
+from cyberdelta.utils.typing import is_dict_str_any
+
 if TYPE_CHECKING:
     pass
 
@@ -404,11 +406,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         return result
 
-    def _process_order_items(self, orders: list[Any]) -> None:
+    def _process_order_items(self, orders: list[object]) -> None:
         """Process order items to ensure proper structure."""
         for i, order_item in enumerate(orders):
             # Force serialize the order item to ensure proper structure
-            if hasattr(order_item, "model_dump"):
+            if isinstance(order_item, BaseModel):
                 # If it's a Pydantic model, dump it excluding None values
                 order_item_dict = order_item.model_dump(
                     by_alias=False, exclude_none=True, mode="python"
@@ -417,7 +419,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 self.logger.debug(
                     f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}"
                 )
-            elif isinstance(order_item, dict):
+            elif is_dict_str_any(order_item):
+                # order_item is now properly typed as dict[str, Any] due to TypeGuard
                 self._remove_none_c_field(order_item, i)
 
     def _remove_none_c_field(self, order_item: dict[str, Any], index: int) -> None:
@@ -431,7 +434,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Process orders in dict data to remove None 'c' fields."""
         if "orders" in data and data["orders"]:
             for i, order_item in enumerate(data["orders"]):
-                if isinstance(order_item, dict):
+                if is_dict_str_any(order_item):
+                    # order_item is now properly typed as dict[str, Any] due to TypeGuard
                     self._remove_none_c_field(order_item, i)
 
     def _compute_action_hash(

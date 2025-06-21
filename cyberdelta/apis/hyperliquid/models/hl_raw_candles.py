@@ -33,7 +33,7 @@ and real-time price series.
     # ...then transform to internal candle model
 """
 
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -51,6 +51,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawTimestampMsInt,
 )
 from cyberdelta.utils.parsing import validate_str_field
+from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
 class HyperliquidRawCandleSnapshot(BaseModel):
@@ -92,15 +93,17 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def preprocess_candle_response(cls, values: object) -> dict[str, object]:
+    def preprocess_candle_response(cls, values: object) -> dict[str, Any]:
         """Preprocess candle snapshot response before validation.
 
         This handles the preprocessing logic that was previously in the
         HyperliquidResponsePreprocessingMapper.preprocess_candle_snapshot_response method.
         """
         # Handle empty list response (no candle data available)
-        if isinstance(values, list):
-            if len(values) == 0:
+        if is_list_any(values):
+            # DEFENSIVE CHECK: Empty list is a valid response from the API
+            # Mypy=[no-any-return] Ruff=[N/A]
+            if not values:  # More pythonic than len(values) == 0
                 # Return a minimal empty candle snapshot with proper OHLCV structure
                 return {
                     "t": [],  # timestamps
@@ -114,11 +117,12 @@ class HyperliquidRawCandleSnapshot(BaseModel):
             # If it's a non-empty list, something is wrong
             raise ValueError("Candle snapshot response must be a dict, not a list")
 
-        if not isinstance(values, dict):
+        if not is_dict_str_any(values):
             raise ValueError(
                 f"Candle snapshot response must be a dict, got {type(values).__name__}"
             )
 
+        # values is now properly typed as dict[str, Any] due to TypeGuard
         return values
 
     @model_validator(mode="after")
