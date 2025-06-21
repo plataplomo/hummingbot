@@ -95,6 +95,8 @@ class TestMarketOrderService:
     ) -> None:
         """Test calculating aggressive price for buy orders."""
         mock_exchange_api.get_order_book.return_value = sample_order_book
+        # Mock get_market to return None so round_to_tick_size returns original price
+        mock_exchange_api.get_market.return_value = None
 
         price = await service.calculate_aggressive_price(
             symbol="BTC",
@@ -102,7 +104,7 @@ class TestMarketOrderService:
             quantity=Decimal("5"),
         )
 
-        # Best ask is 50010, with 0.2% slippage should be ~50110
+        # Best ask is 50010, signal generator returns 0.2% slippage
         expected = Decimal("50010") * Decimal("1.002")
         assert abs(price - expected) < Decimal("1")  # Allow small rounding difference
 
@@ -115,6 +117,8 @@ class TestMarketOrderService:
     ) -> None:
         """Test calculating aggressive price for sell orders."""
         mock_exchange_api.get_order_book.return_value = sample_order_book
+        # Mock get_market to return None so round_to_tick_size returns original price
+        mock_exchange_api.get_market.return_value = None
 
         price = await service.calculate_aggressive_price(
             symbol="BTC",
@@ -122,7 +126,7 @@ class TestMarketOrderService:
             quantity=Decimal("5"),
         )
 
-        # Best bid is 50000, with 0.2% slippage should be ~49900
+        # Best bid is 50000, signal generator returns 0.2% slippage
         expected = Decimal("50000") * Decimal("0.998")
         assert abs(price - expected) < Decimal("1")
 
@@ -174,6 +178,8 @@ class TestMarketOrderService:
     ) -> None:
         """Test max slippage override parameter."""
         mock_exchange_api.get_order_book.return_value = sample_order_book
+        # Mock get_market to return None so round_to_tick_size returns original price
+        mock_exchange_api.get_market.return_value = None
         mock_signal_generator.estimate_slippage.return_value = Decimal("0.01")  # 1%
 
         # Override max slippage to 0.5%
@@ -330,9 +336,13 @@ class TestMarketOrderService:
             service.validate_config()
 
     @pytest.mark.asyncio
-    async def test_round_to_tick_size(self, service: MarketOrderService) -> None:
+    async def test_round_to_tick_size(
+        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+    ) -> None:
         """Test price rounding to tick size."""
-        # Currently just returns the price as-is
+        # Mock get_market to return None so it returns the original price
+        mock_exchange_api.get_market.return_value = None
+
         price = await service.round_to_tick_size(Decimal("50123.456789"), "BTC")
         assert price == Decimal("50123.456789")
 

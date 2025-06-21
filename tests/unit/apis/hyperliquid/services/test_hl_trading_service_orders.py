@@ -207,22 +207,20 @@ class TestHyperliquidTradingServiceOrders:
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
     ) -> None:
-        """Test get_order raises APIError for invalid string order_id.
+        """Test get_order raises ValueError for invalid string order_id.
 
-        ValueError is wrapped in APIError due to error handling strategy.
+        Input validation errors are re-raised as ValueError, not wrapped in APIError.
         """
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             await hl_trading_service.get_order(
                 args=GetOrderArgs(symbol="ETH", order_id="not_a_number"),
             )
 
-        # The service wraps ValueError in APIError due to error handling strategy
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Service internal logic error" in exc_info.value.message
-        # The original ValueError message should be preserved in the original_exception
-        assert "'order_id' must be a valid integer" in str(exc_info.value.original_exception)
+        # The service re-raises input validation errors as ValueError
+        assert "'order_id' must be a valid integer" in str(exc_info.value)
+        assert "not_a_number" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_empty_symbol_when_provided_validation(
@@ -495,7 +493,7 @@ class TestHyperliquidTradingServiceOrders:
             mock_http_client_requester.assert_called_once_with(
                 method="POST",
                 endpoint="/exchange",
-                data=mock_payload_dict,
+                data=mock_payload,
                 is_signed=True,
                 serialize_none_as_null=True,
             )
@@ -576,7 +574,7 @@ class TestHyperliquidTradingServiceOrders:
                 "limitPx": "50000.0",
                 "sz": "0.5",
                 "timestamp": 1234567890000,
-                "orderType": {"limit": {"tif": "Gtc"}},
+                "orderType": "limit",
                 "reduceOnly": False,
                 "origSz": "0.5",
                 "tif": "Gtc",
@@ -647,8 +645,8 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
-            data={"type": "orderStatus", "user": "0xSuccessWallet", "oid": int(order_id)},
-            is_signed=True,
+            data={"type": "orderStatus", "user": "0xSuccessWallet", "oid": 123456},
+            is_signed=False,
         )
         mock_hl_response_handler.handle_info_order_status_response.assert_called_once_with(
             mock_response_content,
@@ -826,28 +824,32 @@ class TestHyperliquidTradingServiceOrders:
                 signal_id=None,
             ),
         ]
-        mock_hl_trading_mapper.transform_raw_simple_order_to_internal.side_effect = expected_orders
+        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.side_effect = (
+            expected_orders
+        )
 
         result = await hl_trading_service.get_open_orders(symbol=symbol)
 
         assert result == expected_orders
         assert len(result) == 2
         # Verify request builder was called correctly
+        from cyberdelta.apis.models.service_args_models import GetOpenOrdersArgs
+
         mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
-            wallet_address=wallet_address,
+            GetOpenOrdersArgs(wallet_address=wallet_address),
         )
         # Verify HTTP request was made with the mock payload
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_payload.model_dump(by_alias=True),
-            is_signed=True,
+            is_signed=False,
         )
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
             simple_mock_response_content,
             user_address=wallet_address,
         )
-        mock_hl_trading_mapper.transform_raw_simple_order_to_internal.assert_has_calls(
+        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.assert_has_calls(
             [
                 call(raw_simple_order=mock_raw_response.root[0]),
                 call(raw_simple_order=mock_raw_response.root[1]),

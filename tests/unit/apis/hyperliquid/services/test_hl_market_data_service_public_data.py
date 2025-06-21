@@ -27,6 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidR
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 
@@ -116,24 +117,11 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker raises ValueError for whitespace-only symbol after strip()."""
-        # The service checks `if not symbol:` which evaluates to False for whitespace strings.
-        # To properly test whitespace validation, we need to check if the service
-        # validates against stripped strings. Since the current service doesn't do this,
-        # we'll test that whitespace passes input validation and fails elsewhere.
-        # This test documents the current behavior rather than ideal behavior.
+        # The service now properly validates whitespace-only symbols and raises ValueError
+        with pytest.raises(ValueError) as exc_info:
+            await hyperliquid_market_data_service.get_ticker("   ")
 
-        # Mock the get_all_asset_contexts_raw method to avoid the unpack error
-        mock_response = MagicMock()
-        mock_response.asset_ctxs = []
-
-        with patch.object(
-            hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
-            new=AsyncMock(return_value=mock_response),
-        ):
-            # Whitespace symbols currently pass input validation but won't find matches
-            result = await hyperliquid_market_data_service.get_ticker("   ")
-            assert result is None  # No asset found for whitespace symbol
+        assert "[get_ticker] 'symbol' cannot be empty or whitespace only." in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_book_empty_symbol_validation(
@@ -228,9 +216,11 @@ class TestHyperliquidMarketDataServicePublicData:
             {"universe": []},
             [],
         ]
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
-            asset_ctxs=[],
+        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                {"universe": [], "marginTables": None},
+                [],
+            ]
         )
 
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
@@ -344,9 +334,14 @@ class TestHyperliquidMarketDataServicePublicData:
             ],
             marginTables=None,
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[mock_raw_asset_ctx_btc, mock_raw_asset_ctx_eth],
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                mock_meta_response.model_dump(by_alias=True),
+                [
+                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+                ],
+            ]
         )
 
         expected_internal_ticker = Ticker(
@@ -382,9 +377,11 @@ class TestHyperliquidMarketDataServicePublicData:
         """Test get_ticker returns None when symbol is not found."""
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[],
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                mock_meta_response.model_dump(by_alias=True),
+                [],
+            ]
         )
 
         with patch.object(
@@ -489,7 +486,7 @@ class TestHyperliquidMarketDataServicePublicData:
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
-            symbol=symbol_to_find,
+            GetL2BookArgs(symbol=symbol_to_find)
         )
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
@@ -540,7 +537,9 @@ class TestHyperliquidMarketDataServicePublicData:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for l2Book" in exc_info.value.message
-        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(symbol=symbol)
+        mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
+            GetL2BookArgs(symbol=symbol)
+        )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
@@ -653,7 +652,7 @@ class TestHyperliquidMarketDataServicePublicData:
 
         # Assertions
         mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            symbol=symbol_to_find,
+            GetRecentTradesArgs(symbol=symbol_to_find)
         )
         mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
@@ -702,7 +701,7 @@ class TestHyperliquidMarketDataServicePublicData:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for recentTrades" in exc_info.value.message
         mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            symbol=symbol,
+            GetRecentTradesArgs(symbol=symbol)
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",

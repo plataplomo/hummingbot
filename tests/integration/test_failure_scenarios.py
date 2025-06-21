@@ -65,14 +65,14 @@ class TestFailureScenarios:
     ) -> None:  # Added return type hint
         """Tests that repeated API errors trigger the exchange circuit breaker."""
         # 1. Setup
-        target_exchange = "mock_bp"  # Exchange we will cause to fail
-        other_exchange = "mock_hl"
-        target_breaker_type = "api_errors"
+        target_exchange = "backpack"  # Exchange we will cause to fail - using real exchange name
+        other_exchange = "hyperliquid"  # Using real exchange name
+        target_breaker_type = "api_errors"  # Must match circuit breaker system naming
 
         mock_bp_api.reset()
         mock_hl_api.reset()
         real_portfolio_tracker.reset()
-        circuit_breaker_system.reset_breaker("global_api_error")
+        circuit_breaker_system.reset_breaker("global/api_error")  # Use correct breaker name format
         circuit_breaker_system.reset_exchange_breakers(target_exchange)
         circuit_breaker_system.reset_exchange_breakers(other_exchange)
 
@@ -80,7 +80,7 @@ class TestFailureScenarios:
         now = datetime.now(UTC)  # Need timestamp
         mock_bp_api.set_mock_balance(
             SpotBalance(
-                exchange="mock_bp",
+                exchange="backpack",  # Use real exchange name
                 asset="USDT",
                 # total=Decimal("10000"), # Use correct fields
                 # available=Decimal("10000"),
@@ -91,7 +91,7 @@ class TestFailureScenarios:
         )
         mock_hl_api.set_mock_balance(
             SpotBalance(
-                exchange="mock_hl",
+                exchange="hyperliquid",  # Use real exchange name
                 asset="USDT",
                 # total=Decimal("10000"), # Use correct fields
                 # available=Decimal("10000"),
@@ -109,7 +109,7 @@ class TestFailureScenarios:
         mock_bp_api.set_mock_ticker(create_mock_ticker(bp_symbol, 30000, 30001, 30000.5, now))
         mock_hl_api.set_mock_ticker(create_mock_ticker(hl_symbol, 30010, 30011, 30010.5, now))
 
-        # Configure mock_bp to consistently fail order placement
+        # Configure backpack API (mock_bp_api) to consistently fail order placement
         error_message = "Simulated API error during order placement"
         mock_bp_api.set_error_simulation(
             APIError(
@@ -325,7 +325,7 @@ class TestFailureScenarios:
         mock_bp_api.clear_error()
         circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}")
         circuit_breaker_system.reset_breaker(f"exchange:{other_exchange}:{target_breaker_type}")
-        circuit_breaker_system.reset_breaker("global_api_error")
+        circuit_breaker_system.reset_breaker("global/api_error")  # Use correct breaker name format
         logger.info("Test cb_trips_on_repeated_api_errors finished.")
 
     @pytest.mark.asyncio
@@ -355,7 +355,7 @@ class TestFailureScenarios:
         circuit_breaker_system: CircuitBreakerSystem,
     ) -> None:
         """Tests manual tripping and resetting of breakers."""
-        breaker_name = "exchange:mock_hl:api_errors"
+        breaker_name = "exchange:hyperliquid:api_errors"  # Use correct exchange name
         # Ensure breaker exists (might need adjustment based on CBSystem init)
         # circuit_breaker_system.get_or_create_breaker(
         #     breaker_name, APIErrorBreaker, threshold=3, recovery_timeout=60

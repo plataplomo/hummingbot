@@ -18,6 +18,7 @@ from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
 from cyberdelta.config.config_models import (
+    AddressActionSafetyNetConfig,
     AppSettings,
     BalanceMonitoringSettings,
     CircuitBreakerSettings,
@@ -123,6 +124,17 @@ def mock_config() -> AppSettings:
                 chain_id=1337,
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC", "ETH": "ETH"},
+                # Hyperliquid-specific required fields
+                ip_weight_limit_per_minute=1200,
+                info_request_type_ip_weights={
+                    "meta": 1,
+                    "allMids": 2,
+                    "openOrders": 1,
+                    "userState": 1,
+                },
+                default_info_weight=1,
+                exchange_action_base_ip_weight=1,
+                address_action_safety_net=AddressActionSafetyNetConfig(rate_per_minute=600),
             ),
             "backpack": ExchangeSpecificConfig(
                 exchange_name=ExchangeName.BACKPACK,

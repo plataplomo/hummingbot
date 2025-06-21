@@ -80,58 +80,34 @@ class TestHyperliquidTradingServiceManagement:
             HyperliquidRawOpenOrdersResponse,
         )
 
-        # Create mock raw open orders as dictionaries (not objects)
+        # Create mock raw open orders data matching HyperliquidRawSimpleOpenOrder format
         mock_raw_open_orders_data = [
             {
-                "order": {
-                    "oid": 123,
-                    "cloid": None,
-                    "asset": "BTC",
-                    "side": "A",
-                    "limitPx": "50000",
-                    "sz": "0.5",
-                    "timestamp": 1234567890,
-                    "orderType": {"limit": {"tif": "Gtc"}},
-                    "reduceOnly": False,
-                    "remainingSz": "0.5",
-                    "status": "open",
-                    "statusTimestamp": 1234567890,
-                },
-                "trigger": None,
+                "coin": "BTC",
+                "limitPx": "50000",
+                "oid": 123,
+                "side": "A",
+                "sz": "0.5",
+                "timestamp": 1234567890,
+                "origSz": "0.5",
             },
             {
-                "order": {
-                    "oid": 456,
-                    "cloid": None,
-                    "asset": "ETH",
-                    "side": "B",
-                    "limitPx": "3000",
-                    "sz": "2.0",
-                    "timestamp": 1234567890,
-                    "orderType": {"limit": {"tif": "Gtc"}},
-                    "reduceOnly": False,
-                    "remainingSz": "2.0",
-                    "status": "open",
-                    "statusTimestamp": 1234567890,
-                },
-                "trigger": None,
+                "coin": "ETH",
+                "limitPx": "3000",
+                "oid": 456,
+                "side": "B",
+                "sz": "2.0",
+                "timestamp": 1234567890,
+                "origSz": "2.0",
             },
             {
-                "order": {
-                    "oid": 789,
-                    "cloid": None,
-                    "asset": "BTC",
-                    "side": "A",
-                    "limitPx": "51000",
-                    "sz": "1.0",
-                    "timestamp": 1234567890,
-                    "orderType": {"limit": {"tif": "Gtc"}},
-                    "reduceOnly": False,
-                    "remainingSz": "1.0",
-                    "status": "open",
-                    "statusTimestamp": 1234567890,
-                },
-                "trigger": None,
+                "coin": "BTC",
+                "limitPx": "51000",
+                "oid": 789,
+                "side": "A",
+                "sz": "1.0",
+                "timestamp": 1234567890,
+                "origSz": "1.0",
             },
         ]
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
@@ -209,7 +185,7 @@ class TestHyperliquidTradingServiceManagement:
         )
 
         # Configure the trading mapper to return these orders in sequence
-        mock_hl_trading_mapper.transform_raw_order_to_internal.side_effect = [
+        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
             btc_order_1,
             eth_order,
             btc_order_2,
@@ -257,41 +233,25 @@ class TestHyperliquidTradingServiceManagement:
             HyperliquidRawOpenOrdersResponse,
         )
 
-        # Create mock raw open orders as dictionaries (not objects)
+        # Create mock raw open orders data matching HyperliquidRawSimpleOpenOrder format
         mock_raw_open_orders_data = [
             {
-                "order": {
-                    "oid": 111,
-                    "cloid": None,
-                    "asset": "BTC",
-                    "side": "A",
-                    "limitPx": "50000",
-                    "sz": "0.5",
-                    "timestamp": 1234567890,
-                    "orderType": {"limit": {"tif": "Gtc"}},
-                    "reduceOnly": False,
-                    "remainingSz": "0.5",
-                    "status": "open",
-                    "statusTimestamp": 1234567890,
-                },
-                "trigger": None,
+                "coin": "BTC",
+                "limitPx": "50000",
+                "oid": 111,
+                "side": "A",
+                "sz": "0.5",
+                "timestamp": 1234567890,
+                "origSz": "0.5",
             },
             {
-                "order": {
-                    "oid": 222,
-                    "cloid": None,
-                    "asset": "ETH",
-                    "side": "B",
-                    "limitPx": "3000",
-                    "sz": "2.0",
-                    "timestamp": 1234567890,
-                    "orderType": {"limit": {"tif": "Gtc"}},
-                    "reduceOnly": False,
-                    "remainingSz": "2.0",
-                    "status": "open",
-                    "statusTimestamp": 1234567890,
-                },
-                "trigger": None,
+                "coin": "ETH",
+                "limitPx": "3000",
+                "oid": 222,
+                "side": "B",
+                "sz": "2.0",
+                "timestamp": 1234567890,
+                "origSz": "2.0",
             },
         ]
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
@@ -355,7 +315,7 @@ class TestHyperliquidTradingServiceManagement:
         )
 
         # Configure the trading mapper to return these orders in sequence
-        mock_hl_trading_mapper.transform_raw_order_to_internal.side_effect = [
+        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
             btc_order_1,
             eth_order,
         ]

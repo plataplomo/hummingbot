@@ -938,7 +938,7 @@ class PerformanceMetricsCalculator:
         self,
         returns: pd.Series[float],
         trades: pd.DataFrame | None = None,
-    ) -> dict[str, float]:
+    ) -> dict[str, float | int]:
         """Calculate all performance metrics.
 
         Args:

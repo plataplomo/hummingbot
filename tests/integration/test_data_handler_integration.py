@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.config_models import AppSettings
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.ticker import Ticker
@@ -43,36 +44,11 @@ class TestDataHandlerIntegration:
     @pytest.fixture
     def data_handler(
         self,
-        mock_config: MagicMock,
+        mock_config: AppSettings,
         mock_exchange_api: AsyncMock,
         mock_symbol_mapper: MagicMock,
     ) -> DataHandler:
         """Create a DataHandler instance with mocked dependencies."""
-        # Ensure mock_config.get is a MagicMock if mock_config is to be used directly
-        # This setup assumes mock_config is the mock for the Config object itself.
-        if not hasattr(mock_config, "get") or not isinstance(mock_config.get, MagicMock):
-            # Default setup for 'get' if not provided by a more specific fixture
-            def default_get_side_effect(key: str, default: object = None) -> object:
-                """Return default configuration values for DataHandler testing."""
-                # Provide minimal config for DataHandler initialization to pass
-                if key == "exchanges":
-                    return {
-                        "hyperliquid": {"enabled": True, "symbols": ["BTC", "ETH"]},
-                        "backpack": {"enabled": True, "symbols": ["BTCUSDC", "ETHUSDC"]},
-                    }
-                if key == "data_handler.staleness_defaults":
-                    return {"ticker": 60, "funding_rate": 300}
-                if key.startswith("exchanges.hyperliquid") or key.startswith("exchanges.backpack"):
-                    if key.endswith(".enabled"):
-                        return True
-                    if key.endswith(".symbols"):
-                        return ["SYM1", "SYM2"]
-                    if key.endswith(".data_handler.staleness"):
-                        return {}
-                return default
-
-            mock_config.get = MagicMock(side_effect=default_get_side_effect)
-
         # Create mock portfolio tracker
         mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
 
@@ -121,16 +97,16 @@ class TestDataHandlerIntegration:
         """Test DataHandler initialization and start_connections scheduling maintenance."""
         # Initial state assertions (after __init__ from fixture)
         # These verify that setup worked as expected based on the mock_config in the data_handler
-        # fixture. The fixture enables "hyperliquid" and "backpack" with symbols ["SYM1", "SYM2"]
+        # fixture. The fixture enables "hyperliquid" and "backpack" with symbols from AppSettings
         assert "hyperliquid" in data_handler.last_update_time
-        assert "SYM1" in data_handler.last_update_time["hyperliquid"]
-        assert isinstance(data_handler.last_update_time["hyperliquid"]["SYM1"], datetime)
-        assert data_handler.last_update_time["hyperliquid"]["SYM1"].tzinfo is not None
+        assert "BTC" in data_handler.last_update_time["hyperliquid"]
+        assert isinstance(data_handler.last_update_time["hyperliquid"]["BTC"], datetime)
+        assert data_handler.last_update_time["hyperliquid"]["BTC"].tzinfo is not None
 
         assert "backpack" in data_handler.last_update_time
-        assert "SYM1" in data_handler.last_update_time["backpack"]
-        assert isinstance(data_handler.last_update_time["backpack"]["SYM1"], datetime)
-        assert data_handler.last_update_time["backpack"]["SYM1"].tzinfo is not None
+        assert "BTC" in data_handler.last_update_time["backpack"]
+        assert isinstance(data_handler.last_update_time["backpack"]["BTC"], datetime)
+        assert data_handler.last_update_time["backpack"]["BTC"].tzinfo is not None
 
         # Test start_connections behavior by mocking the websocket maintenance
         with patch.object(data_handler, "start_connections") as mock_start:
@@ -193,7 +169,7 @@ class TestDataHandlerIntegration:
     def test_get_funding_rate_stale(self, data_handler: DataHandler) -> None:
         """Test retrieving stale funding rate data."""
         rate = Decimal("0.0001")
-        timestamp = datetime.now(UTC) - timedelta(seconds=400)  # Stale data
+        timestamp = datetime.now(UTC) - timedelta(seconds=3700)  # Stale data (older than 1 hour)
         test_funding_rate = FundingRate(
             symbol="BTC",
             funding_rate=rate,
@@ -258,30 +234,10 @@ class TestDataHandlerIntegration:
     @pytest.mark.asyncio
     async def test_data_handler_init(
         self,
-        mock_config: MagicMock,
+        mock_config: AppSettings,
         mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test DataHandler initialization with configuration."""
-
-        # Test with a different config setup
-        def test_config_get(key: str, default: object = None) -> object:
-            """Test config get."""
-            if key == "exchanges":
-                return {
-                    "test_exchange": {"enabled": True, "symbols": ["TEST_SYM"]},
-                }
-            if key == "data_handler.staleness_defaults":
-                return {"ticker": 30, "funding_rate": 600}
-            if key.startswith("exchanges.test_exchange"):
-                if key.endswith(".enabled"):
-                    return True
-                if key.endswith(".symbols"):
-                    return ["TEST_SYM"]
-                if key.endswith(".data_handler.staleness"):
-                    return {"ticker": 45}
-            return default
-
-        mock_config.get = MagicMock(side_effect=test_config_get)
         mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
         api_clients: dict[str, Any] = {}
 
@@ -293,32 +249,18 @@ class TestDataHandlerIntegration:
         )
         assert handler.app_settings == mock_config
 
-        # Verify the handler was initialized with the test configuration
-        assert "test_exchange" in handler.last_update_time
-        assert "TEST_SYM" in handler.last_update_time["test_exchange"]
+        # Verify the handler was initialized with the configuration
+        # Using BTC since that's what's in our mock_config
+        assert "hyperliquid" in handler.last_update_time
+        assert "BTC" in handler.last_update_time["hyperliquid"]
 
     @pytest.mark.asyncio
     async def test_websocket_reconnect_scenario(
         self,
-        mock_config: MagicMock,
+        mock_config: AppSettings,
         mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test WebSocket reconnection scenario."""
-
-        def mock_config_side_effect(key: str, default: object = None) -> object:
-            """Return mock config side effect for testing."""
-            config_dict = {
-                "exchanges": {"test_exchange": {"enabled": True, "symbols": ["SYM1"]}},
-                "data_handler.staleness_defaults": {"ticker": 60, "funding_rate": 300},
-                "exchanges.test_exchange.enabled": True,
-                "exchanges.test_exchange.symbols": ["SYM1"],
-                "exchanges.test_exchange.data_handler.staleness": {},
-                "data_handler.websocket_reconnect_delay": 5,
-                "data_handler.max_reconnect_attempts": 3,
-            }
-            return config_dict.get(key, default)
-
-        mock_config.get = MagicMock(side_effect=mock_config_side_effect)
         mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
         api_clients: dict[str, Any] = {}
 
@@ -331,9 +273,9 @@ class TestDataHandlerIntegration:
 
         mock_api_client = AsyncMock(spec=ExchangeAPI)
         mock_api_client.is_connected = False  # Simulate disconnected state
-        handler.register_api_client("test_exchange", mock_api_client)
+        handler.register_api_client("hyperliquid", mock_api_client)
 
         # Test that the handler properly handles reconnection scenarios
         # by checking that it can be started without errors
-        assert "test_exchange" in handler.api_clients
-        assert handler.api_clients["test_exchange"] == mock_api_client
+        assert "hyperliquid" in handler.api_clients
+        assert handler.api_clients["hyperliquid"] == mock_api_client

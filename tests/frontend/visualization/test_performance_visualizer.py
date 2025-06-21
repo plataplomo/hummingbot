@@ -24,7 +24,7 @@ try:
 except ImportError:
     go = None
 
-from cyberdelta.visualization.performance_visualizer import (
+from frontend.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,
     PerformanceVisualizer,
     VisualizationConfig,

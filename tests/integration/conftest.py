@@ -63,6 +63,7 @@ else:
 
 import pytest
 import pytest_asyncio
+from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.config_models import PortfolioTrackerConfig
@@ -111,8 +112,8 @@ def basic_opportunity() -> ArbitrageOpportunity:
     # Ensure all required fields are present.
     opp = ArbitrageOpportunity(
         symbol="BTC",
-        long_exchange="mock_bp",
-        short_exchange="mock_hl",
+        long_exchange="backpack",  # Use real exchange name
+        short_exchange="hyperliquid",  # Use real exchange name
         long_price=Decimal("30001"),  # Already correct
         short_price=Decimal("30010"),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
@@ -172,8 +173,25 @@ async def mock_hl_api(
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "mock_hl"
-    # For AppSettings, we need to access exchange config differently
-    exchange_config_dict: dict[str, Any] = {}  # Simplified for mock
+    # Create a proper ExchangeSpecificConfig object for the mock
+    from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
+    from cyberdelta.enums.exchange_names import ExchangeName
+
+    exchange_config = ExchangeSpecificConfig(
+        exchange_name=ExchangeName.HYPERLIQUID,
+        enabled=True,
+        api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
+        ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
+        is_mainnet_environment=True,
+        rate_limit_per_minute=120,
+        symbols={"BTC": "BTC", "ETH": "ETH"},
+        # Hyperliquid-specific required fields
+        ip_weight_limit_per_minute=1200,
+        info_request_type_ip_weights={"meta": 1, "allMids": 2},
+        default_info_weight=1,
+        exchange_action_base_ip_weight=1,
+        address_action_safety_net=AddressActionSafetyNetConfig(rate_per_minute=600),
+    )
 
     exchange_secrets = mock_secrets[exchange_name]
 
@@ -186,7 +204,7 @@ async def mock_hl_api(
     ):
         api = MockExchangeAPI(
             exchange_name=exchange_name,
-            config=exchange_config_dict,
+            config=exchange_config,
             secrets=exchange_secrets,
             config_obj=mock_config,
         )
@@ -203,8 +221,19 @@ async def mock_bp_api(
 ) -> AsyncGenerator[MockExchangeAPI]:
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "mock_bp"
-    # For AppSettings, we need to access exchange config differently
-    exchange_config_dict_bp: dict[str, Any] = {}  # Simplified for mock
+    # Create a proper ExchangeSpecificConfig object for the mock
+    from cyberdelta.config.config_models import ExchangeSpecificConfig
+    from cyberdelta.enums.exchange_names import ExchangeName
+
+    exchange_config = ExchangeSpecificConfig(
+        exchange_name=ExchangeName.BACKPACK,
+        enabled=True,
+        api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
+        ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
+        is_mainnet_environment=True,
+        rate_limit_per_minute=120,
+        symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+    )
 
     exchange_secrets = mock_secrets[exchange_name]
 
@@ -220,7 +249,7 @@ async def mock_bp_api(
     ):
         api = MockExchangeAPI(
             exchange_name=exchange_name,
-            config=exchange_config_dict_bp,
+            config=exchange_config,
             secrets=exchange_secrets,
             config_obj=mock_config,
         )
@@ -249,8 +278,8 @@ def data_handler(
     api_clients: dict[str, ExchangeAPI] = cast(
         "dict[str, ExchangeAPI]",
         {
-            "mock_hl": mock_hl_api,
-            "mock_bp": mock_bp_api,
+            "hyperliquid": mock_hl_api,
+            "backpack": mock_bp_api,
         },
     )
     dh = DataHandler(
@@ -266,8 +295,12 @@ def data_handler(
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
     """Provide a SymbolMapper instance initialized with mock config."""
-    # For AppSettings, provide empty dict for exchanges config
-    config_data_for_mapper: dict[str, Any] = {}
+    # Convert AppSettings exchanges config to dict format that SymbolMapper expects
+    # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
+    config_data_for_mapper: dict[str, Any] = {
+        exchange_name: {"symbols": exchange_config.symbols}
+        for exchange_name, exchange_config in mock_config.exchanges.items()
+    }
     return SymbolMapper(config_data_for_mapper)
 
 
@@ -323,8 +356,12 @@ def execution_handler(
     """Create Execution Handler instance with real tracker, mock APIs, and CB system."""
     from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
-    # For AppSettings, provide empty dict for exchanges config
-    config_data_for_mapper_eh: dict[str, Any] = {}
+    # Convert AppSettings exchanges config to dict format that SymbolMapper expects
+    # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
+    config_data_for_mapper_eh: dict[str, Any] = {
+        exchange_name: {"symbols": exchange_config.symbols}
+        for exchange_name, exchange_config in mock_config.exchanges.items()
+    }
     symbol_mapper_instance = SymbolMapper(config_data_for_mapper_eh)
     eh = ExecutionHandler(
         app_settings=mock_config,
@@ -332,8 +369,8 @@ def execution_handler(
         symbol_mapper=symbol_mapper_instance,
         circuit_breaker_system=circuit_breaker_system,
     )
-    eh.register_api_client("mock_hl", mock_hl_api)
-    eh.register_api_client("mock_bp", mock_bp_api)
+    eh.register_api_client("hyperliquid", mock_hl_api)
+    eh.register_api_client("backpack", mock_bp_api)
     return eh
 
 
@@ -363,8 +400,8 @@ async def position_reconciler(
     # Create a fresh PortfolioTracker for this fixture
     portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
     await portfolio_tracker.initialize()  # Initialize it
-    portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
-    portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
+    portfolio_tracker.register_api_client("hyperliquid", mock_hl_api)
+    portfolio_tracker.register_api_client("backpack", mock_bp_api)
 
     reconciler = PositionReconciliationSystem(
         app_settings=mock_config,
@@ -380,20 +417,7 @@ async def position_reconciler(
 @pytest.fixture
 def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
     """Provide a CircuitBreakerSystem instance initialized with mock config."""
-    # Create a mock config structure for circuit breaker
-    from unittest.mock import MagicMock
-
-    mock_cb_config = MagicMock()
-    mock_cb_config.failure_threshold = 5
-    mock_cb_config.recovery_timeout_seconds = 60
-    mock_cb_config.half_open_max_calls = 3
-
-    # Mock the nested config access to match actual AppSettings structure
-    mock_config.safety_systems = MagicMock()
-    mock_config.safety_systems.circuit_breakers = MagicMock()
-    mock_config.safety_systems.circuit_breakers.global_consecutive_failures = 5
-    mock_config.safety_systems.circuit_breakers.global_reset_timeout_sec = 300
-
+    # The mock_config already has safety_systems configured, use it directly
     return CircuitBreakerSystem(mock_config)
 
 

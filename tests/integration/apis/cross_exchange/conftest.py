@@ -7,6 +7,12 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
+# Import fixtures from exchange-specific conftest files
+pytest_plugins = [
+    "tests.integration.apis.backpack.conftest",
+    "tests.integration.apis.hyperliquid.conftest",
+]
+
 
 @pytest.fixture(params=["backpack", "hyperliquid"])
 def exchange_client(

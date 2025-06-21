@@ -124,15 +124,20 @@ class MockExchangeAPI(ExchangeAPI):
     def __init__(
         self,
         exchange_name: str,
-        config: dict[str, Any],
+        config: dict[str, Any] | ExchangeSpecificConfig,
         secrets: dict[str, str | None],
         config_obj: AppSettings | None = None,
     ) -> None:
         """Initialize MockExchangeAPI with exchange configuration and secrets."""
-        # Ensure api_base_url is valid for HttpClientConfig, regardless of what's in config dict
-        config_copy = config.copy()  # Modify a copy
-        # Check if api_base_url is missing, not a string, or not a plausible URL format
-        current_api_base_url = config_copy.get("api_base_url")
+        # Handle both dict and ExchangeSpecificConfig objects
+        if isinstance(config, dict):
+            # Original dict-based approach
+            config_copy = config.copy()  # Modify a copy
+            current_api_base_url = config_copy.get("api_base_url")
+        else:
+            # ExchangeSpecificConfig object - need to convert to dict for compatibility
+            config_copy = {"api_base_url": "http://fixedmock.exchange"}  # Simplified for mock
+            current_api_base_url = str(config.api_base_url_mainnet)
         is_valid_url = False
         if isinstance(current_api_base_url, str):
             # Simple check for protocol, can be enhanced if needed
@@ -152,12 +157,22 @@ class MockExchangeAPI(ExchangeAPI):
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
         from typing import cast
 
-        super().__init__(
-            exchange_name,
-            cast(ExchangeSpecificConfig, config_copy),
-            cast(AnyExchangeSecrets, secrets),
-            error_mapper=mock_error_mapper,
-        )  # Pass the modified copy
+        # Pass the original config object to the base class if it's ExchangeSpecificConfig
+        if isinstance(config, ExchangeSpecificConfig):
+            super().__init__(
+                exchange_name,
+                config,
+                cast(AnyExchangeSecrets, secrets),
+                error_mapper=mock_error_mapper,
+            )
+        else:
+            # For dict configs, cast to ExchangeSpecificConfig (legacy behavior)
+            super().__init__(
+                exchange_name,
+                cast(ExchangeSpecificConfig, config_copy),
+                cast(AnyExchangeSecrets, secrets),
+                error_mapper=mock_error_mapper,
+            )
         self.full_config = config_obj  # Store the full config object if provided
         self._order_id_counter = 1
         self._orders: dict[str, Order] = {}  # Store orders by ID
@@ -184,9 +199,15 @@ class MockExchangeAPI(ExchangeAPI):
                 self.fee_asset = default_asset
         else:
             # Fallback if full_config not provided (less ideal)
-            self.maker_fee = Decimal(str(config.get("maker_fee", default_fee)))
-            self.taker_fee = Decimal(str(config.get("taker_fee", default_fee)))
-            self.fee_asset = config.get("collateral_asset", default_asset)
+            if isinstance(config, dict):
+                self.maker_fee = Decimal(str(config.get("maker_fee", default_fee)))
+                self.taker_fee = Decimal(str(config.get("taker_fee", default_fee)))
+                self.fee_asset = config.get("collateral_asset", default_asset)
+            else:
+                # config is ExchangeSpecificConfig, use defaults
+                self.maker_fee = Decimal(default_fee)
+                self.taker_fee = Decimal(default_fee)
+                self.fee_asset = default_asset
         # ---------------------------------------------------
 
         # Simulation parameters
@@ -1137,10 +1158,14 @@ class MockExchangeAPI(ExchangeAPI):
         # if the parent has a meaningful close.
 
         # Call super().close() if ExchangeAPI.close() does something meaningful.
-        await super().close()
+        # Handle cases where http_client/ws_manager were mocked out
+        try:
+            await super().close()
+        except (AttributeError, TypeError) as e:
+            # Expected when http_client/ws_manager are mocked - just log and continue
+            logger.debug(f"MockExchangeAPI close caught expected error from mocked components: {e}")
 
         # For now, this mock's close is mostly a placeholder for testability.
-        # pass # This line will be removed
 
     def set_order_book_behavior(
         self,

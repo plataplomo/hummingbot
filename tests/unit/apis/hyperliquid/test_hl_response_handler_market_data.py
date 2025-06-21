@@ -52,10 +52,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "Unexpected info (MetaAndAssetCtxs) response format: expected 2-element list, "
-            "got 1 elements" in exc_info.value.message
-        )
+        assert "Invalid MetaAndAssetCtxs response: not a 2-element list" in exc_info.value.message
 
     def test_validation_error_missing_universe(self) -> None:
         """Test meta and asset contexts response missing universe."""
@@ -79,8 +76,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Unexpected info (MetaAndAssetCtxs) response format:" in exc_info.value.message
-        assert "expected list, got dict" in exc_info.value.message
+        assert "Invalid MetaAndAssetCtxs response: not a list" in exc_info.value.message
 
 
 class TestHandleInfoFundingRateResponse:
@@ -152,9 +148,7 @@ class TestHandleInfoL2BookResponse:
                 symbol=symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid info (l2 book for {symbol}) response from exchange:" in exc_info.value.message
-        )
+        assert f"Invalid L2 book ({symbol}) response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "levels" in str(exc_info.value.original_exception)
 
@@ -167,8 +161,7 @@ class TestHandleInfoL2BookResponse:
                 symbol=symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Unexpected info (l2 book for {symbol}) response format:" in exc_info.value.message
-        assert "expected dict, got str" in exc_info.value.message
+        assert "Order book response must be a dict, got str" in exc_info.value.message
 
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
@@ -215,22 +208,20 @@ class TestHandleInfoRecentTradesResponse:
                 symbol=symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid single recent trade item (index 0) in info (recent trades for {symbol}) "
-            f"response from exchange" in exc_info.value.message
-        )
+        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_item_type_in_list(self, symbol: str) -> None:
         """Test recent trades response with non-dict item in list."""
         raw_data = ["not_a_trade_dict"]
-        # Handler should skip invalid items
-        response_list = HyperliquidResponseHandler.handle_info_recent_trades_response(
-            cast("RawJsonResponse", raw_data),
-            symbol=symbol,
-        )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 0  # Invalid item skipped
+        # Handler should raise error for invalid items
+        with pytest.raises(APIError) as exc_info:
+            HyperliquidResponseHandler.handle_info_recent_trades_response(
+                cast("RawJsonResponse", raw_data),
+                symbol=symbol,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
         """Test recent trades response with wrong top-level type."""
@@ -241,11 +232,7 @@ class TestHandleInfoRecentTradesResponse:
                 symbol=symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Unexpected info (recent trades for {symbol}) response format:"
-            in exc_info.value.message
-        )
-        assert "expected list, got dict" in exc_info.value.message
+        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
 
 
 class TestHandleInfoCandleSnapshotResponse:
@@ -276,7 +263,7 @@ class TestHandleInfoCandleSnapshotResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Invalid info (candle snapshot for {symbol}) response from exchange:"
+            f"Invalid candle snapshot ({symbol}, 1m) response from exchange:"
             in exc_info.value.message
         )
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -293,10 +280,9 @@ class TestHandleInfoCandleSnapshotResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Unexpected info (candle snapshot for {symbol}) response format:"
+            f"Invalid candle snapshot ({symbol}, 1m) response from exchange:"
             in exc_info.value.message
         )
-        assert "expected dict, got list" in exc_info.value.message
 
     def test_candle_snapshot_mismatched_arrays(self, symbol: str) -> None:
         """Test candle snapshot with mismatched array lengths causes APIError."""
@@ -344,10 +330,7 @@ class TestHandleHistoricalFundingRatesResponse:
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "Invalid single funding history item (index 0) in historical_funding_rates "
-            "response from exchange" in exc_info.value.message
-        )
+        assert "Invalid historical_funding_rates response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
     def test_invalid_item_type_in_list(self) -> None:

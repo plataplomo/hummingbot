@@ -178,8 +178,7 @@ class TestHandleQueryOrderHistoryResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Invalid single order history item (index 1) in query_order_history"
-            f" (for {user_address}) response from exchange"
+            f"Invalid historicalOrders (for {user_address}) response from exchange"
         ) in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "Field required" in str(exc_info.value.original_exception)
@@ -195,10 +194,10 @@ class TestHandleQueryOrderHistoryResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Unexpected query_order_history (for {user_address}) response format: expected list"
+            f"Invalid historicalOrders (for {user_address}) response from exchange"
             in exc_info.value.message
         )
-        assert "got dict" in exc_info.value.message
+        assert "Expected a list of orders, got dict" in exc_info.value.message
 
 
 class TestHandleInfoOrderStatusResponse:
@@ -232,9 +231,7 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        expected_message = (
-            f"Order {order_id} for user {user_address} not found (direct string: {raw_data!r})"
-        )
+        expected_message = f"Order not found (direct string: {raw_data!r})"
         assert exc_info.value.message == expected_message
         assert exc_info.value.metadata == {"original_response": "Order not found"}
 
@@ -266,9 +263,7 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,  # No cast
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        assert (
-            f"Order {order_id} for {user_address} not found (empty list)." in exc_info.value.message
-        )
+        assert exc_info.value.message == "Order not found (empty list)."
 
     def test_order_not_found_none(self, user_address: str, order_id: int) -> None:
         """Test handling None response."""
@@ -280,10 +275,7 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"info (OrderStatus for user {user_address}, oid {order_id}) response format: "
-            f"expected list or dict, got NoneType" in exc_info.value.message
-        )
+        assert exc_info.value.message == "Order status response is None"
 
     def test_unexpected_string_in_list(self, user_address: str, order_id: int) -> None:
         """Test handling unexpected string inside the list."""
@@ -295,10 +287,7 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"(OrderStatus for user {user_address}, oid {order_id}) response: "
-            f"Some other error string" in exc_info.value.message
-        )
+        assert exc_info.value.message == "Unexpected order status response: Some other error string"
         assert exc_info.value.metadata == {"original_response_item": "Some other error string"}
 
     def test_unexpected_item_type_in_list(self, user_address: str, order_id: int) -> None:
@@ -311,10 +300,7 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"(OrderStatus for user {user_address}, oid {order_id}) response list: "
-            f"expected dict, got int" in exc_info.value.message
-        )
+        assert exc_info.value.message == "Order status response list: expected dict, got int"
         assert exc_info.value.metadata == {"original_response_item": 12345}
 
     def test_validation_error_in_list_item(
@@ -325,7 +311,7 @@ class TestHandleInfoOrderStatusResponse:
     ) -> None:
         """Test list where the item fails model validation (e.g., missing status)."""
         invalid_item = valid_raw_historical_order_response.copy()
-        del invalid_item["order"]["status"]
+        del invalid_item["order"]["oid"]
         raw_data = [invalid_item]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler.handle_info_order_status_response(
@@ -334,9 +320,6 @@ class TestHandleInfoOrderStatusResponse:
                 order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid order status object in info (OrderStatus for user {user_address}, "
-            f"oid {order_id}) response from exchange"
-        ) in exc_info.value.message
+        assert f"order status (user: {user_address}, order: {order_id})" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
-        assert "order.status" in str(exc_info.value.original_exception)
+        assert "order.oid" in str(exc_info.value.original_exception)

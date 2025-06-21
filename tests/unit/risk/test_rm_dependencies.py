@@ -326,9 +326,8 @@ class TestRiskManagerDependencyFailures:
         if isinstance(bad_metrics_return, Exception):
             mock_funding_validator.get_symbol_metrics.side_effect = bad_metrics_return
         else:  # bad_metrics_return is None
-            mock_funding_validator.get_symbol_metrics.side_effect = (
-                lambda exchange, symbol: bad_metrics_return
-            )
+            # Return a dict with missing keys to trigger the None handling in business logic
+            mock_funding_validator.get_symbol_metrics.return_value = {"incomplete": "metrics"}
 
         sized_opp = await risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp is None

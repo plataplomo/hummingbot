@@ -18,7 +18,7 @@ from cyberdelta.core.models import TradeSignal  # Import from models
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
-from cyberdelta.monitoring.real_time_dashboard import (  # Assuming dashboard is here
+from frontend.monitoring.real_time_dashboard import (
     launch_dashboard,
 )
 

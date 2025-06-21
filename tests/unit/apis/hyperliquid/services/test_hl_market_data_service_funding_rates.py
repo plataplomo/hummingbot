@@ -110,9 +110,14 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[mock_raw_asset_ctx_btc, mock_raw_asset_ctx_eth],
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                mock_meta_response.model_dump(by_alias=True),
+                [
+                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+                ],
+            ]
         )
 
         expected_internal_funding_rate = FundingRate(
@@ -149,9 +154,11 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         """Test get_funding_rate returns None when symbol is not found."""
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[],
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                mock_meta_response.model_dump(by_alias=True),
+                [],
+            ]
         )
 
         with patch.object(
@@ -259,9 +266,11 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
 
         # Assertions
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetHistoricalFundingRatesArgs(
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
+            )
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -325,9 +334,11 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         assert "No data received for historical funding rates" in exc_info.value.message
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetHistoricalFundingRatesArgs(
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
+            )
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -631,8 +642,6 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         symbol = "BTC"
         start_time = datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC)
         end_time = datetime(2023, 1, 2, 0, 0, 0, tzinfo=UTC)
-        start_time_ms = int(start_time.timestamp() * 1000)
-        end_time_ms = int(end_time.timestamp() * 1000)
 
         mock_payload_model = MagicMock()
         mock_hl_request_builder.build_historical_funding_rates_payload.return_value = (
@@ -657,9 +666,11 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         assert "Connection failed" in exc_info.value.message
 
         mock_hl_request_builder.build_historical_funding_rates_payload.assert_called_once_with(
-            symbol=symbol,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetHistoricalFundingRatesArgs(
+                symbol=symbol,
+                start_time=start_time,
+                end_time=end_time,
+            )
         )
 
     @pytest.mark.asyncio
@@ -692,9 +703,11 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=mock_meta_response,
-            asset_ctxs=[mock_raw_asset_ctx_btc],
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+            [
+                mock_meta_response.model_dump(by_alias=True),
+                [mock_raw_asset_ctx_btc.model_dump(by_alias=True)],
+            ]
         )
 
         # Configure mapper to raise unexpected exception

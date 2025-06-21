@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
@@ -71,21 +73,12 @@ class TestHyperliquidRequestBuilderTrading:
             reduce_only=True,
             post_only=False,
         )
-        request_model = HyperliquidRequestBuilder.build_place_order_payload(
-            args=args,
-            asset_index=asset_index + 1,
-        )
-        assert isinstance(request_model, HyperliquidApiPlaceOrderRequest)
-        assert request_model.type == "order"
-        assert len(request_model.orders) == 1
-        action = request_model.orders[0]
-        assert isinstance(action, HyperliquidRawOrderItemSpec)
-        assert action.a == asset_index + 1
-        assert action.b is False
-        assert action.s == "10"
-        assert action.p == "0"
-        assert action.t.market is not None
-        assert action.r is True
+        # Business logic now requires market orders to have a price provided by the service layer
+        with pytest.raises(ValueError, match="Market orders require a calculated aggressive price"):
+            HyperliquidRequestBuilder.build_place_order_payload(
+                args=args,
+                asset_index=asset_index + 1,
+            )
 
     def test_build_place_order_payload_limit_alo_post_only(self, asset_index: int) -> None:
         """Test build_place_order_payload for ALO LIMIT order (post_only=True)."""

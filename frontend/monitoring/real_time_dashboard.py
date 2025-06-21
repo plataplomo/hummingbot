@@ -19,7 +19,7 @@ from dash.development.base_component import Component
 
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
-from cyberdelta.visualization.performance_visualizer import (
+from frontend.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,
     PerformanceVisualizer,
     VisualizationConfig,
@@ -526,14 +526,14 @@ class RealTimeDashboard:
                         html.Tr(
                             [
                                 html.Td(strategy, className="fw-bold"),
-                                html.Td(f"{metrics['annualized_return'] * 100:.2f}%"),
-                                html.Td(f"{metrics['annualized_volatility'] * 100:.2f}%"),
+                                html.Td(f"{metrics['annualized_return']:.2f}%"),
+                                html.Td(f"{metrics['annualized_volatility']:.2f}%"),
                                 html.Td(f"{metrics['sharpe_ratio']:.2f}"),
                                 html.Td(f"{metrics['sortino_ratio']:.2f}"),
                                 html.Td(f"{metrics['max_drawdown']:.2f}%"),
                                 html.Td(f"{metrics['calmar_ratio']:.2f}"),
-                                html.Td(f"{metrics.get('win_rate', 'N/A'):.2f}%"),
-                                html.Td(f"{metrics.get('profit_factor', 'N/A'):.2f}"),
+                                html.Td(f"{metrics.get('win_rate', 0.0):.2f}%"),
+                                html.Td(f"{metrics.get('profit_factor', 0.0):.2f}"),
                             ],
                         ),
                     )

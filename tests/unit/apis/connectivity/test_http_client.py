@@ -210,7 +210,12 @@ class TestHttpClient:
             exchange_name="test_ctx",
             config=default_http_client_config,
         ) as _:  # Changed 'client' to '_' as it's unused
-            MockAiohttpSession.assert_called_once_with(headers=expected_headers)
+            # Verify the ClientSession was called with both headers and connector
+            MockAiohttpSession.assert_called_once()
+            call_args = MockAiohttpSession.call_args
+            assert call_args.kwargs["headers"] == expected_headers
+            assert "connector" in call_args.kwargs
+            assert hasattr(call_args.kwargs["connector"], "limit")  # It's a TCPConnector
 
         # Verify the session instance was closed on __aexit__
         mock_session_instance.close.assert_awaited_once()

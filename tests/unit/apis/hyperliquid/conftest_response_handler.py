@@ -61,6 +61,9 @@ def valid_raw_meta_and_asset_ctxs() -> list[Any]:
                 "prevDayPx": "54000.0",
                 "dayNtlVlm": "1000000000.0",
                 "impactPx": "55010.0",
+                "openInterest": "2500000.0",
+                "oraclePx": "55005.0",
+                "dayBaseVlm": "45.678",
             },
             {
                 "name": "ETH",
@@ -69,6 +72,9 @@ def valid_raw_meta_and_asset_ctxs() -> list[Any]:
                 "prevDayPx": "2950.0",
                 "dayNtlVlm": "500000000.0",
                 "impactPx": "3005.0",
+                "openInterest": "8500000.0",
+                "oraclePx": "3002.5",
+                "dayBaseVlm": "166.789",
             },
         ],
     ]
@@ -164,6 +170,9 @@ def valid_raw_asset_ctx() -> dict[str, Any]:
         "prevDayPx": "2990.00",
         "dayNtlVlm": "50000000.0",
         "impactPx": "3011.00",
+        "openInterest": "8500000.0",
+        "oraclePx": "3010.5",
+        "dayBaseVlm": "166.789",
     }
 
 
@@ -238,19 +247,20 @@ def valid_raw_historical_order_response() -> dict[str, Any]:
     """Return valid raw historical order response for testing."""
     return {
         "order": {
-            "asset": "ETH-PERP",
+            "coin": "ETH-PERP",
             "limitPx": "2900.0",
             "oid": 7001,
             "reduceOnly": False,
             "side": "B",
             "sz": "1.0",
             "timestamp": 1678890000000,
-            "orderType": {"limit": {"tif": "Gtc"}},
-            "remainingSz": "0.0",
-            "status": "filled",
-            "statusTimestamp": 1678890001000,
+            "orderType": "limit",
+            "origSz": "1.0",
+            "tif": "Gtc",
             "cloid": "histClient1",
         },
+        "status": "filled",
+        "statusTimestamp": 1678890001000,
     }
 
 

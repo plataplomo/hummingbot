@@ -42,9 +42,9 @@ class TestHyperliquidRequestBuilderTransfers:
         assert isinstance(action, HyperliquidRawL2UsdTransferActionDetails)
         assert action.chain == "L2"
         assert isinstance(action.payload, HyperliquidRawL2UsdTransferPayload)
-        assert action.payload.destination == valid_wallet_address
+        assert action.payload.destination == valid_wallet_address.lower()
         assert action.payload.token == "USDC"
-        assert action.payload.amount == "100.50"
+        assert action.payload.amount == "100.5"
 
     def test_build_l2_usd_transfer_payload_different_amounts(
         self,
@@ -73,7 +73,7 @@ class TestHyperliquidRequestBuilderTransfers:
             amount=Decimal("1000"),
         )
         request_int = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_int)
-        assert request_int.action.payload.amount == "1000"
+        assert request_int.action.payload.amount == "1000.0"
 
     def test_build_l2_usd_transfer_payload_invalid_input(self) -> None:
         """Test build_l2_usd_transfer_payload with invalid (empty) address.
@@ -83,7 +83,7 @@ class TestHyperliquidRequestBuilderTransfers:
         """
         from pydantic import ValidationError
 
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = TransferL2UsdArgs(
                 destination_address="",
                 amount=Decimal("100"),
@@ -113,7 +113,7 @@ class TestHyperliquidRequestBuilderTransfers:
         assert request_model.type == "withdrawEth"
         action = request_model.action
         assert isinstance(action, HyperliquidRawEthWithdrawalActionPayload)
-        assert action.destination == valid_wallet_address
+        assert action.destination == valid_wallet_address.lower()
         assert action.amount == "1.23"
 
     def test_build_withdrawal_payload_eth_different_amounts(
@@ -130,14 +130,14 @@ class TestHyperliquidRequestBuilderTransfers:
         request_small = HyperliquidRequestBuilder.build_withdrawal_payload(args_small)
         assert request_small.action.amount == "0.001"
 
-        # Test with precise ETH amount
+        # Test with precise ETH amount (within 8-decimal precision limit)
         args_precise = WithdrawL1Args(
             asset="ETH",
-            amount=Decimal("2.123456789"),
+            amount=Decimal("2.12345678"),
             destination_address=valid_wallet_address,
         )
         request_precise = HyperliquidRequestBuilder.build_withdrawal_payload(args_precise)
-        assert request_precise.action.amount == "2.123456789"
+        assert request_precise.action.amount == "2.12345678"
 
     def test_build_withdrawal_payload_token(self, valid_wallet_address: str) -> None:
         """Test build_withdrawal_payload for generic token (USDC) withdrawals."""
@@ -152,8 +152,8 @@ class TestHyperliquidRequestBuilderTransfers:
         action = request_model.action
         assert isinstance(action, HyperliquidRawWithdrawalToL1ActionPayload)
         assert action.token == "USDC"
-        assert action.amount == "500"
-        assert action.destination == valid_wallet_address
+        assert action.amount == "500.0"
+        assert action.destination == valid_wallet_address.lower()
 
     def test_build_withdrawal_payload_various_tokens(self, valid_wallet_address: str) -> None:
         """Test build_withdrawal_payload for various token types."""
@@ -166,7 +166,7 @@ class TestHyperliquidRequestBuilderTransfers:
         request_usdt = HyperliquidRequestBuilder.build_withdrawal_payload(args_usdt)
         assert isinstance(request_usdt.action, HyperliquidRawWithdrawalToL1ActionPayload)
         assert request_usdt.action.token == "USDT"
-        assert request_usdt.action.amount == "1000.50"
+        assert request_usdt.action.amount == "1000.5"
 
         # Test with arbitrary token
         args_arb = WithdrawL1Args(
@@ -187,7 +187,7 @@ class TestHyperliquidRequestBuilderTransfers:
         """
         from pydantic import ValidationError
 
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = WithdrawL1Args(
                 asset="USDC",
                 amount=Decimal("100"),

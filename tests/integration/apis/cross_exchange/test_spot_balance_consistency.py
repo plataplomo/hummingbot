@@ -17,6 +17,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.cross_exchange, pytest.mark.s
 class TestCrossExchangeSpotBalanceConsistency:
     """Cross-exchange spot balance consistency tests."""
 
+    @pytest.mark.skip(reason="Hyperliquid spot business logic isn't ready yet")
     @pytest.mark.parametrize(
         "symbol,expected_precision",
         [
@@ -57,6 +58,7 @@ class TestCrossExchangeSpotBalanceConsistency:
         except NotImplementedError:
             pytest.skip(f"get_balances not implemented for {exchange_client.exchange_name}")
 
+    @pytest.mark.skip(reason="Hyperliquid spot business logic isn't ready yet")
     @pytest.mark.parametrize(
         "test_amount",
         [

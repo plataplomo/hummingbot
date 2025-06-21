@@ -14,7 +14,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args_models import GetCandleSnapshotArgs, GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
@@ -134,10 +134,12 @@ class TestHyperliquidMarketDataServiceCandles:
             result_candles = await hyperliquid_market_data_service.get_market_data(args)
 
             mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-                symbol=symbol,
-                timeframe=interval,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
+                GetCandleSnapshotArgs(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
+                )
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
                 mock_raw_candle_data,
@@ -199,10 +201,12 @@ class TestHyperliquidMarketDataServiceCandles:
             in exc_info.value.message
         )
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol=symbol,
-            timeframe=interval,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetCandleSnapshotArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
         # Mapper should not be called since HTTP client returned None
@@ -257,10 +261,12 @@ class TestHyperliquidMarketDataServiceCandles:
         assert "Request timeout while fetching market data" in exc_info.value.message
 
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol=symbol,
-            timeframe=interval,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetCandleSnapshotArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
 
@@ -299,10 +305,12 @@ class TestHyperliquidMarketDataServiceCandles:
         assert isinstance(exc_info.value.__cause__, KeyError)
 
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            symbol=symbol,
-            timeframe=interval,
-            start_time_ms=start_time_ms,
-            end_time_ms=end_time_ms,
+            GetCandleSnapshotArgs(
+                symbol=symbol,
+                timeframe=interval,
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
         )
         mock_http_client_requester.assert_not_called()
 
@@ -688,8 +696,10 @@ class TestHyperliquidMarketDataServiceCandles:
                 assert len(result) == 1
                 assert result[0].interval == interval
                 mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-                    symbol=symbol,
-                    timeframe=interval,
-                    start_time_ms=start_time_ms,
-                    end_time_ms=end_time_ms,
+                    GetCandleSnapshotArgs(
+                        symbol=symbol,
+                        timeframe=interval,
+                        start_time_ms=start_time_ms,
+                        end_time_ms=end_time_ms,
+                    )
                 )
