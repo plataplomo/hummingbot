@@ -373,7 +373,7 @@ requires-dist = [
     { name = "pytest-freezer", specifier = "==0.4.9" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = "==3.14.0" },
     { name = "pytest-recording", marker = "extra == 'dev'", specifier = "==0.13.4" },
-    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "pytest-timeout", specifier = "==2.4.0" },
     { name = "python-dateutil", specifier = "==2.9.0.post0" },
     { name = "python-dotenv", specifier = "==1.1.0" },
     { name = "pytz", specifier = "==2025.2" },
