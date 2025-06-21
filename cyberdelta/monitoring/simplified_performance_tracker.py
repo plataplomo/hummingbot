@@ -4,6 +4,8 @@ This module provides essential tools for tracking and analyzing strategy perform
 without dependencies on external databases or web frameworks.
 """
 
+from __future__ import annotations
+
 import csv
 import logging
 import os

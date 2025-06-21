@@ -5,6 +5,8 @@
 Tests the integration of the backtesting framework with actual strategies.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import shutil

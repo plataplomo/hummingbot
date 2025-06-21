@@ -8,6 +8,8 @@ It handles data splitting, strategy execution, performance metrics calculation,
 and results visualization.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import pathlib
