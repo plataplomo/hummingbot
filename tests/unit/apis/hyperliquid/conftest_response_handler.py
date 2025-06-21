@@ -123,21 +123,13 @@ def valid_raw_user_state() -> dict[str, Any]:
 def valid_raw_open_order_item() -> dict[str, Any]:
     """Return valid raw open order item for testing."""
     return {
-        "order": {
-            "asset": "ETH-PERP",
-            "limitPx": "3000.0",
-            "oid": 6001,
-            "reduceOnly": False,
-            "side": "B",
-            "sz": "0.5",
-            "timestamp": 1678889600000,
-            "orderType": {"limit": {"tif": "Gtc"}},
-            "remainingSz": "0.5",
-            "status": "open",
-            "statusTimestamp": 1678889601000,
-            "cloid": "clientOpen1",
-        },
-        "trigger": None,
+        "coin": "ETH-PERP",
+        "limitPx": "3000.0",
+        "oid": 6001,
+        "side": "B",
+        "sz": "0.5",
+        "timestamp": 1678889600000,
+        "origSz": "0.5",
     }
 
 

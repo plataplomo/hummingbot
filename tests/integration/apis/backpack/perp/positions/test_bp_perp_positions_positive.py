@@ -20,7 +20,7 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_minimal_order_size,
 )
 
@@ -84,7 +84,7 @@ async def create_test_perp_position(
             logger.info(f"Created test position: {symbol} {min_quantity} @ market price")
 
             # Wait for position to be created
-            from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+            from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
             async def position_exists() -> bool:
                 positions = await api.get_positions()
@@ -152,7 +152,7 @@ class TestBackpackPerpPositionsPrivate:
 
         if position.entry_price is not None:
             # Get market constraints from exchange to validate entry_price precision
-            from tests.integration.apis.backpack.shared.test_helpers import get_market_constraints
+            from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 
             constraints = await get_market_constraints(api, position.symbol)
             tick_size = constraints["tick_size"]

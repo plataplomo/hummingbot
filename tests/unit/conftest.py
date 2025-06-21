@@ -360,7 +360,7 @@ def mock_bp_http_client() -> MagicMock:
     return mock_client
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_app_settings() -> AppSettings:
     """Provides a complete AppSettings instance for testing.
 

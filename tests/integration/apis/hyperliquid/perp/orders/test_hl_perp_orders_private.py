@@ -33,7 +33,7 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
-from tests.integration.apis.hyperliquid.shared.test_helpers import (
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,
     get_safe_test_price,

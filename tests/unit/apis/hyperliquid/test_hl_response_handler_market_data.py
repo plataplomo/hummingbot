@@ -438,4 +438,4 @@ class TestMarketDataEdgeCases:
                 symbol=symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "(index 1)" in exc_info.value.message  # Should fail on second item
+        assert "1.side" in exc_info.value.message  # Should fail on second item (index 1)

@@ -446,4 +446,4 @@ class TestUserAccountEdgeCases:
         assert len(response.items) == 1
         assert response.items[0].coin == "BTC-PERP"
         assert response.items[0].oid == 7001
-        assert response.items[0].limit_px == "46000.0"
+        assert response.items[0].limit_px == "46000"

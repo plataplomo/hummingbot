@@ -40,7 +40,7 @@ def create_raw_fill(
     order_id: str = "order123",
     price: str = "100.50",
     quantity: str = "10.0",
-    side: str = "Buy",
+    side: str = "Bid",  # Changed from "Buy" to "Bid" to match BP_ORDER_SIDES validation
     symbol: str = "SOL-USDC",
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
@@ -433,10 +433,6 @@ class TestEdgeCasesAndRobustness:
         """Test handling of mixed case side values."""
         # Only test side values that are actually accepted by the raw model
         side_variations = [
-            "buy",  # Lowercase
-            "Buy",  # Title case
-            "sell",  # Lowercase
-            "Sell",  # Title case
             "Ask",  # Ask side
             "Bid",  # Bid side
         ]

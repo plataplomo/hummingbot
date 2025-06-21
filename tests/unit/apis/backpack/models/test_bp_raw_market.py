@@ -69,7 +69,7 @@ def test_BackpackRawMarket_wrong_type_fields() -> None:
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
     p = valid_market().copy()
-    p["baseAsset"] = ["BTC"]
+    p["baseSymbol"] = ["BTC"]  # Fixed: baseAsset -> baseSymbol to match model
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
 
@@ -81,7 +81,7 @@ def test_BackpackRawMarket_invalid_format_fields() -> None:
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
     p = valid_market().copy()
-    p["baseAsset"] = "   "
+    p["baseSymbol"] = "   "
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
 
@@ -90,8 +90,11 @@ def test_BackpackRawMarket_extra_field() -> None:
     """Test BackpackRawMarket extra field."""
     p: dict[str, Any] = valid_market().copy()
     p["foo"] = "bar"
-    with pytest.raises(ValidationError):
-        BackpackRawMarket.model_validate(p)
+    # Business logic changed: extra="ignore" now, so extra fields are allowed
+    market = BackpackRawMarket.model_validate(p)
+    # Verify the model was created successfully and extra field was ignored
+    assert market.symbol == "BTC_USDC"
+    assert not hasattr(market, "foo")
 
 
 def test_BackpackRawMarket_corruption_cases() -> None:
@@ -112,7 +115,7 @@ def test_BackpackRawMarket_corruption_cases() -> None:
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
     # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "baseAsset": "BTC"'
+    bad_json = '{"symbol": "BTC_USDC", "baseSymbol": "BTC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
 
@@ -124,8 +127,16 @@ def test_BackpackRawMarket_real_json_example() -> None:
     """
     payload = {
         "symbol": "BTC_USDC",
-        "baseAsset": "BTC",
-        "quoteAsset": "USDC",
+        "baseSymbol": "BTC",
+        "quoteSymbol": "USDC",
+        "marketType": "Spot",
+        "filters": {
+            "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+            "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.0001"},
+        },
+        "orderBookState": "NORMAL",
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        # Extra fields that may come from the API
         "quantityPrecision": 8,
         "pricePrecision": 2,
         "minTradeQuantity": "0.0001",
@@ -151,18 +162,18 @@ def test_BackpackRawMarket_corruption_null_symbol() -> None:
         BackpackRawMarket.model_validate(p)
 
 
-def test_BackpackRawMarket_corruption_binary_baseAsset() -> None:
-    """Should fail: binary data for 'baseAsset'."""
+def test_BackpackRawMarket_corruption_binary_baseSymbol() -> None:
+    """Should fail: binary data for 'baseSymbol'."""
     p = valid_market().copy()
-    p["baseAsset"] = b"\x00\x01"
+    p["baseSymbol"] = b"\x00\x01"
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
 
 
 def test_BackpackRawMarket_corruption_nested_quoteAsset() -> None:
-    """Should fail: nested object for 'quoteAsset'."""
+    """Should fail: nested object for 'quoteSymbol'."""
     p = valid_market().copy()
-    p["quoteAsset"] = {"foo": "bar"}
+    p["quoteSymbol"] = {"foo": "bar"}
     with pytest.raises(ValidationError):
         BackpackRawMarket.model_validate(p)
 

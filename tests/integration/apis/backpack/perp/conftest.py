@@ -19,7 +19,7 @@ async def bp_perp_test_config(
     hardcoded values to ensure tests align with real exchange behavior.
     """
     # Import here to avoid circular imports
-    from tests.integration.apis.backpack.shared.test_helpers import get_market_constraints
+    from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 
     # Get available perp markets dynamically
     try:

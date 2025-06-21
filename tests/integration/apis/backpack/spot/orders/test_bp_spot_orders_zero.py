@@ -36,7 +36,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     TEST_SYMBOL_BTC_USDC,
     TEST_SYMBOL_SOL_USDC,
     get_current_market_price,

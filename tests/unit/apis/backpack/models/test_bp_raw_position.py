@@ -81,6 +81,7 @@ def valid_position_data(
         "userId": 123456789,
         "positionId": "pos_abc123",
         "cumulativeInterest": "0.0",
+        "subaccountId": 0,  # Added required field
     }
 
 

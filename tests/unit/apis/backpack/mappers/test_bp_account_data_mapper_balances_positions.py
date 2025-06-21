@@ -226,14 +226,14 @@ class TestBalanceTransformation:
             assert result.available_quantity == Decimal("500.0")
             assert result.total_quantity == Decimal("600.0")  # 500 + 50 + 50
 
-    def test_transform_raw_balance_missing_total_raises_error(
+    def test_transform_raw_balance_missing_locked_raises_error(
         self,
         mapper: BackpackAccountDataMapper,
     ) -> None:
-        """Test that missing total raises TransformationError."""
+        """Test that missing locked balance raises TransformationError."""
         raw_balance = create_raw_balance()
 
-        # Mock parse_decimal_value to return None for total
+        # Mock parse_decimal_value to return None for locked
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
         ) as mock_parse:
@@ -244,7 +244,7 @@ class TestBalanceTransformation:
                 field_name: str = "",
             ) -> Decimal | None:
                 """Return appropriate Decimal conversion for testing balance validation."""
-                if field_name.endswith("_total"):
+                if field_name.endswith("_locked"):
                     return None
                 # For other fields, return a valid decimal
                 return Decimal(value)
@@ -253,7 +253,7 @@ class TestBalanceTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="Total quantity missing/invalid for USDC in BackpackRawBalance",
+                match="Locked quantity missing/invalid for USDC in BackpackRawBalance",
             ):
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
@@ -285,6 +285,37 @@ class TestBalanceTransformation:
             with pytest.raises(
                 TransformationError,
                 match="Available quantity missing/invalid for USDC in BackpackRawBalance",
+            ):
+                mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+
+    def test_transform_raw_balance_missing_staked_raises_error(
+        self,
+        mapper: BackpackAccountDataMapper,
+    ) -> None:
+        """Test that missing staked balance raises TransformationError."""
+        raw_balance = create_raw_balance()
+
+        # Mock parse_decimal_value to return None for staked
+        with patch(
+            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+        ) as mock_parse:
+
+            def side_effect(
+                value: str,
+                allow_none: bool = False,
+                field_name: str = "",
+            ) -> Decimal | None:
+                """Return appropriate Decimal conversion for testing balance validation."""
+                if field_name.endswith("_staked"):
+                    return None
+                # For other fields, return a valid decimal
+                return Decimal(value)
+
+            mock_parse.side_effect = side_effect
+
+            with pytest.raises(
+                TransformationError,
+                match="Staked quantity missing/invalid for USDC in BackpackRawBalance",
             ):
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 

@@ -38,7 +38,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models import FundingRate
-from tests.integration.apis.hyperliquid.shared.test_helpers import HyperliquidTestHelpers
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 

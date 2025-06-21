@@ -46,7 +46,7 @@ def create_raw_fill(
     order_id: str = "order123",
     price: str = "100.50",
     quantity: str = "10.0",
-    side: str = "Buy",
+    side: str = "Bid",  # Changed from "Buy" to "Bid" to match BP_ORDER_SIDES validation
     symbol: str = "SOL-USDC",
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
@@ -72,7 +72,7 @@ def create_raw_fill(
 def create_raw_order(
     id: str = "order123",
     symbol: str = "SOL-USDC",
-    side: str = "Buy",
+    side: str = "Bid",
     order_type: str = "LIMIT",
     quantity: str = "10.0",
     price: str = "100.50",
@@ -148,7 +148,7 @@ class TestFillTransformation:
             order_id="order123",
             price="100.50",
             quantity="10.0",
-            side="Buy",
+            side="Bid",
             symbol="SOL-USDC",
             timestamp=test_timestamp,
             trade_id=123456,
@@ -175,7 +175,7 @@ class TestFillTransformation:
         test_timestamp: str,
     ) -> None:
         """Test fill transformation with sell side."""
-        raw_fill = create_raw_fill(side="Sell", timestamp=test_timestamp)
+        raw_fill = create_raw_fill(side="Ask", timestamp=test_timestamp)
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -278,7 +278,7 @@ class TestOrderTransformation:
         raw_order = create_raw_order(
             id="order123",
             symbol="SOL-USDC",
-            side="Buy",
+            side="Bid",
             order_type="LIMIT",
             quantity="10.0",
             price="100.50",

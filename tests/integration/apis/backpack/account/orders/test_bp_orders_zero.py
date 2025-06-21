@@ -21,7 +21,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     DEFAULT_TEST_SYMBOL_SPOT,
     TEST_SYMBOL_BTC_USDC,
     TEST_SYMBOL_ETH_USDC,

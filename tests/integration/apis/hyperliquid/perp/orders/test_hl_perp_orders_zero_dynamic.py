@@ -22,7 +22,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from tests.integration.apis.hyperliquid.shared.test_helpers import (
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity_for_zero_balance,
     get_safe_test_price,

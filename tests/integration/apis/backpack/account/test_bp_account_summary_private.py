@@ -159,7 +159,7 @@ class TestBackpackAccountSummaryPrivate:
                 # Assets value might be slightly higher than equity due to timing differences
                 # between when collateral and main account endpoints are called
                 # Allow for small precision differences
-                from tests.integration.apis.backpack.shared.test_helpers import (
+                from tests.integration.apis.backpack.shared.bp_test_helpers import (
                     SMALL_VALUE_TOLERANCE,
                 )
 

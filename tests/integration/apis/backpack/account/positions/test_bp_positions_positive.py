@@ -16,7 +16,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
     DEFAULT_TEST_SYMBOL_PERP,
     PNL_TOLERANCE,
@@ -130,7 +130,7 @@ class TestBackpackPositionsPositive:
         """Open a test position for the given symbol."""
         from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
         from cyberdelta.core.models.enums import OrderType, TimeInForce
-        from tests.integration.apis.backpack.shared.test_helpers import (
+        from tests.integration.apis.backpack.shared.bp_test_helpers import (
             get_minimal_order_size,
         )
 
@@ -157,7 +157,7 @@ class TestBackpackPositionsPositive:
         await bp_api.place_order(args)
 
         # Wait for position to be reflected
-        from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+        from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
         async def position_exists() -> bool:
             positions = await bp_api.get_positions(symbol=symbol)

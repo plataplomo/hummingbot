@@ -48,7 +48,7 @@ def create_raw_fill(
     order_id: str = "order123",
     price: str = "100.50",
     quantity: str = "10.0",
-    side: str = "Buy",
+    side: str = "Bid",  # Changed from "Buy" to "Bid" to match BP_ORDER_SIDES validation
     symbol: str = "SOL-USDC",
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
@@ -137,7 +137,7 @@ class TestFillTransformation:
             order_id="order123",
             price="100.50",
             quantity="10.0",
-            side="Buy",
+            side="Bid",
             symbol="SOL-USDC",
             timestamp=test_timestamp,
             trade_id=123456,
@@ -164,7 +164,7 @@ class TestFillTransformation:
         test_timestamp: str,
     ) -> None:
         """Test fill transformation with sell side."""
-        raw_fill = create_raw_fill(side="Sell", timestamp=test_timestamp)
+        raw_fill = create_raw_fill(side="Ask", timestamp=test_timestamp)
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -273,12 +273,8 @@ class TestFillTransformation:
     @pytest.mark.parametrize(
         "side_input,expected_side",
         [
-            ("Buy", OrderSide.BUY),
-            ("Sell", OrderSide.SELL),
             ("Bid", OrderSide.BUY),
             ("Ask", OrderSide.SELL),
-            ("buy", OrderSide.BUY),  # Case insensitive
-            ("sell", OrderSide.SELL),
         ],
     )
     def test_transform_raw_fill_side_mapping(
@@ -409,7 +405,7 @@ class TestWebSocketFillTransformation:
             order_id="order123",
             price="100.50",
             quantity="10.0",
-            side="Buy",
+            side="Bid",
             symbol="SOL-USDC",
             timestamp=test_timestamp,
             trade_id=123456,

@@ -216,7 +216,7 @@ class TestBackpackPerpPositionsZero:
 
             # Small delay to avoid rate limiting
             if i < calls_count - 1:
-                from tests.integration.apis.backpack.shared.test_helpers import wait_for_condition
+                from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait

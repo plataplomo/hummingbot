@@ -109,11 +109,12 @@ def test_BackpackRawOrder_missing_required_status() -> None:
 
 
 def test_BackpackRawOrder_missing_required_quantity() -> None:
-    """Test BackpackRawOrder missing required quantity."""
+    """Test BackpackRawOrder with missing quantity (now optional)."""
     p = valid_order()
     del p["quantity"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+    # quantity is now optional, so this should not raise
+    order = BackpackRawOrder.model_validate(p)
+    assert order.quantity is None
 
 
 def test_BackpackRawOrder_missing_required_createdAt() -> None:

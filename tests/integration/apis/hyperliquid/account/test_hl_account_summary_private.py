@@ -37,7 +37,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
-from tests.integration.apis.hyperliquid.shared.test_helpers import HyperliquidTestHelpers
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
 

@@ -18,7 +18,7 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_available_symbols,
     get_current_market_price,
     get_market_constraints,

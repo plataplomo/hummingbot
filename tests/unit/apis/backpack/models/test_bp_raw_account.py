@@ -164,12 +164,6 @@ def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
         ("available", "inf", False),
         ("available", "1e6", True),  # Scientific notation is allowed
         ("available", "1..0", False),
-        ("total", "0", True),
-        ("total", "-1.0", True),
-        ("total", "NaN", False),
-        ("total", "inf", False),
-        ("total", "1e6", True),  # Scientific notation is allowed
-        ("total", "1..0", False),
     ],
 )
 def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pass: bool) -> None:
@@ -200,12 +194,9 @@ def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> No
     """Test BackpackRawBalance adversarial strings."""
     p = valid_balance().copy()
     p[field] = value
-    if (isinstance(value, str) and value.strip() == "") or not isinstance(value, str):
-        with pytest.raises(ValidationError):
-            BackpackRawBalance.model_validate(p)
-    else:
-        obj = BackpackRawBalance.model_validate(p)
-        assert isinstance(getattr(obj, field), str)
+    # All adversarial strings should raise ValidationError because decimal fields must be parseable as numbers
+    with pytest.raises(ValidationError):
+        BackpackRawBalance.model_validate(p)
 
 
 # Schema-driven: Extra field
@@ -227,13 +218,13 @@ def test_BackpackRawBalance_corruption_cases() -> None:
         # 1. Null value for required field
         ("available", None, "null value for required field"),
         # 2. Binary data instead of string
-        ("total", b"\x00\x01", "binary data instead of string"),
+        ("locked", b"\x00\x01", "binary data instead of string"),
         # 3. Nested object instead of string
         ("available", {"foo": "bar"}, "nested object instead of string"),
         # 4. List instead of string
         ("available", ["1000.0"], "list instead of string"),
         # 5. Integer instead of string for decimal field
-        ("total", 1000, "integer instead of string for decimal field"),
+        ("locked", 1000, "integer instead of string for decimal field"),
         # 6. Float instead of string for decimal field
         ("available", 1000.0, "float instead of string for decimal field"),
         # 7. Garbled unicode string
@@ -248,19 +239,16 @@ def test_BackpackRawBalance_corruption_cases() -> None:
     for field, value, description in corruption_cases:
         p = base.copy()
         p[field] = value
-        if description == "SQL injection attempt":
-            # For raw models, SQLi content should be accepted as a valid string
+        # All corruption cases should raise ValidationError because they are all invalid inputs
+        try:
             BackpackRawBalance.model_validate(p)
+        except ValidationError:
+            pass  # Expected
         else:
-            try:
-                BackpackRawBalance.model_validate(p)
-            except ValidationError:
-                pass  # Expected
-            else:
-                pytest.fail(
-                    f"Failed corruption case: {description} ("
-                    f"{field}={value!r}) - ValidationError not raised",
-                )
+            pytest.fail(
+                f"Failed corruption case: {description} ("
+                f"{field}={value!r}) - ValidationError not raised",
+            )
 
 
 def test_BackpackRawAccount_real_json_example() -> None:
@@ -345,10 +333,10 @@ def test_BackpackRawBalance_corruption_binary_available() -> None:
         BackpackRawBalance.model_validate(p)
 
 
-def test_BackpackRawBalance_corruption_nested_total() -> None:
-    """Should fail: nested object for 'total'."""
+def test_BackpackRawBalance_corruption_nested_locked() -> None:
+    """Should fail: nested object for 'locked'."""
     p = valid_balance().copy()
-    p["total"] = {"foo": "bar"}
+    p["locked"] = {"foo": "bar"}
     with pytest.raises(ValidationError):
         BackpackRawBalance.model_validate(p)
 

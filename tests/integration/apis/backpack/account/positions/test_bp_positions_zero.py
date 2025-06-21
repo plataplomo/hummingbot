@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from tests.integration.apis.backpack.shared.test_helpers import (
+from tests.integration.apis.backpack.shared.bp_test_helpers import (
     COMMON_SPOT_SYMBOLS,
     DELISTED_PERP_SYMBOL,
     DUST_THRESHOLD,
