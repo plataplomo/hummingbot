@@ -109,7 +109,8 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
     assert (
         "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in caplog.text
     )
-    # The business logic doesn't validate symbol map keys, so no warning is generated for invalid_entry_type
+    # The business logic doesn't validate symbol map keys, so no warning
+    # is generated for invalid_entry_type
     # The integer key 123 is processed as-is without validation
     assert (
         "Invalid symbol map value for ex 'invalid_value_type': Skip (ETH: 456). Value must be str."

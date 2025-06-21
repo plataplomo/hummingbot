@@ -30,7 +30,7 @@ class TestRiskManagerSizingStandard:
         # --- Arrange ---
         # Ensure simple path is off (should be default from mock_config)
         mock_config.risk.use_simple_sizing_path = False
-        
+
         # Create RiskManager with the correct config
         risk_manager = RiskManager(
             app_settings=mock_config,

@@ -52,8 +52,6 @@ class TestMarketOrderService:
             signal_generator=mock_signal_generator,
             config=default_config,
         )
-        # Mock round_to_tick_size to return the price as-is
-        service.round_to_tick_size = AsyncMock(side_effect=lambda price, symbol: price)
         return service
 
     @pytest.fixture

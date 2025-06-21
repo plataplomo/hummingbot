@@ -119,14 +119,12 @@ def test_role_data_invalid_address(field: str, value: object) -> None:
 
 
 def test_role_data_allows_extra_fields() -> None:
-    """Test role data allows extra fields."""
-    # extra='allow' is set on HyperliquidRawUserRoleData
+    """Test role data doesn't allow extra fields."""
+    # Business logic has extra='forbid'
     data_payload = {"user": "0xagentuseraddress1234567890abcdef123456", "extra": "allowed"}
-    role_data = HyperliquidRawUserRoleData.model_validate(data_payload)
-    assert role_data.user == data_payload["user"]
-    # Extra field does not cause validation error and is accessible via model_extra
-    assert role_data.model_extra is not None
-    assert role_data.model_extra["extra"] == "allowed"
+    with pytest.raises(ValidationError) as exc_info:
+        HyperliquidRawUserRoleData.model_validate(data_payload)
+    assert "Extra inputs are not permitted" in str(exc_info.value)
 
 
 # --- Test Cases for HyperliquidRawUserRoleResponse --- #

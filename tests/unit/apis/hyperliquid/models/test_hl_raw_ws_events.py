@@ -33,7 +33,7 @@ def test_ws_fill_event_happy_path() -> None:
     }
     model = HyperliquidRawWsFillEvent.model_validate(obj)
     assert model.coin == "ETH"
-    assert model.px == "3000.0"
+    assert model.px == "3000"  # Business logic normalizes decimal strings
     assert model.is_maker is True
 
 

@@ -298,7 +298,8 @@ class HyperliquidAccountDataMapper:
         # For non-zero positions, entry price must be valid and positive
         if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
             raise TransformationError(
-                f"Invalid or zero entry price for non-zero position {symbol}: {getattr(pos, 'entry_px', None)}",
+                f"Invalid or zero entry price for non-zero position {symbol}: "
+                f"{getattr(pos, 'entry_px', None)}",
                 field_name="entry_px",
                 source_value=getattr(pos, "entry_px", None),
             )
@@ -787,7 +788,8 @@ class HyperliquidAccountDataMapper:
             # For non-zero positions, entry price must be valid and positive
             if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
                 raise TransformationError(
-                    f"Invalid or zero entry price for non-zero position {symbol}: {entry_price_str}",
+                    f"Invalid or zero entry price for non-zero position {symbol}: "
+                    f"{entry_price_str}",
                 )
 
             # For zero positions, entry price must be None per domain model rules

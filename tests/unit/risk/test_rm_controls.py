@@ -22,31 +22,34 @@ class TestRiskManagerControls:
     @pytest.mark.asyncio
     async def test_portfolio_level_controls_through_size_opportunity(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
-        mock_config_dict: dict[str, Any],
-        mock_circuit_breaker: MagicMock,
+        mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Verify portfolio controls are applied through the public size_opportunity interface."""
-        # --- Arrange ---
-        min_factor_test_val = Decimal("0.2")  # Corresponds to default mock_config_values
-        test_overrides = {
-            "risk.use_simple_sizing_path": True,
-            "risk.circuit_breaker_recovery_factor": "0.3",
-            "risk.min_validation_factor": str(min_factor_test_val),
-            "risk.max_acceptable_rmse": 0.05,
-            "risk.max_acceptable_bias": 0.02,
-        }
-        combined_config: dict[str, object] = {**mock_config_dict, **test_overrides}
+        # Use simple sizing path for easier testing
+        mock_config.risk.use_simple_sizing_path = True
+        mock_config.risk.simple_sizing_method = "fixed_usd"
+        mock_config.risk.simple_fixed_usd_size = Decimal("1000.0")
 
-        def config_get_side_effect_for_test(
-            key: str,
-            default: object | None = None,
-        ) -> object | None:
-            """Return config value for mock side effect in testing."""
-            return combined_config.get(key, default)
+        # Create risk manager with simple path
+        risk_manager = RiskManager(
+            app_settings=mock_config,
+            portfolio_tracker=mock_portfolio_tracker,
+            circuit_breaker_system=mock_circuit_breaker_system,
+            funding_rate_validator=mock_funding_validator,
+        )
+
+        # Set up mocks for simple sizing path
+        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
+            total_quantity=Decimal("50000"), available_quantity=Decimal("50000")
+        )
+        mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
+        mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Mock one of the exchange breakers to be in HALF_OPEN state
         # to trigger the recovery factor.
@@ -69,19 +72,10 @@ class TestRiskManagerControls:
                 return mock_short_breaker
             return MagicMock()  # Default mock for any other unexpected calls
 
-        mock_circuit_breaker.get_exchange_breaker.side_effect = get_breaker_side_effect
-
-        # Mock safety systems: Low validation factor (get_symbol_metrics part)
-        mock_funding_validator.get_symbol_metrics.return_value = {
-            "rmse": 1.0,  # Values don't matter as FV is not directly used by portfolio controls
-            "bias": 1.0,
-        }
-
-        risk_manager.circuit_breaker_system = mock_circuit_breaker
-        risk_manager.funding_rate_validator = mock_funding_validator
+        mock_circuit_breaker_system.get_exchange_breaker.side_effect = get_breaker_side_effect
 
         # --- Act ---
-        # Test through public interface (config is already set up in mock)
+        # Test through public interface - size_opportunity should succeed
         result = await risk_manager.size_opportunity(sample_opportunity)
 
         # --- Assert ---
@@ -90,7 +84,7 @@ class TestRiskManagerControls:
 
         # Verify circuit breaker interactions occurred
         assert (
-            mock_circuit_breaker.get_exchange_breaker.call_count >= 0
+            mock_circuit_breaker_system.get_exchange_breaker.call_count >= 0
         )  # Some interaction expected
 
     @pytest.mark.asyncio
@@ -103,7 +97,8 @@ class TestRiskManagerControls:
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test that circuit breaker can reject opportunities through public interface."""
-        # Configure circuit breaker to reject execution - business logic expects (bool, reason) tuple
+        # Configure circuit breaker to reject execution - business logic expects
+        # (bool, reason) tuple
         mock_circuit_breaker.can_execute.return_value = (False, "Test circuit breaker rejection")
 
         # Configure the risk manager with the circuit breaker

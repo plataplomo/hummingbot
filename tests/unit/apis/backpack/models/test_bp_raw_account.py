@@ -194,7 +194,8 @@ def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> No
     """Test BackpackRawBalance adversarial strings."""
     p = valid_balance().copy()
     p[field] = value
-    # All adversarial strings should raise ValidationError because decimal fields must be parseable as numbers
+    # All adversarial strings should raise ValidationError because
+    # decimal fields must be parseable as numbers
     with pytest.raises(ValidationError):
         BackpackRawBalance.model_validate(p)
 

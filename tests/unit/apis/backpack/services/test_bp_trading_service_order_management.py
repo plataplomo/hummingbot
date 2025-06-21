@@ -750,7 +750,62 @@ class TestBackpackTradingServiceOrderManagement:
         # Mock the response handler to return BackpackRawOrder objects
         from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 
-        mock_raw_orders = [BackpackRawOrder(**order_data) for order_data in mock_raw_response_list]
+        mock_raw_orders = []
+        for order_data in mock_raw_response_list:
+            # Create BackpackRawOrder with explicit field mapping to avoid mypy confusion
+            # Use type assertions to help mypy understand the types
+            raw_order = BackpackRawOrder(
+                id=str(order_data["id"]),
+                symbol=str(order_data["symbol"]),
+                side=str(order_data["side"]),
+                orderType=str(order_data["orderType"]),
+                status=str(order_data["status"]),
+                quantity=str(order_data["quantity"])
+                if order_data.get("quantity") is not None
+                else None,
+                price=str(order_data["price"]) if order_data.get("price") is not None else None,
+                createdAt=str(order_data["createdAt"]),  # int | float | str
+                clientId=str(order_data["clientId"])
+                if order_data.get("clientId") is not None
+                else None,
+                executedQuantity=str(order_data["executedQuantity"])
+                if order_data.get("executedQuantity") is not None
+                else None,
+                executedQuoteQuantity=str(order_data["executedQuoteQuantity"])
+                if order_data.get("executedQuoteQuantity") is not None
+                else None,
+                timeInForce=str(order_data["timeInForce"])
+                if order_data.get("timeInForce") is not None
+                else None,
+                reduceOnly=bool(order_data["reduceOnly"])
+                if order_data.get("reduceOnly") is not None
+                else None,
+                postOnly=bool(order_data["postOnly"])
+                if order_data.get("postOnly") is not None
+                else None,
+                selfTradePrevention=str(order_data["selfTradePrevention"])
+                if order_data.get("selfTradePrevention") is not None
+                else None,
+                relatedOrderId=str(order_data["relatedOrderId"])
+                if order_data.get("relatedOrderId") is not None
+                else None,
+                avgFillPrice=str(order_data["avgFillPrice"])
+                if order_data.get("avgFillPrice") is not None
+                else None,
+                triggerPrice=str(order_data["triggerPrice"])
+                if order_data.get("triggerPrice") is not None
+                else None,
+                triggerBy=str(order_data["triggerBy"])
+                if order_data.get("triggerBy") is not None
+                else None,
+                updatedAt=order_data.get("updatedAt"),  # int | float | str | None
+                triggeredAt=order_data.get("triggeredAt"),  # int | float | str | None
+                expiryReason=str(order_data["expiryReason"])
+                if order_data.get("expiryReason") is not None
+                else None,
+                origin=str(order_data["origin"]) if order_data.get("origin") is not None else None,
+            )
+            mock_raw_orders.append(raw_order)
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response_list, 200, {})

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Integration Tests for RiskManager Dependency Failure Handling."""
 
-from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -297,7 +296,6 @@ class TestRiskManagerDependencyFailures:
             "bias": 0.0,
         }
 
-
         sized_opp = await risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp is None
 
@@ -328,7 +326,9 @@ class TestRiskManagerDependencyFailures:
         if isinstance(bad_metrics_return, Exception):
             mock_funding_validator.get_symbol_metrics.side_effect = bad_metrics_return
         else:  # bad_metrics_return is None
-            mock_funding_validator.get_symbol_metrics.side_effect = lambda exchange, symbol: bad_metrics_return
+            mock_funding_validator.get_symbol_metrics.side_effect = (
+                lambda exchange, symbol: bad_metrics_return
+            )
 
         sized_opp = await risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp is None

@@ -11,7 +11,6 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -448,7 +447,7 @@ class TestBackpackAccountServiceHistoryOperations:
             "time": 1234567890000,
         }
         mock_raw_response = [mock_raw_trade_data]
-        mock_validated_raw_trades = [BackpackRawPublicTrade.model_validate(mock_raw_trade_data)]
+        # mock_validated_raw_trades = [BackpackRawPublicTrade.model_validate(mock_raw_trade_data)]
 
         expected_trade = Trade(
             id="trade_123",

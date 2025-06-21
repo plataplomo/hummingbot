@@ -78,7 +78,7 @@ class TestBackpackAccountServiceAccountInfo:
                     message="Collateral endpoint not available",
                     http_status=404,
                 ),
-            ) as mock_get_collateral,
+            ),
             patch.object(
                 bp_account_service,
                 "_get_raw_account_summary_obj",

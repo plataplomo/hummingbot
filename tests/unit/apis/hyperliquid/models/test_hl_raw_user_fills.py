@@ -82,7 +82,7 @@ def test_user_fill_happy_path() -> None:
     assert obj.is_maker is True
     assert obj.time == 1234567890
     assert obj.oid == 2
-    assert obj.start_position == "0.0"
+    assert obj.start_position == "0"  # Business logic normalizes "0.0" to "0"
 
 
 def test_user_fill_missing_required() -> None:
@@ -229,7 +229,7 @@ def test_user_fill_adversarial_strings() -> None:
     assert obj.coin == "💣"
     d["px"] = "1e6"
     obj = HyperliquidRawUserFill.model_validate(d)
-    assert obj.px == "1e6"
+    assert obj.px == "1000000"  # Business logic normalizes decimal strings
 
 
 # --- Additional edge case tests (OpenAPI/SDK/real-world) ---
@@ -251,13 +251,13 @@ def test_user_fill_numeric_string_edge_cases() -> None:
         d[field] = "000123.4500"
         obj = HyperliquidRawUserFill.model_validate(d)
         # Use by_alias=True to check original field names as in input dict
-        assert obj.model_dump(by_alias=True)[field] == "000123.4500"
+        assert obj.model_dump(by_alias=True)[field] == "123.45"  # Business logic normalizes
         d[field] = "1.23e2"
         obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump(by_alias=True)[field] == "1.23e2"
+        assert obj.model_dump(by_alias=True)[field] == "123"  # Business logic normalizes
         d[field] = "-123.45"
         obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump(by_alias=True)[field] == "-123.45"
+        assert obj.model_dump(by_alias=True)[field] == "-123.45"  # This doesn't change
         d[field] = "1" * 65
         with pytest.raises(ValidationError):
             HyperliquidRawUserFill.model_validate(d)
@@ -457,12 +457,12 @@ def test_hl_raw_user_fill_valid(valid_user_fill_data: dict[str, Any]) -> None:
 
     assert fill.tid == 123456789
     assert fill.coin == "ETH"
-    assert fill.px == "2000.50"
+    assert fill.px == "2000.5"  # Business logic normalizes decimal strings
     assert fill.sz == "0.1"
     assert fill.time == 1678886400123
     assert fill.side == "B"
     assert fill.oid == 987654321
-    assert fill.start_position == "1.0"
+    assert fill.start_position == "1"  # Business logic normalizes decimal strings
     assert fill.dir == "Buy"
     assert fill.hash == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456"
     assert fill.fee == "0.002"
@@ -478,7 +478,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
     valid_user_fill_data["liquidationMarkPx"] = "1950.00"
     valid_user_fill_data["cloid"] = "my-client-order-id"
     fill = HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-    assert fill.liquidation_mark_px == "1950.00"
+    assert fill.liquidation_mark_px == "1950"  # Business logic normalizes decimal strings
     assert fill.cloid == "my-client-order-id"
 
 

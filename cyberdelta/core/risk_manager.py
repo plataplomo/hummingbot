@@ -926,13 +926,6 @@ class RiskManager:
             )
             return None
 
-        # The FundingRateValidatorProtocol should return a dict, but handle None for robustness
-        if metrics is None:
-            self.logger.warning(
-                f"Validation metrics for {exchange}/{symbol} returned None. Rejecting for safety.",
-            )
-            return None
-
         # The FundingRateValidatorProtocol returns a dict, keys might be missing
         rmse_value = metrics.get("rmse")
         bias_value = metrics.get("bias")

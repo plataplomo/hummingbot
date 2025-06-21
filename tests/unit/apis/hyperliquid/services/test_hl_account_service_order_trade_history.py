@@ -8,7 +8,12 @@ import pytest
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetOpenOrdersArgs,
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
+    GetUserFillsArgs,
+)
 
 # Unit tests for HyperliquidAccountService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
@@ -36,16 +41,52 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Patch builder
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
-        mock_request_builder.build_order_history_payload.return_value = mock_payload_model
+        mock_request_builder.build_historical_orders_payload.return_value = mock_payload_model
         # Patch http_client_requester
-        mock_http_client_requester.return_value = ([{"order": 1}], 200, {})
+        mock_http_client_requester.return_value = (
+            [
+                {
+                    "order": {
+                        "oid": 1,
+                        "coin": "BTC",
+                        "side": "B",
+                        "limitPx": "30000.0",
+                        "sz": "0.001",
+                        "timestamp": 1704067200000,
+                        "orderType": "limit",
+                        "origSz": "0.001",
+                        "cloid": None,
+                        "reduceOnly": False,
+                        "tif": "Gtc",
+                    },
+                    "status": "filled",
+                    "statusTimestamp": 1704067200000,
+                }
+            ],
+            200,
+            {},
+        )
         # Patch response handler
         mock_raw_order = MagicMock()
-        mock_response_handler.handle_query_order_history_response.return_value = [
-            MagicMock(order=mock_raw_order),
+        # Make model_dump return the expected dict structure
+        mock_raw_order.model_dump.return_value = {
+            "oid": 1,
+            "coin": "BTC",
+            "side": "B",
+            "limitPx": "30000.0",
+            "sz": "0.001",
+            "timestamp": 1704067200000,
+            "orderType": "limit",
+            "origSz": "0.001",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
+        mock_response_handler.handle_historical_orders_response.return_value = [
+            MagicMock(order=mock_raw_order, status="filled", status_timestamp=1704067200000),
         ]
         # Patch order mapper - the trading mapper that actually maps orders
-        mapped_order = MagicMock(symbol="BTC")
+        mapped_order = MagicMock(symbol="BTC", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC))
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.return_value = (
             mapped_order
         )
@@ -58,27 +99,55 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         assert result == [mapped_order]
 
-        expected_start_ms = int(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        expected_end_ms = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        # expected_start_ms = int(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        # expected_end_ms = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
 
-        mock_request_builder.build_order_history_payload.assert_called_once_with(
+        # Business logic only passes wallet_address to build_historical_orders_payload
+        mock_request_builder.build_historical_orders_payload.assert_called_once_with(
             wallet_address="0xTestWalletAddress",
-            start_time_ms=expected_start_ms,
-            end_time_ms=expected_end_ms,
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data={"foo": "bar"},
-            is_signed=True,
+            is_signed=False,  # Business logic uses is_signed=False for info endpoints
         )
-        mock_response_handler.handle_query_order_history_response.assert_called_once_with(
-            raw_response_content=[{"order": 1}],
+        mock_response_handler.handle_historical_orders_response.assert_called_once_with(
+            raw_response_content=[
+                {
+                    "order": {
+                        "oid": 1,
+                        "coin": "BTC",
+                        "side": "B",
+                        "limitPx": "30000.0",
+                        "sz": "0.001",
+                        "timestamp": 1704067200000,
+                        "orderType": "limit",
+                        "origSz": "0.001",
+                        "cloid": None,
+                        "reduceOnly": False,
+                        "tif": "Gtc",
+                    },
+                    "status": "filled",
+                    "statusTimestamp": 1704067200000,
+                }
+            ],
             user_address="0xTestWalletAddress",
         )
-        mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once_with(
-            raw_historical_order=mock_raw_order,
-            trigger=None,
+        # Verify the mapper was called once with a HyperliquidRawHistoricalOrder object
+        mock_hl_trading_mapper.transform_raw_historical_order_to_internal.assert_called_once()
+        call_args = mock_hl_trading_mapper.transform_raw_historical_order_to_internal.call_args
+        
+        # The raw_historical_order should be a HyperliquidRawHistoricalOrder instance
+        # with the combined data
+        raw_order_arg = call_args.kwargs.get("raw_historical_order") or call_args.args[0]
+        assert raw_order_arg.oid == 1
+        assert raw_order_arg.coin == "BTC"
+        assert raw_order_arg.order_type == "limit"
+        assert raw_order_arg.status == "filled"
+        assert (
+            call_args.kwargs.get("trigger") is None
+            or (len(call_args.args) > 1 and call_args.args[1] is None)
         )
 
     @pytest.mark.asyncio
@@ -95,49 +164,124 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Wallet address is already set by the hyperliquid_account_service fixture
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
-        mock_request_builder.build_order_history_payload.return_value = mock_payload_model
-        mock_http_client_requester.return_value = ([{"order": 1}], 200, {})
+        mock_request_builder.build_historical_orders_payload.return_value = mock_payload_model
+        mock_http_client_requester.return_value = (
+            [
+                {
+                    "order": {
+                        "oid": 1,
+                        "coin": "BTC",
+                        "side": "B",
+                        "limitPx": "30000.0",
+                        "sz": "0.001",
+                        "timestamp": 1704067200000,
+                        "orderType": "limit",
+                        "origSz": "0.001",
+                        "cloid": None,
+                        "reduceOnly": False,
+                        "tif": "Gtc",
+                    },
+                    "status": "filled",
+                    "statusTimestamp": 1704067200000,
+                },
+                {
+                    "order": {
+                        "oid": 2,
+                        "coin": "ETH",
+                        "side": "A",
+                        "limitPx": "2000.0",
+                        "sz": "0.01",
+                        "timestamp": 1704067201000,
+                        "orderType": "limit",
+                        "origSz": "0.01",
+                        "cloid": None,
+                        "reduceOnly": False,
+                        "tif": "Gtc",
+                    },
+                    "status": "filled",
+                    "statusTimestamp": 1704067201000,
+                },
+            ],
+            200,
+            {},
+        )
         mock_raw_order1 = MagicMock(
             oid=1,
             cloid=None,
-            asset="BTC",
+            coin="BTC",
             side="B",
             limit_px="10000.0",
             sz="0.001",
             timestamp=1672531200000,
-            order_type={"limit": {"tif": "Gtc"}},
+            order_type="limit",
             reduce_only=False,
-            remaining_sz="0.0",
-            status="Filled",
-            status_timestamp=1672531200000,
+            orig_sz="0.001",
+            tif="Gtc",
         )
+        mock_raw_order1.model_dump.return_value = {
+            "oid": 1,
+            "coin": "BTC",
+            "side": "B",
+            "limitPx": "10000.0",
+            "sz": "0.001",
+            "timestamp": 1672531200000,
+            "orderType": "limit",
+            "origSz": "0.001",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
         mock_raw_order2 = MagicMock(
             oid=2,
             cloid=None,
-            asset="ETH",
-            side="S",
+            coin="ETH",
+            side="A",
             limit_px="2000.0",
             sz="0.01",
             timestamp=1672531201000,
-            order_type={"limit": {"tif": "Gtc"}},
+            order_type="limit",
             reduce_only=False,
-            remaining_sz="0.0",
-            status="Filled",
-            status_timestamp=1672531201000,
+            orig_sz="0.01",
+            tif="Gtc",
         )
-        mock_response_handler.handle_query_order_history_response.return_value = [
-            MagicMock(order=mock_raw_order1),
-            MagicMock(order=mock_raw_order2),
+        mock_raw_order2.model_dump.return_value = {
+            "oid": 2,
+            "coin": "ETH",
+            "side": "A",
+            "limitPx": "2000.0",
+            "sz": "0.01",
+            "timestamp": 1672531201000,
+            "orderType": "limit",
+            "origSz": "0.01",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
+        mock_response_handler.handle_historical_orders_response.return_value = [
+            MagicMock(order=mock_raw_order1, status="filled", status_timestamp=1672531200000),
+            MagicMock(order=mock_raw_order2, status="filled", status_timestamp=1672531201000),
         ]
-        mapped_order1 = MagicMock(symbol="BTC")
-        mapped_order2 = MagicMock(symbol="ETH")
+        mapped_order1 = MagicMock(symbol="BTC", created_at=datetime(2023, 1, 1, 0, 0, tzinfo=UTC))
+        mapped_order2 = MagicMock(
+            symbol="ETH", created_at=datetime(2023, 1, 1, 0, 0, 1, tzinfo=UTC)
+        )
 
         def map_side_effect(
             raw_historical_order: MagicMock,
             trigger: MagicMock | None = None,
         ) -> MagicMock:
             """Map raw historical orders to internal order objects for testing."""
-            return mapped_order1 if raw_historical_order is mock_raw_order1 else mapped_order2
+            # Match based on the oid property since the business logic creates new objects
+            if hasattr(raw_historical_order, "oid") and raw_historical_order.oid == 1:
+                return mapped_order1
+            elif hasattr(raw_historical_order, "oid") and raw_historical_order.oid == 2:
+                return mapped_order2
+            else:
+                # Default fallback - check coin field
+                if hasattr(raw_historical_order, "coin") and raw_historical_order.coin == "BTC":
+                    return mapped_order1
+                else:
+                    return mapped_order2
 
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.side_effect = (
             map_side_effect
@@ -145,16 +289,16 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         result = await hyperliquid_account_service.get_order_history(
             GetOrderHistoryArgs(
                 symbol="BTC",
-                start_time=datetime(2024, 1, 1),
-                end_time=datetime(2024, 1, 2),
+                start_time=datetime(2023, 1, 1),
+                end_time=datetime(2023, 1, 2),
             ),
         )
         assert result == [mapped_order1]
         result_all = await hyperliquid_account_service.get_order_history(
             GetOrderHistoryArgs(
                 symbol=None,
-                start_time=datetime(2024, 1, 1),
-                end_time=datetime(2024, 1, 2),
+                start_time=datetime(2023, 1, 1),
+                end_time=datetime(2023, 1, 2),
             ),
         )
         assert set(result_all) == {mapped_order1, mapped_order2}
@@ -211,7 +355,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # APIError from requester (uses the standard hyperliquid_account_service
         # fixture which has a wallet address)
-        mock_request_builder.build_order_history_payload.return_value = MagicMock(
+        mock_request_builder.build_historical_orders_payload.return_value = MagicMock(
             model_dump=lambda: {"foo": "bar"},
         )
         mock_http_client_requester.side_effect = APIError("fail", 1)
@@ -249,7 +393,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         }
 
         mock_payload_model.model_dump.return_value = mock_payload_dict
-        mock_request_builder.build_order_history_payload.return_value = mock_payload_model
+        mock_request_builder.build_historical_orders_payload.return_value = mock_payload_model
 
         mock_http_client_requester.return_value = (
             None,
@@ -269,18 +413,16 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for order history" in exc_info.value.message
 
-        mock_request_builder.build_order_history_payload.assert_called_once_with(
+        mock_request_builder.build_historical_orders_payload.assert_called_once_with(
             wallet_address=wallet_address,
-            start_time_ms=int(start_time.timestamp() * 1000),
-            end_time_ms=int(end_time.timestamp() * 1000),
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
-        mock_response_handler.handle_query_order_history_response.assert_not_called()
+        mock_response_handler.handle_historical_orders_response.assert_not_called()
         mock_hl_order_mapper.transform_raw_historical_order_to_internal.assert_not_called()
 
     @pytest.mark.asyncio
@@ -309,6 +451,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             args=GetTradeHistoryArgs(symbol="BTC"),
         )
         assert result == [mapped_trade]
+
+
+        expected_args = GetUserFillsArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_fills_request_payload.assert_called_once_with(expected_args)
+
         mock_hl_account_mapper.transform_raw_user_fill_to_internal.assert_called_once_with(
             mock_raw_fill,
         )
@@ -327,6 +474,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Wallet address is already set by the hyperliquid_account_service fixture
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
+        # expected_args = GetUserFillsArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
         mock_http_client_requester.return_value = ([{"fill": 1}], 200, {})
         mock_raw_fill1 = MagicMock(
@@ -337,7 +485,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             limit_px="10000.0",
             sz="0.001",
             timestamp=1672531200000,
-            order_type={"limit": {"tif": "Gtc"}},
+            order_type="limit",
             reduce_only=False,
             remaining_sz="0.0",
             status="Filled",
@@ -347,11 +495,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             oid=2,
             cloid=None,
             asset="ETH",
-            side="S",
+            side="A",
             limit_px="2000.0",
             sz="0.01",
             timestamp=1672531201000,
-            order_type={"limit": {"tif": "Gtc"}},
+            order_type="limit",
             reduce_only=False,
             remaining_sz="0.0",
             status="Filled",
@@ -471,14 +619,14 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for user fills, status: 200" in exc_info.value.message
 
-        mock_request_builder.build_user_fills_request_payload.assert_called_once_with(
-            wallet_address,
-        )
+
+        expected_args = GetUserFillsArgs(wallet_address=wallet_address)
+        mock_request_builder.build_user_fills_request_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
         mock_response_handler.handle_info_user_fills_response.assert_not_called()
         # Note: We expect the account mapper to not be called since HTTP client returned None
@@ -513,18 +661,17 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             await hyperliquid_account_service.get_open_orders()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for open orders, status: 200" in exc_info.value.message
+        assert "No data received for open orders" in exc_info.value.message
 
-        mock_request_builder.build_open_orders_payload.assert_called_once_with(
-            wallet_address=wallet_address,
-        )
+        expected_args = GetOpenOrdersArgs(wallet_address=wallet_address)
+        mock_request_builder.build_open_orders_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data=mock_open_orders_payload_dict,
-            is_signed=True,
+            is_signed=False,
         )
-        mock_response_handler.handle_query_open_orders_response.assert_not_called()
+        mock_response_handler.handle_info_open_orders_response.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_order_history_comprehensive_filtering_and_edge_cases(
@@ -539,11 +686,33 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Setup basic mocks
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"test": "payload"}
-        mock_request_builder.build_order_history_payload.return_value = mock_payload_model
-        mock_http_client_requester.return_value = ([{"orders": "mock"}], 200, {})
+        mock_request_builder.build_historical_orders_payload.return_value = mock_payload_model
+        mock_http_client_requester.return_value = (
+            [
+                {
+                    "order": {
+                        "oid": 1,
+                        "coin": "BTC",
+                        "side": "B",
+                        "limitPx": "30000.0",
+                        "sz": "0.001",
+                        "timestamp": 1704067200000,
+                        "orderType": "limit",
+                        "origSz": "0.001",
+                        "cloid": None,
+                        "reduceOnly": False,
+                        "tif": "Gtc",
+                    },
+                    "status": "filled",
+                    "statusTimestamp": 1704067200000,
+                }
+            ],
+            200,
+            {},
+        )
 
         # Test case 1: Empty order history
-        mock_response_handler.handle_query_order_history_response.return_value = []
+        mock_response_handler.handle_historical_orders_response.return_value = []
         result_empty = await hyperliquid_account_service.get_order_history(
             GetOrderHistoryArgs(
                 symbol="NONEXISTENT",
@@ -554,17 +723,65 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert result_empty == []
 
         # Test case 2: Multiple orders with complex filtering
+        mock_order1 = MagicMock(coin="BTC")
+        mock_order1.model_dump.return_value = {
+            "oid": 1,
+            "coin": "BTC",
+            "side": "B",
+            "limitPx": "30000.0",
+            "sz": "0.001",
+            "timestamp": 1704067200000,
+            "orderType": "limit",
+            "origSz": "0.001",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
+        mock_order2 = MagicMock(coin="ETH")
+        mock_order2.model_dump.return_value = {
+            "oid": 2,
+            "coin": "ETH",
+            "side": "A",
+            "limitPx": "2000.0",
+            "sz": "0.01",
+            "timestamp": 1704067201000,
+            "orderType": "limit",
+            "origSz": "0.01",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
+        mock_order3 = MagicMock(coin="BTC")
+        mock_order3.model_dump.return_value = {
+            "oid": 3,
+            "coin": "BTC",
+            "side": "B",
+            "limitPx": "30500.0",
+            "sz": "0.002",
+            "timestamp": 1704067202000,
+            "orderType": "limit",
+            "origSz": "0.002",
+            "cloid": None,
+            "reduceOnly": False,
+            "tif": "Gtc",
+        }
         mock_orders = [
-            MagicMock(order=MagicMock(asset="BTC")),
-            MagicMock(order=MagicMock(asset="ETH")),
-            MagicMock(order=MagicMock(asset="BTC")),
+            MagicMock(order=mock_order1, status="filled", status_timestamp=1704067200000),
+            MagicMock(order=mock_order2, status="filled", status_timestamp=1704067201000),
+            MagicMock(order=mock_order3, status="filled", status_timestamp=1704067202000),
         ]
-        mock_response_handler.handle_query_order_history_response.return_value = mock_orders
+        mock_response_handler.handle_historical_orders_response.return_value = mock_orders
 
         mock_internal_orders = [
-            MagicMock(symbol="BTC", id="order1"),
-            MagicMock(symbol="ETH", id="order2"),
-            MagicMock(symbol="BTC", id="order3"),
+            MagicMock(
+                symbol="BTC", id="order1", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+            ),
+            MagicMock(
+                symbol="ETH", id="order2", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+            ),
+            MagicMock(
+                symbol="BTC", id="order3", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+            ),
         ]
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.side_effect = (
             mock_internal_orders

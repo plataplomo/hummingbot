@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -74,7 +74,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     mock_risk.simple_sizing_method = mock_config_dict["risk"]["simple_sizing_method"]
     mock_risk.simple_fixed_usd_size = Decimal(mock_config_dict["risk"]["simple_fixed_usd_size"])
     mock_risk.simple_fixed_fraction = Decimal(mock_config_dict["risk"]["simple_fixed_fraction"])
-    
+
     # Add the validation attributes that RiskManager now requires
     mock_risk.max_acceptable_rmse = Decimal("0.05")  # Default 5%
     mock_risk.max_acceptable_bias = Decimal("0.02")  # Default 2%
@@ -527,7 +527,7 @@ class TestRiskManagerSizingSimple:
 
         # Change config to lower max_position_usd and create new RiskManager
         mock_config.risk.global_risk.max_position_usd = Decimal("10.0")  # Much lower than 200
-        
+
         # Create second RiskManager with updated config
         risk_manager_2 = RiskManager(
             mock_config,
@@ -535,10 +535,12 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        
+
         # Second sizing: should be rejected due to low max_position_usd
         sized_opp2 = await risk_manager_2.size_opportunity(sample_opportunity)
-        assert sized_opp2 is None, "Second sizing should be rejected due to max_position_usd constraint"
+        assert sized_opp2 is None, (
+            "Second sizing should be rejected due to max_position_usd constraint"
+        )
 
     @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_happy_path(

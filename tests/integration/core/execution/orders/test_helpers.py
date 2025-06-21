@@ -147,11 +147,11 @@ class MarketOrderTestHelpers:
             from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
             if isinstance(exchange_api, HyperliquidAPI):
-                from tests.integration.apis.hyperliquid.shared.test_helpers import (
+                from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
                     HyperliquidTestHelpers,
                 )
 
-                minimal_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
+                minimal_quantity: Decimal = await HyperliquidTestHelpers.get_minimal_order_size(
                     exchange_api, symbol, side
                 )
 
@@ -181,6 +181,7 @@ class MarketOrderTestHelpers:
                 )
 
             # Use exactly the exchange minimum - no buffers, no calculations
+            assert market.min_quantity is not None  # Already checked above
             minimal_quantity = market.min_quantity
 
             logger.info(

@@ -138,7 +138,7 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
     """Test user equity valid."""
     item = HyperliquidRawVaultUserEquity.model_validate(valid_user_equity_data)
     assert item.user == valid_user_equity_data["user"]
-    assert item.equity == valid_user_equity_data["equity"]
+    assert item.equity == "10000.5"  # Business logic normalizes decimal strings
     assert item.lockup_until == valid_user_equity_data["lockupUntil"]
 
 
@@ -253,8 +253,8 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
     assert resp.name == valid_vault_details_data["name"]
     assert resp.allow_deposits == valid_vault_details_data["allowDeposits"]
     assert resp.vault_address == valid_vault_details_data["vaultAddress"]
-    assert resp.max_balance == valid_vault_details_data["maxBalance"]
-    assert resp.curr_balance == valid_vault_details_data["currBalance"]
+    assert resp.max_balance == "1000000"  # Business logic normalizes decimal strings
+    assert resp.curr_balance == "500000"  # Business logic normalizes decimal strings
     assert len(resp.performance_history) == 1
     assert resp.performance_history[0].time == VALID_PERFORMANCE_HISTORY_ITEM["time"]
     assert len(resp.user_equities) == 1

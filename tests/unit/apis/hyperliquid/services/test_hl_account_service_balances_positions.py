@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetUserStateArgs
 from cyberdelta.core.models import SpotBalance
 
 # Unit tests for HyperliquidAccountService (moved from mislabeled integration tests)
@@ -127,12 +128,14 @@ class TestHyperliquidAccountServiceBalancesPositions:
         result_balances = await hyperliquid_account_service.get_balances()
 
         # Assertions
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        # Business logic uses GetUserStateArgs object
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data={"type": "clearinghouseState", "user": "0xTestWalletAddress"},
-            is_signed=True,
+            is_signed=False,  # Business logic uses is_signed=False for info endpoints
         )
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -197,7 +200,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_balances()
         assert excinfo.value == expected_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_not_called()
 
@@ -223,12 +227,13 @@ class TestHyperliquidAccountServiceBalancesPositions:
             await hyperliquid_account_service.get_balances()
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for user state (for clearinghouse_state)" in exc_info.value.message
-        mock_request_builder.build_user_state_payload.assert_called_once_with(wallet_address)
+        expected_args = GetUserStateArgs(wallet_address=wallet_address)
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once_with(
             method="POST",
             endpoint="/info",
             data={"type": "clearinghouseState", "user": "0xTestWalletAddress"},
-            is_signed=True,
+            is_signed=False,  # Business logic uses is_signed=False for info endpoints
         )
         mock_response_handler.handle_info_user_state_response.assert_not_called()
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_not_called()
@@ -267,7 +272,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             "ETH": mock_eth_pos,
         }
         result = await hyperliquid_account_service.get_positions()
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -317,7 +323,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         result_doge = await hyperliquid_account_service.get_positions(symbol="DOGE")
         assert result_doge == []
         assert mock_request_builder.build_user_state_payload.call_count == 2
-        mock_request_builder.build_user_state_payload.assert_any_call("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_any_call(expected_args)
         assert mock_http_client_requester.call_count == 2
         assert mock_response_handler.handle_info_user_state_response.call_count == 2
         mock_response_handler.handle_info_user_state_response.assert_any_call(
@@ -351,7 +358,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_positions()
         assert excinfo.value == expected_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()  # Verifies it was called before erroring
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.assert_not_called()
 
@@ -382,7 +390,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             mock_summary_object
         )
         result = await hyperliquid_account_service.get_account_summary()
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -430,7 +439,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             ValueError,
         )  # Check that original ValueError is preserved
         assert str(excinfo.value.__cause__) == "bad map"
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
@@ -456,6 +466,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         with pytest.raises(APIError) as excinfo:
             await hyperliquid_account_service.get_account_summary()
         assert excinfo.value == expected_error
-        mock_request_builder.build_user_state_payload.assert_called_once_with("0xTestWalletAddress")
+        expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
+        mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_not_called()

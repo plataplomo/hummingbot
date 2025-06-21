@@ -30,7 +30,7 @@ class TestRiskManagerConstraints:
         mock_config.risk.use_simple_sizing_path = True
         mock_config.risk.simple_sizing_method = "fixed_usd"
         mock_config.risk.simple_fixed_usd_size = Decimal("1000.0")
-        
+
         # Create risk manager with simple path
         risk_manager = RiskManager(
             app_settings=mock_config,
@@ -38,7 +38,7 @@ class TestRiskManagerConstraints:
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
-        
+
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("3000.0")
         mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
@@ -46,7 +46,7 @@ class TestRiskManagerConstraints:
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
-        
+
         # Create a minimal valid ArbitrageOpportunity
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
@@ -79,7 +79,7 @@ class TestRiskManagerConstraints:
         mock_config.risk.simple_sizing_method = "fixed_usd"
         mock_config.risk.simple_fixed_usd_size = Decimal("1000.0")
         mock_config.risk.global_risk.max_total_exposure_usd = Decimal("5000.0")  # Low limit
-        
+
         # Create risk manager with simple path
         risk_manager = RiskManager(
             app_settings=mock_config,
@@ -87,7 +87,7 @@ class TestRiskManagerConstraints:
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
-        
+
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
         mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(
             "4500.0",
@@ -97,7 +97,7 @@ class TestRiskManagerConstraints:
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
-        
+
         opportunity = ArbitrageOpportunity(
             symbol="BTC-PERP",
             long_exchange="hyperliquid",

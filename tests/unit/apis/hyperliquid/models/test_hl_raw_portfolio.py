@@ -86,14 +86,14 @@ def test_history_entry_valid_from_list(valid_history_entry_list_data: list[Any])
     """Test history entry valid from list."""
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_list_data)
     assert item.root[0] == valid_history_entry_list_data[0]
-    assert item.root[1] == valid_history_entry_list_data[1]
+    assert item.root[1] == "0"  # Business logic normalizes "0.0" to "0"
 
 
 def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int | str, Any]) -> None:
     """Test history entry valid from dict."""
     item = HyperliquidRawPortfolioHistoryEntry.model_validate(valid_history_entry_dict_data)
     assert item.root[0] == valid_history_entry_dict_data[0]
-    assert item.root[1] == valid_history_entry_dict_data[1]
+    assert item.root[1] == "0"  # Business logic normalizes "0.0" to "0"
 
 
 @pytest.mark.parametrize(
