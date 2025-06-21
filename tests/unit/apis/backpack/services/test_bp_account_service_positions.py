@@ -41,6 +41,7 @@ class TestBackpackAccountServicePositions:
         symbol_arg = "SOL-PERP"
         mock_raw_positions_data_item_dict = {
             "symbol": "SOL-PERP",
+            "subaccountId": 0,  # Add missing required field
             "netQuantity": "10.0",
             "entryPrice": "100.0",
             "markPrice": "110.0",
@@ -109,7 +110,7 @@ class TestBackpackAccountServicePositions:
         mock_request_builder.build_get_positions_params.assert_called_with(None)
         mock_http_client_requester.assert_called_with(
             method="GET",
-            endpoint="/api/v1/positions",  # Endpoint for no symbol
+            endpoint="/api/v1/position",  # Endpoint for no symbol (singular)
             params={},  # Empty dict from BackpackRawGetPositionsParams().model_dump()
             is_signed=True,
             endpoint_group="private",
@@ -154,7 +155,7 @@ class TestBackpackAccountServicePositions:
         mock_request_builder.build_get_positions_params.assert_called_with(symbol_arg)
         mock_http_client_requester.assert_called_with(
             method="GET",
-            endpoint="/api/v1/positions",
+            endpoint="/api/v1/position",  # Singular endpoint
             params={},  # Empty dict from BackpackRawGetPositionsParams().model_dump()
             is_signed=True,
             endpoint_group="private",
@@ -264,6 +265,7 @@ class TestBackpackAccountServicePositions:
         """Test get_positions with None symbol (all positions scenario)."""
         mock_raw_position_data = {
             "symbol": "SOL_USDC",
+            "subaccountId": 0,  # Add missing required field
             "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
             "estLiquidationPrice": "90.0",
@@ -329,6 +331,7 @@ class TestBackpackAccountServicePositions:
         """
         mock_raw_position_data = {
             "symbol": "SOL_USDC",
+            "subaccountId": 0,  # Add missing required field
             "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
             "estLiquidationPrice": "90.0",

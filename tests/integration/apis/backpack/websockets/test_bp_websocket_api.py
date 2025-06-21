@@ -433,7 +433,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 )
 
                 # Brief async pause to allow for processing
-                from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
+                from tests.integration.apis.backpack.shared.bp_test_helpers import (
+                    wait_for_condition,
+                )
 
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait

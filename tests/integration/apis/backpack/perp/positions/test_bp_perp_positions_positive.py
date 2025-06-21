@@ -152,7 +152,9 @@ class TestBackpackPerpPositionsPrivate:
 
         if position.entry_price is not None:
             # Get market constraints from exchange to validate entry_price precision
-            from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
+            from tests.integration.apis.backpack.shared.bp_test_helpers import (
+                get_market_constraints,
+            )
 
             constraints = await get_market_constraints(api, position.symbol)
             tick_size = constraints["tick_size"]

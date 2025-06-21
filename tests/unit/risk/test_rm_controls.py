@@ -3,7 +3,7 @@
 
 from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest  # Added for asyncio mark
 
@@ -81,10 +81,8 @@ class TestRiskManagerControls:
         risk_manager.funding_rate_validator = mock_funding_validator
 
         # --- Act ---
-        # Use patch.object to mock the 'get' method of the mock_config instance
-        with patch.object(mock_config, "get", side_effect=config_get_side_effect_for_test):
-            # Test through public interface
-            result = await risk_manager.size_opportunity(sample_opportunity)
+        # Test through public interface (config is already set up in mock)
+        result = await risk_manager.size_opportunity(sample_opportunity)
 
         # --- Assert ---
         # Verify that the opportunity was sized (not rejected)
@@ -105,8 +103,8 @@ class TestRiskManagerControls:
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test that circuit breaker can reject opportunities through public interface."""
-        # Configure circuit breaker to reject execution
-        mock_circuit_breaker.can_execute.return_value = False
+        # Configure circuit breaker to reject execution - business logic expects (bool, reason) tuple
+        mock_circuit_breaker.can_execute.return_value = (False, "Test circuit breaker rejection")
 
         # Configure the risk manager with the circuit breaker
         risk_manager.circuit_breaker_system = mock_circuit_breaker

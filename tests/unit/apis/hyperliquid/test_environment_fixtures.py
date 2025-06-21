@@ -33,7 +33,9 @@ class TestEnvironmentAwareFixtures:
     def test_active_hl_config_testnet(self, active_hl_config: ExchangeSpecificConfig) -> None:
         """Test active_hl_config fixture with testnet environment."""
         assert active_hl_config.exchange_name == ExchangeName.HYPERLIQUID
-        assert active_hl_config.is_mainnet_environment is True  # Business logic now defaults to mainnet
+        assert (
+            active_hl_config.is_mainnet_environment is True
+        )  # Business logic now defaults to mainnet
         assert str(active_hl_config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
         assert str(active_hl_config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
         assert active_hl_config.api_base_url_testnet is None  # No testnet URLs in mainnet config
@@ -47,7 +49,9 @@ class TestEnvironmentAwareFixtures:
         """Test that active_hl_config includes Hyperliquid-specific rate limiting."""
         assert active_hl_config.ip_weight_limit_per_minute == 1200
         if active_hl_config.info_request_type_ip_weights is not None:
-            assert "meta" in active_hl_config.info_request_type_ip_weights  # Business logic changed keys
+            assert (
+                "meta" in active_hl_config.info_request_type_ip_weights
+            )  # Business logic changed keys
             assert active_hl_config.info_request_type_ip_weights["meta"] == 2
         assert active_hl_config.default_info_weight == 2  # Business logic changed default
 

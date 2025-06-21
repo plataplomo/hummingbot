@@ -190,6 +190,7 @@ def valid_raw_position_item(symbol_spot: str) -> dict[str, Any]:
         "userId": 1,
         "positionId": "pos123",
         "cumulativeInterest": "0.0",
+        "subaccountId": 0,
     }
 
 

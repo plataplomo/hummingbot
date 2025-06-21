@@ -211,15 +211,9 @@ class BackpackTradingService:
 
         # Determine the correct trigger price field based on order type
         # Backpack uses standard trigger mechanism (triggerPrice + triggerQuantity)
-        trigger_price = None
-
-        if args.order_type in [
-            OrderType.STOP_MARKET,
-            OrderType.STOP_LIMIT,
-            OrderType.TAKE_PROFIT_MARKET,
-            OrderType.TAKE_PROFIT_LIMIT,
-        ]:
-            trigger_price = args.stop_price
+        # Pass stop_price as trigger_price if provided, regardless of order type
+        # The exchange will validate whether it's appropriate for the order type
+        trigger_price = args.stop_price
 
         payload = self._request_builder.build_place_order_payload(
             symbol=args.symbol,

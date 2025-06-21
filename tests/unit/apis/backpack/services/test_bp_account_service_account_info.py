@@ -71,6 +71,16 @@ class TestBackpackAccountServiceAccountInfo:
         with (
             patch.object(
                 bp_account_service,
+                "_get_raw_collateral_response",
+                new_callable=AsyncMock,
+                side_effect=APIError(
+                    code=APIErrorCode.SERVICE_UNAVAILABLE.value,
+                    message="Collateral endpoint not available",
+                    http_status=404,
+                ),
+            ) as mock_get_collateral,
+            patch.object(
+                bp_account_service,
                 "_get_raw_account_summary_obj",
                 new_callable=AsyncMock,
                 return_value=mock_validated_raw_account_summary,
@@ -94,9 +104,10 @@ class TestBackpackAccountServiceAccountInfo:
             )
             result = await bp_account_service.get_account_summary()
 
-        mock_get_summary_obj.assert_called_once_with()
-        mock_get_balances_dict.assert_called_once_with()
-        mock_get_positions_list.assert_called_once_with()
+        # Enhanced flow tries first, then fallback to basic flow calls these again
+        assert mock_get_summary_obj.call_count == 2  # Called in both enhanced and basic flows
+        assert mock_get_balances_dict.call_count == 1  # Called only in basic flow
+        assert mock_get_positions_list.call_count == 2  # Called in both enhanced and basic flows
 
         mock_mapper.transform_raw_account_summary_to_internal.assert_called_once_with(
             raw_settings=mock_validated_raw_account_summary,
@@ -119,7 +130,7 @@ class TestBackpackAccountServiceAccountInfo:
     ) -> None:
         """Test get_account_summary when HTTP client returns None content."""
         # Mock request builder to return a valid params object
-        mock_request_builder.build_get_account_summary_params.return_value = (
+        mock_request_builder.build_get_account_info_params.return_value = (
             BackpackRawGetAccountInfoParams()
         )
         # Mock HTTP client to return None content
@@ -140,9 +151,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles validation error from response handler."""
-        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed",
         )
 
@@ -161,9 +172,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles unexpected exception via public API."""
-        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error",
         )
 
@@ -182,9 +193,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles validation error from response handler."""
-        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed",
         )
 
@@ -203,9 +214,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles unexpected exception."""
-        mock_request_builder.build_get_account_summary_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = None
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
-        mock_response_handler.handle_get_account_summary_response.side_effect = Exception(
+        mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error",
         )
 

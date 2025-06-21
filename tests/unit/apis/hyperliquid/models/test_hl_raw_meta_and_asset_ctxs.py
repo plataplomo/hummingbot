@@ -112,6 +112,9 @@ def test_asset_ctx_happy_path() -> None:
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
         "impactPx": "0.1",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
     assert model.name == "BTC"
@@ -127,6 +130,9 @@ def test_asset_ctx_optional_impact_px() -> None:
         "markPx": "30000.0",
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
     assert model.impact_px is None
@@ -170,6 +176,9 @@ def test_asset_ctx_missing_optional_impact_px() -> None:
         "markPx": "30000.0",
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
     assert model.impact_px is None
@@ -185,6 +194,9 @@ def test_asset_ctx_impact_px_zero_negative() -> None:
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
         "impactPx": "0",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
     assert model.impact_px == "0"
@@ -195,6 +207,9 @@ def test_asset_ctx_impact_px_zero_negative() -> None:
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
         "impactPx": "-1.0",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     HyperliquidRawAssetCtx.model_validate(obj2)  # Should not raise
 
@@ -208,9 +223,12 @@ def test_asset_ctx_excessive_precision() -> None:
         "markPx": "30000.0",
         "prevDayPx": "29500.0",
         "dayNtlVlm": "1000000.0",
+        "openInterest": "500000.0",
+        "oraclePx": "30000.5",
+        "dayBaseVlm": "2000000.0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
-    assert model.funding == "0.12345678901234567890"
+    assert model.funding == "0.12345679"  # Business logic rounds to 8 decimal places
 
 
 def test_asset_ctx_all_zero_negative_large() -> None:
@@ -223,6 +241,9 @@ def test_asset_ctx_all_zero_negative_large() -> None:
         "prevDayPx": "0",
         "dayNtlVlm": "0",
         "impactPx": "0",
+        "openInterest": "0",
+        "oraclePx": "0",
+        "dayBaseVlm": "0",
     }
     model = HyperliquidRawAssetCtx.model_validate(obj)
     assert model.funding == "0"
@@ -233,6 +254,9 @@ def test_asset_ctx_all_zero_negative_large() -> None:
         "prevDayPx": "-1",
         "dayNtlVlm": "-1",
         "impactPx": "-1",
+        "openInterest": "-1",
+        "oraclePx": "-1",
+        "dayBaseVlm": "-1",
     }
     HyperliquidRawAssetCtx.model_validate(obj2)  # Should not raise
     obj3 = {
@@ -242,6 +266,9 @@ def test_asset_ctx_all_zero_negative_large() -> None:
         "prevDayPx": "1e1000",
         "dayNtlVlm": "1e1000",
         "impactPx": "1e1000",
+        "openInterest": "1e1000",
+        "oraclePx": "1e1000",
+        "dayBaseVlm": "1e1000",
     }
     HyperliquidRawAssetCtx.model_validate(obj3)  # Should not raise
 
@@ -294,6 +321,9 @@ def test_meta_and_asset_ctxs_response_happy_path() -> None:
                 "markPx": "30000.0",
                 "prevDayPx": "29500.0",
                 "dayNtlVlm": "1000000.0",
+                "openInterest": "500000.0",
+                "oraclePx": "30000.5",
+                "dayBaseVlm": "2000000.0",
             },
         ],
     ]

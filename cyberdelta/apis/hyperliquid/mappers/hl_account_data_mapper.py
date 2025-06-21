@@ -157,7 +157,7 @@ class HyperliquidAccountDataMapper:
             field_name="withdrawable",
         )
 
-        if total_usdc is not None and total_usdc > Decimal("0"):
+        if total_usdc is not None and total_usdc >= Decimal("0"):
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
@@ -218,7 +218,7 @@ class HyperliquidAccountDataMapper:
             field_name=f"asset_positions.{asset_name}.szi",
         )
 
-        if size is not None and size > Decimal("0"):
+        if size is not None and size >= Decimal("0"):
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
@@ -292,15 +292,20 @@ class HyperliquidAccountDataMapper:
         # Parse and validate position data
         size, entry_price = HyperliquidAccountDataMapper._parse_position_core_data(pos, symbol)
 
-        if size is None or size == Decimal("0"):
-            return  # Skip zero positions
+        if size is None:
+            return  # Skip positions with no size data
 
-        if entry_price is None or entry_price <= Decimal("0"):
+        # For non-zero positions, entry price must be valid and positive
+        if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
             raise TransformationError(
-                f"Invalid or zero entry price for {symbol}: {getattr(pos, 'entry_px', None)}",
+                f"Invalid or zero entry price for non-zero position {symbol}: {getattr(pos, 'entry_px', None)}",
                 field_name="entry_px",
                 source_value=getattr(pos, "entry_px", None),
             )
+
+        # For zero positions, entry price must be None per domain model rules
+        if size == Decimal("0"):
+            entry_price = None
 
         # Create the derivative position
         position = HyperliquidAccountDataMapper._create_derivative_position(
@@ -343,7 +348,7 @@ class HyperliquidAccountDataMapper:
         pos: HyperliquidRawPositionInfo,
         symbol: str,
         size: Decimal,
-        entry_price: Decimal,
+        entry_price: Decimal | None,
     ) -> DerivativePosition:
         """Create a DerivativePosition from parsed data."""
         # Parse unrealized PnL
@@ -366,7 +371,12 @@ class HyperliquidAccountDataMapper:
         # Determine side based on position size
         from cyberdelta.core.models.enums import OrderSide
 
-        side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
+        if size > Decimal("0"):
+            side = OrderSide.BUY
+        elif size < Decimal("0"):
+            side = OrderSide.SELL
+        else:  # size == 0, use a default (either is valid for zero positions)
+            side = OrderSide.BUY
 
         return DerivativePosition(
             exchange=ExchangeName.HYPERLIQUID.value,
@@ -756,8 +766,8 @@ class HyperliquidAccountDataMapper:
             size_str = getattr(position_info, "szi", "0")
             size = parse_decimal_value(size_str, allow_none=False, field_name="position.szi")
 
-            if size is None or size == Decimal("0"):
-                raise TransformationError("Position size is required and must be non-zero")
+            if size is None:
+                raise TransformationError("Position size is required")
 
             # Parse entry price
             entry_price_str = getattr(position_info, "entry_px", None)
@@ -774,11 +784,15 @@ class HyperliquidAccountDataMapper:
                         f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}",
                     )
 
-            # Skip positions with no entry price (invalid derivative positions)
-            if entry_price is None or entry_price <= Decimal("0"):
+            # For non-zero positions, entry price must be valid and positive
+            if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
                 raise TransformationError(
-                    f"Invalid or zero entry price for {symbol}: {entry_price_str}",
+                    f"Invalid or zero entry price for non-zero position {symbol}: {entry_price_str}",
                 )
+
+            # For zero positions, entry price must be None per domain model rules
+            if size == Decimal("0"):
+                entry_price = None
 
             # Parse unrealized PnL
             unrealized_pnl = parse_decimal_value(
@@ -820,7 +834,12 @@ class HyperliquidAccountDataMapper:
             # Determine side based on position size
             from cyberdelta.core.models.enums import OrderSide
 
-            side = OrderSide.BUY if size > Decimal("0") else OrderSide.SELL
+            if size > Decimal("0"):
+                side = OrderSide.BUY
+            elif size < Decimal("0"):
+                side = OrderSide.SELL
+            else:  # size == 0, use a default (either is valid for zero positions)
+                side = OrderSide.BUY
 
             return DerivativePosition(
                 exchange=ExchangeName.HYPERLIQUID.value,

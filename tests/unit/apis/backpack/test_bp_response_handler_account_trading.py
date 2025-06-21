@@ -91,9 +91,9 @@ class TestHandleGetBalancesResponse:
         """Test that invalid balance items are skipped with warning."""
         raw_data = {
             "SOL": {
-                "asset": "SOL",
                 "available": "10.5",
-                "total": "12.5",
+                "locked": "2.0",
+                "staked": "0.0",
             },
             "INVALID": "not_a_dict",  # Invalid item
         }
@@ -158,24 +158,25 @@ class TestHandleGetPositionsResponse:
         """Test that invalid position items are skipped with warning."""
         valid_position = {
             "symbol": "SOL_USDC",
-            "break_even_price": "131.00",
-            "entry_price": "130.00",
-            "est_liquidation_price": "120.00",
+            "breakEvenPrice": "131.00",
+            "entryPrice": "130.00",
+            "estLiquidationPrice": "120.00",
             "imf": "0.1",
             "imfFunction": {"base": "0.005", "factor": "0.000001"},
-            "mark_price": "135.00",
+            "markPrice": "135.00",
             "mmf": "0.05",
             "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
-            "net_cost": "325.00",
-            "net_quantity": "2.5",
+            "netCost": "325.00",
+            "netQuantity": "2.5",
             "netExposureQuantity": "2.5",
             "netExposureNotional": "337.50",
-            "pnl_realized": "10.00",
-            "pnl_unrealized": "12.50",
+            "pnlRealized": "10.00",
+            "pnlUnrealized": "12.50",
             "cumulativeFundingPayment": "-0.50",
             "userId": 1,
-            "position_id": "pos123",
+            "positionId": "pos123",
             "cumulativeInterest": "0.0",
+            "subaccountId": 0,
         }
         raw_data = [valid_position, "not_a_dict"]  # Invalid item
         positions = BackpackResponseHandler.handle_get_positions_response(
@@ -697,24 +698,25 @@ class TestAccountTradingEdgeCases:
         raw_data = [
             {
                 "symbol": "BTC_USDT",
-                "break_even_price": "54900.00",
-                "entry_price": "55000.00",
-                "est_liquidation_price": "60000.00",
+                "breakEvenPrice": "54900.00",
+                "entryPrice": "55000.00",
+                "estLiquidationPrice": "60000.00",
                 "imf": "0.1",
                 "imfFunction": {"base": "0.005", "factor": "0.000001"},
-                "mark_price": "54000.00",
+                "markPrice": "54000.00",
                 "mmf": "0.05",
                 "mmfFunction": {"base": "0.002", "factor": "0.0000005"},
-                "net_cost": "-5500.00",  # Negative cost for short
-                "net_quantity": "-0.1",  # Negative quantity for short
+                "netCost": "-5500.00",  # Negative cost for short
+                "netQuantity": "-0.1",  # Negative quantity for short
                 "netExposureQuantity": "-0.1",
                 "netExposureNotional": "-5400.00",
-                "pnl_realized": "50.00",
-                "pnl_unrealized": "100.00",
+                "pnlRealized": "50.00",
+                "pnlUnrealized": "100.00",
                 "cumulativeFundingPayment": "1.20",
                 "userId": 1,
-                "position_id": "pos456",
+                "positionId": "pos456",
                 "cumulativeInterest": "0.0",
+                "subaccountId": 0,
             },
         ]
         positions = BackpackResponseHandler.handle_get_positions_response(

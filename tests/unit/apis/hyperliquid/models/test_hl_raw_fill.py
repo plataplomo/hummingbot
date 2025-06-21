@@ -35,9 +35,9 @@ def test_valid_hyperliquid_fill(valid_fill_data: dict[str, Any]) -> None:
     assert fill.tid == 12345
     assert fill.oid == 67890
     assert fill.coin == "BTC-PERP"
-    assert fill.px == "30000.0"
+    assert fill.px == "30000"
     assert fill.sz == "0.1"
-    assert fill.start_position == "0.0"
+    assert fill.start_position == "0"
     assert fill.fee == "0.01"
     assert fill.liquidation_mark_px is None
     assert fill.time == 1678886400123

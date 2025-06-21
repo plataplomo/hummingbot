@@ -534,7 +534,9 @@ class TestBackpackPerpMarkets:
         # Validate tick_size is reasonable relative to ACTUAL current prices
         if market.quote_symbol == "USDC":
             # Get real current price to validate tick size makes sense
-            from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
+            from tests.integration.apis.backpack.shared.bp_test_helpers import (
+                get_current_market_price,
+            )
 
             current_price = await get_current_market_price(bp_api_for_test_env, market.symbol)
             # Tick size should be much smaller than current price (reasonable precision)
@@ -578,7 +580,9 @@ class TestBackpackPerpMarkets:
         for leverage in test_leverages:
             # Test notional calculations with REAL market data
             # Get actual current market price - no hardcoded values allowed
-            from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
+            from tests.integration.apis.backpack.shared.bp_test_helpers import (
+                get_current_market_price,
+            )
 
             actual_price = await get_current_market_price(bp_api_for_test_env, "SOL_USDC_PERP")
 

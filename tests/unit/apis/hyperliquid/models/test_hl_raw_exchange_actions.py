@@ -117,7 +117,8 @@ def test_eth_withdrawal_payload_valid() -> None:
     data = {"amount": VALID_DECIMAL_STR, "destination": VALID_ETH_ADDRESS}
     payload = HyperliquidRawEthWithdrawalActionPayload.model_validate(data)
     assert payload.amount == VALID_DECIMAL_STR
-    assert payload.destination == VALID_ETH_ADDRESS
+    # Business logic normalizes ETH addresses to lowercase
+    assert payload.destination == VALID_ETH_ADDRESS.lower()
     assert payload.model_config.get("extra") == "forbid"
     assert payload.model_config.get("frozen") is True
 
@@ -182,7 +183,7 @@ def test_order_item_spec_valid_limit() -> None:
     assert item_spec.a == 0
     assert item_spec.b is True
     assert item_spec.p == VALID_DECIMAL_STR
-    assert item_spec.s == "1.0"
+    assert item_spec.s == "1"
     assert item_spec.r is False
     # Test that order type is properly deserialized as HyperliquidRawOrderType
     assert item_spec.t.limit is not None
@@ -421,7 +422,7 @@ def test_l2_usd_transfer_action_details_valid() -> None:
     action_details = HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
     assert action_details.chain == "L2"
     assert isinstance(action_details.payload, HyperliquidRawL2UsdTransferPayload)
-    assert action_details.payload.destination == VALID_ETH_ADDRESS
+    assert action_details.payload.destination == VALID_ETH_ADDRESS.lower()
     assert action_details.payload.token == "USDC"
     assert action_details.payload.amount == VALID_POSITIVE_DECIMAL_STR
     assert action_details.model_config.get("extra") == "forbid"

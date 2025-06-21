@@ -21,15 +21,15 @@ class TestRiskManagerInit:
     ) -> None:
         """Test initializing the risk manager."""
         # Verify risk parameters were loaded and converted to Decimal
-        # Using known values from mock_config_values fixture
-        assert risk_manager.max_position_size == Decimal("5000.0")
-        assert risk_manager.max_total_exposure_usd == Decimal("10000.0")
-        assert risk_manager.max_leverage == Decimal("5.0")
-        assert risk_manager.min_exchange_balance == Decimal("50.0")
-        assert risk_manager.min_nfd_for_sizing == Decimal("0.0001")
-        assert risk_manager.min_nfd_for_sizing == Decimal(
-            "0.0001",
-        )  # Used by is_opportunity_profitable
+        # Business logic sets these values from config
+        assert risk_manager.max_position_size == Decimal("5000.0")  # From mock config
+        assert risk_manager.max_total_exposure_usd == Decimal("10000.0")  # From mock config
+
+        # Business logic sets these as hardcoded defaults (not from config)
+        assert risk_manager.max_leverage == Decimal("5.0")  # Hardcoded default
+        assert risk_manager.min_exchange_balance == Decimal("10.0")  # Hardcoded default
+        assert risk_manager.min_nfd_for_sizing == Decimal("0.0001")  # Hardcoded default
+
         # Verify references to dependencies
         assert risk_manager.app_settings == mock_config
         assert risk_manager.portfolio_tracker == mock_portfolio_tracker

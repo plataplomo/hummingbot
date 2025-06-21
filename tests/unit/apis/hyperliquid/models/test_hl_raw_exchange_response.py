@@ -271,7 +271,7 @@ def test_hl_status_object_extra_fields_ignored() -> None:
     [
         ({"type": "", "statuses": []}, ValueError, ("string", "cannot be empty")),
         ({"type": 123, "statuses": []}, ValueError, ("expected string", "got int")),
-        ({"type": "order", "statuses": 123}, TypeError, ("must be a list",)),
+        ({"type": "order", "statuses": 123}, ValidationError, ("should be a valid list",)),
         (
             {"type": "order", "statuses": [1, 2]},
             ValidationError,

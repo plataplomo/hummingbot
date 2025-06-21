@@ -315,9 +315,9 @@ class RiskManager:
             self.max_exposure_per_exchange = Decimal("0.5")  # Default 50%
             self.circuit_breaker_recovery_factor = Decimal("0.3")  # Default 30%
             self.min_exchange_balance = Decimal("10.0")  # Default $10
-            self.max_acceptable_rmse = Decimal("0.05")  # Default 5%
-            self.max_acceptable_bias = Decimal("0.02")  # Default 2%
-            self.min_validation_factor = Decimal("0.2")  # Default 20%
+            self.max_acceptable_rmse = Decimal("0.02")  # Default 2%
+            self.max_acceptable_bias = Decimal("0.01")  # Default 1%
+            self.min_validation_factor = Decimal("0.95")  # Default 95%
 
             # Exchange risk modifiers - default to 1.0 for all exchanges
             self.exchange_risk_modifiers: dict[str, float] = {}
@@ -609,7 +609,7 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
 
-        if total_capital <= ZERO:
+        if total_capital is None or total_capital <= ZERO:
             self.logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
             return False
         try:
@@ -790,7 +790,7 @@ class RiskManager:
         # Example: Simple check against total exposure
         # (redundant with _check_portfolio_constraints?)
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital <= ZERO:
+        if total_capital is None or total_capital <= ZERO:
             self.logger.warning("Cannot apply exposure management: Total capital unavailable.")
             return []
 
@@ -926,10 +926,14 @@ class RiskManager:
             )
             return None
 
-        # The FundingRateValidatorProtocol ensures 'metrics' is a dict.
-        # Individual keys 'rmse' or 'bias' might be missing or their values None.
+        # The FundingRateValidatorProtocol should return a dict, but handle None for robustness
+        if metrics is None:
+            self.logger.warning(
+                f"Validation metrics for {exchange}/{symbol} returned None. Rejecting for safety.",
+            )
+            return None
 
-        # Now metrics is guaranteed to be a dict, but keys might be missing
+        # The FundingRateValidatorProtocol returns a dict, keys might be missing
         rmse_value = metrics.get("rmse")
         bias_value = metrics.get("bias")
 
@@ -1000,7 +1004,7 @@ class RiskManager:
         """
         # Ensure total_capital is fetched and valid before proceeding
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital <= ZERO:
+        if total_capital is None or total_capital <= ZERO:
             msg = f"Cannot check constraints: Invalid total capital ({total_capital})."
             self.logger.warning(msg)
             return False, msg
@@ -1188,7 +1192,7 @@ class RiskManager:
 
         # Check total capital
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital <= ZERO:
+        if total_capital is None or total_capital <= ZERO:
             logger.warning(
                 f"Cannot size opportunity {opportunity.symbol}: Total capital is zero or negative.",
             )
@@ -1261,14 +1265,8 @@ class RiskManager:
         short_validation_factor: Decimal,
     ) -> SizedOpportunity | None:
         """Calculate sized opportunity based on configured method."""
-        # Choose sizing method - configurable, default to simple since kelly is not fully configured
-        sizing_method = getattr(self, "sizing_method", "simple")
-
-        if sizing_method == "kelly":
-            return await self._calculate_kelly_sized_opportunity(
-                opportunity, total_capital, long_validation_factor, short_validation_factor
-            )
-        elif sizing_method == "simple":
+        # Choose sizing method based on use_simple_sizing_path flag
+        if self.use_simple_sizing_path:
             return await self._calculate_simple_size(
                 opportunity,
                 total_capital,
@@ -1276,8 +1274,10 @@ class RiskManager:
                 short_validation_factor,
             )
         else:
-            logger.error(f"Unknown sizing method configured: '{sizing_method}'")
-            return None
+            # Use Kelly criterion for standard path
+            return await self._calculate_kelly_sized_opportunity(
+                opportunity, total_capital, long_validation_factor, short_validation_factor
+            )
 
     async def _calculate_kelly_sized_opportunity(
         self,
@@ -1680,8 +1680,8 @@ class RiskManager:
         max_exposure_factor = Decimal("2.0")
 
         total_capital = await self.portfolio_tracker.get_total_capital()
-        # total_capital is Decimal and cannot be None based on PortfolioTrackerProtocol.
-        if total_capital <= ZERO:
+        # total_capital can be None in edge cases, handle gracefully
+        if total_capital is None or total_capital <= ZERO:
             logger.warning(
                 f"Cannot calculate max exposure limit: Total capital is {total_capital} "
                 f"(zero or negative).",

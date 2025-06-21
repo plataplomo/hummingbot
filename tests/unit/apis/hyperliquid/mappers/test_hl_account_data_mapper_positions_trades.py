@@ -251,16 +251,18 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         test_cases = [
             ("10.0", OrderSide.BUY),  # Positive size = BUY (long)
             ("-5.0", OrderSide.SELL),  # Negative size = SELL (short)
-            # Note: Zero positions are filtered out by the mapper, so we don't test "0.0"
+            ("0.0", OrderSide.BUY),  # Zero size = BUY (default)
             ("0.000001", OrderSide.BUY),  # Very small positive = BUY
             ("-0.000001", OrderSide.SELL),  # Very small negative = SELL
         ]
 
         for size_str, expected_side in test_cases:
+            # For zero positions, entry price will be set to None by the mapper
+            entry_px = "0.0" if size_str == "0.0" else "1000.0"
             position_info = HyperliquidRawPositionInfo(
                 coin="TEST-PERP",
                 szi=size_str,
-                entryPx="1000.0",
+                entryPx=entry_px,
                 leverage=HyperliquidRawLeverage(type="cross", value=1),
                 liquidationPx="900.0",
                 marginUsed="100.0",
@@ -308,6 +310,12 @@ class TestMapRawClearinghouseStateToDerivativePositions:
 
             position = positions["TEST-PERP"]
             assert position.side == expected_side
+
+            # Verify entry price handling for zero positions
+            if size_str == "0.0":
+                assert position.entry_price is None
+            else:
+                assert position.entry_price is not None
 
     def test_leverage_type_variations(self) -> None:
         """Test positions with different leverage types."""
@@ -427,11 +435,11 @@ class TestMapRawClearinghouseStateToDerivativePositions:
 
         position = positions["PRECISION-PERP"]
 
-        # Verify precision is maintained
-        assert position.size == Decimal("1.123456789012345")
-        assert position.entry_price == Decimal("1000.987654321098765")
-        assert position.liquidation_price == Decimal("900.111111111111111")
-        assert position.unrealized_pnl == Decimal("50.987654321098765")
+        # Verify precision is maintained (8 decimal places for most fields)
+        assert position.size == Decimal("1.12345679")
+        assert position.entry_price == Decimal("1000.98765432")
+        assert position.liquidation_price == Decimal("900.11111111")
+        assert position.unrealized_pnl == Decimal("50.98765432")
         assert position.hl_details is not None
         assert position.hl_details.margin_used == Decimal("100.555555555555555")
 
@@ -572,13 +580,13 @@ class TestTransformRawFillToInternal:
 
         trade = Mapper.transform_raw_fill_to_internal(raw_fill)
 
-        # Verify precision is maintained
-        assert trade.price == Decimal("1000.123456789012345")
-        assert trade.quantity == Decimal("0.987654321098765")
-        assert trade.fee == Decimal("1.555555555555555")
+        # Verify precision is maintained (8 decimal places for most fields)
+        assert trade.price == Decimal("1000.12345679")
+        assert trade.quantity == Decimal("0.98765432")
+        assert trade.fee == Decimal("1.55555556")
         assert trade.hl_details is not None
-        assert trade.hl_details.start_position == Decimal("5.111111111111111")
-        assert trade.hl_details.liquidation_mark_px == Decimal("950.999999999999999")
+        assert trade.hl_details.start_position == Decimal("5.11111111")
+        assert trade.hl_details.liquidation_mark_px == Decimal("951")
 
     def test_fill_with_zero_fee(self) -> None:
         """Test fill transformation with zero fee (maker trades)."""

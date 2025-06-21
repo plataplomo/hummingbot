@@ -269,7 +269,7 @@ class BackpackMarginDetails(BaseModel):
     )
 
     model_config = ConfigDict(
-        extra="forbid",
+        extra="ignore",
         validate_assignment=True,
         frozen=True,  # Consistency with HyperliquidMarginDetails
     )

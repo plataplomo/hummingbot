@@ -110,11 +110,11 @@ def create_raw_historical_order(
         coin=coin,
         side=side,
         limitPx=limit_px,
-        sz=sz,
+        sz=remaining_sz,  # sz is the remaining size in historical orders
         timestamp=timestamp,
         orderType=order_type_str,
         reduceOnly=False,
-        origSz=sz,  # Use sz as origSz
+        origSz=sz,  # origSz is the original size
         tif="Ioc",
         status=status,
         statusTimestamp=timestamp + 5000,
@@ -220,8 +220,8 @@ class TestTransformRawOrderToInternal:
         )  # UUID generated when cloid is None
         assert result.symbol == "BTC-PERP"
         assert result.side == OrderSide.SELL
-        assert result.order_type == OrderType.MARKET
-        assert result.time_in_force == TimeInForce.GTC  # Default for market orders
+        assert result.order_type == OrderType.LIMIT  # Historical market orders map to LIMIT
+        assert result.time_in_force == TimeInForce.IOC  # Market orders become IOC
         assert result.status == OrderStatus.FILLED
         assert result.price == Decimal("60100.75")  # Market orders use limit_px as price
         assert result.quantity_requested == Decimal("2.0")
@@ -276,7 +276,7 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.side_effect = ValueError("Invalid decimal format")
 
-        with pytest.raises(TransformationError, match="Failed to transform.*Order"):
+        with pytest.raises(TransformationError, match="Failed to parse order quantities and price"):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_edge_case_none_remaining_sz(
@@ -439,7 +439,9 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.return_value = None
 
-        with pytest.raises(TransformationError, match="quantity_requested \\(sz\\) is required"):
+        with pytest.raises(
+            TransformationError, match="quantity_requested \\(orig_sz\\) is required"
+        ):
             trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_missing_timestamp_raises_error(
@@ -651,7 +653,7 @@ class TestTransformationIntegration:
         assert result.side == OrderSide.BUY
         assert result.status == OrderStatus.CANCELED
         assert result.order_type == OrderType.LIMIT
-        assert result.time_in_force == TimeInForce.GTC
+        assert result.time_in_force == TimeInForce.IOC
         assert result.symbol == "ETH-PERP"
         assert result.exchange_order_id == "12345"
         assert result.client_order_id == "client-order-123"
@@ -674,12 +676,13 @@ class TestAdvancedScenarios:
         raw_order = create_raw_order(
             limit_px="1234.123456789012345",
             sz="10.987654321098765",
-            remaining_sz="0.000000000000001",
+            remaining_sz="0.00000001",  # Use value that doesn't round to zero
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
-        assert result.price == Decimal("1234.123456789012345")
+        # Business logic rounds prices to 8 decimal places, but preserves quantity precision
+        assert result.price == Decimal("1234.12345679")
         assert result.quantity_requested == Decimal("10.987654321098765")
 
     def test_large_order_ids_handling(

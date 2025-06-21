@@ -479,7 +479,8 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(
             backpack_api.account_service,
-            "get_account_info",
+            "get_account_summary",
+            new_callable=AsyncMock,
             return_value=mock_summary,
         ):
             result = await backpack_api.get_account_summary()

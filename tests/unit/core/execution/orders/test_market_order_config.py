@@ -92,17 +92,17 @@ class TestMarketOrderConfig:
         # Negative percentage should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(default_slippage_pct=Decimal("-0.01"))
-        assert "Percentage must be positive" in str(exc_info.value)
+        assert "greater than 0" in str(exc_info.value)
 
         # Zero percentage should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(max_slippage_pct=Decimal("0"))
-        assert "ensure this value is greater than 0" in str(exc_info.value)
+        assert "greater than 0" in str(exc_info.value)
 
         # Too high percentage should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(max_slippage_pct=Decimal("0.25"))
-        assert "ensure this value is less than or equal to 0.2" in str(exc_info.value)
+        assert "less than or equal to 0.2" in str(exc_info.value)
 
     def test_liquidity_ratio_validation(self) -> None:
         """Test liquidity ratio validation."""
@@ -113,12 +113,12 @@ class TestMarketOrderConfig:
         # Below minimum should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(min_liquidity_ratio=Decimal("0.5"))
-        assert "ensure this value is greater than or equal to 1.0" in str(exc_info.value)
+        assert "greater than or equal to 1" in str(exc_info.value)
 
         # Above maximum should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(min_liquidity_ratio=Decimal("15.0"))
-        assert "ensure this value is less than or equal to 10.0" in str(exc_info.value)
+        assert "less than or equal to 10" in str(exc_info.value)
 
     def test_timeout_validation(self) -> None:
         """Test order timeout validation."""
@@ -129,12 +129,12 @@ class TestMarketOrderConfig:
         # Zero timeout should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(order_timeout_seconds=0)
-        assert "ensure this value is greater than 0" in str(exc_info.value)
+        assert "greater than 0" in str(exc_info.value)
 
         # Too high timeout should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(order_timeout_seconds=120)
-        assert "ensure this value is less than or equal to 60" in str(exc_info.value)
+        assert "less than or equal to 60" in str(exc_info.value)
 
     def test_slippage_map_validation(self) -> None:
         """Test slippage by symbol map validation."""
@@ -151,7 +151,7 @@ class TestMarketOrderConfig:
         # Non-finite slippage should fail
         with pytest.raises(ValidationError) as exc_info:
             MarketOrderConfig(slippage_by_symbol={"default": Decimal("Infinity")})
-        assert "Invalid slippage for default" in str(exc_info.value)
+        assert "finite number" in str(exc_info.value)
 
     def test_config_immutability(self) -> None:
         """Test that config is immutable after creation."""

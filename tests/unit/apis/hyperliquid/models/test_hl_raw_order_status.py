@@ -34,7 +34,7 @@ def test_valid_order_status_response() -> None:
     assert obj.order is not None
     assert obj.order.oid == 12345
     assert obj.order.asset == "ETH"
-    assert obj.order.limit_px == "2000.50"
+    assert obj.order.limit_px == "2000.5"  # Business logic normalizes decimal strings
     assert obj.order.sz == "0.5"
     assert obj.order.side == "B"
     assert obj.order.status == "open"

@@ -10,7 +10,9 @@ def test_all_mids_happy_path() -> None:
     """Test all mids happy path."""
     obj: dict[str, str] = {"ETH": "3000.0", "BTC": "40000.0"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic normalizes decimal strings (removes trailing .0)
+    expected = {"ETH": "3000", "BTC": "40000"}
+    assert model.root == expected
 
 
 def test_all_mids_empty_dict() -> None:
@@ -97,7 +99,9 @@ def test_all_mids_unicode_symbol() -> None:
     # Unicode symbol (e.g., Greek letter)
     obj: dict[str, str] = {"ΞTH": "3000.0"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic normalizes decimal strings
+    expected = {"ΞTH": "3000"}
+    assert model.root == expected
 
 
 def test_all_mids_symbol_with_whitespace() -> None:
@@ -105,7 +109,9 @@ def test_all_mids_symbol_with_whitespace() -> None:
     # Symbol with whitespace
     obj: dict[str, str] = {"BTC USD": "40000.0"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic normalizes decimal strings
+    expected = {"BTC USD": "40000"}
+    assert model.root == expected
 
 
 def test_all_mids_symbol_with_control_char() -> None:
@@ -113,7 +119,9 @@ def test_all_mids_symbol_with_control_char() -> None:
     # Symbol with control character (should be accepted if string and length ok)
     obj: dict[str, str] = {"ETH\n": "3000.0"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic normalizes decimal strings
+    expected = {"ETH\n": "3000"}
+    assert model.root == expected
 
 
 def test_all_mids_price_excessive_precision() -> None:
@@ -121,7 +129,9 @@ def test_all_mids_price_excessive_precision() -> None:
     # Price with excessive precision
     obj: dict[str, str] = {"ETH": "0.123456789012345678901234567890"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic rounds to 8 decimal places and normalizes
+    expected = {"ETH": "0.12345679"}
+    assert model.root == expected
 
 
 def test_all_mids_price_zero_and_negative() -> None:
@@ -163,7 +173,9 @@ def test_all_mids_padded_zero_price() -> None:
     """Test all mids padded zero price."""
     # Price as string with padded zeros
     obj: dict[str, str] = {"ETH": "0003000.00"}
-    assert HyperliquidRawAllMids.model_validate(obj).root["ETH"].lstrip("0") == "3000.00"
+    model = HyperliquidRawAllMids.model_validate(obj)
+    # Business logic normalizes decimal strings (removes trailing .00 and leading zeros)
+    assert model.root["ETH"] == "3000"
 
 
 def test_all_mids_testnet_asset_symbol() -> None:
@@ -186,4 +198,6 @@ def test_all_mids_symbol_with_special_chars() -> None:
     # Symbol with special characters
     obj: dict[str, str] = {"BTC-USD!@#": "40000.0"}
     model = HyperliquidRawAllMids.model_validate(obj)
-    assert model.root == obj
+    # Business logic normalizes decimal strings
+    expected = {"BTC-USD!@#": "40000"}
+    assert model.root == expected

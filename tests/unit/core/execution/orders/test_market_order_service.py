@@ -6,11 +6,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
+    MarketOrderError,
     PriceDeviationError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
@@ -48,11 +47,14 @@ class TestMarketOrderService:
         default_config: MarketOrderConfig,
     ) -> MarketOrderService:
         """Create MarketOrderService instance."""
-        return MarketOrderService(
+        service = MarketOrderService(
             exchange_api=mock_exchange_api,
             signal_generator=mock_signal_generator,
             config=default_config,
         )
+        # Mock round_to_tick_size to return the price as-is
+        service.round_to_tick_size = AsyncMock(side_effect=lambda price, symbol: price)
+        return service
 
     @pytest.fixture
     def sample_order_book(self) -> OrderBook:
@@ -155,14 +157,14 @@ class TestMarketOrderService:
         """Test error when order book is unavailable."""
         mock_exchange_api.get_order_book.return_value = None
 
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(MarketOrderError) as exc_info:
             await service.calculate_aggressive_price(
                 symbol="BTC",
                 side=OrderSide.BUY,
                 quantity=Decimal("1"),
             )
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "no order book for BTC" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_max_slippage_override(
@@ -351,11 +353,11 @@ class TestMarketOrderService:
         )
         mock_exchange_api.get_order_book.return_value = empty_book
 
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(MarketOrderError) as exc_info:
             await service.calculate_aggressive_price(
                 symbol="EMPTY",
                 side=OrderSide.BUY,
                 quantity=Decimal("1"),
             )
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "no order book for EMPTY" in str(exc_info.value)

@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 from pytest import fixture
 
-from cyberdelta.config import AppSettings
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import (
     CircuitBreakerSystemProtocol,
@@ -74,21 +73,66 @@ def mock_config_dict() -> dict[str, Any]:
 @fixture
 def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     """Create a mock AppSettings object for testing."""
-    mock = MagicMock(spec=AppSettings)
+    # Don't use spec=AppSettings since we need to mock nested attributes
+    mock = MagicMock()
 
-    # Mock the get method to return values from the config dict
-    def get_side_effect(key: str, default: object = None) -> object:
-        """Get side effect for testing."""
-        keys = key.split(".")
-        value = mock_config_dict
-        try:
-            for k in keys:
-                value = value[k]
-            return value
-        except (KeyError, TypeError):
-            return default
+    # Create nested mock structure to match AppSettings attribute access pattern
+    # Based on how RiskManager accesses config: app_settings.risk.global_risk.max_position_usd
 
-    mock.get.side_effect = get_side_effect
+    # Set up risk configuration
+    mock.risk.global_risk.max_position_usd = Decimal(
+        mock_config_dict["risk"]["global"]["max_position_usd"]
+    )
+    mock.risk.global_risk.max_total_exposure_usd = Decimal(
+        mock_config_dict["risk"]["global"]["max_total_exposure_usd"]
+    )
+    mock.risk.global_risk.min_position_usd = Decimal(
+        mock_config_dict["risk"]["global"]["min_position_usd"]
+    )
+    mock.risk.global_risk.max_portfolio_leverage = Decimal(
+        mock_config_dict["risk"]["global"]["max_portfolio_leverage"]
+    )
+    mock.risk.global_risk.max_drawdown_limit_ratio = Decimal(
+        mock_config_dict["risk"]["global"]["max_drawdown_limit_ratio"]
+    )
+
+    mock.risk.strategy.max_single_position_exposure_ratio = Decimal(
+        mock_config_dict["risk"]["strategy"]["max_single_position_exposure_ratio"]
+    )
+    mock.risk.strategy.max_leverage_per_trade = Decimal(
+        mock_config_dict["risk"]["strategy"]["max_leverage_per_trade"]
+    )
+    mock.risk.strategy.min_net_funding_differential = Decimal(
+        mock_config_dict["risk"]["strategy"]["min_net_funding_differential"]
+    )
+
+    mock.risk.kelly.fraction = Decimal(mock_config_dict["risk"]["kelly"]["fraction"])
+    mock.risk.kelly.min_acceptable_fraction = Decimal(
+        mock_config_dict["risk"]["kelly"]["min_acceptable_fraction"]
+    )
+    mock.risk.kelly.max_acceptable_fraction = Decimal(
+        mock_config_dict["risk"]["kelly"]["max_acceptable_fraction"]
+    )
+    mock.risk.kelly.min_volatility = Decimal(mock_config_dict["risk"]["kelly"]["min_volatility"])
+
+    mock.risk.use_simple_sizing_path = False  # Default
+    mock.risk.simple_sizing_method = mock_config_dict["risk"]["simple_sizing_method"]
+    mock.risk.simple_fixed_fraction = Decimal(mock_config_dict["risk"]["simple_fixed_fraction"])
+    mock.risk.simple_fixed_usd_size = Decimal(mock_config_dict["risk"]["simple_fixed_usd_size"])
+    mock.risk.max_acceptable_rmse = Decimal(mock_config_dict["risk"]["max_acceptable_rmse"])
+    mock.risk.max_acceptable_bias = Decimal(mock_config_dict["risk"]["max_acceptable_bias"])
+    mock.risk.min_validation_factor = Decimal(mock_config_dict["risk"]["min_validation_factor"])
+    mock.risk.min_liquidation_buffer = Decimal(mock_config_dict["risk"]["min_liquidation_buffer"])
+
+    # Set up exchanges configuration
+    mock.exchanges = {}
+    for exchange_name, exchange_config in mock_config_dict["exchanges"].items():
+        exchange_mock = MagicMock()
+        exchange_mock.enabled = exchange_config["enabled"]
+        exchange_mock.collateral_asset = exchange_config["collateral_asset"]
+        exchange_mock.risk_modifier = exchange_config["risk_modifier"]
+        mock.exchanges[exchange_name] = exchange_mock
+
     return mock
 
 

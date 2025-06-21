@@ -157,12 +157,12 @@ class TestEdgeCasesAndBoundaryValues:
             remaining_sz="0.000000000000000001",
         )
 
-        # Very small positive values (avoiding zero which violates Order validation)
+        # Small positive values that don't round to zero (business logic rounds to 8 decimal places)
         small_order = create_raw_order(
             oid=1,
-            limit_px="0.000000000000000001",
-            sz="0.000000000000000001",
-            remaining_sz="0.000000000000000001",
+            limit_px="0.00000001",  # This will remain positive after 8-decimal rounding
+            sz="0.00000001",
+            remaining_sz="0.00000001",
         )
 
         # Test transformations
@@ -426,7 +426,7 @@ class TestPerformanceAndMemory:
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test stability with high precision decimal calculations."""
-        # Create orders with maximum precision decimals
+        # Create orders with maximum precision decimals that don't round to zero
         high_precision_orders = [
             create_raw_order(
                 limit_px="999999.999999999999999999",
@@ -434,9 +434,9 @@ class TestPerformanceAndMemory:
                 remaining_sz="999999.999999999999999999",
             ),
             create_raw_order(
-                limit_px="0.000000000000000001",
-                sz="0.000000000000000001",
-                remaining_sz="0.000000000000000001",
+                limit_px="0.00000001",  # Business logic rounds to 8 decimal places
+                sz="0.00000001",
+                remaining_sz="0.00000001",
             ),
         ]
 

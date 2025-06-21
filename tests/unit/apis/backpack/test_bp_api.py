@@ -108,6 +108,7 @@ def mock_bp_account_service() -> MagicMock:
     mock_service = MagicMock()
     mock_service.get_balances = AsyncMock()
     mock_service.get_account_info = AsyncMock()
+    mock_service.get_account_summary = AsyncMock()
     mock_service.get_positions = AsyncMock()
     mock_service.get_order_history = AsyncMock()
     mock_service.get_trade_history = AsyncMock()
@@ -263,13 +264,13 @@ class TestBackpackAPIAccountOperations:
             total_maintenance_margin_required=Decimal("80.0"),
             total_unrealized_pnl=Decimal("25.0"),
         )
-        mock_bp_account_service.get_account_info.return_value = expected_summary
+        mock_bp_account_service.get_account_summary.return_value = expected_summary
 
         # Test delegation
         result = await api.get_account_summary()
 
         # Verify service was called and result returned
-        mock_bp_account_service.get_account_info.assert_called_once()
+        mock_bp_account_service.get_account_summary.assert_called_once()
         assert result == expected_summary
 
         await api.close()
@@ -829,7 +830,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
             http_status=500,
             exchange_message="internal_server_error",
         )
-        mock_bp_account_service.get_account_info.side_effect = server_error
+        mock_bp_account_service.get_account_summary.side_effect = server_error
 
         # Test exact error propagation
         with pytest.raises(APIError) as exc_info:

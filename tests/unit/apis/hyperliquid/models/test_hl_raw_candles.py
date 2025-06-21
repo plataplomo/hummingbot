@@ -55,9 +55,10 @@ def test_valid_single_candle_snapshot() -> None:
     """Test successful validation of a snapshot with a single candle."""
     snapshot = HyperliquidRawCandleSnapshot.model_validate(VALID_DATA_SINGLE_CANDLE)
     assert snapshot.t == [1700000000000]
-    assert snapshot.o == ["100.0"]
-    assert snapshot.h == ["101.0"]
-    assert snapshot.l == ["99.0"]
+    # Business logic normalizes decimal strings (removes trailing .0)
+    assert snapshot.o == ["100"]
+    assert snapshot.h == ["101"]
+    assert snapshot.l == ["99"]
     assert snapshot.c == ["100.5"]
     assert snapshot.v == ["1000.0"]
     assert snapshot.s == "ok"

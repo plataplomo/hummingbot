@@ -227,7 +227,7 @@ class TestBackpackErrorMapper:
                 APIErrorCode.SERVER_ERROR,
                 "Internal server error",
             ),
-            (500, "Internal Server Error", APIErrorCode.EXCHANGE_SPECIFIC, "Internal Server Error"),
+            (500, "Internal Server Error", APIErrorCode.SERVER_ERROR, "Internal Server Error"),
         ],
     )
     def test_map_server_error_500(
@@ -367,11 +367,11 @@ class TestBackpackErrorMapper:
     @pytest.mark.parametrize(
         "status_code, error_body, expected_api_code, expected_message_part",
         [
-            (400, "Invalid JSON input", APIErrorCode.EXCHANGE_SPECIFIC, "Invalid JSON input"),
+            (400, "Invalid JSON input", APIErrorCode.INVALID_REQUEST, "Invalid JSON input"),
             (
                 500,
                 "<html><body>Server Error</body></html>",
-                APIErrorCode.EXCHANGE_SPECIFIC,
+                APIErrorCode.SERVER_ERROR,
                 "Server Error",
             ),
         ],
@@ -401,7 +401,7 @@ class TestBackpackErrorMapper:
             (
                 400,
                 '{"message":"Some custom exchange error","code":"UNKNOWN_CODE_99999"}',
-                APIErrorCode.EXCHANGE_SPECIFIC,
+                APIErrorCode.INVALID_REQUEST,
                 "Some custom exchange error",
             ),
         ],

@@ -45,10 +45,10 @@ from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
     get_test_symbol,
 )
-from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 logger = logging.getLogger(__name__)
 

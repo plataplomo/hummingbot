@@ -774,7 +774,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_http_client_requester.assert_called_once_with(
                 method="GET",
                 endpoint=mock_endpoint_path,
-                params={"symbol": None},
+                params={},
                 is_signed=True,
                 endpoint_group="private",
                 request_weight=1,

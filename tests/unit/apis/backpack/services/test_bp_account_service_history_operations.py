@@ -130,8 +130,8 @@ class TestBackpackAccountServiceHistoryOperations:
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
-            endpoint="/api/v1/history/orders",
-            params=mock_built_params.model_dump(),
+            endpoint="/wapi/v1/history/orders",
+            params={"symbol": symbol, "limit": limit},
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
@@ -467,10 +467,26 @@ class TestBackpackAccountServiceHistoryOperations:
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_trade_history_response.return_value = (
-            mock_validated_raw_trades
-        )
-        mock_mapper.transform_raw_trade_to_internal.return_value = expected_trade
+        # Since we're using /wapi/v1/history/fills, we need to use handle_get_fills_response
+        # and transform BackpackRawFill models
+        from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+
+        mock_raw_fill_data = {
+            "fee": "0.01",
+            "feeSymbol": "USDC",
+            "isMaker": False,
+            "orderId": "order_123",
+            "price": "100.0",
+            "quantity": "10.0",
+            "side": "Bid",
+            "symbol": symbol,
+            "timestamp": "2009-02-13T23:31:30.000000Z",
+            "tradeId": 123,
+            "clientId": None,
+        }
+        mock_validated_raw_fills = [BackpackRawFill.model_validate(mock_raw_fill_data)]
+        mock_response_handler.handle_get_fills_response.return_value = mock_validated_raw_fills
+        mock_mapper.transform_raw_fill_to_internal.return_value = expected_trade
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             result = await bp_account_service.get_trade_history(
@@ -486,18 +502,18 @@ class TestBackpackAccountServiceHistoryOperations:
         )
         mock_http_client_requester.assert_called_once_with(
             method="GET",
-            endpoint="/api/v1/history/fills",
-            params=mock_params.model_dump(),
+            endpoint="/wapi/v1/history/fills",
+            params={"symbol": symbol, "limit": limit},
             is_signed=True,
             endpoint_group="private",
             request_weight=1,
         )
-        mock_response_handler.handle_get_trade_history_response.assert_called_once_with(
+        mock_response_handler.handle_get_fills_response.assert_called_once_with(
             mock_raw_response,
             symbol,
         )
-        mock_mapper.transform_raw_trade_to_internal.assert_called_once_with(
-            mock_validated_raw_trades[0],
+        mock_mapper.transform_raw_fill_to_internal.assert_called_once_with(
+            mock_validated_raw_fills[0],
         )
 
         assert len(result) == 1
@@ -567,7 +583,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
             BackpackRawPublicTrade.model_validate({"invalid": "data"})
         except ValidationError as e:
-            mock_response_handler.handle_get_trade_history_response.side_effect = e
+            mock_response_handler.handle_get_fills_response.side_effect = e
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
@@ -597,7 +613,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_trade_history_response.side_effect = Exception(
+        mock_response_handler.handle_get_fills_response.side_effect = Exception(
             "Unexpected error",
         )
 

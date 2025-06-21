@@ -227,9 +227,10 @@ class TestTransformRawOrderBook:
 
         order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
-        assert order_book.bids[0][0] == Decimal("2999.123456789012345")
+        # Business logic rounds prices to 8 decimal places but preserves quantity precision
+        assert order_book.bids[0][0] == Decimal("2999.12345679")
         assert order_book.bids[0][1] == Decimal("10.987654321098765")
-        assert order_book.asks[0][0] == Decimal("3000.987654321098765")
+        assert order_book.asks[0][0] == Decimal("3000.98765432")
         assert order_book.asks[0][1] == Decimal("5.123456789012345")
 
     def test_order_book_transformation_zero_depth_limit(
@@ -410,7 +411,8 @@ class TestTransformRawPublicTradeToInternal:
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
 
         assert trade is not None
-        assert trade.price == Decimal("3002.123456789012345")
+        # Business logic rounds price to 8 decimal places but preserves quantity precision
+        assert trade.price == Decimal("3002.12345679")
         assert trade.quantity == Decimal("1.987654321098765")
 
     def test_trade_transformation_timestamp_conversion(

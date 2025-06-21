@@ -185,9 +185,10 @@ class TestBuildPlaceOrderPayload:
             "symbol": symbol_eth_spot,
             "side": "Bid",
             "orderType": "Limit",
-            "quantity": "0.1",
             "price": "1700",
             "timeInForce": "GTC",
+            "triggerPrice": "1690",
+            "triggerQuantity": "0.1",
         }
 
         for key, expected_value in expected_fields.items():

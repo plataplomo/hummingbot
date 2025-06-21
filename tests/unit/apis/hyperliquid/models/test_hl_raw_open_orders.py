@@ -178,7 +178,7 @@ def test_trigger_info_adversarial_strings() -> None:
     p = valid_trigger_info().copy()
     p["triggerPx"] = "1e6"
     obj = HyperliquidRawTriggerInfo.model_validate(p)
-    assert obj.trigger_px == "1e6"
+    assert obj.trigger_px == "1000000"  # Business logic normalizes decimal strings
 
 
 # ... (Repeat similar structure for all other models in the file, including nested, list, and root

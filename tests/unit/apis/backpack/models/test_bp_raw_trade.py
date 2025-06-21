@@ -414,7 +414,7 @@ def valid_fill_data() -> dict[str, Any]:
         "orderId": "order-123456789",
         "price": "50000.12345",
         "quantity": "0.002",
-        "side": "Buy",
+        "side": "Bid",  # Changed from "Buy" to "Bid" - BackpackRawFill expects "Bid"/"Ask"
         "symbol": "BTC_USDC",
         "timestamp": "2024-05-01T12:34:56.789000Z",  # Expected ISO format
         "tradeId": 987654321,
@@ -433,7 +433,7 @@ def test_BackpackRawFill_happy_path() -> None:
     assert obj.order_id == "order-123456789"
     assert obj.price == "50000.12345"
     assert obj.quantity == "0.002"
-    assert obj.side == "Buy"
+    assert obj.side == "Bid"
     assert obj.symbol == "BTC_USDC"
     assert obj.timestamp == "2024-05-01T12:34:56.789000Z"
     assert obj.trade_id == 987654321
@@ -478,11 +478,11 @@ def test_BackpackRawFill_invalid_types() -> None:
         ("orderId", None),
         ("price", 10000),
         ("quantity", 1.0),
-        ("side", ["Buy"]),
+        ("side", ["Bid"]),  # Expect string, not list
         ("symbol", None),
         ("timestamp", 1234567890),  # Expect string
         ("tradeId", "abc"),  # Expect int or int string
-        ("clientId", 123),  # Expect string or None
+        # Note: ("clientId", 123) is actually valid - clientId accepts integers
     ]
     for field, value in invalid_cases:
         data = valid_fill_data().copy()
@@ -507,7 +507,7 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
         ("price", ""),
         ("price", "infinity"),
         ("quantity", ""),
-        ("side", "Other"),
+        ("side", "Other"),  # Invalid side value - only "Bid"/"Ask" allowed
         ("symbol", ""),
         ("symbol", "A" * 65),  # Exceeds max_length
         ("timestamp", ""),

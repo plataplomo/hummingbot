@@ -361,7 +361,11 @@ class TestMapRawClearinghouseStateToSpotBalances:
             raw_user_state_empty_positions_no_balances,
         )
         assert isinstance(spot_balances, dict)
-        assert not spot_balances
+        # Business logic always creates a USDC balance with zero values when no balances exist
+        assert len(spot_balances) == 1
+        assert "USDC" in spot_balances
+        assert spot_balances["USDC"].total_quantity == Decimal("0")
+        assert spot_balances["USDC"].available_quantity == Decimal("0")
 
     def test_usdc_balance_from_account_value(
         self,

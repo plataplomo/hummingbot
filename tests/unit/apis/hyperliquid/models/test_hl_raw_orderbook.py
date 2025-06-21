@@ -96,7 +96,7 @@ def test_book_level_adversarial_strings() -> None:
     d = valid_book_level().copy()
     d["px"] = "1e6"
     obj = HyperliquidRawBookLevel.model_validate(d)
-    assert obj.px == "1e6"
+    assert obj.px == "1000000"  # Business logic normalizes decimal strings
 
 
 # --- Tests for HyperliquidRawL2Book ---
@@ -264,13 +264,13 @@ def test_book_level_field_edge_cases() -> None:
     d = valid_book_level().copy()
     d["px"] = "000123.4500"
     obj = HyperliquidRawBookLevel.model_validate(d)
-    assert obj.px == "000123.4500"
+    assert obj.px == "123.45"  # Business logic normalizes decimal strings
     d["px"] = "1.23e2"
     obj = HyperliquidRawBookLevel.model_validate(d)
-    assert obj.px == "1.23e2"
+    assert obj.px == "123"  # Business logic normalizes decimal strings
     d["px"] = "-123.45"
     obj = HyperliquidRawBookLevel.model_validate(d)
-    assert obj.px == "-123.45"
+    assert obj.px == "-123.45"  # This one doesn't change
     d["px"] = "1" * 65
     with pytest.raises(ValidationError):
         HyperliquidRawBookLevel.model_validate(d)

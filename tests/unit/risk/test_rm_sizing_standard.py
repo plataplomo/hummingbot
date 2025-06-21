@@ -20,15 +20,24 @@ class TestRiskManagerSizingStandard:
     @pytest.mark.asyncio
     async def test_size_opportunity_standard_path(
         self,
-        risk_manager: RiskManager,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
+        mock_circuit_breaker_system: MagicMock,
+        mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity using the standard Kelly path (simple_path=False)."""
         # --- Arrange ---
-        # Ensure simple path is off (should be default from mock_config_values)
-        assert not mock_config.get("risk.use_simple_sizing_path")
+        # Ensure simple path is off (should be default from mock_config)
+        mock_config.risk.use_simple_sizing_path = False
+        
+        # Create RiskManager with the correct config
+        risk_manager = RiskManager(
+            app_settings=mock_config,
+            portfolio_tracker=mock_portfolio_tracker,
+            circuit_breaker_system=mock_circuit_breaker_system,
+            funding_rate_validator=mock_funding_validator,
+        )
         # max_position_cap = risk_manager.max_position_size  # e.g., 1000.0
         # No longer used in assertion logic
 

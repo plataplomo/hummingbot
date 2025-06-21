@@ -693,10 +693,68 @@ class TestBackpackTradingServiceOrderManagement:
         """Test cancel_all_orders successfully cancels orders for a given symbol."""
         symbol = "SOL_USDC"
         mock_payload = {"symbol": symbol}
-        mock_raw_response_list = ["order1", "order2"]
+        # Create proper order data that can be validated as BackpackRawOrder objects
+        mock_raw_response_list = [
+            {
+                "id": "order1",
+                "symbol": symbol,
+                "side": "Buy",
+                "orderType": "LIMIT",
+                "status": "CANCELLED",
+                "quantity": "1.0",
+                "price": "100.0",
+                "createdAt": "2024-01-15T10:30:00Z",
+                "clientId": None,
+                "executedQuantity": "0.0",
+                "executedQuoteQuantity": "0.0",
+                "timeInForce": "GTC",
+                "reduceOnly": False,
+                "postOnly": False,
+                "selfTradePrevention": None,
+                "relatedOrderId": None,
+                "avgFillPrice": None,
+                "triggerPrice": None,
+                "triggerBy": None,
+                "updatedAt": None,
+                "triggeredAt": None,
+                "expiryReason": None,
+                "origin": None,
+            },
+            {
+                "id": "order2",
+                "symbol": symbol,
+                "side": "Sell",
+                "orderType": "LIMIT",
+                "status": "CANCELLED",
+                "quantity": "2.0",
+                "price": "105.0",
+                "createdAt": "2024-01-15T10:30:00Z",
+                "clientId": None,
+                "executedQuantity": "0.0",
+                "executedQuoteQuantity": "0.0",
+                "timeInForce": "GTC",
+                "reduceOnly": False,
+                "postOnly": False,
+                "selfTradePrevention": None,
+                "relatedOrderId": None,
+                "avgFillPrice": None,
+                "triggerPrice": None,
+                "triggerBy": None,
+                "updatedAt": None,
+                "triggeredAt": None,
+                "expiryReason": None,
+                "origin": None,
+            },
+        ]
+
+        # Mock the response handler to return BackpackRawOrder objects
+        from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+
+        mock_raw_orders = [BackpackRawOrder(**order_data) for order_data in mock_raw_response_list]
 
         mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (mock_raw_response_list, 200, {})
+        mock_response_handler.handle_cancel_all_orders_response.return_value = mock_raw_orders
 
         result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
