@@ -637,7 +637,7 @@ class HyperliquidAccountDataMapper:
                 "side": side.value,
                 "order_id": str(getattr(raw_fill, "oid", "unknown")),
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "client_order_id": getattr(raw_fill, "cloid", None),
+                # "client_order_id" not set - will use default UUID generation
                 "price": str(price),
                 "quantity": str(quantity),
                 "fee": str(fee),

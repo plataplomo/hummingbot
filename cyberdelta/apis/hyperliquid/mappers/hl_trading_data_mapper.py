@@ -440,7 +440,7 @@ class HyperliquidTradingDataMapper:
                 "strategy_name": None,  # Not available in simple order format
                 "signal_id": None,  # Not available in simple order format
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "client_order_id": None,  # Will use default UUID generation
+                # "client_order_id" not set - will use default UUID generation
                 "hl_details": None,  # Could be populated if needed
                 "bp_details": None,
                 "reduce_only": False,
@@ -638,11 +638,10 @@ class HyperliquidTradingDataMapper:
             "bp_details": None,
         }
 
-        # Include client_order_id if present
+        # Include client_order_id if present, otherwise let default factory generate UUID
         if raw_order.cloid is not None:
             order_data["client_order_id"] = raw_order.cloid
-        else:
-            order_data["client_order_id"] = None
+        # Do not set client_order_id to None - let the model's default factory handle it
 
         return secure_transform(
             data=order_data,
@@ -894,11 +893,10 @@ class HyperliquidTradingDataMapper:
             "bp_details": None,
         }
 
-        # Include client_order_id if present
+        # Include client_order_id if present, otherwise let default factory generate UUID
         if cloid is not None:
             order_data["client_order_id"] = cloid
-        else:
-            order_data["client_order_id"] = None
+        # Do not set client_order_id to None - let the model's default factory handle it
 
         return secure_transform(
             data=order_data,

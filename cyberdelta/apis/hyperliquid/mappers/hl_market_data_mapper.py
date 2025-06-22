@@ -346,7 +346,7 @@ class HyperliquidMarketDataMapper:
                 "side": side.value,
                 "order_id": "UNKNOWN_PUBLIC_TRADE",  # Public trades don't have order IDs
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "client_order_id": None,
+                # "client_order_id" not set - will use default UUID generation
                 "price": str(price),
                 "quantity": str(quantity),
                 "fee": "0",  # Fee not available in public trades
@@ -668,7 +668,7 @@ class HyperliquidMarketDataMapper:
                 "side": side.value,
                 "order_id": "UNKNOWN_PUBLIC_TRADE",
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "client_order_id": None,
+                # "client_order_id" not set - will use default UUID generation
                 "price": str(price),
                 "quantity": str(quantity),
                 "fee": "0",
