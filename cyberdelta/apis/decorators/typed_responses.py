@@ -1,0 +1,352 @@
+"""Type-Safe Response Decorators - CyberDeltaEngine.
+
+Advanced decorator-based solution for type-safe API responses that eliminates
+boilerplate while providing compile-time type guarantees and runtime validation.
+"""
+
+import inspect
+import logging
+from collections.abc import Awaitable, Callable
+from functools import wraps
+from typing import TypeVar, Union, get_args, get_origin, get_type_hints
+
+from pydantic import BaseModel, ValidationError
+
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R")
+
+
+class TypedResponseError(Exception):
+    """Typed response validation error."""
+    pass
+
+
+def _build_context(
+    func: Callable[..., object], 
+    param_names: list[str], 
+    args: tuple[object, ...]
+) -> str:
+    """Build error context from function name and parameters."""
+    method_name = func.__name__.replace("_raw", "").replace("get_", "")
+    params: list[str] = []
+    for i, param_name in enumerate(param_names[:len(args)]):
+        if i < len(args) and args[i] is not None:
+            params.append(f"{param_name}={args[i]}")
+    param_str = f"({', '.join(params)})" if params else ""
+    return f"{method_name}{param_str}"
+
+
+def _validate_list_response(
+    raw_data: ParsedJsonResponse, 
+    list_of: type[T], 
+    context: str, 
+    status_code: int
+) -> list[T]:
+    """Validate array response data."""
+    if not isinstance(raw_data, list):
+        raise APIError(
+            message=f"Expected list for {context}, got {type(raw_data).__name__}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=status_code
+        )
+    
+    try:
+        return [list_of.model_validate(item) for item in raw_data]
+    except ValidationError as e:
+        raise APIError(
+            message=f"List validation failed for {context}: {e}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=status_code
+        ) from e
+
+
+def _validate_object_response(
+    raw_data: ParsedJsonResponse, 
+    response_model: type[T], 
+    context: str, 
+    status_code: int
+) -> T:
+    """Validate object response data."""
+    if not isinstance(raw_data, dict):
+        raise APIError(
+            message=f"Expected object for {context}, got {type(raw_data).__name__}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=status_code
+        )
+    
+    try:
+        return response_model.model_validate(raw_data)
+    except ValidationError as e:
+        raise APIError(
+            message=f"Object validation failed for {context}: {e}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=status_code
+        ) from e
+
+
+def typed_api_method(
+    *,
+    response_model: type[T] | None = None,
+    list_of: type[T] | None = None,
+    allow_none: bool = False,
+    context_builder: Callable[..., str] | None = None
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[T | list[T] | None]]
+]:
+    """Ultimate decorator for type-safe API methods.
+    
+    This decorator transforms HTTP request methods into type-safe, validated responses
+    with automatic error handling and context building.
+    
+    Args:
+        response_model: Expected single object response type (Pydantic model)
+        list_of: Expected list item type for array responses
+        allow_none: Whether None responses are valid (for 204 No Content, etc.)
+        context_builder: Custom function to build error context from method args
+    
+    Returns:
+        Decorated function that returns validated Pydantic model(s) or None
+        
+    Example:
+        @typed_api_method(response_model=BackpackRawTicker, allow_none=True)
+        async def get_ticker_raw(self, symbol: str) -> BackpackRawTicker | None:
+            return await self._http_client_requester(
+                method="GET", endpoint="/api/v1/ticker", params={"symbol": symbol}
+            )
+    """
+    def decorator(
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]
+    ) -> Callable[..., Awaitable[T | list[T] | None]]:
+        # Extract parameter names for smart context building
+        sig = inspect.signature(func)
+        param_names = list(sig.parameters.keys())[1:]  # Skip 'self'
+        
+        @wraps(func)
+        async def wrapper(self: object, *args: object, **kwargs: object) -> T | list[T] | None:
+            # Call original HTTP request method
+            raw_data, status_code, _headers = await func(self, *args, **kwargs)
+            
+            # Build context for error messages
+            context = (
+                context_builder(self, *args, **kwargs) 
+                if context_builder 
+                else _build_context(func, param_names, args)
+            )
+            
+            # Handle None responses
+            if raw_data is None:
+                if allow_none:
+                    return None
+                raise APIError(
+                    message=f"No data received for {context}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code
+                )
+            
+            # Validate and transform based on expected type
+            if list_of is not None:
+                return _validate_list_response(raw_data, list_of, context, status_code)
+            elif response_model is not None:
+                return _validate_object_response(raw_data, response_model, context, status_code)
+            else:
+                # No type specified - raise error for type safety
+                raise ValueError(
+                    "Either response_model or list_of must be specified for type safety. "
+                    "Raw data return is not supported for type-safe decorators."
+                )
+                
+        return wrapper
+    return decorator
+
+
+# Convenience decorators for common patterns
+def dict_response(
+    model: type[T], 
+    allow_none: bool = False
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[T | list[T] | None]]
+]:
+    """Decorator for single object responses."""
+    return typed_api_method(response_model=model, allow_none=allow_none)
+
+
+def list_response(
+    item_model: type[T], 
+    allow_none: bool = False
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[T | list[T] | None]]
+]:
+    """Decorator for array responses.""" 
+    return typed_api_method(list_of=item_model, allow_none=allow_none)
+
+
+def optional_response(
+    model: type[T]
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[T | list[T] | None]]
+]:
+    """Decorator for responses that may be None."""
+    return typed_api_method(response_model=model, allow_none=True)
+
+
+def validated_response(
+    validator: Callable[[ParsedJsonResponse, str], T],
+    context_builder: Callable[..., str] | None = None
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[T]]
+]:
+    """Decorator with custom validation logic."""
+    def decorator(
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]
+    ) -> Callable[..., Awaitable[T]]:
+        @wraps(func)
+        async def wrapper(self: object, *args: object, **kwargs: object) -> T:
+            raw_data, status_code, _headers = await func(self, *args, **kwargs)
+            
+            if context_builder:
+                context = context_builder(self, *args, **kwargs)
+            else:
+                context = f"{func.__name__}({', '.join(map(str, args))})"
+            
+            if raw_data is None:
+                raise APIError(
+                    message=f"No data received for {context}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code
+                )
+            
+            try:
+                return validator(raw_data, context)
+            except Exception as e:
+                raise APIError(
+                    message=f"Custom validation failed for {context}: {e}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code
+                ) from e
+                
+        return wrapper
+    return decorator
+
+
+def validation_pipeline(
+    *validators: Callable[[object], object]
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[object]]
+]:
+    """Chain multiple validation steps."""
+    def decorator(
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]
+    ) -> Callable[..., Awaitable[object]]:
+        @wraps(func)
+        async def wrapper(self: object, *args: object, **kwargs: object) -> object:
+            raw_data, _status_code, _headers = await func(self, *args, **kwargs)
+            
+            result: object = raw_data
+            for validator in validators:
+                result = validator(result)
+            return result
+            
+        return wrapper
+    return decorator
+
+
+def mapped_response(
+    raw_model: type[T], 
+    mapper_method: str
+) -> Callable[
+    [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]], 
+    Callable[..., Awaitable[object]]
+]:
+    """Decorator that automatically maps raw response to domain model."""
+    def decorator(
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]
+    ) -> Callable[..., Awaitable[object]]:
+        @wraps(func)
+        async def wrapper(self: object, *args: object, **kwargs: object) -> object:
+            # Use dict_response decorator internally  
+            decorated_func = dict_response(raw_model)(func)
+            raw_result = await decorated_func(self, *args, **kwargs)
+            
+            if raw_result is None:
+                return None
+                
+            # Get mapper and call the specified method
+            mapper = getattr(self, "_market_data_mapper", None)
+            if not mapper:
+                mapper = getattr(self, "_account_data_mapper", None)
+            if not mapper:
+                mapper = getattr(self, "_trading_data_mapper", None)
+                
+            if mapper and hasattr(mapper, mapper_method):
+                return await getattr(mapper, mapper_method)(raw_result)
+            
+            return raw_result
+            
+        return wrapper
+    return decorator
+
+
+def auto_typed(
+    func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]
+) -> Callable[..., Awaitable[object]]:
+    """Ultra-smart decorator that auto-detects expected return type from type hints.
+    
+    This decorator analyzes the function's return type annotation and automatically
+    applies the appropriate typed_api_method configuration.
+    
+    Supports:
+    - Optional[Model] → typed_api_method(response_model=Model, allow_none=True)
+    - list[Model] → typed_api_method(list_of=Model)
+    - Optional[list[Model]] → typed_api_method(list_of=Model, allow_none=True)
+    - Model → typed_api_method(response_model=Model)
+    """
+    # Get return type hint from function
+    type_hints = get_type_hints(func)
+    return_hint = type_hints.get("return")
+    
+    if return_hint is None:
+        # No type hint - return raw data
+        return func
+    
+    # Parse the return type hint
+    origin = get_origin(return_hint)
+    args = get_args(return_hint)
+    
+    if origin is Union:
+        # Handle Optional[T] → Union[T, None]
+        if len(args) == 2 and type(None) in args:
+            # Optional type
+            model_type = next(arg for arg in args if arg is not type(None))
+            model_origin = get_origin(model_type)
+            
+            if model_origin is list:
+                # Optional[list[T]]
+                item_type = get_args(model_type)[0]
+                return typed_api_method(list_of=item_type, allow_none=True)(func)
+            else:
+                # Optional[T]
+                return typed_api_method(response_model=model_type, allow_none=True)(func)
+                
+    elif origin is list:
+        # list[T]
+        item_type = args[0]
+        return typed_api_method(list_of=item_type)(func)
+    
+    # Single model type
+    if isinstance(return_hint, type) and issubclass(return_hint, BaseModel):
+        return typed_api_method(response_model=return_hint)(func)
+    
+    # Fallback - no decoration
+    return func
