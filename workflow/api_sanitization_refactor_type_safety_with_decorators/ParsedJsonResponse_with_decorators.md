@@ -448,3 +448,28 @@ This decorator-based approach provides the **maximum benefit with minimum comple
 5. **Testing**: Each decorated method can be tested independently
 
 This decorator-based solution truly represents the best possible approach for type-safe API responses in CyberDeltaEngine!
+
+## **Implementation Todo List**
+
+### **High Priority Tasks**
+1. **Core Framework** - Create `typed_api_method` decorator with `response_model`, `list_of`, `allow_none`, and `context_builder` parameters
+2. **Convenience Decorators** - Implement `dict_response`, `list_response`, `optional_response` for common patterns  
+3. **Mapped Response Integration** - Build `mapped_response` decorator that automatically handles raw model validation and mapper transformation
+4. **Unit Testing** - Create comprehensive unit tests for all decorators using existing BackpackRaw and HyperliquidRaw models
+5. **Static Analysis Validation** - Run `.venv/bin/ruff check`, `.venv/bin/mypy` on all new decorator code and fix any issues
+
+### **Medium Priority Tasks**
+6. **Auto-Detection** - Build `auto_typed` decorator with intelligent type hint parsing for Union, Optional, and list types
+7. **Custom Validation** - Create `validated_response` decorator for custom validation logic and complex response handling
+8. **Validation Pipeline** - Implement `validation_pipeline` decorator for chaining multiple validation steps
+9. **Pilot Migration** - Enhance BackpackMarketDataService with decorated methods alongside existing ones
+
+### **Low Priority Tasks**
+10. **Decorator Composition** - Add decorator composition support and test with retry, rate limiting, caching decorators
+
+### **Success Criteria**
+- [ ] All decorators pass static analysis (ruff, mypy) with zero errors
+- [ ] 70-80% code reduction in service methods using decorators
+- [ ] Full backward compatibility maintained with existing service methods
+- [ ] Complete type safety with compile-time guarantees
+- [ ] Comprehensive test coverage for all decorator functionality
