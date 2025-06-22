@@ -48,13 +48,9 @@ class TestRiskManagerDependencyFailures:
         Tests when total capital is zero, negative, or invalid.
         """
         mock_portfolio_tracker.get_total_capital.return_value = bad_capital
-        original_defaults = mock_config_dict
+        # original_defaults was removed - unused after refactoring
 
-        def get_side_effect_for_bad_capital(key: str, default: object = None) -> object:
-            """Get side effect for bad capital for testing."""
-            if key == "risk.use_simple_sizing_path":
-                return True
-            return original_defaults.get(key, default)
+        # Function get_side_effect_for_bad_capital removed - was unused after refactoring
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
@@ -77,13 +73,9 @@ class TestRiskManagerDependencyFailures:
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity returns None when _check_portfolio_constraints fails."""
-        original_defaults = mock_config_dict
+        # original_defaults was removed - unused after refactoring
 
-        def get_side_effect_for_constraint_fail(key: str, default: object = None) -> object:
-            """Get side effect for constraint fail for testing."""
-            if key == "risk.use_simple_sizing_path":
-                return True
-            return original_defaults.get(key, default)
+        # Function get_side_effect_for_constraint_fail removed - was unused after refactoring
 
         risk_manager.max_position_size = Decimal("5000.0")
 
@@ -115,13 +107,9 @@ class TestRiskManagerDependencyFailures:
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size_opportunity handles generic exceptions from portfolio tracker methods."""
-        original_defaults = mock_config_dict
+        # original_defaults was removed - unused after refactoring
 
-        def get_side_effect_for_dep_exception(key: str, default: object = None) -> object:
-            """Get side effect for dep exception for testing."""
-            if key == "risk.use_simple_sizing_path":
-                return True
-            return original_defaults.get(key, default)
+        # Function get_side_effect_for_dep_exception removed - was unused after refactoring
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
@@ -161,11 +149,10 @@ class TestRiskManagerDependencyFailures:
             "risk.max_acceptable_rmse": 0.05,
             "risk.max_acceptable_bias": 0.02,
         }
-        combined_config = {**mock_config_dict, **test_overrides}
+        # combined_config was removed - unused after refactoring
+        _ = {**mock_config_dict, **test_overrides}  # Keep for documentation
 
-        def get_side_effect_for_cb_tripped(key: str, default: object = None) -> object:
-            """Get side effect for cb tripped for testing."""
-            return combined_config.get(key, default)
+        # Function get_side_effect_for_cb_tripped removed - was unused after refactoring
 
         risk_manager.max_position_size = Decimal("20000.0")
         risk_manager.portfolio_tracker = mock_portfolio_tracker
@@ -231,11 +218,10 @@ class TestRiskManagerDependencyFailures:
             "risk.simple_sizing_method": "fixed_usd",
             "risk.simple_fixed_usd_size": "10000",
         }
-        combined_config = {**mock_config_dict, **test_overrides}
+        # combined_config was removed - unused after refactoring
+        _ = {**mock_config_dict, **test_overrides}  # Keep for documentation
 
-        def get_side_effect_for_cb_exception(key: str, default: object = None) -> object:
-            """Get side effect for cb exception for testing."""
-            return combined_config.get(key, default)
+        # Function get_side_effect_for_cb_exception removed - was unused after refactoring
 
         risk_manager.max_position_size = Decimal("20000.0")
         risk_manager.portfolio_tracker = mock_portfolio_tracker
@@ -291,10 +277,14 @@ class TestRiskManagerDependencyFailures:
         # factor_bias = max(0, 1 - (0.0 / 0.02)) = max(0, 1 - 0) = 1
         # combined_factor = min(0, 1) = 0
         # Since 0 < 0.2 (min_validation_factor), should return None
-        mock_funding_validator.get_symbol_metrics.side_effect = lambda exchange, symbol: {
-            "rmse": 1.0,
-            "bias": 0.0,
-        }
+        def get_symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
+            """Side effect for get_symbol_metrics."""
+            return {
+                "rmse": 1.0,
+                "bias": 0.0,
+            }
+
+        mock_funding_validator.get_symbol_metrics.side_effect = get_symbol_metrics_side_effect
 
         sized_opp = await risk_manager.size_opportunity(sample_opportunity)
         assert sized_opp is None

@@ -409,6 +409,9 @@ class APIErrorBreaker(CircuitBreaker):
         cutoff = now - timedelta(seconds=self.window_seconds)
         self.errors = [e for e in self.errors if e[0] >= cutoff]
 
+        # Check if breaker should trip after recording the error
+        self.check()
+
     def record_success(self) -> None:
         """Record a successful API call.
 

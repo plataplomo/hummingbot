@@ -152,24 +152,8 @@ def mock_bp_http_client() -> MagicMock:
     return mock_client
 
 
-@pytest_asyncio.fixture
-async def bp_api_for_test_env(
-    active_bp_config: ExchangeSpecificConfig,
-    active_bp_secrets: ApiKeyAuthSecrets,
-) -> AsyncGenerator[BackpackAPI]:
-    """Create BackpackAPI instance for integration tests.
-
-    Uses configuration from test_config.yaml and test_secrets.yaml.
-    For cassette recording/playback, this uses real components.
-    """
-    # Let BackpackAPI create its own real components via factory
-    api = BackpackAPI(
-        exchange_config=active_bp_config,
-        exchange_secrets=active_bp_secrets,
-    )
-    yield api
-    # Ensure proper cleanup
-    await api.close()
+# Note: bp_api_for_test_env fixture moved to parent apis/conftest.py
+# to be shared with cross_exchange tests
 
 
 @pytest.fixture

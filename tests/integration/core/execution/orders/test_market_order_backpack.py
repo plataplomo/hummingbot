@@ -741,7 +741,9 @@ class TestBackpackMarketOrderIntegration:
         yield  # Run the test
 
         # Skip cleanup in VCR mode to avoid unrecorded API calls
-        if hasattr(request.node, "get_closest_marker") and request.node.get_closest_marker("vcr"):
+        # request.node type is not fully typed in pytest, use getattr for safety
+        node = getattr(request, "node", None)
+        if node and hasattr(node, "get_closest_marker") and node.get_closest_marker("vcr"):
             logger.info("Skipping cleanup in VCR mode")
             return
 

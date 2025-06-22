@@ -10,13 +10,18 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 from .enums import OrderSide, SignalType
+
+
+def _is_list_of_any(v: object) -> TypeGuard[list[Any]]:
+    """Type guard to check if v is a list."""
+    return isinstance(v, list)
 
 
 class TradeSignal(BaseModel):
@@ -96,10 +101,11 @@ class TradeSignal(BaseModel):
         # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
         if isinstance(v, str):
             return validate_str_field(v, field_name=field_name, max_length=64)
-        elif isinstance(v, list):
+        elif _is_list_of_any(v):
             if not v:
                 raise ValueError(f"{field_name} list cannot be empty.")
             validated_list: list[str] = []
+            # After type guard, v is known to be list[Any]
             for idx, item in enumerate(v):
                 # DEFENSIVE CHECK: List items could be any type in raw input
                 if type(item) is not str:

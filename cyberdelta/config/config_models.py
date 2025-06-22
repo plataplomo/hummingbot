@@ -277,12 +277,15 @@ class ExchangeSpecificConfig(BaseModel):
     @classmethod
     def _validate_url_strings(
         cls,
-        v: str | int | float | bool | None,
+        v: str | int | float | bool | None | HttpUrl | AnyUrl,
         info: ValidationInfo,
     ) -> str | None:
         # Testnet URLs can be None
         if v is None and info.field_name and "testnet" in info.field_name:
             return None
+        # Handle Pydantic URL objects
+        if isinstance(v, HttpUrl | AnyUrl):
+            return str(v)
         # Ensure it's a valid string before Pydantic URL validation
         return validate_str_field(v, field_name=info.field_name or "url_field", allow_empty=False)
 

@@ -263,17 +263,26 @@ class StateManager:
             return False
 
         # Check for required metadata keys
-        metadata = state_data.get("metadata", {})
-        if not isinstance(metadata, dict):
+        metadata_raw = state_data.get("metadata", {})
+        if not isinstance(metadata_raw, dict):
             return False
+
+        # Type is now known to be dict
+        metadata: dict[str, Any] = metadata_raw
 
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False
 
         # Verify checksum
-        expected_checksum_raw: object = metadata["checksum"]
+        expected_checksum_raw = metadata.get("checksum")
         if not isinstance(expected_checksum_raw, str):
-            logger.error(f"Expected checksum must be a string, got {type(expected_checksum_raw)}")
+            # Get type name safely
+            type_name = (
+                type(expected_checksum_raw).__name__
+                if expected_checksum_raw is not None
+                else "None"
+            )
+            logger.error(f"Expected checksum must be a string, got {type_name}")
             return False
 
         # Type narrowed here:

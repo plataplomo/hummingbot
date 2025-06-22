@@ -152,24 +152,8 @@ def mock_hl_market_data_service() -> MagicMock:
 # Integration tests MUST use real API calls with VCR cassettes for reproducibility.
 
 
-@pytest_asyncio.fixture
-async def hl_api_for_test_env(
-    active_hl_config: ExchangeSpecificConfig,
-    active_hl_secrets: PrivateKeyAuthSecrets,
-) -> AsyncGenerator[HyperliquidAPI]:
-    """Create HyperliquidAPI instance for integration tests.
-
-    Uses configuration from test_config.yaml and test_secrets.yaml.
-    For cassette recording/playback, this uses real components.
-    """
-    # Let HyperliquidAPI create its own real components via factory
-    api = HyperliquidAPI(
-        exchange_config=active_hl_config,
-        exchange_secrets=active_hl_secrets,
-    )
-    yield api
-    # Ensure proper cleanup
-    await api.close()
+# Note: hl_api_for_test_env fixture moved to parent apis/conftest.py
+# to be shared with cross_exchange tests
 
 
 @pytest.fixture

@@ -336,7 +336,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=200)
 
         # Use a list to record calls to the mock, similar to test_auto_correct
-        reconcile_exchange_calls = []
+        reconcile_exchange_calls: list[str] = []
 
         async def mock_reconcile_exchange_side_effect(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls.append(exchange)
@@ -369,7 +369,7 @@ class TestPositionReconciliationSystem:
             seconds=100,
         )  # Only 100s passed
 
-        reconcile_exchange_calls_s2 = []
+        reconcile_exchange_calls_s2: list[str] = []
 
         async def mock_reconcile_exchange_side_effect_s2(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls_s2.append(exchange)
@@ -389,7 +389,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system.reconciliation_interval = timedelta(seconds=300)
         reconciliation_system.last_check_time = datetime.now(UTC) - timedelta(seconds=100)
 
-        reconcile_exchange_calls_s3 = []
+        reconcile_exchange_calls_s3: list[str] = []
 
         async def mock_reconcile_exchange_side_effect_s3(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls_s3.append(exchange)
@@ -481,7 +481,7 @@ class TestPositionReconciliationSystem:
         # Patch _reconcile_exchange to return a known structure to avoid internal errors
         # This helps test check_positions's aggregation logic rather than _reconcile_exchange
         # itself here.
-        mock_reconcile_result = {
+        mock_reconcile_result: dict[str, Any] = {
             "success": True,
             "discrepancies": [],
             "symbols_checked": 0,
@@ -530,7 +530,7 @@ class TestPositionReconciliationSystem:
         system.auto_correct = True
 
         # Mock _reconcile_exchange to track calls and simulate its return
-        reconcile_calls = []
+        reconcile_calls: list[dict[str, str]] = []
 
         async def mock_side_effect_reconcile_exchange(exchange: str) -> dict[str, Any]:
             reconcile_calls.append({"exchange": exchange})  # Record the call
@@ -539,7 +539,7 @@ class TestPositionReconciliationSystem:
             # This should include discrepancies if we want auto-correct to do something.
             # For this test, we mainly care that it was called.
             # If auto-correct logic depends on specific discrepancy details, mock them here.
-            mock_discrepancies = []
+            mock_discrepancies: list[dict[str, Any]] = []
             if exchange == "hyperliquid":  # Simulate a discrepancy for hyperliquid
                 mock_discrepancies.append(
                     {

@@ -63,7 +63,6 @@ else:
 
 import pytest
 import pytest_asyncio
-from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.config_models import PortfolioTrackerConfig
@@ -174,6 +173,8 @@ async def mock_hl_api(
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "mock_hl"
     # Create a proper ExchangeSpecificConfig object for the mock
+    from pydantic import AnyUrl, HttpUrl
+
     from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
     from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -222,6 +223,8 @@ async def mock_bp_api(
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "mock_bp"
     # Create a proper ExchangeSpecificConfig object for the mock
+    from pydantic import AnyUrl, HttpUrl
+
     from cyberdelta.config.config_models import ExchangeSpecificConfig
     from cyberdelta.enums.exchange_names import ExchangeName
 

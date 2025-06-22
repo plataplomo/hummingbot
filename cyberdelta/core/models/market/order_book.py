@@ -12,8 +12,10 @@ The OrderBook model ensures data integrity through:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import TypeGuard
 
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
@@ -143,9 +145,12 @@ class OrderBook(BaseModel):
 
         validated_levels: list[tuple[Decimal, Decimal]] = []
 
-        # Pyright struggles to track types precisely when iterating over 'v: object'.
-        # Runtime checks below ensure safety, but ignores are needed for static analysis.
-        for index, level_raw in enumerate(v):
+        # Process each item in the list - we know v is a list from the isinstance check above
+        # Use a different iteration approach that pyright can understand
+        list_length = len(v)  # This works because we know v is a list
+        for index in range(list_length):
+            # Access items by index - pyright understands this pattern better
+            level_raw = v[index]
             validated_level = cls._validate_single_level(level_raw, field_name, index)
             validated_levels.append(validated_level)
 
@@ -161,12 +166,13 @@ class OrderBook(BaseModel):
 
         # Extract raw price/quantity. Runtime checks follow.
         # Type narrowing after validation - we know level_raw is list|tuple with length 2
-        # Cast to the appropriate type after validation
-        from typing import cast
+        # Use type guard for safe access
+        if not cls._is_valid_level_sequence(level_raw):
+            # This should never happen due to _validate_level_structure
+            raise TypeError(f"Unexpected type for level_raw: {type(level_raw).__name__}")
 
-        level_sequence = cast(list[object] | tuple[object, ...], level_raw)
-        price_raw = level_sequence[0]
-        quantity_raw = level_sequence[1]
+        price_raw = level_raw[0]
+        quantity_raw = level_raw[1]
 
         # 2. Parse and validate price and quantity
         price = cls._parse_and_validate_price(price_raw, field_name, index)
@@ -175,22 +181,27 @@ class OrderBook(BaseModel):
         return (price, quantity)
 
     @classmethod
+    def _is_valid_level_sequence(cls, level_raw: object) -> TypeGuard[Sequence[object]]:
+        """Type guard to check if level_raw is a valid sequence."""
+        return isinstance(level_raw, list | tuple)
+
+    @classmethod
     def _validate_level_structure(cls, level_raw: object, field_name: str, index: int) -> None:
         """Validate the structure of a single level."""
-        if not isinstance(level_raw, list | tuple):
-            # Ignore necessary because Pyright
-            # doesn't know 'level_raw' type after initial check.
+        if not cls._is_valid_level_sequence(level_raw):
+            # Get type name without type-checking issues
+            type_name = type(level_raw).__name__ if level_raw is not None else "None"
             raise TypeError(
                 f"Level item in {field_name} at index {index} must be a list or tuple, "
-                f"got {type(level_raw).__name__}",  # pyright: ignore[reportUnknownArgumentType]
+                f"got {type_name}",
             )
         # DEFENSIVE CHECK: Runtime length check.
-        # Ignore necessary because Pyright doesn't know 'level_raw' type reliably here.
-        if len(level_raw) != 2:  # pyright: ignore[reportUnknownArgumentType]
-            # Ignore necessary because Pyright doesn't know 'level_raw' type reliably here.
+        # After type guard check, we know level_raw is a Sequence
+        level_len = len(level_raw)
+        if level_len != 2:
             raise ValueError(
                 f"Level item in {field_name} at index {index} must have length 2, "
-                f"got length {len(level_raw)}",  # pyright: ignore[reportUnknownArgumentType]
+                f"got length {level_len}",
             )
 
     @classmethod
@@ -198,10 +209,11 @@ class OrderBook(BaseModel):
         """Parse and validate price value."""
         # 2. Validate and Parse Price (Runtime check + parse attempt)
         if not isinstance(price_raw, Decimal | str | int | float):
-            # Ignore necessary because Pyright doesn't know 'price_raw' type reliably here.
+            # Get type name without type-checking issues
+            type_name = type(price_raw).__name__ if price_raw is not None else "None"
             raise TypeError(
                 f"Invalid price type in {field_name} at index {index}: "
-                f"Expected Decimal, str, int, or float, got {type(price_raw).__name__}",  # pyright: ignore[reportUnknownArgumentType]
+                f"Expected Decimal, str, int, or float, got {type_name}",
             )
         try:
             price = parse_decimal_value(price_raw)
@@ -230,10 +242,11 @@ class OrderBook(BaseModel):
         """Parse and validate quantity value."""
         # 3. Validate and Parse Quantity (Runtime check + parse attempt)
         if not isinstance(quantity_raw, Decimal | str | int | float):
-            # Ignore necessary because Pyright doesn't know 'quantity_raw' type reliably here.
+            # Get type name without type-checking issues
+            type_name = type(quantity_raw).__name__ if quantity_raw is not None else "None"
             raise TypeError(
                 f"Invalid quantity type in {field_name} at index {index}: "
-                f"Expected Decimal, str, int, or float, got {type(quantity_raw).__name__}",  # pyright: ignore[reportUnknownArgumentType]
+                f"Expected Decimal, str, int, or float, got {type_name}",
             )
         try:
             quantity = parse_decimal_value(quantity_raw)

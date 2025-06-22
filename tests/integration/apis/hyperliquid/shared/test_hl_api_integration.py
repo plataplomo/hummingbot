@@ -360,7 +360,9 @@ class TestHyperliquidAPIComponentIntegration:
                 # Pyright has difficulty with type narrowing in comprehensions
                 # Check all items are Orders without using comprehension
                 all_orders = True
-                for item in result:
+                # Type narrowing: after isinstance check, result is a list
+                result_list: list[Any] = result
+                for item in result_list:
                     if not isinstance(item, Order):
                         all_orders = False
                         break
@@ -476,7 +478,9 @@ class TestHyperliquidAPIConcurrentOperations:
                     orders_data = cast("list[Order]", result)
                 else:
                     all_orders = True
-                    for item in result:
+                    # Type narrowing: result is a non-empty list
+                    result_list: list[Any] = result
+                    for item in result_list:
                         if not isinstance(item, Order):
                             all_orders = False
                             break

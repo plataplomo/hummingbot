@@ -7,11 +7,8 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
-# Import fixtures from exchange-specific conftest files
-pytest_plugins = [
-    "tests.integration.apis.backpack.conftest",
-    "tests.integration.apis.hyperliquid.conftest",
-]
+# Fixtures bp_api_for_test_env and hl_api_for_test_env are inherited
+# from parent apis/conftest.py
 
 
 @pytest.fixture(params=["backpack", "hyperliquid"])
