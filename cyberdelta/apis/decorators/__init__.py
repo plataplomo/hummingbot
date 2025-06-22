@@ -14,11 +14,25 @@ Security Decorators:
 - security_monitored: Real-time anomaly detection
 - secure_mapped_response: End-to-end HTTP + security + mapping
 
+Rate Limiting & Resilience:
+- rate_limited: Token bucket rate limiting
+- retry_on_failure: Exponential backoff retry
+- CircuitBreaker: Prevent cascading failures
+- Timeout: Operation timeout enforcement
+
 Advanced Decorators:
 - mapped_response: Automatic raw → domain model mapping
 - validation_pipeline: Chainable validation steps
 """
 
+from .rate_limiting_decorators import (
+    CircuitBreaker,
+    RateLimited,
+    RetryOnFailure,
+    Timeout,
+    rate_limited,
+    retry_on_failure,
+)
 from .security_decorators import (
     TransformationError,
     business_logic_validated,
@@ -55,4 +69,11 @@ __all__ = [
     "security_monitored",
     "secure_mapped_response",
     "TransformationError",
+    # Rate Limiting & Resilience
+    "rate_limited",
+    "retry_on_failure",
+    "RateLimited",
+    "RetryOnFailure",
+    "CircuitBreaker",
+    "Timeout",
 ]
