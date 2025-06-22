@@ -75,6 +75,7 @@ from cyberdelta.core.models.operations import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -253,20 +254,29 @@ class BackpackAccountDataMapper:
                 system_order_type=None,  # Not available in fill data
             )
 
-            return Trade(
-                id=str(raw_fill.trade_id),
-                symbol=raw_fill.symbol,
-                executed_at=executed_at,
-                side=side,
-                order_id=raw_fill.order_id,
-                exchange=ExchangeName.BACKPACK.value,
-                client_order_id=raw_fill.client_id,
-                price=price,
-                quantity=quantity,
-                fee=fee,
-                fee_asset=raw_fill.fee_symbol,
-                is_maker=raw_fill.is_maker,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": str(raw_fill.trade_id),
+                "symbol": raw_fill.symbol,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": raw_fill.order_id,
+                "exchange": ExchangeName.BACKPACK.value,
+                "client_order_id": raw_fill.client_id,
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": str(fee),
+                "fee_asset": raw_fill.fee_symbol,
+                "is_maker": raw_fill.is_maker,
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="backpack_fill_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -307,13 +317,21 @@ class BackpackAccountDataMapper:
             # Create BP-specific details
             details = BackpackSpotBalanceDetails()
 
-            return SpotBalance(
-                asset=asset,
-                exchange=ExchangeName.BACKPACK.value,
-                total_quantity=total,
-                available_quantity=available,
-                timestamp=datetime.now(UTC),
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            balance_data = {
+                "asset": asset,
+                "exchange": ExchangeName.BACKPACK.value,
+                "total_quantity": str(total),
+                "available_quantity": str(available),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "bp_details": details.model_dump() if details else None,
+            }
+
+            return secure_transform(
+                data=balance_data,
+                model_class=SpotBalance,
+                context="backpack_balance_from_dict",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -377,13 +395,21 @@ class BackpackAccountDataMapper:
 
             bp_details = BackpackSpotBalanceDetails()
 
-            return SpotBalance(
-                exchange=ExchangeName.BACKPACK,
-                asset=asset_symbol.upper(),
-                timestamp=datetime.now(UTC),
-                total_quantity=parsed_total,
-                available_quantity=parsed_available,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            balance_data = {
+                "exchange": ExchangeName.BACKPACK.value,
+                "asset": asset_symbol.upper(),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "total_quantity": str(parsed_total),
+                "available_quantity": str(parsed_available),
+                "bp_details": bp_details.model_dump() if bp_details else None,
+            }
+
+            return secure_transform(
+                data=balance_data,
+                model_class=SpotBalance,
+                context="backpack_raw_balance_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw balance to internal: {e}") from e
@@ -414,8 +440,8 @@ class BackpackAccountDataMapper:
 
             entry_price_dec = parse_decimal_value(raw.entry_price)
             # Note: Entry prices are often calculated averages that may have higher precision
-            # than the market's tick size. We preserve the full precision as reported by the exchange
-            # since this represents the actual average entry price across multiple fills.
+            # than the market's tick size. We preserve the full precision as reported by the
+            # exchange since this represents the actual average entry price across multiple fills.
             mark_price_dec = parse_decimal_value(raw.mark_price)
             liq_price_dec = parse_decimal_value(raw.est_liquidation_price)
             unrealized_pnl_dec = parse_decimal_value(raw.pnl_unrealized)
@@ -446,18 +472,28 @@ class BackpackAccountDataMapper:
                 cumulative_funding=cumulative_funding_dec,
             )
 
-            return DerivativePosition(
-                exchange=ExchangeName.BACKPACK,
-                symbol=raw.symbol,
-                timestamp=timestamp,
-                side=side,
-                size=size_dec,
-                entry_price=entry_price_dec,
-                mark_price=mark_price_dec,
-                liquidation_price=liq_price_dec,
-                unrealized_pnl=unrealized_pnl_dec,
-                realized_pnl=realized_pnl_dec,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            position_data = {
+                "exchange": ExchangeName.BACKPACK.value,
+                "symbol": raw.symbol,
+                "timestamp": timestamp.isoformat(),
+                "side": side.value,
+                "size": str(size_dec),
+                "entry_price": str(entry_price_dec) if entry_price_dec is not None else None,
+                "mark_price": str(mark_price_dec) if mark_price_dec is not None else None,
+                "liquidation_price": str(liq_price_dec) if liq_price_dec is not None else None,
+                "unrealized_pnl": str(unrealized_pnl_dec)
+                if unrealized_pnl_dec is not None
+                else None,
+                "realized_pnl": str(realized_pnl_dec) if realized_pnl_dec is not None else None,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+            }
+
+            return secure_transform(
+                data=position_data,
+                model_class=DerivativePosition,
+                context="backpack_position_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw position to internal: {e}") from e
@@ -524,21 +560,33 @@ class BackpackAccountDataMapper:
                 leverage_limit=raw_settings.leverage_limit,
             )
 
-            return MarginAccountSummary(
-                exchange=ExchangeName.BACKPACK.value,
-                timestamp=datetime.now(UTC),
-                total_equity=calculated_total_equity,
-                available_equity=calculated_available_equity,
-                total_initial_margin_required=None,
-                total_maintenance_margin_required=None,
-                total_position_notional=calculated_total_position_notional
-                if internal_derivative_positions
-                else Decimal("0.0"),
-                total_unrealized_pnl=calculated_total_unrealized_pnl
-                if internal_derivative_positions
-                else Decimal("0.0"),
-                bp_details=bp_details,
-                hl_details=None,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            margin_data = {
+                "exchange": ExchangeName.BACKPACK.value,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "total_equity": str(calculated_total_equity),
+                "available_equity": str(calculated_available_equity),
+                "total_initial_margin_required": None,
+                "total_maintenance_margin_required": None,
+                "total_position_notional": str(
+                    calculated_total_position_notional
+                    if internal_derivative_positions
+                    else Decimal("0.0")
+                ),
+                "total_unrealized_pnl": str(
+                    calculated_total_unrealized_pnl
+                    if internal_derivative_positions
+                    else Decimal("0.0")
+                ),
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=margin_data,
+                model_class=MarginAccountSummary,
+                context="backpack_account_summary_transform",
+                source_exchange="backpack",
             )
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
             logger.error(
@@ -659,17 +707,27 @@ class BackpackAccountDataMapper:
                 source_endpoint="collateral",
             )
 
-            return MarginAccountSummary(
-                exchange=ExchangeName.BACKPACK.value,
-                timestamp=datetime.now(UTC),
-                total_equity=total_equity,
-                available_equity=available_equity,
-                total_initial_margin_required=imf_value,
-                total_maintenance_margin_required=mmf_value,
-                total_position_notional=calculated_total_position_notional,
-                total_unrealized_pnl=total_unrealized_pnl,
-                bp_details=bp_details,
-                hl_details=None,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            margin_data = {
+                "exchange": ExchangeName.BACKPACK.value,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "total_equity": str(total_equity),
+                "available_equity": str(available_equity),
+                "total_initial_margin_required": str(imf_value) if imf_value is not None else None,
+                "total_maintenance_margin_required": str(mmf_value)
+                if mmf_value is not None
+                else None,
+                "total_position_notional": str(calculated_total_position_notional),
+                "total_unrealized_pnl": str(total_unrealized_pnl),
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=margin_data,
+                model_class=MarginAccountSummary,
+                context="backpack_enhanced_account_transform",
+                source_exchange="backpack",
             )
 
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
@@ -760,16 +818,24 @@ class BackpackAccountDataMapper:
                 to_account_type=to_account_type_raw,
             )
 
-            return Transfer(
-                id=str(transfer_id),
-                exchange=exchange_name,
-                asset=asset,
-                quantity=quantity,
-                status=internal_status,
-                timestamp=timestamp,
-                response_message=str(message) if message is not None else None,
-                bp_details=bp_details,
-                hl_details=None,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            transfer_data = {
+                "id": str(transfer_id),
+                "exchange": exchange_name,
+                "asset": asset,
+                "quantity": str(quantity),
+                "status": internal_status.value,
+                "timestamp": timestamp.isoformat(),
+                "response_message": str(message) if message is not None else None,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=transfer_data,
+                model_class=Transfer,
+                context="backpack_transfer_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw transfer to internal: {e}") from e
@@ -860,18 +926,26 @@ class BackpackAccountDataMapper:
                 account_identifier=raw_response.account_identifier,
             )
 
-            return Withdrawal(
-                id=str(withdrawal_id),
-                exchange=ExchangeName.BACKPACK.value,
-                status=internal_status,
-                asset=asset,
-                quantity=quantity,
-                address=address,
-                timestamp=timestamp_value,
-                fee=fee,
-                tx_hash=tx_hash_str,
-                response_message=None,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            withdrawal_data = {
+                "id": str(withdrawal_id),
+                "exchange": ExchangeName.BACKPACK.value,
+                "status": internal_status.value,
+                "asset": asset,
+                "quantity": str(quantity),
+                "address": address,
+                "timestamp": timestamp_value.isoformat(),
+                "fee": str(fee) if fee is not None else None,
+                "tx_hash": tx_hash_str,
+                "response_message": None,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+            }
+
+            return secure_transform(
+                data=withdrawal_data,
+                model_class=Withdrawal,
+                context="backpack_withdrawal_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw withdrawal to internal: {e}") from e
@@ -998,31 +1072,58 @@ class BackpackAccountDataMapper:
                 origin=BackpackAccountDataMapper._map_order_origin(raw.origin),
             )
 
-            return Order(
-                client_order_id=raw.clientId or str(uuid.uuid4()),
-                exchange_order_id=raw.id,
-                related_order_id=raw.relatedOrderId,
-                exchange=ExchangeName.BACKPACK,
-                symbol=raw.symbol,
-                side=BackpackAccountDataMapper._map_side_to_internal(raw.side),
-                order_type=BackpackAccountDataMapper._map_type_to_internal(raw.orderType),
-                status=BackpackAccountDataMapper._map_status_to_internal(raw.status),
-                quantity_requested=parsed_quantity,
-                quantity_filled=optional_fields["quantity_filled"],
-                price=optional_fields["price"],
-                stop_price=optional_fields["stop_price"],
-                average_fill_price=optional_fields["avg_fill_price"],
-                trigger_by=BackpackAccountDataMapper._map_trigger_by_to_internal(raw.triggerBy),
-                time_in_force=BackpackAccountDataMapper._map_tif_to_internal(raw.timeInForce),
-                reduce_only=raw.reduceOnly or False,
-                post_only=raw.postOnly or False,
-                created_at=parsed_created_at,
-                updated_at=parse_datetime_utc(raw.updatedAt),
-                triggered_at=parse_datetime_utc(raw.triggeredAt),
-                strategy_name=None,
-                signal_id=None,
-                trades=[],
-                bp_details=bp_details,
+            # Parse optional complex fields that can be None
+            trigger_by_result = BackpackAccountDataMapper._map_trigger_by_to_internal(raw.triggerBy)
+            trigger_by_value = trigger_by_result.value if trigger_by_result is not None else None
+            
+            updated_dt = parse_datetime_utc(raw.updatedAt) if raw.updatedAt else None
+            updated_at_value = updated_dt.isoformat() if updated_dt is not None else None
+            
+            triggered_dt = parse_datetime_utc(raw.triggeredAt) if raw.triggeredAt else None
+            triggered_at_value = triggered_dt.isoformat() if triggered_dt is not None else None
+
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            order_data: dict[str, Any] = {
+                "client_order_id": raw.clientId or str(uuid.uuid4()),
+                "exchange_order_id": raw.id,
+                "related_order_id": raw.relatedOrderId,
+                "exchange": ExchangeName.BACKPACK.value,
+                "symbol": raw.symbol,
+                "side": BackpackAccountDataMapper._map_side_to_internal(raw.side).value,
+                "order_type": BackpackAccountDataMapper._map_type_to_internal(raw.orderType).value,
+                "status": BackpackAccountDataMapper._map_status_to_internal(raw.status).value,
+                "quantity_requested": str(parsed_quantity),
+                "quantity_filled": str(optional_fields["quantity_filled"]),
+                "price": str(optional_fields["price"])
+                if optional_fields["price"] is not None
+                else None,
+                "stop_price": str(optional_fields["stop_price"])
+                if optional_fields["stop_price"] is not None
+                else None,
+                "average_fill_price": str(optional_fields["avg_fill_price"])
+                if optional_fields["avg_fill_price"] is not None
+                else None,
+                "trigger_by": trigger_by_value,
+                "time_in_force": BackpackAccountDataMapper._map_tif_to_internal(
+                    raw.timeInForce
+                ).value,
+                "reduce_only": raw.reduceOnly or False,
+                "post_only": raw.postOnly or False,
+                "created_at": parsed_created_at.isoformat(),
+                "updated_at": updated_at_value,
+                "triggered_at": triggered_at_value,
+                "strategy_name": None,
+                "signal_id": None,
+                "trades": [],
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=order_data,
+                model_class=Order,
+                context="backpack_order_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform raw order to internal: {e}") from e
@@ -1203,18 +1304,31 @@ class BackpackAccountDataMapper:
             if size_dec == Decimal("0"):
                 entry_price_dec = None
 
-            return DerivativePosition(
-                exchange=ExchangeName.BACKPACK,
-                symbol=raw_position_update.symbol,
-                timestamp=timestamp,
-                side=side,
-                size=size_dec,
-                entry_price=entry_price_dec,
-                mark_price=prices["mark_price"],
-                liquidation_price=prices["liquidation_price"],
-                unrealized_pnl=None,  # Not available in position update
-                realized_pnl=None,  # Not available in position update
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            position_data = {
+                "exchange": ExchangeName.BACKPACK.value,
+                "symbol": raw_position_update.symbol,
+                "timestamp": timestamp.isoformat(),
+                "side": side.value,
+                "size": str(size_dec),
+                "entry_price": str(entry_price_dec) if entry_price_dec is not None else None,
+                "mark_price": str(prices["mark_price"])
+                if prices["mark_price"] is not None
+                else None,
+                "liquidation_price": str(prices["liquidation_price"])
+                if prices["liquidation_price"] is not None
+                else None,
+                "unrealized_pnl": None,  # Not available in position update
+                "realized_pnl": None,  # Not available in position update
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=position_data,
+                model_class=DerivativePosition,
+                context="backpack_ws_position_update_transform",
+                source_exchange="backpack",
             )
         except Exception as e:
             raise TransformationError(
@@ -1246,16 +1360,24 @@ class BackpackAccountDataMapper:
                 source_endpoint="/api/v1/account",
             )
 
-            return AccountSettings(
-                exchange=exchange_name,
-                timestamp=datetime.now(UTC),
-                leverage_limit=args.leverage_limit,
-                auto_borrow_settlements=args.auto_borrow_settlements,
-                auto_lend=args.auto_lend,
-                auto_realize_pnl=args.auto_realize_pnl,
-                auto_repay_borrows=args.auto_repay_borrows,
-                bp_details=bp_details,
-                hl_details=None,  # Not applicable for Backpack
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            settings_data = {
+                "exchange": exchange_name,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "leverage_limit": args.leverage_limit,
+                "auto_borrow_settlements": args.auto_borrow_settlements,
+                "auto_lend": args.auto_lend,
+                "auto_realize_pnl": args.auto_realize_pnl,
+                "auto_repay_borrows": args.auto_repay_borrows,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,  # Not applicable for Backpack
+            }
+
+            return secure_transform(
+                data=settings_data,
+                model_class=AccountSettings,
+                context="backpack_account_settings_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:

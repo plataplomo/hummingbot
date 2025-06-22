@@ -21,6 +21,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
 from cyberdelta.apis.models.api_error import TransformationError
@@ -34,6 +35,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -222,23 +224,33 @@ class BackpackTradingDataMapper:
             if updated_at:
                 updated_timestamp = parse_datetime_utc(updated_at, field_name="updated_at")
 
-            return Order(
-                exchange_order_id=order_id,
-                symbol=symbol,
-                side=mapped_side,
-                order_type=mapped_type,
-                status=mapped_status,
-                quantity_requested=quantity_requested,
-                quantity_filled=quantity_filled,
-                price=order_price,
-                time_in_force=mapped_tif,
-                exchange=ExchangeName.BACKPACK.value,
-                client_order_id=client_order_id or str(uuid.uuid4()),
-                created_at=created_timestamp or datetime.now(UTC),
-                updated_at=updated_timestamp,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            order_data: dict[str, Any] = {
+                "exchange_order_id": order_id,
+                "symbol": symbol,
+                "side": mapped_side.value,
+                "order_type": mapped_type.value,
+                "status": mapped_status.value,
+                "quantity_requested": str(quantity_requested),
+                "quantity_filled": str(quantity_filled),
+                "price": str(order_price) if order_price is not None else None,
+                "time_in_force": mapped_tif.value,
+                "exchange": ExchangeName.BACKPACK.value,
+                "client_order_id": client_order_id or str(uuid.uuid4()),
+                "created_at": (created_timestamp or datetime.now(UTC)).isoformat(),
+                "updated_at": updated_timestamp.isoformat() if updated_timestamp else None,
+                "triggered_at": None,
+                "strategy_name": None,
+                "signal_id": None,
+                "bp_details": None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=order_data,
+                model_class=Order,
+                context="backpack_simple_order_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -450,28 +462,39 @@ class BackpackTradingDataMapper:
             )
 
             # Create Order directly with all parameters
-            return Order(
-                exchange_order_id=raw_order.id,
-                symbol=raw_order.symbol,
-                side=mapped_side,
-                order_type=mapped_type,
-                status=mapped_status,
-                quantity_requested=quantity_requested,
-                quantity_filled=quantity_filled,
-                price=order_price,
-                stop_price=stop_price,
-                average_fill_price=average_fill_price,
-                time_in_force=mapped_tif,
-                exchange=ExchangeName.BACKPACK.value,
-                client_order_id=raw_order.clientId or str(uuid.uuid4()),
-                created_at=created_timestamp,
-                updated_at=updated_timestamp,
-                triggered_at=triggered_timestamp,
-                strategy_name=None,
-                signal_id=None,
-                reduce_only=raw_order.reduceOnly or False,
-                post_only=raw_order.postOnly or False,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            order_data: dict[str, Any] = {
+                "exchange_order_id": raw_order.id,
+                "symbol": raw_order.symbol,
+                "side": mapped_side.value,
+                "order_type": mapped_type.value,
+                "status": mapped_status.value,
+                "quantity_requested": str(quantity_requested),
+                "quantity_filled": str(quantity_filled),
+                "price": str(order_price) if order_price is not None else None,
+                "stop_price": str(stop_price) if stop_price is not None else None,
+                "average_fill_price": str(average_fill_price)
+                if average_fill_price is not None
+                else None,
+                "time_in_force": mapped_tif.value,
+                "exchange": ExchangeName.BACKPACK.value,
+                "client_order_id": raw_order.clientId or str(uuid.uuid4()),
+                "created_at": created_timestamp.isoformat(),
+                "updated_at": updated_timestamp.isoformat() if updated_timestamp else None,
+                "triggered_at": triggered_timestamp.isoformat() if triggered_timestamp else None,
+                "strategy_name": None,
+                "signal_id": None,
+                "reduce_only": raw_order.reduceOnly or False,
+                "post_only": raw_order.postOnly or False,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=order_data,
+                model_class=Order,
+                context="backpack_raw_order_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -547,25 +570,37 @@ class BackpackTradingDataMapper:
             if event_timestamp is None:
                 event_timestamp = datetime.now(UTC)
 
-            return Order(
-                exchange_order_id=f"ws_order_{raw_order_update.event_type}_{int(event_timestamp.timestamp())}",
-                symbol=raw_order_update.symbol,
-                side=mapped_side,
-                order_type=mapped_type,
-                status=mapped_status,
-                quantity_requested=quantity_requested,
-                quantity_filled=quantity_filled,
-                price=order_price,
-                time_in_force=mapped_tif,
-                exchange=ExchangeName.BACKPACK.value,
-                client_order_id=raw_order_update.client_order_id or str(uuid.uuid4()),
-                created_at=event_timestamp,
-                updated_at=event_timestamp,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                reduce_only=False,
-                post_only=False,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            order_data: dict[str, Any] = {
+                "exchange_order_id": (
+                    f"ws_order_{raw_order_update.event_type}_{int(event_timestamp.timestamp())}"
+                ),
+                "symbol": raw_order_update.symbol,
+                "side": mapped_side.value,
+                "order_type": mapped_type.value,
+                "status": mapped_status.value,
+                "quantity_requested": str(quantity_requested),
+                "quantity_filled": str(quantity_filled),
+                "price": str(order_price) if order_price is not None else None,
+                "time_in_force": mapped_tif.value,
+                "exchange": ExchangeName.BACKPACK.value,
+                "client_order_id": raw_order_update.client_order_id or str(uuid.uuid4()),
+                "created_at": event_timestamp.isoformat(),
+                "updated_at": event_timestamp.isoformat(),
+                "triggered_at": None,
+                "strategy_name": None,
+                "signal_id": None,
+                "reduce_only": False,
+                "post_only": False,
+                "bp_details": None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=order_data,
+                model_class=Order,
+                context="backpack_ws_order_update_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:

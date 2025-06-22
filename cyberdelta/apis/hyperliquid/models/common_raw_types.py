@@ -673,6 +673,8 @@ _ALLOWED_HISTORICAL_ORDER_STATUSES_HL = {
     "expired",
     "minTradeNtlRejected",  # Order rejected due to minimum trade notional requirement
     "unknownOid",  # Order ID not found
+    "perpMarginRejected",  # Order rejected due to perp margin requirements
+    "iocCancelRejected",  # IOC order cancel was rejected
 }
 RawHistoricalOrderStatusHL = Annotated[
     str,  # Base type

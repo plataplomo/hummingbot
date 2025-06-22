@@ -50,6 +50,7 @@ from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -145,13 +146,23 @@ class HyperliquidMarketDataMapper:
                     source_value=None,
                 )
 
-            return Ticker(
-                symbol=raw_asset_ctx.name,
-                timestamp=timestamp,
-                price=mark_px,  # Using mark_px as the last price
-                bid=None,  # Not available in asset context
-                ask=None,  # Not available in asset context
-                volume=volume_24h,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            ticker_data = {
+                "symbol": raw_asset_ctx.name,
+                "timestamp": timestamp.isoformat(),
+                "price": str(mark_px),  # Using mark_px as the last price
+                "bid": None,  # Not available in asset context
+                "ask": None,  # Not available in asset context
+                "volume": str(volume_24h) if volume_24h is not None else None,
+                "bp_details": None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=ticker_data,
+                model_class=Ticker,
+                context="hyperliquid_asset_ctx_transform",
+                source_exchange="hyperliquid",
             )
 
         except TransformationError:
@@ -199,11 +210,19 @@ class HyperliquidMarketDataMapper:
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
-            return OrderBook(
-                symbol=str(raw_book.coin),  # Convert RawAssetString64HL to str
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            orderbook_data = {
+                "symbol": str(raw_book.coin),  # Convert RawAssetString64HL to str
+                "bids": [(str(price), str(size)) for price, size in bids],
+                "asks": [(str(price), str(size)) for price, size in asks],
+                "timestamp": timestamp.isoformat(),
+            }
+
+            return secure_transform(
+                data=orderbook_data,
+                model_class=OrderBook,
+                context="hyperliquid_orderbook_transform",
+                source_exchange="hyperliquid",
             )
 
         except TransformationError:
@@ -319,20 +338,29 @@ class HyperliquidMarketDataMapper:
                 dir=None,
             )
 
-            return Trade(
-                id=raw_trade.hash,
-                symbol=str(raw_trade.coin),  # Convert RawAssetString64HL to str
-                executed_at=executed_at,
-                side=side,
-                order_id="UNKNOWN_PUBLIC_TRADE",  # Public trades don't have order IDs
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=None,
-                price=price,
-                quantity=quantity,
-                fee=Decimal("0"),  # Fee not available in public trades
-                fee_asset=None,
-                is_maker=None,  # Not available in public trades
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": raw_trade.hash,
+                "symbol": str(raw_trade.coin),  # Convert RawAssetString64HL to str
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": "UNKNOWN_PUBLIC_TRADE",  # Public trades don't have order IDs
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": None,
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": "0",  # Fee not available in public trades
+                "fee_asset": None,
+                "is_maker": None,  # Not available in public trades
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="hyperliquid_public_trade_transform",
+                source_exchange="hyperliquid",
             )
 
         except TransformationError:
@@ -413,15 +441,24 @@ class HyperliquidMarketDataMapper:
                 hl_impact_px=impact_px,
             )
 
-            return FundingRate(
-                symbol=str(raw_asset_ctx.name),  # Convert RawAssetString64HL to str
-                timestamp=datetime.now(UTC),
-                funding_rate=funding_rate_8hr,  # 8-hour rate for compatibility with tests
-                predicted_rate=None,
-                mark_price=mark_price,
-                index_price=None,
-                next_funding_time=next_funding_time,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            funding_data = {
+                "symbol": str(raw_asset_ctx.name),  # Convert RawAssetString64HL to str
+                "timestamp": datetime.now(UTC).isoformat(),
+                "funding_rate": str(funding_rate_8hr),  # 8-hour rate for compatibility with tests
+                "predicted_rate": None,
+                "mark_price": str(mark_price) if mark_price is not None else None,
+                "index_price": None,
+                "next_funding_time": next_funding_time.isoformat(),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=funding_data,
+                model_class=FundingRate,
+                context="hyperliquid_asset_ctx_funding_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -467,12 +504,24 @@ class HyperliquidMarketDataMapper:
                 # Add any HL-specific funding history fields here
             )
 
-            return FundingRate(
-                symbol=str(raw_item.coin),  # Convert RawAssetString64HL to str
-                timestamp=timestamp,
-                funding_rate=funding_rate,
-                next_funding_time=None,  # Not available in historical data
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            funding_data = {
+                "symbol": str(raw_item.coin),  # Convert RawAssetString64HL to str
+                "timestamp": timestamp.isoformat(),
+                "funding_rate": str(funding_rate),
+                "predicted_rate": None,
+                "mark_price": None,
+                "index_price": None,
+                "next_funding_time": None,  # Not available in historical data
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=funding_data,
+                model_class=FundingRate,
+                context="hyperliquid_funding_history_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -547,15 +596,23 @@ class HyperliquidMarketDataMapper:
                 if volume is None:
                     raise ValueError("Volume unexpectedly None after validation")
 
-                candle = Candle(
-                    symbol=symbol,
-                    interval=interval,
-                    open_time=timestamp,
-                    open=open_price,
-                    high=high_price,
-                    low=low_price,
-                    close=close_price,
-                    volume=volume,
+                # SECURITY FIX: Use secure_transform instead of direct instantiation
+                candle_data = {
+                    "symbol": symbol,
+                    "interval": interval,
+                    "open_time": timestamp.isoformat(),
+                    "open": str(open_price),
+                    "high": str(high_price),
+                    "low": str(low_price),
+                    "close": str(close_price),
+                    "volume": str(volume),
+                }
+
+                candle = secure_transform(
+                    data=candle_data,
+                    model_class=Candle,
+                    context="hyperliquid_candle_transform",
+                    source_exchange="hyperliquid",
                 )
 
                 candles.append(candle)
@@ -603,20 +660,29 @@ class HyperliquidMarketDataMapper:
                 dir=None,
             )
 
-            return Trade(
-                id=raw.hash,
-                symbol=str(raw.coin),  # Convert RawAssetString64HL to str
-                executed_at=executed_at,
-                side=side,
-                order_id="UNKNOWN_PUBLIC_TRADE",
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=None,
-                price=price,
-                quantity=quantity,
-                fee=Decimal("0"),
-                fee_asset=None,
-                is_maker=None,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": raw.hash,
+                "symbol": str(raw.coin),  # Convert RawAssetString64HL to str
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": "UNKNOWN_PUBLIC_TRADE",
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": None,
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": "0",
+                "fee_asset": None,
+                "is_maker": None,
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="hyperliquid_ws_trade_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -662,11 +728,19 @@ class HyperliquidMarketDataMapper:
             # Parse timestamp (convert from milliseconds)
             timestamp = datetime.fromtimestamp(raw.time / 1000, tz=UTC)
 
-            return OrderBook(
-                symbol=str(raw.coin),  # Convert RawAssetString64HL to str
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            orderbook_data = {
+                "symbol": str(raw.coin),  # Convert RawAssetString64HL to str
+                "bids": [(str(price), str(size)) for price, size in bids],
+                "asks": [(str(price), str(size)) for price, size in asks],
+                "timestamp": timestamp.isoformat(),
+            }
+
+            return secure_transform(
+                data=orderbook_data,
+                model_class=OrderBook,
+                context="hyperliquid_ws_book_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -819,21 +893,31 @@ class HyperliquidMarketDataMapper:
             )
 
             # Create market with available information
-            market = Market(
-                symbol=asset_def.name,
-                base_symbol=asset_def.name,  # For perps, symbol equals base
-                quote_symbol="USD",  # Hyperliquid perps are USD-settled
-                market_type="Perpetual",
-                tick_size=tick_size,
-                step_size=step_size,
-                min_price=None,  # Not specified in Hyperliquid meta
-                max_price=None,  # Not specified in Hyperliquid meta
-                min_quantity=step_size,  # Minimum is typically one step
-                max_quantity=None,  # Not specified in Hyperliquid meta
-                status="Active",  # Assume active if in meta response
-                created_at=None,  # Not provided in meta response
-                bp_details=None,  # Not applicable
-                hl_details=hl_details,  # Properly typed Hyperliquid details
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            market_data = {
+                "symbol": asset_def.name,
+                "base_symbol": asset_def.name,  # For perps, symbol equals base
+                "quote_symbol": "USD",  # Hyperliquid perps are USD-settled
+                "market_type": "Perpetual",
+                "tick_size": str(tick_size),
+                "step_size": str(step_size),
+                "min_price": None,  # Not specified in Hyperliquid meta
+                "max_price": None,  # Not specified in Hyperliquid meta
+                "min_quantity": str(step_size),  # Minimum is typically one step
+                "max_quantity": None,  # Not specified in Hyperliquid meta
+                "status": "Active",  # Assume active if in meta response
+                "created_at": None,  # Not provided in meta response
+                "bp_details": None,  # Not applicable
+                "hl_details": hl_details.model_dump()
+                if hl_details
+                else None,  # Properly typed Hyperliquid details
+            }
+
+            market = secure_transform(
+                data=market_data,
+                model_class=Market,
+                context="hyperliquid_asset_def_market_transform",
+                source_exchange="hyperliquid",
             )
 
             return market
@@ -896,8 +980,18 @@ class HyperliquidMarketDataMapper:
                     prices[symbol] = decimal_price
 
             # Create and return MidPrices instance
-            return MidPrices(
-                prices=prices, timestamp=datetime.now(UTC), exchange=ExchangeName.HYPERLIQUID.value
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            mid_prices_data = {
+                "prices": {symbol: str(price) for symbol, price in prices.items()},
+                "timestamp": datetime.now(UTC).isoformat(),
+                "exchange": ExchangeName.HYPERLIQUID.value,
+            }
+
+            return secure_transform(
+                data=mid_prices_data,
+                model_class=MidPrices,
+                context="hyperliquid_all_mids_transform",
+                source_exchange="hyperliquid",
             )
         except Exception as e:
             raise TransformationError(f"Failed to transform AllMids response: {e}") from e

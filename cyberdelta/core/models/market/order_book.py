@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
-from typing import TypeGuard
+from typing import TypeGuard, cast
 
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
@@ -146,11 +146,12 @@ class OrderBook(BaseModel):
         validated_levels: list[tuple[Decimal, Decimal]] = []
 
         # Process each item in the list - we know v is a list from the isinstance check above
-        # Use a different iteration approach that pyright can understand
-        list_length = len(v)  # This works because we know v is a list
+        # Cast to help pyright understand the type after isinstance check
+        v_list = cast(list[object], v)
+        list_length = len(v_list)
         for index in range(list_length):
             # Access items by index - pyright understands this pattern better
-            level_raw = v[index]
+            level_raw = v_list[index]
             validated_level = cls._validate_single_level(level_raw, field_name, index)
             validated_levels.append(validated_level)
 

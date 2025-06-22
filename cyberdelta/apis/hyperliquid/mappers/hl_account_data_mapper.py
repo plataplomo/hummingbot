@@ -51,6 +51,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -168,13 +169,22 @@ class HyperliquidAccountDataMapper:
                 available_usdc = total_usdc
 
             # Hyperliquid primarily uses USDC for spot balances
-            spot_balance = SpotBalance(
-                asset="USDC",
-                exchange=ExchangeName.HYPERLIQUID.value,
-                total_quantity=total_usdc,
-                available_quantity=available_usdc,
-                timestamp=datetime.now(UTC),
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            balance_data = {
+                "asset": "USDC",
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "total_quantity": str(total_usdc),
+                "available_quantity": str(available_usdc),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            spot_balance = secure_transform(
+                data=balance_data,
+                model_class=SpotBalance,
+                context="hyperliquid_usdc_balance_transform",
+                source_exchange="hyperliquid",
             )
 
             spot_balances["USDC"] = spot_balance
@@ -222,13 +232,22 @@ class HyperliquidAccountDataMapper:
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
-            spot_balance = SpotBalance(
-                asset=asset_name,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                total_quantity=size,
-                available_quantity=size,  # Assume all available for spot
-                timestamp=datetime.now(UTC),
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            balance_data = {
+                "asset": asset_name,
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "total_quantity": str(size),
+                "available_quantity": str(size),  # Assume all available for spot
+                "timestamp": datetime.now(UTC).isoformat(),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            spot_balance = secure_transform(
+                data=balance_data,
+                model_class=SpotBalance,
+                context="hyperliquid_spot_asset_transform",
+                source_exchange="hyperliquid",
             )
 
             spot_balances[asset_name] = spot_balance
@@ -379,17 +398,26 @@ class HyperliquidAccountDataMapper:
         else:  # size == 0, use a default (either is valid for zero positions)
             side = OrderSide.BUY
 
-        return DerivativePosition(
-            exchange=ExchangeName.HYPERLIQUID.value,
-            symbol=symbol,
-            side=side,
-            size=size,
-            entry_price=entry_price,
-            mark_price=None,  # Not available in this context
-            liquidation_price=liquidation_price,
-            unrealized_pnl=unrealized_pnl,
-            timestamp=datetime.now(UTC),
-            hl_details=details,
+        # SECURITY FIX: Use secure_transform instead of direct instantiation
+        position_data = {
+            "exchange": ExchangeName.HYPERLIQUID.value,
+            "symbol": symbol,
+            "side": side.value,
+            "size": str(size),
+            "entry_price": str(entry_price) if entry_price is not None else None,
+            "mark_price": None,  # Not available in this context
+            "liquidation_price": str(liquidation_price) if liquidation_price is not None else None,
+            "unrealized_pnl": str(unrealized_pnl) if unrealized_pnl is not None else None,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "hl_details": details.model_dump() if details else None,
+            "bp_details": None,
+        }
+
+        return secure_transform(
+            data=position_data,
+            model_class=DerivativePosition,
+            context="hyperliquid_position_transform",
+            source_exchange="hyperliquid",
         )
 
     @staticmethod
@@ -515,16 +543,27 @@ class HyperliquidAccountDataMapper:
                 else Decimal("0"),
             )
 
-            return MarginAccountSummary(
-                exchange=ExchangeName.HYPERLIQUID.value,
-                timestamp=datetime.now(UTC),
-                total_equity=account_value,
-                available_equity=withdrawable,
-                total_initial_margin_required=total_margin_used,
-                total_maintenance_margin_required=total_maintenance_margin,
-                total_position_notional=total_ntl_pos,
-                total_unrealized_pnl=total_unrealized_pnl,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            margin_data = {
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "total_equity": str(account_value),
+                "available_equity": str(withdrawable),
+                "total_initial_margin_required": str(total_margin_used),
+                "total_maintenance_margin_required": str(total_maintenance_margin),
+                "total_position_notional": str(total_ntl_pos)
+                if total_ntl_pos is not None
+                else None,
+                "total_unrealized_pnl": str(total_unrealized_pnl),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=margin_data,
+                model_class=MarginAccountSummary,
+                context="hyperliquid_margin_summary_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -590,20 +629,29 @@ class HyperliquidAccountDataMapper:
                 dir=getattr(raw_fill, "dir", None),
             )
 
-            return Trade(
-                id=getattr(raw_fill, "hash", f"fill_{raw_fill.time}_{raw_fill.coin}"),
-                symbol=raw_fill.coin,
-                executed_at=executed_at,
-                side=side,
-                order_id=str(getattr(raw_fill, "oid", "unknown")),
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=getattr(raw_fill, "cloid", None),
-                price=price,
-                quantity=quantity,
-                fee=fee,
-                fee_asset=raw_fill.coin,  # Fee asset is the traded symbol
-                is_maker=getattr(raw_fill, "is_maker", None),
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": str(getattr(raw_fill, "hash", f"fill_{raw_fill.time}_{raw_fill.coin}")),
+                "symbol": raw_fill.coin,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": str(getattr(raw_fill, "oid", "unknown")),
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": getattr(raw_fill, "cloid", None),
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": str(fee),
+                "fee_asset": raw_fill.coin,  # Fee asset is the traded symbol
+                "is_maker": getattr(raw_fill, "is_maker", None),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="hyperliquid_user_fill_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -664,20 +712,29 @@ class HyperliquidAccountDataMapper:
                 dir=getattr(raw_fill, "dir", None),
             )
 
-            return Trade(
-                id=str(raw_fill.tid),
-                symbol=raw_fill.coin,
-                executed_at=executed_at,
-                side=side,
-                order_id=str(raw_fill.oid),
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=raw_fill.cloid if raw_fill.cloid else None,
-                price=price,
-                quantity=quantity,
-                fee=fee,
-                fee_asset=raw_fill.coin,  # Fee asset is the traded symbol
-                is_maker=raw_fill.is_maker,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": str(raw_fill.tid),
+                "symbol": raw_fill.coin,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": str(raw_fill.oid),
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": raw_fill.cloid if raw_fill.cloid else None,
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": str(fee),
+                "fee_asset": raw_fill.coin,  # Fee asset is the traded symbol
+                "is_maker": raw_fill.is_maker,
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="hyperliquid_fill_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -721,20 +778,29 @@ class HyperliquidAccountDataMapper:
                 dir=None,
             )
 
-            return Trade(
-                id=raw_fill.hash,
-                symbol=raw_fill.coin,
-                executed_at=executed_at,
-                side=side,
-                order_id=str(raw_fill.oid),
-                exchange=ExchangeName.HYPERLIQUID.value,
-                client_order_id=raw_fill.cloid,
-                price=price,
-                quantity=quantity,
-                fee=Decimal("0"),  # Fee not available in WS fill events
-                fee_asset=None,
-                is_maker=raw_fill.is_maker,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data = {
+                "id": raw_fill.hash,
+                "symbol": raw_fill.coin,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": str(raw_fill.oid),
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": raw_fill.cloid,
+                "price": str(price),
+                "quantity": str(quantity),
+                "fee": "0",  # Fee not available in WS fill events
+                "fee_asset": None,
+                "is_maker": raw_fill.is_maker,
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="hyperliquid_ws_fill_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -843,17 +909,28 @@ class HyperliquidAccountDataMapper:
             else:  # size == 0, use a default (either is valid for zero positions)
                 side = OrderSide.BUY
 
-            return DerivativePosition(
-                exchange=ExchangeName.HYPERLIQUID.value,
-                symbol=symbol,
-                side=side,
-                size=size,
-                entry_price=entry_price,
-                mark_price=None,  # Not available in this context
-                liquidation_price=liquidation_price,
-                unrealized_pnl=unrealized_pnl,
-                timestamp=timestamp,
-                hl_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            position_data = {
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "symbol": symbol,
+                "side": side.value,
+                "size": str(size),
+                "entry_price": str(entry_price) if entry_price is not None else None,
+                "mark_price": None,  # Not available in this context
+                "liquidation_price": str(liquidation_price)
+                if liquidation_price is not None
+                else None,
+                "unrealized_pnl": str(unrealized_pnl) if unrealized_pnl is not None else None,
+                "timestamp": timestamp.isoformat(),
+                "hl_details": details.model_dump() if details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=position_data,
+                model_class=DerivativePosition,
+                context="hyperliquid_raw_position_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:
@@ -925,17 +1002,25 @@ class HyperliquidAccountDataMapper:
                 cross_margin_enabled=True,  # Default to cross margin
             )
 
-            return AccountSettings(
-                exchange=exchange_name,
-                timestamp=datetime.now(UTC),
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            settings_data = {
+                "exchange": exchange_name,
+                "timestamp": datetime.now(UTC).isoformat(),
                 # This serves as the "default" for new positions
-                leverage_limit=args.leverage_limit,
-                auto_borrow_settlements=None,  # Not supported by Hyperliquid
-                auto_lend=None,  # Not supported by Hyperliquid
-                auto_realize_pnl=None,  # Not supported by Hyperliquid
-                auto_repay_borrows=None,  # Not supported by Hyperliquid
-                hl_details=hl_details,
-                bp_details=None,
+                "leverage_limit": args.leverage_limit,
+                "auto_borrow_settlements": None,  # Not supported by Hyperliquid
+                "auto_lend": None,  # Not supported by Hyperliquid
+                "auto_realize_pnl": None,  # Not supported by Hyperliquid
+                "auto_repay_borrows": None,  # Not supported by Hyperliquid
+                "hl_details": hl_details.model_dump() if hl_details else None,
+                "bp_details": None,
+            }
+
+            return secure_transform(
+                data=settings_data,
+                model_class=AccountSettings,
+                context="hyperliquid_account_settings_transform",
+                source_exchange="hyperliquid",
             )
 
         except Exception as e:

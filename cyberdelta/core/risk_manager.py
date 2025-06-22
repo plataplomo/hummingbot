@@ -609,7 +609,7 @@ class RiskManager:
         """Check that portfolio leverage is within allowed limits."""
         total_capital = await self.portfolio_tracker.get_total_capital()
 
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             self.logger.warning("Total capital is zero or negative. Cannot calculate leverage.")
             return False
         try:
@@ -790,7 +790,7 @@ class RiskManager:
         # Example: Simple check against total exposure
         # (redundant with _check_portfolio_constraints?)
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             self.logger.warning("Cannot apply exposure management: Total capital unavailable.")
             return []
 
@@ -997,7 +997,7 @@ class RiskManager:
         """
         # Ensure total_capital is fetched and valid before proceeding
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             msg = f"Cannot check constraints: Invalid total capital ({total_capital})."
             self.logger.warning(msg)
             return False, msg
@@ -1185,7 +1185,7 @@ class RiskManager:
 
         # Check total capital
         total_capital = await self.portfolio_tracker.get_total_capital()
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             logger.warning(
                 f"Cannot size opportunity {opportunity.symbol}: Total capital is zero or negative.",
             )
@@ -1674,7 +1674,7 @@ class RiskManager:
 
         total_capital = await self.portfolio_tracker.get_total_capital()
         # total_capital can be None in edge cases, handle gracefully
-        if total_capital is None or total_capital <= ZERO:
+        if total_capital <= ZERO:
             logger.warning(
                 f"Cannot calculate max exposure limit: Total capital is {total_capital} "
                 f"(zero or negative).",

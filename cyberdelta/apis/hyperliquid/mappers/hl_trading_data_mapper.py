@@ -42,6 +42,7 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -413,30 +414,44 @@ class HyperliquidTradingDataMapper:
             created_at = parse_datetime_utc(raw_simple_order.timestamp, field_name="timestamp")
             updated_at = created_at  # No separate updated timestamp in simple orders
 
-            # Create Order object
-            return Order(
-                exchange_order_id=str(raw_simple_order.oid),
-                # client_order_id will use default UUID generation
-                symbol=raw_simple_order.coin,
-                side=side,
-                order_type=order_type,
-                status=status,
-                time_in_force=time_in_force,
-                quantity_requested=(
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            order_data: dict[str, Any] = {
+                "exchange_order_id": str(raw_simple_order.oid),
+                "symbol": raw_simple_order.coin,
+                "side": side.value,
+                "order_type": order_type.value,
+                "status": status.value,
+                "time_in_force": time_in_force.value,
+                "quantity_requested": str(
                     quantity_requested if quantity_requested is not None else Decimal("0")
                 ),
-                quantity_filled=quantity_filled,
-                price=price,
-                average_fill_price=average_fill_price,
-                stop_price=stop_price,
-                trigger_by=trigger_by,
-                created_at=created_at if created_at is not None else datetime.now(UTC),
-                updated_at=updated_at,
-                triggered_at=None,  # Not available in simple order format
-                strategy_name=None,  # Not available in simple order format
-                signal_id=None,  # Not available in simple order format
-                exchange=ExchangeName.HYPERLIQUID.value,
-                hl_details=None,  # Could be populated if needed
+                "quantity_filled": str(quantity_filled),
+                "price": str(price) if price is not None else None,
+                "average_fill_price": str(average_fill_price)
+                if average_fill_price is not None
+                else None,
+                "stop_price": str(stop_price) if stop_price is not None else None,
+                "trigger_by": trigger_by.value if trigger_by is not None else None,
+                "created_at": (
+                    created_at if created_at is not None else datetime.now(UTC)
+                ).isoformat(),
+                "updated_at": updated_at.isoformat() if updated_at is not None else None,
+                "triggered_at": None,  # Not available in simple order format
+                "strategy_name": None,  # Not available in simple order format
+                "signal_id": None,  # Not available in simple order format
+                "exchange": ExchangeName.HYPERLIQUID.value,
+                "client_order_id": None,  # Will use default UUID generation
+                "hl_details": None,  # Could be populated if needed
+                "bp_details": None,
+                "reduce_only": False,
+                "post_only": False,
+            }
+
+            return secure_transform(
+                data=order_data,
+                model_class=Order,
+                context="hyperliquid_simple_order_transform",
+                source_exchange="hyperliquid",
             )
 
         except TransformationError:
@@ -589,62 +604,52 @@ class HyperliquidTradingDataMapper:
         components: OrderComponents,
     ) -> Order:
         """Create Order object from parsed components."""
-        # Create order directly - no dict unpacking to avoid pyright issues
+        # SECURITY FIX: Use secure_transform instead of direct instantiation
+        order_data: dict[str, Any] = {
+            "exchange_order_id": str(raw_order.oid),
+            "symbol": raw_order.asset,
+            "exchange": ExchangeName.HYPERLIQUID.value,
+            "side": components["side"].value,
+            "order_type": components["order_type"].value,
+            "status": components["status"].value,
+            "quantity_requested": str(components["quantity_requested"]),
+            "quantity_filled": str(components["quantity_filled"]),
+            "price": str(components["price"]) if components["price"] is not None else None,
+            "stop_price": str(components["stop_price"])
+            if components["stop_price"] is not None
+            else None,
+            "average_fill_price": str(components["average_fill_price"])
+            if components["average_fill_price"] is not None
+            else None,
+            "trigger_by": components["trigger_by"].value
+            if components["trigger_by"] is not None
+            else None,
+            "time_in_force": components["time_in_force"].value,
+            "created_at": components["created_at"].isoformat(),
+            "updated_at": components["updated_at"].isoformat(),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
+            "quote_quantity_requested": None,
+            "reduce_only": False,
+            "post_only": False,
+            "trades": [],
+            "hl_details": None,
+            "bp_details": None,
+        }
+
+        # Include client_order_id if present
         if raw_order.cloid is not None:
-            return Order(
-                client_order_id=raw_order.cloid,
-                exchange_order_id=str(raw_order.oid),
-                symbol=raw_order.asset,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                side=components["side"],
-                order_type=components["order_type"],
-                status=components["status"],
-                quantity_requested=components["quantity_requested"],
-                quantity_filled=components["quantity_filled"],
-                price=components["price"],
-                stop_price=components["stop_price"],
-                average_fill_price=components["average_fill_price"],
-                trigger_by=components["trigger_by"],
-                time_in_force=components["time_in_force"],
-                created_at=components["created_at"],
-                updated_at=components["updated_at"],
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                quote_quantity_requested=None,
-                reduce_only=False,
-                post_only=False,
-                trades=[],
-                hl_details=None,
-                bp_details=None,
-            )
+            order_data["client_order_id"] = raw_order.cloid
         else:
-            return Order(
-                exchange_order_id=str(raw_order.oid),
-                symbol=raw_order.asset,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                side=components["side"],
-                order_type=components["order_type"],
-                status=components["status"],
-                quantity_requested=components["quantity_requested"],
-                quantity_filled=components["quantity_filled"],
-                price=components["price"],
-                stop_price=components["stop_price"],
-                average_fill_price=components["average_fill_price"],
-                trigger_by=components["trigger_by"],
-                time_in_force=components["time_in_force"],
-                created_at=components["created_at"],
-                updated_at=components["updated_at"],
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                quote_quantity_requested=None,
-                reduce_only=False,
-                post_only=False,
-                trades=[],
-                hl_details=None,
-                bp_details=None,
-            )
+            order_data["client_order_id"] = None
+
+        return secure_transform(
+            data=order_data,
+            model_class=Order,
+            context="hyperliquid_order_transform",
+            source_exchange="hyperliquid",
+        )
 
     @staticmethod
     def transform_raw_historical_order_to_internal(
@@ -855,62 +860,52 @@ class HyperliquidTradingDataMapper:
         # Get client order ID
         cloid = getattr(raw_historical_order, "cloid", None)
 
-        # Create order directly - no dict unpacking to avoid pyright issues
+        # SECURITY FIX: Use secure_transform instead of direct instantiation
+        order_data: dict[str, Any] = {
+            "exchange_order_id": str(raw_historical_order.oid),
+            "symbol": raw_historical_order.asset,
+            "exchange": ExchangeName.HYPERLIQUID.value,
+            "side": components["side"].value,
+            "order_type": components["order_type"].value,
+            "status": components["status"].value,
+            "quantity_requested": str(components["quantity_requested"]),
+            "quantity_filled": str(components["quantity_filled"]),
+            "price": str(components["price"]) if components["price"] is not None else None,
+            "stop_price": str(components["stop_price"])
+            if components["stop_price"] is not None
+            else None,
+            "average_fill_price": str(components["average_fill_price"])
+            if components["average_fill_price"] is not None
+            else None,
+            "trigger_by": components["trigger_by"].value
+            if components["trigger_by"] is not None
+            else None,
+            "time_in_force": components["time_in_force"].value,
+            "created_at": components["created_at"].isoformat(),
+            "updated_at": components["updated_at"].isoformat(),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
+            "quote_quantity_requested": None,
+            "reduce_only": False,
+            "post_only": False,
+            "trades": [],
+            "hl_details": None,
+            "bp_details": None,
+        }
+
+        # Include client_order_id if present
         if cloid is not None:
-            return Order(
-                client_order_id=cloid,
-                exchange_order_id=str(raw_historical_order.oid),
-                symbol=raw_historical_order.asset,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                side=components["side"],
-                order_type=components["order_type"],
-                status=components["status"],
-                quantity_requested=components["quantity_requested"],
-                quantity_filled=components["quantity_filled"],
-                price=components["price"],
-                stop_price=components["stop_price"],
-                average_fill_price=components["average_fill_price"],
-                trigger_by=components["trigger_by"],
-                time_in_force=components["time_in_force"],
-                created_at=components["created_at"],
-                updated_at=components["updated_at"],
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                quote_quantity_requested=None,
-                reduce_only=False,
-                post_only=False,
-                trades=[],
-                hl_details=None,
-                bp_details=None,
-            )
+            order_data["client_order_id"] = cloid
         else:
-            return Order(
-                exchange_order_id=str(raw_historical_order.oid),
-                symbol=raw_historical_order.asset,
-                exchange=ExchangeName.HYPERLIQUID.value,
-                side=components["side"],
-                order_type=components["order_type"],
-                status=components["status"],
-                quantity_requested=components["quantity_requested"],
-                quantity_filled=components["quantity_filled"],
-                price=components["price"],
-                stop_price=components["stop_price"],
-                average_fill_price=components["average_fill_price"],
-                trigger_by=components["trigger_by"],
-                time_in_force=components["time_in_force"],
-                created_at=components["created_at"],
-                updated_at=components["updated_at"],
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                quote_quantity_requested=None,
-                reduce_only=False,
-                post_only=False,
-                trades=[],
-                hl_details=None,
-                bp_details=None,
-            )
+            order_data["client_order_id"] = None
+
+        return secure_transform(
+            data=order_data,
+            model_class=Order,
+            context="hyperliquid_historical_order_transform",
+            source_exchange="hyperliquid",
+        )
 
     @staticmethod
     def transform_ws_order_update_to_internal_order(

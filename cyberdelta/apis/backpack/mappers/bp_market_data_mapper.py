@@ -23,7 +23,7 @@ All transformation methods follow the standard pattern:
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
@@ -52,6 +52,7 @@ from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = logging.getLogger(__name__)
 
@@ -155,14 +156,23 @@ class BackpackMarketDataMapper:
                 trades=trades_count,
             )
 
-            return Ticker(
-                symbol=symbol,
-                timestamp=timestamp,
-                price=last_price,  # Map lastPrice to core price field
-                bid=None,  # Not available from Backpack ticker endpoint
-                ask=None,  # Not available from Backpack ticker endpoint
-                volume=volume_24h,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            ticker_data: dict[str, Any] = {
+                "symbol": symbol,
+                "timestamp": timestamp.isoformat(),
+                "price": str(last_price),  # Map lastPrice to core price field
+                "bid": None,  # Not available from Backpack ticker endpoint
+                "ask": None,  # Not available from Backpack ticker endpoint
+                "volume": str(volume_24h) if volume_24h is not None else None,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=ticker_data,
+                model_class=Ticker,
+                context="backpack_ticker_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -226,20 +236,29 @@ class BackpackMarketDataMapper:
                 created_at_raw=raw_market.created_at,
             )
 
-            return Market(
-                symbol=raw_market.symbol,
-                base_symbol=raw_market.base_symbol,
-                quote_symbol=raw_market.quote_symbol,
-                market_type=raw_market.market_type,
-                tick_size=tick_size,
-                step_size=step_size,
-                min_price=min_price,
-                max_price=max_price,
-                min_quantity=min_quantity,
-                max_quantity=max_quantity,
-                status=raw_market.order_book_state,
-                created_at=created_at,
-                bp_details=bp_details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            market_data: dict[str, Any] = {
+                "symbol": raw_market.symbol,
+                "base_symbol": raw_market.base_symbol,
+                "quote_symbol": raw_market.quote_symbol,
+                "market_type": raw_market.market_type,
+                "tick_size": str(tick_size),
+                "step_size": str(step_size),
+                "min_price": str(min_price) if min_price is not None else None,
+                "max_price": str(max_price) if max_price is not None else None,
+                "min_quantity": str(min_quantity) if min_quantity is not None else None,
+                "max_quantity": str(max_quantity) if max_quantity is not None else None,
+                "status": raw_market.order_book_state,
+                "created_at": created_at.isoformat() if created_at is not None else None,
+                "bp_details": bp_details.model_dump() if bp_details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=market_data,
+                model_class=Market,
+                context="backpack_market_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -294,11 +313,19 @@ class BackpackMarketDataMapper:
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
-            return OrderBook(
-                symbol=symbol,
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            orderbook_data: dict[str, Any] = {
+                "symbol": symbol,
+                "bids": [(str(price), str(size)) for price, size in bids],
+                "asks": [(str(price), str(size)) for price, size in asks],
+                "timestamp": timestamp.isoformat(),
+            }
+
+            return secure_transform(
+                data=orderbook_data,
+                model_class=OrderBook,
+                context="backpack_orderbook_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -342,16 +369,26 @@ class BackpackMarketDataMapper:
             # Create BP-specific details
             details = BackpackTradeDetails()
 
-            return Trade(
-                id=raw_trade.id,
-                symbol=raw_trade.symbol,
-                executed_at=executed_at,
-                side=OrderSide.BUY,  # BackpackRawPublicTrade doesn't have side, default to BUY
-                order_id=raw_trade.order_id,
-                exchange=ExchangeName.BACKPACK.value,
-                price=price,
-                quantity=quantity,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data: dict[str, Any] = {
+                "id": raw_trade.id,
+                "symbol": raw_trade.symbol,
+                "executed_at": executed_at.isoformat(),
+                # BackpackRawPublicTrade doesn't have side, default to BUY
+                "side": OrderSide.BUY.value,
+                "order_id": raw_trade.order_id,
+                "exchange": ExchangeName.BACKPACK.value,
+                "price": str(price),
+                "quantity": str(quantity),
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="backpack_public_trade_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -403,16 +440,25 @@ class BackpackMarketDataMapper:
             # Create BP-specific details
             details = BackpackTradeDetails()
 
-            return Trade(
-                id=str(raw_trade.id),  # Convert int ID to string
-                symbol=symbol,
-                executed_at=executed_at,
-                side=side,
-                order_id="",  # Not available in recent trades response
-                exchange=ExchangeName.BACKPACK.value,
-                price=price,
-                quantity=quantity,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data: dict[str, Any] = {
+                "id": str(raw_trade.id),  # Convert int ID to string
+                "symbol": symbol,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": "",  # Not available in recent trades response
+                "exchange": ExchangeName.BACKPACK.value,
+                "price": str(price),
+                "quantity": str(quantity),
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="backpack_recent_trade_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -464,13 +510,22 @@ class BackpackMarketDataMapper:
             # Create BP-specific details
             details = BackpackFundingDetails()
 
-            return FundingRate(
-                symbol=raw_funding.symbol,
-                timestamp=timestamp,
-                funding_rate=funding_rate,
-                mark_price=mark_price,
-                index_price=index_price,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            funding_data: dict[str, Any] = {
+                "symbol": raw_funding.symbol,
+                "timestamp": timestamp.isoformat(),
+                "funding_rate": str(funding_rate),
+                "mark_price": str(mark_price) if mark_price is not None else None,
+                "index_price": str(index_price) if index_price is not None else None,
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=funding_data,
+                model_class=FundingRate,
+                context="backpack_funding_rate_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -514,11 +569,22 @@ class BackpackMarketDataMapper:
             # Create BP-specific details
             details = BackpackFundingDetails()
 
-            return FundingRate(
-                symbol=symbol,
-                timestamp=timestamp,
-                funding_rate=funding_rate,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            funding_data: dict[str, Any] = {
+                "symbol": symbol,
+                "timestamp": timestamp.isoformat(),
+                "funding_rate": str(funding_rate),
+                "mark_price": None,
+                "index_price": None,
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=funding_data,
+                model_class=FundingRate,
+                context="backpack_funding_interval_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -588,15 +654,23 @@ class BackpackMarketDataMapper:
             if volume is None:
                 raise ValueError(f"volume is None for symbol {symbol}")
 
-            return Candle(
-                symbol=symbol,
-                interval=interval,
-                open_time=open_time,
-                open=open_price,
-                high=high_price,
-                low=low_price,
-                close=close_price,
-                volume=volume,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            candle_data: dict[str, Any] = {
+                "symbol": symbol,
+                "interval": interval,
+                "open_time": open_time.isoformat(),
+                "open": str(open_price),
+                "high": str(high_price),
+                "low": str(low_price),
+                "close": str(close_price),
+                "volume": str(volume),
+            }
+
+            return secure_transform(
+                data=candle_data,
+                model_class=Candle,
+                context="backpack_kline_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -634,13 +708,23 @@ class BackpackMarketDataMapper:
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
-            return Ticker(
-                symbol=raw_ticker.symbol,
-                timestamp=timestamp,
-                price=last_price,
-                bid=None,  # Not available in ticker event
-                ask=None,  # Not available in ticker event
-                volume=volume_24h,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            ticker_data: dict[str, Any] = {
+                "symbol": raw_ticker.symbol,
+                "timestamp": timestamp.isoformat(),
+                "price": str(last_price) if last_price is not None else None,
+                "bid": None,  # Not available in ticker event
+                "ask": None,  # Not available in ticker event
+                "volume": str(volume_24h) if volume_24h is not None else None,
+                "bp_details": None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=ticker_data,
+                model_class=Ticker,
+                context="backpack_ws_ticker_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -695,11 +779,19 @@ class BackpackMarketDataMapper:
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
-            return OrderBook(
-                symbol=symbol,
-                bids=bids,
-                asks=asks,
-                timestamp=timestamp,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            orderbook_data: dict[str, Any] = {
+                "symbol": symbol,
+                "bids": [(str(price), str(size)) for price, size in bids],
+                "asks": [(str(price), str(size)) for price, size in asks],
+                "timestamp": timestamp.isoformat(),
+            }
+
+            return secure_transform(
+                data=orderbook_data,
+                model_class=OrderBook,
+                context="backpack_ws_depth_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
@@ -747,16 +839,25 @@ class BackpackMarketDataMapper:
             # Create BP-specific details
             details = BackpackTradeDetails()
 
-            return Trade(
-                id=raw_trade.trade_id,
-                symbol=raw_trade.symbol,
-                executed_at=executed_at,
-                side=side,
-                order_id=raw_trade.buyer_order_id,  # Choose buyer order ID as primary
-                exchange=ExchangeName.BACKPACK.value,
-                price=price,
-                quantity=quantity,
-                bp_details=details,
+            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            trade_data: dict[str, Any] = {
+                "id": raw_trade.trade_id,
+                "symbol": raw_trade.symbol,
+                "executed_at": executed_at.isoformat(),
+                "side": side.value,
+                "order_id": raw_trade.buyer_order_id,  # Choose buyer order ID as primary
+                "exchange": ExchangeName.BACKPACK.value,
+                "price": str(price),
+                "quantity": str(quantity),
+                "bp_details": details.model_dump() if details else None,
+                "hl_details": None,
+            }
+
+            return secure_transform(
+                data=trade_data,
+                model_class=Trade,
+                context="backpack_ws_trade_transform",
+                source_exchange="backpack",
             )
 
         except Exception as e:
