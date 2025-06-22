@@ -1075,10 +1075,10 @@ class BackpackAccountDataMapper:
             # Parse optional complex fields that can be None
             trigger_by_result = BackpackAccountDataMapper._map_trigger_by_to_internal(raw.triggerBy)
             trigger_by_value = trigger_by_result.value if trigger_by_result is not None else None
-            
+
             updated_dt = parse_datetime_utc(raw.updatedAt) if raw.updatedAt else None
             updated_at_value = updated_dt.isoformat() if updated_dt is not None else None
-            
+
             triggered_dt = parse_datetime_utc(raw.triggeredAt) if raw.triggeredAt else None
             triggered_at_value = triggered_dt.isoformat() if triggered_dt is not None else None
 
