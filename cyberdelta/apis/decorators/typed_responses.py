@@ -8,7 +8,7 @@ import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, Generic, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel, ValidationError
 
@@ -26,6 +26,87 @@ class TypedResponseError(Exception):
     """Typed response validation error."""
 
     pass
+
+
+class TypedApiMethod(Generic[T]):
+    """Enhanced version of typed_api_method that works with class-based approach.
+    
+    Maintains compatibility with existing service patterns:
+    - HttpClientRequesterSig integration
+    - Response handler validation
+    - Error mapping
+    """
+    
+    def __init__(
+        self,
+        response_model: type[T] | None = None,
+        list_of: type[T] | None = None,
+        allow_none: bool = False,
+        context_builder: Callable[..., str] | None = None,
+        validate_status_code: bool = True,
+        expected_status_codes: set[int] | None = None,
+    ) -> None:
+        """Initialize TypedApiMethod."""
+        self.response_model = response_model
+        self.list_of = list_of
+        self.allow_none = allow_none
+        self.context_builder = context_builder
+        self.validate_status_code = validate_status_code
+        self.expected_status_codes = expected_status_codes or {200, 201}
+    
+    def __call__(
+        self, 
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, dict[str, Any]]]]
+    ) -> Callable[..., Awaitable[T | list[T] | None]]:
+        """Transform HTTP method to return validated model."""
+        sig = inspect.signature(func)
+        param_names = list(sig.parameters.keys())[1:]  # Skip 'self'
+        
+        @wraps(func)
+        async def wrapper(*args: object, **kwargs: object) -> T | list[T] | None:
+            # Execute HTTP request (matches current pattern)
+            raw_data, status_code, _ = await func(*args, **kwargs)
+            
+            # Build context for errors
+            if self.context_builder:
+                context = self.context_builder(*args, **kwargs)
+            else:
+                # Smart context building (matches current implementation)
+                context = _build_context(func, param_names, args)
+            
+            # Status code validation
+            if self.validate_status_code and status_code not in self.expected_status_codes:
+                logger.warning(
+                    f"Unexpected status code {status_code} for {context}, "
+                    f"expected one of {self.expected_status_codes}"
+                )
+            
+            # Handle None responses
+            if raw_data is None:
+                if self.allow_none:
+                    return None
+                raise APIError(
+                    message=f"No data received for {context}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code
+                )
+            
+            # Validate and transform
+            if self.list_of is not None:
+                return _validate_list_response(raw_data, self.list_of, context, status_code)
+            elif self.response_model is not None:
+                return _validate_object_response(
+                    raw_data, self.response_model, context, status_code
+                )
+            else:
+                # No type specified - log warning but return raw data for backwards compatibility
+                logger.warning(
+                    f"No type specified for {context}. Consider using response_model or list_of "
+                    "for type safety. Returning raw data."
+                )
+                return raw_data  # type: ignore[return-value]
+        
+        return wrapper
 
 
 def _build_context(
