@@ -413,6 +413,9 @@ class BackpackAccountDataMapper:
                 raise TransformationError("net_quantity missing/invalid in BackpackRawPosition")
 
             entry_price_dec = parse_decimal_value(raw.entry_price)
+            # Note: Entry prices are often calculated averages that may have higher precision
+            # than the market's tick size. We preserve the full precision as reported by the exchange
+            # since this represents the actual average entry price across multiple fills.
             mark_price_dec = parse_decimal_value(raw.mark_price)
             liq_price_dec = parse_decimal_value(raw.est_liquidation_price)
             unrealized_pnl_dec = parse_decimal_value(raw.pnl_unrealized)

@@ -99,7 +99,7 @@ def create_mock_signal(
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
     """Create a FundingRateArbitrageStrategy instance for testing."""
-    data_handler = AsyncMock()
+    data_handler = MagicMock()
     portfolio_tracker = MagicMock(spec=PortfolioTracker)
     risk_manager_mock = MagicMock(spec=RiskManager)
 
@@ -201,9 +201,14 @@ async def test_process_data_scheduling(
             strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
-        patch.object(strategy, "evaluate_entry_opportunity", new_callable=AsyncMock) as mock_eval,
+        patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
-        mock_eval.return_value = []  # No signals generated
+        # Configure mock to return an awaitable
+        async def mock_evaluate_entry() -> list[Any]:
+            return []
+
+        mock_eval.side_effect = mock_evaluate_entry
+
         await strategy.process_data(mock_data)
 
     # Should have called evaluate_entry_opportunity since last_opportunity_check was None
@@ -226,8 +231,14 @@ async def test_process_data_no_scheduling_if_recent_check(
             strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
-        patch.object(strategy, "evaluate_entry_opportunity", new_callable=AsyncMock) as mock_eval,
+        patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
+        # Configure mock to return an awaitable (though it shouldn't be called)
+        async def mock_evaluate_entry() -> list[Any]:
+            return []
+
+        mock_eval.side_effect = mock_evaluate_entry
+
         await strategy.process_data(mock_data)
 
     # Should NOT have called evaluate_entry_opportunity since recent check was performed
@@ -379,12 +390,16 @@ async def test_evaluate_entry_opportunity_no_opportunity(
         patch.object(
             strategy,
             "_check_opportunity",
-            new_callable=AsyncMock,
-            return_value=None,
         ) as mock_check_internal,
         patch.object(strategy.risk_manager, "size_opportunity") as mock_calc_size,
         patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,
     ):
+        # Configure async mock to return None
+        async def mock_check_opp() -> None:
+            return None
+
+        mock_check_internal.side_effect = mock_check_opp
+
         signals = await strategy.evaluate_entry_opportunity()
 
     mock_check_internal.assert_called_once()

@@ -1010,7 +1010,8 @@ class TestExecutionHandler:
         def config_get(key: str) -> object:
             return config_values.get(key, None)
 
-        mock_config.get.side_effect = config_get
+        # Configure mock_config to have a .get method
+        mock_config.get = MagicMock(side_effect=config_get)
 
         mock_portfolio_tracker.get_position.return_value = None
 

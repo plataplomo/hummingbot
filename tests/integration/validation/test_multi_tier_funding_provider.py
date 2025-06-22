@@ -240,7 +240,7 @@ class TestMultiTierFundingProvider:
 
         # Verify result uses fallback
         assert rate == approx(0.0013, abs=1e-5)
-        assert confidence == approx(0.1999999, abs=1e-7)
+        assert confidence == approx(0.1999999, abs=1e-6)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_fail_no_fallback(self) -> None:

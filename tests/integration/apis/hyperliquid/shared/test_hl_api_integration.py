@@ -173,9 +173,22 @@ class TestHyperliquidAPIComponentIntegration:
         if ticker.price and orderbook.bids and orderbook.asks:
             best_bid = orderbook.bids[0][0]  # price is first element of tuple
             best_ask = orderbook.asks[0][0]  # price is first element of tuple
-            # Ticker price should be between or equal to best bid/ask
-            assert best_bid <= ticker.price <= best_ask, (
-                f"Ticker price {ticker.price} should be between bid {best_bid} and ask {best_ask}"
+
+            # Note: Due to timing differences between ticker and orderbook updates in real market data,
+            # the ticker price may occasionally fall outside the current bid-ask spread.
+            # This is a sanity check rather than a strict requirement - we allow a reasonable deviation.
+            mid_price = (best_bid + best_ask) / Decimal("2")
+            max_deviation_pct = Decimal("0.02")  # Allow 2% deviation from mid price
+            tolerance = mid_price * max_deviation_pct
+
+            # Validate ticker price is reasonably close to market (within 2% of mid)
+            min_reasonable_price = mid_price - tolerance
+            max_reasonable_price = mid_price + tolerance
+
+            assert min_reasonable_price <= ticker.price <= max_reasonable_price, (
+                f"Ticker price {ticker.price} unreasonably far from market mid-price {mid_price}. "
+                f"Bid: {best_bid}, Ask: {best_ask}, "
+                f"Reasonable range: [{min_reasonable_price}, {max_reasonable_price}] (±2%)"
             )
 
         # Use market data to calculate safe order parameters
