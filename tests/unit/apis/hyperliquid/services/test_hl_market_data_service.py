@@ -943,9 +943,7 @@ class TestHyperliquidMarketDataService:
             await hyperliquid_market_data_service.get_all_asset_contexts_raw()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            "No data received for metaAndAssetCtxs, status: 200" in exc_info.value.message
-        )
+        assert "No data received for metaAndAssetCtxs, status: 200" in exc_info.value.message
 
         mock_hl_request_builder.build_info_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(

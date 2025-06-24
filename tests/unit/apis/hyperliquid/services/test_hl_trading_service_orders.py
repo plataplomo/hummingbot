@@ -538,7 +538,9 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol=symbol, order_id=order_id))
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for order status for OID 12345, status: 200" in exc_info.value.message
+        assert (
+            "No data received for order status for OID 12345, status: 200" in exc_info.value.message
+        )
         mock_http_client_requester.assert_called_once()
 
     @pytest.mark.asyncio
