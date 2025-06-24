@@ -200,6 +200,3 @@ def validate_financial_constraints(
     # Check for infinity or NaN
     if not (-float("inf") < numeric_value < float("inf")):
         raise ValueError(f"{field_name} must be a finite number")
-
-
-# Test change
