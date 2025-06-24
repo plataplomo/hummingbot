@@ -153,7 +153,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
                 await backpack_market_data_service.get_market_data(args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_error_msg = f"No data for klines {symbol}@{timeframe}, status: 200"
+            expected_error_msg = f"No data received for klines ({symbol}@{timeframe}), status: 200"
             assert exc_info.value.message == expected_error_msg
 
             mock_request_builder.build_get_market_data_params.assert_called_once_with(

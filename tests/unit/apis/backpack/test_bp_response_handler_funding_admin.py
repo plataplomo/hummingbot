@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -26,7 +27,7 @@ class TestHandleGetFundingRateResponse:
         """Test handling a valid raw funding rate response."""
         funding_rate: BackpackRawFundingRate = (
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", valid_raw_funding_rate),
+                cast("ParsedJsonResponse", valid_raw_funding_rate),
                 symbol_perp,
                 200,
                 {},
@@ -50,7 +51,7 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
                 {},
@@ -70,7 +71,7 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
                 {},
@@ -83,7 +84,7 @@ class TestHandleGetFundingRateResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 400,
                 {},
@@ -107,7 +108,7 @@ class TestHandleGetFundingRateResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_funding_rate_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
                 {},
@@ -129,7 +130,7 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,
             {},
@@ -146,7 +147,7 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,
             {},
@@ -163,7 +164,7 @@ class TestFundingRateEdgeCases:
             "time": 1678887000000,
         }
         funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,
             {},

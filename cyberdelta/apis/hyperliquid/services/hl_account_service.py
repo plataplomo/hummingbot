@@ -59,6 +59,10 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateLeverageArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 from cyberdelta.config.logging_config import get_logger
 
 # Core Domain Models
@@ -173,29 +177,26 @@ class HyperliquidAccountService:
                 f"{raw_data!r} (Status: {status_code})",
             )
 
-            if raw_data is None:
-                raise APIError(
-                    message=(
-                        f"No data received for user state (for clearinghouse_state), "
-                        f"status: {status_code}"
-                    ),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
             # Handle both list and dict responses for clearinghouse state
-            if isinstance(raw_data, dict):
-                # Convert dict response to list format expected by handler
-                raw_data = [raw_data]
-            elif not isinstance(raw_data, list) or not raw_data:
-                raise APIError(
-                    message=(
-                        f"Unexpected user state response format, expected non-empty list or dict, "
-                        f"got {type(raw_data)}"
-                    ),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
+            # First try as dict (single user state)
+            try:
+                validated_dict = ensure_dict_response(
+                    raw_data, "user state (clearinghouse)", status_code
                 )
+                # Convert dict response to list format expected by handler
+                raw_data = [validated_dict]
+            except APIError:
+                # If not a dict, must be a list
+                validated_list = ensure_list_response(
+                    raw_data, "user state (clearinghouse)", status_code
+                )
+                if not validated_list:
+                    raise APIError(
+                        message="Empty user state response for clearinghouse_state",
+                        code=APIErrorCode.INVALID_RESPONSE.value,
+                        http_status=status_code,
+                    ) from None
+                raw_data = validated_list
 
             # The response handler will validate the structure, but we need to ensure
             # we're passing the right part of the response. Hyperliquid returns user state
@@ -212,6 +213,7 @@ class HyperliquidAccountService:
             return self._response_handler.handle_info_user_state_response(
                 raw_response_content=raw_data[0],
                 user_address=self._wallet_address,
+                status_code=status_code,
             )
         except APIError:  # Re-raise APIErrors directly
             raise
@@ -519,12 +521,9 @@ class HyperliquidAccountService:
 
         try:
             raw_data, status_code, raw_response_content = await self._fetch_order_history_data(args)
+            # Validation already done in _fetch_order_history_data
             if raw_data is None:
-                raise APIError(
-                    message="No data received for order history",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+                return []
             raw_historical_orders = self._process_order_history_response(raw_data)
             internal_orders = self._map_historical_orders_to_internal(raw_historical_orders)
 
@@ -602,12 +601,9 @@ class HyperliquidAccountService:
             f"(Status: {status_code})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data received for order history, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_data = ensure_list_response(raw_data, "order history", status_code)
+        raw_data = validated_data
 
         return raw_data, status_code, raw_response_content
 
@@ -805,17 +801,10 @@ class HyperliquidAccountService:
         self, raw_response_list: ParsedJsonResponse, status_code: int
     ) -> HyperliquidRawUserFillsResponse:
         """Process the raw response and validate trade history data."""
-        if not isinstance(raw_response_list, list):
-            raise APIError(
-                message=(
-                    f"Unexpected user fills response format, expected list, "
-                    f"got {type(raw_response_list)}"
-                ),
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_response = ensure_list_response(raw_response_list, "user fills", status_code)
 
-        # The handler expects ParsedJsonResponse which is compatible with our raw_response_list
+        # The handler expects ParsedJsonResponse which is compatible with our validated_response
         if self._wallet_address is None:
             raise APIError(
                 message="Wallet address is required for user fills processing",
@@ -823,8 +812,9 @@ class HyperliquidAccountService:
             )
 
         return self._response_handler.handle_info_user_fills_response(
-            raw_response_content=raw_response_list,
+            raw_response_content=validated_response,
             user_address=self._wallet_address,
+            status_code=status_code,
         )
 
     def _map_fills_to_internal_trades(
@@ -896,17 +886,14 @@ class HyperliquidAccountService:
             f"(Status: {status_code})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data received for open orders, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_data = ensure_list_response(raw_data, "open orders", status_code)
+        raw_data = validated_data
 
         return raw_data, status_code, raw_response_content
 
     def _process_open_orders_response(
-        self, raw_data: ParsedJsonResponse
+        self, raw_data: ParsedJsonResponse, status_code: int
     ) -> HyperliquidRawOpenOrdersResponse:
         """Process the raw response and validate open orders data."""
         if self._wallet_address is None:
@@ -918,6 +905,7 @@ class HyperliquidAccountService:
         return self._response_handler.handle_info_open_orders_response(
             raw_response_content=raw_data,
             user_address=self._wallet_address,
+            status_code=status_code,
         )
 
     def _map_open_orders_to_internal(
@@ -1175,13 +1163,10 @@ class HyperliquidAccountService:
 
         try:
             raw_data, status_code, raw_response_content = await self._fetch_open_orders_data()
+            # Validation already done in _fetch_open_orders_data
             if raw_data is None:
-                raise APIError(
-                    message="No data received for open orders",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            validated_response = self._process_open_orders_response(raw_data)
+                return []
+            validated_response = self._process_open_orders_response(raw_data, status_code)
             internal_orders = self._map_open_orders_to_internal(validated_response)
 
             logger.debug(

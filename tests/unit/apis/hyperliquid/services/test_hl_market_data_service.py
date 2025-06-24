@@ -944,7 +944,7 @@ class TestHyperliquidMarketDataService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            "No content received from HTTP client for metaAndAssetCtxs." in exc_info.value.message
+            "No data received for metaAndAssetCtxs, status: 200" in exc_info.value.message
         )
 
         mock_hl_request_builder.build_info_request_payload.assert_called_once()
@@ -1449,20 +1449,15 @@ class TestHyperliquidMarketDataService:
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
         mock_payload_model.model_dump.return_value = {"type": "metaAndAssetCtxs"}
 
-        # Mock HTTP response with rate limit status
-        mock_http_client_requester.return_value = (
-            {"error": "rate limited"},
-            429,
-            {"retry-after": "60"},
-        )
-
-        # Mock response handler to raise RATE_LIMITED APIError
-        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.side_effect = APIError(
+        # Mock HTTP client to raise RATE_LIMITED APIError directly
+        mock_http_client_requester.side_effect = APIError(
             message="Rate limit exceeded",
             code=APIErrorCode.RATE_LIMITED.value,
             http_status=429,
             exchange_message="rate limited",
         )
+
+        # Response handler won't be called since HTTP client raises error
 
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(symbol)

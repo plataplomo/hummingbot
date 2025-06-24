@@ -40,6 +40,7 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.utils import ensure_dict_response, ensure_list_response
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
@@ -53,6 +54,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
@@ -132,13 +134,9 @@ class BackpackAccountService:
                 f"[{self._exchange_name}] Raw balances dict response: {raw_data!r} "
                 f"(Status: {status_code})",
             )
-            if raw_data is None:
-                raise APIError(
-                    message=(f"No data received for raw balances dict, status: {status_code}"),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            return self._response_handler.handle_get_balances_response(raw_data)
+            # Use centralized validation
+            validated_data = ensure_dict_response(raw_data, "balances", status_code)
+            return self._response_handler.handle_get_balances_response(validated_data, status_code)
         except APIError:
             raise
         except (ValidationError, ValueError) as e_val:
@@ -193,21 +191,26 @@ class BackpackAccountService:
                 f"[{self._exchange_name}] Raw positions response for '{symbol or 'all'}: "
                 f"{raw_data!r} (Status: {status_code})",
             )
-            if raw_data is None:
-                # Consider if an empty list is a valid response for no positions vs. an error
-                # For now, if raw_data is None, it implies an issue not caught by _request
-                # or an unexpected 204 No Content for an endpoint that should return data.
-                raise APIError(
-                    message=(
-                        f"No data received for raw positions for '{symbol or 'all'}'"
-                        f", status: {status_code}"
-                    ),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            # Use centralized validation - positions can be dict or list
             # The response_handler.handle_get_positions_response now correctly handles
             # dict for single symbol or list for all symbols.
-            return self._response_handler.handle_get_positions_response(raw_data, symbol)
+            # Check the actual type of the response, not whether symbol was provided
+            if isinstance(raw_data, dict):
+                # Single position returned as dict
+                validated_data = ensure_dict_response(
+                    raw_data, f"positions for {symbol or 'all'}", status_code
+                )
+                return self._response_handler.handle_get_positions_response(
+                    validated_data, symbol, status_code
+                )
+            else:
+                # Multiple positions or empty list
+                validated_list = ensure_list_response(
+                    raw_data, f"positions for {symbol or 'all'}", status_code
+                )
+                return self._response_handler.handle_get_positions_response(
+                    validated_list, symbol, status_code
+                )
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
             # or account may have no positions, return empty list
@@ -270,13 +273,11 @@ class BackpackAccountService:
                 f"[{self._exchange_name}] Raw account summary response: {raw_data!r} "
                 f"(Status: {status_code})",
             )
-            if raw_data is None:
-                raise APIError(
-                    message=(f"No data received for raw account summary, status: {status_code}"),
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            return self._response_handler.handle_get_account_info_response(raw_data)
+            # Use centralized validation
+            validated_data = ensure_dict_response(raw_data, "account summary", status_code)
+            return self._response_handler.handle_get_account_info_response(
+                validated_data, status_code
+            )
         except APIError:
             raise
         except (ValidationError, ValueError) as e_val:
@@ -500,13 +501,22 @@ class BackpackAccountService:
                         total_quantity - open_order_quantity
                     )
 
-                    enhanced_balances[asset_symbol] = SpotBalance(
-                        exchange=spot_balance.exchange,
-                        asset=spot_balance.asset,
-                        timestamp=spot_balance.timestamp,
-                        total_quantity=true_total,
-                        available_quantity=true_available,
-                        bp_details=enhanced_bp_details,
+                    # Use secure_transform for type-safe model creation
+                    balance_data = {
+                        "exchange": spot_balance.exchange,
+                        "asset": spot_balance.asset,
+                        "timestamp": spot_balance.timestamp.isoformat(),
+                        "total_quantity": str(true_total),
+                        "available_quantity": str(true_available),
+                        "bp_details": (
+                            enhanced_bp_details.model_dump() if enhanced_bp_details else None
+                        ),
+                    }
+                    enhanced_balances[asset_symbol] = secure_transform(
+                        data=balance_data,
+                        model_class=SpotBalance,
+                        context=f"enhance_balance_{asset_symbol}",
+                        source_exchange="backpack",
                     )
 
         # Add any assets that exist only in collateral (not in spot response)
@@ -539,13 +549,22 @@ class BackpackAccountService:
                         lend_quantity=lend_quantity,
                     )
 
-                    enhanced_balances[asset_symbol] = SpotBalance(
-                        exchange=ExchangeName.BACKPACK,
-                        asset=asset_symbol.upper(),
-                        timestamp=datetime.now(UTC),
-                        total_quantity=total_quantity,
-                        available_quantity=total_quantity - open_order_quantity,
-                        bp_details=enhanced_bp_details,
+                    # Use secure_transform for type-safe model creation
+                    balance_data = {
+                        "exchange": ExchangeName.BACKPACK.value,
+                        "asset": asset_symbol.upper(),
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "total_quantity": str(total_quantity),
+                        "available_quantity": str(total_quantity - open_order_quantity),
+                        "bp_details": (
+                            enhanced_bp_details.model_dump() if enhanced_bp_details else None
+                        ),
+                    }
+                    enhanced_balances[asset_symbol] = secure_transform(
+                        data=balance_data,
+                        model_class=SpotBalance,
+                        context=f"collateral_only_balance_{asset_symbol}",
+                        source_exchange="backpack",
                     )
 
         return enhanced_balances
@@ -776,11 +795,13 @@ class BackpackAccountService:
             return internal_summary
 
         except APIError as e:
-            # If collateral endpoint not available (404), return None for fallback
-            if e.http_status == 404:
+            # If collateral endpoint not available (404) or returns invalid data, return None for fallback
+            if e.http_status == 404 or (
+                e.code == APIErrorCode.INVALID_RESPONSE.value and "collateral" in e.message
+            ):
                 logger.debug(
-                    f"[{self._exchange_name}] Collateral endpoint not available (404), "
-                    f"subaccount_id={subaccount_id}"
+                    f"[{self._exchange_name}] Collateral endpoint not available or invalid data "
+                    f"(status: {e.http_status}, code: {e.code}), subaccount_id={subaccount_id}"
                 )
                 return None
             # Re-raise other API errors
@@ -941,6 +962,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            if raw_data is None:
+                raise APIError(
+                    message="No data received for collateral request",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
             return self._response_handler.handle_get_collateral_response(
                 raw_response_content=raw_data,
                 subaccount_id=subaccount_id,
@@ -993,6 +1020,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            if raw_data is None:
+                raise APIError(
+                    message="No data received for max borrow quantity request",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
             raw_response = self._response_handler.handle_max_borrow_quantity_response(
                 raw_response_content=raw_data,
                 symbol=symbol,
@@ -1056,6 +1089,12 @@ class BackpackAccountService:
 
             # Validate response
             side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
+            if raw_data is None:
+                raise APIError(
+                    message="No data received for max order quantity request",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
             raw_response = self._response_handler.handle_max_order_quantity_response(
                 raw_response_content=raw_data,
                 symbol=args.symbol,
@@ -1121,6 +1160,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            if raw_data is None:
+                raise APIError(
+                    message="No data received for max withdrawal quantity request",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
+                )
             raw_response = self._response_handler.handle_max_withdrawal_quantity_response(
                 raw_response_content=raw_data,
                 symbol=args.symbol,
@@ -1192,14 +1237,10 @@ class BackpackAccountService:
             f"[{self._exchange_name}] Raw transfer response: {raw_data!r} (Status: {status_code})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data received for transfer, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_data = ensure_dict_response(raw_data, "transfer", status_code)
 
-        return raw_data, status_code
+        return validated_data, status_code
 
     def _process_transfer_response(
         self,
@@ -1209,7 +1250,7 @@ class BackpackAccountService:
     ) -> Transfer:
         """Process and transform transfer response."""
         validated_raw_json_response: RawJsonResponse = (
-            self._response_handler.handle_transfer_response(raw_data)
+            self._response_handler.handle_transfer_response(raw_data, status_code)
         )
 
         if not isinstance(validated_raw_json_response, dict):
@@ -1399,14 +1440,10 @@ class BackpackAccountService:
             f"(Status: {status_code})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data received for withdrawal, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_data = ensure_dict_response(raw_data, "withdrawal", status_code)
 
-        return raw_data, status_code
+        return validated_data, status_code
 
     def _process_withdrawal_response(
         self,
@@ -1416,7 +1453,7 @@ class BackpackAccountService:
     ) -> Withdrawal:
         """Process and transform withdrawal response."""
         raw_withdrawal_model: BackpackRawWithdrawalResponse = (
-            self._response_handler.handle_withdraw_response(raw_data)
+            self._response_handler.handle_withdraw_response(raw_data, status_code)
         )
 
         internal_withdrawal = self._mapper.transform_raw_withdrawal_response_to_internal(
@@ -1570,15 +1607,14 @@ class BackpackAccountService:
                 f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
                 f"(Status: {status_code})",
             )
-            if raw_data is None:
-                raise APIError(
-                    message=f"No data received for order history, status: {status_code}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            # Use centralized validation
+            validated_data = ensure_list_response(raw_data, "order history", status_code)
+            raw_data = validated_data
 
             raw_orders_list: list[BackpackRawOrder] = (
-                self._response_handler.handle_get_order_history_response(raw_data, args.symbol)
+                self._response_handler.handle_get_order_history_response(
+                    raw_data, args.symbol, status_code
+                )
             )
 
             internal_orders: list[Order] = []
@@ -1692,26 +1728,25 @@ class BackpackAccountService:
             f"(Status: {status_code})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data received for trade history, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_data = ensure_list_response(raw_data, "trade history", status_code)
 
-        return raw_data, status_code
+        return validated_data, status_code
 
     def _process_trade_history_response(
         self,
         raw_data: ParsedJsonResponse,
         args: GetTradeHistoryArgs,
+        status_code: int,
     ) -> list[Trade]:
         """Process and transform trade history response.
 
         Since we're using /wapi/v1/history/fills endpoint, we get BackpackRawFill format.
         """
         # Use fills handler since we're calling /wapi/v1/history/fills
-        raw_fills_list = self._response_handler.handle_get_fills_response(raw_data, args.symbol)
+        raw_fills_list = self._response_handler.handle_get_fills_response(
+            raw_data, args.symbol, status_code
+        )
 
         internal_trades: list[Trade] = []
         for raw_fill_model in raw_fills_list:
@@ -1815,7 +1850,7 @@ class BackpackAccountService:
         try:
             raw_data, status_code = await self._execute_trade_history_request(args)
             raw_response_content = str(raw_data)
-            return self._process_trade_history_response(raw_data, args)
+            return self._process_trade_history_response(raw_data, args, status_code)
         except Exception as e:
             self._handle_trade_history_exceptions(
                 e,

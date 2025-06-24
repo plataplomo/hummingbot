@@ -364,6 +364,7 @@ class TestBackpackTradingServiceOrderManagement:
             )
             mock_response_handler.handle_place_order_response.assert_called_once_with(
                 mock_raw_response_content,
+                200,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_order_result
@@ -411,7 +412,7 @@ class TestBackpackTradingServiceOrderManagement:
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
-                f"Place order for {symbol} returned invalid data (status: 200)"
+                f"No data received for place order for {symbol}, status: 200"
                 in exc_info.value.message
             )
 
@@ -602,7 +603,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"No data received when cancelling order {order_id} ({symbol}), status: 200"
+            f"No data received for cancel order {order_id} ({symbol}), status: 200"
             in exc_info.value.message
         )
 
@@ -750,7 +751,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Mock the response handler to return BackpackRawOrder objects
         from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 
-        mock_raw_orders = []
+        mock_raw_orders: list[BackpackRawOrder] = []
         for order_data in mock_raw_response_list:
             # Create BackpackRawOrder with explicit field mapping to avoid mypy confusion
             # Use type assertions to help mypy understand the types
@@ -1005,7 +1006,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Place order for {symbol} returned invalid data (status: 200)"
+            f"Unexpected place order for {symbol} response format: expected dict, got str"
             in exc_info.value.message
         )
 

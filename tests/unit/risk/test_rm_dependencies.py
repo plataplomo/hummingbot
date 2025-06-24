@@ -54,7 +54,7 @@ class TestRiskManagerDependencyFailures:
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
-        if bad_capital == "invalid_decimal":
+        if bad_capital == "invalid_decimal" or bad_capital is None:
             with pytest.raises((TypeError, Exception)):
                 mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
                 await risk_manager.size_opportunity(sample_opportunity)

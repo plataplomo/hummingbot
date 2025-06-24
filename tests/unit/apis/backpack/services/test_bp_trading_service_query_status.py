@@ -127,6 +127,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content,
                 symbol,
+                200,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders
@@ -155,7 +156,7 @@ class TestBackpackTradingServiceQueryStatus:
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
-                "Get open orders for SOL_USDC returned invalid data (status: 200)"
+                "No data received for get open orders for SOL_USDC, status: 200"
                 in exc_info.value.message
             )
 
@@ -324,6 +325,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content,
                 order_id,
+                200,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -353,7 +355,10 @@ class TestBackpackTradingServiceQueryStatus:
                 )
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert "Get order 12345 (SOL_USDC) returned invalid data" in exc_info.value.message
+            assert (
+                "No data received for get order 12345 (SOL_USDC), status: 200"
+                in exc_info.value.message
+            )
 
             mock_request_builder.build_get_order_params.assert_called_once_with(symbol=symbol)
             mock_http_client_requester.assert_called_once_with(
@@ -555,6 +560,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_order_status_response.assert_called_once_with(
                 mock_raw_response_content,
                 order_id,
+                200,
             )
             mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
             assert result == mock_internal_order
@@ -585,7 +591,7 @@ class TestBackpackTradingServiceQueryStatus:
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
-                "Get order 12345 (SOL_USDC) returned invalid data (status: 200)"
+                "No data received for get order 12345 (SOL_USDC), status: 200"
                 in exc_info.value.message
             )
 
@@ -782,6 +788,7 @@ class TestBackpackTradingServiceQueryStatus:
             mock_response_handler.handle_get_open_orders_response.assert_called_once_with(
                 mock_raw_response_content,
                 None,
+                200,
             )
             assert mock_mapper.transform_raw_order_to_internal.call_count == len(mock_raw_orders)
             assert result == mock_internal_orders

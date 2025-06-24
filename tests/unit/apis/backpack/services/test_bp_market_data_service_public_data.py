@@ -222,7 +222,7 @@ class TestBackpackMarketDataServicePublicData:
                 await backpack_market_data_service.get_ticker(symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg_part = f"Ticker for {symbol} returned invalid data (status: 200)"
+            expected_msg_part = f"No data received for ticker ({symbol}), status: 200"
             assert expected_msg_part in exc_info.value.message
 
             mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
@@ -360,9 +360,7 @@ class TestBackpackMarketDataServicePublicData:
         with pytest.raises(APIError) as exc_info:
             await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
 
-        assert (
-            f"Order book for {symbol} returned invalid data (status: 200)" in exc_info.value.message
-        )
+        assert f"No data received for order book ({symbol}), status: 200" in exc_info.value.message
 
         mock_request_builder.build_get_order_book_params.assert_called_once_with(
             symbol=symbol,
@@ -568,7 +566,7 @@ class TestBackpackMarketDataServicePublicData:
                 await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
             assert (
-                f"Recent trades for {symbol} returned invalid data (status: 200)"
+                f"No data received for recent trades ({symbol}), status: 200"
                 in exc_info.value.message
             )
 

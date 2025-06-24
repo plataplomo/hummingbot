@@ -47,7 +47,7 @@ class TestHyperliquidTradingServiceManagement:
             await hl_trading_service.cancel_all_orders(symbol="ETH")
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Fetching open orders returned no content." in exc_info.value.message
+        assert "No data received for open orders, status: 200" in exc_info.value.message
         # Note: The trading service creates HyperliquidRawOpenOrdersRequestPayload directly,
         # it does not use the request builder for open orders
 

@@ -174,9 +174,11 @@ class TestHyperliquidAPIComponentIntegration:
             best_bid = orderbook.bids[0][0]  # price is first element of tuple
             best_ask = orderbook.asks[0][0]  # price is first element of tuple
 
-            # Note: Due to timing differences between ticker and orderbook updates in real market data,
+            # Note: Due to timing differences between ticker and orderbook updates in real market
+            # data,
             # the ticker price may occasionally fall outside the current bid-ask spread.
-            # This is a sanity check rather than a strict requirement - we allow a reasonable deviation.
+            # This is a sanity check rather than a strict requirement - we allow a reasonable
+            # deviation.
             mid_price = (best_bid + best_ask) / Decimal("2")
             max_deviation_pct = Decimal("0.02")  # Allow 2% deviation from mid price
             tolerance = mid_price * max_deviation_pct

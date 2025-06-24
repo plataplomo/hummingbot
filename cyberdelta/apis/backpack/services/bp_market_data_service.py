@@ -52,6 +52,10 @@ from cyberdelta.apis.models.service_args_models import (
     GetMarketDataArgs,
     GetMarketsArgs,
 )
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
@@ -179,15 +183,10 @@ class BackpackMarketDataService:
                 f"(Status: {status_code}, Headers: {headers})",
             )
 
-            if raw_data is None or not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Ticker for {symbol} returned invalid data (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_data = ensure_dict_response(raw_data, f"ticker ({symbol})", status_code)
 
             raw_ticker_model: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
-                raw_data,
+                validated_data,
                 symbol,
                 status_code,
                 headers,
@@ -381,16 +380,11 @@ class BackpackMarketDataService:
                 f"(Status: {status_code}, Headers: {headers})",
             )
 
-            if raw_data is None or not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Order book for {symbol} returned invalid data (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_data = ensure_dict_response(raw_data, f"order book ({symbol})", status_code)
 
             raw_order_book_model: BackpackRawOrderBook = (
                 self._response_handler.handle_get_order_book_response(
-                    raw_data,
+                    validated_data,
                     symbol,
                     status_code,
                     headers,
@@ -504,14 +498,11 @@ class BackpackMarketDataService:
             f"(Status: {status_code}, Headers: {headers})",
         )
 
-        if raw_data_list is None or not isinstance(raw_data_list, list):
-            raise APIError(
-                f"Recent trades for {symbol} returned invalid data (status: {status_code})",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_list_response(
+            raw_data_list, f"recent trades ({symbol})", status_code
+        )
 
-        return raw_data_list, status_code, dict(headers)
+        return validated_data, status_code, dict(headers)
 
     def _process_recent_trades_response(
         self,
@@ -686,21 +677,10 @@ class BackpackMarketDataService:
             f"(Status: {status_code}, Headers: {headers})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                f"No data for funding_rate {symbol}, status: {status_code}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-        if not isinstance(raw_data, list):
-            raise APIError(
-                f"Funding_rate data for {symbol} is not a list: {type(raw_data)}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_list_response(raw_data, f"funding rate ({symbol})", status_code)
 
         return self._response_handler.handle_get_historical_funding_rates_response(
-            raw_data,
+            validated_data,
             symbol,
             status_code,
             headers,
@@ -1033,28 +1013,13 @@ class BackpackMarketDataService:
             f"{raw_data!r} (Status: {status_code}, Headers: {headers})",
         )
 
-        if raw_data is None:
-            raise APIError(
-                message=f"No data for historical funding rates {symbol}, status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        if not isinstance(raw_data, list):
-            logger.error(
-                f"[{self._exchange_name}] Historical funding rates data for {symbol} "
-                f"is not a list: {type(raw_data)}. Raw: {raw_data!r}, Status: {status_code}",
-            )
-            raise APIError(
-                f"Historical funding rates data for {symbol} is not a list: {type(raw_data)}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-                exchange_message=str(raw_data),
-            )
+        validated_data = ensure_list_response(
+            raw_data, f"historical funding rates ({symbol})", status_code
+        )
 
         raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
             self._response_handler.handle_get_historical_funding_rates_response(
-                raw_data,
+                validated_data,
                 symbol,
                 status_code,
                 headers,
@@ -1250,23 +1215,13 @@ class BackpackMarketDataService:
             f"{raw_data_list!r} (Status: {status_code}, Headers: {headers})",
         )
 
-        if raw_data_list is None:
-            raise APIError(
-                f"No data for klines {symbol}@{timeframe}, status: {status_code}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
-
-        if not isinstance(raw_data_list, list):
-            raise APIError(
-                f"Klines data received from requester is not list: {type(raw_data_list)}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_list_response(
+            raw_data_list, f"klines ({symbol}@{timeframe})", status_code
+        )
 
         raw_kline_models: list[BackpackRawKline] = (
             self._response_handler.handle_get_market_data_response(
-                raw_data_list,
+                validated_data,
                 symbol,
                 timeframe,
                 status_code,
@@ -1356,16 +1311,11 @@ class BackpackMarketDataService:
                 f"(Status: {status_code}, Headers: {headers})"
             )
 
-            if raw_data is None or not isinstance(raw_data, dict):
-                raise APIError(
-                    f"Market for {symbol} returned invalid data (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_data = ensure_dict_response(raw_data, f"market ({symbol})", status_code)
 
             # Use response handler for validation (following architecture)
             raw_market_model: BackpackRawMarket = self._response_handler.handle_get_market_response(
-                raw_data,
+                validated_data,
                 symbol,
                 status_code,
                 headers,
@@ -1482,16 +1432,11 @@ class BackpackMarketDataService:
                 f"(Status: {status_code}, Headers: {headers})"
             )
 
-            if raw_data is None or not isinstance(raw_data, list):
-                raise APIError(
-                    f"Markets data returned invalid format (status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_data = ensure_list_response(raw_data, "markets data", status_code)
 
             # Use response handler for validation (following architecture)
             raw_markets_list: list[BackpackRawMarket] = (
-                self._response_handler.handle_get_markets_response(raw_data)
+                self._response_handler.handle_get_markets_response(validated_data, status_code)
             )
 
             # Transform raw models to internal domain models using mapper

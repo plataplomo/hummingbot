@@ -70,6 +70,7 @@ class TestBackpackAccountServiceBalances:
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_data_dict,
+            200,
         )
         mock_mapper.transform_raw_balance_to_internal.assert_called_once_with(
             "USDC",
@@ -189,6 +190,7 @@ class TestBackpackAccountServiceBalances:
         )
         mock_response_handler.handle_get_balances_response.assert_called_once_with(
             mock_raw_response_dict,
+            200,
         )
 
         assert len(result_balances) == 2
@@ -245,7 +247,7 @@ class TestBackpackAccountServiceBalances:
             await bp_account_service.get_balances()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for raw balances dict, status: 200" in exc_info.value.message
+        assert "No data received for balances, status: 200" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_balances_validation_error_via_public_api(

@@ -29,6 +29,10 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -251,15 +255,11 @@ class BackpackTradingService:
         if raw_data is not None:
             str(raw_data)
 
-        if raw_data is None or not isinstance(raw_data, dict):
-            raise APIError(
-                f"Place order for {symbol} returned invalid data (status: {status_code})",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_dict_response(raw_data, f"place order for {symbol}", status_code)
 
         raw_order_model: BackpackRawOrder = self._response_handler.handle_place_order_response(
-            raw_data,
+            validated_data,
+            status_code,
         )
         internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
 
@@ -436,24 +436,16 @@ class BackpackTradingService:
         # Backpack's cancel order returns the cancelled order details or an error.
         # The response handler needs to determine success.
         # Assuming handle_cancel_order_response returns bool based on successful cancellation.
-        if raw_data is None:
-            logger.error(
-                f"[{self._exchange_name}] Cancel order for {order_id} ({symbol}) received "
-                f"no content. Status: {status_code}",
-            )
-            raise APIError(
-                message=f"No data received when cancelling order {order_id} ({symbol}), "
-                f"status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_dict_response(
+            raw_data, f"cancel order {order_id} ({symbol})", status_code
+        )
 
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to response handler
         if symbol is None:
             raise ValueError("Symbol is required for cancel order response processing.")
 
         return self._response_handler.handle_cancel_order_response(
-            raw_response_content=raw_data,
+            raw_response_content=validated_data,
             order_id=order_id,
             symbol=symbol,  # Now guaranteed to be str, not str | None
         )
@@ -516,16 +508,14 @@ class BackpackTradingService:
             if raw_data is not None:
                 raw_response_content = str(raw_data)
 
-            if raw_data is None or not isinstance(raw_data, list):
-                raise APIError(
-                    f"Get open orders for {symbol or 'all'} returned invalid data "
-                    f"(status: {status_code})",
-                    APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_data = ensure_list_response(
+                raw_data, f"get open orders for {symbol or 'all'}", status_code
+            )
 
             raw_orders_list: list[BackpackRawOrder] = (
-                self._response_handler.handle_get_open_orders_response(raw_data, symbol)
+                self._response_handler.handle_get_open_orders_response(
+                    validated_data, symbol, status_code
+                )
             )
             internal_orders = [
                 self._trading_mapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
@@ -706,15 +696,12 @@ class BackpackTradingService:
             )
             return None
 
-        if raw_data is None or not isinstance(raw_data, dict):
-            raise APIError(
-                f"Get order {identifier} ({symbol}) returned invalid data (status: {status_code})",
-                APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_dict_response(
+            raw_data, f"get order {identifier} ({symbol})", status_code
+        )
 
         raw_order_model: BackpackRawOrder = self._response_handler.handle_get_order_status_response(
-            raw_data, identifier
+            validated_data, identifier, status_code
         )
         internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
         return internal_order
@@ -974,13 +961,19 @@ class BackpackTradingService:
         symbol: str,
     ) -> list[CancelOrderResult]:
         """Process the cancel all orders API response."""
-        if raw_data is None:
+        try:
+            validated_data = ensure_list_response(
+                raw_data, f"cancel all orders for {symbol}", status_code
+            )
+        except APIError:
             return self._handle_invalid_cancel_all_response(raw_data, status_code, symbol)
 
         # Use the response handler to get validated BackpackRawOrder objects
         try:
             raw_orders: list[BackpackRawOrder] = (
-                self._response_handler.handle_cancel_all_orders_response(raw_data, symbol)
+                self._response_handler.handle_cancel_all_orders_response(
+                    validated_data, symbol, status_code
+                )
             )
         except APIError:
             # If response handler fails, return empty list or re-raise depending on requirements

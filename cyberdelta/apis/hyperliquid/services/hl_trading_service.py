@@ -57,6 +57,10 @@ from cyberdelta.apis.models.service_args_models import (
     HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -69,6 +73,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.secure_transformation import secure_transform
 
 logger = get_logger(__name__)
 
@@ -159,6 +164,7 @@ class HyperliquidTradingService:
         exchange_response = self._response_handler.handle_exchange_response(
             raw_content,
             action_type=request_payload_model.type,
+            status_code=http_status,
         )
         return exchange_response, http_status
 
@@ -294,20 +300,22 @@ class HyperliquidTradingService:
         )
 
         try:
-            raw_response_content, _, _ = await self._http_client_requester(
+            raw_response_content, status_code, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
                 is_signed=False,  # openOrders is a public endpoint in Hyperliquid
             )
-            if raw_response_content is None:
-                _error_msg_no_content = "Fetching open orders returned no content."
-                raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
+            # Use centralized validation
+            validated_raw_data = ensure_list_response(
+                raw_response_content, "open orders", status_code
+            )
 
             validated_response: HyperliquidRawOpenOrdersResponse = (
                 self._response_handler.handle_info_open_orders_response(
-                    raw_response_content,
+                    validated_raw_data,
                     user_address=self._wallet_address,  # Already asserted not None above
+                    status_code=status_code,
                 )
             )
             return validated_response.items
@@ -352,26 +360,21 @@ class HyperliquidTradingService:
         raw_response_content: ParsedJsonResponse | None = None
 
         try:
-            raw_response_content, _, _ = await self._http_client_requester(
+            raw_response_content, status_code, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload_model.model_dump(by_alias=True),
                 is_signed=False,  # orderStatus is a public endpoint in Hyperliquid
             )
-            if raw_response_content is None:
-                logger.error(
-                    f"[{self._exchange_name}] No content received for order status "
-                    f"for OID {order_id}.",
-                )
-                raise APIError(
-                    message=f"No data received for order status for OID {order_id}.",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            # Use centralized validation
+            validated_raw_data = ensure_dict_response(
+                raw_response_content, f"order status for OID {order_id}", status_code
+            )
 
             # Pass the raw response directly - model validator will handle preprocessing
             historical_order_response: HyperliquidRawHistoricalOrderResponse = (
                 self._response_handler.handle_info_order_status_response(
-                    raw_response_content,
+                    validated_raw_data,
                     user_address=self._wallet_address,  # Already asserted not None above
                     order_id=order_id,
                 )
@@ -880,24 +883,32 @@ class HyperliquidTradingService:
             args.client_order_id or f"HL_{new_oid}_{int(datetime.now(UTC).timestamp())}"
         )
 
-        return Order(
-            exchange="hyperliquid",
-            exchange_order_id=str(new_oid),
-            symbol=args.symbol,
-            side=args.side,
-            order_type=args.order_type,
-            quantity_requested=args.quantity,
-            price=args.price,
-            time_in_force=args.time_in_force,
-            status=OrderStatus.OPEN,  # We know it's resting/open
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            triggered_at=None,
-            strategy_name=None,
-            signal_id=None,
-            reduce_only=args.reduce_only,
-            post_only=args.post_only,
-            client_order_id=client_order_id,
+        # Use secure_transform to ensure validation
+        order_data = {
+            "exchange": "hyperliquid",
+            "exchange_order_id": str(new_oid),
+            "symbol": args.symbol,
+            "side": args.side.value,
+            "order_type": args.order_type.value,
+            "quantity_requested": str(args.quantity),
+            "price": str(args.price) if args.price else None,
+            "time_in_force": args.time_in_force.value,
+            "status": OrderStatus.OPEN.value,  # We know it's resting/open
+            "created_at": datetime.now(UTC).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
+            "reduce_only": args.reduce_only,
+            "post_only": args.post_only,
+            "client_order_id": client_order_id,
+        }
+
+        return secure_transform(
+            data=order_data,
+            model_class=Order,
+            context=f"place_order_resting_{args.symbol}",
+            source_exchange="hyperliquid",
         )
 
     async def _handle_filled_order(
@@ -1515,6 +1526,12 @@ class HyperliquidTradingService:
         )
 
         # Reuse existing response handler
+        if raw_response_content_parsed is None:
+            raise APIError(
+                message=f"No data received for L2 book request ({symbol})",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
         validated_response = self._response_handler.handle_info_l2_book_response(
             raw_response_content_parsed, symbol, status_code, headers
         )

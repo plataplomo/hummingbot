@@ -119,6 +119,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict,
             None,
+            200,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
             mock_validated_raw_positions[0],
@@ -164,6 +165,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.assert_called_with(
             mock_raw_positions_data_item_dict,
             symbol_arg,
+            200,
         )
         mock_mapper.transform_raw_position_to_internal.assert_called_with(
             mock_validated_raw_positions[0],
@@ -198,10 +200,7 @@ class TestBackpackAccountServicePositions:
             await bp_account_service.get_positions(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"No data received for raw positions for '{symbol}', status: 200"
-            in exc_info.value.message
-        )
+        assert f"No data received for positions for {symbol}, status: 200" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_positions_validation_error_via_public_api(

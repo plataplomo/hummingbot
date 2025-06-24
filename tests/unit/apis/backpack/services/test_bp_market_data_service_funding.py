@@ -124,7 +124,7 @@ class TestBackpackMarketDataServiceFunding:
                 await backpack_market_data_service.get_funding_rate(symbol)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            assert "No data for funding_rate" in exc_info.value.message
+            assert "No data received for funding rate" in exc_info.value.message
 
             mock_request_builder.build_get_funding_rate_params.assert_called_once_with(
                 symbol=symbol,
@@ -341,7 +341,7 @@ class TestBackpackMarketDataServiceFunding:
                 await backpack_market_data_service.get_historical_funding_rates(args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_msg = f"No data for historical funding rates {symbol}, status: 200"
+            expected_msg = f"No data received for historical funding rates ({symbol}), status: 200"
             assert exc_info.value.message == expected_msg
 
             mock_request_builder.build_get_historical_funding_rates_params.assert_called_once_with(

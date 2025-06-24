@@ -140,6 +140,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
+            status_code=200,
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model,
@@ -226,7 +227,9 @@ class TestHyperliquidAccountServiceBalancesPositions:
         with pytest.raises(APIError) as exc_info:
             await hyperliquid_account_service.get_balances()
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for user state (for clearinghouse_state)" in exc_info.value.message
+        assert (
+            "No data received for user state (clearinghouse), status: 200" in exc_info.value.message
+        )
         expected_args = GetUserStateArgs(wallet_address=wallet_address)
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once_with(
@@ -278,6 +281,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
+            status_code=200,
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model,
@@ -330,6 +334,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_response_handler.handle_info_user_state_response.assert_any_call(
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
+            status_code=200,
         )
         assert (
             mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.call_count
@@ -396,6 +401,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
+            status_code=200,
         )
         assert result == mock_summary_object
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
@@ -445,6 +451,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
             raw_response_content=mock_raw_user_state_response_list[0],
             user_address="0xTestWalletAddress",
+            status_code=200,
         )
         mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
             mock_processed_state,

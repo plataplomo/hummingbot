@@ -12,7 +12,6 @@ modularity and reduce the complexity of the main API client.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import cast
 
 from pydantic import ValidationError
 
@@ -20,7 +19,6 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
-    RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
@@ -180,7 +178,7 @@ class HyperliquidAssetIndexResolver:
         try:
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
-                    cast(RawJsonResponse, raw_response_content),
+                    raw_response_content,
                 )
             )
             return validated_response

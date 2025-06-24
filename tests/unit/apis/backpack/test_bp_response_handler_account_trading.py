@@ -12,6 +12,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAc
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -31,7 +32,8 @@ class TestHandleGetBalancesResponse:
         """Test handling a valid raw balances response."""
         balances: dict[str, BackpackRawBalance] = (
             BackpackResponseHandler.handle_get_balances_response(
-                cast("RawJsonResponse", valid_raw_balances),
+                cast("ParsedJsonResponse", valid_raw_balances),
+                status_code=200,
             )
         )
         assert isinstance(balances, dict)
@@ -57,7 +59,8 @@ class TestHandleGetBalancesResponse:
         """Test handling empty balances response."""
         raw_data: dict[str, Any] = {}
         balances = BackpackResponseHandler.handle_get_balances_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
+            status_code=200,
         )
         assert isinstance(balances, dict)
         assert len(balances) == 0
@@ -72,7 +75,10 @@ class TestHandleGetBalancesResponse:
             },
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_balances_response(cast("RawJsonResponse", raw_data))
+            BackpackResponseHandler.handle_get_balances_response(
+                cast("ParsedJsonResponse", raw_data),
+                status_code=200,
+            )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "balance details for SOL" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
@@ -82,13 +88,16 @@ class TestHandleGetBalancesResponse:
         """Test balances response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_balances_response(cast("RawJsonResponse", raw_data))
+            BackpackResponseHandler.handle_get_balances_response(
+                cast("ParsedJsonResponse", raw_data),
+                status_code=200,
+            )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
         assert "got list" in exc_info.value.message
 
-    def test_invalid_balance_item_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test that invalid balance items are skipped with warning."""
+    def test_invalid_balance_item_raises_error(self) -> None:
+        """Test that invalid balance items raise APIError with centralized validation."""
         raw_data = {
             "SOL": {
                 "available": "10.5",
@@ -97,17 +106,14 @@ class TestHandleGetBalancesResponse:
             },
             "INVALID": "not_a_dict",  # Invalid item
         }
-        balances = BackpackResponseHandler.handle_get_balances_response(
-            cast("RawJsonResponse", raw_data),
-        )
-        assert len(balances) == 1  # Only valid balance processed
-        assert "SOL" in balances
-
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-dict balance" in record.getMessage() for record in caplog.records
-        )
-        assert log_found
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_balances_response(
+                cast("ParsedJsonResponse", raw_data),
+                status_code=200,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "balances for asset 'INVALID'" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
 
 class TestHandleGetPositionsResponse:
@@ -117,8 +123,9 @@ class TestHandleGetPositionsResponse:
         """Test handling a valid raw positions response."""
         positions: list[BackpackRawPosition] = (
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", valid_raw_positions),
+                cast("ParsedJsonResponse", valid_raw_positions),
                 None,
+                status_code=200,
             )
         )
         assert isinstance(positions, list)
@@ -148,14 +155,15 @@ class TestHandleGetPositionsResponse:
         """Test handling empty positions response."""
         raw_data: list[Any] = []
         positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert isinstance(positions, list)
         assert len(positions) == 0
 
-    def test_invalid_position_item_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test that invalid position items are skipped with warning."""
+    def test_invalid_position_item_raises_error(self) -> None:
+        """Test that invalid position items raise APIError with centralized validation."""
         valid_position = {
             "symbol": "SOL_USDC",
             "breakEvenPrice": "131.00",
@@ -179,18 +187,15 @@ class TestHandleGetPositionsResponse:
             "subaccountId": 0,
         }
         raw_data = [valid_position, "not_a_dict"]  # Invalid item
-        positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data),
-            None,
-        )
-        assert len(positions) == 1  # Only valid position processed
-        assert positions[0].position_id == "pos123"
-
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-dict item" in record.getMessage() for record in caplog.records
-        )
-        assert log_found
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_positions_response(
+                cast("ParsedJsonResponse", raw_data),
+                None,
+                status_code=200,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "positions (all) item[1]" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
     def test_validation_error_missing_field(self) -> None:
         """Test positions response with missing required field."""
@@ -216,8 +221,9 @@ class TestHandleGetPositionsResponse:
         raw_data = [invalid_position]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "positions" in exc_info.value.message
@@ -228,8 +234,9 @@ class TestHandleGetPositionsResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_positions_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -243,7 +250,8 @@ class TestHandleGetAccountInfoResponse:
         """Test handling a valid raw account summary response."""
         summary: BackpackRawAccountSummary = (
             BackpackResponseHandler.handle_get_account_info_response(
-                cast("RawJsonResponse", valid_raw_account_summary),
+                cast("ParsedJsonResponse", valid_raw_account_summary),
+                status_code=200,
             )
         )
         assert isinstance(summary, BackpackRawAccountSummary)
@@ -282,7 +290,8 @@ class TestHandleGetAccountInfoResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_account_info_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "account info" in exc_info.value.message
@@ -293,7 +302,8 @@ class TestHandleGetAccountInfoResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_account_info_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -306,8 +316,9 @@ class TestHandleGetOpenOrdersResponse:
     def test_valid(self, valid_raw_open_orders: list[dict[str, Any]]) -> None:
         """Test handling a valid raw open orders response."""
         orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", valid_raw_open_orders),
+            cast("ParsedJsonResponse", valid_raw_open_orders),
             None,
+            status_code=200,
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -337,14 +348,15 @@ class TestHandleGetOpenOrdersResponse:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
         orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert isinstance(orders, list)
         assert len(orders) == 0
 
-    def test_invalid_order_item_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test that invalid order items are skipped with warning."""
+    def test_invalid_order_item_raises_error(self) -> None:
+        """Test that invalid order items raise APIError with centralized validation."""
         valid_order = {
             "id": "987654321",
             "clientId": "clientOrder001",
@@ -360,18 +372,15 @@ class TestHandleGetOpenOrdersResponse:
             "avgFillPrice": None,
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
-        orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data),
-            None,
-        )
-        assert len(orders) == 1  # Only valid order processed
-        assert orders[0].id == "987654321"
-
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-dict item" in record.getMessage() for record in caplog.records
-        )
-        assert log_found
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_open_orders_response(
+                cast("ParsedJsonResponse", raw_data),
+                None,
+                status_code=200,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "open orders (all) item[1]" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
     def test_validation_error_missing_field(self) -> None:
         """Test open orders response with missing required field."""
@@ -391,8 +400,9 @@ class TestHandleGetOpenOrdersResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "open orders" in exc_info.value.message
@@ -403,8 +413,9 @@ class TestHandleGetOpenOrdersResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_open_orders_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -417,8 +428,9 @@ class TestHandleGetOrderHistoryResponse:
     def test_valid(self, valid_raw_order_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw order history response."""
         orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", valid_raw_order_history),
+            cast("ParsedJsonResponse", valid_raw_order_history),
             None,
+            status_code=200,
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -445,14 +457,15 @@ class TestHandleGetOrderHistoryResponse:
         """Test handling empty order history response."""
         raw_data: list[Any] = []
         orders = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert isinstance(orders, list)
         assert len(orders) == 0
 
-    def test_invalid_order_item_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test that invalid order history items are skipped with warning."""
+    def test_invalid_order_item_raises_error(self) -> None:
+        """Test that invalid order history items raise APIError with centralized validation."""
         valid_order = {
             "id": "histOrder001",
             "clientId": "clientOrder001",
@@ -468,18 +481,15 @@ class TestHandleGetOrderHistoryResponse:
             "avgFillPrice": "140.00",
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
-        orders = BackpackResponseHandler.handle_get_order_history_response(
-            cast("RawJsonResponse", raw_data),
-            None,
-        )
-        assert len(orders) == 1  # Only valid order processed
-        assert orders[0].id == "histOrder001"
-
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-dict item" in record.getMessage() for record in caplog.records
-        )
-        assert log_found
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_order_history_response(
+                cast("ParsedJsonResponse", raw_data),
+                None,
+                status_code=200,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "order history (all) item[1]" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
     def test_validation_error_missing_field(self) -> None:
         """Test order history response with missing required field."""
@@ -500,8 +510,9 @@ class TestHandleGetOrderHistoryResponse:
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_history_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "order history" in exc_info.value.message
@@ -512,8 +523,9 @@ class TestHandleGetOrderHistoryResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_history_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -527,8 +539,9 @@ class TestHandleGetTradeHistoryResponse:
         """Test handling a valid raw trade history response."""
         trades: list[BackpackRawPublicTrade] = (
             BackpackResponseHandler.handle_get_trade_history_response(
-                cast("RawJsonResponse", valid_raw_trade_history),
+                cast("ParsedJsonResponse", valid_raw_trade_history),
                 None,
+                status_code=200,
             )
         )
         assert isinstance(trades, list)
@@ -554,14 +567,15 @@ class TestHandleGetTradeHistoryResponse:
         """Test handling empty trade history response."""
         raw_data: list[Any] = []
         trades = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert isinstance(trades, list)
         assert len(trades) == 0
 
-    def test_invalid_trade_item_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Test that invalid trade history items are skipped with warning."""
+    def test_invalid_trade_item_raises_error(self) -> None:
+        """Test that invalid trade history items raise APIError with centralized validation."""
         valid_trade = {
             "symbol": "SOL_USDC",
             "price": "141.00",
@@ -571,18 +585,15 @@ class TestHandleGetTradeHistoryResponse:
             "order_id": "histOrderX001",
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
-        trades = BackpackResponseHandler.handle_get_trade_history_response(
-            cast("RawJsonResponse", raw_data),
-            None,
-        )
-        assert len(trades) == 1  # Only valid trade processed
-        assert trades[0].id == "tradeHist001"
-
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-dict item" in record.getMessage() for record in caplog.records
-        )
-        assert log_found
+        with pytest.raises(APIError) as exc_info:
+            BackpackResponseHandler.handle_get_trade_history_response(
+                cast("ParsedJsonResponse", raw_data),
+                None,
+                status_code=200,
+            )
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "trade history (all) item[1]" in exc_info.value.message
+        assert "expected dict, got str" in exc_info.value.message
 
     def test_validation_error_missing_field(self) -> None:
         """Test trade history response with missing required field."""
@@ -597,8 +608,9 @@ class TestHandleGetTradeHistoryResponse:
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_trade_history_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "trade history" in exc_info.value.message
@@ -609,8 +621,9 @@ class TestHandleGetTradeHistoryResponse:
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_trade_history_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 None,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected list" in exc_info.value.message
@@ -623,8 +636,9 @@ class TestHandleGetOrderStatusResponse:
     def test_valid(self, valid_raw_order_status: dict[str, Any], order_id: str) -> None:
         """Test handling a valid raw order status response."""
         order: BackpackRawOrder = BackpackResponseHandler.handle_get_order_status_response(
-            cast("RawJsonResponse", valid_raw_order_status),
+            cast("ParsedJsonResponse", valid_raw_order_status),
             order_id,
+            status_code=200,
         )
         assert isinstance(order, BackpackRawOrder)
         assert order.id == "statusOrder123"
@@ -653,8 +667,9 @@ class TestHandleGetOrderStatusResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_status_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 order_id,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"order status (id={order_id})" in exc_info.value.message
@@ -665,8 +680,9 @@ class TestHandleGetOrderStatusResponse:
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_order_status_response(
-                cast("RawJsonResponse", raw_data),
+                cast("ParsedJsonResponse", raw_data),
                 order_id,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -686,7 +702,8 @@ class TestAccountTradingEdgeCases:
             },
         }
         balances = BackpackResponseHandler.handle_get_balances_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
+            status_code=200,
         )
         assert len(balances) == 1
         assert balances["ZERO"].available == "0.0"
@@ -720,8 +737,9 @@ class TestAccountTradingEdgeCases:
             },
         ]
         positions = BackpackResponseHandler.handle_get_positions_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert len(positions) == 1
         position = positions[0]
@@ -747,8 +765,9 @@ class TestAccountTradingEdgeCases:
             },
         ]
         orders = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
             None,
+            status_code=200,
         )
         assert len(orders) == 1
         order = orders[0]
@@ -775,7 +794,8 @@ class TestAccountTradingEdgeCases:
             "trigger_orders": 0,  # No trigger orders
         }
         summary = BackpackResponseHandler.handle_get_account_info_response(
-            cast("RawJsonResponse", raw_data),
+            cast("ParsedJsonResponse", raw_data),
+            status_code=200,
         )
         assert summary.borrow_limit == Decimal("0.0")
         assert summary.leverage_limit == Decimal("1.0")

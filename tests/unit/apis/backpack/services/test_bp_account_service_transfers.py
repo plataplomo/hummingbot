@@ -98,6 +98,7 @@ class TestBackpackAccountServiceTransfers:
 
         mock_response_handler.handle_transfer_response.assert_called_once_with(
             mock_raw_response_content,
+            200,
         )
 
         assert actual_transfer.id == expected_internal_transfer.id

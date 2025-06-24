@@ -34,6 +34,7 @@ class TestHandleExchangeResponse:
             HyperliquidResponseHandler.handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
                 action_type="order",
+                status_code=200,
             )
         )
         assert isinstance(response, HyperliquidRawExchangeResponse)
@@ -56,6 +57,7 @@ class TestHandleExchangeResponse:
             HyperliquidResponseHandler.handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
                 action_type="order",
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
@@ -69,6 +71,7 @@ class TestHandleExchangeResponse:
             HyperliquidResponseHandler.handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
                 action_type="order",
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
@@ -83,6 +86,7 @@ class TestHandleExchangeResponse:
             HyperliquidResponseHandler.handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
                 action_type="order",
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid exchange (order) response from exchange:" in exc_info.value.message
@@ -97,12 +101,13 @@ class TestHandleExchangeResponse:
             HyperliquidResponseHandler.handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
                 action_type="order",
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
             "Unexpected exchange (order) response format: expected dict" in exc_info.value.message
         )
-        assert "got <class 'list'>" in exc_info.value.message
+        assert "got list" in exc_info.value.message
 
 
 class TestHandleQueryOrderHistoryResponse:

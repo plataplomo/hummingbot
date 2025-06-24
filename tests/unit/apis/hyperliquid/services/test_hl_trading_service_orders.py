@@ -497,10 +497,11 @@ class TestHyperliquidTradingServiceOrders:
                 is_signed=True,
                 serialize_none_as_null=True,
             )
-            # Fix the method call signature - handle_exchange_response takes (content, action_type)
+            # Fix the method call signature - handle_exchange_response takes (content, action_type, status_code)
             mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
                 mock_response_content,
                 action_type="order",
+                status_code=200,
             )
             # Verify get_order was called with the returned OID
             mock_get_order.assert_called_once_with(GetOrderArgs(symbol=symbol, order_id="123456"))
@@ -537,7 +538,7 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol=symbol, order_id=order_id))
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for order status for OID 12345." in exc_info.value.message
+        assert "No data received for order status for OID 12345, status: 200" in exc_info.value.message
         mock_http_client_requester.assert_called_once()
 
     @pytest.mark.asyncio
@@ -688,7 +689,7 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.get_open_orders(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Fetching open orders returned no content." in exc_info.value.message
+        assert "No data received for open orders, status: 200" in exc_info.value.message
         mock_http_client_requester.assert_called_once()
 
     @pytest.mark.asyncio
@@ -848,6 +849,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_response_handler.handle_info_open_orders_response.assert_called_once_with(
             simple_mock_response_content,
             user_address=wallet_address,
+            status_code=200,
         )
         mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.assert_has_calls(
             [
@@ -945,4 +947,5 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
             mock_response_content,
             action_type=mock_cancel_request.type,
+            status_code=200,
         )

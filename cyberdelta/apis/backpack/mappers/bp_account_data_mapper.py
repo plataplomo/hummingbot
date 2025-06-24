@@ -254,7 +254,7 @@ class BackpackAccountDataMapper:
                 system_order_type=None,  # Not available in fill data
             )
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(raw_fill.trade_id),
                 "symbol": raw_fill.symbol,
@@ -317,7 +317,7 @@ class BackpackAccountDataMapper:
             # Create BP-specific details
             details = BackpackSpotBalanceDetails()
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             balance_data = {
                 "asset": asset,
                 "exchange": ExchangeName.BACKPACK.value,
@@ -395,7 +395,7 @@ class BackpackAccountDataMapper:
 
             bp_details = BackpackSpotBalanceDetails()
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             balance_data = {
                 "exchange": ExchangeName.BACKPACK.value,
                 "asset": asset_symbol.upper(),
@@ -408,7 +408,7 @@ class BackpackAccountDataMapper:
             return secure_transform(
                 data=balance_data,
                 model_class=SpotBalance,
-                context="backpack_raw_balance_transform",
+                context=f"backpack_raw_balance_transform_{asset_symbol}",
                 source_exchange="backpack",
             )
         except Exception as e:
@@ -472,7 +472,7 @@ class BackpackAccountDataMapper:
                 cumulative_funding=cumulative_funding_dec,
             )
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             position_data = {
                 "exchange": ExchangeName.BACKPACK.value,
                 "symbol": raw.symbol,
@@ -492,7 +492,7 @@ class BackpackAccountDataMapper:
             return secure_transform(
                 data=position_data,
                 model_class=DerivativePosition,
-                context="backpack_position_transform",
+                context=f"backpack_position_transform_{raw.symbol}",
                 source_exchange="backpack",
             )
         except Exception as e:
@@ -560,7 +560,7 @@ class BackpackAccountDataMapper:
                 leverage_limit=raw_settings.leverage_limit,
             )
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             margin_data = {
                 "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -707,7 +707,7 @@ class BackpackAccountDataMapper:
                 source_endpoint="collateral",
             )
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             margin_data = {
                 "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": datetime.now(UTC).isoformat(),
@@ -718,7 +718,9 @@ class BackpackAccountDataMapper:
                 if mmf_value is not None
                 else None,
                 "total_position_notional": str(calculated_total_position_notional),
-                "total_unrealized_pnl": str(total_unrealized_pnl),
+                "total_unrealized_pnl": (
+                    str(total_unrealized_pnl) if total_unrealized_pnl is not None else None
+                ),
                 "bp_details": bp_details.model_dump() if bp_details else None,
                 "hl_details": None,
             }
@@ -818,7 +820,7 @@ class BackpackAccountDataMapper:
                 to_account_type=to_account_type_raw,
             )
 
-            # SECURITY FIX: Use secure_transform instead of direct instantiation
+            # Use secure_transform for type-safe model creation
             transfer_data = {
                 "id": str(transfer_id),
                 "exchange": exchange_name,
@@ -834,7 +836,7 @@ class BackpackAccountDataMapper:
             return secure_transform(
                 data=transfer_data,
                 model_class=Transfer,
-                context="backpack_transfer_transform",
+                context=f"backpack_transfer_transform_{asset}",
                 source_exchange="backpack",
             )
         except Exception as e:

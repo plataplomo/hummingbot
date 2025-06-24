@@ -88,6 +88,7 @@ class TestHandleInfoFundingRateResponse:
         response = HyperliquidResponseHandler.handle_info_funding_rate_response(
             cast("RawJsonResponse", raw_data),
             symbol=symbol,
+            status_code=200,
         )
         assert response.name == "ETH-PERP"
         assert response.funding == "0.00015"
@@ -99,6 +100,7 @@ class TestHandleInfoFundingRateResponse:
             HyperliquidResponseHandler.handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 symbol=symbol,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -115,6 +117,7 @@ class TestHandleInfoFundingRateResponse:
             HyperliquidResponseHandler.handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 symbol=symbol,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -383,6 +386,7 @@ class TestMarketDataEdgeCases:
             HyperliquidResponseHandler.handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 symbol=symbol,
+                status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)

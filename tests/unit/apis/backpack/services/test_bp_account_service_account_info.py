@@ -140,7 +140,7 @@ class TestBackpackAccountServiceAccountInfo:
             await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for raw account summary, status: 200" in exc_info.value.message
+        assert "No data received for account summary, status: 200" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_account_summary_validation_error_via_public_api(

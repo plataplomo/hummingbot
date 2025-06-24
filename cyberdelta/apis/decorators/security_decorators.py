@@ -34,19 +34,19 @@ class TransformationError(Exception):
 
 class SecureTransform(Generic[T]):
     """Type-safe security decorator that enforces Pydantic validation.
-    
+
     This class-based decorator properly expresses the type transformation
     from dict[str, object] to T, allowing type checkers to understand
     the return type change.
-    
+
     Example:
         @SecureTransform(SpotBalance, context="balance_transform")
         def transform_balance(raw: Any) -> dict[str, object]:
             return {"asset": "BTC", "total_quantity": "100.0", ...}
-        
+
         # Type checker knows transform_balance returns SpotBalance!
     """
-    
+
     def __init__(
         self,
         target_model: type[T],
@@ -61,15 +61,14 @@ class SecureTransform(Generic[T]):
         self.enable_monitoring = enable_monitoring
         self.enable_audit = enable_audit
         self.source_exchange = source_exchange
-    
+
     @overload
     def __call__(self, func: Callable[P, dict[str, object]]) -> Callable[P, T]: ...
-    
+
     @overload
     def __call__(
         self, func: Callable[P, Awaitable[dict[str, object]]]
-    ) -> Callable[P, Awaitable[T]]:
-        ...
+    ) -> Callable[P, Awaitable[T]]: ...
 
     def __call__(
         self, func: Callable[P, dict[str, object]] | Callable[P, Awaitable[dict[str, object]]]
@@ -77,53 +76,50 @@ class SecureTransform(Generic[T]):
         """Support both sync and async functions."""
         if asyncio.iscoroutinefunction(func):
             async_func = cast(Callable[P, Awaitable[dict[str, object]]], func)
-            
+
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 transformation_data = await async_func(*args, **kwargs)
                 return self._transform_data(transformation_data, func.__name__)
-            
+
             return cast(Callable[P, Awaitable[T]], async_wrapper)
         else:
             sync_func = cast(Callable[P, dict[str, object]], func)
-            
+
             @wraps(func)
             def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 transformation_data = sync_func(*args, **kwargs)
                 return self._transform_data(transformation_data, func.__name__)
-            
+
             return cast(Callable[P, T], sync_wrapper)
-    
+
     def _transform_data(self, data: dict[str, object], func_name: str) -> T:
         """Core transformation logic matching current secure_transform utility."""
         method_context = self.context or f"{func_name}_{self.target_model.__name__}"
         exchange_context = self.source_exchange or "unknown"
-        
+
         # Security monitoring
         if self.enable_monitoring:
             logger.info(
-                f"SECURITY: Secure transformation attempt: {method_context} "
-                f"from {exchange_context}"
+                f"SECURITY: Secure transformation attempt: {method_context} from {exchange_context}"
             )
-        
+
         try:
             # ENFORCE model_validate() - prevents bypass vulnerability
             validated_model = self.target_model.model_validate(data)
-            
+
             # Success logging
             if self.enable_monitoring:
                 logger.debug(f"SECURITY: Validation successful: {method_context}")
-            
+
             # Audit trail
             if self.enable_audit:
                 _create_audit_record(
-                    source_data=data,
-                    target_model=validated_model,
-                    context=method_context
+                    source_data=data, target_model=validated_model, context=method_context
                 )
-            
+
             return validated_model
-            
+
         except ValidationError as e:
             # Maintain existing error pattern
             logger.error(
@@ -143,15 +139,9 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
                 raw_value = data[field]
                 if not isinstance(raw_value, str | int | float | Decimal):
                     raise ValueError(f"Field {field} must be numeric, got {type(raw_value)}")
-                value = parse_decimal_value(
-                    raw_value, 
-                    allow_none=False, 
-                    field_name=field
-                )
+                value = parse_decimal_value(raw_value, allow_none=False, field_name=field)
                 if value is not None and value < 0:
-                    raise ValueError(
-                        f"Financial field {field} cannot be negative: {value}"
-                    )
+                    raise ValueError(f"Financial field {field} cannot be negative: {value}")
             except (ValueError, TypeError) as e:
                 if "cannot be negative" not in str(e):
                     raise ValueError(
@@ -169,28 +159,20 @@ def _validate_custom_constraints(
             raw_value = data[field]
             if not isinstance(raw_value, str | int | float | Decimal | None):
                 continue  # Skip non-numeric values
-            value = parse_decimal_value(
-                raw_value, 
-                allow_none=True, 
-                field_name=field
-            )
+            value = parse_decimal_value(raw_value, allow_none=True, field_name=field)
             if value is not None:
                 if "min" in rules and value < Decimal(str(rules["min"])):
-                    raise ValueError(
-                        f"Field {field} below minimum {rules['min']}: {value}"
-                    )
+                    raise ValueError(f"Field {field} below minimum {rules['min']}: {value}")
                 if "max" in rules and value > Decimal(str(rules["max"])):
-                    raise ValueError(
-                        f"Field {field} exceeds maximum {rules['max']}: {value}"
-                    )
+                    raise ValueError(f"Field {field} exceeds maximum {rules['max']}: {value}")
 
 
 class BusinessLogicValidator(Generic[P, R]):
     """Business logic validation that preserves types.
-    
+
     Integrates with existing parsing utilities and validation patterns.
     """
-    
+
     def __init__(
         self,
         constraints: dict[str, dict[str, Any]] | None = None,
@@ -202,7 +184,7 @@ class BusinessLogicValidator(Generic[P, R]):
 
     @overload
     def __call__(self, func: Callable[P, R]) -> Callable[P, R]: ...
-    
+
     @overload
     def __call__(self, func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 
@@ -212,31 +194,31 @@ class BusinessLogicValidator(Generic[P, R]):
         """Validate while preserving function signature."""
         if asyncio.iscoroutinefunction(func):
             async_func = cast(Callable[P, Awaitable[R]], func)
-            
+
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 result: R = await async_func(*args, **kwargs)
-                
+
                 # Perform validation only on dict results
                 self._validate_if_dict(result)
-                
+
                 return result
-            
+
             return cast(Callable[P, Awaitable[R]], async_wrapper)
         else:
             sync_func = cast(Callable[P, R], func)
-            
+
             @wraps(func)
             def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 result: R = sync_func(*args, **kwargs)
-                
+
                 # Perform validation only on dict results
                 self._validate_if_dict(result)
-                
+
                 return result
-            
+
             return cast(Callable[P, R], sync_wrapper)
-    
+
     def _validate_if_dict(self, result: object) -> None:
         """Validate result if it's a dict and not a BaseModel."""
         if isinstance(result, dict):
@@ -346,7 +328,7 @@ def _find_mapper(self: object) -> object:
 
 class SecurityMonitor(Generic[P, R]):
     """Security monitoring decorator that integrates with existing logging patterns."""
-    
+
     def __init__(
         self,
         alert_on_negative: bool = True,
@@ -360,13 +342,21 @@ class SecurityMonitor(Generic[P, R]):
         self.anomaly_detection = anomaly_detection
         self.max_field_count = max_field_count
         self.sensitive_fields = [
-            "price", "quantity", "balance", "total", "available", 
-            "amount", "equity", "margin", "collateral", "pnl"
+            "price",
+            "quantity",
+            "balance",
+            "total",
+            "available",
+            "amount",
+            "equity",
+            "margin",
+            "collateral",
+            "pnl",
         ]
 
     @overload
     def __call__(self, func: Callable[P, R]) -> Callable[P, R]: ...
-    
+
     @overload
     def __call__(self, func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 
@@ -376,42 +366,40 @@ class SecurityMonitor(Generic[P, R]):
         """Monitor while preserving types."""
         if asyncio.iscoroutinefunction(func):
             async_func = cast(Callable[P, Awaitable[R]], func)
-            
+
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 result = await async_func(*args, **kwargs)
                 self._monitor_result(result, func.__name__)
                 return result
-            
+
             return cast(Callable[P, Awaitable[R]], async_wrapper)
         else:
             sync_func = cast(Callable[P, R], func)
-            
+
             @wraps(func)
             def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 result = sync_func(*args, **kwargs)
                 self._monitor_result(result, func.__name__)
                 return result
-            
+
             return cast(Callable[P, R], sync_wrapper)
-    
+
     def _monitor_result(self, result: object, func_name: str) -> None:
         """Monitor for security anomalies."""
         if not isinstance(result, dict):
             return
-        
+
         anomalies: list[str] = []
-        
+
         if self.alert_on_negative:
-            anomalies.extend(
-                _check_negative_values(cast(dict[str, Any], result))
-            )
-        
+            anomalies.extend(_check_negative_values(cast(dict[str, Any], result)))
+
         if self.alert_on_oversized:
             anomalies.extend(
                 _check_oversized_data(cast(dict[str, Any], result), self.max_field_count)
             )
-        
+
         if anomalies:
             logger.warning(f"SECURITY ANOMALY: {anomalies} in {func_name}")
 
@@ -528,25 +516,25 @@ def _create_audit_record(
     """Create cryptographic audit record for security monitoring."""
     source_hash = hashlib.sha256(str(source_data).encode()).hexdigest()
     target_hash = hashlib.sha256(target_model.model_dump_json().encode()).hexdigest()
-    
+
     audit_record = {
         "timestamp": datetime.now(UTC).isoformat(),
         "context": context,
         "source_hash": source_hash,
         "target_hash": target_hash,
-        "validation_result": "success"
+        "validation_result": "success",
     }
-    
+
     logger.info(f"AUDIT: {audit_record}")
 
 
 class SecureTransformStack(Generic[T]):
     """Composite decorator matching current decorator stacking patterns.
-    
+
     Provides the same functionality as stacking multiple decorators but with
     better type safety and cleaner syntax.
     """
-    
+
     def __init__(
         self,
         target_model: type[T],
@@ -565,35 +553,34 @@ class SecureTransformStack(Generic[T]):
         self.enable_monitoring = enable_monitoring
         self.enable_audit = enable_audit
         self.source_exchange = source_exchange
-    
+
     def __call__(self, func: Callable[..., dict[str, object]]) -> Callable[..., T]:
         """Apply security stack in correct order."""
         # Order matches current decorator stacking patterns
-        
+
         # Type-safe decorator application
         # 1. Security monitoring (outermost)
         monitor = SecurityMonitor[..., dict[str, object]]()
         monitored_func = monitor(func)
-        
+
         # 2. Business logic validation
         if self.financial_fields or self.constraints:
             validator = BusinessLogicValidator[..., dict[str, object]](
-                financial_fields=self.financial_fields,
-                constraints=self.constraints
+                financial_fields=self.financial_fields, constraints=self.constraints
             )
             validated_func = validator(monitored_func)
         else:
             validated_func = monitored_func
-        
+
         # 3. Secure transformation (innermost)
         transformer = SecureTransform(
             target_model=self.target_model,
             context=self.context,
             enable_monitoring=self.enable_monitoring,
             enable_audit=self.enable_audit,
-            source_exchange=self.source_exchange
+            source_exchange=self.source_exchange,
         )
-        
+
         # Final transformation
         # The transformer properly handles both sync and async functions
         # and returns the correct type based on the input
@@ -615,7 +602,7 @@ def secure_transform(
         context=context,
         enable_monitoring=enable_monitoring,
         enable_audit=enable_audit,
-        source_exchange=source_exchange
+        source_exchange=source_exchange,
     )
 
 
@@ -624,10 +611,7 @@ def business_logic_validated(
     financial_fields: list[str] | None = None,
 ) -> BusinessLogicValidator[..., Any]:
     """Legacy function interface - use BusinessLogicValidator decorator instead."""
-    return BusinessLogicValidator(
-        constraints=constraints,
-        financial_fields=financial_fields
-    )
+    return BusinessLogicValidator(constraints=constraints, financial_fields=financial_fields)
 
 
 def security_monitored(
@@ -641,7 +625,5 @@ def security_monitored(
         alert_on_negative=alert_on_negative,
         alert_on_oversized=alert_on_oversized,
         anomaly_detection=anomaly_detection,
-        max_field_count=max_field_count
+        max_field_count=max_field_count,
     )
-
-

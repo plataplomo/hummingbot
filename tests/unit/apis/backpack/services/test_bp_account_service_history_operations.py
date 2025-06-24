@@ -138,6 +138,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
             mock_raw_response_list,
             symbol,
+            200,
         )
         mock_mapper.transform_raw_order_to_internal.assert_called_once_with(
             mock_validated_raw_orders[0],
@@ -204,6 +205,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler.handle_get_order_history_response.assert_called_once_with(
             mock_raw_response_list,
             symbol,
+            200,
         )
 
     @pytest.mark.asyncio
@@ -336,7 +338,7 @@ class TestBackpackAccountServiceHistoryOperations:
             endpoint_group="private",
             request_weight=1,
         )
-        mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_response)
+        mock_response_handler.handle_withdraw_response.assert_called_once_with(mock_response, 200)
 
     @pytest.mark.asyncio
     async def test_withdraw_http_client_returns_none(
@@ -510,6 +512,7 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler.handle_get_fills_response.assert_called_once_with(
             mock_raw_response,
             symbol,
+            200,
         )
         mock_mapper.transform_raw_fill_to_internal.assert_called_once_with(
             mock_validated_raw_fills[0],

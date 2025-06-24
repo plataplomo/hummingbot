@@ -140,7 +140,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             await backpack_market_data_service.get_market(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        expected_error_msg = f"Market for {symbol} returned invalid data (status: 200)"
+        expected_error_msg = f"No data received for market ({symbol}), status: 200"
         assert exc_info.value.message == expected_error_msg
 
         mock_response_handler.handle_get_market_response.assert_not_called()
@@ -167,7 +167,9 @@ class TestBackpackMarketDataServiceMarketMetadata:
             await backpack_market_data_service.get_market(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        expected_error_msg = f"Market for {symbol} returned invalid data (status: 200)"
+        expected_error_msg = (
+            f"Unexpected market ({symbol}) response format: expected dict, got list"
+        )
         assert exc_info.value.message == expected_error_msg
 
         mock_response_handler.handle_get_market_response.assert_not_called()
@@ -339,7 +341,8 @@ class TestBackpackMarketDataServiceMarketMetadata:
                 request_weight=1,
             )
             mock_response_handler.handle_get_markets_response.assert_called_once_with(
-                mock_raw_markets_data
+                mock_raw_markets_data,
+                200,
             )
             assert mock_mapper.transform_raw_market_to_internal.call_count == len(
                 mock_validated_markets_raw
@@ -383,7 +386,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             await backpack_market_data_service.get_markets(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        expected_error_msg = "Markets data returned invalid format (status: 200)"
+        expected_error_msg = "No data received for markets data, status: 200"
         assert exc_info.value.message == expected_error_msg
 
         mock_response_handler.handle_get_markets_response.assert_not_called()
@@ -406,7 +409,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             await backpack_market_data_service.get_markets(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        expected_error_msg = "Markets data returned invalid format (status: 200)"
+        expected_error_msg = "Unexpected markets data response format: expected list, got dict"
         assert exc_info.value.message == expected_error_msg
 
         mock_response_handler.handle_get_markets_response.assert_not_called()

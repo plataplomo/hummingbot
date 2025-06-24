@@ -39,17 +39,21 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 from cyberdelta.config.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 # Type alias for raw JSON response from HTTP client
-RawJsonPrim = str | int | float | bool | None
-RawJson = dict[str, "RawJson"] | list["RawJson"] | RawJsonPrim
-type RawJsonResponse = RawJson  # Use type for clarity
+# Aligned with ParsedJsonResponse from http_client.py
+type RawJsonResponse = ParsedJsonResponse
 
 
 class BackpackResponseHandler:
@@ -86,19 +90,18 @@ class BackpackResponseHandler:
     ) -> BackpackRawTicker:
         """Validate the raw response for the Get Ticker endpoint."""
         context = f"ticker ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawTicker.model_validate(raw_response_content)
+            return BackpackRawTicker.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -110,19 +113,18 @@ class BackpackResponseHandler:
     ) -> BackpackRawOrderBook:
         """Validate the raw response for the Get Order Book endpoint."""
         context = f"order book ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawOrderBook.model_validate(raw_response_content)
+            return BackpackRawOrderBook.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -134,62 +136,62 @@ class BackpackResponseHandler:
     ) -> list[BackpackRawRecentPublicTrade]:
         """Validate the raw response for the Get Recent Trades endpoint."""
         context = f"recent trades ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_items: list[BackpackRawRecentPublicTrade] = []
-        for item in raw_response_content:
+        for i, item in enumerate(validated_list):
             # Ensure item is a dict before validating
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_items.append(BackpackRawRecentPublicTrade.model_validate(item))
+                validated_items.append(BackpackRawRecentPublicTrade.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single trade item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_items
 
     @staticmethod
     def handle_get_balances_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> dict[str, BackpackRawBalance]:
         """Validate the raw response for the Get Balances endpoint."""
         context = "balances"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_balances: dict[str, BackpackRawBalance] = {}
-        # raw_response_content is known to be a dict here
-        for asset_symbol, balance_details in raw_response_content.items():
+        # validated_data is known to be a dict here
+        for asset_symbol, balance_details in validated_data.items():
             # Ensure balance_details is dict before validating
-            if not isinstance(balance_details, dict):
-                logger.warning(
-                    f"[{__name__}] Skipping non-dict balance details for asset "
-                    f"'{asset_symbol}' in {context}: {balance_details!r}",
-                )
-                continue
+            validated_balance = ensure_dict_response(
+                balance_details,
+                f"{context} for asset '{asset_symbol}'",
+                status_code,
+            )
             try:
                 # Ensure asset_symbol is string for the key
                 validated_balances[str(asset_symbol)] = BackpackRawBalance.model_validate(
-                    balance_details,
+                    validated_balance,
                 )
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"balance details for {asset_symbol}",
-                    balance_details,
+                    validated_balance,
                 ) from e
         return validated_balances
 
@@ -197,6 +199,7 @@ class BackpackResponseHandler:
     def handle_get_positions_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawPosition]:
         """Validate the raw response for the Get Positions endpoint.
 
@@ -206,26 +209,27 @@ class BackpackResponseHandler:
         context = f"positions ({symbol or 'all'})"
         validated_positions: list[BackpackRawPosition] = []
 
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                position = BackpackRawPosition.model_validate(item)
+                position = BackpackRawPosition.model_validate(validated_item)
                 if symbol is None or position.symbol == symbol:
                     validated_positions.append(position)
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single position item in {context}",
-                    item,
+                    validated_item,
                 ) from e
 
         if symbol is not None and not validated_positions:
@@ -238,22 +242,22 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_place_order_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawOrder:
         """Validate the raw response for the Place Order endpoint."""
         context = "place order response"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawOrder.model_validate(raw_response_content)
+            return BackpackRawOrder.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -279,28 +283,30 @@ class BackpackResponseHandler:
     def handle_get_open_orders_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawOrder]:
         """Validate the raw response for the Get Open Orders endpoint."""
         context = f"open orders ({symbol or 'all'})"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_orders: list[BackpackRawOrder] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(item))
+                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single open order item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_orders
 
@@ -313,36 +319,32 @@ class BackpackResponseHandler:
     ) -> BackpackRawFundingRate:
         """Validate the raw response for the Get Funding Rate endpoint."""
         context = f"funding rate ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
+
+        # Try to handle as dict first
+        if isinstance(raw_response_content, dict):
+            raw_data_to_validate = raw_response_content
+        elif isinstance(raw_response_content, list):
             # Check if it is a list, as HL funding rate is a list
-            if isinstance(raw_response_content, list):
-                if not raw_response_content:  # Empty list
-                    raise APIError(
-                        message=(
-                            f"Empty list for {context} response, expected dict or non-empty list."
-                        ),
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-                # Assuming the first element is the target if it's a list
-                # (adapting for HL-like structures)
-                if isinstance(raw_response_content[0], dict):
-                    raw_data_to_validate = raw_response_content[0]
-                else:
-                    raise APIError(
-                        message=(
-                            f"Unexpected item type in list for {context} response: "
-                            f"expected dict, got {type(raw_response_content[0]).__name__}"
-                        ),
-                        code=APIErrorCode.INVALID_RESPONSE.value,
-                    )
-            else:
+            if not raw_response_content:  # Empty list
                 raise APIError(
-                    message=f"Unexpected {context} response format: expected dict or list, "
-                    f"got {type(raw_response_content).__name__}",
+                    message=(
+                        f"Empty list for {context} response, expected dict or non-empty list."
+                    ),
                     code=APIErrorCode.INVALID_RESPONSE.value,
                 )
+            # Assuming the first element is the target if it's a list
+            # (adapting for HL-like structures)
+            raw_data_to_validate = ensure_dict_response(
+                raw_response_content[0],
+                f"{context} (first item in list)",
+                status_code,
+            )
         else:
-            raw_data_to_validate = raw_response_content
+            raise APIError(
+                message=f"Unexpected {context} response format: expected dict or list, "
+                f"got {type(raw_response_content).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
 
         try:
             return BackpackRawFundingRate.model_validate(raw_data_to_validate)
@@ -356,47 +358,52 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_get_account_info_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawAccountSummary:
         """Validate the raw response for the Get Account Info endpoint."""
         context = "account info"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawAccountSummary.model_validate(raw_response_content)
+            return BackpackRawAccountSummary.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
     def handle_get_markets_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> list[BackpackRawMarket]:
         """Validate the raw response for the Get Markets endpoint."""
         context = "markets"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         markets: list[BackpackRawMarket] = []
-        for i, market_data in enumerate(raw_response_content):
+        for i, market_data in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                market_data,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                market_model = BackpackRawMarket.model_validate(market_data)
+                market_model = BackpackRawMarket.model_validate(validated_item)
                 markets.append(market_model)
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"{context} item {i}",
-                    market_data,
+                    validated_item,
                 ) from e
 
         return markets
@@ -423,71 +430,71 @@ class BackpackResponseHandler:
             APIError: If validation fails or response format is unexpected.
         """
         context = f"market for {symbol}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         try:
-            market_model = BackpackRawMarket.model_validate(raw_response_content)
+            market_model = BackpackRawMarket.model_validate(validated_data)
             return market_model
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
     def handle_withdraw_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawWithdrawalResponse:
         """Validate the raw response for the Withdraw endpoint."""
         context = "withdraw response"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawWithdrawalResponse.model_validate(raw_response_content)
+            return BackpackRawWithdrawalResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
     def handle_get_order_history_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawOrder]:
         """Validate the raw response for the Get Order History endpoint."""
         context = f"order history ({symbol or 'all'})"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_orders: list[BackpackRawOrder] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(item))
+                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single order history item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_orders
 
@@ -495,31 +502,33 @@ class BackpackResponseHandler:
     def handle_get_trade_history_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawPublicTrade]:
         """Validate the raw response for the Get Trade History endpoint.
 
         Now returns list[BackpackRawPublicTrade] as per user request.
         """
         context = f"trade history ({symbol or 'all'})"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_items: list[BackpackRawPublicTrade] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_items.append(BackpackRawPublicTrade.model_validate(item))
+                validated_items.append(BackpackRawPublicTrade.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single trade item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_items
 
@@ -527,31 +536,33 @@ class BackpackResponseHandler:
     def handle_get_fills_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawFill]:
         """Validate the raw response for the Get Fills (/wapi/v1/history/fills) endpoint.
 
         This endpoint returns BackpackRawFill format, different from BackpackRawPublicTrade.
         """
         context = f"fills history ({symbol or 'all'})"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_fills: list[BackpackRawFill] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_fills.append(BackpackRawFill.model_validate(item))
+                validated_fills.append(BackpackRawFill.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single fill item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_fills
 
@@ -565,15 +576,14 @@ class BackpackResponseHandler:
     ) -> list[BackpackRawKline]:  # Changed return type
         """Validate the raw response for the Get Market Data (Klines) endpoint."""
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_klines: list[BackpackRawKline] = []
-        for item_raw in raw_response_content:
+        for _i, item_raw in enumerate(validated_list):
             if not isinstance(item_raw, list):  # Backpack klines are lists of values
                 logger.warning(
                     f"[{__name__}] Skipping non-list kline item in {context}: {item_raw!r}",
@@ -589,10 +599,11 @@ class BackpackResponseHandler:
                     f"{context}: {e}. Item: {item_raw!r}",
                 )
                 # Re-raise to fail the entire response if one kline is bad, or collect valid ones
+                # Pass the full validated_list since item_raw type is not fully known
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single kline item in {context}",
-                    item_raw,
+                    validated_list,
                 ) from e
             except Exception as e_unk_item:
                 logger.error(
@@ -616,25 +627,26 @@ class BackpackResponseHandler:
     ) -> list[BackpackRawPublicTrade]:
         """Validate the raw response for the Get Historical Trades endpoint."""
         context = f"historical trades ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_trades: list[BackpackRawPublicTrade] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
-                logger.warning(f"[{__name__}] Skipping non-dict item in {context} list: {item!r}")
-                continue
+        for i, item in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_trades.append(BackpackRawPublicTrade.model_validate(item))
+                validated_trades.append(BackpackRawPublicTrade.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single historical trade item in {context}",
-                    item,
+                    validated_item,
                 ) from e
         return validated_trades
 
@@ -642,34 +654,29 @@ class BackpackResponseHandler:
     def handle_get_order_status_response(
         raw_response_content: RawJsonResponse,
         identifier: str,
+        status_code: int,
     ) -> BackpackRawOrder:
         """Validate the raw response for the Get Order Status endpoint."""
         context = f"order status (id={identifier})"
-        if raw_response_content is None:
-            raise APIError(
-                f"Order {identifier} not found (empty response).",
-                code=APIErrorCode.ORDER_NOT_FOUND.value,
-            )
-
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawOrder.model_validate(raw_response_content)
+            return BackpackRawOrder.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
     def handle_cancel_all_orders_response(
         raw_response_content: RawJsonResponse,
         symbol: str | None,
+        status_code: int,
     ) -> list[BackpackRawOrder]:
         """Validate the raw response for the Cancel All Orders endpoint.
 
@@ -677,27 +684,22 @@ class BackpackResponseHandler:
         Expects a list of successfully cancelled orders.
         """
         context = f"cancel all orders ({symbol or 'all'})"
-        if not isinstance(raw_response_content, list):
-            # According to OpenAPI spec, this should be a list of orders that were cancelled.
-            # If it's not a list, it might be an error structure or an unexpected empty response.
-            # For now, assume an empty list is a valid response if it's not an error.
-            # If it's an empty dict {} and success, it might mean "no orders to cancel".
-            # However, the spec says `type: array, items: $ref: '#/components/schemas/Order'`
-            # Let's strictly expect a list or raise.
-            logger.error(
-                f"[{__name__}] Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}. Raw: {raw_response_content!r}",
-            )
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_response": raw_response_content},  # Pass raw content in metadata
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_orders: list[BackpackRawOrder] = []
-        for item in raw_response_content:
-            if not isinstance(item, dict):
+        for i, item in enumerate(validated_list):
+            # Skip non-dict items with logging, but ensure dict before validation
+            try:
+                validated_item = ensure_dict_response(
+                    item,
+                    f"{context} item[{i}]",
+                    status_code,
+                )
+            except APIError:
                 logger.warning(
                     f"[{__name__}] Skipping non-dict item in {context} list: {item!r}. "
                     f"Full response: {raw_response_content!r}",
@@ -705,7 +707,7 @@ class BackpackResponseHandler:
                 continue  # Skip non-dict items, but don't fail the whole batch
 
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(item))
+                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
             except ValidationError as e:
                 # Log the specific item that failed validation but continue processing others
                 # to return successfully validated items if any.
@@ -713,12 +715,12 @@ class BackpackResponseHandler:
                 # to return what was successfully parsed as cancelled.
                 logger.error(
                     f"[{__name__}] Pydantic validation failed for single order item in "
-                    f"{context}: {e}. Item: {item!r}. Full response: {raw_response_content!r}",
+                    f"{context}: {e}. Item: {validated_item!r}.",
                 )
                 # Optionally, re-raise if any single item failing should invalidate
                 # the whole response:
                 # raise BackpackResponseHandler._handle_validation_error(
-                #     e, f"single order item in {context}", item
+                #     e, f"single order item in {context}", validated_item
                 # ) from e
                 # For now, we'll be lenient and collect valid ones.
                 # Consider if this behavior is desired or if it should be stricter.
@@ -727,6 +729,7 @@ class BackpackResponseHandler:
     @staticmethod
     def handle_transfer_response(
         raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> RawJsonResponse:  # Returns the validated raw dict
         """Validate the raw response for an internal capital transfer.
 
@@ -734,51 +737,48 @@ class BackpackResponseHandler:
         optional 'transferId' (str).
         """
         context = "internal transfer response"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=(
-                    f"Unexpected {context} format: expected dict, got "
-                    f"{type(raw_response_content).__name__}"
-                ),
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         # Basic structure validation
-        if "success" not in raw_response_content or not isinstance(
-            raw_response_content["success"],
+        if "success" not in validated_data or not isinstance(
+            validated_data["success"],
             bool,
         ):
             raise APIError(
                 message=(
                     f"Invalid {context}: 'success' field missing or not a boolean. "
-                    f"Got: {raw_response_content.get('success')}"
+                    f"Got: {validated_data.get('success')}"
                 ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        if "message" in raw_response_content and not isinstance(
-            raw_response_content["message"],
+        if "message" in validated_data and not isinstance(
+            validated_data["message"],
             str,
         ):
             logger.warning(
                 f"[{__name__}] {context} 'message' field is not a string: "
-                f"{raw_response_content['message']}",
+                f"{validated_data['message']}",
             )
             # Don't raise, but log. Message is optional and for info.
 
-        if "transferId" in raw_response_content and not isinstance(
-            raw_response_content["transferId"],
+        if "transferId" in validated_data and not isinstance(
+            validated_data["transferId"],
             str,
         ):
             logger.warning(
                 f"[{__name__}] {context} 'transferId' field is not a string: "
-                f"{raw_response_content['transferId']}",
+                f"{validated_data['transferId']}",
             )
             # Don't raise, but log. TransferId is optional and for info.
 
         # If successful, the mapper will use this dict to create an internal Transfer model.
         # If not successful (success=False), the mapper should handle this appropriately.
-        return raw_response_content
+        return validated_data
 
     @staticmethod
     def handle_get_current_funding_rate_response(
@@ -789,20 +789,19 @@ class BackpackResponseHandler:
     ) -> BackpackRawFundingRate:
         """Validate the raw response for the Get Current Funding Rate endpoint."""
         context = f"current funding rate ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
             # Assuming BackpackRawFundingRate is the correct model for a single, current rate
-            return BackpackRawFundingRate.model_validate(raw_response_content)
+            return BackpackRawFundingRate.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -817,27 +816,28 @@ class BackpackResponseHandler:
         (/api/v1/fundingRates).
         """
         context = f"historical funding rates ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, list):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected list, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_list = ensure_list_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
 
         validated_rates: list[BackpackRawFundingIntervalRate] = []
-        for item_raw in raw_response_content:
-            if not isinstance(item_raw, dict):
-                logger.warning(
-                    f"[{__name__}] Skipping non-dict item in {context} list: {item_raw!r}",
-                )
-                continue
+        for i, item_raw in enumerate(validated_list):
+            validated_item = ensure_dict_response(
+                item_raw,
+                f"{context} item[{i}]",
+                status_code,
+            )
             try:
-                validated_rates.append(BackpackRawFundingIntervalRate.model_validate(item_raw))
+                validated_rates.append(
+                    BackpackRawFundingIntervalRate.model_validate(validated_item)
+                )
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single historical funding rate item in {context}",
-                    item_raw,
+                    validated_item,
                 ) from e
         return validated_rates
 
@@ -853,19 +853,18 @@ class BackpackResponseHandler:
         (/api/v1/capital/collateral).
         """
         context = f"collateral data (subaccount_id={subaccount_id}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawCollateralResponse.model_validate(raw_response_content)
+            return BackpackRawCollateralResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     # --- Account Limits Response Handlers (INTERNAL USE ONLY) ---
@@ -884,19 +883,18 @@ class BackpackResponseHandler:
         (/api/v1/account/limits/borrow).
         """
         context = f"max borrow quantity ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawMaxBorrowQuantity.model_validate(raw_response_content)
+            return BackpackRawMaxBorrowQuantity.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -914,19 +912,18 @@ class BackpackResponseHandler:
         (/api/v1/account/limits/order).
         """
         context = f"max order quantity ({symbol} {side}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawMaxOrderQuantity.model_validate(raw_response_content)
+            return BackpackRawMaxOrderQuantity.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e
 
     @staticmethod
@@ -943,17 +940,16 @@ class BackpackResponseHandler:
         (/api/v1/account/limits/withdrawal).
         """
         context = f"max withdrawal quantity ({symbol}) - Status: {status_code}"
-        if not isinstance(raw_response_content, dict):
-            raise APIError(
-                message=f"Unexpected {context} response format: expected dict, "
-                f"got {type(raw_response_content).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        validated_data = ensure_dict_response(
+            raw_response_content,
+            context,
+            status_code,
+        )
         try:
-            return BackpackRawMaxWithdrawalQuantity.model_validate(raw_response_content)
+            return BackpackRawMaxWithdrawalQuantity.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
-                raw_response_content,
+                validated_data,
             ) from e

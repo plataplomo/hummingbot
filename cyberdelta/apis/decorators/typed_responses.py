@@ -30,13 +30,13 @@ class TypedResponseError(Exception):
 
 class TypedApiMethod(Generic[T]):
     """Enhanced version of typed_api_method that works with class-based approach.
-    
+
     Maintains compatibility with existing service patterns:
     - HttpClientRequesterSig integration
     - Response handler validation
     - Error mapping
     """
-    
+
     def __init__(
         self,
         response_model: type[T] | None = None,
@@ -53,34 +53,33 @@ class TypedApiMethod(Generic[T]):
         self.context_builder = context_builder
         self.validate_status_code = validate_status_code
         self.expected_status_codes = expected_status_codes or {200, 201}
-    
+
     def __call__(
-        self, 
-        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, dict[str, Any]]]]
+        self, func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, dict[str, Any]]]]
     ) -> Callable[..., Awaitable[T | list[T] | None]]:
         """Transform HTTP method to return validated model."""
         sig = inspect.signature(func)
         param_names = list(sig.parameters.keys())[1:]  # Skip 'self'
-        
+
         @wraps(func)
         async def wrapper(*args: object, **kwargs: object) -> T | list[T] | None:
             # Execute HTTP request (matches current pattern)
             raw_data, status_code, _ = await func(*args, **kwargs)
-            
+
             # Build context for errors
             if self.context_builder:
                 context = self.context_builder(*args, **kwargs)
             else:
                 # Smart context building (matches current implementation)
                 context = _build_context(func, param_names, args)
-            
+
             # Status code validation
             if self.validate_status_code and status_code not in self.expected_status_codes:
                 logger.warning(
                     f"Unexpected status code {status_code} for {context}, "
                     f"expected one of {self.expected_status_codes}"
                 )
-            
+
             # Handle None responses
             if raw_data is None:
                 if self.allow_none:
@@ -88,9 +87,9 @@ class TypedApiMethod(Generic[T]):
                 raise APIError(
                     message=f"No data received for {context}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code
+                    http_status=status_code,
                 )
-            
+
             # Validate and transform
             if self.list_of is not None:
                 return _validate_list_response(raw_data, self.list_of, context, status_code)
@@ -105,7 +104,7 @@ class TypedApiMethod(Generic[T]):
                     "for type safety. Returning raw data."
                 )
                 return raw_data  # type: ignore[return-value]
-        
+
         return wrapper
 
 

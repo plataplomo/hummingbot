@@ -48,6 +48,10 @@ from cyberdelta.apis.models.service_args_models import (
     GetMarketsArgs,
     GetRecentTradesArgs,
 )
+from cyberdelta.apis.utils.response_validation import (
+    ensure_dict_response,
+    ensure_list_response,
+)
 
 # Utilities
 from cyberdelta.config.logging_config import get_logger
@@ -167,21 +171,14 @@ class HyperliquidMarketDataService:
                 f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}",
             )
 
-            if raw_response_content is None:
-                _error_msg = (
-                    f"No content received from HTTP client for metaAndAssetCtxs. "
-                    f"Status: {status_code}"
-                )
-                logger.error(f"[{self._exchange_name}] {_error_msg}")
-                raise APIError(
-                    message=_error_msg,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            # Use centralized validation - metaAndAssetCtxs returns a list
+            validated_raw_data = ensure_list_response(
+                raw_response_content, "metaAndAssetCtxs", status_code
+            )
 
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
-                    raw_response_content,
+                    validated_raw_data,
                     status_code=status_code,
                     headers=headers,
                 )
@@ -890,21 +887,14 @@ class HyperliquidMarketDataService:
             request_weight=1,
         )
 
-        if raw_response_content is None:
-            logger.warning(
-                f"[{self._exchange_name}] No content for historical funding rates "
-                f"for {symbol}. Status: {status_code}.",
-            )
-            raise APIError(
-                message=f"No data received for historical funding rates for {symbol}, "
-                f"status: {status_code}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
-            )
+        # Use centralized validation
+        validated_raw_data = ensure_list_response(
+            raw_response_content, f"historical funding rates for {symbol}", status_code
+        )
 
         raw_funding_history_items: list[HyperliquidRawFundingHistoryItem] = (
             self._response_handler.handle_historical_funding_rates_response(
-                raw_response_content=raw_response_content,
+                raw_response_content=validated_raw_data,
                 status_code=status_code,
                 headers=headers,
             )
@@ -1677,16 +1667,12 @@ class HyperliquidMarketDataService:
                 request_weight=2,  # AllMids has weight 2
             )
 
-            if raw_response_content is None:
-                raise APIError(
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    message="Received empty response from server.",
-                    http_status=status_code,
-                )
+            # Use centralized validation
+            validated_raw_data = ensure_dict_response(raw_response_content, "all mids", status_code)
 
             # Parse response with proper validation
             raw_all_mids = self._response_handler.handle_all_mids_response(
-                raw_response_content, status_code, headers
+                validated_raw_data, status_code, headers
             )
 
             # Transform to internal MidPrices model
