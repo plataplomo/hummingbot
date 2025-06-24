@@ -13,6 +13,7 @@ from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
 
+
 logger = logging.getLogger(__name__)
 
 

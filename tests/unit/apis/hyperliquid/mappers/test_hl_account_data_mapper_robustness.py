@@ -35,6 +35,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 
+
 # Alias for shorter method calls
 Mapper = HyperliquidAccountDataMapper
 

@@ -37,6 +37,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 
+
 # --- Fixtures ---
 
 

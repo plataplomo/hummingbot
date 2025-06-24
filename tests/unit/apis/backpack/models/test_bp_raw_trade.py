@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTradeEvent,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

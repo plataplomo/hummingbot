@@ -18,6 +18,7 @@ import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 

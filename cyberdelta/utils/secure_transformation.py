@@ -13,6 +13,7 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+
 # Configure security logger
 security_logger = logging.getLogger("cyberdelta.security")
 
@@ -25,7 +26,7 @@ class TransformationError(Exception):
     pass
 
 
-def secure_transform(
+def secure_transform[T: BaseModel](
     data: dict[str, Any],
     model_class: type[T],
     context: str = "unknown",
@@ -51,7 +52,9 @@ def secure_transform(
 
     Example:
         >>> balance_data = {"asset": "BTC", "total_quantity": "100.5", ...}
-        >>> balance = secure_transform(balance_data, SpotBalance, "balance_update", "backpack")
+        >>> balance = secure_transform(
+        ...     balance_data, SpotBalance, "balance_update", "backpack"
+        ... )
     """
     try:
         # Security event logging
@@ -94,7 +97,7 @@ def secure_transform(
         ) from e
 
 
-def secure_transform_with_audit(
+def secure_transform_with_audit[T: BaseModel](
     data: dict[str, Any],
     model_class: type[T],
     context: str = "unknown",

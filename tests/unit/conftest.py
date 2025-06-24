@@ -34,6 +34,7 @@ from cyberdelta.config.config_models import (
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -239,38 +240,32 @@ def mock_config() -> Callable[..., AppSettings]:
                 state_backup_count=5,
             ),
             exchanges={
-                "hyperliquid": ExchangeSpecificConfig.model_validate(
-                    {
-                        "exchange_name": ExchangeName.HYPERLIQUID,
-                        "enabled": True,
-                        "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-                        "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-                        "rate_limit_per_minute": 120,
-                        "symbols": {"BTC": "BTC", "ETH": "ETH"},
-                        "chain_id": 1337,
-                        "ip_weight_limit_per_minute": 1200,
-                        "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
-                        "default_info_weight": 2,
-                        "exchange_action_base_ip_weight": 10,
-                        "address_action_safety_net": AddressActionSafetyNetConfig(
-                            rate_per_minute=60
-                        ),
-                        "request_timeout_seconds": 20.0,
-                        "ws_ping_interval_seconds": 25.0,
-                    }
-                ),
-                "backpack": ExchangeSpecificConfig.model_validate(
-                    {
-                        "exchange_name": ExchangeName.BACKPACK,
-                        "enabled": True,
-                        "api_base_url_mainnet": "https://api.backpack.exchange",
-                        "ws_url_mainnet": "wss://api.backpack.exchange/ws",
-                        "rate_limit_per_minute": 100,
-                        "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
-                        "request_timeout_seconds": 15.0,
-                        "ws_ping_interval_seconds": 30.0,
-                    }
-                ),
+                "hyperliquid": ExchangeSpecificConfig.model_validate({
+                    "exchange_name": ExchangeName.HYPERLIQUID,
+                    "enabled": True,
+                    "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+                    "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+                    "rate_limit_per_minute": 120,
+                    "symbols": {"BTC": "BTC", "ETH": "ETH"},
+                    "chain_id": 1337,
+                    "ip_weight_limit_per_minute": 1200,
+                    "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+                    "default_info_weight": 2,
+                    "exchange_action_base_ip_weight": 10,
+                    "address_action_safety_net": AddressActionSafetyNetConfig(rate_per_minute=60),
+                    "request_timeout_seconds": 20.0,
+                    "ws_ping_interval_seconds": 25.0,
+                }),
+                "backpack": ExchangeSpecificConfig.model_validate({
+                    "exchange_name": ExchangeName.BACKPACK,
+                    "enabled": True,
+                    "api_base_url_mainnet": "https://api.backpack.exchange",
+                    "ws_url_mainnet": "wss://api.backpack.exchange/ws",
+                    "rate_limit_per_minute": 100,
+                    "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+                    "request_timeout_seconds": 15.0,
+                    "ws_ping_interval_seconds": 30.0,
+                }),
             },
             strategies=StrategiesSettings(
                 hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
@@ -376,31 +371,27 @@ def test_app_settings() -> AppSettings:
             state_backup_count=5,
         ),
         exchanges={
-            "hyperliquid": ExchangeSpecificConfig.model_validate(
-                {
-                    "exchange_name": ExchangeName.HYPERLIQUID,
-                    "enabled": True,
-                    "api_base_url_mainnet": "https://api.hyperliquid.xyz",
-                    "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-                    "symbols": {"BTC": "BTC", "ETH": "ETH"},
-                    "chain_id": 1337,
-                    "ip_weight_limit_per_minute": 1200,
-                    "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
-                    "default_info_weight": 2,
-                    "exchange_action_base_ip_weight": 10,
-                    "address_action_safety_net": AddressActionSafetyNetConfig(rate_per_minute=60),
-                }
-            ),
-            "backpack": ExchangeSpecificConfig.model_validate(
-                {
-                    "exchange_name": ExchangeName.BACKPACK,
-                    "enabled": True,
-                    "api_base_url_mainnet": "https://api.backpack.exchange",
-                    "ws_url_mainnet": "wss://api.backpack.exchange/ws",
-                    "rate_limit_per_minute": 100,
-                    "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
-                }
-            ),
+            "hyperliquid": ExchangeSpecificConfig.model_validate({
+                "exchange_name": ExchangeName.HYPERLIQUID,
+                "enabled": True,
+                "api_base_url_mainnet": "https://api.hyperliquid.xyz",
+                "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+                "symbols": {"BTC": "BTC", "ETH": "ETH"},
+                "chain_id": 1337,
+                "ip_weight_limit_per_minute": 1200,
+                "info_request_type_ip_weights": {"meta": 2, "orderStatus": 1},
+                "default_info_weight": 2,
+                "exchange_action_base_ip_weight": 10,
+                "address_action_safety_net": AddressActionSafetyNetConfig(rate_per_minute=60),
+            }),
+            "backpack": ExchangeSpecificConfig.model_validate({
+                "exchange_name": ExchangeName.BACKPACK,
+                "enabled": True,
+                "api_base_url_mainnet": "https://api.backpack.exchange",
+                "ws_url_mainnet": "wss://api.backpack.exchange/ws",
+                "rate_limit_per_minute": 100,
+                "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+            }),
         },
         strategies=StrategiesSettings(
             hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
@@ -475,18 +466,16 @@ def test_app_settings() -> AppSettings:
 @pytest.fixture
 def active_bp_config() -> ExchangeSpecificConfig:
     """Fixture providing an active Backpack exchange configuration."""
-    return ExchangeSpecificConfig.model_validate(
-        {
-            "exchange_name": ExchangeName.BACKPACK,
-            "enabled": True,
-            "api_base_url_mainnet": "https://api.backpack.exchange",
-            "ws_url_mainnet": "wss://api.backpack.exchange/ws",
-            "rate_limit_per_minute": 100,
-            "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
-            "request_timeout_seconds": 15.0,
-            "ws_ping_interval_seconds": 30.0,
-        }
-    )
+    return ExchangeSpecificConfig.model_validate({
+        "exchange_name": ExchangeName.BACKPACK,
+        "enabled": True,
+        "api_base_url_mainnet": "https://api.backpack.exchange",
+        "ws_url_mainnet": "wss://api.backpack.exchange/ws",
+        "rate_limit_per_minute": 100,
+        "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+        "request_timeout_seconds": 15.0,
+        "ws_ping_interval_seconds": 30.0,
+    })
 
 
 @pytest.fixture

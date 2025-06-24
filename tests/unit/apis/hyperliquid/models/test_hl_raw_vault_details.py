@@ -13,6 +13,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_vault_details import (
     HyperliquidRawVaultUserEquity,
 )
 
+
 # --- Test Data --- #
 
 VALID_PERFORMANCE_HISTORY_ITEM: dict[str, Any] = {"time": 1700926145201, "pnl": "123.45"}

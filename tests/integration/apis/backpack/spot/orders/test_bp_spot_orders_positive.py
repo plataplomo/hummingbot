@@ -40,6 +40,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_minimal_order_size,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

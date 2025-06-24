@@ -74,6 +74,8 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
+from cyberdelta.utils.typing import is_dict_response
+
 
 logger = get_logger(__name__)
 
@@ -155,9 +157,9 @@ class HyperliquidTradingService:
             is_signed=True,
             serialize_none_as_null=True,
         )
-        if raw_content is None:
+        if not is_dict_response(raw_content):
             _error_msg_no_content = (
-                f"Exchange action ({request_payload_model.type}) returned no content."
+                f"Exchange action ({request_payload_model.type}) returned invalid content."
             )
             raise APIError(_error_msg_no_content, APIErrorCode.INVALID_RESPONSE.value)
 

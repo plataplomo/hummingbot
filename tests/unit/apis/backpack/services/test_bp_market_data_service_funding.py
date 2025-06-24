@@ -20,6 +20,7 @@ from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRates
 from cyberdelta.core.models.market import FundingRate
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_market_data"]
 

@@ -14,6 +14,7 @@ from cyberdelta.core.models.margin_account import (
     MarginAccountSummary,
 )
 
+
 pytestmark = pytest.mark.timing
 
 # Type alias for broad, but Any-free, test parameter values

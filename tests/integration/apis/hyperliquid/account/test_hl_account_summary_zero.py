@@ -28,6 +28,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
 
 

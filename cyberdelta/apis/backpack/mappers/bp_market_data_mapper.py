@@ -54,6 +54,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
+
 logger = logging.getLogger(__name__)
 
 

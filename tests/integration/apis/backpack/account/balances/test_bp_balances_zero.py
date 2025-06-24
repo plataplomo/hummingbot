@@ -15,6 +15,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.spot_balance import SpotBalance
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

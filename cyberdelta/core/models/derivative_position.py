@@ -30,6 +30,7 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 
+
 # --- Derivative Position Core Model ---
 
 

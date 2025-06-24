@@ -8,13 +8,14 @@ import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Any, Generic, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class TypedResponseError(Exception):
     pass
 
 
-class TypedApiMethod(Generic[T]):
+class TypedApiMethod[T: BaseModel]:
     """Enhanced version of typed_api_method that works with class-based approach.
 
     Maintains compatibility with existing service patterns:
@@ -121,7 +122,7 @@ def _build_context(
     return f"{method_name}{param_str}"
 
 
-def _validate_list_response(
+def _validate_list_response[T: BaseModel](
     raw_data: ParsedJsonResponse, list_of: type[T], context: str, status_code: int
 ) -> list[T]:
     """Validate array response data."""
@@ -142,7 +143,7 @@ def _validate_list_response(
         ) from e
 
 
-def _validate_object_response(
+def _validate_object_response[T: BaseModel](
     raw_data: ParsedJsonResponse, response_model: type[T], context: str, status_code: int
 ) -> T:
     """Validate object response data."""
@@ -260,7 +261,7 @@ def typed_api_method(
 
 
 # Convenience decorators for common patterns
-def dict_response(
+def dict_response[T: BaseModel](
     model: type[T], allow_none: bool = False, expected_status_codes: set[int] | None = None
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
@@ -272,7 +273,7 @@ def dict_response(
     )
 
 
-def list_response(
+def list_response[T: BaseModel](
     item_model: type[T], allow_none: bool = False, expected_status_codes: set[int] | None = None
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
@@ -284,7 +285,7 @@ def list_response(
     )
 
 
-def optional_response(
+def optional_response[T: BaseModel](
     model: type[T],
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
@@ -294,7 +295,7 @@ def optional_response(
     return typed_api_method(response_model=model, allow_none=True)
 
 
-def validated_response(
+def validated_response[T: BaseModel](
     validator: Callable[[ParsedJsonResponse, str], T],
     context_builder: Callable[..., str] | None = None,
 ) -> Callable[
@@ -361,7 +362,7 @@ def validation_pipeline(
     return decorator
 
 
-def mapped_response(
+def mapped_response[T: BaseModel](
     raw_model: type[T], mapper_method: str, allow_none: bool = True
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],

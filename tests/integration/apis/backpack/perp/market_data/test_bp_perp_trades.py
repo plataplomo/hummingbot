@@ -21,6 +21,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
 
+
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 

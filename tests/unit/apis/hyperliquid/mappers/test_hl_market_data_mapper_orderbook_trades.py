@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import ValidationError
 
+
 # Third-party imports for type checking only
 if TYPE_CHECKING:
     from pytest import LogCaptureFixture
@@ -38,6 +39,7 @@ from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import OrderBook, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
+
 
 # Alias for shorter method calls
 Mapper = HyperliquidMarketDataMapper

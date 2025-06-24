@@ -27,6 +27,7 @@ from cyberdelta.core.execution.orders import (
 from cyberdelta.core.models import OrderSide, OrderStatus, OrderType, TimeInForce
 from tests.integration.core.execution.orders.test_helpers import MarketOrderTestHelpers
 
+
 logger = get_logger(__name__)
 
 # Mark all tests in this file for VCR cassette recording

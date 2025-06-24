@@ -10,7 +10,7 @@ import asyncio  # Added import for asyncio
 import logging
 from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
-from enum import Enum  # Ensure Enum is imported
+from enum import StrEnum  # Ensure Enum is imported
 from typing import Any, Protocol
 
 from cyberdelta.config.config_models import AppSettings
@@ -26,6 +26,7 @@ from cyberdelta.validation.funding_data import (
     ArbitrageOpportunity,  # Import from correct location
 )
 
+
 logger = get_logger(__name__)
 
 # Set precision for Decimal
@@ -37,7 +38,7 @@ ONE = Decimal("1")
 
 
 # Define SimpleSizingMethod Enum and VALID_SIMPLE_SIZING_METHODS at the module level
-class SimpleSizingMethod(str, Enum):
+class SimpleSizingMethod(StrEnum):
     """Enumeration of simple position sizing methods."""
 
     FIXED_USD = "fixed_usd"

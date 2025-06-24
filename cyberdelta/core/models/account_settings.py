@@ -19,6 +19,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
+
 # --- Account Settings Core Model (MUTABLE CONFIGURATION) ---
 
 

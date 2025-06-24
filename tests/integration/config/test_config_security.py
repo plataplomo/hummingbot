@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
+
 # Add parent directory to path to import from cyberdelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

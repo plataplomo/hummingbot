@@ -19,6 +19,7 @@ from .order_book import OrderBook
 from .ticker import Ticker
 from .trade import Trade
 
+
 __all__ = [
     "Order",
     "Trade",

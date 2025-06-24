@@ -41,6 +41,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_minimal_order_size_for_zero_balance_test,
 )
 
+
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 

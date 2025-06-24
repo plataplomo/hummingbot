@@ -37,6 +37,7 @@ from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStr
 from cyberdelta.utils.state_manager import StateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
+
 logger = structlog.get_logger(__name__)
 
 # Global cancellation token

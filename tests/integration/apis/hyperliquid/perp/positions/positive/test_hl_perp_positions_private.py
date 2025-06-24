@@ -36,6 +36,7 @@ from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     get_minimal_test_quantity,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

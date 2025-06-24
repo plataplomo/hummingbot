@@ -31,7 +31,7 @@ real-time and historical order book data.
     # ...then transform to internal order book model
 """
 
-from typing import Annotated, Any, Literal, TypeGuard, cast
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import (
     BaseModel,
@@ -51,12 +51,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawPositiveFiniteDecimalStr,
 )
 from cyberdelta.utils.parsing import validate_str_field
-from cyberdelta.utils.typing import is_dict_str_any
-
-
-def is_list(obj: object) -> TypeGuard[list[object]]:
-    """Check if an object is a list using TypeGuard pattern."""
-    return isinstance(obj, list)
+from cyberdelta.utils.typing import is_dict_str_any, is_sequence_of_any
 
 
 def has_exact_length(lst: list[object], length: int) -> bool:
@@ -64,9 +59,9 @@ def has_exact_length(lst: list[object], length: int) -> bool:
     return len(lst) == length
 
 
-def all_are_lists(items: list[object]) -> bool:
-    """Check if all items in a list are themselves lists."""
-    return all(isinstance(sub, list) for sub in items)
+def all_are_sequences(items: list[object]) -> bool:
+    """Check if all items in a list are themselves sequences (lists or tuples)."""
+    return all(is_sequence_of_any(sub) for sub in items)
 
 
 # --- Price Level Submodel ---
@@ -152,19 +147,21 @@ class HyperliquidRawL2Book(BaseModel):
             ValueError: If the input is not a valid structure for order book levels.
 
         """
-        if not is_list(v):
-            raise ValueError("levels: Must be a list.")
+        if not is_sequence_of_any(v):
+            raise ValueError("levels: Must be a sequence (list or tuple).")
 
-        if not has_exact_length(v, 2):
-            raise ValueError("levels: Must be a list of two lists (bids, asks), length != 2.")
+        if not has_exact_length(list(v), 2):
+            raise ValueError(
+                "levels: Must be a sequence of two sequences (bids, asks), length != 2."
+            )
 
-        # v is now known to be a list of length 2
+        # v is now known to be a sequence of length 2
         bids_raw, asks_raw = v[0], v[1]
 
-        if not is_list(bids_raw):
-            raise ValueError("levels[0] (bids): Must be a list.")
-        if not is_list(asks_raw):
-            raise ValueError("levels[1] (asks): Must be a list.")
+        if not is_sequence_of_any(bids_raw):
+            raise ValueError("levels[0] (bids): Must be a sequence.")
+        if not is_sequence_of_any(asks_raw):
+            raise ValueError("levels[1] (asks): Must be a sequence.")
 
         # Further validation of individual level items (e.g. dicts with px, sz, n)
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].

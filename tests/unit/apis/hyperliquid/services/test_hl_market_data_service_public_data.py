@@ -31,6 +31,7 @@ from cyberdelta.apis.models.service_args_models import GetL2BookArgs, GetRecentT
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 
+
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 
@@ -216,12 +217,10 @@ class TestHyperliquidMarketDataServicePublicData:
             {"universe": []},
             [],
         ]
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {"universe": [], "marginTables": None},
-                [],
-            ]
-        )
+        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {"universe": [], "marginTables": None},
+            [],
+        ])
 
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
         mock_headers: dict[str, str] = {}
@@ -332,15 +331,13 @@ class TestHyperliquidMarketDataServicePublicData:
             ],
             marginTables=None,
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
             [
-                mock_meta_response.model_dump(by_alias=True),
-                [
-                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
-                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
-                ],
-            ]
-        )
+                mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+            ],
+        ])
 
         expected_internal_ticker = Ticker(
             symbol=symbol_to_find,
@@ -375,12 +372,10 @@ class TestHyperliquidMarketDataServicePublicData:
         """Test get_ticker returns None when symbol is not found."""
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                mock_meta_response.model_dump(by_alias=True),
-                [],
-            ]
-        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
+            [],
+        ])
 
         with patch.object(
             hyperliquid_market_data_service,

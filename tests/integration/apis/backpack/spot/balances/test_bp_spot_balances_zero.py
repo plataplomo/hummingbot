@@ -19,6 +19,7 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
+
 logger = logging.getLogger(__name__)
 
 # Mark all tests in this file

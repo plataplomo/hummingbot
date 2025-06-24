@@ -55,6 +55,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
+
 logger = get_logger(__name__)
 
 

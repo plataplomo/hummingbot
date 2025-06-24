@@ -6,4 +6,5 @@ across multiple exchanges with proper error handling and validation.
 
 import structlog
 
+
 logger = structlog.get_logger(__name__)

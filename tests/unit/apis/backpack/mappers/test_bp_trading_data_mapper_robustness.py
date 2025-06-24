@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+
 # Third-party imports for type checking only
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -35,6 +36,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+
 
 logger = logging.getLogger(__name__)
 

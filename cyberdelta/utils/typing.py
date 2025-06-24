@@ -10,11 +10,26 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, TypeGuard
 
+from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+
+
 # Type alias for types that can potentially be parsed into a Decimal
 PotentialDecimalInput = str | int | float | Decimal
 
 # Type alias for a sequence (list or tuple) expected to hold price/quantity pairs
 LevelSequence = Sequence[Any]  # Using Sequence for broader compatibility
+
+__all__ = [
+    "PotentialDecimalInput",
+    "LevelSequence",
+    "is_sequence_of_any",
+    "is_potential_decimal_input",
+    "is_dict_str_any",
+    "is_list_any",
+    "is_dict_response",
+    "is_list_response",
+    "is_string_response",
+]
 
 
 def is_sequence_of_any(val: object) -> TypeGuard[Sequence[Any]]:
@@ -73,3 +88,73 @@ def is_list_any(val: object) -> TypeGuard[list[Any]]:
         True if val is a list[Any], False otherwise.
     """
     return isinstance(val, list)
+
+
+def is_dict_response(val: ParsedJsonResponse | None) -> TypeGuard[dict[str, Any]]:
+    """TypeGuard for dict responses from ParsedJsonResponse.
+
+    This function provides type narrowing for ParsedJsonResponse values,
+    allowing better IDE support and type safety when working with API responses.
+
+    Args:
+        val: The ParsedJsonResponse value to check.
+
+    Returns:
+        True if val is not None and is a dict, False otherwise.
+
+    Example:
+        ```python
+        response, status_code, _ = await http_client.request(...)
+        if is_dict_response(response):
+            # response is now typed as dict[str, Any]
+            ticker_data = response.get("ticker")
+        ```
+    """
+    return val is not None and isinstance(val, dict)
+
+
+def is_list_response(val: ParsedJsonResponse | None) -> TypeGuard[list[Any]]:
+    """TypeGuard for list responses from ParsedJsonResponse.
+
+    This function provides type narrowing for ParsedJsonResponse values,
+    allowing better IDE support and type safety when working with API responses.
+
+    Args:
+        val: The ParsedJsonResponse value to check.
+
+    Returns:
+        True if val is not None and is a list, False otherwise.
+
+    Example:
+        ```python
+        response, status_code, _ = await http_client.request(...)
+        if is_list_response(response):
+            # response is now typed as list[Any]
+            for item in response:
+                process_item(item)
+        ```
+    """
+    return val is not None and isinstance(val, list)
+
+
+def is_string_response(val: ParsedJsonResponse | None) -> TypeGuard[str]:
+    """TypeGuard for string responses from ParsedJsonResponse.
+
+    This function provides type narrowing for ParsedJsonResponse values,
+    allowing better IDE support and type safety when working with API responses.
+
+    Args:
+        val: The ParsedJsonResponse value to check.
+
+    Returns:
+        True if val is not None and is a string, False otherwise.
+
+    Example:
+        ```python
+        response, status_code, _ = await http_client.request(...)
+        if is_string_response(response):
+            # response is now typed as str
+            message = response.upper()
+        ```
+    """
+    return val is not None and isinstance(val, str)

@@ -57,6 +57,7 @@ from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
+
 if TYPE_CHECKING:
     # Import models only needed for type hints here
     from cyberdelta.apis.models.service_args_models import (

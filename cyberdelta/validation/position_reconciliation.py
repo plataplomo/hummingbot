@@ -19,6 +19,7 @@ from cyberdelta.validation.models.discrepancy_detail import (
     HistoricalDiscrepancyRecord,
 )
 
+
 logger = logging.getLogger(__name__)
 
 # Type Aliases for parsed position data and errors

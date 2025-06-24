@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from cyberdelta.utils.typing import is_dict_str_any
 
+
 if TYPE_CHECKING:
     pass
 
@@ -54,6 +55,7 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
+
 
 logger = get_logger(__name__)
 

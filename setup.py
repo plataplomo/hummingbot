@@ -7,6 +7,7 @@ and distribution.
 
 from setuptools import find_packages, setup
 
+
 setup(
     name="cyberdelta",
     version="0.0.1",

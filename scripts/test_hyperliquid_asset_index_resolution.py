@@ -11,6 +11,7 @@ from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBui
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.models.api_error import APIError
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

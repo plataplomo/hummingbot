@@ -20,6 +20,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import OrderBook
 
+
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 

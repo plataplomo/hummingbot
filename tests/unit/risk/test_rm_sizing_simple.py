@@ -14,6 +14,7 @@ from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 logger = logging.getLogger(__name__)
 
 # Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker,

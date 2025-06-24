@@ -20,6 +20,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
 )
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
 
@@ -498,33 +499,31 @@ class TestBackpackTradingServiceQueryStatus:
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
 
-        mock_raw_order = BackpackRawOrder.model_validate(
-            {
-                "id": order_id,
-                "clientId": client_order_id,
-                "relatedOrderId": "order_123",
-                "symbol": symbol,
-                "side": "Bid",
-                "orderType": "LIMIT",
-                "quantity": "10.0",
-                "price": "100.0",
-                "executedQuantity": "5.0",
-                "executedQuoteQuantity": "500.0",
-                "triggerPrice": "0",
-                "avgFillPrice": "100.0",
-                "status": "PARTIALLY_FILLED",
-                "timeInForce": "GTC",
-                "triggerBy": "last",
-                "reduceOnly": False,
-                "postOnly": False,
-                "selfTradePrevention": "cn",
-                "createdAt": 1678886400000,
-                "updatedAt": 1678886450000,
-                "triggeredAt": None,
-                "expiryReason": None,
-                "origin": "API",
-            }
-        )
+        mock_raw_order = BackpackRawOrder.model_validate({
+            "id": order_id,
+            "clientId": client_order_id,
+            "relatedOrderId": "order_123",
+            "symbol": symbol,
+            "side": "Bid",
+            "orderType": "LIMIT",
+            "quantity": "10.0",
+            "price": "100.0",
+            "executedQuantity": "5.0",
+            "executedQuoteQuantity": "500.0",
+            "triggerPrice": "0",
+            "avgFillPrice": "100.0",
+            "status": "PARTIALLY_FILLED",
+            "timeInForce": "GTC",
+            "triggerBy": "last",
+            "reduceOnly": False,
+            "postOnly": False,
+            "selfTradePrevention": "cn",
+            "createdAt": 1678886400000,
+            "updatedAt": 1678886450000,
+            "triggeredAt": None,
+            "expiryReason": None,
+            "origin": "API",
+        })
         mock_internal_order = MagicMock()
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
@@ -704,60 +703,56 @@ class TestBackpackTradingServiceQueryStatus:
         mock_headers_from_client = MagicMock()
 
         mock_raw_orders = [
-            BackpackRawOrder.model_validate(
-                {
-                    "id": "order_1",
-                    "clientId": "client_1",
-                    "relatedOrderId": "rel_1",
-                    "symbol": "SOL_USDC",
-                    "side": "Bid",
-                    "orderType": "LIMIT",
-                    "quantity": "10.0",
-                    "price": "20.0",
-                    "executedQuantity": "0",
-                    "executedQuoteQuantity": "0",
-                    "triggerPrice": "0",
-                    "avgFillPrice": "0",
-                    "status": "NEW",
-                    "timeInForce": "GTC",
-                    "triggerBy": "last",
-                    "reduceOnly": False,
-                    "postOnly": False,
-                    "selfTradePrevention": "cn",
-                    "createdAt": 1234567890000,
-                    "updatedAt": 1234567890000,
-                    "triggeredAt": None,
-                    "expiryReason": None,
-                    "origin": "API",
-                }
-            ),
-            BackpackRawOrder.model_validate(
-                {
-                    "id": "order_2",
-                    "clientId": "client_2",
-                    "relatedOrderId": "rel_2",
-                    "symbol": "ETH_USDC",
-                    "side": "Ask",
-                    "orderType": "MARKET",
-                    "quantity": "5.0",
-                    "price": "0",
-                    "executedQuantity": "0",
-                    "executedQuoteQuantity": "0",
-                    "triggerPrice": "0",
-                    "avgFillPrice": "0",
-                    "status": "NEW",
-                    "timeInForce": "GTC",
-                    "triggerBy": "last",
-                    "reduceOnly": False,
-                    "postOnly": False,
-                    "selfTradePrevention": "cn",
-                    "createdAt": 1234567890000,
-                    "updatedAt": 1234567890000,
-                    "triggeredAt": None,
-                    "expiryReason": None,
-                    "origin": "API",
-                }
-            ),
+            BackpackRawOrder.model_validate({
+                "id": "order_1",
+                "clientId": "client_1",
+                "relatedOrderId": "rel_1",
+                "symbol": "SOL_USDC",
+                "side": "Bid",
+                "orderType": "LIMIT",
+                "quantity": "10.0",
+                "price": "20.0",
+                "executedQuantity": "0",
+                "executedQuoteQuantity": "0",
+                "triggerPrice": "0",
+                "avgFillPrice": "0",
+                "status": "NEW",
+                "timeInForce": "GTC",
+                "triggerBy": "last",
+                "reduceOnly": False,
+                "postOnly": False,
+                "selfTradePrevention": "cn",
+                "createdAt": 1234567890000,
+                "updatedAt": 1234567890000,
+                "triggeredAt": None,
+                "expiryReason": None,
+                "origin": "API",
+            }),
+            BackpackRawOrder.model_validate({
+                "id": "order_2",
+                "clientId": "client_2",
+                "relatedOrderId": "rel_2",
+                "symbol": "ETH_USDC",
+                "side": "Ask",
+                "orderType": "MARKET",
+                "quantity": "5.0",
+                "price": "0",
+                "executedQuantity": "0",
+                "executedQuoteQuantity": "0",
+                "triggerPrice": "0",
+                "avgFillPrice": "0",
+                "status": "NEW",
+                "timeInForce": "GTC",
+                "triggerBy": "last",
+                "reduceOnly": False,
+                "postOnly": False,
+                "selfTradePrevention": "cn",
+                "createdAt": 1234567890000,
+                "updatedAt": 1234567890000,
+                "triggeredAt": None,
+                "expiryReason": None,
+                "origin": "API",
+            }),
         ]
         mock_internal_orders = [MagicMock(), MagicMock()]
 

@@ -25,6 +25,7 @@ from frontend.visualization.performance_visualizer import (
     VisualizationConfig,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

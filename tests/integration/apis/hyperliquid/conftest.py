@@ -20,6 +20,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
 
+
 # Note: active_hl_config and active_hl_secrets fixtures are now provided by
 # tests.fixtures.config_fixtures
 # to ensure consistency with the main configuration pattern

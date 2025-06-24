@@ -24,6 +24,7 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 
+
 # --- Spot Balance Details Sub-Models (INTERNAL, IMMUTABLE) ---
 
 

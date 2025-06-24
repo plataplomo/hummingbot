@@ -16,6 +16,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
 )
 
+
 # --- Test Data ---
 
 VALID_ETH_ADDRESS = "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"

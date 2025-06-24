@@ -18,6 +18,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPositionUpdate,
 )
 
+
 """
 Unit tests for BackpackRawPosition and related Raw models.
 

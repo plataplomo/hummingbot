@@ -21,6 +21,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     TEST_SYMBOL_ETH_PERP,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

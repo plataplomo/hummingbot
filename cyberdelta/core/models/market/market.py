@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
+
 # Instantiate logger for this module
 logger = logging.getLogger(__name__)
 

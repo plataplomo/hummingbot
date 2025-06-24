@@ -28,6 +28,7 @@ from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     get_safe_test_price,
 )
 
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.perp,

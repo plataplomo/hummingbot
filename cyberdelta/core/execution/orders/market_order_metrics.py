@@ -10,6 +10,7 @@ from decimal import Decimal
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import OrderSide, OrderStatus
 
+
 logger = get_logger(__name__)
 
 

@@ -10,6 +10,7 @@ import re
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+
 # Define a reasonable max length for content type strings
 MAX_CONTENT_TYPE_LENGTH = 256
 # Regex for typical characters in a content-type string (ASCII printables, allowing common specials)

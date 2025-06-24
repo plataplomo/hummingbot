@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 from cyberdelta.core.risk_manager import RiskManager
 
+
 # Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker
 #       are provided by tests/unit/risk/conftest.py
 

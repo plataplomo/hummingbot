@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_staking import (
     HyperliquidRawDelegatorSummaryResponse,
 )
 
+
 # --- Test Data --- #
 
 VALID_DELEGATION_ITEM: dict[str, Any] = {

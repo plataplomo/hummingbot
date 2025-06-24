@@ -29,6 +29,7 @@ from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, Spo
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 
+
 pytestmark = pytest.mark.timing
 
 

@@ -38,6 +38,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
+
 logger = logging.getLogger(__name__)
 
 

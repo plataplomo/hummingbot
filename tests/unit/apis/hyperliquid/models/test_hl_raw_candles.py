@@ -12,6 +12,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
 
+
 # --- Test Data ---
 
 VALID_DATA_SINGLE_CANDLE: dict[str, Any] = {

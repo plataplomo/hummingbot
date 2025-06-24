@@ -62,6 +62,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawPositionInfo,
 )
 
+
 # Type variables for TypeGuard functions
 T = TypeVar("T")
 U = TypeVar("U")

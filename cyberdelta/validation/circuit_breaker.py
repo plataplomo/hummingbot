@@ -13,6 +13,7 @@ from typing import Any
 
 from cyberdelta.config import AppSettings
 
+
 logger = logging.getLogger(__name__)
 
 

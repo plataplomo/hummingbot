@@ -16,6 +16,7 @@ from cyberdelta.core.models.market.funding_rate import (
     HyperliquidFundingDetails,
 )
 
+
 pytestmark = pytest.mark.timing
 
 

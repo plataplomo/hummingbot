@@ -33,6 +33,7 @@ from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Set precision for Decimal
 getcontext().prec = 28
 

@@ -15,6 +15,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetUserFillsArgs,
 )
 
+
 # Unit tests for HyperliquidAccountService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 

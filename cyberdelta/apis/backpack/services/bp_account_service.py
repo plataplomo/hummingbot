@@ -55,6 +55,8 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
+from cyberdelta.utils.typing import is_dict_response, is_list_response
+
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
@@ -195,21 +197,22 @@ class BackpackAccountService:
             # The response_handler.handle_get_positions_response now correctly handles
             # dict for single symbol or list for all symbols.
             # Check the actual type of the response, not whether symbol was provided
-            if isinstance(raw_data, dict):
-                # Single position returned as dict
-                validated_data = ensure_dict_response(
-                    raw_data, f"positions for {symbol or 'all'}", status_code
-                )
+            if is_dict_response(raw_data):
+                # raw_data is now typed as dict[str, Any]
                 return self._response_handler.handle_get_positions_response(
-                    validated_data, symbol, status_code
+                    raw_data, symbol, status_code
+                )
+            elif is_list_response(raw_data):
+                # raw_data is now typed as list[Any]
+                return self._response_handler.handle_get_positions_response(
+                    raw_data, symbol, status_code
                 )
             else:
-                # Multiple positions or empty list
-                validated_list = ensure_list_response(
-                    raw_data, f"positions for {symbol or 'all'}", status_code
-                )
-                return self._response_handler.handle_get_positions_response(
-                    validated_list, symbol, status_code
+                # Handle unexpected response type
+                raise APIError(
+                    message=f"Unexpected response type for positions: {type(raw_data).__name__}",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                    http_status=status_code,
                 )
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
@@ -795,7 +798,8 @@ class BackpackAccountService:
             return internal_summary
 
         except APIError as e:
-            # If collateral endpoint not available (404) or returns invalid data, return None for fallback
+            # If collateral endpoint not available (404) or returns invalid data,
+            # return None for fallback
             if e.http_status == 404 or (
                 e.code == APIErrorCode.INVALID_RESPONSE.value and "collateral" in e.message
             ):

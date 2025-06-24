@@ -1,6 +1,5 @@
 """Tests for the Priority Signal Queue functionality."""
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock  # Import patch
@@ -19,7 +18,10 @@ from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.fixtures.time_fixtures import FreezerProtocol
 
+
 pytestmark = pytest.mark.timing
+
+# Tests use timing operations so marked with timing marker
 
 
 @pytest.fixture
@@ -472,8 +474,8 @@ async def test_clean_expired_signals_direct_patch(
         # assert queue._cleaned_count == 2 # This attribute doesn't exist, remove assertion
 
     finally:
-        # Clean shutdown - allow any background tasks to complete naturally
-        await asyncio.sleep(0.1)
+        # No background tasks to wait for
+        pass
 
 
 @pytest.mark.asyncio  # Mark test as async
@@ -552,39 +554,59 @@ async def test_signal_expiration_logic(
         # Advance mocked time by 3 seconds (past expiration of signal_to_expire)
         frozen_time.move_to(real_current_time + timedelta(seconds=3))
 
-        # Allow cleanup task to run (queue_cleanup_interval is 1s)
-        # The cleanup task uses the mocked time.
-        await asyncio.sleep(1.5)  # Real sleep, cleanup task runs in background
+        # There's no background cleanup task - cleanup only happens on add_signal
+        # We need to trigger it manually or add a new signal
+        # Let's add a dummy signal to trigger cleanup
+        dummy_signal = create_test_signal(
+            symbol="DUMMY",
+            score=0.1,
+            price=Decimal("1"),
+            base_time=real_current_time + timedelta(seconds=3),
+        )
+        await queue.add_signal(dummy_signal)
 
         # Assertions
         current_signals_after_cleanup = await queue.get_signals()
         signal_ids_after_cleanup = {s.signal_id for s in current_signals_after_cleanup}
 
         assert signal_to_expire.signal_id not in signal_ids_after_cleanup, (
-            "Expired signal should have been removed by cleanup task"
+            "Expired signal should have been removed by cleanup"
         )
         assert signal_not_to_expire.signal_id in signal_ids_after_cleanup, (
-            "Valid signal should remain after cleanup task"
+            "Valid signal should remain after cleanup"
         )
-        assert len(current_signals_after_cleanup) == 1, (
-            f"Expected 1 signal after cleanup, got {len(current_signals_after_cleanup)}"
+        # We added dummy signal so we should have 2 signals
+        assert dummy_signal.signal_id in signal_ids_after_cleanup, "Dummy signal should be in queue"
+        assert len(current_signals_after_cleanup) == 2, (
+            f"Expected 2 signals after cleanup (valid + dummy), got "
+            f"{len(current_signals_after_cleanup)}"
         )
 
         # --- Test Case 3: Explicitly clean and verify ---
         # Advance time further to ensure signal_not_to_expire also expires
         frozen_time.move_to(real_current_time + timedelta(seconds=15))
-        # Trigger cleanup by waiting for background cleanup task
-        await asyncio.sleep(1.5)  # Wait for cleanup to occur automatically
+        # Trigger cleanup by adding another signal
+        dummy_signal2 = create_test_signal(
+            symbol="DUMMY2",
+            score=0.1,
+            price=Decimal("1"),
+            base_time=real_current_time + timedelta(seconds=15),
+        )
+        await queue.add_signal(dummy_signal2)
 
         current_signals_after_manual_clean = await queue.get_signals()
-        assert not current_signals_after_manual_clean, (
-            "Queue should be empty after all signals expire and manual cleanup"
+        # Both dummy signals should remain (they have default 60s expiration)
+        assert len(current_signals_after_manual_clean) == 2, (
+            f"Expected 2 signals (dummy + dummy2) after cleanup, got "
+            f"{len(current_signals_after_manual_clean)}"
         )
-        assert await queue.is_empty(), "Queue should be empty"
+        signal_ids_final = {s.signal_id for s in current_signals_after_manual_clean}
+        assert dummy_signal.signal_id in signal_ids_final
+        assert dummy_signal2.signal_id in signal_ids_final
 
     finally:
-        # Clean shutdown - allow any background tasks to complete naturally
-        await asyncio.sleep(0.1)
+        # No background tasks to wait for
+        pass
 
 
 @pytest.mark.asyncio  # Mark as async
@@ -631,12 +653,12 @@ async def test_clean_expired_signals_with_helper(
         queue._clean_expired_signals()
         queue.last_cleanup = datetime.now(UTC)
 
-        # Assertions after explicit cleanup
-        current_signals = await queue.get_signals()
-        # Cleanup should have removed the expired one
-        assert len(current_signals) == 1, (
-            f"Expected 1 signal after explicit cleanup, found {len(current_signals)}"
-        )
+    # Assertions after explicit cleanup (outside the lock)
+    current_signals = await queue.get_signals()
+    # Cleanup should have removed the expired one
+    assert len(current_signals) == 1, (
+        f"Expected 1 signal after explicit cleanup, found {len(current_signals)}"
+    )
 
 
 # --- Signal Specific Tests ---

@@ -8,6 +8,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.core.models import OrderBook
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 

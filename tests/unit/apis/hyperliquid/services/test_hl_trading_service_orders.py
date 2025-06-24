@@ -26,6 +26,7 @@ from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrder
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
+
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 
@@ -497,7 +498,8 @@ class TestHyperliquidTradingServiceOrders:
                 is_signed=True,
                 serialize_none_as_null=True,
             )
-            # Fix the method call signature - handle_exchange_response takes (content, action_type, status_code)
+            # Fix the method call signature - handle_exchange_response takes
+            # (content, action_type, status_code)
             mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
                 mock_response_content,
                 action_type="order",
@@ -610,13 +612,11 @@ class TestHyperliquidTradingServiceOrders:
         # For the mapper, create a full HyperliquidRawHistoricalOrder with all fields
         from typing import cast
 
-        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate(
-            {
-                **cast(dict[str, Any], mock_response_content["order"]),
-                "status": mock_response_content["status"],
-                "statusTimestamp": mock_response_content["statusTimestamp"],
-            }
-        )
+        mock_historical_order = HyperliquidRawHistoricalOrder.model_validate({
+            **cast(dict[str, Any], mock_response_content["order"]),
+            "status": mock_response_content["status"],
+            "statusTimestamp": mock_response_content["statusTimestamp"],
+        })
         mock_hl_response_handler.handle_info_order_status_response.return_value = (
             mock_historical_order_response
         )

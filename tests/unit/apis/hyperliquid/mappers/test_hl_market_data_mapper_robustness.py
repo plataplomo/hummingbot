@@ -22,6 +22,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
+
 # Third-party imports for type checking only
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -41,6 +42,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
+
 
 # Alias for shorter method calls
 Mapper = HyperliquidMarketDataMapper

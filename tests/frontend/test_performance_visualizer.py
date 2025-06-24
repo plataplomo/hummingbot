@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+
 # DEFENSIVE CHECK: plotly imports lack type stubs, causing mypy import-untyped errors.
 # Using TYPE_CHECKING import pattern to satisfy mypy while maintaining runtime functionality.
 # Mypy=[import-untyped] Ruff=[]

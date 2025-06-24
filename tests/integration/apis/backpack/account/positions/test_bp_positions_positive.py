@@ -26,12 +26,14 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     validate_pnl_direction,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.account,
     pytest.mark.positions,
     pytest.mark.positive_positions,
+    pytest.mark.timing,
 ]
 
 logger = get_logger(__name__)

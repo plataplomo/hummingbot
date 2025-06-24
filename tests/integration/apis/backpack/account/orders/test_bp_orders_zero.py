@@ -32,6 +32,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_unreasonably_large_quantity,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

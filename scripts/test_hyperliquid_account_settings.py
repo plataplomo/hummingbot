@@ -9,6 +9,7 @@ from decimal import Decimal
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

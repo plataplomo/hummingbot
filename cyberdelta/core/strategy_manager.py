@@ -22,6 +22,7 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 
+
 logger = structlog.get_logger(__name__)
 
 

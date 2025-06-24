@@ -9,6 +9,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_builder_fee import (
     HyperliquidRawBuilderFeeApprovalResponse,
 )
 
+
 # --- Test Data --- #
 
 VALID_BUILDER_FEE_RESPONSE: dict[str, Any] = {"approved": True}

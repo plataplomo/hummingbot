@@ -21,6 +21,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.core.models.enums import InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Withdrawal
 
+
 # Type alias for the HTTP client requester callable
 HttpClientRequesterSig = Callable[
     ...,

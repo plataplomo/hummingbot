@@ -21,6 +21,7 @@ from cyberdelta.core.models import OrderBook, OrderSide
 from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.signal_generator import SignalGenerator
 
+
 logger = get_logger(__name__)
 
 

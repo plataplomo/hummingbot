@@ -16,6 +16,7 @@ from typing import Any
 
 from cyberdelta.config.config_models import AppSettings
 
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 

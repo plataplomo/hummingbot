@@ -13,6 +13,7 @@ from pydantic_core.core_schema import SerializationInfo
 
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
+
 if TYPE_CHECKING:
     pass
 

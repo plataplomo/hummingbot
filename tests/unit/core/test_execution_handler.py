@@ -18,6 +18,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 pytestmark = pytest.mark.timing
 
 

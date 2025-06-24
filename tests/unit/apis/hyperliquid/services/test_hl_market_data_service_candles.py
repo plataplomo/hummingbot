@@ -17,6 +17,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetCandleSnapshotArgs, GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
+
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 

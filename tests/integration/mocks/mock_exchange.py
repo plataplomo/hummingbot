@@ -64,6 +64,7 @@ from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
+
 logger = logging.getLogger(__name__)
 
 # Type alias for WebSocket message handlers from base.py

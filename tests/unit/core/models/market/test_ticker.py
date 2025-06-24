@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from cyberdelta.core.models.market.ticker import Ticker
 
+
 pytestmark = pytest.mark.timing
 
 # Constants for testing

@@ -19,6 +19,7 @@ from .hl_account_data_mapper import HyperliquidAccountDataMapper
 from .hl_market_data_mapper import HyperliquidMarketDataMapper
 from .hl_trading_data_mapper import HyperliquidTradingDataMapper
 
+
 __all__ = [
     "HyperliquidMarketDataMapper",
     "HyperliquidAccountDataMapper",

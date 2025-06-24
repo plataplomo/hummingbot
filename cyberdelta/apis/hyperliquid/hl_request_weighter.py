@@ -15,6 +15,7 @@ from typing import Any, cast
 
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 
+
 logger = logging.getLogger(__name__)
 
 

@@ -36,6 +36,7 @@ from cyberdelta.validation.circuit_breaker import (
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Keep imports for type checking only if they cause circular dependencies otherwise
 if TYPE_CHECKING:
     pass

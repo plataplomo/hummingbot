@@ -11,13 +11,14 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from functools import wraps
-from typing import Any, Generic, ParamSpec, TypeVar, cast, overload
+from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.utils.parsing import parse_decimal_value
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class TransformationError(Exception):
     pass
 
 
-class SecureTransform(Generic[T]):
+class SecureTransform[T: BaseModel]:
     """Type-safe security decorator that enforces Pydantic validation.
 
     This class-based decorator properly expresses the type transformation
@@ -167,7 +168,7 @@ def _validate_custom_constraints(
                     raise ValueError(f"Field {field} exceeds maximum {rules['max']}: {value}")
 
 
-class BusinessLogicValidator(Generic[P, R]):
+class BusinessLogicValidator[**P, R]:
     """Business logic validation that preserves types.
 
     Integrates with existing parsing utilities and validation patterns.
@@ -326,7 +327,7 @@ def _find_mapper(self: object) -> object:
     return mapper
 
 
-class SecurityMonitor(Generic[P, R]):
+class SecurityMonitor[**P, R]:
     """Security monitoring decorator that integrates with existing logging patterns."""
 
     def __init__(
@@ -528,7 +529,7 @@ def _create_audit_record(
     logger.info(f"AUDIT: {audit_record}")
 
 
-class SecureTransformStack(Generic[T]):
+class SecureTransformStack[T: BaseModel]:
     """Composite decorator matching current decorator stacking patterns.
 
     Provides the same functionality as stacking multiple decorators but with
@@ -589,7 +590,7 @@ class SecureTransformStack(Generic[T]):
 
 
 # Export legacy function names for minimal disruption during migration
-def secure_transform(
+def secure_transform[T: BaseModel](
     target_model: type[T],
     context: str | None = None,
     enable_monitoring: bool = True,

@@ -18,6 +18,7 @@ from cyberdelta.core.models.market.market import (
     Market,
 )
 
+
 pytestmark = pytest.mark.timing
 
 # Constants for testing

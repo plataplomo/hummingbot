@@ -8,6 +8,7 @@ from decimal import Decimal
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.core.models import AccountSettings, BackpackAccountSettingsDetails
 
+
 # Configure logging for script output
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

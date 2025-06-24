@@ -14,6 +14,7 @@ The enums are organized into logical groups:
 
 from enum import Enum
 
+
 # --------------------
 # Order Related Enums
 # --------------------

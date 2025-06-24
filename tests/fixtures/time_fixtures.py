@@ -13,7 +13,7 @@ Fixtures:
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, _patch, patch
 
 import pytest
 
@@ -81,7 +81,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         module_path: str,
         fixed_time: datetime | None = None,
         side_effect: Callable[[], datetime] | None = None,
-    ) -> Any:
+    ) -> _patch[MagicMock]:
         """Create a time mock for the specified module.
 
         Args:
@@ -149,6 +149,9 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
             market_time_simulation(market="NYSE", hour=9, minute=30)  # Market open
             # Test market open behavior
 
+    Args:
+        freezer: Time freezing protocol for time manipulation
+
     Yields:
         Callable: Function to set market time
     """
@@ -167,7 +170,12 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
 
         Args:
             market: Market identifier (e.g., "NYSE", "24/7")
-            year, month, day, hour, minute, second: Time components
+            year: Year for the simulated time
+            month: Month for the simulated time
+            day: Day for the simulated time
+            hour: Hour for the simulated time
+            minute: Minute for the simulated time
+            second: Second for the simulated time
             timezone: Timezone string
         """
         from zoneinfo import ZoneInfo

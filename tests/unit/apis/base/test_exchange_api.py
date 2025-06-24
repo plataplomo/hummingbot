@@ -55,6 +55,7 @@ from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
+
 # Match the definition in cyberdelta.apis.base.exchange_api.py
 MessageHandler = Callable[..., Coroutine[Any, Any, None]]
 

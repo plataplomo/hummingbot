@@ -43,6 +43,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_minimal_order_size,
 )
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,
@@ -745,92 +746,84 @@ class TestBackpackPerpOrdersPositiveBalance:
         placed_orders: list[tuple[str, Order]] = []
 
         # 1. STOP MARKET orders (both directions)
-        orders_to_test.extend(
-            [
-                (
-                    "STOP_MARKET_SELL",
-                    OrderType.STOP_MARKET,
-                    OrderSide.SELL,
-                    None,
-                    stop_loss_price,
-                    TimeInForce.GTC,
-                ),
-                (
-                    "STOP_MARKET_BUY",
-                    OrderType.STOP_MARKET,
-                    OrderSide.BUY,
-                    None,
-                    stop_buy_price,
-                    TimeInForce.GTC,
-                ),
-            ]
-        )
+        orders_to_test.extend([
+            (
+                "STOP_MARKET_SELL",
+                OrderType.STOP_MARKET,
+                OrderSide.SELL,
+                None,
+                stop_loss_price,
+                TimeInForce.GTC,
+            ),
+            (
+                "STOP_MARKET_BUY",
+                OrderType.STOP_MARKET,
+                OrderSide.BUY,
+                None,
+                stop_buy_price,
+                TimeInForce.GTC,
+            ),
+        ])
 
         # 2. STOP LIMIT orders (both directions)
-        orders_to_test.extend(
-            [
-                (
-                    "STOP_LIMIT_SELL",
-                    OrderType.STOP_LIMIT,
-                    OrderSide.SELL,
-                    stop_loss_limit,
-                    stop_loss_price,
-                    TimeInForce.GTC,
-                ),
-                (
-                    "STOP_LIMIT_BUY",
-                    OrderType.STOP_LIMIT,
-                    OrderSide.BUY,
-                    stop_buy_limit,
-                    stop_buy_price,
-                    TimeInForce.GTC,
-                ),
-            ]
-        )
+        orders_to_test.extend([
+            (
+                "STOP_LIMIT_SELL",
+                OrderType.STOP_LIMIT,
+                OrderSide.SELL,
+                stop_loss_limit,
+                stop_loss_price,
+                TimeInForce.GTC,
+            ),
+            (
+                "STOP_LIMIT_BUY",
+                OrderType.STOP_LIMIT,
+                OrderSide.BUY,
+                stop_buy_limit,
+                stop_buy_price,
+                TimeInForce.GTC,
+            ),
+        ])
 
         # 3. TAKE PROFIT MARKET orders (both directions)
-        orders_to_test.extend(
-            [
-                (
-                    "TP_MARKET_SELL",
-                    OrderType.TAKE_PROFIT_MARKET,
-                    OrderSide.SELL,
-                    None,
-                    tp_sell_price,
-                    TimeInForce.GTC,
-                ),
-                (
-                    "TP_MARKET_BUY",
-                    OrderType.TAKE_PROFIT_MARKET,
-                    OrderSide.BUY,
-                    None,
-                    tp_buy_price,
-                    TimeInForce.GTC,
-                ),
-            ]
-        )
+        orders_to_test.extend([
+            (
+                "TP_MARKET_SELL",
+                OrderType.TAKE_PROFIT_MARKET,
+                OrderSide.SELL,
+                None,
+                tp_sell_price,
+                TimeInForce.GTC,
+            ),
+            (
+                "TP_MARKET_BUY",
+                OrderType.TAKE_PROFIT_MARKET,
+                OrderSide.BUY,
+                None,
+                tp_buy_price,
+                TimeInForce.GTC,
+            ),
+        ])
 
         # 4. TAKE PROFIT LIMIT orders (both directions)
-        orders_to_test.extend(
-            [
-                (
-                    "TP_LIMIT_SELL",
-                    OrderType.TAKE_PROFIT_LIMIT,
-                    OrderSide.SELL,
-                    tp_sell_limit,
-                    tp_sell_price,
-                    TimeInForce.GTC,
-                ),
-                (
-                    "TP_LIMIT_BUY",
-                    OrderType.TAKE_PROFIT_LIMIT,
-                    OrderSide.BUY,
-                    tp_buy_limit,
-                    tp_buy_price,
-                    TimeInForce.GTC,
-                ),
-            ]
-        )
+        orders_to_test.extend([
+            (
+                "TP_LIMIT_SELL",
+                OrderType.TAKE_PROFIT_LIMIT,
+                OrderSide.SELL,
+                tp_sell_limit,
+                tp_sell_price,
+                TimeInForce.GTC,
+            ),
+            (
+                "TP_LIMIT_BUY",
+                OrderType.TAKE_PROFIT_LIMIT,
+                OrderSide.BUY,
+                tp_buy_limit,
+                tp_buy_price,
+                TimeInForce.GTC,
+            ),
+        ])
 
         # Test placing each order type
         success_count = 0

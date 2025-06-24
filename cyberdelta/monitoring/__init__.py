@@ -6,6 +6,7 @@ Frontend dashboard components should be imported directly from the frontend pack
 
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
 
+
 __all__ = [
     "PerformanceTracker",
 ]

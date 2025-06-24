@@ -10,6 +10,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrderStatusResponse,
 )
 
+
 # Data structure matching HyperliquidRawOrder fields
 VALID_RAW_ORDER_DATA = {
     "oid": 12345,

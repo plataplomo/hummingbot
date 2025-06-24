@@ -30,6 +30,7 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawArgs,
 )
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.requires_balance]
 
 

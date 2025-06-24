@@ -11,6 +11,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_role import (
     HyperliquidRawUserRoleResponse,
 )
 
+
 # --- Test Data --- #
 
 VALID_USER_ROLE_USER: dict[str, Any] = {"role": "user"}

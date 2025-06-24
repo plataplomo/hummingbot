@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from cyberdelta.core.models.market.candle import Candle
 
+
 if TYPE_CHECKING:
     from cyberdelta.core.models import TradeSignal
 

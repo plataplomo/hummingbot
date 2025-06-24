@@ -40,6 +40,7 @@ from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRates
 from cyberdelta.core.models import FundingRate
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 

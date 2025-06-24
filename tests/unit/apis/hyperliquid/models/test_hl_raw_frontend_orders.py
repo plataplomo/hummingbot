@@ -9,6 +9,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_frontend_orders import (
     HyperliquidRawFrontendOpenOrder,
 )
 
+
 # --- Test Data --- #
 
 VALID_FRONTEND_ORDER: dict[str, Any] = {

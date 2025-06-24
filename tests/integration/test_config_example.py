@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 # Add parent directory to path to import from project
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

@@ -4,8 +4,7 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
-from datetime import UTC, timedelta
-from datetime import datetime as dt_real
+from datetime import UTC, datetime as dt_real, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +16,7 @@ from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
+
 
 if TYPE_CHECKING:
     # This can remain for linters/type checkers if desired, but isn't strictly needed now

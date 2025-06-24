@@ -44,6 +44,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 )
 from cyberdelta.utils.parsing import validate_str_field
 
+
 # ... (Existing models like HyperliquidRawOrder, HyperliquidRawFill remain) ...
 
 

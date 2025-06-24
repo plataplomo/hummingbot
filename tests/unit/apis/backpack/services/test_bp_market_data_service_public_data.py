@@ -24,6 +24,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_market_data"]
 

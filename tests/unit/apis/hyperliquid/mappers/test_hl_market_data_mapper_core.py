@@ -30,6 +30,7 @@ from cyberdelta.core.models.market.funding_rate import (
     HyperliquidFundingDetails,
 )
 
+
 # Alias for shorter method calls
 Mapper = HyperliquidMarketDataMapper
 

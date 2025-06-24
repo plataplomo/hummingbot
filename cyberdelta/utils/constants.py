@@ -5,6 +5,7 @@ Note: Trading enums (OrderType, OrderSide) are now sourced from cyberdelta.core.
 
 from enum import Enum, auto
 
+
 # System constants
 DEFAULT_CONFIG_PATH = "cyberdelta/config/config.yaml"
 DEFAULT_SECRETS_PATH = "cyberdelta/config/secrets.yaml"

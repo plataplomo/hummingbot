@@ -45,6 +45,7 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 
+
 pytestmark = pytest.mark.unit
 
 

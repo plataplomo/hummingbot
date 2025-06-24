@@ -9,6 +9,7 @@ from frontend.visualization.performance_visualizer import (
     VisualizationConfig,
 )
 
+
 __all__ = [
     "PerformanceMetricsCalculator",
     "PerformanceVisualizer",

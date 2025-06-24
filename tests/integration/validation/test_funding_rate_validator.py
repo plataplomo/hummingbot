@@ -8,6 +8,7 @@ import pytest
 
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
+
 pytestmark = pytest.mark.timing
 
 

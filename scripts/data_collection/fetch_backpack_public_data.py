@@ -23,6 +23,7 @@ import aiohttp
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

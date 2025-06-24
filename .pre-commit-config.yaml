@@ -1,0 +1,41 @@
+# Pre-commit hooks for CyberDeltaEngine
+# See https://pre-commit.com for more information
+repos:
+  # Standard hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Ruff - Python linting and formatting (replaces black, isort, and flake8)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.0
+    hooks:
+      # Run the linter first (includes import sorting)
+      - id: ruff
+        args: ["--fix", "--show-fixes"]
+      # Run the formatter second
+      - id: ruff-format
+
+  # Custom hooks
+  - repo: local
+    hooks:
+      # Prevent new unittest.mock datetime patches
+      - id: no-datetime-patches
+        name: Check for unittest.mock datetime patches
+        entry: scripts/check_time_patterns.py
+        language: python
+        files: ^tests/.*\.py$
+        additional_dependencies: [pyyaml]
+
+      # Ensure timing marker on timing tests
+      - id: timing-marker-check
+        name: Check timing marker on timing tests
+        entry: scripts/check_timing_marker.py
+        language: python
+        files: ^tests/.*\.py$

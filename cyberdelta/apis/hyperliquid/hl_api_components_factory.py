@@ -30,6 +30,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
 
+
 if TYPE_CHECKING:
     pass
 

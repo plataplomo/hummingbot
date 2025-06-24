@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.shared]
 
 

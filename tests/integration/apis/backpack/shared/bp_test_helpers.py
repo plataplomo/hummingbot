@@ -19,6 +19,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
 
+
 if TYPE_CHECKING:
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
     from cyberdelta.core.models.market.ticker import Ticker
@@ -268,7 +269,9 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
     Example:
         >>> mapping = await get_exchange_symbol_mapping(api)
         >>> print(f"Available spot symbols: {mapping['spot_symbols']}")
-        >>> print(f"BTC_USDC tick size: {mapping['symbol_details']['BTC_USDC']['tick_size']}")
+        >>> print(
+        ...     f"BTC_USDC tick size: {mapping['symbol_details']['BTC_USDC']['tick_size']}"
+        ... )
     """
     try:
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs

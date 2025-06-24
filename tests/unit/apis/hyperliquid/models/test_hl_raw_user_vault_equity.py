@@ -9,6 +9,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_vault_equity import (
     HyperliquidRawUserVaultEquityItem,
 )
 
+
 # --- Test Data --- #
 
 VALID_USER_VAULT_EQUITY_ITEM: dict[str, Any] = {

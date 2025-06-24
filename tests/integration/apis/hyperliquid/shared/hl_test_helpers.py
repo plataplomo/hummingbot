@@ -17,6 +17,7 @@ from cyberdelta.apis.models.service_args_models import GetMarketArgs
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
 
+
 logger = get_logger(__name__)
 
 # REMOVED HARDCODED SYMBOL LISTS - SECURITY VIOLATION

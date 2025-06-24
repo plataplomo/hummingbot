@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.core.models.trade_signal import TradeSignal
 
+
 pytestmark = pytest.mark.timing
 
 # --- Helper Fixtures ---

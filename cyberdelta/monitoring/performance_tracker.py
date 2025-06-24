@@ -17,6 +17,7 @@ import structlog
 # Import the new persistence handler
 from .persistence import PerformanceDataPersistence
 
+
 logger = structlog.get_logger(__name__)
 
 # Type aliases for better readability

@@ -36,6 +36,8 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.utils.typing import is_sequence_of_any
+
 from .bp_common_raw_types import (
     RawBpDepthPriceString,
     RawBpDepthQuantityString,
@@ -47,6 +49,7 @@ from .bp_common_raw_types import (
     RawBpParsableFiniteDecimalString,
     RawBpParsableNonNegativeFiniteDecimalString,
 )
+
 
 # Get logger for the module
 logger = logging.getLogger(__name__)
@@ -184,8 +187,8 @@ class BackpackRawOrderBook(BaseModel):
         v: object,
         info: ValidationInfo,
     ) -> list[tuple[str, str]]:
-        if not isinstance(v, list):
-            raise ValueError("Must be a list")
+        if not is_sequence_of_any(v):
+            raise ValueError("Must be a sequence (list or tuple)")
 
         # Justification for cast:
         # The input `v` is `object`. After `isinstance(v, list)`, `v` is a `list`.
@@ -258,16 +261,16 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         v: object,
         info: ValidationInfo,
     ) -> list[tuple[object, object]]:
-        # Combined validator: First, ensure v is a list.
-        if not isinstance(v, list):
-            raise TypeError("Must be a list")
+        # Combined validator: First, ensure v is a sequence.
+        if not is_sequence_of_any(v):
+            raise TypeError("Must be a sequence (list or tuple)")
 
-        v_list = cast(list[object], v)
+        v_seq = cast(Sequence[object], v)
 
         processed_levels: list[tuple[object, object]] = []
-        for level_item_raw_obj in v_list:
-            if not isinstance(level_item_raw_obj, list | tuple):
-                raise TypeError("Each item must be a list or tuple")
+        for level_item_raw_obj in v_seq:
+            if not is_sequence_of_any(level_item_raw_obj):
+                raise TypeError("Each item must be a sequence (list or tuple)")
 
             level_item_seq = cast(Sequence[object], level_item_raw_obj)
 

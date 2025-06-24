@@ -37,6 +37,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
     RawBpStrictBool,
 )
 
+
 logger = logging.getLogger("cyberdelta.models.raw")
 
 

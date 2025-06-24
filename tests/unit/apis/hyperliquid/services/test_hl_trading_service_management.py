@@ -12,6 +12,7 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 

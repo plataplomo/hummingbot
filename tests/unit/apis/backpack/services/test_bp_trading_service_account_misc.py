@@ -21,6 +21,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_trading"]
 

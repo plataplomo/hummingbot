@@ -20,6 +20,7 @@ from .service_args_models import (
     WithdrawArgs,
 )
 
+
 __all__ = [
     # Error handling
     "APIError",

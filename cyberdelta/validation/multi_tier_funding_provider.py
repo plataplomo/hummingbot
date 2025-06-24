@@ -19,6 +19,7 @@ from .funding_data import (
     SourceType,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

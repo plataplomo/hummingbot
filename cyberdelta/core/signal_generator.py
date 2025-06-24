@@ -27,6 +27,7 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 logger = get_logger(__name__)  # <--- Use configured logger
 
 # Set precision for Decimal

@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
 
+
 __all__ = [
     "BackpackAPI",
     "BackpackEd25519Authenticator",

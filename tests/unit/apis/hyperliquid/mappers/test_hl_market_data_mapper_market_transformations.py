@@ -29,6 +29,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
 
+
 # Alias for shorter method calls
 Mapper = HyperliquidMarketDataMapper
 

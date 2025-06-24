@@ -10,6 +10,7 @@ from typing import Any
 
 import structlog
 
+
 # Assuming Decimal might be used in trade/signal data, import if needed
 # from decimal import Decimal
 # Using the centralized encoder is recommended

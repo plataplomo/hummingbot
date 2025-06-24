@@ -32,6 +32,7 @@ from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 pytestmark = pytest.mark.timing
 
 logging.basicConfig(level=logging.DEBUG)

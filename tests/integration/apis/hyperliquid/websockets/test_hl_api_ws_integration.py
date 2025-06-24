@@ -44,6 +44,7 @@ from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
     get_test_symbol,
 )
 
+
 logger = logging.getLogger(__name__)
 
 pytestmark = [
@@ -51,6 +52,7 @@ pytestmark = [
     pytest.mark.websocket,
     pytest.mark.requires_balance,
     pytest.mark.timeout(60),  # WebSocket tests need longer timeouts
+    pytest.mark.timing,
 ]
 
 

@@ -10,6 +10,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from tests.integration.apis.shared.validation_helpers import assert_valid_derivative_position
 
+
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.cross_exchange, pytest.mark.perp]
 

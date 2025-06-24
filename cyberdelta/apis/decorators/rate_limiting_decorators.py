@@ -15,6 +15,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
+
 logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")

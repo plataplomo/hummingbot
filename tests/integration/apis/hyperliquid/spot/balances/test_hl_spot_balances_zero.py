@@ -27,6 +27,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.core.models.spot_balance import SpotBalance
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 

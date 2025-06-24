@@ -37,6 +37,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.symbol_mapper import SymbolMapper  # IMPORT IS PRESENT
 from cyberdelta.utils.parsing import parse_datetime_utc
 
+
 logger = get_logger(__name__)
 
 # Temporarily define ExchangeType, Symbol as str TypeAlias to unblock linter

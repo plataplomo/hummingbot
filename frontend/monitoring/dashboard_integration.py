@@ -22,6 +22,7 @@ from frontend.monitoring.real_time_dashboard import (
     launch_dashboard,
 )
 
+
 logger = structlog.get_logger(__name__)
 
 

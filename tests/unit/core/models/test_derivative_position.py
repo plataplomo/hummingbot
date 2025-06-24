@@ -17,6 +17,7 @@ from cyberdelta.core.models.derivative_position import (
 )
 from cyberdelta.core.models.enums import OrderSide
 
+
 pytestmark = pytest.mark.timing
 
 # Type alias for broad, but Any-free, test parameter values

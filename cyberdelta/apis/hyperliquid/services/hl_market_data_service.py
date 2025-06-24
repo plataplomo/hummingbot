@@ -62,6 +62,7 @@ from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
 
+
 logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.

@@ -18,6 +18,7 @@ from cyberdelta.validation.multi_tier_funding_provider import (
     MultiTierFundingProvider,
 )
 
+
 pytestmark = pytest.mark.timing
 
 

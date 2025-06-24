@@ -18,6 +18,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market import Market
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.services.conftest_market_data"]
 

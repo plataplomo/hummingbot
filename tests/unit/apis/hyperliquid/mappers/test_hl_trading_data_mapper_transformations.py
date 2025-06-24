@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+
 # Third-party imports for type checking only
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -40,6 +41,7 @@ from cyberdelta.core.models.enums import (
     TriggerType,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+
 
 logger = logging.getLogger(__name__)
 

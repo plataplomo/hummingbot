@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 
+
 # --- Test Data ---
 
 VALID_KLINE_LIST = [

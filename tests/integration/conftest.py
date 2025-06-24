@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import create_autospec, patch
 
+
 if TYPE_CHECKING:
     from typing import Protocol
 
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
         """Protocol for VCR response objects."""
 
         body: Any
+
 else:
     PytestNode = Any
     PytestMarker = Any
@@ -81,6 +83,7 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
+
 
 logger = logging.getLogger(__name__)
 

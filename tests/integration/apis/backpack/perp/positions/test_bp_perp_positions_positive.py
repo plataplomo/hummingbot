@@ -24,6 +24,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_minimal_order_size,
 )
 
+
 logger = get_logger(__name__)
 
 # Mark all tests in this file
@@ -32,6 +33,7 @@ pytestmark = [
     pytest.mark.perp,
     pytest.mark.requires_balance,
     pytest.mark.positive_balance,
+    pytest.mark.timing,
 ]
 
 

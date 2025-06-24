@@ -11,6 +11,9 @@ from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerCon
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 
 
+pytestmark = pytest.mark.timing
+
+
 class MockSubscriptionModel(BaseModel):
     """Mock Pydantic model for testing."""
 

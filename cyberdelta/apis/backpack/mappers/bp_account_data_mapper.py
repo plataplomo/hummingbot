@@ -77,6 +77,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -680,15 +681,13 @@ class BackpackAccountDataMapper:
             # Prepare collateral assets data for bp_details
             collateral_assets_data: list[dict[str, str]] = []
             for asset in raw_collateral.collateral:
-                collateral_assets_data.append(
-                    {
-                        "symbol": asset.symbol,
-                        "total_quantity": str(asset.total_quantity),
-                        "collateral_value": str(asset.collateral_value),
-                        "collateral_weight": str(asset.collateral_weight),
-                        "asset_mark_price": str(asset.asset_mark_price),
-                    }
-                )
+                collateral_assets_data.append({
+                    "symbol": asset.symbol,
+                    "total_quantity": str(asset.total_quantity),
+                    "collateral_value": str(asset.collateral_value),
+                    "collateral_weight": str(asset.collateral_weight),
+                    "asset_mark_price": str(asset.asset_mark_price),
+                })
 
             # Create enhanced BackpackMarginDetails
             bp_details = BackpackMarginDetails(

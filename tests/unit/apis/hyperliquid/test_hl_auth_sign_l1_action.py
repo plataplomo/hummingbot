@@ -5,7 +5,7 @@ sign_l1_action scheme for the /exchange endpoint.
 """
 
 from typing import Any, cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import msgpack
 import pytest
@@ -13,6 +13,7 @@ from pydantic import SecretStr
 
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator, address_to_bytes
 from cyberdelta.apis.models.api_error import APIError
+
 
 # Test constants
 VALID_PRIVATE_KEY = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -184,7 +185,7 @@ class TestHyperliquidSignL1Action:
     async def test_action_hash_calculation(
         self,
         authenticator: HyperliquidEip712Authenticator,
-        mock_time_patch: Any,
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that action_hash is calculated correctly using msgpack and keccak."""
         # Simple action for predictable hashing

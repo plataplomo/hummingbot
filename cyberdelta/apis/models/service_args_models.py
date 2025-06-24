@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
 
 
 class PlaceOrderArgs(BaseModel):
@@ -62,12 +63,20 @@ class PlaceOrderArgs(BaseModel):
     @classmethod
     def parse_decimal_fields(
         cls,
-        v: str | int | float | Decimal | None,
+        v: PotentialDecimalInput | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse decimal fields and ensure they are finite."""
         field_name = str(info.field_name)
         is_required = field_name == "quantity"
+
+        # Use TypeGuard for better type safety
+        if v is not None and not is_potential_decimal_input(v):
+            raise ValueError(
+                f"Field '{field_name}' must be a string, int, float, or Decimal, "
+                f"got {type(v).__name__}"
+            )
+
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=not is_required)
         if parsed is None and is_required:
             raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
@@ -138,9 +147,17 @@ class TransferArgs(BaseModel):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def parse_amount_decimal(cls, v: str | int | float | Decimal, info: ValidationInfo) -> Decimal:
+    def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal."""
         field_name = str(info.field_name)
+
+        # Use TypeGuard for better type safety
+        if not is_potential_decimal_input(v):
+            raise ValueError(
+                f"Field '{field_name}' must be a string, int, float, or Decimal, "
+                f"got {type(v).__name__}"
+            )
+
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should be caught by parse_decimal_value
             raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
@@ -203,9 +220,17 @@ class WithdrawArgs(BaseModel):
 
     @field_validator("amount", mode="before")
     @classmethod
-    def parse_amount_decimal(cls, v: str | int | float | Decimal, info: ValidationInfo) -> Decimal:
+    def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal."""
         field_name = str(info.field_name)
+
+        # Use TypeGuard for better type safety
+        if not is_potential_decimal_input(v):
+            raise ValueError(
+                f"Field '{field_name}' must be a string, int, float, or Decimal, "
+                f"got {type(v).__name__}"
+            )
+
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should be caught by parse_decimal_value
             raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")

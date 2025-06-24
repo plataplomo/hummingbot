@@ -1,9 +1,9 @@
 """Exchange name enumeration for CyberDeltaEngine."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ExchangeName(str, Enum):
+class ExchangeName(StrEnum):
     """Enumeration of supported exchanges.
 
     This enum defines the canonical names for all exchanges supported

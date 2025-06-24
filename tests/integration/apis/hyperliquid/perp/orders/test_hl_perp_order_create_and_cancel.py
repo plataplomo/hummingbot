@@ -37,6 +37,7 @@ from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     get_safe_test_price,
 )
 
+
 logger = get_logger(__name__)
 
 pytestmark = [
@@ -44,6 +45,7 @@ pytestmark = [
     pytest.mark.perp,
     pytest.mark.requires_balance,
     pytest.mark.positive_balance,
+    pytest.mark.timing,
 ]
 
 

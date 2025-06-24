@@ -30,6 +30,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
+
 # Logger removed - no longer needed after refactoring to Pydantic validators
 
 # Assuming HyperliquidRawTriggerInfo is defined elsewhere (e.g., hl_raw_open_orders.py)

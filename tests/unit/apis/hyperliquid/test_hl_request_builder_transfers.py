@@ -22,6 +22,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 )
 from cyberdelta.apis.models.service_args_models import TransferL2UsdArgs, WithdrawL1Args
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_request_builder"]
 

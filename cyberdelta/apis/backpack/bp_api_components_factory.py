@@ -24,6 +24,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
 
+
 logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the factory will use.

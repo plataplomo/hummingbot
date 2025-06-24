@@ -20,6 +20,7 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 
+
 # --- Margin Account Summary Core Model (IMMUTABLE SNAPSHOT) ---
 
 

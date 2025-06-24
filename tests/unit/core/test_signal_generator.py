@@ -24,6 +24,7 @@ from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.timing

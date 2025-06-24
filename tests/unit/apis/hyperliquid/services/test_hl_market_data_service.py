@@ -54,6 +54,7 @@ from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.market import Market
 from tests.fixtures.time_fixtures import FreezerProtocol
 
+
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 
@@ -151,12 +152,10 @@ class TestHyperliquidMarketDataService:
             {"universe": []},
             [],
         ]
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {"universe": [], "marginTables": None},
-                [],
-            ]
-        )
+        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {"universe": [], "marginTables": None},
+            [],
+        ])
 
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
         mock_headers: dict[str, str] = {}
@@ -233,15 +232,13 @@ class TestHyperliquidMarketDataService:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
             [
-                mock_meta_response.model_dump(by_alias=True),
-                [
-                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
-                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
-                ],
-            ]
-        )
+                mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+            ],
+        ])
 
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
@@ -275,12 +272,10 @@ class TestHyperliquidMarketDataService:
     ) -> None:
         """Test get_ticker returns None when symbol is not found."""
         symbol = "UNKNOWN"
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {"universe": [], "marginTables": None},
-                [],
-            ]
-        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {"universe": [], "marginTables": None},
+            [],
+        ])
 
         with patch.object(
             hyperliquid_market_data_service,
@@ -353,15 +348,13 @@ class TestHyperliquidMarketDataService:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
             [
-                mock_meta_response.model_dump(by_alias=True),
-                [
-                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
-                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
-                ],
-            ]
-        )
+                mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+            ],
+        ])
 
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
@@ -862,33 +855,31 @@ class TestHyperliquidMarketDataService:
         mock_status_code = 200
         mock_headers: dict[Any, Any] = {}
 
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {
-                    "marginTables": None,
-                    "universe": [
-                        {
-                            "name": "BTC",
-                            "szDecimals": 5,
-                            "maxLeverage": 100,
-                            "onlyIsolated": False,
-                            "marginTableId": None,
-                            "isDelisted": None,
-                        },
-                    ],
-                },
-                [
-                    create_asset_ctx(
-                        name="BTC",
-                        funding="0.0001",
-                        mark_px="50000",
-                        prev_day_px="49000",
-                        day_ntl_vlm="100",
-                        impact_px="50001",
-                    ).model_dump(by_alias=True),
+        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {
+                "marginTables": None,
+                "universe": [
+                    {
+                        "name": "BTC",
+                        "szDecimals": 5,
+                        "maxLeverage": 100,
+                        "onlyIsolated": False,
+                        "marginTableId": None,
+                        "isDelisted": None,
+                    },
                 ],
-            ]
-        )
+            },
+            [
+                create_asset_ctx(
+                    name="BTC",
+                    funding="0.0001",
+                    mark_px="50000",
+                    prev_day_px="49000",
+                    day_ntl_vlm="100",
+                    impact_px="50001",
+                ).model_dump(by_alias=True),
+            ],
+        ])
 
         mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
         mock_payload_model.model_dump.return_value = mock_payload_dict
@@ -1577,12 +1568,10 @@ class TestHyperliquidMarketDataService:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                mock_meta_response.model_dump(by_alias=True),
-                [mock_raw_asset_ctx.model_dump(by_alias=True)],
-            ]
-        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
+            [mock_raw_asset_ctx.model_dump(by_alias=True)],
+        ])
 
         with patch.object(
             hyperliquid_market_data_service,
@@ -1979,33 +1968,31 @@ class TestHyperliquidMarketDataServiceGetMarkets:
     ) -> None:
         """Test successful get_markets call."""
         # Mock data
-        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {
-                    "marginTables": None,
-                    "universe": [
-                        {
-                            "name": "BTC",
-                            "szDecimals": 5,
-                            "maxLeverage": 20,
-                            "onlyIsolated": False,
-                            "marginTableId": None,
-                            "isDelisted": None,
-                        }
-                    ],
-                },
-                [
-                    create_asset_ctx(
-                        name="BTC",
-                        funding="0.0001",
-                        mark_px="50100",
-                        prev_day_px="50000",
-                        day_ntl_vlm="1000000",
-                        impact_px="50098",
-                    ).model_dump(by_alias=True)
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {
+                "marginTables": None,
+                "universe": [
+                    {
+                        "name": "BTC",
+                        "szDecimals": 5,
+                        "maxLeverage": 20,
+                        "onlyIsolated": False,
+                        "marginTableId": None,
+                        "isDelisted": None,
+                    }
                 ],
-            ]
-        )
+            },
+            [
+                create_asset_ctx(
+                    name="BTC",
+                    funding="0.0001",
+                    mark_px="50100",
+                    prev_day_px="50000",
+                    day_ntl_vlm="1000000",
+                    impact_px="50098",
+                ).model_dump(by_alias=True)
+            ],
+        ])
 
         mock_markets = [
             Market(
@@ -2072,33 +2059,31 @@ class TestHyperliquidMarketDataServiceGetMarkets:
     ) -> None:
         """Test handling of transformation errors from mapper."""
         # Mock successful raw response
-        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {
-                    "marginTables": None,
-                    "universe": [
-                        {
-                            "name": "BTC",
-                            "szDecimals": 5,
-                            "maxLeverage": 20,
-                            "onlyIsolated": False,
-                            "marginTableId": None,
-                            "isDelisted": None,
-                        }
-                    ],
-                },
-                [
-                    create_asset_ctx(
-                        name="BTC",
-                        funding="0.0001",
-                        mark_px="50100",
-                        prev_day_px="50000",
-                        day_ntl_vlm="1000000",
-                        impact_px="50098",
-                    ).model_dump(by_alias=True)
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {
+                "marginTables": None,
+                "universe": [
+                    {
+                        "name": "BTC",
+                        "szDecimals": 5,
+                        "maxLeverage": 20,
+                        "onlyIsolated": False,
+                        "marginTableId": None,
+                        "isDelisted": None,
+                    }
                 ],
-            ]
-        )
+            },
+            [
+                create_asset_ctx(
+                    name="BTC",
+                    funding="0.0001",
+                    mark_px="50100",
+                    prev_day_px="50000",
+                    day_ntl_vlm="1000000",
+                    impact_px="50098",
+                ).model_dump(by_alias=True)
+            ],
+        ])
 
         # Setup mocks - raw response succeeds, transformation fails
         with patch.object(
@@ -2132,12 +2117,10 @@ class TestHyperliquidMarketDataServiceGetMarkets:
     ) -> None:
         """Test handling of empty markets response."""
         # Mock empty raw response
-        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                {"universe": [], "marginTables": None},
-                [],
-            ]
-        )
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {"universe": [], "marginTables": None},
+            [],
+        ])
 
         mock_markets: list[Market] = []
 

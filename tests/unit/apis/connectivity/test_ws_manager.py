@@ -13,8 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 import pytest_asyncio
-from aiohttp import ClientSession as RealAiohttpCliSession
-from aiohttp import WSMessage, WSMsgType
+from aiohttp import ClientSession as RealAiohttpCliSession, WSMessage, WSMsgType
 from aiohttp.helpers import sentinel
 from pydantic import AnyUrl, BaseModel, ValidationError
 from pytest import LogCaptureFixture
@@ -23,6 +22,7 @@ from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerCon
 from cyberdelta.apis.connectivity.ws_manager import (
     WebSocketManager,
 )
+
 
 logger = logging.getLogger(__name__)
 

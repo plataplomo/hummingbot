@@ -12,6 +12,7 @@ from typing import Any, cast
 
 import requests
 
+
 # Configuration
 WALLET_ADDRESS = "0x02Cd79f858bEF99588Cc2E650f2A4Fbf2baE8CB5"
 API_URL = "https://api.hyperliquid-testnet.xyz/info"

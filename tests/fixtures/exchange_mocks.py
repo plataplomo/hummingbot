@@ -25,6 +25,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Import path setup to ensure cyberdelta can be imported
 
 # --- Mock Exchange API ---

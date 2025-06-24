@@ -17,6 +17,7 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import BackpackSpotBalanceDetails, SpotBalance
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 
+
 logger = get_logger(__name__)
 
 # Mark all tests in this file

@@ -41,6 +41,8 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.utils.typing import is_dict_response
+
 
 logger = get_logger(__name__)
 
@@ -1017,12 +1019,11 @@ class BackpackTradingService:
 
         # If response is not a list, it might be an error structure or unexpected.
         # We can't confirm any cancellations.
-        if isinstance(raw_data, dict) and raw_data.get("error"):  # Check for explicit error
+        if is_dict_response(raw_data) and raw_data.get("error"):  # Check for explicit error
+            # raw_data is now typed as dict[str, Any], so .get() is type-safe
+            error_info = raw_data.get("error", {})
             raise APIError(
-                raw_data.get("error", {}).get(
-                    "message",
-                    "Failed to cancel all orders due to API error response.",
-                ),
+                error_info.get("message", "Failed to cancel all orders due to API error response."),
                 APIErrorCode.UNKNOWN.value,  # Using UNKNOWN as OPERATION_FAILED is not available
                 http_status=status_code,
                 exchange_message=str(raw_data),

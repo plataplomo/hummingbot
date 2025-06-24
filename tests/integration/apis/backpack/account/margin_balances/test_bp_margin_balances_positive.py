@@ -22,6 +22,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     is_within_tolerance,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

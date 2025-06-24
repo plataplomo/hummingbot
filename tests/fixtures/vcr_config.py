@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+
 if TYPE_CHECKING:
     # VCR request/response objects aren't well-typed, so we use protocols
     from typing import Protocol
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
         """Protocol for VCR response objects."""
 
         body: Any
+
 else:
     # At runtime, these are just Any to avoid import issues
     VCRRequest = Any

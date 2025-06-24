@@ -20,6 +20,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr]
 
 logger = logging.getLogger(__name__)

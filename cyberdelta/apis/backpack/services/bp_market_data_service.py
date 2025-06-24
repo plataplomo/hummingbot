@@ -68,6 +68,7 @@ from cyberdelta.core.models.market import (
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
 
+
 if TYPE_CHECKING:
     pass
 

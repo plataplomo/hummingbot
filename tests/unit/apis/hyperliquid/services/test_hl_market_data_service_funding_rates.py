@@ -23,6 +23,7 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models.market import FundingRate
 
+
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
 
@@ -110,15 +111,13 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
             [
-                mock_meta_response.model_dump(by_alias=True),
-                [
-                    mock_raw_asset_ctx_btc.model_dump(by_alias=True),
-                    mock_raw_asset_ctx_eth.model_dump(by_alias=True),
-                ],
-            ]
-        )
+                mock_raw_asset_ctx_btc.model_dump(by_alias=True),
+                mock_raw_asset_ctx_eth.model_dump(by_alias=True),
+            ],
+        ])
 
         expected_internal_funding_rate = FundingRate(
             symbol=symbol_to_find,
@@ -154,12 +153,10 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         """Test get_funding_rate returns None when symbol is not found."""
         symbol = "UNKNOWN"
         mock_meta_response = HyperliquidRawMetaResponse(universe=[], marginTables=None)
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                mock_meta_response.model_dump(by_alias=True),
-                [],
-            ]
-        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
+            [],
+        ])
 
         with patch.object(
             hyperliquid_market_data_service,
@@ -703,12 +700,10 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 ),
             ],
         )
-        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [
-                mock_meta_response.model_dump(by_alias=True),
-                [mock_raw_asset_ctx_btc.model_dump(by_alias=True)],
-            ]
-        )
+        mock_all_contexts_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            mock_meta_response.model_dump(by_alias=True),
+            [mock_raw_asset_ctx_btc.model_dump(by_alias=True)],
+        ])
 
         # Configure mapper to raise unexpected exception
         mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.side_effect = RuntimeError(

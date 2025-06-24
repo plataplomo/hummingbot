@@ -47,6 +47,7 @@ pytestmark = [
     pytest.mark.perp,
     pytest.mark.large_positions,
     pytest.mark.requires_large_balance,
+    pytest.mark.timing,
 ]
 
 

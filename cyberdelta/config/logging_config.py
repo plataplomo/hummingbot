@@ -8,6 +8,7 @@ from types import TracebackType
 
 from cyberdelta.config.config_models import AppSettings
 
+
 # Standard time formatting for all logs
 DEFAULT_LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

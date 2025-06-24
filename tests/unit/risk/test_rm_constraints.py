@@ -10,6 +10,7 @@ import pytest
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Note: Fixtures risk_manager, mock_portfolio_tracker
 #       are provided by tests/unit/risk/conftest.py
 

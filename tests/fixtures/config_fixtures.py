@@ -41,6 +41,7 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSe
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
+
 # Import path setup to ensure cyberdelta can be imported
 
 # --- Basic Configuration Fixtures ---

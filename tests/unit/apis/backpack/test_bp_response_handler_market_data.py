@@ -21,6 +21,7 @@ from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.backpack.conftest_response_handler"]
 
@@ -722,24 +723,22 @@ class TestHandleGetMarketsResponse:
         """Test handling a large list of markets."""
         raw_data: list[dict[str, Any]] = []
         for i in range(100):
-            raw_data.append(
-                {
-                    "symbol": f"ASSET{i}_USDC",
-                    "baseSymbol": f"ASSET{i}",
-                    "quoteSymbol": "USDC",
-                    "marketType": "Spot",
-                    "filters": {
-                        "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
-                        "quantity": {
-                            "minQuantity": "0.0001",
-                            "maxQuantity": "1000.0",
-                            "stepSize": "0.01",
-                        },
+            raw_data.append({
+                "symbol": f"ASSET{i}_USDC",
+                "baseSymbol": f"ASSET{i}",
+                "quoteSymbol": "USDC",
+                "marketType": "Spot",
+                "filters": {
+                    "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                    "quantity": {
+                        "minQuantity": "0.0001",
+                        "maxQuantity": "1000.0",
+                        "stepSize": "0.01",
                     },
-                    "orderBookState": "NORMAL",
-                    "createdAt": "2024-01-01T00:00:00.000Z",
-                }
-            )
+                },
+                "orderBookState": "NORMAL",
+                "createdAt": "2024-01-01T00:00:00.000Z",
+            })
 
         markets = BackpackResponseHandler.handle_get_markets_response(
             cast("ParsedJsonResponse", raw_data),

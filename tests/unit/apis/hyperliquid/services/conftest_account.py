@@ -13,6 +13,7 @@ from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import Hyperliqu
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 
+
 # Type alias for the HTTP client requester callable
 HttpClientRequesterSig = Callable[
     ...,

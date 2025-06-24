@@ -9,6 +9,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
 
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

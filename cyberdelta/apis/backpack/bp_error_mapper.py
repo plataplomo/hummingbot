@@ -31,6 +31,7 @@ from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+
 logger = logging.getLogger(__name__)
 
 

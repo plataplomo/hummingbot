@@ -33,6 +33,9 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
+pytestmark = pytest.mark.timing
+
+
 @pytest.fixture
 def default_http_client_config() -> HttpClientConfig:
     """Provide default http client config."""

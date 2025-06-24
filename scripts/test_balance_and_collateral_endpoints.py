@@ -10,6 +10,7 @@ from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.core.models import SpotBalance
 
+
 # Set up logging instead of using print
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

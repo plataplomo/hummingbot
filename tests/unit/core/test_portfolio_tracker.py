@@ -27,6 +27,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
+
 # Define types for fixtures for clarity
 ExchangeBalances = dict[str, dict[str, SpotBalance]]
 ExchangePositions = dict[str, dict[str, DerivativePosition]]

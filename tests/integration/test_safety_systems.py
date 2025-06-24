@@ -44,6 +44,7 @@ from tests.integration.conftest import (
 )
 from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockExchangeAPI
 
+
 pytestmark = pytest.mark.timing
 
 # === FORCE ROOT LOGGER LEVEL ===

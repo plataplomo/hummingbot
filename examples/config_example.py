@@ -35,6 +35,7 @@ from cyberdelta.config import get_app_settings, get_secrets_config
 from cyberdelta.config.config_models import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
+
 # Configure logging for the example
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

@@ -9,6 +9,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_subaccounts import (
     HyperliquidRawSubAccountsResponse,
 )
 
+
 # --- Test Data --- #
 
 VALID_SUBACCOUNTS_RESPONSE: list[str] = [

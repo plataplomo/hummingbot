@@ -25,6 +25,7 @@ from pydantic import BaseModel
 # Import the config model
 from .connectivity_models import WebSocketManagerConfig
 
+
 if TYPE_CHECKING:
     from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 

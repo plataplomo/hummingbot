@@ -17,6 +17,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import Market
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.perp]
 
 

@@ -30,6 +30,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+
 _BM = TypeVar("_BM", bound=BaseModel)
 
 # Get logger for the module

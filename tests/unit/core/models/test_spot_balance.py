@@ -17,6 +17,7 @@ from cyberdelta.core.models.spot_balance import (
     SpotBalance,
 )
 
+
 pytestmark = pytest.mark.timing
 
 # Type alias for broad, but Any-free, test parameter values

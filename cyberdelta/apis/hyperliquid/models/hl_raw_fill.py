@@ -20,6 +20,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawTxHashStr,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

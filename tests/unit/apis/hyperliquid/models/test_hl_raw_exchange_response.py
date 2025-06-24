@@ -15,6 +15,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusResting,
 )
 
+
 logger = logging.getLogger(__name__)
 
 

@@ -11,6 +11,7 @@ from _pytest.logging import LogCaptureFixture
 
 from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
 
+
 # Sample valid config
 VALID_CONFIG = {
     "exchanges": {

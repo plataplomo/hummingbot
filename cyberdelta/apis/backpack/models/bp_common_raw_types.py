@@ -19,6 +19,7 @@ from cyberdelta.utils.parsing import (
     validate_str_field,
 )
 
+
 # --- Known Enum Sets for Backpack ---
 BP_ORDER_SIDES = {"Bid", "Ask"}
 """Set of allowed Backpack order sides."""

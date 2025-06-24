@@ -11,6 +11,7 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Note: Fixtures risk_manager, mock_config, mock_circuit_breaker,
 #       mock_funding_validator, sample_opportunity
 #       are provided by tests/unit/risk/conftest.py

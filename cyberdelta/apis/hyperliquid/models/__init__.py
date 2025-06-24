@@ -27,6 +27,7 @@ from .hl_ws_payloads import (
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
 
+
 __all__ = [
     # Processed Exchange Responses
     "HyperliquidSuccessfulOrderStatus",

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from .config_models import AppSettings
 
+
 logger = logging.getLogger(__name__)
 
 

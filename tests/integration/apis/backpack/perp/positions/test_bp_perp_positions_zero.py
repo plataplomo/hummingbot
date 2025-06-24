@@ -31,6 +31,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 
+
 if TYPE_CHECKING:
     from cyberdelta.core.models.derivative_position import BackpackPositionDetails
 from cyberdelta.apis.models.api_error import APIError
@@ -38,10 +39,16 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
 
+
 logger = get_logger(__name__)
 
 # Mark all tests in this file
-pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.perp,
+    pytest.mark.zero_balance,
+    pytest.mark.timing,
+]
 
 
 @pytest.mark.parametrize(

@@ -19,6 +19,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.core.models import Ticker
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 

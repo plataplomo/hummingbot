@@ -7,6 +7,8 @@ ensuring all tests use real market data and follow security rules.
 import asyncio
 from decimal import Decimal
 
+import pytest
+
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -19,7 +21,11 @@ from cyberdelta.config.logging_config import get_logger
 from cyberdelta.core.models import Order, OrderSide, OrderStatus
 from cyberdelta.core.models.market import Market
 
+
 logger = get_logger(__name__)
+
+# Mark this module as using timing operations
+pytestmark = pytest.mark.timing
 
 
 class MarketOrderTestHelpers:

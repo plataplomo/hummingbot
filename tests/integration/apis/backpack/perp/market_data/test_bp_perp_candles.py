@@ -24,6 +24,7 @@ from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
 from tests.fixtures.time_fixtures import FreezerProtocol
 
+
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 

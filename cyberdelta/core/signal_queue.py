@@ -21,6 +21,7 @@ from cyberdelta.core.models.enums import SignalType
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 if TYPE_CHECKING:
     from cyberdelta.core.models import SignalType, TradeSignal
 

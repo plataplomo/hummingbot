@@ -19,6 +19,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetCandleSnapshotArgs,
 )
 
+
 # Import fixtures from the shared conftest
 pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_request_builder"]
 

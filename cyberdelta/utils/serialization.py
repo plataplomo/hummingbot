@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel
 
+
 # Type alias for JSON-compatible values
 JSONValue = str | int | float | bool | None | dict[str, "JSONValue"] | list["JSONValue"]
 

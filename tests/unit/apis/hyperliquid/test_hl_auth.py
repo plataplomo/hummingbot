@@ -15,6 +15,7 @@ from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
+
 # Sample valid credentials
 VALID_PRIVATE_KEY_HEX = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 VALID_WALLET_ADDRESS = "0x1Be31A94361a391bBaFB2a4CCd704F57dc04d4bb"  # Corrected derived address

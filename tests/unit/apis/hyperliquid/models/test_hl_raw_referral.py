@@ -14,6 +14,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_referral import (
     HyperliquidRawReferrerState,
 )
 
+
 # --- Test Data --- #
 
 VALID_REFERRED_BY: dict[str, str] = {

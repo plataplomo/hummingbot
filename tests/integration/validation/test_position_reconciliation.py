@@ -17,6 +17,7 @@ from cyberdelta.validation.models.discrepancy_detail import (
 )
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
 
+
 pytestmark = pytest.mark.timing
 
 

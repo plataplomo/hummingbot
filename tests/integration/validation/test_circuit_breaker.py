@@ -18,6 +18,7 @@ from cyberdelta.validation.circuit_breaker import (
     VolatilityBreaker,
 )
 
+
 pytestmark = pytest.mark.timing
 
 

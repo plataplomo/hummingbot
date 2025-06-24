@@ -39,6 +39,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 
+
 # Alias for shorter method calls
 Mapper = HyperliquidAccountDataMapper
 

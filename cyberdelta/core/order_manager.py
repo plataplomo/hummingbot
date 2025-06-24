@@ -19,10 +19,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from cyberdelta.core.models.market.order import Order
     from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.models.enums import OrderStatus
+
 
 logger = logging.getLogger(__name__)
 

@@ -50,6 +50,7 @@ from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
     get_test_symbol,
 )
 
+
 logger = logging.getLogger(__name__)
 
 # Mark all tests in this file as integration tests requiring network

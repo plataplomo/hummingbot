@@ -16,6 +16,7 @@ from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
+
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,

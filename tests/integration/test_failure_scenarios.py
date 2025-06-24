@@ -29,6 +29,7 @@ from cyberdelta.validation.circuit_breaker import (
 from tests.integration.conftest import create_mock_ticker  # Assuming this helper exists
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
 
+
 pytestmark = pytest.mark.timing
 
 # Configure logging for tests

@@ -34,6 +34,7 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
+
 # Configure logger
 logger = logging.getLogger(__name__)
 

@@ -29,6 +29,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.spot,

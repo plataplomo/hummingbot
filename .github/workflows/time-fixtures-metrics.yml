@@ -1,0 +1,87 @@
+name: Time Fixtures Adoption Metrics
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tests/unit/*.py'
+      - 'scripts/time_fixtures_metrics.py'
+  pull_request:
+    paths:
+      - 'tests/unit/*.py'
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Generate metrics
+      id: metrics
+      run: |
+        python scripts/time_fixtures_metrics.py --format github
+
+    - name: Generate JSON metrics
+      run: |
+        python scripts/time_fixtures_metrics.py --format json --output metrics.json
+
+    - name: Upload metrics artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: time-fixtures-metrics
+        path: metrics.json
+
+    - name: Comment PR with metrics
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const metrics = JSON.parse(fs.readFileSync('metrics.json', 'utf8'));
+          const summary = metrics.summary;
+
+          const comment = `## 📊 Time Fixtures Adoption Metrics
+
+          | Metric | Value |
+          |--------|-------|
+          | **Adoption Rate** | ${summary.adoption_percentage}% |
+          | Files Migrated | ${summary.files_migrated} |
+          | Files Needing Migration | ${summary.files_needing_migration} |
+          | Files with Timing Marker | ${summary.files_with_timing_marker} |
+          | Files Needing Timing Marker | ${summary.files_needing_timing_marker} |
+
+          ${summary.files_needing_migration > 0 ? '⚠️ Some files still need migration to new time fixtures.' : '✅ All time mocking has been migrated!'}
+          ${summary.files_needing_timing_marker > 0 ? '⚠️ Some files need @pytest.mark.timing marker.' : '✅ All timing tests are properly marked!'}
+          `;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Create metrics badge
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        ADOPTION=${{ steps.metrics.outputs.adoption_percentage }}
+        COLOR="red"
+        if (( $(echo "$ADOPTION > 80" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$ADOPTION > 50" | bc -l) )); then
+          COLOR="yellow"
+        fi
+
+        echo "Badge URL: https://img.shields.io/badge/Time%20Fixtures%20Adoption-${ADOPTION}%25-${COLOR}"
+
+        # Could integrate with shields.io endpoint or other badge service

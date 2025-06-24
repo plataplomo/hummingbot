@@ -32,6 +32,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+
 pytestmark = pytest.mark.timing
 
 
@@ -364,7 +365,7 @@ class MockTradingStrategy(TradingStrategy):
         return {
             "total_trades": len(trades),
             "profit_loss": sum(
-                [trade["size"] * trade["price"] for trade in trades.values()],
+                trade["size"] * trade["price"] for trade in trades.values()
             ),  # Iterate over values
             "win_rate": 0.65,  # Arbitrary for testing
             "sharpe_ratio": 1.5,  # Arbitrary for testing

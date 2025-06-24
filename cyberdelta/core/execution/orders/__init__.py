@@ -14,6 +14,7 @@ from cyberdelta.core.execution.orders.market_order_errors import (
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 
+
 __all__ = [
     "MarketOrder",
     "MarketOrderConfig",

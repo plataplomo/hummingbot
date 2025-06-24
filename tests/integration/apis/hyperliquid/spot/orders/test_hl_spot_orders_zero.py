@@ -30,6 +30,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.market.order import Order
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]
 
 
