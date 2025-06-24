@@ -18,6 +18,8 @@ from cyberdelta.validation.circuit_breaker import (
     VolatilityBreaker,
 )
 
+pytestmark = pytest.mark.timing
+
 
 class TestCircuitBreakerBase:
     """Test suite for the base CircuitBreaker class."""

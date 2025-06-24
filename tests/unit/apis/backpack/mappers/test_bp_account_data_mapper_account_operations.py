@@ -34,6 +34,8 @@ from cyberdelta.core.models.operations import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 
+pytestmark = pytest.mark.timing
+
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:

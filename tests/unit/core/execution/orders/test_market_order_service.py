@@ -16,6 +16,8 @@ from cyberdelta.core.execution.orders.market_order_service import MarketOrderSer
 from cyberdelta.core.models import OrderBook, OrderSide
 from cyberdelta.core.models.market.mid_prices import MidPrices
 
+pytestmark = pytest.mark.timing
+
 
 class TestMarketOrderService:
     """Test cases for MarketOrderService."""

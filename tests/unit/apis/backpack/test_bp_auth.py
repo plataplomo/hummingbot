@@ -24,8 +24,7 @@ Key test categories:
 """
 
 import base64
-from collections.abc import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -35,16 +34,7 @@ from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 
-
-@pytest.fixture
-def mock_time_patch() -> Generator[MagicMock]:
-    """Return mock time patch for consistent timestamp testing.
-
-    Provides a fixed timestamp (1678886400.0) for all authentication tests
-    to ensure deterministic signature generation and validation.
-    """
-    with patch("time.time", return_value=1678886400.0) as mock_time:
-        yield mock_time
+# Using centralized mock_time_patch fixture from tests.fixtures.time_fixtures
 
 
 @pytest.fixture
@@ -368,6 +358,7 @@ class TestBackpackEd25519Authenticator:
     async def test_signing_string_generation_order_cancel_example(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test signing string generation using the orderCancel example from Backpack documentation.
 
@@ -380,34 +371,35 @@ class TestBackpackEd25519Authenticator:
         )
 
         # Mock time to get predictable timestamp
-        with patch("time.time", return_value=1678886400.0):
-            # Test data matching the Backpack documentation example
-            data = {"orderId": "28", "symbol": "BTC_USDT"}
+        mock_time_patch.return_value = 1678886400.0
+        # Test data matching the Backpack documentation example
+        data = {"orderId": "28", "symbol": "BTC_USDT"}
 
-            # We need to access the internal signing logic to verify the string_to_sign
-            # Since prepare_request doesn't expose it, we'll test the components
-            components = await auth.prepare_request(
-                method="DELETE",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        # We need to access the internal signing logic to verify the string_to_sign
+        # Since prepare_request doesn't expose it, we'll test the components
+        components = await auth.prepare_request(
+            method="DELETE",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert components.data == data
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert components.data == data
 
-            # The expected signing string should be:
-            # instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1678886400000&window=5000
-            # We can't directly access string_to_sign, but we can verify the signature was generated
-            assert len(components.headers["X-Signature"]) > 0
+        # The expected signing string should be:
+        # instruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1678886400000&window=5000
+        # We can't directly access string_to_sign, but we can verify the signature was generated
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_json_body_query_format(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that JSON request bodies are converted to query string format for signing."""
         auth = BackpackEd25519Authenticator(
@@ -415,38 +407,39 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test with a POST request containing JSON data
-            data = {
-                "symbol": "SOL_USDC",
-                "quantity": "1.5",
-                "side": "buy",
-                "orderType": "limit",
-                "price": "100.50",
-            }
+        mock_time_patch.return_value = 1678886400.0
+        # Test with a POST request containing JSON data
+        data = {
+            "symbol": "SOL_USDC",
+            "quantity": "1.5",
+            "side": "buy",
+            "orderType": "limit",
+            "price": "100.50",
+        }
 
-            components = await auth.prepare_request(
-                method="POST",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="POST",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert components.data == data
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert components.data == data
 
-            # The content should be sorted alphabetically and URL-encoded for signing
-            # Expected order: orderType, price, quantity, side, symbol
-            # But we can't directly verify the string_to_sign, only that signature was generated
-            assert len(components.headers["X-Signature"]) > 0
+        # The content should be sorted alphabetically and URL-encoded for signing
+        # Expected order: orderType, price, quantity, side, symbol
+        # But we can't directly verify the string_to_sign, only that signature was generated
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_with_none_values_filtered(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that None values are properly filtered out from the signing string."""
         auth = BackpackEd25519Authenticator(
@@ -454,37 +447,38 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test data with None values that should be filtered out
-            data = {
-                "symbol": "SOL_USDC",
-                "quantity": "1.0",
-                "side": "buy",
-                "orderType": None,  # This should be filtered out
-                "price": None,  # This should be filtered out
-                "timeInForce": "GTC",
-            }
+        mock_time_patch.return_value = 1678886400.0
+        # Test data with None values that should be filtered out
+        data = {
+            "symbol": "SOL_USDC",
+            "quantity": "1.0",
+            "side": "buy",
+            "orderType": None,  # This should be filtered out
+            "price": None,  # This should be filtered out
+            "timeInForce": "GTC",
+        }
 
-            components = await auth.prepare_request(
-                method="POST",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="POST",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert components.data == data  # Original data should be preserved
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert components.data == data  # Original data should be preserved
 
-            # Signature should be generated successfully even with None values
-            assert len(components.headers["X-Signature"]) > 0
+        # Signature should be generated successfully even with None values
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_empty_body_no_double_ampersands(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that requests with no body don't create double ampersands in signing string."""
         auth = BackpackEd25519Authenticator(
@@ -492,29 +486,30 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test GET request with no params (empty content_part_str)
-            components = await auth.prepare_request(
-                method="GET",
-                path="/api/v1/capital",
-                params=None,
-                data=None,
-                headers=None,
-            )
+        mock_time_patch.return_value = 1678886400.0
+        # Test GET request with no params (empty content_part_str)
+        components = await auth.prepare_request(
+            method="GET",
+            path="/api/v1/capital",
+            params=None,
+            data=None,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
 
-            # The signing string should be:
-            # instruction=balanceQuery&timestamp=1678886400000&window=5000
-            # (no double ampersands from empty content_part_str)
-            assert len(components.headers["X-Signature"]) > 0
+        # The signing string should be:
+        # instruction=balanceQuery&timestamp=1678886400000&window=5000
+        # (no double ampersands from empty content_part_str)
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_get_with_params_query_format(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that GET request parameters are properly URL-encoded and sorted for signing."""
         auth = BackpackEd25519Authenticator(
@@ -522,31 +517,32 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test GET request with query parameters
-            params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
+        mock_time_patch.return_value = 1678886400.0
+        # Test GET request with query parameters
+        params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
 
-            components = await auth.prepare_request(
-                method="GET",
-                path="/api/v1/orders",
-                params=params,
-                data=None,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="GET",
+            path="/api/v1/orders",
+            params=params,
+            data=None,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert components.params == params
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert components.params == params
 
-            # Parameters should be sorted alphabetically: limit, offset, symbol
-            # The signing string should include these in query format
-            assert len(components.headers["X-Signature"]) > 0
+        # Parameters should be sorted alphabetically: limit, offset, symbol
+        # The signing string should include these in query format
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_complex_data_types_stringified(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test that complex data types (numbers, booleans) are properly stringified for signing."""
         auth = BackpackEd25519Authenticator(
@@ -554,37 +550,38 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test data with various data types that need stringification
-            data = {
-                "symbol": "SOL_USDC",
-                "quantity": 1.5,  # float
-                "price": 100,  # int
-                "postOnly": True,  # boolean
-                "clientId": 12345,  # int
-            }
+        mock_time_patch.return_value = 1678886400.0
+        # Test data with various data types that need stringification
+        data = {
+            "symbol": "SOL_USDC",
+            "quantity": 1.5,  # float
+            "price": 100,  # int
+            "postOnly": True,  # boolean
+            "clientId": 12345,  # int
+        }
 
-            components = await auth.prepare_request(
-                method="POST",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="POST",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert components.data == data
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert components.data == data
 
-            # All values should be stringified for URL encoding in the signing process
-            # Expected alphabetical order: clientId, postOnly, price, quantity, symbol
-            assert len(components.headers["X-Signature"]) > 0
+        # All values should be stringified for URL encoding in the signing process
+        # Expected alphabetical order: clientId, postOnly, price, quantity, symbol
+        assert len(components.headers["X-Signature"]) > 0
 
     @pytest.mark.asyncio
     async def test_delete_request_authentication_components_order_cancel(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test DELETE request authentication components for order cancellation.
 
@@ -597,40 +594,41 @@ class TestBackpackEd25519Authenticator:
         )
 
         # Mock time to get predictable timestamp
-        with patch("time.time", return_value=1678886400.0):
-            # Test data matching the Backpack documentation example
-            data = {"orderId": "28", "symbol": "BTC_USDT"}
+        mock_time_patch.return_value = 1678886400.0
+        # Test data matching the Backpack documentation example
+        data = {"orderId": "28", "symbol": "BTC_USDT"}
 
-            components = await auth.prepare_request(
-                method="DELETE",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="DELETE",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert "X-API-Key" in components.headers
-            assert "X-Timestamp" in components.headers
-            assert "X-Window" in components.headers
-            assert components.data == data
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert "X-API-Key" in components.headers
+        assert "X-Timestamp" in components.headers
+        assert "X-Window" in components.headers
+        assert components.data == data
 
-            # Verify the authentication headers have expected values
-            assert components.headers["X-Timestamp"] == "1678886400000"
-            assert components.headers["X-Window"] == "5000"
-            assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
+        # Verify the authentication headers have expected values
+        assert components.headers["X-Timestamp"] == "1678886400000"
+        assert components.headers["X-Window"] == "5000"
+        assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
 
-            # Verify signature is present and valid (non-empty)
-            signature = components.headers["X-Signature"]
-            assert signature
-            assert len(signature) > 0
+        # Verify signature is present and valid (non-empty)
+        signature = components.headers["X-Signature"]
+        assert signature
+        assert len(signature) > 0
 
     @pytest.mark.asyncio
     async def test_post_request_authentication_components_order_creation(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test POST request authentication components for order creation.
 
@@ -642,46 +640,47 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            # Test data with fields that need alphabetical sorting
-            data = {
-                "symbol": "SOL_USDC",
-                "quantity": "1.5",
-                "side": "buy",
-                "orderType": "limit",
-                "price": "100.50",
-            }
+        mock_time_patch.return_value = 1678886400.0
+        # Test data with fields that need alphabetical sorting
+        data = {
+            "symbol": "SOL_USDC",
+            "quantity": "1.5",
+            "side": "buy",
+            "orderType": "limit",
+            "price": "100.50",
+        }
 
-            components = await auth.prepare_request(
-                method="POST",
-                path="/api/v1/order",
-                params=None,
-                data=data,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="POST",
+            path="/api/v1/order",
+            params=None,
+            data=data,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert "X-API-Key" in components.headers
-            assert "X-Timestamp" in components.headers
-            assert "X-Window" in components.headers
-            assert components.data == data
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert "X-API-Key" in components.headers
+        assert "X-Timestamp" in components.headers
+        assert "X-Window" in components.headers
+        assert components.data == data
 
-            # Verify the authentication headers have expected values
-            assert components.headers["X-Timestamp"] == "1678886400000"
-            assert components.headers["X-Window"] == "5000"
-            assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
+        # Verify the authentication headers have expected values
+        assert components.headers["X-Timestamp"] == "1678886400000"
+        assert components.headers["X-Window"] == "5000"
+        assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
 
-            # Verify signature is present and valid (non-empty)
-            signature = components.headers["X-Signature"]
-            assert signature
-            assert len(signature) > 0
+        # Verify signature is present and valid (non-empty)
+        signature = components.headers["X-Signature"]
+        assert signature
+        assert len(signature) > 0
 
     @pytest.mark.asyncio
     async def test_get_request_authentication_components_no_params(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test GET request authentication components without parameters.
 
@@ -693,36 +692,37 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            components = await auth.prepare_request(
-                method="GET",
-                path="/api/v1/capital",
-                params=None,
-                data=None,
-                headers=None,
-            )
+        mock_time_patch.return_value = 1678886400.0
+        components = await auth.prepare_request(
+            method="GET",
+            path="/api/v1/capital",
+            params=None,
+            data=None,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert "X-API-Key" in components.headers
-            assert "X-Timestamp" in components.headers
-            assert "X-Window" in components.headers
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert "X-API-Key" in components.headers
+        assert "X-Timestamp" in components.headers
+        assert "X-Window" in components.headers
 
-            # Verify the authentication headers have expected values
-            assert components.headers["X-Timestamp"] == "1678886400000"
-            assert components.headers["X-Window"] == "5000"
-            assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
+        # Verify the authentication headers have expected values
+        assert components.headers["X-Timestamp"] == "1678886400000"
+        assert components.headers["X-Window"] == "5000"
+        assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
 
-            # Verify signature is present and valid (non-empty)
-            signature = components.headers["X-Signature"]
-            assert signature
-            assert len(signature) > 0
+        # Verify signature is present and valid (non-empty)
+        signature = components.headers["X-Signature"]
+        assert signature
+        assert len(signature) > 0
 
     @pytest.mark.asyncio
     async def test_get_request_authentication_components_with_params(
         self,
         test_ed25519_keys: dict[str, str],
+        mock_time_patch: MagicMock,
     ) -> None:
         """Test GET request authentication components with parameters.
 
@@ -734,31 +734,31 @@ class TestBackpackEd25519Authenticator:
             private_key_b64_secret=SecretStr(test_ed25519_keys["private_key_b64"]),
         )
 
-        with patch("time.time", return_value=1678886400.0):
-            params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
+        mock_time_patch.return_value = 1678886400.0
+        params = {"symbol": "SOL_USDC", "limit": "50", "offset": "0"}
 
-            components = await auth.prepare_request(
-                method="GET",
-                path="/api/v1/orders",
-                params=params,
-                data=None,
-                headers=None,
-            )
+        components = await auth.prepare_request(
+            method="GET",
+            path="/api/v1/orders",
+            params=params,
+            data=None,
+            headers=None,
+        )
 
-            # Verify the request was prepared successfully
-            assert isinstance(components, AuthenticatedRequestComponents)
-            assert "X-Signature" in components.headers
-            assert "X-API-Key" in components.headers
-            assert "X-Timestamp" in components.headers
-            assert "X-Window" in components.headers
-            assert components.params == params
+        # Verify the request was prepared successfully
+        assert isinstance(components, AuthenticatedRequestComponents)
+        assert "X-Signature" in components.headers
+        assert "X-API-Key" in components.headers
+        assert "X-Timestamp" in components.headers
+        assert "X-Window" in components.headers
+        assert components.params == params
 
-            # Verify the authentication headers have expected values
-            assert components.headers["X-Timestamp"] == "1678886400000"
-            assert components.headers["X-Window"] == "5000"
-            assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
+        # Verify the authentication headers have expected values
+        assert components.headers["X-Timestamp"] == "1678886400000"
+        assert components.headers["X-Window"] == "5000"
+        assert components.headers["X-API-Key"] == test_ed25519_keys["public_key_b64"]
 
-            # Verify signature is present and valid (non-empty)
-            signature = components.headers["X-Signature"]
-            assert signature
-            assert len(signature) > 0
+        # Verify signature is present and valid (non-empty)
+        signature = components.headers["X-Signature"]
+        assert signature
+        assert len(signature) > 0

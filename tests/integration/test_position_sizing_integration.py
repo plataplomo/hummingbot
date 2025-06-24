@@ -23,7 +23,7 @@ from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 
 @pytest.fixture

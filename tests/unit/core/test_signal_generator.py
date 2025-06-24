@@ -26,6 +26,8 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = logging.getLogger(__name__)
 
+pytestmark = pytest.mark.timing
+
 
 class TestSignalGenerator:
     """Test suite for the SignalGenerator class."""

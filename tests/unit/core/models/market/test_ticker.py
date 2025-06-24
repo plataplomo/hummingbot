@@ -14,6 +14,8 @@ from pydantic import ValidationError
 
 from cyberdelta.core.models.market.ticker import Ticker
 
+pytestmark = pytest.mark.timing
+
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
 VALID_SYMBOL: str = "BTC-PERP"

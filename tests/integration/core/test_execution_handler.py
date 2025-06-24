@@ -38,6 +38,8 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.test_utils.testable_classes import TestableExecutionHandler
 
+pytestmark = pytest.mark.timing
+
 logger = logging.getLogger(__name__)
 
 

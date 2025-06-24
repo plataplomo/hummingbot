@@ -184,19 +184,20 @@ class TestHyperliquidSignL1Action:
     async def test_action_hash_calculation(
         self,
         authenticator: HyperliquidEip712Authenticator,
+        mock_time_patch: Any,
     ) -> None:
         """Test that action_hash is calculated correctly using msgpack and keccak."""
         # Simple action for predictable hashing
         action = {"type": "test", "value": 123}
 
-        with patch("time.time", return_value=1700000000.0):  # Fixed timestamp
-            result = await authenticator.prepare_request(
-                method="POST",
-                path="/exchange",
-                params=None,
-                data=action,
-                headers=None,
-            )
+        mock_time_patch.return_value = 1700000000.0  # Fixed timestamp
+        result = await authenticator.prepare_request(
+            method="POST",
+            path="/exchange",
+            params=None,
+            data=action,
+            headers=None,
+        )
 
         assert result.data is not None
         nonce = result.data["nonce"]

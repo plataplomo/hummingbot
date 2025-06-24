@@ -5,6 +5,36 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Current Strategy Implementation
+
+### Key Observations:
+
+1. **Strategy Configuration**:
+   - Strategy now configured via Pydantic models in config.yaml
+   - HyperLiquid Perpetual vs. Backpack Spot strategy is properly configured
+   - Configurable parameters: funding_threshold, max_price_spread_pct, min_profit_usd
+
+2. **StrategyManager Addition**:
+   - New StrategyManager component handles strategy lifecycle
+   - Better integration with execution_handler, portfolio_tracker, and risk_manager
+   - Centralized strategy management and coordination
+
+3. **Strategy Parameters**:
+   - Strategies receive data_handler, portfolio_tracker, and risk_manager directly
+   - Better dependency injection for testing and flexibility
+   - Parameters passed as dictionary including exchange mappings
+
+4. **Current Implementation Focus**:
+   - Still focused on Perp/Spot arbitrage (no Perp/Perp implementation)
+   - Funding rate arbitrage between HyperLiquid (perp) and Backpack (spot)
+   - Symbol mapping handled through configuration
+
+### Remaining Gaps:
+- Perp/Perp variant not implemented
+- Slippage estimation accuracy needs validation
+- Basis volatility calculation still uses limited history
 
 ## 1. Overview
 

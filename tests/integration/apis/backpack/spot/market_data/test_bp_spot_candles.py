@@ -12,22 +12,14 @@ Tests cover spot markets only:
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
-
-
-class FreezerProtocol(Protocol):
-    """Protocol for pytest-freezer fixture."""
-
-    def move_to(self, target: datetime | str) -> None:
-        """Move the frozen time to the target datetime."""
-        ...
-
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]

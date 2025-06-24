@@ -26,6 +26,8 @@ from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy_manager import StrategyManager
 from tests.unit.mocks.mock_strategy import MockStrategy
 
+pytestmark = pytest.mark.timing
+
 # Define UTC timezone
 UTC = pytz.UTC
 

@@ -11,6 +11,7 @@ import pytest
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 
+@pytest.mark.timing
 class TestTokenBucketRateLimiterRuntime:
     """Test suite for TokenBucketRateLimiterRuntime."""
 

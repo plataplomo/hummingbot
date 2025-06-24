@@ -7,6 +7,7 @@ The fixtures are organized into separate modules for better maintainability:
 - fixtures.config_fixtures: Configuration and settings fixtures
 - fixtures.exchange_mocks: Exchange API mocks and trading data fixtures
 - fixtures.vcr_config: VCR configuration for cassette-based testing
+- fixtures.time_fixtures: Time control and mocking fixtures
 """
 
 from __future__ import annotations
@@ -45,6 +46,14 @@ from tests.fixtures.http_mocks import (
     create_mock_response,
     mock_client_session,
     mock_request,
+)
+from tests.fixtures.time_fixtures import (
+    FreezerProtocol,
+    frozen_time,
+    market_time_simulation,
+    mock_time_factory,
+    mock_time_patch,
+    rate_limit_timer,
 )
 from tests.fixtures.vcr_config import (
     custom_vcr_config,
@@ -88,4 +97,11 @@ __all__ = [
     "custom_vcr_config",
     "vcr_cassette_dir",
     "vcr_config",
+    # Time fixtures
+    "FreezerProtocol",
+    "frozen_time",
+    "market_time_simulation",
+    "mock_time_factory",
+    "mock_time_patch",
+    "rate_limit_timer",
 ]

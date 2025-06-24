@@ -12,7 +12,7 @@ Tests ticker, order book, trade, funding rate, and kline transformations includi
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -36,6 +36,7 @@ from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 
 @pytest.fixture
@@ -485,15 +486,14 @@ class TestTickerTransformation:
         assert result.ask is None  # Not available from Backpack ticker endpoint
         assert result.volume == Decimal("0.0")
 
-    @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_ticker_with_none_timestamp(
         self,
-        mock_datetime: MagicMock,
         mapper: BackpackMarketDataMapper,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test ticker transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        mock_datetime.now.return_value = mock_now
+        frozen_time.move_to(mock_now)
 
         # Create a valid raw ticker first
         raw_ticker = BackpackRawTicker(
@@ -513,7 +513,6 @@ class TestTickerTransformation:
 
         assert isinstance(result, Ticker)
         assert result.timestamp == mock_now
-        mock_datetime.now.assert_called_once_with(UTC)
 
     def test_transform_raw_ticker_transformation_error(
         self,
@@ -634,15 +633,14 @@ class TestOrderBookTransformation:
         assert result.bids[0][0] == Decimal("100.00")
         assert result.asks[0][0] == Decimal("101.00")
 
-    @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_order_book_with_none_timestamp(
         self,
-        mock_datetime: MagicMock,
         mapper: BackpackMarketDataMapper,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test order book transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        mock_datetime.now.return_value = mock_now
+        frozen_time.move_to(mock_now)
 
         # Create a valid raw order book and mock the timestamp parsing to return None
         raw_book = create_raw_order_book(
@@ -789,15 +787,14 @@ class TestTradeTransformation:
             with pytest.raises(TransformationError, match="quantity is required for trade"):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
-    @patch("cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime")
     def test_transform_raw_trade_with_none_timestamp(
         self,
-        mock_datetime: MagicMock,
         mapper: BackpackMarketDataMapper,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test trade transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        mock_datetime.now.return_value = mock_now
+        frozen_time.move_to(mock_now)
 
         # Create a valid raw trade and mock the timestamp parsing to return None
         raw_trade = create_raw_trade(

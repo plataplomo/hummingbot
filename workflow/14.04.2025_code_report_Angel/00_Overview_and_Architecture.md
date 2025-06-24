@@ -4,6 +4,35 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1 (Stable Funding Rate Arbitrage Bot - Hyperliquid/Backpack)
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Current Architecture Changes
+
+### Major Architectural Improvements:
+
+1. **Configuration System Overhaul:**
+   - Migrated from simple YAML loading to Pydantic-based configuration models
+   - AppSettings and SecretsConfig now provide type-safe, validated configuration
+   - Proper config.yaml structure now exists with all required sections
+   - Exchange configurations support both mainnet/testnet with environment flags
+
+2. **API Client Architecture Refactoring:**
+   - Complete restructuring of API clients with proper separation of concerns
+   - New modular structure: base interfaces, connectivity layer, mappers, services
+   - Exchange-specific implementations (HyperliquidAPI, BackpackAPI) now use composition
+   - Improved error handling with IErrorMapper interface
+   - Better rate limiting with strategy pattern
+
+3. **New Components Added:**
+   - **StrategyManager**: Manages strategy lifecycle and execution
+   - **HttpClient/WebSocketManager**: Dedicated connectivity components
+   - **Service Layer**: Separate services for account, market data, and trading
+   - **Mapper Layer**: Clean data transformation between raw API responses and domain models
+
+4. **Import Structure:**
+   - Improved import organization with proper module hierarchy
+   - Use of TYPE_CHECKING for circular import prevention
+   - Explicit __all__ exports for clear API boundaries
 
 ## 1. Project Overview
 

@@ -5,6 +5,44 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Modernized Dependency Management
+
+### Major Changes:
+
+1. **Migration to pyproject.toml**:
+   - Dependencies now managed in pyproject.toml (PEP 621 compliant)
+   - Clear separation of runtime vs. development dependencies
+   - Project metadata properly defined
+
+2. **Updated Dependencies**:
+   - Core: aiohttp==3.11.18, websockets==13.1.0, pydantic==2.11.4
+   - Added: structlog==25.3.0 (structured logging)
+   - Added: eth_account==0.13.7, web3==7.11.1 (for HyperLiquid auth)
+   - Added: cryptography==45.0.3, msgpack==1.1.0
+   - matplotlib moved to runtime deps (should be in optional deps)
+
+3. **Development Dependencies** (properly separated):
+   - Testing: pytest==8.3.5, pytest-asyncio==0.26.0, pytest-cov==6.1.1
+   - Analysis: mypy>=1.15.0, ruff>=0.11.9, pyright>=1.1.400
+   - Type stubs for all major dependencies
+
+4. **Environment**:
+   - Python 3.13 target (as specified in all tool configs)
+   - Virtual environment usage enforced by project rules
+   - Modern tooling: uv package manager supported
+
+5. **Improvements from Original Review**:
+   - ✓ Dependencies now in pyproject.toml (modern standard)
+   - ✓ Clear separation of dev/test/runtime dependencies  
+   - ✓ All dependencies have specific versions pinned
+   - ❌ matplotlib still in runtime deps (should be optional)
+
+### Build System:
+- setuptools>=61.0 build backend
+- Proper package metadata and classifiers
+- MIT license specified
 
 ## 1. Overview
 

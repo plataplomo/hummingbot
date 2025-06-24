@@ -20,7 +20,7 @@ from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 
 @pytest.fixture

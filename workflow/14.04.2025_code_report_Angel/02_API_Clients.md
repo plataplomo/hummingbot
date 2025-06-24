@@ -5,6 +5,53 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Major API Client Refactoring
+
+### Complete Architecture Overhaul:
+
+The API client architecture has been completely refactored with a much more sophisticated design:
+
+1. **New Directory Structure**:
+   ```
+   apis/
+   ├── base/                    # Base classes and interfaces
+   │   ├── authenticator_interface.py
+   │   ├── error_mapper_interface.py
+   │   ├── exchange_api.py
+   │   ├── rate_limit_strategy_interface.py
+   │   └── payload_serialization_strategy.py
+   ├── connectivity/           # HTTP and WebSocket management
+   │   ├── http_client.py
+   │   └── ws_manager.py
+   ├── hyperliquid/           # HyperLiquid implementation
+   │   ├── hl_api.py
+   │   ├── mappers/          # Data transformation
+   │   ├── models/           # Raw API models
+   │   └── services/         # Business logic
+   └── backpack/              # Backpack implementation
+       ├── bp_api.py
+       ├── mappers/
+       ├── models/
+       └── services/
+   ```
+
+2. **Key Improvements**:
+   - **Separation of Concerns**: Clear separation between connectivity, authentication, data mapping, and business logic
+   - **Strategy Pattern**: Rate limiting, error mapping, and serialization use strategy patterns
+   - **Service Layer**: Dedicated services for account, market data, and trading operations
+   - **Type Safety**: Extensive use of Pydantic models for all API requests/responses
+   - **Better Error Handling**: Comprehensive error mapping with exchange-specific error codes
+
+3. **Component Factory Pattern**:
+   - Each exchange has a ComponentsFactory for creating exchange-specific components
+   - Promotes consistency and makes testing easier
+
+4. **WebSocket Improvements**:
+   - Dedicated WebSocketManager with proper connection lifecycle management
+   - Message routing and handler registration system
+   - Better reconnection logic and error recovery
 
 ## 1. Overview
 

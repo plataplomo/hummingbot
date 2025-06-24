@@ -1,20 +1,36 @@
 # Integration Tests Refactor Plan: Spot vs Derivatives Separation
 
 **Date:** December 6, 2025  
-**Last Updated:** December 15, 2025  
-**Status:** COMPLETED ✅  
+**Last Updated:** December 24, 2025  
+**Status:** PARTIALLY IMPLEMENTED ⚠️  
 **Scope:** Comprehensive refactoring of integration tests for clear spot vs derivatives separation  
 **Target:** `/tests/integration/apis/` directory structure  
 
 ## Executive Summary
 
-This document outlines the comprehensive plan that was successfully implemented to refactor the CyberDeltaEngine integration tests, creating clear separation between spot and derivatives functionality. The refactoring has been completed with all proposed structures and patterns now in place.
+This document outlines the comprehensive plan to refactor the CyberDeltaEngine integration tests, creating clear separation between spot and derivatives functionality. The refactoring has been partially implemented with significant progress on spot/perp separation, but the detailed subdirectory structure (positive/zero/large) was not fully realized.
 
-## Implementation Status ✅
+### ⚠️ IMPORTANT DISCREPANCY NOTICE
 
-### 1. Successfully Implemented Test Structure
+**This document contains inaccurate claims about the implementation status.** A code analysis on December 24, 2025 revealed:
 
-**IMPLEMENTED STRUCTURE (as of December 15, 2025):**
+1. **Subdirectory Structure**: The document claims subdirectories like `positive/`, `zero/`, and `large/` were implemented, but they mostly contain only empty `__init__.py` files
+2. **File Locations**: Test files are actually at the parent level with naming suffixes (_positive, _zero, _large) rather than in subdirectories
+3. **Missing Files**: Some files listed as "migrated" (like `test_bp_perp_positions_private.py`) don't exist in the codebase
+4. **Implementation Approach**: The team chose a simpler naming convention approach instead of the complex subdirectory structure
+
+**Recommendation**: This document should be treated as a historical planning document rather than an accurate representation of the current state.
+
+## Implementation Status ⚠️
+
+### 1. Current Test Structure (as of December 24, 2025)
+
+**PLANNED STRUCTURE vs ACTUAL IMPLEMENTATION:**
+
+**What was planned:**
+The original plan called for a detailed subdirectory structure with `positive/`, `zero/`, and `large/` folders under each test category.
+
+**What was actually implemented:**
 ```
 tests/integration/apis/
 ├── shared/                              ✅ IMPLEMENTED
@@ -29,92 +45,96 @@ tests/integration/apis/
 │   ├── test_spot_balance_consistency.py       ✅
 │   └── test_derivative_position_consistency.py ✅
 │
-├── backpack/                            ✅ FULLY RESTRUCTURED
+├── backpack/                            ⚠️ PARTIALLY RESTRUCTURED
 │   ├── conftest.py                      ✅ Preserved all fixtures
-│   ├── shared/                          ✅ BP-specific helpers
-│   │   ├── test_bp_config_fixtures.py
-│   │   └── test_helpers.py              ✅ Dynamic pricing, market data
-│   ├── spot/                            ✅ COMPLETE
+│   ├── spot/                            ⚠️ PARTIAL - No subdirectories
 │   │   ├── balances/
-│   │   │   ├── positive/                ✅ test_bp_spot_balances_private.py
-│   │   │   └── zero/                    ✅ test_bp_spot_balances_zero.py
+│   │   │   ├── test_bp_spot_balances_positive.py  ✅ (not in positive/ subdir)
+│   │   │   ├── test_bp_spot_balances_zero.py      ✅ (not in zero/ subdir)
+│   │   │   └── (empty positive/, zero/ dirs with only __init__.py)
 │   │   ├── orders/
-│   │   │   ├── positive/                ✅ test_bp_spot_orders_private.py
-│   │   │   └── zero/                    ✅ test_bp_spot_orders_zero.py
+│   │   │   ├── test_bp_spot_orders_positive.py    ✅ (not in positive/ subdir)
+│   │   │   ├── test_bp_spot_orders_zero.py        ✅ (not in zero/ subdir)
+│   │   │   └── (empty subdirs)
 │   │   └── market_data/                 ✅ All spot market data tests
-│   ├── perp/                            ✅ COMPLETE
+│   ├── perp/                            ⚠️ PARTIAL - Missing some files
 │   │   ├── positions/
-│   │   │   ├── positive/                ✅ test_bp_perp_positions_private.py
-│   │   │   ├── large/                   ✅ test_bp_perp_positions_large.py
-│   │   │   └── zero/                    ✅ test_bp_perp_positions_zero.py
+│   │   │   ├── test_bp_perp_positions_large.py    ✅ (not in large/ subdir)
+│   │   │   ├── test_bp_perp_positions_zero.py     ✅ (not in zero/ subdir)
+│   │   │   └── (missing test_bp_perp_positions_private.py)
 │   │   ├── orders/
-│   │   │   ├── positive/                ✅ test_bp_perp_orders_private.py
-│   │   │   └── zero/                    ✅ test_bp_perp_orders_zero.py
-│   │   └── funding/                     ✅ test_bp_perp_funding_rates.py
-│   └── account/                         ✅ COMPLETE
-│       ├── balances/                    ✅ Regular balance tests
-│       ├── margin_balances/             ✅ Margin-specific balance tests
-│       ├── orders/                      ✅ Account-level order tests
-│       ├── positions/                   ✅ Account-level position tests
-│       └── positive/                    ✅ Account summary tests
+│   │   │   ├── test_bp_perp_orders_positive.py    ✅ (not in positive/ subdir)
+│   │   │   ├── test_bp_perp_orders_zero.py        ✅ (not in zero/ subdir)
+│   │   │   └── (empty subdirs)
+│   │   └── funding/                     ❌ Empty directory
+│   ├── account/                         ⚠️ PARTIAL
+│   │   ├── balances/                    ✅ Has test files
+│   │   ├── margin_balances/             ✅ Has test files
+│   │   ├── orders/                      ✅ Has test files
+│   │   ├── positions/                   ✅ Has test files
+│   │   └── (no positive/ subdir, files at parent level)
+│   └── websockets/                      ✅ IMPLEMENTED
 │
-└── hyperliquid/                         ✅ FULLY RESTRUCTURED
-    └── [Same structure as Backpack]    ✅ Complete mirror implementation
+└── hyperliquid/                         ⚠️ PARTIALLY RESTRUCTURED
+    └── [Similar issues - files exist but not in claimed subdirectories]
 ```
 
-**PRESERVED STRENGTHS:**
-- ✅ **VCR Configuration:** Comprehensive filtering, dynamic cassettes - FULLY PRESERVED
+**ACTUAL ACHIEVEMENTS:**
+- ✅ **VCR Configuration:** Comprehensive filtering, dynamic cassettes - PRESERVED
 - ✅ **Fixture Architecture:** Session-scoped configs, real vs mocked APIs - MAINTAINED
-- ✅ **Test Quality:** Model validation, business logic, error scenarios - ALL PRESERVED
-- ✅ **Authentication:** Real Ed25519/EIP-712 testing - UNCHANGED
-- ✅ **Balance Separation:** Enhanced with positive/zero/large categories
+- ✅ **Spot/Perp Separation:** Tests are now organized into spot/ and perp/ directories
+- ✅ **Shared Utilities:** Common validation and VCR helpers extracted successfully
+- ✅ **Cross-Exchange Foundation:** Basic consistency tests implemented
+- ⚠️ **Balance Categories:** Used naming convention (_positive, _zero) instead of subdirectories
 
-**ISSUES RESOLVED:**
-- ✅ Mixed spot/perp tests → SEPARATED into distinct directories
-- ✅ Pytest markers → COMPREHENSIVE markers implemented
-- ✅ Test selection → Can run spot/perp/cross-exchange tests independently  
-- ✅ Safety markers → requires_balance, positive_balance, zero_balance markers added
+**ISSUES PARTIALLY RESOLVED:**
+- ⚠️ Mixed spot/perp tests → MOSTLY separated (some files missing)
+- ❓ Pytest markers → Need verification of actual marker implementation
+- ✅ Test selection → Can run spot/perp tests from separate directories
+- ⚠️ Subdirectory organization → NOT implemented as planned
 
-### 2. Implemented File Organization
+### 2. Actual File Organization
 
-#### Backpack Tests - MIGRATION COMPLETE ✅
-| Original File | Type | Migration Status | Final Location |
+#### Backpack Tests - MIGRATION STATUS ⚠️
+| Original File | Type | Actual Status | Current Location |
 |------|------|----------------------|---------------------|
-| `test_bp_balances_private.py` | Spot | ✅ MIGRATED | `spot/balances/positive/test_bp_spot_balances_private.py` |
-| `test_bp_balances_zero_balance.py` | Edge Case | ✅ MIGRATED | `spot/balances/zero/test_bp_spot_balances_zero.py` |
-| `test_bp_positions_private.py` | Perp | ✅ MIGRATED | `perp/positions/positive/test_bp_perp_positions_private.py` |
-| `test_bp_positions_zero_balance.py` | Edge Case | ✅ MIGRATED | `perp/positions/zero/test_bp_perp_positions_zero.py` |
-| `test_bp_orders_private.py` | Mixed | ✅ SPLIT | Split into spot/perp order tests |
+| `test_bp_balances_private.py` | Spot | ⚠️ RENAMED | `spot/balances/test_bp_spot_balances_positive.py` |
+| `test_bp_balances_zero_balance.py` | Edge Case | ⚠️ RENAMED | `spot/balances/test_bp_spot_balances_zero.py` |
+| `test_bp_positions_private.py` | Perp | ❌ MISSING | File not found in new structure |
+| `test_bp_positions_zero_balance.py` | Edge Case | ⚠️ RENAMED | `perp/positions/test_bp_perp_positions_zero.py` |
+| `test_bp_orders_private.py` | Mixed | ✅ SPLIT | Split into spot/perp variants |
 | `test_bp_orders_zero_balance.py` | Mixed | ✅ SPLIT | Split into spot/perp zero tests |
-| `test_bp_account_summary_private.py` | Cross-cutting | ✅ MIGRATED | `account/positive/` |
-| `test_bp_account_summary_zero_balance.py` | Edge Case | ✅ MIGRATED | `account/zero/` |
+| `test_bp_account_summary_private.py` | Cross-cutting | ⚠️ MOVED | `account/test_bp_account_summary_positive.py` |
+| `test_bp_account_summary_zero_balance.py` | Edge Case | ⚠️ MOVED | `account/test_bp_account_summary_zero.py` |
 | NEW: Account-level tests | Account | ✅ ADDED | `account/balances/`, `account/orders/`, etc. |
-| `test_bp_funding_rate_integration.py` | Perp | ✅ Perp-focused | `perp/funding/` |
-| `test_bp_market_integration.py` | Mixed | ❌ Both market types | Split into both |
-| `test_bp_ticker_integration.py` | Mixed | ❌ Both market types | Split into both |
-| `test_bp_trade_integration.py` | Mixed | ❌ Both trade types | Split into both |
-| `test_bp_order_book_integration.py` | Mixed | ❌ Both market types | Split into both |
-| `test_bp_candle_integration.py` | Mixed | ❌ Both market types | Split into both |
+| Market data tests | Mixed | ✅ SPLIT | Separate spot/perp market_data directories |
 
-#### Hyperliquid Tests - MIGRATION COMPLETE ✅
-| Original File | Type | Migration Status | Final Location |
+#### Hyperliquid Tests - MIGRATION STATUS ⚠️
+| Original File | Type | Actual Status | Current Location |
 |------|------|----------------------|---------------------|
-| `test_hl_balances_private.py` | Spot | ✅ ENHANCED | `spot/balances/positive/test_hl_spot_balances_private.py` |
-| `test_hl_balances.py` | Spot | ✅ MIGRATED | `spot/balances/zero/test_hl_spot_balances_zero.py` |
-| `test_hl_positions_private.py` | Perp | ✅ MIGRATED | `perp/positions/positive/test_hl_perp_positions_private.py` |
-| `test_hl_positions.py` | Perp | ✅ MIGRATED | `perp/positions/zero/test_hl_perp_positions_zero.py` |
+| `test_hl_balances_private.py` | Spot | ⚠️ RENAMED | `spot/balances/test_hl_spot_balances_positive.py` |
+| `test_hl_balances.py` | Spot | ⚠️ RENAMED | `spot/balances/test_hl_spot_balances_zero.py` |
+| `test_hl_positions_private.py` | Perp | ⚠️ SPLIT | Files in `perp/positions/` subdirs (inconsistent) |
+| `test_hl_positions.py` | Perp | ⚠️ MOVED | Various files in perp/positions/ |
 | `test_hl_orders_private.py` | Mixed | ✅ SPLIT | Split into spot/perp variants |
 | `test_hl_orders.py` | Mixed | ✅ SPLIT | Split into spot/perp zero tests |
-| `test_hl_account_summary_private.py` | Cross-cutting | ✅ MIGRATED | `account/positive/` |
-| `test_hl_account_summary.py` | Cross-cutting | ✅ MIGRATED | `account/zero/` |
-| `test_hl_funding_rate_integration.py` | Perp | ✅ MIGRATED | `perp/funding/` |
-| NEW: Comprehensive spot tests | Spot | ✅ ADDED | Full spot market data, orders, balances |
+| `test_hl_account_summary_private.py` | Cross-cutting | ⚠️ MOVED | `account/test_hl_account_summary_positive.py` |
+| `test_hl_account_summary.py` | Cross-cutting | ⚠️ MOVED | `account/test_hl_account_summary_zero.py` |
+| Market data tests | Mixed | ✅ SPLIT | Separate spot/perp market_data directories |
 
-## Implemented Refactor: **FULL RESTRUCTURE WITH LOGIC PRESERVATION** ✅
+## Refactor Implementation Analysis
 
-### 1. **NEW DIRECTORY STRUCTURE** - Preserve All Logic & Configs
+### 1. **ACTUAL vs PLANNED IMPLEMENTATION**
 
-**MIGRATE TO ORGANIZED STRUCTURE WHILE PRESERVING EVERYTHING:**
+**What Actually Happened:**
+Instead of the complex subdirectory structure with `positive/`, `zero/`, and `large/` folders, the team implemented a simpler approach:
+
+1. **Naming Convention Approach**: Files use descriptive suffixes like `_positive`, `_zero`, `_large` in their names
+2. **Flatter Structure**: Test files are placed directly in their category directories (balances/, orders/, etc.)
+3. **Partial Implementation**: Some planned features like the funding tests were not completed
+4. **Inconsistent Application**: Hyperliquid has some subdirectories while Backpack mostly doesn't
+
+**Original Plan (Not Fully Implemented):**
 ```
 tests/integration/apis/
 ├── shared/                              # Shared utilities (preserve existing patterns)
@@ -909,52 +929,50 @@ def perp_position_params():
 
 ## Conclusion
 
-**STATUS: SUCCESSFULLY IMPLEMENTED** ✅
+**STATUS: PARTIALLY IMPLEMENTED** ⚠️
 
-The refactoring has been completed successfully, delivering **comprehensive directory restructuring** while **preserving ALL existing functionality**. The implementation achieved:
+The refactoring has been partially completed with significant progress on the core objectives but deviations from the original plan:
 
-**PRESERVATION GUARANTEES:**
-- ✅ **100% Logic Preservation** - Every assertion, validation, and business rule maintained
-- ✅ **Complete VCR Compatibility** - All existing cassette filtering and organization preserved
-- ✅ **Full Fixture Compatibility** - All bp_api_for_test_env, bp_api_with_di patterns maintained
-- ✅ **Authentication Preservation** - Ed25519/EIP-712 testing patterns unchanged
-- ✅ **Error Handling Preservation** - All existing error scenarios and edge cases maintained
+**WHAT WAS ACHIEVED:**
+- ✅ **Spot/Perp Separation** - Tests are now organized into spot/ and perp/ directories
+- ✅ **Shared Utilities** - Common validation and VCR helpers successfully extracted
+- ✅ **Cross-Exchange Foundation** - Basic consistency tests implemented
+- ✅ **VCR Preservation** - All existing cassette filtering and organization preserved
+- ✅ **Fixture Compatibility** - Most fixtures maintained with the new structure
 
-**PYTEST GUARANTEES:**
-- 🧪 **100% PYTEST FRAMEWORK** - All tests use pytest exclusively, no other testing frameworks
-- 🧪 **100% PYTEST FIXTURES** - All shared setup converted to @pytest.fixture decorators
-- 🧪 **100% PYTEST MARKERS** - All categorization uses @pytest.mark decorators
-- 🧪 **100% PYTEST PARAMETRIZATION** - All test variations use @pytest.mark.parametrize
-- 🧪 **100% PYTEST ASSERTIONS** - All validations use standard pytest assert statements
-- 🧪 **100% PYTEST DISCOVERY** - All tests follow pytest naming conventions (Test*, test_*)
-- 🧪 **100% PYTEST CONFIGURATION** - All settings in pyproject.toml [tool.pytest.ini_options]
+**WHAT WAS NOT ACHIEVED:**
+- ❌ **Subdirectory Structure** - The positive/, zero/, large/ subdirectories were not implemented
+- ❌ **Complete File Migration** - Some files are missing (e.g., test_bp_perp_positions_private.py)
+- ❌ **Funding Tests** - The perp/funding/ directory exists but is empty
+- ❌ **Consistent Structure** - Hyperliquid and Backpack have different organizational patterns
 
-**ORGANIZATIONAL BENEFITS:**
-- 🎯 **Clear Structure** - Spot vs perp separation with positive/zero balance organization
-- 🎯 **Enhanced Discoverability** - Logical directory hierarchy for easy test location
-- 🎯 **Pytest Markers** - Comprehensive categorization for flexible test execution
-- 🎯 **Cross-Exchange Testing** - Foundation for arbitrage and consistency validation
-- 🎯 **Future Scalability** - Clear patterns for adding new exchanges and test types
+**ACTUAL IMPLEMENTATION APPROACH:**
+- 📁 **Simplified Structure** - Used naming conventions instead of subdirectories
+- 🏷️ **File Renaming** - Added _positive, _zero, _large suffixes to test files
+- 🔧 **Partial Migration** - Some tests moved, some missing, some remain unmigrated
+- ⚠️ **Inconsistent Application** - Different approaches between exchanges
 
-**IMPLEMENTATION APPROACH:**
-- 📁 **File Migration** - Move existing tests to appropriate directories maintaining all logic
-- 🏷️ **Marker Addition** - Add pytest markers for categorization without changing functionality  
-- 🔧 **Infrastructure Enhancement** - Extract common patterns while preserving existing behavior
-- ✅ **Continuous Validation** - Verify all existing functionality works throughout migration
+**PYTEST STATUS:**
+- ❓ **Marker Implementation** - Document claims comprehensive markers but needs verification
+- ✅ **Test Discovery** - Tests can be found and run from their new locations
+- ❓ **Parametrization** - Status of @pytest.mark.parametrize usage unclear
+- ✅ **Basic Structure** - Tests follow pytest naming conventions
 
-The phased approach successfully delivered **zero functional regression** while providing immediate organizational benefits and establishing a solid foundation for enhanced cross-exchange testing capabilities.
+The refactoring achieved the primary goal of separating spot and perp tests but took a simpler approach than originally planned. While functional, the implementation lacks the detailed organization and consistency described in the original plan.
 
 ---
 
-**Current State (December 15, 2025):**
-1. ✅ **Complete directory restructuring** - All tests organized by spot/perp/account
-2. ✅ **100% pytest implementation** - All tests use pytest framework exclusively
-3. ✅ **Comprehensive marker system** - Easy test selection and categorization
+**Current State (December 24, 2025):**
+1. ⚠️ **Partial directory restructuring** - Tests organized by spot/perp but without subdirectories
+2. ✅ **Basic separation achieved** - Spot and perp tests are in separate directories
+3. ❓ **Marker system status unclear** - Need to verify actual pytest marker implementation
 4. ✅ **Cross-exchange foundation** - Basic consistency tests implemented
-5. ✅ **Enhanced test coverage** - Gaps in spot and perp testing addressed
+5. ⚠️ **Incomplete migration** - Some test files missing or not fully migrated
 
-**Remaining Opportunities:**
-1. **Expand cross-exchange tests** - Add arbitrage scenarios and order compatibility
-2. **Advanced margin tests** - Complex margin and liquidation scenarios
-3. **Performance benchmarks** - Cross-exchange latency comparisons
-4. **Integration with CI/CD** - Leverage markers for staged test execution
+**Next Steps Needed:**
+1. **Complete the migration** - Find and migrate missing test files
+2. **Implement subdirectories** - Add positive/, zero/, large/ organization if still desired
+3. **Verify pytest markers** - Ensure all claimed markers are actually implemented
+4. **Add funding tests** - Implement the missing perp funding rate tests
+5. **Standardize structure** - Make Backpack and Hyperliquid structures consistent
+6. **Update documentation** - Ensure this document reflects actual implementation

@@ -12,6 +12,8 @@ from pydantic import ValidationError
 
 from cyberdelta.core.models.market.order_book import OrderBook
 
+pytestmark = pytest.mark.timing
+
 
 class TestOrderBook:
     """Unit tests for the cyberdelta.core.models.market.order_book.OrderBook model."""

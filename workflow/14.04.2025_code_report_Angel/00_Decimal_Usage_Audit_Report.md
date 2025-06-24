@@ -1,7 +1,32 @@
 # Decimal Usage Audit Report (CyberDeltaEngine)
 
-**Date:** 15.04.2025
-**Auditor:** Angel (AI Assistant)
+**Date:** 15.04.2025  
+**Auditor:** Angel (AI Assistant)  
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Current State Analysis
+
+A comprehensive review of the codebase shows significant progress on Decimal usage compliance:
+
+### ✅ Fixed Issues:
+1. **tests/integration/test_failure_scenarios.py** - Now correctly uses Decimal for all financial values (lines 129-132)
+2. **tests/integration/test_backtesting.py** - File no longer exists in the codebase
+
+### ❌ Remaining Issues:
+1. **cyberdelta/monitoring/performance_tracker.py** - Still uses `float` type hints for financial parameters:
+   - Line 64: `track_return(..., return_value: float)`
+   - Lines 90-95: `track_trade(..., size: float, entry_price: float, exit_price: float | None, pnl: float | None)`
+   - Lines 158-160: `track_trade_exit(..., exit_price: float, pnl: float)`
+   - Lines 338-339: `track_funding_rate(..., funding_rate: float, predicted_rate: float | None)`
+
+### Static Analysis Status:
+- **Ruff:** Down to 26 errors (from hundreds previously reported)
+- **Mypy:** Only 1 syntax error blocking full analysis (indentation error in test_signal_queue.py:433)
+
+### Progress Summary:
+- Most Decimal usage violations have been addressed
+- The performance_tracker.py module still needs refactoring to use Decimal types
+- Overall compliance with the Decimal rule has improved significantly
 
 ## 1. Introduction
 

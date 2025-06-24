@@ -201,6 +201,7 @@ async def patched_ws_connect(
         yield mock_ws_connect_method, default_mock_conn
 
 
+@pytest.mark.timing
 class TestWebSocketManager:
     """Tests for the WebSocketManager class."""
 

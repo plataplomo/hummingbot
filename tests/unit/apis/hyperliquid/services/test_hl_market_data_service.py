@@ -52,6 +52,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.market import Market
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
 # These are unit tests because they mock all dependencies and test individual methods
@@ -308,10 +309,12 @@ class TestHyperliquidMarketDataService:
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_hl_mapper: MagicMock,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
         symbol_to_find = "ETH"
         current_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
+        frozen_time.move_to(current_time)
 
         mock_raw_asset_ctx_btc = create_asset_ctx(
             name="BTC",
@@ -378,14 +381,9 @@ class TestHyperliquidMarketDataService:
                 expected_internal_funding_rate
             )
 
-            # Patch datetime.now to control the timestamp
-            with patch(
-                "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.datetime",
-                new=MagicMock(datetime=MagicMock(now=MagicMock(side_effect=lambda: current_time))),
-            ):
-                result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
-                    symbol_to_find,
-                )
+            result_funding_rate = await hyperliquid_market_data_service.get_funding_rate(
+                symbol_to_find,
+            )
 
             mock_get_all_asset_contexts.assert_called_once()
             # Assert call on the injected mock_hl_mapper

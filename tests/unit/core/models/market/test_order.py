@@ -32,6 +32,8 @@ from cyberdelta.core.models.market.order import (
 )
 from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
 
+pytestmark = pytest.mark.timing
+
 
 # --- Helper Fixtures ---
 @pytest.fixture

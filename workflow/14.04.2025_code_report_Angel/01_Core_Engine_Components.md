@@ -3,6 +3,42 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Current State of Core Components
+
+### Key Changes Observed:
+
+1. **Engine Component**:
+   - Remains largely as described, coordinating strategies and routing signals
+   - Integration with new StrategyManager for better strategy lifecycle management
+
+2. **DataHandler**:
+   - Now receives AppSettings, api_clients dict, portfolio_tracker, and symbol_mapper
+   - Better integration with refactored API client architecture
+   - Improved WebSocket handling through dedicated WebSocketManager
+
+3. **ExecutionHandler**:
+   - Now explicitly receives Config, PortfolioTracker, SymbolMapper, and CircuitBreakerSystem
+   - Better structured for handling cross-exchange execution scenarios
+
+4. **PortfolioTracker**:
+   - Receives Config, PortfolioTrackerConfig, and SymbolMapper
+   - Improved state management with configurable data freshness
+   - Better integration with StateManager for persistence
+
+5. **RiskManager**:
+   - Now implements configurable sizing strategies (Kelly vs. simple sizing)
+   - Better integration with circuit breakers and portfolio state
+   - Supports fixed fraction and fixed USD sizing methods
+
+6. **SignalQueue**:
+   - PrioritySignalQueue implementation with proper async handling
+   - Improved cancellation token support for graceful shutdown
+
+### Remaining Issues:
+- ExecutionHandler complexity still needs refactoring (method remains very long)
+- Some components still have methods exceeding recommended line counts
 
 ## 1. Overview
 

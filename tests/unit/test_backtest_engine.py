@@ -32,6 +32,8 @@ from typing import Any
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.timing
+
 
 # Mock the modules
 # Create mock classes instead of importing from a non-existent module

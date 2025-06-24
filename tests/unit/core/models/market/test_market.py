@@ -18,6 +18,8 @@ from cyberdelta.core.models.market.market import (
     Market,
 )
 
+pytestmark = pytest.mark.timing
+
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
 VALID_SYMBOL: str = "BTC-PERP"

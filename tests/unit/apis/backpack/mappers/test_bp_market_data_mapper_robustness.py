@@ -22,6 +22,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, 
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Ticker
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 
 @pytest.fixture
@@ -331,26 +332,28 @@ class TestErrorHandlingAndRecovery:
             with pytest.raises(TransformationError, match="Failed to transform"):
                 mapper.transform_raw_ticker_to_internal(raw_ticker)
 
-    def test_timestamp_parsing_fallback(self, mapper: BackpackMarketDataMapper) -> None:
+    def test_timestamp_parsing_fallback(
+        self,
+        mapper: BackpackMarketDataMapper,
+        frozen_time: FreezerProtocol,
+    ) -> None:
         """Test timestamp parsing fallback to current time."""
         # Create a valid raw ticker first
         raw_ticker = create_raw_ticker()
+
+        # Set the frozen time
+        mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+        frozen_time.move_to(mock_now)
 
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
         ) as mock_parse_datetime:
             mock_parse_datetime.return_value = None
 
-            with patch(
-                "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.datetime",
-            ) as mock_datetime:
-                mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-                mock_datetime.now.return_value = mock_now
+            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
-                result = mapper.transform_raw_ticker_to_internal(raw_ticker)
-
-                # Should fall back to current time
-                assert result.timestamp == mock_now
+            # Should fall back to current time
+            assert result.timestamp == mock_now
 
     def test_partial_data_handling(
         self,

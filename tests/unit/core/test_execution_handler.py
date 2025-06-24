@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -15,6 +17,8 @@ from cyberdelta.core.models import (
     TimeInForce,
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+
+pytestmark = pytest.mark.timing
 
 
 # Define SizedOpportunity locally or import if moved

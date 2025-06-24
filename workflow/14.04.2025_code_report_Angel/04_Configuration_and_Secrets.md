@@ -5,6 +5,47 @@
 **Reviewer:** Angel (AI Assistant)
 **Project:** CyberDeltaEngine
 **Version Target:** v0.0.1
+**Updated:** 2025-06-24
+
+## UPDATE (2025-06-24): Configuration System Completely Overhauled
+
+### ✅ RESOLVED: Configuration Discrepancy
+
+The critical configuration discrepancy has been completely resolved:
+
+1. **New Pydantic-Based Configuration**:
+   - Migrated from simple YAML loading to fully typed Pydantic models
+   - AppSettings and SecretsConfig provide comprehensive type safety
+   - All configuration validated at startup with clear error messages
+
+2. **Proper config.yaml Structure** (now at `/cyberdelta/config/config.yaml`):
+   - ✓ General settings (logging, state management)
+   - ✓ Exchange configurations (with mainnet/testnet support)
+   - ✓ Strategy configurations (hl_perp_bp_spot enabled)
+   - ✓ Risk management settings (with simple sizing options)
+   - ✓ Execution parameters (including compensation settings)
+   - ✓ Safety systems configuration
+   - ✓ Portfolio tracker configuration
+
+3. **Key Improvements**:
+   - **Type Safety**: All config accessed through validated Pydantic models
+   - **Environment Support**: Proper mainnet/testnet switching
+   - **Rate Limiting**: Exchange-specific rate limit configurations
+   - **Symbol Mapping**: Clear internal to exchange symbol mappings
+   - **Validation**: Comprehensive validation at load time
+
+4. **Secrets Management**:
+   - Still uses SecretsManager with YAML file
+   - Now integrated with Pydantic SecretsConfig model
+   - Better error messages when secrets are missing
+
+### Configuration Loading Flow:
+```python
+config = get_app_settings()  # Returns validated AppSettings
+secrets = get_secrets_config()  # Returns validated SecretsConfig
+```
+
+The configuration system is now robust, type-safe, and properly validated.
 
 ## 1. Overview
 

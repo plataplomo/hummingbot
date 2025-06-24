@@ -20,6 +20,8 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.models.api_error import TransformationError
 
+pytestmark = pytest.mark.timing
+
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:

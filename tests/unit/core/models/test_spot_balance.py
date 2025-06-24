@@ -17,6 +17,8 @@ from cyberdelta.core.models.spot_balance import (
     SpotBalance,
 )
 
+pytestmark = pytest.mark.timing
+
 # Type alias for broad, but Any-free, test parameter values
 PrimitiveTestVal = str | int | float | bool | Decimal | None
 TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, PrimitiveTestVal]
