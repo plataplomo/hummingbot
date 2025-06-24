@@ -56,7 +56,7 @@ The `SecretsManager` has been significantly enhanced with Pydantic `SecretStr` i
         auth_type: Literal["api_key"] = "api_key"
         api_key: SecretStr = Field(..., description="API key for authentication")
         api_secret: SecretStr = Field(..., description="API secret for signing")
-        
+
         @field_validator("api_key", "api_secret")
         @classmethod
         def validate_not_empty(cls, v: SecretStr) -> SecretStr:
@@ -137,12 +137,12 @@ graph LR
     *   All sensitive fields now use `SecretStr` type
     *   Prevents accidental exposure in logs and error messages
     *   Comprehensive validation with custom validators
-    
+
 *   **Type-Safe Configuration:**
     *   Exchange-specific secret models with validation
     *   Discriminated unions for different auth types
     *   Non-empty validation for all secret fields
-    
+
 *   **Enhanced Authentication:**
     *   Authenticators accept `SecretStr` parameters
     *   Secrets extracted only when needed for crypto operations
@@ -152,10 +152,10 @@ graph LR
 1.  **Implement File Permission Check (CRITICAL):** Add mandatory permission checking in `load_secrets`:
     ```python
     import stat
-    
+
     def load_secrets(self) -> bool:
         secrets_path = self._get_secrets_path()
-        
+
         # Check file permissions
         file_stat = secrets_path.stat()
         if file_stat.st_mode & 0o077:  # Check for any group/other permissions
@@ -168,12 +168,12 @@ graph LR
     *   Investigate secure memory handling libraries
     *   Implement explicit zeroing of secret values after use
     *   Consider memory locking to prevent swap
-    
+
 3.  **Enhance Monitoring (Low Priority):**
     *   Add audit logging for secret access
     *   Monitor for potential secret exposure in logs
     *   Implement rate limiting for secret retrieval
-    
+
 4.  **Consider External Secret Providers (Future):**
     *   Evaluate integration with cloud secret managers
     *   Implement rotation capabilities
@@ -193,7 +193,7 @@ class ApiKeyAuthSecrets(BaseExchangeSecrets):
     auth_type: Literal["api_key"] = "api_key"
     api_key: SecretStr = Field(..., description="API key for authentication")
     api_secret: SecretStr = Field(..., description="API secret for signing")
-    
+
     @field_validator("api_key", "api_secret")
     @classmethod
     def validate_not_empty(cls, v: SecretStr) -> SecretStr:

@@ -30,4 +30,3 @@ alwaysApply: true # Check should always happen after relevant modifications
         *   "Ran `ruff check cyberdelta/apis/backpack.py` and `mypy cyberdelta/apis/backpack.py`. Ruff reported 3 minor style issues (fixed). Mypy reported 1 type error on line 152 (fixed by adding type hint `Optional[str]`). No further issues."
         *   "Ran `ruff check cyberdelta/risk/risk_manager.py` and `mypy cyberdelta/risk/risk_manager.py`. Mypy reported error `[misc]` on line 88: Cannot infer type of 'x'. Cannot fix without changing logic or using `Any`. Documenting issue and awaiting guidance."
     *   Only proceed once fixes are applied (or issues documented/acknowledged by user).
-

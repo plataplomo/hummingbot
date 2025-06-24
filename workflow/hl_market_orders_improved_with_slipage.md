@@ -18,7 +18,7 @@
 # In hl_trading_service.py:611-654
 async def _execute_thin_market_order(self, args: PlaceOrderArgs) -> Order:
     """Execute thin market order implementation - WARNING: MISSING RISK CONTROLS.
-    
+
     This is a backwards compatibility hack that converts market orders to aggressive
     IOC limit orders. It bypasses sophisticated risk management like slippage protection,
     liquidity validation, and price deviation checks.
@@ -41,7 +41,7 @@ async def _execute_thin_market_order(self, args: PlaceOrderArgs) -> Order:
 ```python
 class OrderBook(CoreModel):
     """Unified order book representation across exchanges."""
-    
+
     exchange: str
     symbol: str
     bids: list[tuple[Decimal, Decimal]]  # [(price, quantity), ...]
@@ -65,7 +65,7 @@ class OrderBook(CoreModel):
 @staticmethod
 def build_all_mids_request_payload() -> HyperliquidRawAllMidsRequestPayload:
     """Build the request payload for fetching all mid prices.
-    
+
     Returns:
         The request payload for fetching all mid prices.
     """
@@ -74,7 +74,7 @@ def build_all_mids_request_payload() -> HyperliquidRawAllMidsRequestPayload:
 # In hl_market_data_service.py:295-311
 async def get_all_mids(self) -> HyperliquidRawAllMids:
     """Get all mid prices from Hyperliquid API.
-    
+
     Returns:
         All mid prices with proper type validation.
     """
@@ -97,7 +97,7 @@ def estimate_slippage(self, exchange: str, symbol: str, size: Decimal | None = N
     # Uses historical average if available
     if exchange in self.historical_slippage and symbol in self.historical_slippage[exchange]:
         # ... returns simple average
-    
+
     # Falls back to static default
     return self.default_slippage * self.slippage_sensitivity
 ```

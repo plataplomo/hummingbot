@@ -61,13 +61,13 @@ This document assesses the modularity (cohesion) and coupling between the core c
         - Account service doesn't know about trading service internals
         - Market data service is independent of account operations
         - Each service can be tested and deployed independently
-    
+
     *   **Interface-Based Design:** Abstract base classes define contracts:
         - `AuthenticatorInterface`: Authentication abstraction
         - `RateLimitStrategyInterface`: Rate limiting abstraction
         - `ErrorMapperInterface`: Error handling abstraction
         - Implementations can be swapped without affecting consumers
-    
+
     *   **Factory Pattern Decoupling:** Component creation is centralized:
         - Components don't create their dependencies
         - Easy to mock for testing
@@ -87,11 +87,11 @@ This document assesses the modularity (cohesion) and coupling between the core c
             locked: Decimal
             extension: Optional[BackpackSpotBalanceDetails]  # Exchange-specific
         ```
-    
+
     *   **Mapper Pattern:** Clean transformation boundaries:
         - Raw API models -> Mappers -> Internal models
         - No direct coupling between API responses and business logic
-    
+
     *   **Error Propagation:** Consistent error handling:
         - Exchange errors -> Error mapper -> APIError
         - Uniform error handling across exchanges
@@ -102,7 +102,7 @@ The architectural improvements, particularly in the API layer, have transformed 
 
 ### Key Improvements:
 
-1. **Service-Oriented Architecture**: 
+1. **Service-Oriented Architecture**:
    - Clear service boundaries reduce ripple effects
    - Each service can evolve independently
    - Easy to add new features without breaking existing code
@@ -138,7 +138,7 @@ The architectural improvements, particularly in the API layer, have transformed 
 
 The codebase has evolved from a tightly-coupled prototype to a well-architected system with:
 - **High cohesion** in most components, especially the API layer
-- **Low to moderate coupling** with clear abstraction boundaries  
+- **Low to moderate coupling** with clear abstraction boundaries
 - **Production-ready** patterns and error handling
 - **Extensible architecture** demonstrated by auto-lending integration
 

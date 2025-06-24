@@ -35,7 +35,7 @@ graph TB
         A[Exchange APIs]
         B[WebSocket Streams]
     end
-    
+
     subgraph "CyberDeltaEngine Architecture"
         C[Connectivity Layer]
         D[Base Exchange API]
@@ -44,12 +44,12 @@ graph TB
         G[Data Transformation]
         H[Domain Models]
     end
-    
+
     subgraph "Application Layer"
         I[Trading Engine]
         J[Strategy Manager]
     end
-    
+
     A --> C
     B --> C
     C --> D
@@ -165,11 +165,11 @@ Each exchange implements three specialized services:
 ```python
 async def place_order(self, args: PlaceOrderArgs) -> Order:
     """Place order with complete error handling and validation."""
-    
+
     # 1. Input validation (handled by Pydantic)
     # 2. Build request payload
     request_payload = self._request_builder.build_place_order_payload(args)
-    
+
     # 3. Execute HTTP request
     response, status, headers = await self._http_requester(
         method="POST",
@@ -177,12 +177,12 @@ async def place_order(self, args: PlaceOrderArgs) -> Order:
         data=request_payload,
         is_signed=True
     )
-    
+
     # 4. Handle response
     raw_order = self._response_handler.handle_place_order_response(
         response, status, headers
     )
-    
+
     # 5. Transform to internal model
     return self._trading_mapper.transform_raw_order_to_internal(raw_order)
 ```
@@ -194,7 +194,7 @@ async def place_order(self, args: PlaceOrderArgs) -> Order:
 Specialized classes for transforming Raw API models to Internal domain models:
 
 - **AccountDataMapper**: Account, balance, position transformations
-- **MarketDataMapper**: Ticker, order book, funding rate transformations  
+- **MarketDataMapper**: Ticker, order book, funding rate transformations
 - **TradingDataMapper**: Order, trade, fill transformations
 
 #### Transformation Pattern
@@ -206,11 +206,11 @@ class BackpackMarketDataMapper:
         raw_book: BackpackRawOrderBook
     ) -> OrderBook:
         """Transform Backpack order book to internal model."""
-        
+
         # Parse and validate bid/ask levels
         bids = [(Decimal(level[0]), Decimal(level[1])) for level in raw_book.bids]
         asks = [(Decimal(level[0]), Decimal(level[1])) for level in raw_book.asks]
-        
+
         return OrderBook(
             symbol=symbol,
             bids=sorted(bids, key=lambda x: x[0], reverse=True),
@@ -230,7 +230,7 @@ class BackpackRawOrderBook(BaseModel):
     bids: list[list[str]]  # [price, size] pairs
     asks: list[list[str]]  # [price, size] pairs
     timestamp: int
-    
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 ```
 
@@ -241,9 +241,9 @@ class OrderBook(BaseModel):
     """Internal order book model with unified structure."""
     symbol: str
     bids: list[tuple[Decimal, Decimal]]
-    asks: list[tuple[Decimal, Decimal]]  
+    asks: list[tuple[Decimal, Decimal]]
     timestamp: datetime
-    
+
     # Extension slots for exchange-specific data
     bp_details: BackpackOrderBookDetails | None = None
     hl_details: HyperliquidOrderBookDetails | None = None
@@ -264,21 +264,21 @@ sequenceDiagram
     participant HTTP as HttpClient
     participant Auth as Authenticator
     participant Exchange
-    
+
     User->>API: place_order(PlaceOrderArgs)
     API->>Service: place_order(args)
-    
+
     Service->>Builder: build_place_order_payload(args)
     Builder-->>Service: BackpackRawOrderRequest
-    
+
     Service->>HTTP: request(payload, is_signed=True)
     HTTP->>Auth: prepare_request(payload)
     Auth-->>HTTP: AuthenticatedRequestComponents
-    
+
     HTTP->>Exchange: HTTP POST /api/v1/order
     Exchange-->>HTTP: Response + Headers
     HTTP-->>Service: (response, status, headers)
-    
+
     Service->>Service: handle_response + transform
     Service-->>API: Order (internal model)
     API-->>User: Order
@@ -294,7 +294,7 @@ graph LR
     D --> E[Mapper]
     E --> F[Internal Domain Model]
     F --> G[Application Layer]
-    
+
     style A fill:#ff9999
     style C fill:#ffcc99
     style F fill:#99ff99
@@ -311,7 +311,7 @@ sequenceDiagram
     participant Router as MessageRouter
     participant Handler as AppHandler
     participant Models as DomainModels
-    
+
     WS->>Manager: Raw Message
     Manager->>RawHandler: handle_message(raw_data)
     RawHandler->>Router: route_message(parsed_data)
@@ -337,8 +337,8 @@ class BackpackRawOrder(BaseModel):
     side: str
     orderType: str
     quantity: str  # Backpack returns strings
-    
-# Internal Model (Business domain)  
+
+# Internal Model (Business domain)
 class Order(BaseModel):
     id: str  # Unified field name
     client_order_id: str | None
@@ -346,7 +346,7 @@ class Order(BaseModel):
     side: OrderSide  # Enum
     order_type: OrderType  # Enum
     quantity: Decimal  # Financial precision
-    
+
     # Extension slots
     bp_details: BackpackOrderDetails | None = None
     hl_details: HyperliquidOrderDetails | None = None
@@ -366,7 +366,7 @@ class Market(BaseModel):
     tick_size: Decimal
     step_size: Decimal
     status: str
-    
+
     # Exchange-specific extension slots
     bp_details: BackpackMarketDetails | None = None
     hl_details: HyperliquidMarketDetails | None = None
@@ -394,7 +394,7 @@ class PlaceOrderArgs(BaseModel):
     quantity: Decimal = Field(gt=Decimal("0"))
     price: Decimal | None = Field(default=None, gt=Decimal("0"))
     time_in_force: TimeInForce
-    
+
     @model_validator(mode="after")
     def validate_order_requirements(self) -> "PlaceOrderArgs":
         """Validate inter-parameter dependencies."""
@@ -416,10 +416,10 @@ async def place_order(self, args: PlaceOrderArgs) -> Order:
 ```python
 class BackpackAPIComponentsFactory:
     """Factory for creating Backpack API components."""
-    
+
     def create_authenticator(self) -> BackpackEd25519Authenticator:
         return BackpackEd25519Authenticator(self._exchange_secrets)
-    
+
     def create_market_data_service(
         self,
         http_client_requester: HttpClientRequesterSig,
@@ -457,27 +457,27 @@ async def get_ticker(self, symbol: str) -> Ticker:
     current_method = "get_ticker"
     status_code = 0
     raw_response_content = None
-    
+
     try:
         # Step 1: Build request
         params = self._request_builder.build_get_ticker_params(symbol)
-        
-        # Step 2: Execute HTTP request  
+
+        # Step 2: Execute HTTP request
         raw_response_content, status_code, headers = await self._http_requester(
             method="GET",
             endpoint="/api/v1/ticker",
             params=params.model_dump(by_alias=True),
             is_signed=False
         )
-        
+
         # Step 3: Handle response
         raw_ticker = self._response_handler.handle_get_ticker_response(
             raw_response_content, symbol, status_code, headers
         )
-        
+
         # Step 4: Transform to internal model
         return self._market_data_mapper.transform_raw_ticker_to_internal(raw_ticker)
-        
+
     except TransformationError as e:
         logger.error(f"[{self._exchange_name}] {current_method}: Transform failed: {e}")
         raise APIError(
@@ -511,16 +511,16 @@ graph TD
     C --> D[Mapper Transformation]
     D --> E[Internal Domain Model]
     E --> F[Application Business Logic]
-    
+
     subgraph "Validation Layer"
         B1[Field Type Validation]
-        B2[Required Field Checks]  
+        B2[Required Field Checks]
         B3[Format Validation]
         B --> B1
         B --> B2
         B --> B3
     end
-    
+
     subgraph "Transformation Layer"
         D1[Data Type Conversion]
         D2[Field Name Mapping]
@@ -538,20 +538,20 @@ graph TD
 ```python
 class BackpackMarketDataMapper:
     """Market data transformations for Backpack exchange."""
-    
+
     @staticmethod
     def transform_raw_ticker_to_internal(
         raw_ticker: BackpackRawTicker,
         symbol_override: str | None = None
     ) -> Ticker:
         """Transform Backpack ticker to internal model."""
-        
+
         try:
             # Core field transformations
             symbol = symbol_override or raw_ticker.symbol
             last_price = parse_decimal_value(raw_ticker.last_price, allow_none=False)
             volume_24h = parse_decimal_value(raw_ticker.volume, allow_none=False)
-            
+
             # Extension field transformations
             bp_details = BackpackTickerDetails(
                 first_price=parse_decimal_value(raw_ticker.first_price),
@@ -562,7 +562,7 @@ class BackpackMarketDataMapper:
                 quote_volume=parse_decimal_value(raw_ticker.quote_volume),
                 trades=int(raw_ticker.trades) if raw_ticker.trades else None
             )
-            
+
             return Ticker(
                 symbol=symbol,
                 timestamp=datetime.now(UTC),
@@ -570,7 +570,7 @@ class BackpackMarketDataMapper:
                 volume=volume_24h,
                 bp_details=bp_details  # Extension slot
             )
-            
+
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform BackpackRawTicker to Ticker: {e}"
@@ -588,13 +588,13 @@ def parse_decimal_value(
     field_name: str = "field"
 ) -> Decimal | None:
     """Parse and validate decimal values with financial precision."""
-    
+
 def parse_datetime_utc(
     value: str | int | float | datetime | None,
     field_name: str = "field"
 ) -> datetime | None:
     """Parse timestamps to UTC datetime objects."""
-    
+
 def validate_str_field(
     value: object,
     field_name: str,
@@ -618,19 +618,19 @@ graph TB
         C[ReconnectionLogic]
         D[RateLimiter]
     end
-    
+
     subgraph "Message Processing"
         E[RawMessageHandler]
         F[MessageRouter]
         G[TopicHandlers]
     end
-    
+
     subgraph "Application Layer"
         H[StrategyManager]
         I[PortfolioTracker]
         J[RiskManager]
     end
-    
+
     A --> E
     B --> A
     C --> A
@@ -647,18 +647,18 @@ graph TB
 ```python
 class BackpackWsMessageRouter:
     """Routes WebSocket messages to appropriate handlers."""
-    
+
     async def route_message(
         self,
         message: dict[str, Any],
         handlers: dict[str, MessageHandler]
     ) -> None:
         """Route message based on stream type."""
-        
+
         # Parse message envelope
         stream = message.get("stream", "")
         data = message.get("data", {})
-        
+
         # Route to appropriate handler
         if stream.startswith("ticker"):
             await self._handle_ticker_update(stream, data, handlers)
@@ -676,7 +676,7 @@ class BackpackWsMessageRouter:
 async def subscribe_to_order_book(self, symbol: str) -> None:
     """Subscribe to order book updates."""
     topic = f"depth.{symbol}"
-    
+
     def order_book_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
         """Handle order book updates."""
         # Transform raw data to internal OrderBook model
@@ -685,7 +685,7 @@ async def subscribe_to_order_book(self, symbol: str) -> None:
         )
         # Process in application layer
         await self._portfolio_tracker.update_order_book(order_book)
-    
+
     await self.subscribe(topic, order_book_handler)
 ```
 
@@ -704,7 +704,7 @@ graph TD
     B --> F[TransformationError]
     B --> G[NetworkError]
     B --> H[ExchangeSpecificError]
-    
+
     C --> C1[InvalidCredentials]
     C --> C2[ExpiredToken]
     D --> D1[RateLimitExceeded]
@@ -718,7 +718,7 @@ graph TD
 ```python
 class BackpackErrorMapper(IErrorMapper):
     """Maps Backpack-specific errors to standard APIError codes."""
-    
+
     def map_exchange_error(
         self,
         status_code: int,
@@ -728,7 +728,7 @@ class BackpackErrorMapper(IErrorMapper):
         original_exception: Exception | None = None
     ) -> APIError:
         """Map Backpack error to standardized APIError."""
-        
+
         if status_code == 401:
             return APIError(
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -778,12 +778,12 @@ except APIError as e:
 ```python
 class RateLimitStrategy(ABC):
     """Abstract base for rate limiting strategies."""
-    
+
     @abstractmethod
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
         """Prepare and acquire rate limit permission."""
         pass
-    
+
     @abstractmethod
     def update_from_response(self, response_headers: dict[str, str]) -> None:
         """Update limits based on response headers."""
@@ -796,14 +796,14 @@ class RateLimitStrategy(ABC):
 ```python
 class HyperliquidRateLimitStrategy(RateLimitStrategy):
     """Weight-based rate limiting for Hyperliquid."""
-    
+
     def __init__(self, request_weighter: HyperliquidRequestWeighter):
         self._request_weighter = request_weighter
         self._weight_limiter = TokenBucketRateLimiterRuntime(
             rate=1200.0 / 60.0,  # 1200 weight per minute
             bucket_size=1200
         )
-    
+
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> None:
         """Calculate request weight and acquire tokens."""
         weight = self._request_weighter.calculate_weight(
@@ -817,16 +817,16 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 ```python
 class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
     """Simple token bucket for Backpack."""
-    
+
     def __init__(self, rate_per_minute: int):
         rate_per_second = rate_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
-        
+
         limiter = TokenBucketRateLimiterRuntime(
             rate=rate_per_second,
             bucket_size=bucket_size
         )
-        
+
         super().__init__(
             limiter=limiter,
             default_request_weight=1
@@ -838,10 +838,10 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
 ```python
 class HyperliquidRequestWeighter:
     """Calculates request weights for Hyperliquid API calls."""
-    
+
     def calculate_weight(self, endpoint: str, payload: dict[str, Any]) -> int:
         """Calculate weight based on endpoint and payload."""
-        
+
         if endpoint == "/exchange":
             action_type = payload.get("type", "")
             if action_type == "order":
@@ -861,7 +861,7 @@ class HyperliquidRequestWeighter:
                 return 2
             elif info_type == "openOrders":
                 return 1
-        
+
         return 1  # Default weight
 ```
 
@@ -874,7 +874,7 @@ class HyperliquidRequestWeighter:
 ```python
 class IAuthenticator(ABC):
     """Interface for exchange authentication strategies."""
-    
+
     @abstractmethod
     async def prepare_request(
         self,
@@ -893,7 +893,7 @@ class IAuthenticator(ABC):
 ```python
 class HyperliquidEip712Authenticator(IAuthenticator):
     """EIP-712 signature authentication for Hyperliquid."""
-    
+
     async def prepare_request(
         self,
         method: str,
@@ -903,7 +903,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         headers: dict[str, Any] | None = None
     ) -> AuthenticatedRequestComponents:
         """Sign request using EIP-712."""
-        
+
         # Determine if signing is required
         if not self._requires_signing(endpoint_path, data):
             return AuthenticatedRequestComponents(
@@ -911,19 +911,19 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 params=params,
                 data=data
             )
-        
+
         # Sign the action using EIP-712
         action_hash = self._hash_action(data)
         signature = self._sign_hash(action_hash)
-        
+
         # Add signature to request
         signed_data = data.copy() if data else {}
         signed_data["signature"] = {
             "r": signature.r,
-            "s": signature.s, 
+            "s": signature.s,
             "v": signature.v
         }
-        
+
         return AuthenticatedRequestComponents(
             headers=headers or {},
             params=params,
@@ -936,7 +936,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 ```python
 class BackpackEd25519Authenticator(IAuthenticator):
     """Ed25519 signature authentication for Backpack."""
-    
+
     async def prepare_request(
         self,
         method: str,
@@ -946,21 +946,21 @@ class BackpackEd25519Authenticator(IAuthenticator):
         headers: dict[str, Any] | None = None
     ) -> AuthenticatedRequestComponents:
         """Sign request using Ed25519."""
-        
+
         timestamp = str(int(time.time() * 1000))
         instruction = self._build_instruction(method, endpoint_path, data)
         message = f"{instruction}{timestamp}"
-        
+
         signature = self._private_key.sign(message.encode()).signature
         signature_b64 = base64.b64encode(signature).decode()
-        
+
         auth_headers = {
             "X-API-Key": self._api_key,
             "X-Timestamp": timestamp,
             "X-Signature": signature_b64,
             **(headers or {})
         }
-        
+
         return AuthenticatedRequestComponents(
             headers=auth_headers,
             params=params,
@@ -986,29 +986,29 @@ sequenceDiagram
     participant RH as ResponseHandler
     participant Mapper as Mapper
     participant Exchange as Exchange
-    
+
     App->>API: place_order(PlaceOrderArgs)
     API->>RL: acquire_rate_limit()
     RL-->>API: permission_granted
-    
+
     API->>Service: place_order(args)
     Service->>Builder: build_place_order_payload(args)
     Builder-->>Service: BackpackRawOrderRequest
-    
+
     Service->>HTTP: request(method, endpoint, data, is_signed=True)
     HTTP->>Auth: prepare_request(method, endpoint, data)
     Auth-->>HTTP: AuthenticatedRequestComponents
-    
+
     HTTP->>Exchange: HTTP POST /api/v1/order
     Exchange-->>HTTP: JSON Response + Headers
-    
+
     HTTP-->>Service: (response, status_code, headers)
     Service->>RH: handle_place_order_response(response, status, headers)
     RH-->>Service: BackpackRawOrder
-    
+
     Service->>Mapper: transform_raw_order_to_internal(raw_order)
     Mapper-->>Service: Order (internal model)
-    
+
     Service-->>API: Order
     API-->>App: Order
 ```
@@ -1023,16 +1023,16 @@ sequenceDiagram
     participant Router as MessageRouter
     participant Mapper as Mapper
     participant Handler as ApplicationHandler
-    
+
     WS->>Manager: Raw WebSocket Message
     Manager->>RawHandler: handle_raw_message(bytes)
     RawHandler->>RawHandler: parse_json() + validate_envelope()
     RawHandler->>Router: route_message(parsed_data)
-    
+
     Router->>Router: determine_stream_type()
     Router->>Mapper: transform_ws_data_to_internal()
     Mapper-->>Router: Internal Domain Model
-    
+
     Router->>Handler: invoke_topic_handler(domain_model)
     Handler->>Handler: process_business_logic()
 ```
@@ -1045,18 +1045,18 @@ graph TD
     B --> C{Validation Success?}
     C -->|No| D[ValidationError]
     C -->|Yes| E[Raw Model]
-    
+
     E --> F[Mapper Transform]
     F --> G{Transform Success?}
     G -->|No| H[TransformationError]
     G -->|Yes| I[Internal Model]
-    
+
     D --> J[ErrorMapper]
     H --> J
     J --> K[APIError with Context]
     K --> L[Service Layer]
     L --> M[Application Layer]
-    
+
     style D fill:#ff9999
     style H fill:#ff9999
     style K fill:#ff9999
@@ -1087,10 +1087,10 @@ graph TD
    ```python
    class NewExchangeAPI(ExchangeAPI):
        """New exchange implementation."""
-       
+
        async def get_market(self, args: GetMarketArgs) -> Market:
            return await self.market_data_service.get_market(args)
-       
+
        # Implement all abstract methods...
    ```
 
@@ -1102,7 +1102,7 @@ graph TD
        symbol: str
        side: str
        # ... exchange-specific fields
-       
+
        model_config = ConfigDict(extra="forbid", frozen=True)
    ```
 
@@ -1125,7 +1125,7 @@ graph TD
        symbol: str
        start_time: datetime | None = None
        limit: int = Field(default=100, gt=0)
-       
+
        model_config = ConfigDict(extra="forbid", validate_assignment=True)
    ```
 
@@ -1149,7 +1149,7 @@ graph TD
 
 #### Type Safety
 - Use Pydantic models for all data validation
-- Leverage `Decimal` for financial calculations  
+- Leverage `Decimal` for financial calculations
 - Use enums for categorical data
 - Add comprehensive field validators
 
@@ -1179,14 +1179,14 @@ exchange_config = ExchangeSpecificConfig(
     exchange_name=ExchangeName.NEW_EXCHANGE,
     is_mainnet_environment=True,
     api_base_url_mainnet="https://api.newexchange.com",
-    ws_url_mainnet="wss://ws.newexchange.com", 
+    ws_url_mainnet="wss://ws.newexchange.com",
     rate_limit_per_minute=1200,
     request_timeout_seconds=30.0,
     max_retries=3,
     retry_delay_seconds=1.0
 )
 
-# Example secrets configuration  
+# Example secrets configuration
 exchange_secrets = ApiKeyAuthSecrets(
     auth_type=AuthType.API_KEY,
     api_key=SecretStr("your_api_key"),
@@ -1205,7 +1205,7 @@ The CyberDeltaEngine API architecture provides a robust, scalable, and maintaina
 
 Key architectural strengths:
 - **Type Safety**: Comprehensive Pydantic validation
-- **Extensibility**: Clean patterns for adding exchanges and endpoints  
+- **Extensibility**: Clean patterns for adding exchanges and endpoints
 - **Error Resilience**: Sophisticated error handling and recovery
 - **Performance**: Async/await with intelligent rate limiting
 - **Maintainability**: Clear separation of concerns and consistent patterns

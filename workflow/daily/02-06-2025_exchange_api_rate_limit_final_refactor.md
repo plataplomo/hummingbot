@@ -232,8 +232,8 @@ This provides a Backpack-specific rate limiting strategy that directly acts upon
           from typing import Any
           from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
           # TokenBucketRateLimiterRuntime might be needed for __init__ type hint if not inferred
-          from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime 
-          
+          from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+
           logger = logging.getLogger(__name__) # Module-level logger
           ```
       *   Class Definition: `class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):`
@@ -303,7 +303,7 @@ This refactoring is critical to maintain a clean and consistent architecture whe
       *   Delete the code block:
         ```python
         # if ( # This entire block should be removed
-        #     self.exchange_name == "hyperliquid" 
+        #     self.exchange_name == "hyperliquid"
         #     and mapped_error.code == APIErrorCode.RATE_LIMITED.value
         #     and e_http_failed.http_status == 403
         # ):
@@ -314,7 +314,7 @@ This refactoring is critical to maintain a clean and consistent architecture whe
       except HttpRequestFailedError as e_http_failed:
           logger.warning(...) # Existing logging for HTTP failure
           parsed_error_data = # ... existing logic to parse e_http_failed.exchange_message ...
-          
+
           mapped_error = self.error_mapper.map_exchange_error(
               status_code=e_http_failed.http_status or 500,
               error_body=e_http_failed.exchange_message or "",

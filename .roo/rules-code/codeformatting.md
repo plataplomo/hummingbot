@@ -39,6 +39,3 @@ alwaysApply: true # These are foundational style guidelines
     *   Use clear, precise English in code (names, comments, docstrings) and documentation.
     *   Prefer straightforward language and avoid unnecessary jargon.
     *   Write short, direct sentences in comments and documentation.
-
-
-    

@@ -30,7 +30,7 @@ This document summarizes the integration of Pydantic models for WebSocket subscr
 
 1. **Strict Type Safety**: All WebSocket payloads use Pydantic BaseModel for validation
 2. **Exception-Based Error Handling**: Failures are explicit through exceptions, not None returns
-3. **Separation of Concerns**: 
+3. **Separation of Concerns**:
    - Models handle syntactic validation (schema compliance)
    - Services handle business logic (topic support, authentication requirements)
 4. **Consistent Serialization**: All models use `model_dump(by_alias=True, exclude_none=True)`

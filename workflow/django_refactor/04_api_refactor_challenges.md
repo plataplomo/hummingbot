@@ -81,35 +81,35 @@ redis_client = redis.Redis(decode_responses=True)
 
 class CoreBridge:
     """Bridge between FastAPI and core engine"""
-    
+
     async def send_command(self, command: Dict) -> Dict:
         """Send command to core and await response"""
         command_id = str(uuid4())
         command['id'] = command_id
-        
+
         # Send command via Redis
         redis_client.publish('api_commands', json.dumps(command))
-        
+
         # Wait for response with timeout
         response = await self.wait_for_response(command_id, timeout=30)
         if not response:
             raise HTTPException(status_code=408, detail="Core engine timeout")
-        
+
         return response
-    
+
     async def wait_for_response(self, command_id: str, timeout: int) -> Optional[Dict]:
         """Wait for core engine response"""
         pubsub = redis_client.pubsub()
         pubsub.subscribe(f'api_response:{command_id}')
-        
+
         end_time = asyncio.get_event_loop().time() + timeout
-        
+
         while asyncio.get_event_loop().time() < end_time:
             message = pubsub.get_message(timeout=0.1)
             if message and message['type'] == 'message':
                 return json.loads(message['data'])
             await asyncio.sleep(0.1)
-        
+
         return None
 
 bridge = CoreBridge()
@@ -120,35 +120,35 @@ async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(sec
     # Query Django database for API key validity
     # This is the only direct Django interaction
     api_key = credentials.credentials
-    
+
     # Verify via Django ORM or REST call
     if not await is_valid_api_key(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
-    
+
     return api_key
 
 # API Endpoints
 @app.get("/api/v1/ticker/{exchange}/{symbol}")
 async def get_ticker(
-    exchange: str, 
+    exchange: str,
     symbol: str,
     api_key: str = Depends(verify_api_key)
 ):
     """Get current ticker data"""
-    
+
     # First try cache for recent data
     cache_key = f"ticker:{exchange}:{symbol}"
     cached = redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
-    
+
     # Otherwise query core engine
     command = {
         'type': 'get_ticker',
         'exchange': exchange,
         'symbol': symbol
     }
-    
+
     response = await bridge.send_command(command)
     return response
 
@@ -158,16 +158,16 @@ async def place_order(
     api_key: str = Depends(verify_api_key)
 ):
     """Place a new order"""
-    
+
     # Validate order against risk limits
     if not await validate_order_limits(order):
         raise HTTPException(status_code=400, detail="Order exceeds risk limits")
-    
+
     command = {
         'type': 'place_order',
         'order': order.dict()
     }
-    
+
     response = await bridge.send_command(command)
     return response
 
@@ -176,13 +176,13 @@ async def get_portfolio(
     api_key: str = Depends(verify_api_key)
 ):
     """Get current portfolio state"""
-    
+
     # Read from database for point-in-time consistency
     from django_wrapper.apps.persistence.models import Balance, Position
-    
+
     balances = await fetch_latest_balances()
     positions = await fetch_latest_positions()
-    
+
     return {
         'balances': balances,
         'positions': positions,
@@ -193,17 +193,17 @@ async def get_portfolio(
 async def market_data_websocket(websocket: WebSocket):
     """WebSocket endpoint for real-time market data"""
     await websocket.accept()
-    
+
     # Verify authentication
     auth_message = await websocket.receive_json()
     if not await verify_websocket_auth(auth_message):
         await websocket.close(code=1008)
         return
-    
+
     # Subscribe to market data updates
     pubsub = redis_client.pubsub()
     pubsub.subscribe('market_data_updates')
-    
+
     try:
         while True:
             # Forward updates from core to client
@@ -233,7 +233,7 @@ class APIKey(models.Model):
     rate_limit_per_minute = models.IntegerField(default=100)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True)
-    
+
     class Meta:
         ordering = ['-created_at']
 
@@ -242,17 +242,17 @@ async def is_valid_api_key(api_key: str) -> bool:
     """Verify API key via Django ORM"""
     from django_wrapper.apps.api_gateway.models import APIKey
     from django.utils import timezone
-    
+
     try:
         key = await sync_to_async(APIKey.objects.get)(
-            key=api_key, 
+            key=api_key,
             is_active=True
         )
-        
+
         # Update last used timestamp
         key.last_used_at = timezone.now()
         await sync_to_async(key.save)()
-        
+
         return True
     except APIKey.DoesNotExist:
         return False
@@ -268,34 +268,34 @@ from typing import Tuple
 
 class APIRateLimiter:
     """Distributed rate limiting for API gateway"""
-    
+
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
-        
+
     async def check_rate_limit(
-        self, 
-        api_key: str, 
+        self,
+        api_key: str,
         limit: int = 100
     ) -> Tuple[bool, int]:
         """Check if request is within rate limits"""
-        
+
         # Use sliding window counter
         now = datetime.utcnow()
         window_start = now - timedelta(minutes=1)
-        
+
         # Redis sorted set key
         key = f"rate_limit:{api_key}"
-        
+
         # Remove old entries
         self.redis.zremrangebyscore(
-            key, 
-            0, 
+            key,
+            0,
             window_start.timestamp()
         )
-        
+
         # Count requests in window
         current_count = self.redis.zcard(key)
-        
+
         if current_count < limit:
             # Add current request
             self.redis.zadd(key, {str(now): now.timestamp()})
@@ -304,35 +304,35 @@ class APIRateLimiter:
         else:
             # Rate limit exceeded
             return False, 0
-            
+
     async def get_reset_time(self, api_key: str) -> datetime:
         """Get when rate limit resets"""
         key = f"rate_limit:{api_key}"
-        
+
         # Get oldest entry
         oldest = self.redis.zrange(key, 0, 0, withscores=True)
         if oldest:
             oldest_timestamp = oldest[0][1]
             return datetime.fromtimestamp(oldest_timestamp) + timedelta(minutes=1)
-        
+
         return datetime.utcnow()
 
 # FastAPI middleware
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     """Apply rate limiting to all API requests"""
-    
+
     # Extract API key from header
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return await call_next(request)
-    
+
     api_key = auth_header.split(" ")[1]
-    
+
     # Check rate limit
     limiter = APIRateLimiter(redis_client)
     allowed, remaining = await limiter.check_rate_limit(api_key)
-    
+
     if not allowed:
         reset_time = await limiter.get_reset_time(api_key)
         return JSONResponse(
@@ -344,14 +344,14 @@ async def rate_limit_middleware(request: Request, call_next):
                 "X-RateLimit-Reset": str(int(reset_time.timestamp()))
             }
         )
-    
+
     # Process request
     response = await call_next(request)
-    
+
     # Add rate limit headers
     response.headers["X-RateLimit-Limit"] = "100"
     response.headers["X-RateLimit-Remaining"] = str(remaining)
-    
+
     return response
 ```
 
@@ -364,7 +364,7 @@ import logging
 
 # Metrics
 api_requests = Counter(
-    'api_requests_total', 
+    'api_requests_total',
     'Total API requests',
     ['method', 'endpoint', 'status']
 )
@@ -381,14 +381,14 @@ active_connections = Gauge(
 # Error handling
 class APIErrorHandler:
     """Centralized error handling for API gateway"""
-    
+
     @staticmethod
     async def handle_core_error(error: Dict) -> JSONResponse:
         """Handle errors from core engine"""
-        
+
         error_type = error.get('type', 'unknown')
         message = error.get('message', 'Internal error')
-        
+
         if error_type == 'validation_error':
             return JSONResponse(
                 status_code=400,
@@ -415,9 +415,9 @@ class APIErrorHandler:
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler"""
-    
+
     logger.exception(f"Unhandled exception: {exc}")
-    
+
     # Don't expose internal errors
     return JSONResponse(
         status_code=500,
@@ -485,7 +485,7 @@ def run_core_engine():
     """Run core CyberDeltaEngine"""
     from cyberdelta.main import main
     import asyncio
-    
+
     # Run core engine with command listener
     asyncio.run(main(enable_api_bridge=True))
 
@@ -493,7 +493,7 @@ if __name__ == "__main__":
     # Start core engine process
     core_process = Process(target=run_core_engine)
     core_process.start()
-    
+
     try:
         # Run FastAPI in main process
         run_fastapi()
@@ -510,18 +510,18 @@ if __name__ == "__main__":
 
 class APIBridge:
     """Bridge for external API commands"""
-    
+
     def __init__(self, engine):
         self.engine = engine
         self.redis_client = redis.Redis()
-        
+
     async def start(self):
         """Start listening for API commands"""
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe('api_commands')
-        
+
         asyncio.create_task(self._command_listener(pubsub))
-    
+
     async def _command_listener(self, pubsub):
         """Listen for commands from API gateway"""
         for message in pubsub.listen():
@@ -529,19 +529,19 @@ class APIBridge:
                 try:
                     command = json.loads(message['data'])
                     response = await self._handle_command(command)
-                    
+
                     # Send response back
                     self.redis_client.publish(
-                        f"api_response:{command['id']}", 
+                        f"api_response:{command['id']}",
                         json.dumps(response)
                     )
                 except Exception as e:
                     logger.error(f"API bridge error: {e}")
-    
+
     async def _handle_command(self, command: Dict) -> Dict:
         """Route commands to appropriate handlers"""
         cmd_type = command.get('type')
-        
+
         if cmd_type == 'get_ticker':
             return await self._get_ticker(command)
         elif cmd_type == 'place_order':
@@ -550,12 +550,12 @@ class APIBridge:
             return await self._get_portfolio(command)
         else:
             return {'error': f'Unknown command: {cmd_type}'}
-    
+
     async def _get_ticker(self, command: Dict) -> Dict:
         """Get ticker from engine"""
         exchange = command['exchange']
         symbol = command['symbol']
-        
+
         try:
             ticker = await self.engine.get_ticker(exchange, symbol)
             return {
@@ -626,7 +626,7 @@ class OrderRequest(BaseModel):
     quantity: Decimal
     price: Optional[Decimal]
     order_type: Literal["market", "limit"]
-    
+
     @validator('quantity')
     def validate_quantity(cls, v):
         if v <= 0:
@@ -634,7 +634,7 @@ class OrderRequest(BaseModel):
         if v > Decimal('1000000'):
             raise ValueError('Quantity exceeds maximum')
         return v
-    
+
     @validator('price')
     def validate_price(cls, v, values):
         if values.get('order_type') == 'limit' and v is None:

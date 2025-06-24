@@ -1,5 +1,5 @@
 ---
-description: 
+description:
 globs: pyproject.toml,mypy.ini,*.py,*.pyi
 alwaysApply: false
 ---

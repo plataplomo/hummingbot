@@ -141,4 +141,4 @@ A simple Python web framework is suitable:
 7.  **Testing:** Implement frontend unit and potentially integration/E2E tests (e.g., using Vitest, Testing Library, Cypress/Playwright).
 8.  **Deployment:** Plan deployment for both the Backend API and the static frontend build.
 
-This frontend is a separate sub-project and can be developed in parallel once the core bot exposes the necessary data via the chosen communication mechanism. 
+This frontend is a separate sub-project and can be developed in parallel once the core bot exposes the necessary data via the chosen communication mechanism.

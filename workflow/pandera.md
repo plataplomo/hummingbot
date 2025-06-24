@@ -2,13 +2,13 @@
 
 ## 1. **Rationale & Objectives**
 
-- **Why Pandera?**  
+- **Why Pandera?**
   While Pydantic provides comprehensive validation for individual market data objects (tickers, candles, funding rates) in the real-time data flow, Pandera is purpose-built for validating pandas DataFrames and Series used in batch processing, backtesting, analytics, and historical data workflows.
-- **Strategic Complement to Existing Validation:**  
+- **Strategic Complement to Existing Validation:**
   - Pydantic handles real-time individual object validation at API boundaries
   - Pandera will handle batch DataFrame validation for analytics and backtesting
   - Together they provide comprehensive data validation across all workflows
-- **Objectives:**  
+- **Objectives:**
   - Prevent propagation of malformed time series data in backtesting and analytics
   - Ensure data integrity for cross-exchange arbitrage calculations
   - Validate historical data imports and synthetic test data generation
@@ -25,7 +25,7 @@
 
 ### **Where to Apply Pandera:**
 - **Backtesting Engine:** Validate OHLCV data, trade history, and equity curves
-- **Performance Analytics:** Validate aggregated time series for performance metrics calculation  
+- **Performance Analytics:** Validate aggregated time series for performance metrics calculation
 - **Historical Data Processing:** Validate imported data from exchanges or files
 - **Testing Data Generation:** Validate synthetic market data used in unit and integration tests
 - **Cross-Exchange Analysis:** Validate arbitrage opportunity DataFrames and funding rate comparisons
@@ -57,7 +57,7 @@ from pandera import Column, DataFrameSchema, Check, MultiIndex
 ohlcv_schema = DataFrameSchema(
     {
         ("*", "open"): Column(pa.Float64, Check.gt(0), nullable=False),
-        ("*", "high"): Column(pa.Float64, Check.gt(0), nullable=False), 
+        ("*", "high"): Column(pa.Float64, Check.gt(0), nullable=False),
         ("*", "low"): Column(pa.Float64, Check.gt(0), nullable=False),
         ("*", "close"): Column(pa.Float64, Check.gt(0), nullable=False),
         ("*", "volume"): Column(pa.Float64, Check.ge(0), nullable=False),
@@ -77,16 +77,16 @@ def ohlc_validation(series_dict):
             symbol_name = symbol[0]
             # Get OHLC for this symbol
             open_col = (symbol_name, "open")
-            high_col = (symbol_name, "high") 
+            high_col = (symbol_name, "high")
             low_col = (symbol_name, "low")
             close_col = (symbol_name, "close")
-            
+
             if all(col in series_dict for col in [open_col, high_col, low_col, close_col]):
                 high = series_dict[high_col]
                 low = series_dict[low_col]
                 open_val = series_dict[open_col]
                 close = series_dict[close_col]
-                
+
                 # Validate OHLC relationships
                 assert (high >= low).all(), f"High must be >= Low for {symbol_name}"
                 assert (high >= open_val).all(), f"High must be >= Open for {symbol_name}"
@@ -104,7 +104,7 @@ performance_returns_schema = DataFrameSchema(
     {
         # Dynamic strategy columns - validated at runtime
         pa.Column(pa.Float64, regex=True, nullable=True): Column(
-            pa.Float64, 
+            pa.Float64,
             Check.between(-1.0, 10.0),  # Reasonable return bounds
             nullable=True
         )
@@ -130,7 +130,7 @@ trade_history_schema = DataFrameSchema({
     "pnl": Column(pa.Float64, nullable=True),
     "duration": Column(pa.Float64, Check.ge(0), nullable=True),  # minutes
     "is_completed": Column(pa.Bool, nullable=False),
-}, 
+},
 index=pa.Index(pa.String, name="trade_id"),
 coerce=True)
 ```
@@ -142,7 +142,7 @@ Create centralized schema definitions:
 ```
 cyberdelta/validation/schemas/
 ├── __init__.py
-├── backtesting.py      # OHLCV schemas  
+├── backtesting.py      # OHLCV schemas
 ├── performance.py      # Returns and analytics schemas
 ├── trading.py          # Trade and signal schemas
 └── base.py            # Common validators and decorators
@@ -199,7 +199,7 @@ def validate_dataframe(schema: pa.DataFrameSchema, input_arg: str = "data"):
                         raise ValueError(f"DataFrame argument '{input_arg}' not found")
                 else:
                     raise ValueError(f"Parameter '{input_arg}' not found in function signature")
-            
+
             # Validate the DataFrame
             try:
                 validated_df = schema.validate(df, lazy=True)
@@ -212,7 +212,7 @@ def validate_dataframe(schema: pa.DataFrameSchema, input_arg: str = "data"):
                     args = tuple(args)
             except pa.errors.SchemaErrors as e:
                 raise ValueError(f"DataFrame validation failed: {e}")
-            
+
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -239,7 +239,7 @@ class BacktestEngine:
             loaded_data = self._load_data_from_file(data)
         else:
             loaded_data = data.copy()
-        
+
         # Pandera validation happens automatically via decorator
         return self._ensure_datetime_index(loaded_data)
 ```
@@ -270,7 +270,7 @@ flowchart TD
         Mappers --> DomainModels[Domain Pydantic Models]
         DomainModels --> DataHandler[Data Handler]
     end
-    
+
     subgraph "Batch Processing Flow"
         CSV[CSV/Historical Data] --> DataFrames[pandas DataFrames]
         DataFrames --> PanderaValidation[Pandera Validation]
@@ -278,7 +278,7 @@ flowchart TD
         PanderaValidation --> Analytics[Performance Analytics]
         PanderaValidation --> Visualization[Visualization]
     end
-    
+
     DomainModels -.-> DataFrames
     Backtesting --> TradeResults[Trade Results]
     Analytics --> PerformanceMetrics[Performance Metrics]
@@ -293,31 +293,31 @@ flowchart LR
         Synthetic[Synthetic Test Data]
         Aggregated[Aggregated Real-time Data]
     end
-    
+
     subgraph "Pandera Validation Layer"
         OHLCV[OHLCV Schema]
-        Returns[Returns Schema] 
+        Returns[Returns Schema]
         Trades[Trade History Schema]
         Funding[Funding Rate Schema]
     end
-    
+
     subgraph "Core Processing"
         BacktestEngine[Backtest Engine]
         PerformanceTracker[Performance Tracker]
         Visualizer[Performance Visualizer]
         TestSuite[Test Suite]
     end
-    
+
     CSV --> OHLCV
     Synthetic --> OHLCV
     Aggregated --> Returns
     Aggregated --> Funding
-    
+
     OHLCV --> BacktestEngine
     Returns --> PerformanceTracker
     Trades --> PerformanceTracker
     Funding --> Visualizer
-    
+
     OHLCV --> TestSuite
     Returns --> TestSuite
 ```
@@ -332,24 +332,24 @@ flowchart TD
         Trade[Trade Objects]
         FundingRate[FundingRate Objects]
     end
-    
+
     subgraph "Batch DataFrame Validation (Pandera)"
         OHLCVDataFrame[OHLCV DataFrames]
         ReturnsDataFrame[Returns DataFrames]
         TradeHistoryDataFrame[Trade History DataFrames]
         MetricsDataFrame[Metrics DataFrames]
     end
-    
+
     subgraph "Integration Layer"
         Aggregator[Data Aggregator]
         Converter[Object-to-DataFrame Converter]
     end
-    
+
     Ticker --> Aggregator
     Candle --> Aggregator
     Trade --> Aggregator
     FundingRate --> Aggregator
-    
+
     Aggregator --> Converter
     Converter --> OHLCVDataFrame
     Converter --> ReturnsDataFrame
@@ -421,5 +421,5 @@ flowchart TD
 
 ---
 
-*Updated after comprehensive codebase analysis by Claude Code.  
-Based on actual DataFrame usage patterns in CyberDeltaEngine v2025.6.* 
+*Updated after comprehensive codebase analysis by Claude Code.
+Based on actual DataFrame usage patterns in CyberDeltaEngine v2025.6.*

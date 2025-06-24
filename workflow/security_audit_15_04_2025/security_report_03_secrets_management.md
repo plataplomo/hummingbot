@@ -108,7 +108,7 @@ Since the April 2025 audit, secrets management has been enhanced with Pydantic m
    ```python
    import os
    import stat
-   
+
    def _validate_file_permissions(self, path: Path) -> None:
        file_stat = os.stat(path)
        mode = file_stat.st_mode

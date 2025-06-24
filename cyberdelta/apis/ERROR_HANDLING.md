@@ -65,17 +65,17 @@ async def service_method(self, args: ServiceArgs) -> DomainModel:
     # 1. Input Validation (raises ValueError)
     if not args.symbol:
         raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
-    
+
     try:
         # 2. Core Logic
         raw_data = await self._make_request(args)
         validated_data = self._response_handler.handle_response(raw_data)
         return self._mapper.transform_to_internal(validated_data)
-        
+
     except APIError:
         # 3. Re-raise API errors as-is
         raise
-        
+
     except TransformationError as e:
         # 4. Wrap transformation errors
         raise APIError(
@@ -85,7 +85,7 @@ async def service_method(self, args: ServiceArgs) -> DomainModel:
             http_status=status_code,
             exchange_message=raw_response_content,
         ) from e
-        
+
     except ValidationError as e:
         # 5. Wrap validation errors
         raise APIError(
@@ -93,7 +93,7 @@ async def service_method(self, args: ServiceArgs) -> DomainModel:
             message="Internal data validation failed.",
             original_exception=e,
         ) from e
-        
+
     except (ValueError, TypeError) as e:
         # 6. Distinguish input validation from internal errors
         error_msg = str(e)
@@ -105,7 +105,7 @@ async def service_method(self, args: ServiceArgs) -> DomainModel:
                 message="Service internal logic error.",
                 original_exception=e,
             ) from e
-            
+
     except Exception as e:
         # 7. Catch-all for unexpected errors
         raise APIError(
@@ -128,7 +128,7 @@ def handle_get_ticker_response(
     headers: Mapping[str, str],
 ) -> BackpackRawTicker:
     context = f"ticker ({symbol}) - Status: {status_code}"
-    
+
     # 1. Validate response structure
     if not isinstance(raw_response_content, dict):
         raise APIError(
@@ -136,7 +136,7 @@ def handle_get_ticker_response(
                    f"got {type(raw_response_content).__name__}",
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
-    
+
     # 2. Validate with Pydantic model
     try:
         return BackpackRawTicker.model_validate(raw_response_content)
@@ -166,15 +166,15 @@ def map_exchange_error(
             code = self._map_error_code(raw_error.code)
         except ValidationError:
             code = APIErrorCode.EXCHANGE_SPECIFIC
-    
+
     # 2. Fallback to string matching
     if code == APIErrorCode.EXCHANGE_SPECIFIC and error_body:
         code = self._map_string_error(error_body)
-    
+
     # 3. Final fallback to HTTP status
     if code == APIErrorCode.EXCHANGE_SPECIFIC:
         code = self._map_http_status(status_code)
-    
+
     # 4. Return standardized error (never raise)
     return APIError(
         message=effective_message,
@@ -229,14 +229,14 @@ def transform_raw_balance_to_internal(
             raise TransformationError(
                 f"Available quantity missing for {asset_symbol}"
             )
-        
+
         # 2. Create domain model
         return SpotBalance(
             asset=asset_symbol,
             available_quantity=available,
             # ...
         )
-        
+
     except Exception as e:
         # 3. Always wrap as TransformationError
         raise TransformationError(
@@ -383,26 +383,26 @@ async def get_order(self, order_id: str, symbol: str) -> Order:
     # Input validation
     if not order_id:
         raise ValueError("[get_order] 'order_id' is required")
-    
+
     try:
         # Make request
         response = await self._http_client.get(f"/orders/{order_id}")
-        
+
         # Validate response
         raw_order = self._response_handler.handle_get_order_response(
             response.data, order_id, response.status_code
         )
-        
+
         # Transform to internal model
         return self._mapper.transform_raw_order_to_internal(raw_order)
-        
+
     except APIError as e:
         # Special handling for 404
         if e.http_status == 404:
             logger.info(f"Order {order_id} not found")
             return None
         raise
-        
+
     except TransformationError as e:
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,

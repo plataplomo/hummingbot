@@ -35,6 +35,3 @@ alwaysApply: true # This is fundamental for environment consistency
     *   Avoids conflicts with system-installed packages or other Python environments.
     *   Enhances reliability and reproducibility of development, testing, and build tasks.
     *   Works around observed instability with the `python -m` invocation method in certain environments.
-
-
-    

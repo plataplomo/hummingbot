@@ -70,7 +70,7 @@ The example secrets file must reflect all available configuration options for us
       *   Add a commented-out entry for `private_key_testnet`:
         ```yaml
         # Optional: Dedicated private key for Hyperliquid testnet
-        # private_key_testnet: "YOUR_HYPERLIQUID_TESTNET_WALLET_PRIVATE_KEY_0x..." 
+        # private_key_testnet: "YOUR_HYPERLIQUID_TESTNET_WALLET_PRIVATE_KEY_0x..."
         ```
       *   Ensure this is placed appropriately alongside the existing `private_key`, `passphrase`, and the `testnet_seed_passphrase` fields.
       *   Update comments to clarify that if `is_mainnet_environment` is false in `config.yaml`, the system might look for `testnet_seed_passphrase` first, then `private_key_testnet`, then fall back to the main `private_key`. (This precedence logic will be built into the `HyperliquidAPIComponentsFactory`).

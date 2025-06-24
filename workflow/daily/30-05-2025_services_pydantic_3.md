@@ -207,4 +207,3 @@ This ensures consistency in how symbol lists are handled and validated for fetch
 
 9.  **Static Analysis and Reporting:**
     *   Run static analysis tools and report results.
-

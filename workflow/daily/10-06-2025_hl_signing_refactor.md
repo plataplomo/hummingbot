@@ -48,4 +48,3 @@ This error is coming directly from our `HyperliquidEip712Authenticator.prepare_r
 **This means our `HyperliquidAccountService` (and potentially others) is calling `self._http_client_requester` with `is_signed=True` for `/info` endpoint requests.**
 
 This is the root cause of the majority of these failures. We correctly identified that `/info` is public and doesn't need signing, but the implementation in the service layer is wrong.
-

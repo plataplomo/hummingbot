@@ -45,7 +45,7 @@ Use pytest markers to categorize and run specific test types:
 # Run only unit tests
 pytest -m unit
 
-# Run only integration tests  
+# Run only integration tests
 pytest -m integration
 
 # Skip slow tests

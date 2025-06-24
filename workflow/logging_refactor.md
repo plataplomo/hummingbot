@@ -202,16 +202,16 @@ logger = get_logger(__name__)
 2. **Logfire Configuration**:
    ```python
    import logfire
-   
+
    # Configure Logfire
    logfire.configure(
        service_name="cyberdelta-engine",
        service_version="1.0.0"
    )
-   
+
    # Auto-instrument FastAPI if applicable
    logfire.instrument_fastapi(app)
-   
+
    # Custom instrumentation for trading engine
    @logfire.instrument("trade_execution")
    async def execute_trade(self, signal: TradeSignal):
@@ -260,12 +260,12 @@ logger = get_logger(__name__)
 3. **Advanced Querying**:
    ```sql
    -- SQL queries for trading analytics
-   SELECT 
+   SELECT
        strategy,
        AVG(duration) as avg_duration,
        COUNT(*) as trade_count,
        SUM(pnl) as total_pnl
-   FROM trades 
+   FROM trades
    WHERE timestamp > NOW() - INTERVAL '24 hours'
    GROUP BY strategy;
    ```

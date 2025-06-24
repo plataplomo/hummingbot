@@ -48,11 +48,11 @@ This refactoring extends our standardized testing structure to the Backpack API 
                 "exchange_name": ExchangeName.BACKPACK,
                 "api_base_url_mainnet": "https://api.backpack.exchange",
                 "ws_url_mainnet": "wss://ws.backpack.exchange",
-                "api_base_url_testnet": None, 
+                "api_base_url_testnet": None,
                 "ws_url_testnet": None,
                 "is_mainnet_environment": True, # Always True for Backpack
-                "chain_id": None, 
-                "rate_limit_per_minute": 120, 
+                "chain_id": None,
+                "rate_limit_per_minute": 120,
                 "symbols": {"SOL_USDC": "SOL_USDC", "BTC_USDC": "BTC_USDC"},
                 # Add sensible defaults for any other required fields in ExchangeSpecificConfig
                 # specific to Backpack, or ensure they are None if truly optional.
@@ -98,7 +98,7 @@ This refactoring extends our standardized testing structure to the Backpack API 
         def mock_bp_request_builder() -> MagicMock:
             # from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
             return MagicMock() # spec=BackpackRequestBuilder
-            
+
         @pytest.fixture
         def mock_bp_response_handler() -> MagicMock:
             # from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
@@ -118,7 +118,7 @@ This refactoring extends our standardized testing structure to the Backpack API 
         def mock_bp_trading_data_mapper() -> MagicMock:
             # from cyberdelta.apis.backpack.mappers import BackpackTradingDataMapper
             return MagicMock() # spec=BackpackTradingDataMapper
-        
+
         @pytest.fixture
         def mock_bp_account_service() -> MagicMock:
             # from cyberdelta.apis.backpack.services import BackpackAccountService
@@ -163,7 +163,7 @@ This refactoring extends our standardized testing structure to the Backpack API 
             ) -> BackpackAPI:
                 final_config = config or active_bp_config
                 final_secrets = secrets or active_bp_secrets
-                
+
                 # BackpackAPI uses a factory internally, so we pass mocks for components
                 # the factory would create, or for the services themselves if API takes them directly.
                 # Based on BackpackAPI.__init__, it takes components *and* services.

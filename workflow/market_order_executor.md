@@ -33,7 +33,7 @@ cyberdelta/
 ```python
 class MarketOrder:
     """Executes market orders using aggressive IoC limit orders."""
-    
+
     def __init__(
         self,
         exchange_api: ExchangeAPI,
@@ -43,7 +43,7 @@ class MarketOrder:
         self._exchange = exchange_api
         self._market_order_service = market_order_service
         self._config = config
-    
+
     async def execute_market_order(
         self,
         symbol: str,
@@ -58,7 +58,7 @@ class MarketOrder:
 ```python
 class MarketOrderService:
     """Service for calculating aggressive prices and managing market order execution logic."""
-    
+
     async def calculate_aggressive_price(
         self,
         order_book: OrderBook,
@@ -78,18 +78,18 @@ sequenceDiagram
     participant Service as MarketOrderService
     participant API as ExchangeAPI
     participant Exchange
-    
+
     Strategy->>MarketOrder: execute_market_order(symbol, side, qty)
     MarketOrder->>API: get_order_book(symbol)
     API->>Exchange: GET /info (L2Book)
     Exchange-->>API: Order Book Data
     API-->>MarketOrder: OrderBook
-    
+
     MarketOrder->>Service: calculate_aggressive_price()
     Service-->>MarketOrder: Aggressive Price
-    
+
     MarketOrder->>MarketOrder: Validate liquidity & safety
-    
+
     MarketOrder->>API: place_order(IoC limit order)
     API->>Exchange: POST /exchange (IoC order)
     Exchange-->>API: Order Response
@@ -108,15 +108,15 @@ def validate_liquidity(
     quantity: Decimal
 ) -> tuple[bool, Decimal]:
     """Check if sufficient liquidity exists."""
-    
+
     levels = order_book.asks if side == OrderSide.BUY else order_book.bids
     available = Decimal("0")
-    
+
     for price, size in levels:
         available += size
         if available >= quantity * self._config.min_liquidity_ratio:
             return True, available
-    
+
     return False, available
 ```
 
@@ -129,10 +129,10 @@ def validate_price_bounds(
     side: OrderSide
 ) -> None:
     """Ensure price doesn't deviate too far from reference."""
-    
+
     max_deviation = self._config.max_price_deviation_pct
     deviation = abs(aggressive_price - reference_price) / reference_price
-    
+
     if deviation > max_deviation:
         raise MarketOrderError(
             f"Price deviation {deviation:.2%} exceeds limit {max_deviation:.2%}"
@@ -201,14 +201,14 @@ try:
         quantity=Decimal("0.1"),
         max_slippage=Decimal("0.01")  # Optional: 1% max slippage
     )
-    
+
     if order.status == OrderStatus.FILLED:
         logger.info(f"Market order filled at {order.price}")
     elif order.status == OrderStatus.PARTIALLY_FILLED:
         logger.warning(f"Partial fill: {order.quantity_filled}/{order.quantity}")
     else:
         logger.error("Market order failed - no fill")
-        
+
 except InsufficientLiquidityError as e:
     logger.error(f"Cannot execute: {e}")
 except MarketOrderError as e:
@@ -222,13 +222,13 @@ For better pricing across all symbols:
 ```python
 class EnhancedMarketOrderService(MarketOrderService):
     """Enhanced service using AllMids data."""
-    
+
     async def get_all_mid_prices(self) -> dict[str, Decimal]:
         """Fetch all mid prices for reference."""
         # When AllMids is implemented in API layer
         all_mids = await self._exchange.get_all_mids()
         return {
-            symbol: Decimal(price) 
+            symbol: Decimal(price)
             for symbol, price in all_mids.items()
         }
 ```
@@ -238,7 +238,7 @@ class EnhancedMarketOrderService(MarketOrderService):
 ```python
 class TestMarketOrder:
     """Test market order execution logic."""
-    
+
     async def test_successful_market_buy(self):
         """Test successful market buy execution."""
         # Mock order book with sufficient liquidity
@@ -248,18 +248,18 @@ class TestMarketOrder:
             asks=[(Decimal("50010"), Decimal("10"))],
             timestamp=datetime.now(UTC)
         )
-        
+
         # Execute market order
         order = await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
             quantity=Decimal("1")
         )
-        
+
         # Verify aggressive pricing
         assert order.price > Decimal("50010")  # Above best ask
         assert order.time_in_force == TimeInForce.IOC
-    
+
     async def test_insufficient_liquidity_rejection(self):
         """Test rejection when insufficient liquidity."""
         # Mock thin order book
@@ -269,7 +269,7 @@ class TestMarketOrder:
             asks=[(Decimal("101"), Decimal("0.1"))],
             timestamp=datetime.now(UTC)
         )
-        
+
         # Should raise InsufficientLiquidityError
         with pytest.raises(InsufficientLiquidityError):
             await executor.execute_market_order(
@@ -284,7 +284,7 @@ class TestMarketOrder:
 ```python
 class MarketOrderMetrics:
     """Track market order execution metrics."""
-    
+
     def record_execution(
         self,
         symbol: str,
@@ -296,13 +296,13 @@ class MarketOrderMetrics:
         slippage: Decimal
     ) -> None:
         """Record execution metrics for analysis."""
-        
+
         # Track fill rate
         fill_rate = filled_qty / requested_qty
-        
+
         # Track actual vs expected slippage
         actual_slippage = abs(actual_price - expected_price) / expected_price
-        
+
         # Log for monitoring
         logger.info(
             "market_order_execution",

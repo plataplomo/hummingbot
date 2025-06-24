@@ -27,23 +27,23 @@ The main configuration loading happens in the root conftest.py:
 def test_app_settings() -> AppSettings:
     """Load AppSettings from tests/config/test_config.yaml using ConfigManager."""
     test_config_file_path = Path(__file__).parent / "config" / "test_config.yaml"
-    
+
     if not test_config_file_path.exists():
         pytest.skip(f"Test config file not found: {test_config_file_path}")
-    
+
     try:
         return ConfigManager.load_from_file(test_config_file_path)
     except Exception as e:
         pytest.fail(f"Failed to load test AppSettings from {test_config_file_path}: {e}")
 
-@pytest.fixture(scope="session") 
+@pytest.fixture(scope="session")
 def test_secrets_config() -> SecretsConfig:
     """Load SecretsConfig from tests/config/test_secrets.yaml using SecretsManager."""
     test_secrets_file_path = Path(__file__).parent / "config" / "test_secrets.yaml"
-    
+
     if not test_secrets_file_path.exists():
         pytest.skip(f"Test secrets file not found: {test_secrets_file_path}")
-    
+
     try:
         return SecretsManager.load_from_file(test_secrets_file_path)
     except Exception as e:
@@ -58,7 +58,7 @@ The system respects environment variables for flexible testing:
 @pytest.fixture(scope="session")
 def hl_test_environment() -> str:
     """Determine Hyperliquid test environment (mainnet/testnet).
-    
+
     Defaults to 'testnet' but can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
     """
     return os.environ.get("CYBERDELTA_TEST_ENV_HL", "testnet")
@@ -66,16 +66,16 @@ def hl_test_environment() -> str:
 @pytest.fixture(scope="session")
 def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
     """Environment-aware ExchangeSpecificConfig fixture for Hyperliquid.
-    
+
     Configures the exchange for mainnet or testnet based on hl_test_environment.
     """
     is_mainnet_env_flag = hl_test_environment == "mainnet"
-    
+
     return ExchangeSpecificConfig.model_validate({
         "exchange_name": ExchangeName.HYPERLIQUID,
         "api_base_url_mainnet": "https://api.hyperliquid.xyz",
         "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
-        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz", 
+        "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
         "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
         "is_mainnet_environment": is_mainnet_env_flag,
         # ... other config fields
@@ -95,7 +95,7 @@ def active_hl_config(test_app_settings: AppSettings, hl_test_environment: str) -
         update={"is_mainnet_environment": hl_test_environment == "mainnet"}
     )
 
-@pytest.fixture(scope="session") 
+@pytest.fixture(scope="session")
 def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecrets:
     """Provide PrivateKeyAuthSecrets for Hyperliquid from test secrets."""
     secrets = test_secrets_config.exchanges["hyperliquid"]
@@ -134,7 +134,7 @@ def hl_api_for_test_env(
     active_hl_secrets: PrivateKeyAuthSecrets,
 ) -> HyperliquidAPI:
     """Create HyperliquidAPI instance for integration tests.
-    
+
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
     """
@@ -175,7 +175,7 @@ def hl_api_with_di(
             config = active_hl_config
         if secrets is None:
             secrets = active_hl_secrets
-            
+
         return HyperliquidAPI(
             exchange_config=config,
             exchange_secrets=secrets,
@@ -235,7 +235,7 @@ You can easily switch environments using environment variables:
 # Test against testnet (default)
 pytest tests/integration/
 
-# Test against mainnet  
+# Test against mainnet
 CYBERDELTA_TEST_ENV_HL=mainnet pytest tests/integration/
 
 # Mix environments for different exchanges
@@ -280,7 +280,7 @@ exchanges:
     address_action_safety_net:
       rate_per_minute: 300
     websocket_send_rate_per_minute: 1800
-    
+
   backpack:
     exchange_name: "backpack"
     api_base_url_mainnet: "https://api.backpack.exchange"
@@ -297,7 +297,7 @@ exchanges:
 ### tests/config/test_secrets.yaml
 
 ```yaml
-# Test secrets configuration  
+# Test secrets configuration
 # Copy from tests/config/test_secrets.yaml.example and populate with real values
 
 exchanges:
@@ -306,7 +306,7 @@ exchanges:
     passphrase: null
     private_key_testnet: "0x5678901234567890123456789012345678901234567890123456789012345678"
     testnet_seed_passphrase: null
-    
+
   backpack:
     api_key: "your_backpack_api_key_here"
     api_secret: "your_backpack_api_secret_here"

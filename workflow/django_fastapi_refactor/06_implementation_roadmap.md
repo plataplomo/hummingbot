@@ -8,7 +8,7 @@ This document provides an updated 6-8 week implementation roadmap for the minima
 
 ```
 Week 1-2:   Foundation & Database Setup
-Week 3-4:   FastAPI Service Wrappers  
+Week 3-4:   FastAPI Service Wrappers
 Week 5-6:   Django HTMX Dashboard
 Week 7-8:   Integration & Production Deployment (Optional if ahead of schedule)
 ```
@@ -329,7 +329,7 @@ Week 7-8:   Integration & Production Deployment (Optional if ahead of schedule)
 - **Redis**: Message broker and cache
 - **Docker**: Containerization platform
 
-#### Production Environment  
+#### Production Environment
 - **4 vCPUs, 16GB RAM**: Application servers (reduced from 8/32)
 - **4 vCPUs, 16GB RAM**: Database server with replication
 - **2 vCPUs, 4GB RAM**: Redis instance

@@ -135,18 +135,18 @@
     },
     "components": {
       "schemas": {
-  
+
         "ApiError": {
              "type": "object",
              "properties": { "error": { "type": "string", "description": "Error message" } },
              "description": "Generic error response structure."
          },
-  
+
          "ApiSide": { "type": "string", "enum": ["B", "A"], "description": "'B' Buy/Bid, 'A' Ask/Sell." },
          "ApiTif": { "type": "string", "enum": ["Gtc", "Ioc", "Alo"], "description": "Time in Force. Alo = Add Liquidity Only / Post-Only." },
          "ApiTriggerType": { "type": "string", "enum": ["tp", "sl"], "description": "Trigger type: 'tp' take-profit, 'sl' stop-loss." },
          "ApiLeverageType": { "type": "string", "enum": ["cross", "isolated"], "description": "Leverage type." },
-  
+
          "MetaRequestPayload": {
               "type": "object", "properties": { "type": { "type": "string", "enum": ["meta"] } }, "required": ["type"]
          },
@@ -171,7 +171,7 @@
               "additionalProperties": { "type": "string", "format": "decimal" },
               "description": "Dictionary mapping asset symbols to their mid prices (string decimal)."
          },
-  
+
          "UserStateRequestPayload": {
             "type": "object",
             "properties": {
@@ -181,7 +181,7 @@
             "required": ["type", "user"]
           },
          "UserStateResponse": { "$ref": "#/components/schemas/ApiClearinghouseState" },
-  
+
          "OpenOrdersRequestPayload": {
             "type": "object",
             "properties": {
@@ -195,7 +195,7 @@
               "items": { "$ref": "#/components/schemas/ApiOpenOrder" },
               "description": "Array of open orders."
           },
-  
+
          "UserFillsRequestPayload": {
               "type": "object",
               "properties": {
@@ -209,7 +209,7 @@
              "items": { "$ref": "#/components/schemas/ApiUserFill" },
              "description": "Array of user fills."
          },
-  
+
          "L2BookRequestPayload": {
               "type": "object",
               "properties": {
@@ -219,7 +219,7 @@
               "required": ["type", "coin"]
          },
          "L2BookResponse": { "$ref": "#/components/schemas/ApiL2Book" },
-  
+
          "RecentTradesRequestPayload": {
              "type": "object",
              "properties": {
@@ -233,7 +233,7 @@
               "items": { "$ref": "#/components/schemas/ApiPublicTrade" },
               "description": "Array of recent public trades."
           },
-  
+
          "CandleSnapshotRequestPayload": {
               "type": "object",
               "properties": {
@@ -258,14 +258,14 @@
                },
                "required": ["t", "o", "h", "l", "c", "v", "s"]
            },
-  
+
          "PlaceOrderActionPayload": { "$ref": "#/components/schemas/ApiOrderSpec" },
          "CancelActionPayload": { "$ref": "#/components/schemas/ApiCancelRequest" },
          "CancelByCloidActionPayload": { "$ref": "#/components/schemas/ApiCancelByCloidRequest" },
          "ModifyOrderActionPayload": { "$ref": "#/components/schemas/ApiModifyOrderRequest" },
          "UpdateLeverageActionPayload": { "$ref": "#/components/schemas/ApiUpdateLeverageRequest" },
          "UpdateIsolatedMarginActionPayload": { "$ref": "#/components/schemas/ApiUpdateIsolatedMarginRequest" },
-  
+
          "ExchangeActionResponse": {
               "type": "object",
               "properties": {
@@ -296,18 +296,18 @@
                "type": "object",
                "description": "Object status often returned for order placements.",
                "properties": {
-                    "resting": { 
+                    "resting": {
                         "allOf": [{ "$ref": "#/components/schemas/ApiOrder" }],
                         "nullable": true
                     },
-                    "filled": { 
+                    "filled": {
                         "allOf": [{ "$ref": "#/components/schemas/ApiOrder" }],
                         "nullable": true
                     },
                     "error": { "type": "string", "nullable": true }
                }
            },
-  
+
          "ApiAssetDefinition": {
                "type": "object", "description": "Definition of an asset/market from 'meta' response.",
                "properties": {
@@ -396,7 +396,7 @@
               "type": "object", "description": "Structure for one open order.",
               "properties": {
                   "order": { "$ref": "#/components/schemas/ApiOrder" },
-                  "trigger": { 
+                  "trigger": {
                       "allOf": [{ "$ref": "#/components/schemas/ApiTriggerInfo" }],
                       "nullable": true
                   }
@@ -500,7 +500,7 @@
                 },
                 "required": ["coin", "side", "px", "sz", "time", "hash"]
             },
-  
+
          "ApiOrderSpec": {
               "type": "object", "description": "Payload for placing an order.",
               "properties": {
@@ -510,7 +510,7 @@
                  "sz": { "type": "number", "format": "float", "description": "Size as float." },
                  "reduceOnly": { "type": "boolean" },
                  "orderType": { "$ref": "#/components/schemas/ApiOrderType" },
-                 "trigger": { 
+                 "trigger": {
                      "allOf": [{ "$ref": "#/components/schemas/ApiTriggerSpec" }],
                      "nullable": true
                  },
@@ -569,7 +569,7 @@
                 },
                 "required": ["asset", "isBuy", "ntli"]
             }
-  
+
       }
     }
   }

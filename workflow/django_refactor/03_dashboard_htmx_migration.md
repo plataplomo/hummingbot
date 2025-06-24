@@ -14,7 +14,7 @@ class RealTimeDashboard:
         self.app = dash.Dash(__name__)  # Creates React app
         self.setup_layout()             # Defines React components
         self.setup_callbacks()          # React-style callbacks
-    
+
     def setup_callbacks(self):
         @app.callback(
             Output('performance-chart', 'figure'),
@@ -89,12 +89,12 @@ dashboard/
     <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
 </head>
 <body>
-    <div id="main-container" 
+    <div id="main-container"
          hx-ws="connect:/ws/dashboard/"
          hx-trigger="load">
         {% block content %}{% endblock %}
     </div>
-    
+
     <!-- Global error handling -->
     <div id="error-toast" class="toast" style="display: none;"></div>
 </body>
@@ -123,13 +123,13 @@ def update_performance_chart(strategies, time_range):
 def performance_chart(request):
     strategies = request.GET.getlist('strategies')
     time_range = request.GET.get('time_range', '1d')
-    
+
     data = get_performance_data(strategies, time_range)
-    
+
     # Create Plotly figure server-side
     fig = create_performance_figure(data)
     chart_json = fig.to_json()
-    
+
     return render(request, 'dashboard/components/performance_chart.html', {
         'chart_json': chart_json,
         'strategies': strategies,
@@ -141,20 +141,20 @@ def performance_chart(request):
 <!-- templates/dashboard/components/performance_chart.html -->
 <div id="performance-chart-container" class="chart-container">
     <div class="chart-controls">
-        <select name="strategies" 
+        <select name="strategies"
                 multiple
                 hx-get="{% url 'dashboard:performance_chart' %}"
                 hx-target="#performance-chart-container"
                 hx-trigger="change"
                 hx-include="[name='time_range']">
             {% for strategy in available_strategies %}
-                <option value="{{ strategy.id }}" 
+                <option value="{{ strategy.id }}"
                         {% if strategy.id in strategies %}selected{% endif %}>
                     {{ strategy.name }}
                 </option>
             {% endfor %}
         </select>
-        
+
         <select name="time_range"
                 hx-get="{% url 'dashboard:performance_chart' %}"
                 hx-target="#performance-chart-container"
@@ -165,9 +165,9 @@ def performance_chart(request):
             <option value="1w" {% if time_range == '1w' %}selected{% endif %}>1 Week</option>
         </select>
     </div>
-    
+
     <div id="performance-chart"></div>
-    
+
     <script>
         // Render Plotly chart
         Plotly.newPlot('performance-chart', {{ chart_json|safe }});
@@ -184,7 +184,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.channel_layer.group_add("dashboard", self.channel_name)
         await self.accept()
-    
+
     async def metrics_update(self, event):
         """Send metrics update to client"""
         await self.send(text_data=json.dumps({
@@ -206,7 +206,7 @@ def update_dashboard_metrics():
     html = render_to_string('dashboard/partials/metrics_row.html', {
         'metrics': metrics
     })
-    
+
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)("dashboard", {
         "type": "metrics_update",
@@ -216,7 +216,7 @@ def update_dashboard_metrics():
 
 ```html
 <!-- templates/dashboard/components/metrics_table.html -->
-<div id="metrics-table" 
+<div id="metrics-table"
      hx-ws="connect:/ws/dashboard/"
      class="metrics-container">
     <table class="table">
@@ -257,7 +257,7 @@ def update_dashboard_metrics():
 def funding_heatmap(request):
     time_range = request.GET.get('time_range', '24h')
     funding_data = get_funding_rates_matrix(time_range)
-    
+
     return render(request, 'dashboard/components/funding_heatmap.html', {
         'funding_data': funding_data,
         'time_range': time_range
@@ -266,10 +266,10 @@ def funding_heatmap(request):
 
 ```html
 <!-- templates/dashboard/components/funding_heatmap.html -->
-<div id="funding-heatmap" 
+<div id="funding-heatmap"
      x-data="fundingHeatmap()"
      class="heatmap-container">
-    
+
     <div class="heatmap-controls">
         <button x-on:click="timeRange = '1h'; updateHeatmap()"
                 :class="timeRange === '1h' ? 'active' : ''"
@@ -281,22 +281,22 @@ def funding_heatmap(request):
                 :class="timeRange === '7d' ? 'active' : ''"
                 class="btn">7D</button>
     </div>
-    
+
     <div id="heatmap-chart"></div>
-    
+
     <script>
         function fundingHeatmap() {
             return {
                 timeRange: '{{ time_range }}',
                 updateHeatmap() {
-                    htmx.ajax('GET', 
+                    htmx.ajax('GET',
                         `{% url 'dashboard:funding_heatmap' %}?time_range=${this.timeRange}`,
                         {target: '#funding-heatmap'}
                     );
                 }
             }
         }
-        
+
         // Initial chart render
         const fundingData = {{ funding_data|safe }};
         Plotly.newPlot('heatmap-chart', [{
@@ -317,9 +317,9 @@ def funding_heatmap(request):
 def trade_analysis(request):
     page = int(request.GET.get('page', 1))
     strategy = request.GET.get('strategy')
-    
+
     trades = get_trades_paginated(page=page, strategy=strategy, per_page=50)
-    
+
     if request.headers.get('HX-Request'):
         # HTMX request - return only new rows
         return render(request, 'dashboard/partials/trade_rows.html', {
@@ -348,7 +348,7 @@ def trade_analysis(request):
             {% endfor %}
         </select>
     </div>
-    
+
     <table class="table">
         <thead>
             <tr>
@@ -365,7 +365,7 @@ def trade_analysis(request):
             {% include 'dashboard/partials/trade_rows.html' %}
         </tbody>
     </table>
-    
+
     <!-- Infinite scroll trigger -->
     <div hx-get="{% url 'dashboard:trade_analysis' %}?page={{ page|add:1 }}"
          hx-target="#trade-tbody"
@@ -393,14 +393,14 @@ class DashboardConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.channel_layer.group_add("dashboard_updates", self.channel_name)
         await self.accept()
-    
+
     async def trade_update(self, event):
         """Handle new trade notifications"""
         await self.send(text_data=json.dumps({
             'type': 'trade_update',
             'trade': event['trade_data']
         }))
-    
+
     async def metrics_update(self, event):
         """Handle metrics updates"""
         await self.send(text_data=json.dumps({
@@ -434,19 +434,19 @@ def broadcast_metrics_update():
 <script>
 document.body.addEventListener('htmx:wsAfterMessage', function(event) {
     const data = JSON.parse(event.detail.message);
-    
+
     switch(data.type) {
         case 'trade_update':
             // Add new trade row to table
             const tradeRow = createTradeRow(data.trade);
             document.getElementById('trade-tbody').prepend(tradeRow);
             break;
-            
+
         case 'metrics_update':
             // Update metrics display
             updateMetricsDisplay(data.metrics);
             break;
-            
+
         case 'funding_update':
             // Update funding rate heatmap
             updateFundingHeatmap(data.funding_rates);
@@ -497,14 +497,14 @@ from django.core.cache import cache
 def performance_chart(request):
     cache_key = f"perf_chart_{request.GET.urlencode()}"
     cached_data = cache.get(cache_key)
-    
+
     if cached_data:
         return cached_data
-    
+
     # Generate chart data
     data = expensive_chart_calculation()
     response = render(request, 'chart.html', {'data': data})
-    
+
     cache.set(cache_key, response, 60)
     return response
 ```
@@ -517,7 +517,7 @@ def get_dashboard_metrics():
     return Strategy.objects.select_related('current_performance')\
         .prefetch_related('recent_trades')\
         .annotate(
-            daily_pnl=Sum('trades__pnl', 
+            daily_pnl=Sum('trades__pnl',
                 filter=Q(trades__created_at__gte=timezone.now() - timedelta(days=1))),
             total_trades=Count('trades')
         )
@@ -530,10 +530,10 @@ def get_dashboard_metrics():
 # apps/bridge/core_commands.py
 class CoreCommandService:
     """Send commands to core engine from dashboard"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
-        
+
     async def start_strategy(self, strategy_id: str, user: User):
         """Send start command to core engine"""
         command = {
@@ -542,10 +542,10 @@ class CoreCommandService:
             'user_id': user.id,
             'timestamp': timezone.now().isoformat()
         }
-        
+
         # Send command via Redis pub/sub
         self.redis_client.publish('core_commands', json.dumps(command))
-        
+
         # Log command for audit
         CommandLog.objects.create(
             user=user,
@@ -553,7 +553,7 @@ class CoreCommandService:
             payload=command,
             status='sent'
         )
-        
+
     async def stop_strategy(self, strategy_id: str, user: User):
         """Send stop command to core engine"""
         command = {
@@ -562,7 +562,7 @@ class CoreCommandService:
             'user_id': user.id,
             'timestamp': timezone.now().isoformat()
         }
-        
+
         self.redis_client.publish('core_commands', json.dumps(command))
 
 # Dashboard views using the bridge
@@ -570,14 +570,14 @@ class StrategyControlView(View):
     def post(self, request, strategy_id):
         action = request.POST.get('action')
         command_service = CoreCommandService()
-        
+
         if action == 'start':
             asyncio.run(command_service.start_strategy(strategy_id, request.user))
             messages.success(request, "Strategy start command sent")
         elif action == 'stop':
             asyncio.run(command_service.stop_strategy(strategy_id, request.user))
             messages.success(request, "Strategy stop command sent")
-            
+
         return redirect('dashboard:strategies')
 ```
 

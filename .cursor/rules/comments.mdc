@@ -32,4 +32,3 @@ alwaysApply: true # This is a fundamental requirement
     *   **Update or remove** comments/docstrings that become incorrect or obsolete due to refactoring or logic changes. Document significant removals in commit messages or workflow logs if necessary.
 
 5.  **Rationale:** High-quality code-level documentation is essential for understanding, maintaining, debugging, and safely extending the codebase, especially in a complex, asynchronous system like a trading bot. It directly aids both human developers and AI assistants.
-

@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
 ---
@@ -30,4 +30,3 @@ alwaysApply: true # Guideline for documenting significant items
     *   **Review Periodically:** Briefly review recent workflow docs to ensure consistency and consolidate related information if needed. Archive outdated planning documents clearly.
 
 5.  **Rationale:** Rigorous code-level documentation combined with *focused* workflow documentation on *significant* items creates a balanced approach. It ensures code is understandable directly, while preserving the critical context and rationale behind major architectural and strategic decisions without creating an unmanageable documentation burden.
-

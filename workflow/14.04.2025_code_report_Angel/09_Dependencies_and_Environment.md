@@ -35,7 +35,7 @@
 
 5. **Improvements from Original Review**:
    - ✓ Dependencies now in pyproject.toml (modern standard)
-   - ✓ Clear separation of dev/test/runtime dependencies  
+   - ✓ Clear separation of dev/test/runtime dependencies
    - ✓ All dependencies have specific versions pinned
    - ❌ matplotlib still in runtime deps (should be optional)
 

@@ -54,11 +54,11 @@ The implementation MUST maintain complete exchange agnosticism at the public API
 class BackpackRawCollateralResponse(BaseModel):
     """IMPLEMENTED: Maps to OpenAPI MarginAccountSummary schema"""
     # All 13 required fields implemented with proper validation
-    
+
 class BackpackRawCollateralAsset(BaseModel):
     """IMPLEMENTED: Per-asset collateral breakdown"""
     # All 8 asset fields implemented
-    
+
 class BackpackRawCollateralQueryParams(BaseModel):
     """IMPLEMENTED: Query parameters with subaccount support"""
     # Subaccount validation (uint16, 0-65535) implemented
@@ -200,7 +200,7 @@ def handle_collateral_response(raw_data: ParsedJsonResponse) -> BackpackRawColla
 # In BackpackAPI
 async def get_account_summary(self, subaccount_id: int | None = None) -> MarginAccountSummary:
     """
-    Gets comprehensive account margin information. Subaccount ID is a 
+    Gets comprehensive account margin information. Subaccount ID is a
     Backpack-specific enhancement not present in the base ExchangeAPI interface.
     """
     return await self.account_service.get_account_summary(subaccount_id=subaccount_id)
@@ -218,18 +218,18 @@ sequenceDiagram
     participant Collateral as /capital/collateral
     participant Basic as Basic Endpoints
     participant Mapper
-    
+
     User->>API: get_account_summary()
     API->>Service: get_account_summary()
-    
+
     Service->>Service: _get_enhanced_account_info()
-    
+
     par Fetch Enhanced Data
         Service->>Collateral: GET /api/v1/capital/collateral
         and
         Service->>Basic: GET /api/v1/account
     end
-    
+
     alt Collateral Endpoint Available
         Collateral-->>Service: Rich margin data
         Service->>Mapper: transform_enhanced_account_data()
@@ -241,7 +241,7 @@ sequenceDiagram
         Service->>Mapper: transform_basic_account_data()
         Mapper-->>Service: MarginAccountSummary + basic bp_details
     end
-    
+
     Service-->>API: MarginAccountSummary
     API-->>User: MarginAccountSummary
 ```
@@ -296,11 +296,11 @@ The three Backpack account limits endpoints (`/api/v1/account/limits/*`) have be
 class BackpackRawMaxBorrowQuantity(BaseModel):
     """IMPLEMENTED: Max borrow quantity response"""
     # Validated with proper field constraints
-    
+
 class BackpackRawMaxOrderQuantity(BaseModel):
     """IMPLEMENTED: Max order quantity response"""
     # All optional fields properly handled
-    
+
 class BackpackRawMaxWithdrawalQuantity(BaseModel):
     """IMPLEMENTED: Max withdrawal quantity response"""
     # Complete validation implemented
@@ -434,7 +434,7 @@ async def _get_exchange_max_borrow_quantity(self, args: GetMaxBorrowQuantityArgs
 async def _get_exchange_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
     """IMPLEMENTED: Fetches max order quantity from exchange for validation."""
     # Complete implementation with OrderSide conversion
-    
+
 async def _get_exchange_max_withdrawal_quantity(self, args: GetMaxWithdrawalQuantityArgs) -> Decimal:
     """IMPLEMENTED: Fetches max withdrawal quantity from exchange for validation."""
     # Complete implementation ready for production use
@@ -458,18 +458,18 @@ sequenceDiagram
     participant RiskManager as InternalRiskManager
     participant Service as BackpackAccountService
     participant Exchange as Backpack API
-    
+
     loop Every 5 minutes
         Reconciler->>RiskManager: calculate_max_order_size_local()
         RiskManager-->>Reconciler: internal_max_size
-        
+
         Reconciler->>Service: _get_exchange_max_order_quantity(args)
         Service->>Exchange: GET /api/v1/account/limits/order
         Exchange-->>Service: exchange_max_size
         Service-->>Reconciler: exchange_max_size
-        
+
         Reconciler->>Reconciler: compare(internal_max_size, exchange_max_size)
-        
+
         alt Discrepancy Found
             Reconciler->>Reconciler: Log CRITICAL Alert
             Reconciler->>Reconciler: Trip RiskDiscrepancyBreaker

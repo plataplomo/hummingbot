@@ -21,7 +21,7 @@ The codebase has made substantial improvements in secure coding practices, with 
     *   Uses standard `json.loads` / `aiohttp.ClientSession.json()` for API communication. While lacking validation (See Report Part 1), the deserialization itself doesn't introduce code execution risks like `pickle` would.
 
 3.  **Logging Practices (Improved):**
-    *   **Configuration (`logging_config.py`):** 
+    *   **Configuration (`logging_config.py`):**
         *   Centralized configuration with proper validation
         *   Module-specific log level configuration support
         *   Pydantic `Literal` types for log level validation
@@ -61,7 +61,7 @@ The codebase has made substantial improvements in secure coding practices, with 
         *   Explicit review flag: `#[CAST-REVIEW-REQUIRED]`
     *   **Comprehensive Validation:** All external inputs validated through Pydantic models
     *   **Error Handling:** Improved with proper exception types and context
-    
+
 6.  **Additional Security Enhancements:**
     *   **Hostile Input Assumption:** All external input treated as potentially malicious
     *   **Secure Authentication:** ED25519 for Backpack, EIP-712 for Hyperliquid
@@ -96,7 +96,7 @@ The codebase has made substantial improvements in secure coding practices, with 
     class ApiKeyAuthSecrets(BaseExchangeSecrets):
         api_key: SecretStr = Field(..., description="API key")
         api_secret: SecretStr = Field(..., description="API secret")
-        
+
         @field_validator("api_key", "api_secret")
         @classmethod
         def validate_not_empty(cls, v: SecretStr) -> SecretStr:
@@ -111,12 +111,12 @@ The codebase has made substantial improvements in secure coding practices, with 
     *   Complete prohibition of type silencing (`# type: ignore`, `# noqa`)
     *   Strict casting controls with mandatory runtime checks
     *   Comprehensive Pydantic validation for all external data
-    
+
 *   **Enhanced Logging Security:**
     *   SecretStr integration prevents accidental exposure
     *   Improved DEBUG logging that doesn't expose sensitive values
     *   Centralized configuration with validation
-    
+
 *   **Dependency Updates:**
     *   Recent versions of critical security libraries
     *   Security-focused linting and type checking

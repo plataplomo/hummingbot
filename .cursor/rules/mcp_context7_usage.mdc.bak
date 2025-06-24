@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
 # Rule Name: context7_usage
@@ -10,28 +10,28 @@ All team members and AI assistants must leverage the Context7 MCP endpoint for a
 
 ## Enforcement
 
-- **How to Use:**  
+- **How to Use:**
   When asking a question (in chat, documentation, or code review), simply add the phrase:
-  
+
       use context7
-  
+
   to your question or prompt. This signals the assistant to route the query through the Context7 MCP for enhanced, relevant, and up-to-date answers.
 
-- **Scope:**  
+- **Scope:**
   This applies to:
   - All technical questions about code, APIs, or architecture
   - Requests for best practices, code samples, or troubleshooting
   - Any scenario where contextually accurate information is critical
 
-- **Rationale:**  
+- **Rationale:**
   Context7 MCP provides more precise, contextually relevant answers by leveraging advanced retrieval and context-matching. This reduces ambiguity and increases the reliability of AI-assisted responses.
 
 ## Example
 
-- **Good:**  
+- **Good:**
   > How do I implement a rate limiter in this project? use context7
 
-- **Bad:**  
+- **Bad:**
   > How do I implement a rate limiter in this project?
 
 ## Workflow

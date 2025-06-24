@@ -67,26 +67,26 @@ Since the June 2025 update, authentication implementations have been further ref
 
 *   **Backpack ED25519 Authentication (`cyberdelta/apis/backpack/bp_auth.py`):**
     ```python
-    def _prepare_signature_payload(self, instruction: str, timestamp: str, 
+    def _prepare_signature_payload(self, instruction: str, timestamp: str,
                                  window: str, params: dict[str, Any] | None) -> str:
         # Enhanced boolean handling for signature consistency
         def serialize_value(value: Any) -> str:
             if isinstance(value, bool):
                 return str(value).lower()  # "true" or "false"
             return str(value)
-        
+
         # Build payload with proper parameter ordering
         payload_parts = [instruction, timestamp, window]
-        
+
         if params:
             # Sort parameters for consistent signature generation
             sorted_params = sorted(params.items())
             for key, value in sorted_params:
                 if value is not None:
                     payload_parts.append(f"{key}={serialize_value(value)}")
-        
+
         payload = "&".join(payload_parts)
-        
+
         # Sign with ED25519 private key
         private_key = ed25519.Ed25519PrivateKey.from_private_bytes(
             base64.b64decode(self._private_key.get_secret_value())
@@ -101,14 +101,14 @@ Since the June 2025 update, authentication implementations have been further ref
         # Generate action hash for request binding
         action_bytes = msgpack.packb(action)
         action_hash = keccak(action_bytes)
-        
+
         # Construct EIP-712 message with request integrity
         message = {
             "source": self._get_source_code(),  # Environment-specific
             "connectionId": action_hash,        # Request-specific
             "timestamp": timestamp             # Replay protection
         }
-        
+
         # EIP-712 structured data
         structured_data = {
             "types": {
@@ -128,7 +128,7 @@ Since the June 2025 update, authentication implementations have been further ref
             "domain": self._get_domain(),
             "message": message,
         }
-        
+
         # Sign with proper EIP-712 encoding
         signable_message = encode_typed_data(structured_data)
         signed_message = self._account.sign_message(signable_message)

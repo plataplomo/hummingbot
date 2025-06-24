@@ -169,7 +169,7 @@ django_wrapper/
 - Implement process management for core engine
 - Set up PostgreSQL + TimescaleDB
 
-### Phase 2: Data Persistence (Week 2-3)  
+### Phase 2: Data Persistence (Week 2-3)
 - Create Django models mirroring core models
 - Implement background sync from core to database
 - Set up data retention policies
@@ -234,7 +234,7 @@ django_wrapper/
 - Service bridge implementation
 - Basic process management
 
-### Week 3-5: Core Features  
+### Week 3-5: Core Features
 - Database persistence layer
 - HTMX dashboard
 - User authentication

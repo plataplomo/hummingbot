@@ -107,7 +107,7 @@ cyberdelta/strategies/
 └── funding_rate_arbitrage.py  # ✅ KEEP - Working strategy implementation
 ```
 
-**Why Preserve**: 
+**Why Preserve**:
 - Proven profitable trading logic
 - Sophisticated arbitrage detection
 - Risk-aware position sizing
@@ -161,12 +161,12 @@ cyberdelta/monitoring/
 ├── real_time_dashboard.py     # ❌ REPLACE - Dash/React complexity (but functional)
 ├── dashboard_integration.py   # ❌ REPLACE - Dash-specific integration
 ├── performance_metrics.py     # 🔄 ADAPT - Keep logic, new interface
-├── performance_tracker.py     # 🔄 ADAPT - Keep logic, new interface  
+├── performance_tracker.py     # 🔄 ADAPT - Keep logic, new interface
 ├── simplified_performance_tracker.py # 🔄 ADAPT - Lightweight alternative
 └── persistence.py             # 🔄 ADAPT - Currently file-based, needs database
 ```
 
-**Why Replace**: 
+**Why Replace**:
 - Dash introduces React/webpack complexity
 - Bundle size issues (200MB+ dependencies)
 - Limited customization capabilities
@@ -188,7 +188,7 @@ cyberdelta/monitoring/
 main.py                        # ❌ REPLACE - Monolithic entry point
 ```
 
-**Why Replace**: 
+**Why Replace**:
 - Single process architecture limits scaling
 - All components coupled in one process
 - Difficult to deploy independently

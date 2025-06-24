@@ -72,10 +72,10 @@ execution_handler._add_to_history(exec2)
 ```python
 class TestableExecutionHandler(ExecutionHandler):
     """Test subclass that exposes protected methods."""
-    
+
     async def test_place_order_with_retry(self, *args, **kwargs):
         return await self._place_order_with_retry(*args, **kwargs)
-    
+
     async def test_get_order_status(self, *args, **kwargs):
         return await self._get_order_status(*args, **kwargs)
 ```
@@ -86,17 +86,17 @@ class TestableExecutionHandler(ExecutionHandler):
 class ExecutionHandler:
     def __init__(self, testing_mode=False):
         self._testing_mode = testing_mode
-    
+
     @property
     def test_interface(self):
         if not self._testing_mode:
             raise RuntimeError("Test interface only available in testing mode")
         return self._TestInterface(self)
-    
+
     class _TestInterface:
         def __init__(self, handler):
             self._handler = handler
-        
+
         async def place_order_with_retry(self, *args, **kwargs):
             return await self._handler._place_order_with_retry(*args, **kwargs)
 ```
@@ -119,12 +119,12 @@ class SymbolMapper:
     def has_exchange(self, exchange: str) -> bool:
         """Check if exchange is registered."""
         return exchange in self._exchange_to_internal
-    
+
     def has_symbol_mapping(self, exchange: str, symbol: str) -> bool:
         """Check if a specific symbol mapping exists."""
-        return (exchange in self._exchange_to_internal and 
+        return (exchange in self._exchange_to_internal and
                 symbol in self._exchange_to_internal[exchange])
-    
+
     def get_mapped_exchanges(self) -> list[str]:
         """Get list of all mapped exchanges."""
         return list(self._exchange_to_internal.keys())
@@ -175,7 +175,7 @@ from cyberdelta.core.execution_handler import ExecutionHandler
 
 class TestableExecutionHandler(ExecutionHandler):
     """ExecutionHandler with exposed internals for testing."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Expose internal methods with test_ prefix

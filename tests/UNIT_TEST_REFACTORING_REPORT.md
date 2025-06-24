@@ -66,7 +66,7 @@ Should be moved to `/tests/integration/apis/connectivity/`
   - `_get_order_status()` - lines 390, 409
   - `_compensate_position()` - lines 502, 584, 1137
   - `_add_to_history()` - lines 1223-1224
-- **Recommendation**: 
+- **Recommendation**:
   - Create public test helper methods or use dependency injection
   - Consider making these methods public if they're part of the testing interface
 
@@ -105,10 +105,10 @@ Should be moved to `/tests/integration/apis/connectivity/`
 1. For `test_execution_handler.py`:
    - Create a test-specific subclass that exposes protected methods
    - Or add a testing mode that makes these methods accessible
-   
+
 2. For `test_symbol_mapper.py`:
    - Add public methods like `has_exchange_mapping()` and `has_internal_mapping()`
-   
+
 3. For `test_exchange_api.py`:
    - Use constructor injection or public properties
 

@@ -113,10 +113,10 @@ assert quantity_matches_within_exchange_limits(actual, expected, exchange_precis
 **❌ NEVER DO THIS:**
 ```python
 # DANGEROUS - Market hours assumptions
-if datetime.now().hour < 9:  # 💀 Markets closed? 
+if datetime.now().hour < 9:  # 💀 Markets closed?
     pytest.skip("Market closed")  # Wrong timezone? Different exchange hours?
 
-# DANGEROUS - Weekend assumptions  
+# DANGEROUS - Weekend assumptions
 if datetime.now().weekday() > 4:  # 💀 Crypto trades 24/7!
     pytest.skip("Weekend")
 
@@ -178,9 +178,9 @@ if pnl.quantize(Decimal("0.01")) == Decimal("0"):  # Round to cents
 @mock.patch('api.place_order')
 def test_trading_strategy(mock_place_order):
     mock_place_order.return_value = fake_order  # 💀 Not testing real API!
-    
+
 # DANGEROUS - Mocking balance checks
-@mock.patch('api.get_balances') 
+@mock.patch('api.get_balances')
 def test_position_sizing(mock_balances):
     mock_balances.return_value = {"USDC": Decimal("1000")}  # 💀 Fake money!
 
@@ -197,7 +197,7 @@ def test_arbitrage(mock_ticker):
 async def test_trading_strategy_integration():
     # Uses real API calls, recorded for reproducibility
     real_order = await api.place_order(args)  # Real exchange response
-    
+
 # SAFE - Unit tests only for non-financial logic
 def test_strategy_signal_calculation():
     # Test pure calculation logic, not API interactions
@@ -246,7 +246,7 @@ balance_key = get_balance_key_for_exchange(asset, exchange_name)
 order_time = datetime.now()  # 💀 Local timezone!
 if order_time > market_close:  # 💀 Which timezone? Daylight saving?
 
-# DANGEROUS - Hardcoded timezone assumptions  
+# DANGEROUS - Hardcoded timezone assumptions
 utc_time = datetime.utcnow()  # 💀 UTC is not always exchange timezone
 ny_time = utc_time - timedelta(hours=5)  # 💀 EST vs EDT?
 
@@ -279,7 +279,7 @@ order_time = datetime.fromisoformat(timestamp_with_tz)
 ```python
 # DANGEROUS - Assuming order sequence
 order1 = await api.place_order(args1)
-order2 = await api.place_order(args2)  
+order2 = await api.place_order(args2)
 assert order1.timestamp < order2.timestamp  # 💀 Race condition!
 
 # DANGEROUS - Assuming immediate updates
@@ -411,7 +411,7 @@ except Exception as e:
 quantity = Decimal("1.123456789")
 rounded = round(quantity, 2)  # 💀 Python's round() uses banker's rounding!
 
-# DANGEROUS - Silent truncation  
+# DANGEROUS - Silent truncation
 price_str = f"{price:.2f}"  # 💀 Truncates, doesn't round!
 truncated_price = Decimal(price_str)
 
@@ -438,7 +438,7 @@ final_amount = amount.quantize(precision, rounding=rounding_mode)
 ```python
 # DANGEROUS - Unchecked multiplication
 huge_price = Decimal("1000000")
-huge_quantity = Decimal("1000000") 
+huge_quantity = Decimal("1000000")
 notional = huge_price * huge_quantity  # 💀 Could overflow system limits
 
 # DANGEROUS - Division by very small numbers
@@ -457,7 +457,7 @@ if huge_price * huge_quantity > MAX_NOTIONAL:
     pytest.fail(f"Notional {notional} exceeds safety limit {MAX_NOTIONAL}")
 
 # SAFE - Minimum value checks
-MIN_PRICE = Decimal("0.000001")  
+MIN_PRICE = Decimal("0.000001")
 if price < MIN_PRICE:
     pytest.fail(f"Price {price} below minimum {MIN_PRICE}")
 ```
@@ -474,7 +474,7 @@ if cached_price:
     order_size = calculate_size(cached_price)
 
 # DANGEROUS - Assuming balance is current
-balance = await api.get_balance("USDC") 
+balance = await api.get_balance("USDC")
 time.sleep(60)  # 💀 Other processes might have traded!
 order = await api.place_order(args_based_on_old_balance)
 
@@ -505,16 +505,16 @@ if data_age > timedelta(seconds=10):
 async def dangerous_concurrent():
     balance_task = asyncio.create_task(api.get_balance("USDC"))
     price_task = asyncio.create_task(api.get_ticker(symbol))
-    
+
     balance = await balance_task  # 💀 Which completes first?
     price = await price_task      # 💀 Order not guaranteed!
-    
+
     # Using potentially inconsistent data
     order_size = calculate_size(balance, price)
 
 # DANGEROUS - Assuming sequential fills
 order1 = await api.place_order(args1)  # 💀 Market order
-order2 = await api.place_order(args2)  # 💀 Market order  
+order2 = await api.place_order(args2)  # 💀 Market order
 # Assuming order1 filled before order2 placed - NOT GUARANTEED!
 ```
 
@@ -529,7 +529,7 @@ async def safe_data_gathering():
         api.get_ticker(symbol)
     )
     end_time = datetime.now()
-    
+
     # Verify data consistency
     if end_time - start_time > timedelta(seconds=1):
         pytest.fail("Data gathering took too long, may be inconsistent")
@@ -564,7 +564,7 @@ def get_normalized_balance(balances: dict, target_currency: str):
 # SAFE - Explicit conversion when needed
 usd_equivalent = await convert_currency(
     amount=balance_usdc,
-    from_currency="USDC", 
+    from_currency="USDC",
     to_currency="USD",
     exchange=api
 )
@@ -664,7 +664,7 @@ def handle_price_update(data):
 # SAFE - Validate external data against multiple sources
 prices = await asyncio.gather(
     api1.get_price(symbol),
-    api2.get_price(symbol), 
+    api2.get_price(symbol),
     api3.get_price(symbol)
 )
 
@@ -741,7 +741,7 @@ Before committing any integration test, verify:
 ```bash
 # These patterns automatically fail CI:
 grep -r "Decimal.*[0-9]" tests/integration/           # Hardcoded decimals
-grep -r "logger.*failed.*expected" tests/            # Graceful logging  
+grep -r "logger.*failed.*expected" tests/            # Graceful logging
 grep -r "pytest.xfail" tests/integration/            # Hidden failures
 grep -r "float.*price\|price.*float" tests/          # Float prices
 grep -r "time\.sleep" tests/integration/             # Fixed delays
@@ -757,7 +757,7 @@ grep -r "mock.*place_order\|mock.*get_balance" tests/ # Mocked financials
 ```python
 # Add to pre-commit hooks:
 # 1. Pylint rules for trading safety
-# 2. mypy strict mode for Decimal types  
+# 2. mypy strict mode for Decimal types
 # 3. bandit security scanning
 # 4. Custom AST analyzer for financial patterns
 
@@ -790,7 +790,7 @@ def check_hardcoded_values(node):
 - **Race conditions**: Check balance, other process trades, place order → Overdraft
 - **Time zone error**: Think market closed, it's actually open → Missed opportunities
 
-### **Scale Disasters:**  
+### **Scale Disasters:**
 - **Hardcoded $150** → Real market price $15,000 → **100x loss**
 - **Wrong decimal places**: Order 1000 BTC instead of 1.000 BTC → **1000x loss**
 - **Overflow**: Large leverage calculation → Position bigger than intended

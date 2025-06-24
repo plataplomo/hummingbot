@@ -113,7 +113,7 @@ class TradingAdapter:
         # Use existing components without modification
         self.engine = Engine(name="API_Wrapper")
         self.performance_tracker = PerformanceTracker()
-    
+
     async def get_performance(self):
         # Call existing methods - zero changes to logic
         return await self.performance_tracker.get_current_metrics()

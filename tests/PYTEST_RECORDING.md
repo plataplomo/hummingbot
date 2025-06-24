@@ -33,7 +33,7 @@ tests/cassettes/
 1. **`vcr_config`** (`tests/integration/conftest.py`): Provides base VCR configuration including request/response filtering, security filtering, and recording settings.
 
 2. **`vcr_cassette_dir`** (`tests/integration/conftest.py`): Determines where cassette files are saved. This fixture:
-   - Checks for `custom_vcr_cassette_dir` parametrization 
+   - Checks for `custom_vcr_cassette_dir` parametrization
    - Creates organized directory paths from test parameters
    - Falls back to module-based directory structure
 
@@ -125,7 +125,7 @@ Recording behavior can be controlled via environment variable:
 # Record new cassettes (default)
 VCR_RECORD_MODE=once pytest tests/integration/apis/
 
-# Always record (overwrite existing cassettes)  
+# Always record (overwrite existing cassettes)
 VCR_RECORD_MODE=new_episodes pytest tests/integration/apis/
 
 # Never record (use existing cassettes only)

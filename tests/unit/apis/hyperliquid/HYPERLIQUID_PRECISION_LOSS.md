@@ -135,7 +135,7 @@ Implement maximum position size limits to prevent precision-loss scenarios.
 
 ### Affected Code Paths
 1. **Order validation**: All price/size fields
-2. **Position parsing**: Account state processing  
+2. **Position parsing**: Account state processing
 3. **Trade history**: Fill amount processing
 4. **Balance calculations**: Asset quantity parsing
 
@@ -147,7 +147,7 @@ This is a **fundamental architectural flaw** in Hyperliquid's design. The SDK pr
 
 ---
 
-**Date**: 2025-06-21  
-**Author**: Claude Code Analysis  
-**Impact**: HIGH - Silent financial precision loss  
+**Date**: 2025-06-21
+**Author**: Claude Code Analysis
+**Impact**: HIGH - Silent financial precision loss
 **Status**: PERMANENT (cannot be fixed due to signature compatibility)

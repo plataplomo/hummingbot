@@ -9,7 +9,7 @@ After fixing the signing issues, we needed to properly separate Hyperliquid's `/
 
 #### **Public (/info) Endpoint Tests** - Read Operations
 - `test_hl_account_summary.py` - MarginAccountSummary read operations
-- `test_hl_balances.py` - SpotBalance read operations  
+- `test_hl_balances.py` - SpotBalance read operations
 - `test_hl_positions.py` - DerivativePosition read operations
 - `test_hl_orders.py` - Order read operations only:
   - `get_order_by_id`
@@ -31,7 +31,7 @@ After fixing the signing issues, we needed to properly separate Hyperliquid's `/
 - **Purpose**: All read operations, including private account data
 - **Examples**: balances, positions, account summary, order history
 
-#### **/exchange Endpoints (Signed)**  
+#### **/exchange Endpoints (Signed)**
 - **Authentication**: EIP-712 cryptographic signatures
 - **Signing**: ALWAYS signed
 - **Purpose**: All state-changing operations

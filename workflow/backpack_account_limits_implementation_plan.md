@@ -145,10 +145,10 @@ from .bp_common_raw_types import (
 
 class BackpackRawMaxBorrowQuantity(BaseModel):
     """Raw response from /api/v1/account/limits/borrow endpoint."""
-    
+
     max_borrow_quantity: RawBpStringToFiniteDecimal = Field(..., alias="maxBorrowQuantity")
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    
+
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
@@ -159,7 +159,7 @@ class BackpackRawMaxBorrowQuantity(BaseModel):
 
 class BackpackRawMaxOrderQuantity(BaseModel):
     """Raw response from /api/v1/account/limits/order endpoint."""
-    
+
     auto_borrow: RawBpOptionalStrictBool = Field(None, alias="autoBorrow")
     auto_borrow_repay: RawBpOptionalStrictBool = Field(None, alias="autoBorrowRepay")
     auto_lend_redeem: RawBpOptionalStrictBool = Field(None, alias="autoLendRedeem")
@@ -168,7 +168,7 @@ class BackpackRawMaxOrderQuantity(BaseModel):
     reduce_only: RawBpOptionalStrictBool = Field(None, alias="reduceOnly")
     side: RawBpNonEmptyStringMax64 = Field(..., alias="side")  # "Bid" or "Ask"
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    
+
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
@@ -179,12 +179,12 @@ class BackpackRawMaxOrderQuantity(BaseModel):
 
 class BackpackRawMaxWithdrawalQuantity(BaseModel):
     """Raw response from /api/v1/account/limits/withdrawal endpoint."""
-    
+
     auto_borrow: RawBpOptionalStrictBool = Field(None, alias="autoBorrow")
     auto_lend_redeem: RawBpOptionalStrictBool = Field(None, alias="autoLendRedeem")
     max_withdrawal_quantity: RawBpStringToFiniteDecimal = Field(..., alias="maxWithdrawalQuantity")
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="symbol")
-    
+
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
@@ -200,15 +200,15 @@ class BackpackRawMaxWithdrawalQuantity(BaseModel):
 ```python
 class BackpackRawMaxBorrowQuantityParams(BaseModel):
     """Query parameters for max borrow quantity endpoint."""
-    
+
     symbol: str = Field(..., alias="symbol")
-    
+
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class BackpackRawMaxOrderQuantityParams(BaseModel):
     """Query parameters for max order quantity endpoint."""
-    
+
     symbol: str = Field(..., alias="symbol")
     side: str = Field(..., alias="side")  # "Bid" or "Ask"
     price: str | None = Field(default=None, alias="price")
@@ -216,17 +216,17 @@ class BackpackRawMaxOrderQuantityParams(BaseModel):
     auto_borrow: bool | None = Field(default=None, alias="autoBorrow")
     auto_borrow_repay: bool | None = Field(default=None, alias="autoBorrowRepay")
     auto_lend_redeem: bool | None = Field(default=None, alias="autoLendRedeem")
-    
+
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 class BackpackRawMaxWithdrawalQuantityParams(BaseModel):
     """Query parameters for max withdrawal quantity endpoint."""
-    
+
     symbol: str = Field(..., alias="symbol")
     auto_borrow: bool | None = Field(default=None, alias="autoBorrow")
     auto_lend_redeem: bool | None = Field(default=None, alias="autoLendRedeem")
-    
+
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 ```
 
@@ -239,11 +239,11 @@ class BackpackRawMaxWithdrawalQuantityParams(BaseModel):
 ```python
 class GetMaxBorrowQuantityArgs(BaseModel):
     """Arguments for getting maximum borrow quantity."""
-    
+
     symbol: str = Field(..., min_length=1, max_length=64)
-    
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    
+
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
@@ -252,7 +252,7 @@ class GetMaxBorrowQuantityArgs(BaseModel):
 
 class GetMaxOrderQuantityArgs(BaseModel):
     """Arguments for getting maximum order quantity."""
-    
+
     symbol: str = Field(..., min_length=1, max_length=64)
     side: OrderSide = Field(...)
     price: Decimal | None = Field(default=None, gt=Decimal("0"))
@@ -260,9 +260,9 @@ class GetMaxOrderQuantityArgs(BaseModel):
     auto_borrow: bool | None = Field(default=None)
     auto_borrow_repay: bool | None = Field(default=None)
     auto_lend_redeem: bool | None = Field(default=None)
-    
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    
+
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
@@ -271,13 +271,13 @@ class GetMaxOrderQuantityArgs(BaseModel):
 
 class GetMaxWithdrawalQuantityArgs(BaseModel):
     """Arguments for getting maximum withdrawal quantity."""
-    
+
     symbol: str = Field(..., min_length=1, max_length=64)
     auto_borrow: bool | None = Field(default=None)
     auto_lend_redeem: bool | None = Field(default=None)
-    
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    
+
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
@@ -293,7 +293,7 @@ class GetMaxWithdrawalQuantityArgs(BaseModel):
 ```python
 class BackpackRequestBuilder:
     # ... existing methods ...
-    
+
     @staticmethod
     def build_max_borrow_quantity_params(
         args: GetMaxBorrowQuantityArgs
@@ -302,16 +302,16 @@ class BackpackRequestBuilder:
         return BackpackRawMaxBorrowQuantityParams(
             symbol=args.symbol
         )
-    
+
     @staticmethod
     def build_max_order_quantity_params(
         args: GetMaxOrderQuantityArgs
     ) -> BackpackRawMaxOrderQuantityParams:
         """Build parameters for max order quantity endpoint."""
-        
+
         # Convert OrderSide enum to Backpack API format
         side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
-        
+
         return BackpackRawMaxOrderQuantityParams(
             symbol=args.symbol,
             side=side_str,
@@ -321,7 +321,7 @@ class BackpackRequestBuilder:
             auto_borrow_repay=args.auto_borrow_repay,
             auto_lend_redeem=args.auto_lend_redeem,
         )
-    
+
     @staticmethod
     def build_max_withdrawal_quantity_params(
         args: GetMaxWithdrawalQuantityArgs
@@ -343,13 +343,13 @@ class BackpackRequestBuilder:
 ```python
 class BackpackResponseHandler:
     # ... existing methods ...
-    
+
     @staticmethod
     def handle_max_borrow_quantity_response(
         raw_data: ParsedJsonResponse
     ) -> BackpackRawMaxBorrowQuantity:
         """Handle max borrow quantity endpoint response."""
-        
+
         try:
             return BackpackRawMaxBorrowQuantity.model_validate(raw_data)
         except ValidationError as e:
@@ -360,13 +360,13 @@ class BackpackResponseHandler:
                 original_exception=e,
                 exchange_message=str(raw_data)
             ) from e
-    
+
     @staticmethod
     def handle_max_order_quantity_response(
         raw_data: ParsedJsonResponse
     ) -> BackpackRawMaxOrderQuantity:
         """Handle max order quantity endpoint response."""
-        
+
         try:
             return BackpackRawMaxOrderQuantity.model_validate(raw_data)
         except ValidationError as e:
@@ -377,13 +377,13 @@ class BackpackResponseHandler:
                 original_exception=e,
                 exchange_message=str(raw_data)
             ) from e
-    
+
     @staticmethod
     def handle_max_withdrawal_quantity_response(
         raw_data: ParsedJsonResponse
     ) -> BackpackRawMaxWithdrawalQuantity:
         """Handle max withdrawal quantity endpoint response."""
-        
+
         try:
             return BackpackRawMaxWithdrawalQuantity.model_validate(raw_data)
         except ValidationError as e:
@@ -405,25 +405,25 @@ class BackpackResponseHandler:
 ```python
 class BackpackAccountService:
     # ... existing methods ...
-    
+
     async def get_max_borrow_quantity(self, args: GetMaxBorrowQuantityArgs) -> Decimal:
         """Get maximum borrowable quantity for an asset."""
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_max_borrow_quantity"
-        
+
         raw_response_content: str | None = None
         status_code: int = 0
-        
+
         try:
             # Build request parameters
             endpoint_path = "/api/v1/account/limits/borrow"
             params = self._request_builder.build_max_borrow_quantity_params(args)
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Requesting max borrow quantity from {endpoint_path} "
                 f"with params: {params}",
             )
-            
+
             # Execute HTTP request
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
@@ -433,32 +433,32 @@ class BackpackAccountService:
                 endpoint_group="private",
                 request_weight=1,
             )
-            
+
             if raw_data is not None:
                 raw_response_content = str(raw_data)
-            
+
             logger.debug(
                 f"[{self._exchange_name}] Raw max borrow quantity response: {raw_data!r} "
                 f"(Status: {status_code})",
             )
-            
+
             if raw_data is None:
                 raise APIError(
                     message=f"No data received for max borrow quantity, status: {status_code}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
                     http_status=status_code,
                 )
-            
+
             # Handle response and transform
             raw_response = self._response_handler.handle_max_borrow_quantity_response(raw_data)
-            
+
             # Parse decimal value
             max_quantity = parse_decimal_value(
-                raw_response.max_borrow_quantity, 
-                field_name="max_borrow_quantity", 
+                raw_response.max_borrow_quantity,
+                field_name="max_borrow_quantity",
                 allow_none=False
             )
-            
+
             if max_quantity is None:
                 raise APIError(
                     message="Invalid max borrow quantity value in response",
@@ -466,10 +466,10 @@ class BackpackAccountService:
                     http_status=status_code,
                     exchange_message=raw_response_content,
                 )
-            
+
             logger.debug(f"[{self._exchange_name}] Max borrow quantity for {args.symbol}: {max_quantity}")
             return max_quantity
-            
+
         except APIError:
             raise
         except TransformationError as e:
@@ -511,45 +511,45 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
-    
+
     async def get_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
         """Get maximum order quantity for a trading pair."""
         # Similar implementation pattern as get_max_borrow_quantity
         # ... (implementation follows same error handling pattern)
-        
+
         endpoint_path = "/api/v1/account/limits/order"
         params = self._request_builder.build_max_order_quantity_params(args)
-        
+
         # ... HTTP request execution ...
-        
+
         raw_response = self._response_handler.handle_max_order_quantity_response(raw_data)
-        
+
         max_quantity = parse_decimal_value(
             raw_response.max_order_quantity,
             field_name="max_order_quantity",
             allow_none=False
         )
-        
+
         return max_quantity
-    
+
     async def get_max_withdrawal_quantity(self, args: GetMaxWithdrawalQuantityArgs) -> Decimal:
         """Get maximum withdrawal quantity for an asset."""
         # Similar implementation pattern as get_max_borrow_quantity
         # ... (implementation follows same error handling pattern)
-        
+
         endpoint_path = "/api/v1/account/limits/withdrawal"
         params = self._request_builder.build_max_withdrawal_quantity_params(args)
-        
+
         # ... HTTP request execution ...
-        
+
         raw_response = self._response_handler.handle_max_withdrawal_quantity_response(raw_data)
-        
+
         max_quantity = parse_decimal_value(
             raw_response.max_withdrawal_quantity,
             field_name="max_withdrawal_quantity",
             allow_none=False
         )
-        
+
         return max_quantity
 ```
 
@@ -562,22 +562,22 @@ class BackpackAccountService:
 ```python
 class BackpackAPI(ExchangeAPI):
     # ... existing methods ...
-    
+
     async def get_max_borrow_quantity(self, symbol: str) -> Decimal:
         """Get maximum borrowable quantity for an asset.
-        
+
         Args:
             symbol: Asset symbol (e.g., "BTC", "ETH", "USDC")
-            
+
         Returns:
             Maximum borrowable quantity as Decimal
-            
+
         Raises:
             APIError: If request fails or response is invalid
         """
         args = GetMaxBorrowQuantityArgs(symbol=symbol)
         return await self.account_service.get_max_borrow_quantity(args)
-    
+
     async def get_max_order_quantity(
         self,
         symbol: str,
@@ -589,19 +589,19 @@ class BackpackAPI(ExchangeAPI):
         auto_lend_redeem: bool | None = None,
     ) -> Decimal:
         """Get maximum order quantity for a trading pair.
-        
+
         Args:
             symbol: Trading pair symbol (e.g., "BTC_USDC", "SOL_USDC_PERP")
             side: Order side (BUY or SELL)
             price: Optional limit price for the order
             reduce_only: Whether the order is reduce-only
             auto_borrow: Enable auto-borrow
-            auto_borrow_repay: Enable auto-borrow repayment  
+            auto_borrow_repay: Enable auto-borrow repayment
             auto_lend_redeem: Enable auto-lend redemption
-            
+
         Returns:
             Maximum order quantity as Decimal
-            
+
         Raises:
             APIError: If request fails or response is invalid
         """
@@ -615,7 +615,7 @@ class BackpackAPI(ExchangeAPI):
             auto_lend_redeem=auto_lend_redeem,
         )
         return await self.account_service.get_max_order_quantity(args)
-    
+
     async def get_max_withdrawal_quantity(
         self,
         symbol: str,
@@ -623,15 +623,15 @@ class BackpackAPI(ExchangeAPI):
         auto_lend_redeem: bool | None = None,
     ) -> Decimal:
         """Get maximum withdrawal quantity for an asset.
-        
+
         Args:
             symbol: Asset symbol (e.g., "BTC", "ETH", "USDC")
             auto_borrow: Enable auto-borrow for withdrawal
             auto_lend_redeem: Enable auto-lend redemption
-            
+
         Returns:
             Maximum withdrawal quantity as Decimal
-            
+
         Raises:
             APIError: If request fails or response is invalid
         """
@@ -652,7 +652,7 @@ class BackpackAPI(ExchangeAPI):
 ```python
 class ExchangeAPI(ABC):
     # ... existing abstract methods ...
-    
+
     # Optional: Add these to base interface if they become common across exchanges
     async def get_max_order_quantity(
         self,
@@ -662,18 +662,18 @@ class ExchangeAPI(ABC):
         **kwargs: Any,
     ) -> Decimal:
         """Get maximum order quantity for a trading pair.
-        
+
         Note: This is an optional method that may not be supported by all exchanges.
         """
         raise NotImplementedError(f"get_max_order_quantity not implemented for {self.exchange_name}")
-    
+
     async def get_max_withdrawal_quantity(
         self,
         symbol: str,
         **kwargs: Any,
     ) -> Decimal:
         """Get maximum withdrawal quantity for an asset.
-        
+
         Note: This is an optional method that may not be supported by all exchanges.
         """
         raise NotImplementedError(f"get_max_withdrawal_quantity not implemented for {self.exchange_name}")
@@ -692,22 +692,22 @@ sequenceDiagram
     participant HTTP as HttpClient
     participant Auth as Authenticator
     participant Exchange as Backpack
-    
+
     User->>API: get_max_order_quantity(symbol, side, price)
     API->>API: Create GetMaxOrderQuantityArgs
     API->>Service: get_max_order_quantity(args)
-    
+
     Service->>Builder: build_max_order_quantity_params(args)
     Builder-->>Service: BackpackRawMaxOrderQuantityParams
-    
+
     Service->>HTTP: GET /api/v1/account/limits/order
     HTTP->>Auth: prepare_request() with Ed25519
     Auth-->>HTTP: Authenticated request
-    
+
     HTTP->>Exchange: GET request with auth headers
     Exchange-->>HTTP: JSON response
     HTTP-->>Service: (response, status, headers)
-    
+
     Service->>Service: handle_max_order_quantity_response()
     Service->>Service: parse_decimal_value()
     Service-->>API: Decimal max_quantity
@@ -726,25 +726,25 @@ graph TD
     F -->|Yes| G[APIError - RATE_LIMITED]
     C --> H{Other HTTP Error}
     H --> I[APIError - Network/Server Error]
-    
+
     B -->|Yes| J[Response Validation]
     J --> K{Pydantic Validation Success?}
     K -->|No| L[ValidationError]
     L --> M[APIError - INVALID_RESPONSE]
-    
+
     K -->|Yes| N[Parse Decimal Value]
     N --> O{Valid Decimal?}
     O -->|No| P[TransformationError]
     P --> Q[APIError - TRANSFORM_FAILED]
-    
+
     O -->|Yes| R[Return Max Quantity]
-    
+
     E --> S[Service Error Handling]
     G --> S
     I --> S
     M --> S
     Q --> S
-    
+
     S --> T[Log Error + Re-raise APIError]
 ```
 
@@ -756,25 +756,25 @@ graph TD
     B --> C[Check Max Order Quantity]
     C --> D[get_max_order_quantity API Call]
     D --> E{Max Quantity >= Desired?}
-    
+
     E -->|Yes| F[Place Order with Desired Size]
     E -->|No| G[Adjust Position Size]
     G --> H[Use Max Quantity or Fraction]
     H --> I[Place Order with Adjusted Size]
-    
+
     F --> J[Order Execution]
     I --> J
-    
+
     J --> K[Update Position Tracking]
     K --> L[Risk Monitoring]
-    
+
     subgraph "Parallel Checks"
         C --> M[Check Max Borrow Quantity]
         C --> N[Check Max Withdrawal Quantity]
         M --> O[Validate Leverage Limits]
         N --> P[Validate Liquidity Requirements]
     end
-    
+
     O --> E
     P --> E
 ```
@@ -812,10 +812,10 @@ graph TD
 ```python
 class DynamicPositionSizer:
     """Intelligent position sizing using account limits."""
-    
+
     def __init__(self, api: BackpackAPI):
         self.api = api
-    
+
     async def calculate_safe_order_size(
         self,
         symbol: str,
@@ -824,36 +824,36 @@ class DynamicPositionSizer:
         price: Decimal | None = None,
     ) -> Decimal:
         """Calculate safe order size based on account limits."""
-        
+
         # Get maximum allowable order size
         max_order_size = await self.api.get_max_order_quantity(
             symbol=symbol,
             side=side,
             price=price
         )
-        
+
         # Use the smaller of desired size or max allowable
         safe_size = min(desired_size, max_order_size)
-        
+
         logger.info(
             f"Position sizing: desired={desired_size}, max_allowed={max_order_size}, "
             f"safe_size={safe_size}"
         )
-        
+
         return safe_size
-    
+
     async def validate_withdrawal_request(
         self,
         symbol: str,
         amount: Decimal,
     ) -> tuple[bool, Decimal]:
         """Validate withdrawal request against account limits."""
-        
+
         max_withdrawal = await self.api.get_max_withdrawal_quantity(symbol=symbol)
-        
+
         is_valid = amount <= max_withdrawal
         adjusted_amount = min(amount, max_withdrawal)
-        
+
         return is_valid, adjusted_amount
 ```
 
@@ -862,16 +862,16 @@ class DynamicPositionSizer:
 ```python
 class BackpackRiskManager:
     """Risk management using account limits."""
-    
+
     def __init__(self, api: BackpackAPI):
         self.api = api
-    
+
     async def check_order_risk(
         self,
         order_args: PlaceOrderArgs,
     ) -> tuple[bool, str | None]:
         """Check if order is within risk limits."""
-        
+
         try:
             # Get maximum order quantity
             max_quantity = await self.api.get_max_order_quantity(
@@ -879,14 +879,14 @@ class BackpackRiskManager:
                 side=order_args.side,
                 price=order_args.price,
             )
-            
+
             # Check if requested quantity exceeds limits
             if order_args.quantity > max_quantity:
                 return False, f"Order quantity {order_args.quantity} exceeds maximum {max_quantity}"
-            
+
             # Additional risk checks can be added here
             return True, None
-            
+
         except APIError as e:
             logger.error(f"Risk check failed: {e}")
             # Fail safe: reject order if we can't determine limits
@@ -902,19 +902,19 @@ class BackpackRiskManager:
 ```python
 class TestBackpackAccountLimits:
     """Unit tests for account limits functionality."""
-    
+
     def test_raw_max_borrow_quantity_model(self):
         """Test BackpackRawMaxBorrowQuantity model validation."""
-        
+
     def test_raw_max_order_quantity_model(self):
         """Test BackpackRawMaxOrderQuantity model validation."""
-        
+
     def test_raw_max_withdrawal_quantity_model(self):
         """Test BackpackRawMaxWithdrawalQuantity model validation."""
-        
+
     def test_request_builder_methods(self):
         """Test request builder parameter construction."""
-        
+
     def test_response_handler_methods(self):
         """Test response handler validation."""
 ```
@@ -926,15 +926,15 @@ class TestBackpackAccountLimits:
 ```python
 class TestBackpackAccountLimitsIntegration:
     """Integration tests for account limits endpoints."""
-    
+
     @pytest.mark.vcr
     async def test_get_max_borrow_quantity_integration(self, bp_api_for_test_env):
         """Test max borrow quantity endpoint integration."""
-        
+
     @pytest.mark.vcr
     async def test_get_max_order_quantity_integration(self, bp_api_for_test_env):
         """Test max order quantity endpoint integration."""
-        
+
     @pytest.mark.vcr
     async def test_get_max_withdrawal_quantity_integration(self, bp_api_for_test_env):
         """Test max withdrawal quantity endpoint integration."""

@@ -148,4 +148,3 @@ This refactoring will:
     *   Run static analysis (Mypy, Pylint, Ruff) after changes.
     *   List all files modified.
     *   Confirm all relevant tests pass, including successful loading of a correctly formatted `secrets.yaml`.
-

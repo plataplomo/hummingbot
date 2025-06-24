@@ -84,10 +84,10 @@ Add abstract method to ExchangeAPI:
 @abstractmethod
 async def get_account_settings(self) -> AccountSettings:
     """Retrieve current account configuration settings.
-    
+
     Returns:
         AccountSettings: Unified account settings model with exchange-specific details
-        
+
     Raises:
         APIError: If settings cannot be retrieved
     """
@@ -131,17 +131,17 @@ Since no dedicated endpoint exists, derive settings from existing data:
    async def get_account_settings(self) -> AccountSettings:
        # Fetch clearinghouse state
        raw_state = await self._get_raw_clearinghouse_state()
-       
+
        # Extract per-asset leverage from positions
        asset_leverage_settings = {}
        for position in raw_state.assetPositions:
            if position.position.leverage:
                asset_index = await self._get_asset_index_callable(position.asset)
                asset_leverage_settings[asset_index] = position.position.leverage.value
-       
+
        # Determine global leverage limit (max of all assets)
        leverage_limit = max(asset_leverage_settings.values()) if asset_leverage_settings else None
-       
+
        # Build AccountSettings
        return self._account_mapper.transform_hyperliquid_state_to_settings(
            raw_state, asset_leverage_settings, leverage_limit
@@ -163,32 +163,32 @@ async def get_account_settings(self) -> AccountSettings:
     """Retrieve account configuration settings."""
     frame = inspect.currentframe()
     current_method = frame.f_code.co_name if frame is not None else "get_account_settings"
-    
+
     status_code: int = 0
     raw_response_content: str | None = None
-    
+
     try:
         # Build request
         endpoint_path = "/api/v1/account"
-        
+
         # Execute request
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
             is_signed=True,
         )
-        
+
         # Handle response
         raw_account_summary = self._response_handler.handle_account_query_response(
             raw_data, status_code
         )
-        
+
         # Transform to internal model
         return self._account_mapper.transform_raw_account_summary_to_settings(
             raw_account_summary,
             exchange_name=self._exchange_name
         )
-        
+
     except APIError:
         raise
     # ... standard error handling pattern
@@ -213,17 +213,17 @@ def transform_raw_account_summary_to_settings(
     exchange_name: str
 ) -> AccountSettings:
     """Transform Backpack account summary to unified settings model."""
-    
+
     # Parse decimal fields
     leverage_limit = parse_decimal_value(raw_summary.leverageLimit, allow_none=True)
-    
+
     # Build extension details
     bp_details = BackpackAccountSettingsDetails(
         leverage_limit_raw=raw_summary.leverageLimit,
         source_endpoint="/api/v1/account",
         # Additional Backpack-specific fields if available
     )
-    
+
     return AccountSettings(
         exchange=exchange_name,
         timestamp=datetime.now(UTC),
@@ -246,12 +246,12 @@ def transform_hyperliquid_state_to_settings(
     exchange_name: str
 ) -> AccountSettings:
     """Derive account settings from Hyperliquid state."""
-    
+
     # Calculate effective leverage limit
     leverage_limit = None
     if asset_leverage_settings:
         leverage_limit = Decimal(str(max(asset_leverage_settings.values())))
-    
+
     # Determine cross margin preference
     cross_margin_enabled = None
     for position in raw_state.assetPositions:
@@ -259,13 +259,13 @@ def transform_hyperliquid_state_to_settings(
             if position.position.leverage.type == "cross":
                 cross_margin_enabled = True
                 break
-    
+
     # Build extension details
     hl_details = HyperliquidAccountSettingsDetails(
         asset_leverage_settings=asset_leverage_settings,
         cross_margin_enabled=cross_margin_enabled
     )
-    
+
     return AccountSettings(
         exchange=exchange_name,
         timestamp=datetime.now(UTC),
@@ -287,7 +287,7 @@ Create new model in `cyberdelta/apis/backpack/models/`:
 ```python
 class BackpackRawAccountSummary(BaseModel):
     """Raw account summary response from Backpack API."""
-    
+
     autoBorrowSettlements: bool
     autoLend: bool
     autoRealizePnl: bool
@@ -302,7 +302,7 @@ class BackpackRawAccountSummary(BaseModel):
     spotMakerFee: str
     spotTakerFee: str
     triggerOrders: int
-    
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 ```
 

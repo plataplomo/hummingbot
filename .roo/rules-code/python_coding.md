@@ -22,5 +22,3 @@ alwaysApply: true # These standards should always be considered for Python code
 
 4.  **Development Workflow Requirement:**
     *   Before considering any code modification "complete" (e.g., ready for commit, review, or integration), you **MUST** ensure that running `ruff check <modified_files>`, `ruff format <modified_files>`, and `mypy <modified_files>` reports **ZERO** errors according to the project's configuration for those modified files (or that any remaining errors are documented exceptions as per the "Python File Validation" rule).
-
-    

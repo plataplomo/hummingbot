@@ -13,12 +13,12 @@ class StateManager:
     def __init__(self):
         self.state = {}  # In-memory state storage
         self.lock = asyncio.Lock()
-        
+
     async def save_state(self, key: str, value: Any):
         # Existing in-memory logic - unchanged
         async with self.lock:
             self.state[key] = value
-    
+
     async def load_state(self, key: str) -> Any:
         # Existing retrieval logic - unchanged
         return self.state.get(key)
@@ -232,40 +232,40 @@ from shared.database.models import Exchange, Strategy, RiskConfig as DBRiskConfi
 
 class DatabaseConfigAdapter:
     """Adapter between database config and existing cyberdelta config system
-    
+
     This preserves all existing YAML-based configuration while optionally
     adding database overrides and persistence. The existing config system
     with its sophisticated validation remains the primary source.
     """
-    
+
     def __init__(self):
         # Use existing config system as primary source
         self.file_config = get_app_settings()
         self.secrets_config = get_secrets_config()
-        
+
         # Database provides optional overrides and persistence
         self.use_database = False
-        
+
     async def get_app_settings(self) -> AppSettings:
         """Get app settings with database overrides"""
         # Start with existing file-based configuration (unchanged)
         config = self.file_config
-        
+
         # Optionally override with database settings
         if self.use_database:
             config = await self._merge_database_config(config)
-        
+
         return config
-    
+
     async def _merge_database_config(self, file_config: AppSettings) -> AppSettings:
         """Merge database configuration with file configuration"""
         # Load database overrides
         db_exchanges = await self._load_exchange_configs()
         db_risk_config = await self._load_risk_config()
-        
+
         # Create new config with database overrides
         merged_config = file_config.copy(deep=True)
-        
+
         # Override exchange configurations
         for exchange_name, db_config in db_exchanges.items():
             if hasattr(merged_config.exchanges, exchange_name):
@@ -273,25 +273,25 @@ class DatabaseConfigAdapter:
                 # Merge database config into existing config
                 for key, value in db_config.items():
                     setattr(existing_config, key, value)
-        
+
         # Override risk configuration
         if db_risk_config:
             merged_config.risk_management.update(db_risk_config)
-        
+
         return merged_config
-    
+
     async def _load_exchange_configs(self) -> Dict[str, Dict[str, Any]]:
         """Load exchange configurations from database"""
         configs = {}
-        
+
         # Use async database queries (example with async ORM)
         exchanges = await Exchange.objects.filter(is_active=True).all()
-        
+
         for exchange in exchanges:
             configs[exchange.name] = exchange.api_config
-        
+
         return configs
-    
+
     async def _load_risk_config(self) -> Optional[Dict[str, Any]]:
         """Load risk configuration from database"""
         try:
@@ -306,9 +306,9 @@ class DatabaseConfigAdapter:
         except Exception:
             # Fall back to file configuration
             pass
-        
+
         return None
-    
+
     async def save_strategy_config(self, strategy_name: str, config: Dict[str, Any]):
         """Save strategy configuration to database"""
         strategy, created = await Strategy.objects.get_or_create(
@@ -320,20 +320,20 @@ class DatabaseConfigAdapter:
                 'is_active': config.get('enabled', False)
             }
         )
-        
+
         if not created:
             strategy.parameters = config
             strategy.is_active = config.get('enabled', False)
             await strategy.save()
-        
+
         return strategy
-    
+
     async def load_strategy_configs(self) -> Dict[str, Dict[str, Any]]:
         """Load strategy configurations from database"""
         configs = {}
-        
+
         strategies = await Strategy.objects.filter(is_active=True).all()
-        
+
         for strategy in strategies:
             configs[strategy.name] = {
                 'type': strategy.strategy_type,
@@ -341,7 +341,7 @@ class DatabaseConfigAdapter:
                 'enabled': strategy.is_active,
                 **strategy.parameters
             }
-        
+
         return configs
 ```
 
@@ -365,41 +365,41 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BPRawKline
 
 class MarketDataStorageAdapter:
     """Adapter to store market data from existing APIs to database
-    
+
     This captures and stores data from the production-ready API clients
     including all enhancements like auto-lending balances and margin data.
     The existing APIs continue to work unchanged.
     """
-    
+
     def __init__(self, database_url: str):
         self.database_url = database_url
         self.pool: Optional[asyncpg.Pool] = None
-    
+
     async def start(self):
         """Initialize database connection pool"""
         self.pool = await asyncpg.create_pool(self.database_url)
-    
+
     async def stop(self):
         """Close database connection pool"""
         if self.pool:
             await self.pool.close()
-    
+
     async def store_ticker_data(self, exchange: str, symbol: str, ticker_data: Dict[str, Any]):
         """Store ticker data from existing API responses"""
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO market_data (time, exchange, symbol, data_type, data)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (time, exchange, symbol, data_type) 
+                ON CONFLICT (time, exchange, symbol, data_type)
                 DO UPDATE SET data = EXCLUDED.data
-            """, 
+            """,
             datetime.utcnow(),
             exchange,
             symbol,
             'ticker',
             json.dumps(ticker_data)
             )
-    
+
     async def store_candle_data(self, exchange: str, symbol: str, candles: List[Any]):
         """Store candle data from existing API responses"""
         async with self.pool.acquire() as conn:
@@ -426,11 +426,11 @@ class MarketDataStorageAdapter:
                 else:
                     # Generic candle data
                     candle_data = dict(candle)
-                
+
                 await conn.execute("""
                     INSERT INTO market_data (time, exchange, symbol, data_type, data)
                     VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (time, exchange, symbol, data_type) 
+                    ON CONFLICT (time, exchange, symbol, data_type)
                     DO UPDATE SET data = EXCLUDED.data
                 """,
                 candle.timestamp if hasattr(candle, 'timestamp') else datetime.utcnow(),
@@ -439,14 +439,14 @@ class MarketDataStorageAdapter:
                 'candle',
                 json.dumps(candle_data)
                 )
-    
+
     async def store_funding_rate(self, exchange: str, symbol: str, funding_data: Dict[str, Any]):
         """Store funding rate data from existing API responses"""
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO market_data (time, exchange, symbol, data_type, data)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (time, exchange, symbol, data_type) 
+                ON CONFLICT (time, exchange, symbol, data_type)
                 DO UPDATE SET data = EXCLUDED.data
             """,
             datetime.utcnow(),
@@ -455,12 +455,12 @@ class MarketDataStorageAdapter:
             'funding_rate',
             json.dumps(funding_data)
             )
-    
+
     async def get_historical_candles(
-        self, 
-        exchange: str, 
-        symbol: str, 
-        start_time: datetime, 
+        self,
+        exchange: str,
+        symbol: str,
+        start_time: datetime,
         end_time: datetime,
         limit: int = 1000
     ) -> List[Dict[str, Any]]:
@@ -469,14 +469,14 @@ class MarketDataStorageAdapter:
             rows = await conn.fetch("""
                 SELECT time, data
                 FROM market_data
-                WHERE exchange = $1 
-                    AND symbol = $2 
+                WHERE exchange = $1
+                    AND symbol = $2
                     AND data_type = 'candle'
                     AND time BETWEEN $3 AND $4
                 ORDER BY time ASC
                 LIMIT $5
             """, exchange, symbol, start_time, end_time, limit)
-            
+
             return [
                 {
                     'timestamp': row['time'],
@@ -484,27 +484,27 @@ class MarketDataStorageAdapter:
                 }
                 for row in rows
             ]
-    
+
     async def get_funding_rate_history(
-        self, 
-        exchange: str, 
-        symbol: str, 
+        self,
+        exchange: str,
+        symbol: str,
         days: int = 7
     ) -> List[Dict[str, Any]]:
         """Get funding rate history for analysis"""
         start_time = datetime.utcnow() - timedelta(days=days)
-        
+
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT time, data
                 FROM market_data
-                WHERE exchange = $1 
-                    AND symbol = $2 
+                WHERE exchange = $1
+                    AND symbol = $2
                     AND data_type = 'funding_rate'
                     AND time >= $3
                 ORDER BY time ASC
             """, exchange, symbol, start_time)
-            
+
             return [
                 {
                     'timestamp': row['time'],
@@ -532,34 +532,34 @@ from cyberdelta.monitoring.performance_metrics import PerformanceMetrics
 
 class PerformanceStorageAdapter:
     """Adapter to store performance data from existing portfolio tracker
-    
+
     This preserves and extends the sophisticated performance tracking
     already built into the system, adding persistent storage for
     historical analysis while maintaining all existing calculations.
     """
-    
+
     def __init__(self, database_url: str):
         self.database_url = database_url
         self.pool: Optional[asyncpg.Pool] = None
-    
+
     async def start(self):
         """Initialize database connection pool"""
         self.pool = await asyncpg.create_pool(self.database_url)
-    
+
     async def stop(self):
         """Close database connection pool"""
         if self.pool:
             await self.pool.close()
-    
+
     async def store_performance_snapshot(
-        self, 
-        strategy_name: str, 
+        self,
+        strategy_name: str,
         performance_data: Dict[str, Any]
     ):
         """Store performance snapshot from existing portfolio tracker"""
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO performance_snapshots 
+                INSERT INTO performance_snapshots
                 (time, strategy_name, total_pnl, daily_pnl, win_rate, total_trades, sharpe_ratio, max_drawdown, metadata)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             """,
@@ -573,12 +573,12 @@ class PerformanceStorageAdapter:
             performance_data.get('max_drawdown'),
             json.dumps(performance_data.get('metadata', {}))
             )
-    
+
     async def store_trade_record(self, trade_data: Dict[str, Any]):
         """Store individual trade record"""
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO trades 
+                INSERT INTO trades
                 (timestamp, strategy_name, exchange, symbol, side, order_type, quantity, price, fee, realized_pnl, order_id, fill_id, metadata)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             """,
@@ -596,15 +596,15 @@ class PerformanceStorageAdapter:
             trade_data.get('fill_id'),
             json.dumps(trade_data.get('metadata', {}))
             )
-    
+
     async def get_strategy_performance_history(
-        self, 
-        strategy_name: str, 
+        self,
+        strategy_name: str,
         days: int = 30
     ) -> List[Dict[str, Any]]:
         """Get historical performance data for charts"""
         start_time = datetime.utcnow() - timedelta(days=days)
-        
+
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT time, total_pnl, daily_pnl, win_rate, total_trades, sharpe_ratio, max_drawdown
@@ -612,7 +612,7 @@ class PerformanceStorageAdapter:
                 WHERE strategy_name = $1 AND time >= $2
                 ORDER BY time ASC
             """, strategy_name, start_time)
-            
+
             return [
                 {
                     'timestamp': row['time'],
@@ -625,10 +625,10 @@ class PerformanceStorageAdapter:
                 }
                 for row in rows
             ]
-    
+
     async def get_recent_trades(
-        self, 
-        strategy_name: str = None, 
+        self,
+        strategy_name: str = None,
         limit: int = 100
     ) -> List[Dict[str, Any]]:
         """Get recent trades for display"""
@@ -646,7 +646,7 @@ class PerformanceStorageAdapter:
                     ORDER BY timestamp DESC
                     LIMIT $1
                 """, limit)
-            
+
             return [
                 {
                     'id': row['id'],
@@ -685,25 +685,25 @@ from cyberdelta.utils.state_manager import StateManager
 
 class EnhancedStateManager(StateManager):
     """Enhanced state manager that adds database persistence to existing logic
-    
+
     This extends the existing state management system without breaking
     any current functionality. All existing code continues to work
     exactly as before, with optional database persistence added.
     """
-    
+
     def __init__(self, storage_adapter: Optional[Any] = None):
         # Initialize existing state manager (unchanged)
         super().__init__()
-        
+
         # Add optional database storage
         self.storage_adapter = storage_adapter
         self.enable_persistence = storage_adapter is not None
-    
+
     async def save_state(self, key: str, value: Any):
         """Save state with optional database persistence"""
         # Use existing in-memory logic (unchanged)
         await super().save_state(key, value)
-        
+
         # Optionally persist to database
         if self.enable_persistence:
             try:
@@ -711,12 +711,12 @@ class EnhancedStateManager(StateManager):
             except Exception as e:
                 # Log error but don't fail the operation
                 print(f"Failed to persist state {key}: {e}")
-    
+
     async def load_state(self, key: str) -> Any:
         """Load state with database fallback"""
         # Try existing in-memory storage first (unchanged)
         value = await super().load_state(key)
-        
+
         # If not found and database enabled, try database
         if value is None and self.enable_persistence:
             try:
@@ -726,14 +726,14 @@ class EnhancedStateManager(StateManager):
                     await super().save_state(key, value)
             except Exception as e:
                 print(f"Failed to load state {key} from database: {e}")
-        
+
         return value
-    
+
     async def enable_database_persistence(self, storage_adapter: Any):
         """Enable database persistence without changing existing behavior"""
         self.storage_adapter = storage_adapter
         self.enable_persistence = True
-    
+
     async def disable_database_persistence(self):
         """Disable database persistence, fall back to memory only"""
         self.storage_adapter = None
@@ -756,25 +756,25 @@ from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HLWebSocketRaw
 
 class EnhancedWebSocketHandler(HLWebSocketRawMessageHandler):
     """Enhanced WebSocket handler that adds database storage to existing logic"""
-    
+
     def __init__(self, *args, **kwargs):
         # Initialize existing handler (unchanged)
         super().__init__(*args, **kwargs)
-        
+
         # Add database storage adapters
         self.market_data_storage = None
         self.performance_storage = None
-    
+
     def set_storage_adapters(self, market_data_storage, performance_storage):
         """Set database storage adapters"""
         self.market_data_storage = market_data_storage
         self.performance_storage = performance_storage
-    
+
     async def on_ticker_update(self, ticker_data: Dict[str, Any]):
         """Enhanced ticker update with database storage"""
         # Use existing ticker processing logic (unchanged)
         processed_ticker = await super().on_ticker_update(ticker_data)
-        
+
         # Add database storage if enabled
         if self.market_data_storage:
             try:
@@ -792,14 +792,14 @@ class EnhancedWebSocketHandler(HLWebSocketRawMessageHandler):
             except Exception as e:
                 # Log error but don't interrupt existing flow
                 print(f"Failed to store ticker data: {e}")
-        
+
         return processed_ticker
-    
+
     async def on_trade_execution(self, trade_data: Dict[str, Any]):
         """Enhanced trade execution with database storage"""
         # Use existing trade processing logic (unchanged)
         processed_trade = await super().on_trade_execution(trade_data)
-        
+
         # Add database storage if enabled
         if self.performance_storage:
             try:
@@ -819,7 +819,7 @@ class EnhancedWebSocketHandler(HLWebSocketRawMessageHandler):
             except Exception as e:
                 # Log error but don't interrupt existing flow
                 print(f"Failed to store trade record: {e}")
-        
+
         return processed_trade
 ```
 
@@ -910,19 +910,19 @@ echo "Backup completed: $(date)"
 
 ```sql
 -- Monitor database performance
-SELECT 
+SELECT
     schemaname,
     tablename,
     attname,
     n_distinct,
     correlation,
     most_common_vals
-FROM pg_stats 
+FROM pg_stats
 WHERE schemaname IN ('public', 'config', 'historical')
 ORDER BY schemaname, tablename;
 
 -- Check hypertable compression
-SELECT 
+SELECT
     hypertable_schema,
     hypertable_name,
     chunk_schema,
@@ -935,7 +935,7 @@ WHERE compression_status = 'Compressed'
 ORDER BY hypertable_name, chunk_name;
 
 -- Monitor query performance
-SELECT 
+SELECT
     query,
     calls,
     total_time,

@@ -1,10 +1,10 @@
 # Integration Tests Refactor Plan: Spot vs Derivatives Separation
 
-**Date:** December 6, 2025  
-**Last Updated:** December 24, 2025  
-**Status:** PARTIALLY IMPLEMENTED ⚠️  
-**Scope:** Comprehensive refactoring of integration tests for clear spot vs derivatives separation  
-**Target:** `/tests/integration/apis/` directory structure  
+**Date:** December 6, 2025
+**Last Updated:** December 24, 2025
+**Status:** PARTIALLY IMPLEMENTED ⚠️
+**Scope:** Comprehensive refactoring of integration tests for clear spot vs derivatives separation
+**Target:** `/tests/integration/apis/` directory structure
 
 ## Executive Summary
 
@@ -278,17 +278,17 @@ tests/integration/apis/
    # 🧪 100% PYTEST: All fixtures use pytest.fixture decorator
    import pytest
    from decimal import Decimal
-   
+
    @pytest.fixture
    def spot_test_symbols():
        """Common spot trading symbols for testing."""
        return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]  # ✅ PRESERVE existing symbols
-   
-   @pytest.fixture  
+
+   @pytest.fixture
    def perp_test_symbols():
        """Common perp symbols for testing."""
        return ["SOL-PERP", "BTC-PERP", "ETH-PERP"]  # ✅ PRESERVE existing symbols
-   
+
    @pytest.fixture
    def precision_test_amounts():
        """Test amounts for precision validation."""
@@ -307,7 +307,7 @@ tests/integration/apis/
    # 🧪 100% PYTEST: All VCR integration uses pytest fixtures
    import pytest
    from pathlib import Path
-   
+
    @pytest.fixture
    def vcr_cassette_dir(request, custom_vcr_cassette_dir=None):
        """✅ PRESERVE existing VCR cassette directory logic."""
@@ -316,7 +316,7 @@ tests/integration/apis/
        # ✅ PRESERVE existing dynamic directory logic
        test_file = Path(request.module.__file__)
        return str(test_file.parent.relative_to(Path("tests/integration/apis")))
-   
+
    @pytest.fixture
    def vcr_config():
        """Common VCR configuration for all pytest tests."""
@@ -329,18 +329,18 @@ tests/integration/apis/
 
 3. **Migrate test files to pytest-organized structure while preserving ALL logic:**
    ```python
-   # Example migration: 
+   # Example migration:
    # FROM: tests/integration/apis/backpack/test_bp_balances_private.py
    # TO:   tests/integration/apis/backpack/spot/balances/positive/test_bp_spot_balances_private.py
-   
+
    # ✅ PRESERVE: All existing imports, fixtures, VCR config, test methods
-   # ✅ PRESERVE: All existing assertions and business logic  
+   # ✅ PRESERVE: All existing assertions and business logic
    # ✅ PRESERVE: All existing error handling and edge cases
    # 🧪 100% PYTEST: Add pytest markers, maintain pytest conventions
-   
+
    import pytest  # Add if not present
    # ✅ PRESERVE: all existing imports exactly as they are
-   
+
    @pytest.mark.spot                    # 🧪 PYTEST: Use pytest.mark for categorization
    @pytest.mark.requires_balance        # 🧪 PYTEST: Use pytest.mark for safety
    @pytest.mark.positive_balance        # 🧪 PYTEST: Use pytest.mark for balance type
@@ -350,7 +350,7 @@ tests/integration/apis/
        # ✅ PRESERVE: every existing assertion and validation
        # ✅ PRESERVE: every existing fixture usage
        # 🧪 PYTEST: All test methods follow test_* naming convention
-       
+
        def test_existing_method_name(self, existing_fixtures):  # 🧪 PYTEST: test_* naming
            # ✅ PRESERVE: all existing test logic exactly as written
            assert existing_assertion  # 🧪 PYTEST: standard assertions
@@ -375,7 +375,7 @@ tests/integration/apis/
    - **✅ PRESERVE** all VCR configurations and cassette organization
 
 3. **Migrate conftest.py files with enhancement:**
-   - **✅ PRESERVE** existing `tests/integration/apis/backpack/conftest.py` 
+   - **✅ PRESERVE** existing `tests/integration/apis/backpack/conftest.py`
    - **✅ ENHANCE** with spot/perp specific fixtures in subdirectories
    - **✅ MAINTAIN** backward compatibility during migration
 
@@ -397,16 +397,16 @@ tests/integration/apis/
    # tests/integration/apis/cross_exchange/test_spot_balance_consistency.py
    import pytest
    from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
-   
+
    @pytest.mark.cross_exchange
    @pytest.mark.parametrize("exchange", ["backpack", "hyperliquid"])
    class TestSpotBalanceConsistency:
        """Cross-exchange spot balance consistency tests."""
-       
+
        def test_spot_balance_model_consistency(self, exchange, spot_test_symbols):
            """Validate SpotBalance model across exchanges."""
            # Test implementation
-           
+
        @pytest.mark.parametrize("precision", [8, 10, 12])
        def test_spot_balance_precision_handling(self, exchange, precision):
            """Test decimal precision handling across exchanges."""
@@ -418,20 +418,20 @@ tests/integration/apis/
    # tests/integration/apis/cross_exchange/test_order_lifecycle_compatibility.py
    import pytest
    from decimal import Decimal
-   
+
    class TestOrderLifecycleCompatibility:
        """Cross-exchange order lifecycle compatibility tests."""
-       
+
        @pytest.fixture(params=["backpack", "hyperliquid"])
        def exchange_client(self, request):
            """Parametrized fixture for exchange clients."""
            # Return appropriate client based on request.param
-           
+
        @pytest.mark.parametrize("order_type", ["LIMIT", "MARKET"])
        def test_spot_order_lifecycle_compatibility(self, exchange_client, order_type):
            """Test spot order lifecycle across both exchanges."""
            # Test implementation
-           
+
        def test_order_precision_compatibility(self, exchange_client, precision_test_amounts):
            """Test order amount precision handling."""
            # Test implementation
@@ -442,11 +442,11 @@ tests/integration/apis/
    # tests/integration/apis/cross_exchange/test_arbitrage_scenarios.py
    import pytest
    from cyberdelta.core.models import SpotBalance, DerivativePosition
-   
+
    @pytest.mark.integration
    class TestArbitrageScenarios:
        """Cross-exchange arbitrage scenario tests."""
-       
+
        @pytest.fixture
        def arbitrage_setup(self):
            """Setup for arbitrage testing."""
@@ -455,11 +455,11 @@ tests/integration/apis/
                "perp_exchange": "hyperliquid",
                "test_asset": "SOL",
            }
-       
+
        def test_spot_perp_arbitrage_setup(self, arbitrage_setup):
            """Test setting up delta-neutral arbitrage positions."""
            # Test implementation
-           
+
        @pytest.mark.parametrize("funding_rate", [Decimal("0.01"), Decimal("-0.01")])
        def test_funding_arbitrage_opportunity(self, arbitrage_setup, funding_rate):
            """Test funding rate arbitrage scenarios."""
@@ -610,7 +610,7 @@ from tests.integration.apis.shared.validation_helpers import assert_valid_spot_b
 @pytest.mark.requires_balance        # 🧪 PYTEST: Use pytest.mark for safety
 class TestBackpackSpotBalancesPositive:  # 🧪 PYTEST: Test* class naming
     """Backpack spot balance pytest tests requiring real balance."""
-    
+
     @pytest.mark.vcr()               # 🧪 PYTEST: Use pytest.mark.vcr for VCR integration
     def test_get_spot_balances_with_funds(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test retrieving spot balances when account has funds."""
@@ -619,7 +619,7 @@ class TestBackpackSpotBalancesPositive:  # 🧪 PYTEST: Test* class naming
             assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
             # Verify we have actual balances
             assert balance.total_quantity > Decimal("0")  # 🧪 PYTEST: Standard assert
-    
+
     @pytest.mark.parametrize("asset", ["SOL", "USDC", "BTC"])  # 🧪 PYTEST: Parametrization
     def test_withdraw_spot_balance(self, bp_spot_client, asset):  # 🧪 PYTEST: test_* naming
         """Test withdrawing spot balance (requires real funds)."""
@@ -639,7 +639,7 @@ from tests.integration.apis.shared.validation_helpers import assert_valid_spot_b
 @pytest.mark.zero_balance            # 🧪 PYTEST: Use pytest.mark for balance type
 class TestBackpackSpotBalancesZero:  # 🧪 PYTEST: Test* class naming
     """Backpack spot balance pytest tests for zero balance scenarios."""
-    
+
     @pytest.mark.vcr()               # 🧪 PYTEST: Use pytest.mark.vcr for VCR integration
     def test_get_spot_balances_zero_state(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test retrieving balances when account has zero balance."""
@@ -648,7 +648,7 @@ class TestBackpackSpotBalancesZero:  # 🧪 PYTEST: Test* class naming
             assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
             # Zero balance tests expect empty or zero balances
             assert balance.total_quantity >= Decimal("0")  # 🧪 PYTEST: Standard assert
-    
+
     def test_insufficient_balance_scenarios(self, bp_spot_client):  # 🧪 PYTEST: test_* naming
         """Test behavior with insufficient balance."""
         # Test edge cases without requiring real funds
@@ -665,7 +665,7 @@ from decimal import Decimal
 @pytest.mark.integration               # 🧪 PYTEST: Use pytest.mark for integration tests
 class TestCrossExchangeSpotOperations: # 🧪 PYTEST: Test* class naming
     """Cross-exchange spot operations pytest test suite."""
-    
+
     @pytest.fixture(params=["backpack", "hyperliquid"])  # 🧪 PYTEST: Parametrized fixture
     def exchange_client(self, request):  # 🧪 PYTEST: request fixture for parametrization
         """Parametrized exchange client pytest fixture."""
@@ -673,7 +673,7 @@ class TestCrossExchangeSpotOperations: # 🧪 PYTEST: Test* class naming
             return BackpackApiClient()
         else:
             return HyperliquidApiClient()
-    
+
     @pytest.mark.parametrize("symbol,expected_precision", [  # 🧪 PYTEST: Parametrization
         ("SOL_USDC", 8),
         ("BTC_USDC", 8),
@@ -685,7 +685,7 @@ class TestCrossExchangeSpotOperations: # 🧪 PYTEST: Test* class naming
         assert_valid_spot_balance(balance)  # 🧪 PYTEST: Standard assert
         # Verify precision handling
         assert str(balance.total_quantity).split('.')[-1].rstrip('0') <= expected_precision  # 🧪 PYTEST: Standard assert
-    
+
     @pytest.mark.parametrize("test_amount", [  # 🧪 PYTEST: Parametrization with ids
         pytest.param(Decimal("0.00000001"), id="dust"),
         pytest.param(Decimal("0.1"), id="small"),
@@ -731,7 +731,7 @@ markers = [                            # ✅ ALL MARKERS IMPLEMENTED
 @pytest.mark.vcr()                     # 🧪 PYTEST: pytest.mark.vcr for VCR
 class TestSpotBalances:                # 🧪 PYTEST: Test* class naming
     """Spot balance pytest test suite."""
-    
+
     @pytest.mark.requires_balance      # 🧪 PYTEST: pytest.mark for safety
     def test_withdraw_spot_balance(self):  # 🧪 PYTEST: test_* function naming
         """Test spot balance withdrawal."""
@@ -741,7 +741,7 @@ class TestSpotBalances:                # 🧪 PYTEST: Test* class naming
 @pytest.mark.vcr()                     # 🧪 PYTEST: pytest.mark.vcr for VCR
 class TestPerpPositions:               # 🧪 PYTEST: Test* class naming
     """Perpetual positions pytest test suite."""
-    
+
     def test_get_perp_positions(self):  # 🧪 PYTEST: test_* function naming
         """Test retrieving perpetual positions."""
         assert True  # 🧪 PYTEST: Standard assert
@@ -766,7 +766,7 @@ The VCR cassette organization has been maintained with the existing dynamic path
 
 #### 6.1 Immediate Benefits - REALIZED
 1. **Clear Test Organization:** Easy to find tests for specific functionality
-2. **Improved Maintainability:** Related tests grouped together  
+2. **Improved Maintainability:** Related tests grouped together
 3. **Better Coverage:** Explicit identification of gaps
 4. **Faster Development:** Clear patterns for adding new tests
 5. **Risk Management:** Clear separation of real money vs safe tests

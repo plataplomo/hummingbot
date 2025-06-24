@@ -137,7 +137,7 @@ The HTTP request taking 1.5 seconds suggests:
 ```
 Test Results (5 samples):
 - DNS Lookup: ~11-44ms (avg: 19ms)
-- TCP Connect: ~15-48ms (avg: 23ms)  
+- TCP Connect: ~15-48ms (avg: 23ms)
 - TLS Handshake: ~36-71ms (avg: 43ms)
 - First Byte (API Response): ~305-604ms (avg: 373ms)
 - Total Request Time: ~305-604ms (avg: 373ms)
@@ -191,7 +191,7 @@ batch_orders = [
 ]
 response = await hl_api.batch_place_orders(batch_orders)
 ```
-**Expected Impact**: 
+**Expected Impact**:
 - Reduce 6 API calls to 1
 - Total time: ~400ms instead of 6x400ms = 2400ms
 
@@ -208,7 +208,7 @@ response = await hl_api.batch_place_orders(batch_orders)
 - Bottlenecks: Connection overhead + Order re-fetch + VCR
 
 ### After Connection Pooling (CURRENT STATE):
-- Per order: ~1000-1500ms 
+- Per order: ~1000-1500ms
 - 6 orders placement: ~9 seconds
 - 6 orders cancellation: ~6 seconds
 - Total: ~15 seconds

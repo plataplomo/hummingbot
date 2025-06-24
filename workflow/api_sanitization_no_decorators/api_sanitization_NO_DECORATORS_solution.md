@@ -51,15 +51,15 @@ def ensure_dict_response(
     status_code: int,
 ) -> dict[str, Any]:
     """Validate that response is a dictionary with consistent error handling.
-    
+
     Args:
         response: Raw response from HTTP client
         context: Description for error messages (e.g., "ticker (BTC-USD)")
         status_code: HTTP status code for error context
-        
+
     Returns:
         Validated dictionary response
-        
+
     Raises:
         APIError: If response is None or not a dictionary
     """
@@ -70,7 +70,7 @@ def ensure_dict_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     if not isinstance(response, dict):
         logger.error(
             f"SECURITY: Type mismatch for {context} - "
@@ -84,7 +84,7 @@ def ensure_dict_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     # Log successful validation for audit
     logger.debug(f"Validated dict response for {context} with {len(response)} keys")
     return response
@@ -103,7 +103,7 @@ def ensure_list_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     if not isinstance(response, list):
         logger.error(
             f"SECURITY: Type mismatch for {context} - "
@@ -117,7 +117,7 @@ def ensure_list_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     logger.debug(f"Validated list response for {context} with {len(response)} items")
     return response
 
@@ -130,7 +130,7 @@ def validate_required_fields(
 ) -> None:
     """Validate that a dictionary contains required fields."""
     missing_fields = [field for field in required_fields if field not in response]
-    
+
     if missing_fields:
         logger.error(
             f"SECURITY: Missing required fields in {context}: {missing_fields}"
@@ -158,7 +158,7 @@ def ensure_string_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     if not isinstance(response, str):
         logger.error(
             f"SECURITY: Type mismatch for {context} - "
@@ -172,11 +172,11 @@ def ensure_string_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     # Check for suspiciously large strings (potential DoS)
     if len(response) > 1_000_000:  # 1MB limit
         logger.warning(f"SECURITY: Large string response for {context}: {len(response)} chars")
-    
+
     return response
 
 
@@ -197,7 +197,7 @@ def validate_response_not_empty(
 
 #### 1.2 Fix ALL Mapper Validation Bypass
 
-The `secure_transform` utility already exists at `/cyberdelta/utils/secure_transformation.py`. 
+The `secure_transform` utility already exists at `/cyberdelta/utils/secure_transformation.py`.
 
 **Pattern for ALL mappers** (47+ methods need fixing):
 
@@ -242,14 +242,14 @@ Update services to use centralized validation:
 async def get_ticker(self, symbol: str) -> Ticker:
     """Get ticker data for a symbol."""
     params = self._request_builder.build_get_ticker_params(symbol)
-    
+
     raw_data, status_code, _ = await self._http_client_requester(
         method="GET",
         endpoint="/api/v1/ticker",
         params=params,
         is_signed=False,
     )
-    
+
     # Manual validation
     if raw_data is None:
         raise APIError(
@@ -257,12 +257,12 @@ async def get_ticker(self, symbol: str) -> Ticker:
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     # Response handler validates and creates raw model
     raw_ticker = self._response_handler.handle_get_ticker_response(
         raw_data, symbol, status_code
     )
-    
+
     # Mapper transforms to domain model
     return self._mapper.transform_raw_ticker_to_internal(raw_ticker)
 
@@ -271,23 +271,23 @@ async def get_ticker(self, symbol: str) -> Ticker:
 async def get_ticker(self, symbol: str) -> Ticker:
     """Get ticker data for a symbol."""
     params = self._request_builder.build_get_ticker_params(symbol)
-    
+
     raw_data, status_code, _ = await self._http_client_requester(
         method="GET",
         endpoint="/api/v1/ticker",
         params=params,
         is_signed=False,
     )
-    
+
     # Centralized validation with consistent error handling
     context = f"ticker ({symbol})"
     validated_data = ensure_dict_response(raw_data, context, status_code)
-    
+
     # Response handler now works with validated data
     raw_ticker = self._response_handler.handle_get_ticker_response(
         validated_data, symbol, status_code
     )
-    
+
     # Mapper uses secure_transform internally
     return self._mapper.transform_raw_ticker_to_internal(raw_ticker)
 ```
@@ -299,13 +299,13 @@ Update response handlers to leverage validation utilities:
 ```python
 # BEFORE (Duplicated validation logic)
 def handle_get_ticker_response(
-    self, 
+    self,
     raw_response_content: RawJsonResponse,
     symbol: str,
     status_code: int,
 ) -> BackpackRawTicker:
     context = f"ticker ({symbol})"
-    
+
     if not isinstance(raw_response_content, dict):
         raise APIError(
             message=f"Unexpected {context} response format: expected dict, "
@@ -313,14 +313,14 @@ def handle_get_ticker_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code
         )
-    
+
     # Pydantic validation
     return BackpackRawTicker.model_validate(raw_response_content)
 
 
 # AFTER (Cleaner with utilities)
 def handle_get_ticker_response(
-    self, 
+    self,
     raw_response_content: dict[str, Any],  # Note: Already validated
     symbol: str,
     status_code: int,
@@ -373,11 +373,11 @@ from cyberdelta.utils.typing import is_dict_response
 async def get_ticker_with_guards(self, symbol: str) -> Ticker:
     """Example using TypeGuards for better IDE support."""
     raw_data, status_code, _ = await self._http_client_requester(...)
-    
+
     # TypeGuard provides type narrowing
     if not is_dict_response(raw_data):
         raise APIError(...)
-    
+
     # raw_data is now typed as dict[str, Any] for IDE
     # Proceed with validated data
     raw_ticker = self._response_handler.handle_get_ticker_response(
@@ -416,11 +416,11 @@ class ValidationEvent:
 
 class SecurityMonitor:
     """Monitor API validation events for security threats."""
-    
+
     def __init__(self):
         self.events: List[ValidationEvent] = []
         self.failure_threshold = 5  # Failures before alert
-        
+
     def log_validation_success(
         self,
         exchange: str,
@@ -438,7 +438,7 @@ class SecurityMonitor:
             details={"data_size": data_size}
         )
         self.events.append(event)
-        
+
     def log_validation_failure(
         self,
         exchange: str,
@@ -460,7 +460,7 @@ class SecurityMonitor:
             }
         )
         self.events.append(event)
-        
+
         # Check for attack patterns
         recent_failures = self._get_recent_failures(exchange, minutes=5)
         if len(recent_failures) >= self.failure_threshold:
@@ -468,17 +468,17 @@ class SecurityMonitor:
                 f"SECURITY ALERT: {len(recent_failures)} validation failures "
                 f"from {exchange} in last 5 minutes"
             )
-            
+
     def _get_recent_failures(
-        self, 
-        exchange: str, 
+        self,
+        exchange: str,
         minutes: int
     ) -> List[ValidationEvent]:
         """Get recent failure events for analysis."""
         cutoff = datetime.now(UTC).timestamp() - (minutes * 60)
         return [
             e for e in self.events
-            if e.exchange == exchange 
+            if e.exchange == exchange
             and e.event_type in ("failure", "suspicious")
             and e.timestamp.timestamp() > cutoff
         ]
@@ -510,7 +510,7 @@ security_monitor = SecurityMonitor()
 2. Fix ALL mapper validation bypass issues (use `secure_transform`)
 3. Add security tests for validation scenarios
 
-### Week 2: Service Enhancement  
+### Week 2: Service Enhancement
 1. Update 5+ services to use `ensure_dict_response`/`ensure_list_response`
 2. Measure boilerplate reduction
 3. Update response handlers to expect validated input
@@ -545,7 +545,7 @@ security_monitor = SecurityMonitor()
 
 This NO DECORATORS solution provides all the benefits we seek:
 - **Type safety** through validation utilities and TypeGuards
-- **Security** through centralized validation and monitoring  
+- **Security** through centralized validation and monitoring
 - **Code quality** through reduced boilerplate and consistency
 - **Maintainability** through simple, proven patterns
 

@@ -187,7 +187,7 @@ except ImportError:
 
 ## 6. Implementation Timeline
 
-**Week 1**: 
+**Week 1**:
 - Create time constants and utilities
 - Centralize test fixtures
 - Apply timing markers

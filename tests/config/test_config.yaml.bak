@@ -4,7 +4,7 @@
 
 general:
   # For testing, we might want a more verbose log level by default
-  log_level: DEBUG 
+  log_level: DEBUG
   # Other general settings can be minimal or specific for tests if needed
 
 exchanges:
@@ -22,7 +22,7 @@ exchanges:
     symbols: {"ETH": "ETH", "BTC": "BTC", "SOL": "SOL_USDC"} # Sample test symbols
     # Test-specific rate limits (can be more lenient or specific)
     rate_limit_per_minute: 10000 # Higher for testing if needed, or specific test values
-    ip_weight_limit_per_minute: 10000 
+    ip_weight_limit_per_minute: 10000
     info_request_type_ip_weights: {"l2Book": 1, "allMids": 1} # Lower weights for tests
     default_info_weight: 1
     exchange_action_base_ip_weight: 1
@@ -40,7 +40,7 @@ exchanges:
     chain_id: null
     rate_limit_per_minute: 10000 # Higher for testing if needed
     symbols: {"SOL_USDC": "SOL_USDC", "PYTH_USDC": "PYTH_USDC"} # Sample test symbols
-  
+
   # Add other exchanges if they need specific test configurations
 
 # Other sections like strategies, risk, etc., can be minimal or omitted

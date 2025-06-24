@@ -67,14 +67,14 @@ try:
         quantity=Decimal("0.1"),
         max_slippage=Decimal("0.01")  # Optional: 1% max slippage override
     )
-    
+
     if order.status == OrderStatus.FILLED:
         print(f"Market order filled at {order.price}")
     elif order.status == OrderStatus.PARTIALLY_FILLED:
         print(f"Partial fill: {order.quantity_filled}/{order.quantity}")
     else:
         print("Market order failed - no fill")
-        
+
 except InsufficientLiquidityError as e:
     print(f"Not enough liquidity: {e}")
 except PriceDeviationError as e:
@@ -105,13 +105,13 @@ config = MarketOrderConfig(
     # Slippage settings
     default_slippage_pct=Decimal("0.001"),      # Default 0.1%
     max_slippage_pct=Decimal("0.05"),           # Max 5%
-    
+
     # Price deviation limits
     max_price_deviation_pct=Decimal("0.10"),    # Max 10% from reference
-    
+
     # Liquidity requirements
     min_liquidity_ratio=Decimal("2.0"),         # Need 2x order size in book
-    
+
     # Symbol-specific overrides
     slippage_by_symbol={
         "BTC": Decimal("0.005"),                # 0.5% for BTC
@@ -119,7 +119,7 @@ config = MarketOrderConfig(
         "SOL": Decimal("0.01"),                 # 1% for SOL
         "default": Decimal("0.02"),             # 2% for others
     },
-    
+
     # Other settings
     enabled=True,                               # Enable/disable market orders
     use_all_mids_for_reference=False,          # Use AllMids endpoint
@@ -179,12 +179,12 @@ class DeltaNeutralStrategy:
         # Initialize market order executors for each exchange
         self.long_market_order = self._create_market_order_executor(long_exchange)
         self.short_market_order = self._create_market_order_executor(short_exchange)
-    
+
     def _create_market_order_executor(self, exchange: ExchangeAPI) -> MarketOrder:
         config = MarketOrderConfig()
         service = MarketOrderService(exchange, config=config)
         return MarketOrder(exchange, service, config)
-    
+
     async def execute_arbitrage(self, symbol: str, size: Decimal):
         # Execute market orders on both exchanges
         tasks = [
@@ -199,9 +199,9 @@ class DeltaNeutralStrategy:
                 quantity=size
             )
         ]
-        
+
         long_order, short_order = await asyncio.gather(*tasks)
-        
+
         # Check execution
         if long_order.status == OrderStatus.FILLED and short_order.status == OrderStatus.FILLED:
             print(f"Arbitrage executed: Long @ {long_order.price}, Short @ {short_order.price}")
@@ -216,20 +216,20 @@ class DeltaNeutralStrategy:
 ```python
 try:
     order = await market_order.execute_market_order(...)
-    
+
 except InsufficientLiquidityError as e:
     # Not enough liquidity in order book
     print(f"Symbol: {e.symbol}")
     print(f"Requested: {e.requested_quantity}")
     print(f"Available: {e.available_quantity}")
-    
+
 except PriceDeviationError as e:
     # Price deviation exceeds configured limits
     print(f"Symbol: {e.symbol}")
     print(f"Aggressive price: {e.aggressive_price}")
     print(f"Reference price: {e.reference_price}")
     print(f"Deviation: {e.deviation_pct:.2%}")
-    
+
 except MarketOrderError as e:
     # General market order error
     print(f"Market order failed: {e}")

@@ -70,7 +70,7 @@ def market_open(
     "a": 3,
     "b": true,
     "p": "52500.25",
-    "s": "0.0001", 
+    "s": "0.0001",
     "r": false,
     "t": {"limit": {"tif": "Ioc"}}
   }],
@@ -108,7 +108,7 @@ def _slippage_price(
 
 **⚠️ FINANCIAL RISK WARNING**: This algorithm uses floating-point arithmetic throughout, causing:
 - Precision loss in price calculations
-- Rounding errors in slippage computation  
+- Rounding errors in slippage computation
 - Potential financial discrepancies
 
 **Algorithm Logic** (must be reimplemented with Decimal precision):
@@ -130,17 +130,17 @@ def calculate_aggressive_price(
     current_price: Decimal | None = None  # ✅ DECIMAL - NO ROUNDING ERRORS
 ) -> Decimal:                             # ✅ DECIMAL RETURN TYPE
     """Calculate aggressive market order price with exact precision."""
-    
+
     if current_price is None:
         # Get current mid price with Decimal precision
         current_price = await self.get_current_mid_price_decimal(symbol)
-    
+
     # Exact decimal arithmetic - no precision loss
     if side == OrderSide.BUY:
         aggressive_price = current_price * (Decimal("1") + slippage)
     else:
         aggressive_price = current_price * (Decimal("1") - slippage)
-    
+
     # Apply proper decimal rounding for exchange precision requirements
     return self.round_to_exchange_precision(aggressive_price, symbol)
 ```
@@ -215,7 +215,7 @@ MarketOrderConfig:
     max_price_deviation_pct: Decimal("0.10") # 10%
     min_liquidity_ratio: Decimal("2.0")      # 2x order size
     timeout_seconds: 10
-    
+
     slippage_overrides:
         "BTC": Decimal("0.005")  # 0.5%
         "ETH": Decimal("0.005")  # 0.5%
@@ -242,7 +242,7 @@ class MarketOrderConfig:
     max_slippage_pct: Decimal = Decimal("0.05")       # 5%
     max_price_deviation_pct: Decimal = Decimal("0.10") # 10%
     min_liquidity_ratio: Decimal = Decimal("2.0")      # 2x size
-    
+
     slippage_overrides: Dict[str, Decimal] = {
         "BTC": Decimal("0.005"),  # 0.5%
         "ETH": Decimal("0.005"),  # 0.5%
@@ -262,28 +262,28 @@ async def calculate_aggressive_price(
     signal_generator: Optional[SignalGenerator] = None
 ) -> AggressivePriceResult:        # ✅ Returns detailed result
     """Calculate safe aggressive price with exact arithmetic."""
-    
+
     # Get order book with liquidity analysis
     order_book = await self._get_order_book(symbol)
-    
+
     # Validate liquidity (2x order size required)
     liquidity_check = self._check_liquidity(order_book, side, quantity)
-    
+
     # Get reference price (best ask for buy, best bid for sell)
     reference_price = self._get_reference_price(order_book, side)
-    
+
     # Calculate slippage (signal-based or config default)
     final_slippage = await self._calculate_final_slippage(...)
-    
+
     # Apply slippage with Decimal arithmetic
     if side == OrderSide.BUY:
         aggressive_price = reference_price * (Decimal("1") + final_slippage)
     else:
         aggressive_price = reference_price * (Decimal("1") - final_slippage)
-    
+
     # Validate price deviation limits
     self._validate_price_deviation(aggressive_price, reference_price, config)
-    
+
     # Round to tick size
     return self._round_to_tick_size(aggressive_price, symbol)
 ```
@@ -436,7 +436,7 @@ Built-in performance tracking:
 price = 52345.67890123456789  # Lost precision!
 slippage = price * 0.005      # Rounding errors!
 
-# ✅ CORRECT - Exact decimal precision  
+# ✅ CORRECT - Exact decimal precision
 price = Decimal("52345.67890123456789")      # Exact precision preserved
 slippage = price * Decimal("0.005")          # Exact arithmetic
 aggressive_price = price * (Decimal("1") + slippage)  # No rounding errors

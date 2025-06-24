@@ -36,7 +36,7 @@ exchanges:
       l2Book: 2                      # Level 2 Order Book
       allMids: 2                     # All Mid Prices
       meta: 2                        # Meta info
-      metaAndAssetCtxs: 2           # Meta and Asset Contexts  
+      metaAndAssetCtxs: 2           # Meta and Asset Contexts
       clearinghouseState: 10         # Clearinghouse State
       openOrders: 1                  # Open Orders
       userFills: 1                   # User Fills
@@ -52,7 +52,7 @@ exchanges:
     websocket_send_rate_per_minute: 1800  # 30 msg/sec, under HL's 2000/min limit
     symbols:
       # Map internal symbol names to exchange-specific symbols
-      BTC: "BTC" 
+      BTC: "BTC"
       ETH: "ETH"
     # Optional HTTP Client Settings (examples)
     request_timeout_seconds: 20
@@ -60,7 +60,7 @@ exchanges:
     # ws_max_reconnect_attempts: 5  # Example of another optional field
     # Exchange-Specific Parameters (required for Hyperliquid)
     chain_id: 1337
-    
+
   backpack:
     exchange_name: "backpack"
     enabled: true
@@ -92,18 +92,18 @@ strategies:
     short_exchange: "hyperliquid"  # Where we go short (sell perpetual)
     symbol_long: "BTC"        # Internal symbol for the long leg
     symbol_short: "BTC"       # Internal symbol for the short leg
-    
+
     params:
       funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
       max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
       min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
-      
+
 # Risk management (Simplified for Prototype 0.0.1)
 risk:
   global:
     max_position_usd: 200.0      # Max size per single arbitrage position
     max_total_exposure_usd: 1000.0 # Max total value across all open positions
-    
+
   # --- Simple Sizing Path (Optional Alternative to Kelly) ---
   use_simple_sizing_path: true            # Default to standard Kelly sizing
   simple_sizing_method: "fixed_fraction" # Default method if simple path is enabled
@@ -114,13 +114,13 @@ risk:
 execution:
   # Slippage for market orders (if used, Taker orders preferred for prototype)
   max_slippage_pct: 0.001 # 0.1% maximum slippage tolerance
-  
+
   # Retry logic for failed API calls (e.g., temporary network issues)
   max_retries: 3
   retry_delay_base_sec: 1.0 # Initial delay in seconds for exponential backoff
-  
+
   # Delay after placing orders before checking status (improves reliability with mocks/latency)
-  settlement_delay: 2.0 # seconds 
+  settlement_delay: 2.0 # seconds
 
   # Compensation settings (NEW)
   compensation:
@@ -135,7 +135,7 @@ safety_systems:
     # Global breaker (trips if *any* exchange hits its limit)
     global_consecutive_failures: 5 # Trips after 5 consecutive failures globally
     global_reset_timeout_sec: 300  # Reset after 5 minutes if tripped
-    
+
     # Per-exchange breakers
     exchange_consecutive_failures: 3 # Trips after 3 consecutive failures for a specific exchange
     exchange_reset_timeout_sec: 180 # Reset after 3 minutes

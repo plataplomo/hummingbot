@@ -53,13 +53,13 @@ class RealTimeDashboard:
 Frontend Stack (New):
 ├── Django Templates - Server-side rendering
 ├── HTMX (14KB) - HTML over the wire reactivity
-├── Alpine.js (15KB) - Minimal client-side state management  
+├── Alpine.js (15KB) - Minimal client-side state management
 ├── TailwindCSS - Utility-first responsive styling
 └── Plotly.js - Chart visualizations (preserved from current)
 
 Backend Integration (Preserved):
 ├── Existing cyberdelta.core.portfolio_tracker
-├── Existing cyberdelta.monitoring.performance_metrics  
+├── Existing cyberdelta.monitoring.performance_metrics
 ├── Existing cyberdelta.monitoring.performance_tracker
 ├── Existing cyberdelta.core.engine (strategy management)
 ├── Existing cyberdelta.apis (enhanced with auto-lending)
@@ -136,34 +136,34 @@ django_web/
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CyberDelta Trading Dashboard{% endblock %}</title>
-    
+
     <!-- TailwindCSS -->
     <link href="{% static 'css/tailwind.css' %}" rel="stylesheet">
-    
+
     <!-- Core Libraries -->
     <script src="{% static 'js/htmx.min.js' %}"></script>
     <script src="{% static 'js/alpine.min.js' %}" defer></script>
     <script src="{% static 'js/plotly.min.js' %}"></script>
-    
+
     <!-- HTMX Extensions -->
     <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
-    
+
     <!-- Custom Styles -->
     <link href="{% static 'css/dashboard.css' %}" rel="stylesheet">
-    
+
     <!-- CSRF Token for HTMX -->
     <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
-<body class="h-full" 
+<body class="h-full"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       x-data="dashboardApp()">
-    
+
     <!-- Main Container with WebSocket Connection -->
-    <div id="main-app" 
+    <div id="main-app"
          class="h-full flex flex-col"
-         hx-ext="ws" 
+         hx-ext="ws"
          ws-connect="/ws/dashboard/">
-        
+
         <!-- Navigation -->
         <nav class="bg-gray-900 text-white shadow-lg">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -174,22 +174,22 @@ django_web/
                         </div>
                         <div class="hidden md:block">
                             <div class="ml-10 flex items-baseline space-x-4">
-                                <a href="#" 
+                                <a href="#"
                                    class="nav-link {% if request.resolver_match.url_name == 'overview' %}active{% endif %}"
                                    hx-get="{% url 'dashboard:overview' %}"
                                    hx-target="#main-content"
                                    hx-push-url="true">Overview</a>
-                                <a href="#" 
+                                <a href="#"
                                    class="nav-link {% if request.resolver_match.url_name == 'strategies' %}active{% endif %}"
                                    hx-get="{% url 'dashboard:strategies' %}"
                                    hx-target="#main-content"
                                    hx-push-url="true">Strategies</a>
-                                <a href="#" 
+                                <a href="#"
                                    class="nav-link {% if request.resolver_match.url_name == 'trading' %}active{% endif %}"
                                    hx-get="{% url 'dashboard:trading' %}"
                                    hx-target="#main-content"
                                    hx-push-url="true">Trading</a>
-                                <a href="#" 
+                                <a href="#"
                                    class="nav-link {% if request.resolver_match.url_name == 'analytics' %}active{% endif %}"
                                    hx-get="{% url 'dashboard:analytics' %}"
                                    hx-target="#main-content"
@@ -197,11 +197,11 @@ django_web/
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- User Menu -->
                     <div class="flex items-center">
                         <div class="relative" x-data="{ open: false }">
-                            <button @click="open = !open" 
+                            <button @click="open = !open"
                                     class="flex items-center text-sm rounded-full focus:outline-none">
                                 <span class="sr-only">Open user menu</span>
                                 <div class="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center">
@@ -209,7 +209,7 @@ django_web/
                                 </div>
                             </button>
                             <!-- Dropdown menu -->
-                            <div x-show="open" 
+                            <div x-show="open"
                                  @click.away="open = false"
                                  x-transition:enter="transition ease-out duration-100"
                                  x-transition:enter-start="transform opacity-0 scale-95"
@@ -225,16 +225,16 @@ django_web/
                 </div>
             </div>
         </nav>
-        
+
         <!-- Main Content Area -->
         <main id="main-content" class="flex-1 overflow-y-auto">
             {% block content %}{% endblock %}
         </main>
-        
+
         <!-- Status Bar -->
         <div id="status-bar" class="bg-gray-800 text-white px-4 py-2 flex justify-between items-center text-sm">
             <div class="flex items-center space-x-4">
-                <div id="connection-status" 
+                <div id="connection-status"
                      x-text="connectionStatus"
                      :class="{'text-green-400': connected, 'text-red-400': !connected}">
                     Connecting...
@@ -247,7 +247,7 @@ django_web/
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                <div id="system-health" 
+                <div id="system-health"
                      x-text="systemHealth"
                      :class="{'text-green-400': systemHealthy, 'text-yellow-400': !systemHealthy}">
                     Checking...
@@ -255,9 +255,9 @@ django_web/
             </div>
         </div>
     </div>
-    
+
     <!-- Toast Notifications -->
-    <div id="toast-container" 
+    <div id="toast-container"
          class="fixed top-4 right-4 z-50 space-y-2"
          x-show="notifications.length > 0">
         <template x-for="notification in notifications" :key="notification.id">
@@ -279,7 +279,7 @@ django_web/
                             <p class="text-sm font-medium text-gray-900" x-text="notification.title"></p>
                             <p class="text-sm text-gray-500" x-text="notification.message"></p>
                         </div>
-                        <button @click="dismissNotification(notification.id)" 
+                        <button @click="dismissNotification(notification.id)"
                                 class="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-500">
                             <span class="sr-only">Close</span>
                             <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -291,10 +291,10 @@ django_web/
             </div>
         </template>
     </div>
-    
+
     <!-- Global JavaScript -->
     <script src="{% static 'js/dashboard.js' %}"></script>
-    
+
     <!-- Block for page-specific scripts -->
     {% block extra_js %}{% endblock %}
 </body>
@@ -321,25 +321,25 @@ from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStr
 
 class DashboardAdapter:
     """Adapter to connect Django dashboard to existing cyberdelta components
-    
+
     This preserves all existing functionality including:
     - Enhanced Backpack integration with auto-lending
     - Comprehensive performance tracking
     - Real-time WebSocket data feeds
     - All existing dashboard calculations
     """
-    
+
     def __init__(self):
         # Initialize existing components exactly as they are
         self.engine = Engine(name="CyberDelta_Dashboard")
         self.portfolio_tracker = PortfolioTracker(...)
         self.performance_metrics = PerformanceMetrics(...)
         self.performance_tracker = PerformanceTracker(...)  # For historical data
-        
+
         # Store strategy instances
         self.strategies = {}
         self._load_strategies()
-    
+
     def _load_strategies(self):
         """Load strategies using existing strategy system"""
         # Load funding rate arbitrage strategy
@@ -355,18 +355,18 @@ class DashboardAdapter:
                 "min_profit_usd": 10.0
             }
         )
-        
+
         self.engine.add_strategy(funding_strategy)
         self.strategies["HL-BP-Funding"] = funding_strategy
-    
+
     def get_dashboard_overview(self) -> Dict[str, Any]:
         """Get dashboard overview data using existing components"""
         # Use existing portfolio tracker for current data
         portfolio_summary = self.portfolio_tracker.get_portfolio_summary()
-        
+
         # Use existing performance metrics
         performance_data = self.performance_metrics.get_current_metrics()
-        
+
         # Get strategy statuses using existing engine
         strategy_statuses = []
         for name, strategy in self.engine.strategies.items():
@@ -377,7 +377,7 @@ class DashboardAdapter:
                 'status': 'active' if strategy.enabled else 'inactive',
                 'last_signal': getattr(strategy, 'last_signal_time', None)
             })
-        
+
         return {
             'portfolio': {
                 'total_value': float(portfolio_summary.total_value),
@@ -398,20 +398,20 @@ class DashboardAdapter:
                 'last_update': datetime.now().isoformat()
             }
         }
-    
+
     def get_strategy_performance(self, strategy_names: List[str], time_range: str) -> Dict[str, Any]:
         """Get strategy performance data using existing performance metrics"""
         # Use existing performance calculation logic
         performance_data = self.performance_metrics.get_strategy_performance(
             strategy_names, time_range
         )
-        
+
         # Transform for frontend consumption
         chart_data = {
             'timestamps': [p.timestamp.isoformat() for p in performance_data],
             'strategies': {}
         }
-        
+
         for strategy_name in strategy_names:
             if strategy_name in performance_data:
                 strategy_data = performance_data[strategy_name]
@@ -422,14 +422,14 @@ class DashboardAdapter:
                     'sharpe_ratio': float(strategy_data.sharpe_ratio),
                     'max_drawdown': float(strategy_data.max_drawdown)
                 }
-        
+
         return chart_data
-    
+
     def start_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Start strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             return {'success': False, 'error': f'Strategy {strategy_name} not found'}
-        
+
         try:
             self.engine.enable_strategy(strategy_name)
             return {
@@ -439,12 +439,12 @@ class DashboardAdapter:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
+
     def stop_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Stop strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             return {'success': False, 'error': f'Strategy {strategy_name} not found'}
-        
+
         try:
             self.engine.disable_strategy(strategy_name)
             return {
@@ -454,12 +454,12 @@ class DashboardAdapter:
             }
         except Exception as e:
             return {'success': False, 'error': str(e)}
-    
+
     def get_recent_trades(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent trades using existing portfolio tracker"""
         # Use existing trade history from portfolio tracker
         recent_trades = self.portfolio_tracker.get_recent_trades(limit)
-        
+
         trades_data = []
         for trade in recent_trades:
             trades_data.append({
@@ -473,17 +473,17 @@ class DashboardAdapter:
                 'pnl': float(trade.realized_pnl) if trade.realized_pnl else 0,
                 'fee': float(trade.fee) if trade.fee else 0
             })
-        
+
         return trades_data
-    
+
     def get_funding_rates_matrix(self, time_range: str) -> Dict[str, Any]:
         """Get funding rates matrix using existing data sources"""
         # Use existing API data (this would be enhanced to pull from your APIs)
         # For now, return structure that matches what the frontend expects
-        
+
         exchanges = ['hyperliquid', 'backpack']
         symbols = ['BTC-USD', 'ETH-USD', 'SOL-USD']
-        
+
         # This would use your existing APIs to get real funding rate data
         funding_matrix = {
             'exchanges': exchanges,
@@ -494,7 +494,7 @@ class DashboardAdapter:
             ],
             'last_update': datetime.now().isoformat()
         }
-        
+
         return funding_matrix
 ```
 
@@ -516,50 +516,50 @@ from .adapters import DashboardAdapter
 class DashboardView(LoginRequiredMixin, TemplateView):
     """Main dashboard view"""
     template_name = 'dashboard/index.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.adapter = DashboardAdapter()
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get dashboard data using existing cyberdelta components
         dashboard_data = self.adapter.get_dashboard_overview()
-        
+
         context.update({
             'portfolio': dashboard_data['portfolio'],
-            'performance': dashboard_data['performance'], 
+            'performance': dashboard_data['performance'],
             'strategies': dashboard_data['strategies'],
             'system_status': dashboard_data['system_status']
         })
-        
+
         return context
 
 class PerformanceChartView(LoginRequiredMixin, TemplateView):
     """Performance chart component"""
     template_name = 'dashboard/components/performance_chart.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.adapter = DashboardAdapter()
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get parameters from request
         strategies = self.request.GET.getlist('strategies')
         time_range = self.request.GET.get('time_range', '24h')
-        
+
         if not strategies:
             strategies = ['HL-BP-Funding']  # Default strategy
-        
+
         # Get performance data using existing components
         performance_data = self.adapter.get_strategy_performance(strategies, time_range)
-        
+
         # Create Plotly figure data
         plotly_data = self._create_plotly_figure(performance_data)
-        
+
         context.update({
             'chart_data': json.dumps(plotly_data),
             'selected_strategies': strategies,
@@ -573,13 +573,13 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
                 {'value': '30d', 'label': '30 Days'},
             ]
         })
-        
+
         return context
-    
+
     def _create_plotly_figure(self, performance_data):
         """Create Plotly figure data (same logic as current Dash dashboard)"""
         traces = []
-        
+
         for strategy_name, strategy_data in performance_data['strategies'].items():
             traces.append({
                 'x': performance_data['timestamps'],
@@ -589,7 +589,7 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
                 'name': strategy_name,
                 'line': {'width': 2}
             })
-        
+
         layout = {
             'title': {
                 'text': 'Strategy Performance',
@@ -603,21 +603,21 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
             'height': 400,
             'margin': {'l': 60, 'r': 60, 't': 80, 'b': 60}
         }
-        
+
         return {'data': traces, 'layout': layout}
 
 @require_http_methods(["POST"])
 def strategy_control(request, strategy_name, action):
     """Strategy start/stop control"""
     adapter = DashboardAdapter()
-    
+
     if action == 'start':
         result = adapter.start_strategy(strategy_name)
     elif action == 'stop':
         result = adapter.stop_strategy(strategy_name)
     else:
         result = {'success': False, 'error': 'Invalid action'}
-    
+
     if request.headers.get('HX-Request'):
         # Return HTMX partial update
         return render(request, 'dashboard/partials/strategy_status.html', {
@@ -631,58 +631,58 @@ def strategy_control(request, strategy_name, action):
 class MetricsTableView(LoginRequiredMixin, TemplateView):
     """Real-time metrics table component"""
     template_name = 'dashboard/components/metrics_table.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.adapter = DashboardAdapter()
-    
+
     @method_decorator(cache_page(30))  # Cache for 30 seconds
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get current metrics using existing components
         dashboard_data = self.adapter.get_dashboard_overview()
-        
+
         context.update({
             'strategies': dashboard_data['strategies'],
             'portfolio': dashboard_data['portfolio'],
             'performance': dashboard_data['performance'],
             'last_update': dashboard_data['system_status']['last_update']
         })
-        
+
         return context
 
 class TradeTableView(LoginRequiredMixin, TemplateView):
     """Trade history table with infinite scroll"""
     template_name = 'dashboard/components/trade_table.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.adapter = DashboardAdapter()
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get pagination parameters
         page = int(self.request.GET.get('page', 1))
         limit = int(self.request.GET.get('limit', 50))
         strategy_filter = self.request.GET.get('strategy')
-        
+
         # Get recent trades using existing portfolio tracker
         trades = self.adapter.get_recent_trades(limit * page)
-        
+
         # Apply strategy filter if specified
         if strategy_filter:
             trades = [t for t in trades if t['strategy'] == strategy_filter]
-        
+
         # Paginate results
         start_idx = (page - 1) * limit
         end_idx = start_idx + limit
         page_trades = trades[start_idx:end_idx]
-        
+
         context.update({
             'trades': page_trades,
             'page': page,
@@ -690,25 +690,25 @@ class TradeTableView(LoginRequiredMixin, TemplateView):
             'strategy_filter': strategy_filter,
             'available_strategies': list(self.adapter.strategies.keys())
         })
-        
+
         return context
 
 class FundingHeatmapView(LoginRequiredMixin, TemplateView):
     """Funding rate heatmap component"""
     template_name = 'dashboard/components/funding_heatmap.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.adapter = DashboardAdapter()
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         time_range = self.request.GET.get('time_range', '24h')
-        
+
         # Get funding rate data using existing APIs
         funding_data = self.adapter.get_funding_rates_matrix(time_range)
-        
+
         # Create heatmap data for Plotly
         heatmap_data = {
             'z': funding_data['values'],
@@ -719,26 +719,26 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
             'zmid': 0,
             'colorbar': {'title': 'Funding Rate (%)'}
         }
-        
+
         layout = {
             'title': 'Funding Rates Heatmap',
             'xaxis': {'title': 'Exchange'},
             'yaxis': {'title': 'Symbol'},
             'height': 400
         }
-        
+
         context.update({
             'heatmap_data': json.dumps({'data': [heatmap_data], 'layout': layout}),
             'time_range': time_range,
             'last_update': funding_data['last_update'],
             'time_range_options': [
                 {'value': '1h', 'label': '1 Hour'},
-                {'value': '6h', 'label': '6 Hours'}, 
+                {'value': '6h', 'label': '6 Hours'},
                 {'value': '24h', 'label': '24 Hours'},
                 {'value': '7d', 'label': '7 Days'}
             ]
         })
-        
+
         return context
 ```
 
@@ -755,7 +755,7 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
                 <label class="block text-sm font-medium text-gray-700 mb-1">
                     Strategies
                 </label>
-                <select name="strategies" 
+                <select name="strategies"
                         multiple
                         class="form-multiselect block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                         hx-get="{% url 'dashboard:performance_chart' %}"
@@ -764,14 +764,14 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
                         hx-include="[name='time_range']"
                         hx-indicator="#chart-loading">
                     {% for strategy in available_strategies %}
-                        <option value="{{ strategy }}" 
+                        <option value="{{ strategy }}"
                                 {% if strategy in selected_strategies %}selected{% endif %}>
                             {{ strategy }}
                         </option>
                     {% endfor %}
                 </select>
             </div>
-            
+
             <!-- Time Range Selector -->
             <div class="relative">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -792,7 +792,7 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
                 </div>
             </div>
         </div>
-        
+
         <!-- Chart Actions -->
         <div class="flex items-center space-x-2">
             <button class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -814,13 +814,13 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
             </button>
         </div>
     </div>
-    
+
     <!-- Loading Indicator -->
     <div id="chart-loading" class="htmx-indicator flex items-center justify-center py-8">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         <span class="ml-2 text-sm text-gray-600">Updating chart...</span>
     </div>
-    
+
     <!-- Chart Container -->
     <div id="performance-chart" class="relative" style="min-height: 400px;">
         <!-- Plotly chart will be rendered here -->
@@ -831,7 +831,7 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
     // Render Plotly chart using the same logic as current Dash dashboard
     document.addEventListener('DOMContentLoaded', function() {
         const chartData = {{ chart_data|safe }};
-        
+
         // Configure responsive behavior
         const config = {
             responsive: true,
@@ -845,9 +845,9 @@ class FundingHeatmapView(LoginRequiredMixin, TemplateView):
                 scale: 1
             }
         };
-        
+
         Plotly.newPlot('performance-chart', chartData.data, chartData.layout, config);
-        
+
         // Handle window resize
         window.addEventListener('resize', function() {
             Plotly.Plots.resize('performance-chart');

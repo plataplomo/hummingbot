@@ -103,7 +103,7 @@ def market_open(
     "a": 3,
     "b": true,
     "p": "52500.25",
-    "s": "0.0001", 
+    "s": "0.0001",
     "r": false,
     "t": {"limit": {"tif": "Ioc"}}
   }],
@@ -128,11 +128,11 @@ def _slippage_price(
     if not px:
         # Get midprice
         px = float(self.info.all_mids()[coin])  # ❌ FLOAT CONVERSION
-    
+
     asset = self.info.coin_to_asset[coin]
     # spot assets start at 10000
     is_spot = asset >= 10_000
-    
+
     # Calculate Slippage - FLOAT ARITHMETIC = PRECISION LOSS!
     px *= (1 + slippage) if is_buy else (1 - slippage)  # ❌ DANGEROUS
     # Round px to 5 significant figures and 6 decimals for perps, 8 decimals for spot
@@ -141,7 +141,7 @@ def _slippage_price(
 
 **⚠️ FINANCIAL RISK WARNING**: This algorithm uses floating-point arithmetic throughout, causing:
 - Precision loss in price calculations
-- Rounding errors in slippage computation  
+- Rounding errors in slippage computation
 - Potential financial discrepancies
 
 **Algorithm Logic** (must be reimplemented with Decimal precision):
@@ -163,7 +163,7 @@ async def calculate_aggressive_price(
     current_price: Decimal | None = None  # ✅ DECIMAL - NO ROUNDING ERRORS
 ) -> Decimal:                             # ✅ DECIMAL RETURN TYPE
     """Calculate aggressive market order price with exact precision."""
-    
+
     if current_price is None:
         # Option 1: Use order book for more accurate pricing
         order_book = await self.market_data_service.get_order_book(symbol)
@@ -174,7 +174,7 @@ async def calculate_aggressive_price(
             else:
                 # Use best bid for sell orders
                 current_price = order_book.bids[0][0] if order_book.bids else None
-        
+
         # Option 2: Fall back to ticker mark price
         if current_price is None:
             ticker = await self.market_data_service.get_ticker(symbol)
@@ -182,13 +182,13 @@ async def calculate_aggressive_price(
                 current_price = ticker.price
             else:
                 raise ValueError(f"Unable to get current price for {symbol}")
-    
+
     # Exact decimal arithmetic - no precision loss
     if side == OrderSide.BUY:
         aggressive_price = current_price * (Decimal("1") + slippage)
     else:
         aggressive_price = current_price * (Decimal("1") - slippage)
-    
+
     # Apply proper decimal rounding for exchange precision requirements
     return self.round_to_exchange_precision(aggressive_price, symbol)
 ```
@@ -211,7 +211,7 @@ async def calculate_aggressive_price(
 ```python
 class HyperliquidMarketOrderPricingService:
     """Service for calculating aggressive prices for market orders."""
-    
+
     def __init__(
         self,
         market_data_service: HyperliquidMarketDataService,
@@ -219,7 +219,7 @@ class HyperliquidMarketOrderPricingService:
     ):
         self._market_data = market_data_service
         self._config = config
-    
+
     async def calculate_aggressive_price(
         self,
         symbol: str,
@@ -228,7 +228,7 @@ class HyperliquidMarketOrderPricingService:
         max_slippage: Decimal | None = None
     ) -> Decimal:
         """Calculate aggressive price with safety checks."""
-        
+
         # Get order book for accurate pricing
         order_book = await self._market_data.get_order_book(symbol)
         if not order_book:
@@ -236,34 +236,34 @@ class HyperliquidMarketOrderPricingService:
                 code=APIErrorCode.MARKET_DATA_UNAVAILABLE.value,
                 message=f"Cannot calculate market order price: no order book for {symbol}"
             )
-        
+
         # Check liquidity
         available_liquidity = self._calculate_available_liquidity(
             order_book, side, quantity
         )
-        
+
         if available_liquidity < quantity:
             raise APIError(
                 code=APIErrorCode.INSUFFICIENT_LIQUIDITY.value,
                 message=f"Insufficient liquidity for {quantity} {symbol}"
             )
-        
+
         # Calculate volume-weighted average price with slippage
         vwap = self._calculate_vwap(order_book, side, quantity)
-        
+
         # Apply configured slippage
         slippage = self._get_slippage_for_symbol(symbol)
         if max_slippage:
             slippage = min(slippage, max_slippage)
-        
+
         if side == OrderSide.BUY:
             aggressive_price = vwap * (Decimal("1") + slippage)
         else:
             aggressive_price = vwap * (Decimal("1") - slippage)
-        
+
         # Validate price bounds
         self._validate_price_bounds(aggressive_price, symbol, side)
-        
+
         return aggressive_price
 ```
 
@@ -274,7 +274,7 @@ class HyperliquidMarketOrderPricingService:
 if args.order_type == OrderType.MARKET:
     # Calculate aggressive price for market order
     pricing_service = self._get_market_order_pricing_service()
-    
+
     try:
         aggressive_price = await pricing_service.calculate_aggressive_price(
             symbol=args.symbol,
@@ -282,15 +282,15 @@ if args.order_type == OrderType.MARKET:
             quantity=args.quantity,
             max_slippage=self._config.max_market_order_slippage
         )
-        
+
         # Update args with calculated price
         args = args.model_copy(update={"price": aggressive_price})
-        
+
         logger.info(
             f"Market order for {args.symbol} {args.side.value} "
             f"will use aggressive price: {aggressive_price}"
         )
-        
+
     except APIError as e:
         logger.error(f"Failed to calculate market order price: {e}")
         raise
@@ -304,17 +304,17 @@ hyperliquid:
     enabled: true
     default_slippage: "0.01"  # 1%
     max_slippage: "0.05"      # 5% safety limit
-    
+
     slippage_by_symbol:
       BTC: "0.005"            # 0.5% for high liquidity
       ETH: "0.005"
       SOL: "0.01"
       default: "0.02"         # 2% for others
-    
+
     price_bounds:
       max_deviation_from_mark: "0.10"  # 10% from mark price
       stale_price_threshold_seconds: 5
-    
+
     liquidity_requirements:
       min_book_depth_multiple: 2.0  # Need 2x order size in book
       max_single_level_percentage: 0.5  # Max 50% from one level
@@ -453,7 +453,7 @@ This implementation follows CyberDeltaEngine's architecture principles:
 price = 52345.67890123456789  # Lost precision!
 slippage = price * 0.005      # Rounding errors!
 
-# ✅ CORRECT - Exact decimal precision  
+# ✅ CORRECT - Exact decimal precision
 price = Decimal("52345.67890123456789")      # Exact precision preserved
 slippage = price * Decimal("0.005")          # Exact arithmetic
 aggressive_price = price * (Decimal("1") + slippage)  # No rounding errors

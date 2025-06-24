@@ -106,4 +106,4 @@ CyberDeltaEngine is designed to handle real financial assets and must prioritize
 - See `cyberdelta/core/strategy_manager.py`, method `process_market_data` (v0.0.1+).
 
 **Future Considerations:**
-- As the system evolves, this policy may be relaxed to allow for more granular error handling, but only after comprehensive monitoring and fallback mechanisms are in place. 
+- As the system evolves, this policy may be relaxed to allow for more granular error handling, but only after comprehensive monitoring and fallback mechanisms are in place.

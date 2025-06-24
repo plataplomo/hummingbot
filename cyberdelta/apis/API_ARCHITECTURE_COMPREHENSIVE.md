@@ -36,25 +36,25 @@ The `ExchangeAPI` abstract base class defines a complete, exchange-agnostic inte
 ```python
 class ExchangeAPI(ABC):
     """Exchange-agnostic interface - NO exchange-specific logic allowed"""
-    
+
     # Market Data - identical signatures across all exchanges
     @abstractmethod
     async def get_market(self, args: GetMarketArgs) -> Market:
         """Returns unified Market model regardless of exchange"""
         raise NotImplementedError
-    
-    @abstractmethod  
+
+    @abstractmethod
     async def get_ticker(self, symbol: str) -> Ticker:
         """Returns unified Ticker model regardless of exchange"""
         raise NotImplementedError
-    
+
     # Trading Operations - identical behavior expectations
     @abstractmethod
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Returns unified Order model with consistent semantics"""
         raise NotImplementedError
-    
-    # Account Management - consistent across exchanges  
+
+    # Account Management - consistent across exchanges
     @abstractmethod
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Returns unified balance representation"""
@@ -74,20 +74,20 @@ All business logic operates on unified, exchange-agnostic domain models:
 ```python
 class Order(BaseModel):
     """Unified order model - works with ANY exchange"""
-    
+
     # Core fields that exist for ALL exchanges
-    id: str                    # Exchange order ID  
+    id: str                    # Exchange order ID
     symbol: str               # Trading pair
     side: OrderSide           # BUY/SELL enum
     order_type: OrderType     # LIMIT/MARKET/etc enum
     quantity: Decimal         # Order size
     status: OrderStatus       # OPEN/FILLED/CANCELLED enum
     created_at: datetime      # Order timestamp
-    
+
     # Exchange-specific enrichment via typed extension slots
     hyperliquid_details: HyperliquidOrderDetails | None = None
     backpack_details: BackpackOrderDetails | None = None
-    
+
     # NO exchange-specific core fields allowed
 ```
 
@@ -104,14 +104,14 @@ Input validation is exchange-agnostic through unified args models:
 ```python
 class PlaceOrderArgs(BaseModel):
     """Works identically across ALL exchanges"""
-    
+
     symbol: str
     side: OrderSide           # Enum works for all exchanges
-    order_type: OrderType     # Enum works for all exchanges  
+    order_type: OrderType     # Enum works for all exchanges
     quantity: Decimal = Field(gt=Decimal("0"))
     price: Decimal | None = Field(default=None, gt=Decimal("0"))
     time_in_force: TimeInForce
-    
+
     @model_validator(mode="after")
     def validate_universal_rules(self) -> "PlaceOrderArgs":
         """Business rules that apply to ALL exchanges"""
@@ -127,12 +127,12 @@ Trading strategies operate solely on exchange-agnostic interfaces:
 ```python
 class FundingRateArbitrageStrategy:
     """Strategy works with ANY exchange via unified interface"""
-    
+
     def __init__(self, exchange_a: ExchangeAPI, exchange_b: ExchangeAPI):
         # Accepts ANY exchange implementation
         self.exchange_a = exchange_a  # Could be Hyperliquid
         self.exchange_b = exchange_b  # Could be Backpack
-    
+
     async def execute_arbitrage(self, symbol: str) -> None:
         # Uses unified interface - no exchange-specific logic
         funding_a = await self.exchange_a.get_funding_rates(
@@ -141,21 +141,21 @@ class FundingRateArbitrageStrategy:
         funding_b = await self.exchange_b.get_funding_rates(
             GetFundingRatesArgs(symbols=[symbol])
         )
-        
+
         # Business logic operates on unified FundingRate models
         if abs(funding_a[0].funding_rate - funding_b[0].funding_rate) > threshold:
             await self._execute_trades(symbol)
-    
+
     async def _execute_trades(self, symbol: str) -> None:
         # Same PlaceOrderArgs work for both exchanges
         order_args = PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
-            order_type=OrderType.MARKET, 
+            order_type=OrderType.MARKET,
             quantity=Decimal("100"),
             time_in_force=TimeInForce.IOC
         )
-        
+
         # Identical interface across all exchanges
         order_a = await self.exchange_a.place_order(order_args)
         order_b = await self.exchange_b.place_order(order_args)
@@ -178,7 +178,7 @@ async def get_market(self, args: GetMarketArgs) -> Market:
 # File: core/models/market.py
 from cyberdelta.apis.hyperliquid.models import SomeHyperliquidModel  # ❌ VIOLATION
 
-# ALLOWED: Exchange models importing core models  
+# ALLOWED: Exchange models importing core models
 # File: apis/hyperliquid/mappers/hl_market_data_mapper.py
 from cyberdelta.core.models.market import Market  # ✅ CORRECT
 ```
@@ -200,16 +200,16 @@ def configure_strategy(exchange: HyperliquidAPI) -> Strategy:  # ❌ VIOLATION
 class PortfolioManager:
     def __init__(self, exchanges: list[ExchangeAPI]):
         self.exchanges = exchanges  # Mix of Hyperliquid, Backpack, etc.
-    
+
     async def get_total_portfolio_value(self) -> Decimal:
         total = Decimal("0")
-        
+
         # Same interface works for all exchanges
         for exchange in self.exchanges:
             balances = await exchange.get_balances()
             for asset, balance in balances.items():
                 total += balance.total * await self._get_price(asset)
-        
+
         return total
 ```
 
@@ -219,7 +219,7 @@ class ResilientTrader:
     def __init__(self, primary: ExchangeAPI, backup: ExchangeAPI):
         self.primary = primary
         self.backup = backup
-    
+
     async def place_order_with_failover(self, args: PlaceOrderArgs) -> Order:
         try:
             return await self.primary.place_order(args)
@@ -234,12 +234,12 @@ class ResilientTrader:
 ```python
 class ExchangeComparator:
     async def benchmark_exchanges(
-        self, 
-        exchanges: list[ExchangeAPI], 
+        self,
+        exchanges: list[ExchangeAPI],
         symbol: str
     ) -> dict[str, float]:
         """Compare latency across exchanges using identical interface"""
-        
+
         results = {}
         for exchange in exchanges:
             start_time = time.time()
@@ -247,7 +247,7 @@ class ExchangeComparator:
             await exchange.get_ticker(symbol)
             latency = time.time() - start_time
             results[exchange.exchange_name] = latency
-        
+
         return results
 ```
 
@@ -293,7 +293,7 @@ class ExchangeComparator:
 ```python
 class HttpClient:
     """Handles HTTP request/response lifecycle with retry logic and authentication"""
-    
+
     async def request(
         self,
         method: str,
@@ -317,7 +317,7 @@ class HttpClient:
 ```python
 class WebSocketManager:
     """Manages WebSocket connections with automatic reconnection and rate limiting"""
-    
+
     async def connect(self) -> None
     async def send_json(self, payload: BaseModel) -> bool
     async def close(self) -> None
@@ -369,7 +369,7 @@ async def get_open_orders(self, symbol: str | None = None) -> list[Order]
 ```python
 class IAuthenticator(ABC):
     """Abstract interface for exchange authentication"""
-    
+
     @abstractmethod
     async def prepare_request(
         self,
@@ -389,10 +389,10 @@ class IAuthenticator(ABC):
 ```python
 class RateLimitStrategy(ABC):
     """Abstract interface for rate limiting strategies"""
-    
+
     @abstractmethod
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> dict[str, Any] | None
-    
+
     @abstractmethod
     async def handle_exchange_retry_after(
         self,
@@ -409,7 +409,7 @@ class RateLimitStrategy(ABC):
 ```python
 class HyperliquidRequestBuilder:
     """Constructs Pydantic request models for Hyperliquid API endpoints"""
-    
+
     def build_place_order_request(self, args: PlaceOrderArgs) -> HyperliquidApiPlaceOrderRequest
     def build_cancel_order_request(self, args: CancelOrderArgs) -> HyperliquidApiCancelOrderRequest
     def build_user_state_request(self, user_address: str) -> HyperliquidRawUserStateRequestPayload
@@ -424,14 +424,14 @@ class HyperliquidRequestBuilder:
 ```python
 class HyperliquidResponseHandler:
     """Processes and validates API responses into Raw Pydantic models"""
-    
+
     def handle_user_state_response(
-        self, 
+        self,
         response_data: ParsedJsonResponse
     ) -> HyperliquidRawUserStateResponse
-    
+
     def handle_order_response(
-        self, 
+        self,
         response_data: ParsedJsonResponse
     ) -> HyperliquidRawOrderStatusResponse
 ```
@@ -449,20 +449,20 @@ Each exchange implements three specialized services:
 ```python
 class HyperliquidAccountService:
     """Handles account-related operations for Hyperliquid"""
-    
+
     async def get_user_state(self, user_address: str) -> HyperliquidRawUserStateResponse
     async def get_user_fills(self, user_address: str, symbol: str | None) -> list[HyperliquidRawUserFill]
 
 class HyperliquidMarketDataService:
     """Handles market data operations for Hyperliquid"""
-    
+
     async def get_all_mids(self) -> HyperliquidRawAllMidsResponse
     async def get_l2_book(self, symbol: str) -> HyperliquidRawL2Book
     async def get_candle_snapshot(self, args: GetMarketDataArgs) -> HyperliquidRawCandleSnapshot
 
 class HyperliquidTradingService:
     """Handles trading operations for Hyperliquid"""
-    
+
     async def place_order(self, args: PlaceOrderArgs) -> HyperliquidRawOrderStatusResponse
     async def cancel_order(self, args: CancelOrderArgs) -> HyperliquidRawOrderStatusResponse
 ```
@@ -473,13 +473,13 @@ class HyperliquidTradingService:
 ```python
 class HyperliquidMarketDataMapper:
     """Transforms Hyperliquid Raw models to Internal Domain models"""
-    
+
     @staticmethod
     def map_raw_l2_book_to_order_book(
         raw_book: HyperliquidRawL2Book,
         symbol: str
     ) -> OrderBook
-    
+
     @staticmethod
     def map_raw_candle_to_internal(
         raw_candle: HyperliquidRawCandleSnapshot,
@@ -503,11 +503,11 @@ Located in `cyberdelta/apis/<exchange>/models/`:
 class HyperliquidRawL2Book(BaseModel):
     """Raw order book response from Hyperliquid API"""
     model_config = ConfigDict(extra='forbid', frozen=True)
-    
+
     levels: list[list[HyperliquidRawPriceLevel]]
     time: int
     coin: str
-    
+
     @field_validator("levels", mode="before")
     @classmethod
     def validate_levels_structure(cls, v: Any) -> list[list[HyperliquidRawPriceLevel]]
@@ -521,13 +521,13 @@ Located in `cyberdelta/core/models/`:
 class OrderBook(BaseModel):
     """Unified order book model across all exchanges"""
     model_config = ConfigDict(extra='forbid', frozen=True)
-    
+
     symbol: str
     timestamp: datetime
     bids: list[OrderBookLevel]
     asks: list[OrderBookLevel]
     exchange: str
-    
+
     # Optional exchange-specific details
     hyperliquid_details: HyperliquidOrderBookDetails | None = Field(default=None)
     backpack_details: BackpackOrderBookDetails | None = Field(default=None)
@@ -592,9 +592,9 @@ Application Layer
 ```python
 class APIError(Exception):
     """Base API error with comprehensive context"""
-    
+
     model: APIErrorResponse
-    
+
     @property
     def is_retryable(self) -> bool:
         """Determines retry eligibility based on error code"""
@@ -607,7 +607,7 @@ class TransformationError(ValueError):
 ```python
 class IErrorMapper(ABC):
     """Abstract interface for exchange-specific error mapping"""
-    
+
     @abstractmethod
     def map_exchange_error(
         self,
@@ -639,19 +639,19 @@ Application error handling
 class PlaceOrderArgs(BaseModel):
     """Encapsulates all arguments for placing an order"""
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
-    
+
     symbol: str
     side: OrderSide
     order_type: OrderType
     quantity: Decimal = Field(gt=Decimal("0"))
     time_in_force: TimeInForce
     price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    
+
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
         return validate_str_field(v, field_name=str(info.field_name), max_length=64, allow_empty=False)
-    
+
     @model_validator(mode="after")
     def check_parameter_dependencies(self) -> "PlaceOrderArgs":
         if self.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and self.price is None:
@@ -671,11 +671,11 @@ class PlaceOrderArgs(BaseModel):
 ```python
 class HyperliquidRateLimitStrategy(RateLimitStrategy):
     """Weight-based rate limiting for Hyperliquid with endpoint groups"""
-    
+
     def __init__(self, request_weighter: HyperliquidRequestWeighter):
         self._limiter_info = TokenBucketRateLimiterRuntime(rate=1200/60, bucket_size=40)
         self._request_weighter = request_weighter
-    
+
     async def prepare_and_acquire(self, request_context: dict[str, Any]) -> dict[str, Any] | None:
         weight = self._request_weighter.get_weight(
             method=request_context["method"],
@@ -690,7 +690,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 ```python
 class HyperliquidRequestWeighter:
     """Calculates request weights based on Hyperliquid's rate limiting rules"""
-    
+
     def get_weight(self, method: str, endpoint: str, action_payload: dict[str, Any] | None) -> int:
         if endpoint == "/exchange" and method == "POST":
             return self._calculate_exchange_action_weight(action_payload)
@@ -703,13 +703,13 @@ class HyperliquidRequestWeighter:
 ```python
 class WebSocketManager:
     """Manages persistent WebSocket connections with auto-reconnection"""
-    
+
     async def connect(self) -> None:
         """Establishes connection with reconnection logic"""
-    
+
     async def send_json(self, payload: BaseModel) -> bool:
         """Sends JSON message with rate limiting"""
-    
+
     def is_connected(self) -> bool:
         """Returns current connection status"""
 ```
@@ -718,7 +718,7 @@ class WebSocketManager:
 ```python
 class HyperliquidWsMessageRouter:
     """Routes WebSocket messages to appropriate handlers"""
-    
+
     async def route_message(self, parsed_message: dict[str, Any]) -> None:
         channel = parsed_message.get("channel")
         if channel == "trades":
@@ -795,13 +795,13 @@ class AnyExchangeSecrets(BaseModel):
 ```python
 class HyperliquidAPIComponentsFactory:
     """Factory for creating Hyperliquid API components with proper dependency injection"""
-    
+
     @staticmethod
     def create_authenticator(secrets: HyperliquidSecrets) -> HyperliquidEip712Authenticator
-    
+
     @staticmethod
     def create_rate_limit_strategy(config: ExchangeSpecificConfig) -> HyperliquidRateLimitStrategy
-    
+
     @staticmethod
     def create_request_builder() -> HyperliquidRequestBuilder
 ```

@@ -29,7 +29,7 @@ Successfully completed all tasks specified in the workflow document `02-06-2025_
 - **Changes Made**:
   - `SimpleTokenBucketStrategy`: Implemented to check for and call `trigger_ip_ban`
   - `HyperliquidRateLimitStrategy`: Implemented to call `trigger_ip_ban_on_main_pool`
-- **Locations**: 
+- **Locations**:
   - `cyberdelta/apis/base/simple_rate_limit_strategy.py` lines 56-79
   - `cyberdelta/apis/hyperliquid/hl_rate_limit_strategy.py` lines 147-172
 

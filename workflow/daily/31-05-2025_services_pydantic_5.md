@@ -327,4 +327,3 @@ Provides a structured and validated way to pass filtering and pagination paramet
 
 9.  **Static Analysis and Reporting:**
     *   Run static analysis tools and report results.
-

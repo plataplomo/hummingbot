@@ -82,17 +82,17 @@ class Ticker(models.Model):
     bid_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
     ask_price = models.DecimalField(max_digits=20, decimal_places=8, null=True)
     volume_24h = models.DecimalField(max_digits=20, decimal_places=8, null=True)
-    
+
     class Meta:
         db_table = 'tickers'  # TimescaleDB hypertable
 
 # Data Synchronization Service
 class DataSyncService:
     """Synchronizes data from core engine to Django database"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
-    
+
     async def sync_ticker_data(self, ticker_data: dict):
         """Sync incoming ticker from core"""
         try:
@@ -100,7 +100,7 @@ class DataSyncService:
                 symbol=ticker_data['symbol'],
                 exchange__name=ticker_data['exchange']
             )
-            
+
             await sync_to_async(Ticker.objects.create)(
                 trading_pair=trading_pair,
                 timestamp=parse(ticker_data['timestamp']),
@@ -116,13 +116,13 @@ class DataSyncService:
 **Deliverables:**
 - ✅ Django wrapper project foundation
 - ✅ Data synchronization from core to Django
-- ✅ Redis pub/sub bridge setup  
+- ✅ Redis pub/sub bridge setup
 - ✅ TimescaleDB integration for time-series data
 - ✅ Basic monitoring and health checks
 
 **Phase 1 Milestone Review:**
 - Wrapper foundation established
-- Data synchronization operational  
+- Data synchronization operational
 - Zero modifications to core engine
 - Ready for dashboard and API implementation
 
@@ -136,38 +136,38 @@ class DataSyncService:
 class DashboardOverviewView(TemplateView):
     """Main dashboard reading from synchronized database"""
     template_name = 'dashboard/overview.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Read from synchronized database
         context['latest_tickers'] = Ticker.objects.select_related('trading_pair')\
             .filter(timestamp__gte=timezone.now() - timedelta(minutes=5))\
             .order_by('trading_pair', '-timestamp')\
             .distinct('trading_pair')
-        
+
         # Strategy performance from database
         context['strategy_metrics'] = self.calculate_strategy_metrics()
-        
+
         # Market data for charts
         context['chart_data'] = self.get_chart_data()
-        
+
         return context
 
 # HTMX Component Views
 class PerformanceChartView(View):
     """HTMX endpoint for updating charts"""
-    
+
     def get(self, request):
         time_range = request.GET.get('time_range', '24h')
         strategies = request.GET.getlist('strategies')
-        
+
         # Query database for historical data
         chart_data = self.get_performance_data(strategies, time_range)
-        
+
         # Server-side chart generation
         fig = create_plotly_figure(chart_data)
-        
+
         return render(request, 'dashboard/components/chart.html', {
             'chart_json': fig.to_json(),
             'time_range': time_range
@@ -176,10 +176,10 @@ class PerformanceChartView(View):
 # Core Command Service (Dashboard → Core)
 class CoreCommandService:
     """Send commands to core engine from dashboard"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
-        
+
     async def start_strategy(self, strategy_id: str, user: User):
         """Send start command to core engine"""
         command = {
@@ -188,10 +188,10 @@ class CoreCommandService:
             'user_id': user.id,
             'timestamp': timezone.now().isoformat()
         }
-        
+
         # Send command via Redis pub/sub
         self.redis_client.publish('core_commands', json.dumps(command))
-        
+
         # Log command for audit
         CommandLog.objects.create(
             user=user,
@@ -207,26 +207,26 @@ class CoreCommandService:
 - ✅ Command service for core engine communication
 - ✅ Strategy control interface
 
-### Week 4: WebSocket Proxy & Real-time Updates  
+### Week 4: WebSocket Proxy & Real-time Updates
 ```python
 # Django Channels WebSocket Consumer
 class DashboardConsumer(AsyncWebsocketConsumer):
     """WebSocket proxy for real-time dashboard updates"""
-    
+
     async def connect(self):
         self.user = self.scope["user"]
-        
+
         # Authentication check
         if not self.user.is_authenticated:
             await self.close(code=4001)
             return
-            
+
         await self.accept()
         await self.channel_layer.group_add("dashboard", self.channel_name)
-        
+
         # Send initial state from database
         await self.send_initial_dashboard_state()
-    
+
     async def receive(self, text_data):
         """Handle client subscription requests"""
         try:
@@ -236,7 +236,7 @@ class DashboardConsumer(AsyncWebsocketConsumer):
                 await self.handle_subscription(symbols)
         except json.JSONDecodeError:
             await self.send_error('Invalid JSON')
-    
+
     async def market_data_update(self, event):
         """Forward market data from Redis to client"""
         await self.send(text_data=json.dumps({
@@ -247,38 +247,38 @@ class DashboardConsumer(AsyncWebsocketConsumer):
 # Redis Bridge Service
 class RedisWebSocketBridge:
     """Bridge Redis pub/sub to Django Channels"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
         self.channel_layer = get_channel_layer()
-    
+
     async def start_listening(self):
         """Listen to Redis channels from core engine"""
         pubsub = self.redis_client.pubsub()
-        
+
         # Subscribe to core engine channels
         channels = [
             'market_data:hyperliquid',
-            'market_data:backpack', 
+            'market_data:backpack',
             'trades',
             'positions',
             'strategy_updates'
         ]
-        
+
         for channel in channels:
             pubsub.subscribe(channel)
-        
+
         # Process messages and broadcast to WebSocket clients
         async for message in pubsub.listen():
             if message['type'] == 'message':
                 await self.broadcast_to_clients(message)
-    
+
     async def broadcast_to_clients(self, message):
         """Broadcast Redis message to WebSocket clients"""
         try:
             channel = message['channel']
             data = json.loads(message['data'])
-            
+
             # Route to appropriate consumer group
             if channel.startswith('market_data:'):
                 await self.channel_layer.group_send("dashboard", {
@@ -287,7 +287,7 @@ class RedisWebSocketBridge:
                 })
             elif channel == 'trades':
                 await self.channel_layer.group_send("trading", {
-                    "type": "trade_update", 
+                    "type": "trade_update",
                     "data": data
                 })
         except Exception as e:
@@ -296,16 +296,16 @@ class RedisWebSocketBridge:
 # Minimal Core Integration (Optional Redis Publisher)
 class RedisDataPublisher:
     """Add to core engine for publishing to Redis"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
         self.enabled = True  # Can disable if not needed
-    
+
     async def publish_ticker(self, exchange: str, ticker_data: dict):
         """Publish ticker update to Redis"""
         if not self.enabled:
             return
-            
+
         try:
             channel = f"market_data:{exchange}"
             message = {
@@ -332,25 +332,25 @@ class RedisDataPublisher:
 @shared_task(bind=True, max_retries=3)
 def sync_exchange_data(self, exchange_id: int):
     """Periodic sync of exchange data"""
-    
+
     try:
         exchange = Exchange.objects.get(id=exchange_id)
         service = MarketDataService(exchange)
-        
+
         # Get active trading pairs
         trading_pairs = exchange.trading_pairs.filter(is_active=True)
         symbols = [tp.symbol for tp in trading_pairs]
-        
+
         # Bulk update tickers
         tickers = service.bulk_update_tickers(symbols)
-        
+
         # Update funding rates for perpetuals
         perp_pairs = trading_pairs.filter(pair_type='perpetual')
         for pair in perp_pairs:
             update_funding_rate.delay(exchange_id, pair.symbol)
-        
+
         return {"updated_tickers": len(tickers)}
-        
+
     except Exception as exc:
         logger.error(f"Exchange sync failed: {exc}")
         raise self.retry(exc=exc, countdown=60)
@@ -359,12 +359,12 @@ def sync_exchange_data(self, exchange_id: int):
 @shared_task
 def monitor_task_health():
     """Monitor Celery task health"""
-    
+
     # Check for failed tasks
     failed_tasks = check_failed_tasks()
     if failed_tasks:
         send_alert_notification.delay("Failed tasks detected", failed_tasks)
-    
+
     # Check queue lengths
     queue_stats = get_queue_statistics()
     for queue, length in queue_stats.items():
@@ -382,29 +382,29 @@ def monitor_task_health():
 ```python
 # Integration Test Suite
 class ExchangeAPIIntegrationTests(TransactionTestCase):
-    
+
     def test_hyperliquid_api_integration(self):
         """Test complete Hyperliquid API integration"""
-        
+
         # Setup
         exchange = Exchange.objects.get(name='hyperliquid')
         service = MarketDataService(exchange)
-        
+
         # Test ticker updates
         ticker = service.update_ticker('BTC-USD')
         self.assertIsNotNone(ticker.last_price)
         self.assertTrue(ticker.last_price > 0)
-        
+
         # Test database persistence
         db_ticker = Ticker.objects.filter(
             trading_pair__symbol='BTC-USD',
             trading_pair__exchange=exchange
         ).latest('timestamp')
         self.assertEqual(ticker.id, db_ticker.id)
-    
+
     def test_rate_limiting_behavior(self):
         """Test rate limiting prevents API abuse"""
-        
+
         # Make requests up to rate limit
         # Verify requests are throttled appropriately
         # Check that rate limiter state is maintained across requests
@@ -412,7 +412,7 @@ class ExchangeAPIIntegrationTests(TransactionTestCase):
 # Performance Testing
 def load_test_api_endpoints():
     """Load test new API endpoints"""
-    
+
     # Test concurrent API requests
     # Measure response times under load
     # Verify database performance
@@ -449,30 +449,30 @@ security = HTTPBearer()
 
 class CoreBridge:
     """Bridge between FastAPI and core engine"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
-    
+
     async def send_command(self, command: dict) -> dict:
         """Send command to core and await response"""
         command_id = str(uuid4())
         command['id'] = command_id
-        
+
         # Send command via Redis
         self.redis_client.publish('api_commands', json.dumps(command))
-        
+
         # Wait for response with timeout
         response = await self.wait_for_response(command_id, timeout=30)
         if not response:
             raise HTTPException(status_code=408, detail="Core engine timeout")
-        
+
         return response
-    
+
     async def wait_for_response(self, command_id: str, timeout: int) -> dict:
         """Wait for core engine response"""
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe(f'api_response:{command_id}')
-        
+
         # Implement timeout logic
         end_time = asyncio.get_event_loop().time() + timeout
         while asyncio.get_event_loop().time() < end_time:
@@ -480,7 +480,7 @@ class CoreBridge:
             if message and message['type'] == 'message':
                 return json.loads(message['data'])
             await asyncio.sleep(0.1)
-        
+
         return None
 
 bridge = CoreBridge()
@@ -488,36 +488,36 @@ bridge = CoreBridge()
 # API Endpoints
 @app.get("/api/v1/ticker/{exchange}/{symbol}")
 async def get_ticker(
-    exchange: str, 
+    exchange: str,
     symbol: str,
     api_key: str = Depends(verify_api_key)
 ):
     """Get current ticker data"""
-    
+
     # First try cache for recent data
     cache_key = f"ticker:{exchange}:{symbol}"
     cached = redis_client.get(cache_key)
     if cached:
         return json.loads(cached)
-    
+
     # Otherwise query core engine
     command = {
         'type': 'get_ticker',
         'exchange': exchange,
         'symbol': symbol
     }
-    
+
     response = await bridge.send_command(command)
     return response
 
 @app.get("/api/v1/portfolio")
 async def get_portfolio(api_key: str = Depends(verify_api_key)):
     """Get current portfolio from database"""
-    
+
     # Read from synchronized database for consistency
     balances = await fetch_latest_balances()
     positions = await fetch_latest_positions()
-    
+
     return {
         'balances': balances,
         'positions': positions,
@@ -528,18 +528,18 @@ async def get_portfolio(api_key: str = Depends(verify_api_key)):
 async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify API key against Django database"""
     from django_wrapper.apps.api_gateway.models import APIKey
-    
+
     try:
         api_key = credentials.credentials
         key_obj = await sync_to_async(APIKey.objects.get)(
-            key=api_key, 
+            key=api_key,
             is_active=True
         )
-        
+
         # Update last used timestamp
         key_obj.last_used_at = timezone.now()
         await sync_to_async(key_obj.save)()
-        
+
         return api_key
     except APIKey.DoesNotExist:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -559,16 +559,16 @@ from django.db import models
 
 class TradingUser(AbstractUser):
     """Extended user model for trading platform"""
-    
+
     # Trading permissions
     can_view_dashboard = models.BooleanField(default=True)
     can_view_trades = models.BooleanField(default=False)
     can_execute_trades = models.BooleanField(default=False)
     can_manage_strategies = models.BooleanField(default=False)
-    
+
     # API access
     max_api_calls_per_minute = models.IntegerField(default=100)
-    
+
     # Profile information
     organization = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -580,13 +580,13 @@ class APIKey(models.Model):
     key = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
-    
+
     # Permissions
     permissions = models.JSONField(default=list)  # ['read', 'trade', 'admin']
-    
+
     # Rate limiting
     rate_limit_per_minute = models.IntegerField(default=100)
-    
+
     # Tracking
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
@@ -596,28 +596,28 @@ class UserStrategyAccess(models.Model):
     """Control which users can access which strategies"""
     user = models.ForeignKey(TradingUser, on_delete=models.CASCADE)
     strategy_name = models.CharField(max_length=100)
-    
+
     # Access levels
     can_view = models.BooleanField(default=True)
     can_start_stop = models.BooleanField(default=False)
     can_configure = models.BooleanField(default=False)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['user', 'strategy_name']
 
 # Permission Checking
 class PermissionService:
     """Service for checking user permissions"""
-    
+
     @staticmethod
     def can_user_access_strategy(user: TradingUser, strategy_name: str) -> dict:
         """Check user's access level for a strategy"""
-        
+
         try:
             access = UserStrategyAccess.objects.get(
-                user=user, 
+                user=user,
                 strategy_name=strategy_name
             )
             return {
@@ -632,12 +632,12 @@ class PermissionService:
                 'can_start_stop': False,
                 'can_configure': False
             }
-    
+
     @staticmethod
     def can_user_execute_trades(user: TradingUser) -> bool:
         """Check if user can execute trades"""
         return user.can_execute_trades and user.is_active
-    
+
     @staticmethod
     def get_user_api_limit(user: TradingUser) -> int:
         """Get API rate limit for user"""
@@ -651,11 +651,11 @@ class TradingUserAdmin(admin.ModelAdmin):
     list_display = ['username', 'email', 'organization', 'can_execute_trades', 'last_login']
     list_filter = ['can_execute_trades', 'can_manage_strategies', 'is_active']
     search_fields = ['username', 'email', 'organization']
-    
+
     fieldsets = (
         (None, {'fields': ('username', 'email', 'password')}),
         ('Trading Permissions', {
-            'fields': ('can_view_dashboard', 'can_view_trades', 
+            'fields': ('can_view_dashboard', 'can_view_trades',
                       'can_execute_trades', 'can_manage_strategies')
         }),
         ('API Access', {'fields': ('max_api_calls_per_minute',)}),
@@ -682,17 +682,17 @@ class APIKeyAdmin(admin.ModelAdmin):
 @shared_task
 def process_market_data_for_strategies(data_type: str, data: dict):
     """Route market data to relevant strategies"""
-    
+
     symbol = data['symbol']
     exchange = data['exchange']
-    
+
     # Find strategies trading this symbol
     strategy_instances = StrategyInstance.objects.filter(
         is_active=True,
         trading_pairs__symbol=symbol,
         trading_pairs__exchange__name=exchange
     ).select_related('strategy')
-    
+
     # Process each strategy in parallel
     for strategy_instance in strategy_instances:
         process_strategy_signal.delay(strategy_instance.id, data_type, data)
@@ -700,21 +700,21 @@ def process_market_data_for_strategies(data_type: str, data: dict):
 @shared_task
 def process_strategy_signal(strategy_instance_id: int, data_type: str, data: dict):
     """Process market data for specific strategy"""
-    
+
     try:
         strategy_instance = StrategyInstance.objects.get(id=strategy_instance_id)
-        
+
         # Load strategy dynamically
         strategy_class = load_strategy_class(strategy_instance.strategy)
         strategy = strategy_class(strategy_instance.config)
-        
+
         # Process data and generate signals
         signals = strategy.process_data(data_type, data)
-        
+
         # Handle generated signals
         for signal in signals:
             validate_and_execute_signal.delay(strategy_instance.id, signal)
-            
+
     except Exception as e:
         logger.error(f"Strategy processing error: {e}")
 
@@ -722,23 +722,23 @@ def process_strategy_signal(strategy_instance_id: int, data_type: str, data: dic
 @shared_task
 def validate_and_execute_signal(strategy_instance_id: int, signal_data: dict):
     """Validate and execute trading signal"""
-    
+
     # Create signal record
     trade_signal = TradeSignal.objects.create(
         strategy_instance_id=strategy_instance_id,
         **signal_data
     )
-    
+
     # Risk validation
     risk_service = RiskManagementService()
     if not risk_service.validate_signal(trade_signal):
         trade_signal.status = 'rejected'
         trade_signal.save()
         return
-    
+
     # Execute signal
     execute_trade_signal.delay(trade_signal.id)
-    
+
     # Broadcast to dashboard
     broadcast_signal_update.delay(trade_signal.id)
 ```
@@ -754,17 +754,17 @@ def validate_and_execute_signal(strategy_instance_id: int, signal_data: dict):
 # Database Optimization
 class OptimizedTickerManager(models.Manager):
     """Optimized queries for ticker data"""
-    
+
     def latest_by_pair(self):
         """Get latest ticker for each trading pair"""
         return self.select_related('trading_pair__exchange')\
             .order_by('trading_pair', '-timestamp')\
             .distinct('trading_pair')
-    
+
     def price_history(self, symbol: str, exchange: str, hours: int = 24):
         """Get price history with optimized query"""
         cutoff_time = timezone.now() - timedelta(hours=hours)
-        
+
         return self.filter(
             trading_pair__symbol=symbol,
             trading_pair__exchange__name=exchange,
@@ -775,19 +775,19 @@ class OptimizedTickerManager(models.Manager):
 # Caching Strategy
 class CacheService:
     """Centralized caching service"""
-    
+
     @staticmethod
     def get_latest_ticker(exchange: str, symbol: str) -> Optional[dict]:
         """Get latest ticker from cache"""
         cache_key = f"ticker:latest:{exchange}:{symbol}"
         return cache.get(cache_key)
-    
+
     @staticmethod
     def set_latest_ticker(exchange: str, symbol: str, ticker_data: dict):
         """Cache latest ticker data"""
         cache_key = f"ticker:latest:{exchange}:{symbol}"
         cache.set(cache_key, ticker_data, 300)  # 5 minutes
-    
+
     @staticmethod
     def invalidate_ticker_cache(exchange: str, symbol: str):
         """Invalidate ticker cache"""
@@ -798,7 +798,7 @@ class CacheService:
 @shared_task
 def collect_performance_metrics():
     """Collect system performance metrics"""
-    
+
     metrics = {
         'timestamp': timezone.now(),
         'api_response_times': measure_api_response_times(),
@@ -807,10 +807,10 @@ def collect_performance_metrics():
         'cache_hit_rates': measure_cache_performance(),
         'celery_queue_lengths': measure_celery_performance()
     }
-    
+
     # Store metrics
     PerformanceMetric.objects.create(**metrics)
-    
+
     # Alert on performance issues
     check_performance_thresholds(metrics)
 ```
@@ -836,17 +836,17 @@ def collect_performance_metrics():
 # Integration Testing Suite
 class WrapperIntegrationTests(TestCase):
     """Test wrapper integration with core engine"""
-    
+
     def setUp(self):
         self.user = TradingUser.objects.create_user(
             username='testuser',
             password='testpass',
             can_view_dashboard=True
         )
-        
+
     def test_data_synchronization(self):
         """Test data flows from core to Django database"""
-        
+
         # Simulate core engine publishing ticker data
         ticker_data = {
             'exchange': 'hyperliquid',
@@ -854,38 +854,38 @@ class WrapperIntegrationTests(TestCase):
             'last_price': '50000.00',
             'timestamp': datetime.utcnow().isoformat()
         }
-        
+
         # Publish to Redis
         redis_client = redis.Redis()
         redis_client.publish('market_data:hyperliquid', json.dumps(ticker_data))
-        
+
         # Wait for synchronization
         time.sleep(1)
-        
+
         # Verify data in database
         ticker = Ticker.objects.filter(
             trading_pair__symbol='BTC-USD',
             trading_pair__exchange__name='hyperliquid'
         ).first()
-        
+
         self.assertIsNotNone(ticker)
         self.assertEqual(float(ticker.last_price), 50000.00)
-    
+
     def test_dashboard_authentication(self):
         """Test dashboard requires authentication"""
-        
+
         # Unauthenticated request
         response = self.client.get('/dashboard/')
         self.assertEqual(response.status_code, 302)  # Redirect to login
-        
+
         # Authenticated request
         self.client.login(username='testuser', password='testpass')
         response = self.client.get('/dashboard/')
         self.assertEqual(response.status_code, 200)
-    
+
     def test_api_gateway_authentication(self):
         """Test API gateway requires valid API key"""
-        
+
         # Create API key
         api_key = APIKey.objects.create(
             user=self.user,
@@ -893,11 +893,11 @@ class WrapperIntegrationTests(TestCase):
             name='Test Key',
             permissions=['read']
         )
-        
+
         # Test without API key
         response = self.client.get('/api/v1/ticker/hyperliquid/BTC-USD')
         self.assertEqual(response.status_code, 401)
-        
+
         # Test with valid API key
         headers = {'Authorization': 'Bearer test_key_123'}
         response = self.client.get('/api/v1/ticker/hyperliquid/BTC-USD', **headers)
@@ -906,19 +906,19 @@ class WrapperIntegrationTests(TestCase):
 # Load Testing
 class WrapperLoadTest:
     """Load testing for wrapper components"""
-    
+
     def test_dashboard_concurrent_users(self):
         """Test dashboard with 50 concurrent users"""
-        
+
         def simulate_user_session():
             session = requests.Session()
-            
+
             # Login
             session.post('/auth/login/', data={
                 'username': 'testuser1',
                 'password': 'testpass'
             })
-            
+
             # Dashboard requests
             times = []
             for _ in range(10):
@@ -926,27 +926,27 @@ class WrapperLoadTest:
                 response = session.get('/dashboard/')
                 times.append(time.time() - start)
                 time.sleep(0.5)
-            
+
             return {
                 'avg_time': sum(times) / len(times),
                 'max_time': max(times)
             }
-        
+
         # Run 50 concurrent sessions
         with ThreadPoolExecutor(max_workers=50) as executor:
             futures = [executor.submit(simulate_user_session) for _ in range(50)]
             results = [future.result() for future in futures]
-        
+
         # Verify performance
         avg_response_time = sum(r['avg_time'] for r in results) / len(results)
         assert avg_response_time < 1.0  # Under 1 second average
-    
+
     def test_websocket_concurrent_connections(self):
         """Test WebSocket proxy with many connections"""
-        
+
         async def test_websocket_connection():
             uri = "ws://localhost:8000/ws/dashboard/"
-            
+
             try:
                 async with websockets.connect(uri) as websocket:
                     # Send auth message
@@ -954,69 +954,69 @@ class WrapperLoadTest:
                         'type': 'auth',
                         'token': 'test_token'
                     }))
-                    
+
                     # Receive messages for 30 seconds
                     start_time = time.time()
                     message_count = 0
-                    
+
                     while time.time() - start_time < 30:
                         try:
                             message = await asyncio.wait_for(
-                                websocket.recv(), 
+                                websocket.recv(),
                                 timeout=1.0
                             )
                             message_count += 1
                         except asyncio.TimeoutError:
                             continue
-                    
+
                     return message_count
-                    
+
             except Exception as e:
                 return 0
-        
+
         # Test 100 concurrent connections
         async def run_load_test():
             tasks = [test_websocket_connection() for _ in range(100)]
             results = await asyncio.gather(*tasks)
-            
+
             successful_connections = [r for r in results if r > 0]
             assert len(successful_connections) >= 90  # 90% success rate
-        
+
         asyncio.run(run_load_test())
 
 # Core Engine Isolation Test
 class CoreEngineIsolationTest(TestCase):
     """Verify wrapper failure doesn't affect core engine"""
-    
+
     def test_wrapper_failure_isolation(self):
         """Test that wrapper crashes don't affect core"""
-        
+
         # Simulate wrapper database failure
         with patch('django.db.connection.cursor') as mock_cursor:
             mock_cursor.side_effect = Exception("Database connection failed")
-            
+
             # Dashboard should fail gracefully
             response = self.client.get('/dashboard/')
             self.assertEqual(response.status_code, 500)
-            
+
             # Core engine should still be running
             # (This would be verified by checking core engine health endpoints)
             core_health = self.check_core_engine_health()
             self.assertTrue(core_health['healthy'])
-    
+
     def test_redis_failure_graceful_degradation(self):
         """Test wrapper handles Redis failures gracefully"""
-        
+
         with patch('redis.Redis') as mock_redis:
             mock_redis.side_effect = Exception("Redis connection failed")
-            
+
             # Dashboard should load with cached/database data
             response = self.client.get('/dashboard/')
             self.assertEqual(response.status_code, 200)
-            
+
             # Real-time features should be disabled
             self.assertContains(response, "Real-time updates unavailable")
-    
+
     def check_core_engine_health(self):
         """Check if core engine is healthy"""
         # This would ping core engine health endpoints
@@ -1026,7 +1026,7 @@ class CoreEngineIsolationTest(TestCase):
 **Deliverables:**
 - ✅ Comprehensive integration test suite
 - ✅ Load testing for concurrent users
-- ✅ WebSocket stress testing  
+- ✅ WebSocket stress testing
 - ✅ Core engine isolation verification
 
 ### Week 8: Production Deployment
@@ -1123,11 +1123,11 @@ fi
 # Production Monitoring & Health Checks
 class ProductionMonitor:
     """Monitor wrapper system health in production"""
-    
+
     @staticmethod
     def check_wrapper_health():
         """Comprehensive health check for wrapper system"""
-        
+
         health_status = {
             'timestamp': timezone.now(),
             'django_db': check_django_database(),
@@ -1137,28 +1137,28 @@ class ProductionMonitor:
             'api_gateway': check_api_gateway(),
             'core_engine_connection': check_core_connection()
         }
-        
+
         # Store health metrics
         WrapperHealthMetric.objects.create(**health_status)
-        
+
         # Check for issues
         issues = []
-        
+
         if not health_status['django_db']['healthy']:
             issues.append("Django database connection failed")
-        
+
         if not health_status['data_sync']['healthy']:
             issues.append("Data synchronization from core is stale")
-        
+
         if not health_status['core_engine_connection']['healthy']:
             issues.append("Cannot reach core engine")
-        
+
         # Send alerts for critical issues
         if issues:
             send_wrapper_alert.delay(issues)
-        
+
         return health_status
-    
+
     @staticmethod
     def check_data_synchronization():
         """Check if data is being synchronized from core"""
@@ -1166,43 +1166,43 @@ class ProductionMonitor:
             # Check latest ticker timestamp
             latest_ticker = Ticker.objects.latest('timestamp')
             time_since_update = timezone.now() - latest_ticker.timestamp
-            
+
             if time_since_update.total_seconds() > 300:  # 5 minutes
                 return {
                     'healthy': False,
                     'error': f'Data is {time_since_update.total_seconds()}s stale'
                 }
-            
+
             return {
                 'healthy': True,
                 'latest_update': latest_ticker.timestamp,
                 'seconds_ago': time_since_update.total_seconds()
             }
-            
+
         except Ticker.DoesNotExist:
             return {
                 'healthy': False,
                 'error': 'No ticker data found in database'
             }
-    
+
     @staticmethod
     def check_core_connection():
         """Check if we can communicate with core engine"""
         try:
             redis_client = redis.Redis()
-            
+
             # Send ping command to core
             command = {
                 'type': 'ping',
                 'timestamp': timezone.now().isoformat()
             }
-            
+
             redis_client.publish('core_commands', json.dumps(command))
-            
+
             # Wait for response
             pubsub = redis_client.pubsub()
             pubsub.subscribe('ping_response')
-            
+
             # Wait up to 5 seconds for response
             start_time = time.time()
             while time.time() - start_time < 5:
@@ -1212,12 +1212,12 @@ class ProductionMonitor:
                         'healthy': True,
                         'response_time': time.time() - start_time
                     }
-            
+
             return {
                 'healthy': False,
                 'error': 'Core engine ping timeout'
             }
-            
+
         except Exception as e:
             return {
                 'healthy': False,
@@ -1264,41 +1264,41 @@ DEPLOYMENT_CONFIG = {
 class MetricsTableView(TemplateView):
     """Real-time updating metrics table"""
     template_name = 'dashboard/components/metrics_table.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Calculate current metrics for all strategies
         metrics = []
         for strategy in StrategyInstance.objects.filter(is_active=True):
             metric_data = self.calculate_strategy_metrics(strategy)
             metrics.append(metric_data)
-        
+
         context['metrics'] = metrics
         return context
-    
+
     def calculate_strategy_metrics(self, strategy: StrategyInstance) -> dict:
         """Calculate performance metrics for strategy"""
-        
+
         # Get trades from last 24 hours
         since_24h = timezone.now() - timedelta(hours=24)
         recent_trades = Trade.objects.filter(
             order__account__in=strategy.accounts.all(),
             executed_at__gte=since_24h
         )
-        
+
         # Calculate metrics
         pnl_24h = sum(trade.realized_pnl or 0 for trade in recent_trades)
-        
+
         # Get all-time performance
         all_trades = Trade.objects.filter(
             order__account__in=strategy.accounts.all()
         )
-        
+
         total_return = self.calculate_total_return(all_trades)
         sharpe_ratio = self.calculate_sharpe_ratio(all_trades)
         max_drawdown = self.calculate_max_drawdown(all_trades)
-        
+
         return {
             'strategy': strategy,
             'pnl_24h': pnl_24h,
@@ -1311,15 +1311,15 @@ class MetricsTableView(TemplateView):
 class FundingRateHeatmapView(TemplateView):
     """Funding rate heatmap component"""
     template_name = 'dashboard/components/funding_heatmap.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         time_range = self.request.GET.get('time_range', '24h')
-        
+
         # Get funding rate data
         funding_data = self.get_funding_rate_matrix(time_range)
-        
+
         # Create heatmap data for Plotly
         heatmap_data = {
             'z': funding_data['values'],
@@ -1329,10 +1329,10 @@ class FundingRateHeatmapView(TemplateView):
             'colorscale': 'RdBu',
             'zmid': 0
         }
-        
+
         context['heatmap_data'] = json.dumps(heatmap_data)
         context['time_range'] = time_range
-        
+
         return context
 ```
 
@@ -1356,22 +1356,22 @@ class FundingRateHeatmapView(TemplateView):
                 <option value="{{ strategy.id }}">{{ strategy.name }}</option>
             {% endfor %}
         </select>
-        
-        <input type="date" 
+
+        <input type="date"
                name="date_from"
                hx-get="{% url 'dashboard:trade_analysis' %}"
                hx-target="#trade-tbody"
                hx-trigger="change"
                hx-include="[name='strategy'], [name='date_to']">
-        
-        <input type="date" 
+
+        <input type="date"
                name="date_to"
                hx-get="{% url 'dashboard:trade_analysis' %}"
                hx-target="#trade-tbody"
                hx-trigger="change"
                hx-include="[name='strategy'], [name='date_from']">
     </div>
-    
+
     <table class="trades-table">
         <thead>
             <tr>
@@ -1389,7 +1389,7 @@ class FundingRateHeatmapView(TemplateView):
             {% include 'dashboard/partials/trade_rows.html' %}
         </tbody>
     </table>
-    
+
     <!-- Infinite scroll trigger -->
     <div hx-get="{% url 'dashboard:trade_analysis' %}?page={{ page|add:1 }}"
          hx-target="#trade-tbody"
@@ -1401,13 +1401,13 @@ class FundingRateHeatmapView(TemplateView):
 </div>
 
 <!-- Real-time Trade Notifications -->
-<div id="trade-notifications" 
+<div id="trade-notifications"
      x-data="tradeNotifications()"
      class="notifications-container">
-    
+
     <div x-show="notifications.length > 0" class="notification-list">
         <template x-for="notification in notifications" :key="notification.id">
-            <div class="notification" 
+            <div class="notification"
                  :class="notification.type"
                  x-show="notification.visible"
                  x-transition>
@@ -1415,7 +1415,7 @@ class FundingRateHeatmapView(TemplateView):
                     <strong x-text="notification.title"></strong>
                     <p x-text="notification.message"></p>
                 </div>
-                <button @click="dismissNotification(notification.id)" 
+                <button @click="dismissNotification(notification.id)"
                         class="notification-close">×</button>
             </div>
         </template>
@@ -1426,7 +1426,7 @@ class FundingRateHeatmapView(TemplateView):
 function tradeNotifications() {
     return {
         notifications: [],
-        
+
         init() {
             // Listen for WebSocket trade updates
             document.body.addEventListener('htmx:wsAfterMessage', (event) => {
@@ -1442,21 +1442,21 @@ function tradeNotifications() {
                 }
             });
         },
-        
+
         addNotification(notification) {
             this.notifications.unshift(notification);
-            
+
             // Auto-dismiss after 5 seconds
             setTimeout(() => {
                 this.dismissNotification(notification.id);
             }, 5000);
-            
+
             // Keep only last 10 notifications
             if (this.notifications.length > 10) {
                 this.notifications = this.notifications.slice(0, 10);
             }
         },
-        
+
         dismissNotification(id) {
             const notification = this.notifications.find(n => n.id === id);
             if (notification) {
@@ -1476,7 +1476,7 @@ function tradeNotifications() {
 /* Dashboard Styles */
 .dashboard-container {
     display: grid;
-    grid-template-areas: 
+    grid-template-areas:
         "nav nav"
         "sidebar main"
         "status status";
@@ -1582,30 +1582,30 @@ function tradeNotifications() {
 # Load Testing Suite
 class DashboardLoadTest(TestCase):
     """Load testing for dashboard endpoints"""
-    
+
     def test_dashboard_concurrent_users(self):
         """Test dashboard with 100 concurrent users"""
-        
+
         with ThreadPoolExecutor(max_workers=100) as executor:
             futures = []
-            
+
             for i in range(100):
                 future = executor.submit(self.simulate_user_session, i)
                 futures.append(future)
-            
+
             # Collect results
             results = [future.result() for future in futures]
-            
+
             # Verify performance
             avg_response_time = sum(r['avg_time'] for r in results) / len(results)
             self.assertLess(avg_response_time, 0.5)  # 500ms max
-    
+
     def simulate_user_session(self, user_id: int) -> dict:
         """Simulate a user dashboard session"""
-        
+
         session = requests.Session()
         times = []
-        
+
         # Login
         start = time.time()
         response = session.post('/auth/login/', data={
@@ -1613,22 +1613,22 @@ class DashboardLoadTest(TestCase):
             'password': 'testpass'
         })
         times.append(time.time() - start)
-        
+
         # Dashboard overview
         start = time.time()
         response = session.get('/dashboard/')
         times.append(time.time() - start)
-        
+
         # Performance chart
         start = time.time()
         response = session.get('/dashboard/performance-chart/')
         times.append(time.time() - start)
-        
+
         # Trade analysis
         start = time.time()
         response = session.get('/dashboard/trade-analysis/')
         times.append(time.time() - start)
-        
+
         return {
             'user_id': user_id,
             'avg_time': sum(times) / len(times),
@@ -1639,49 +1639,49 @@ class DashboardLoadTest(TestCase):
 # WebSocket Load Testing
 class WebSocketLoadTest:
     """Load testing for WebSocket connections"""
-    
+
     async def test_websocket_concurrent_connections(self):
         """Test 500 concurrent WebSocket connections"""
-        
+
         async def client_connection(client_id: int):
             uri = "ws://localhost:8000/ws/dashboard/"
-            
+
             try:
                 async with websockets.connect(uri) as websocket:
                     # Receive messages for 60 seconds
                     start_time = time.time()
                     message_count = 0
-                    
+
                     while time.time() - start_time < 60:
                         try:
                             message = await asyncio.wait_for(
-                                websocket.recv(), 
+                                websocket.recv(),
                                 timeout=1.0
                             )
                             message_count += 1
                         except asyncio.TimeoutError:
                             continue
-                    
+
                     return {
                         'client_id': client_id,
                         'messages_received': message_count,
                         'duration': 60
                     }
-                    
+
             except Exception as e:
                 return {
                     'client_id': client_id,
                     'error': str(e)
                 }
-        
+
         # Create 500 concurrent connections
         tasks = [client_connection(i) for i in range(500)]
         results = await asyncio.gather(*tasks)
-        
+
         # Analyze results
         successful_connections = [r for r in results if 'error' not in r]
         self.assertGreaterEqual(len(successful_connections), 450)  # 90% success rate
-        
+
         avg_messages = sum(r['messages_received'] for r in successful_connections) / len(successful_connections)
         self.assertGreater(avg_messages, 50)  # At least 50 messages per minute
 ```
@@ -1748,11 +1748,11 @@ echo "Deployment complete!"
 # Production Monitoring
 class ProductionMonitor:
     """Monitor production system health"""
-    
+
     @shared_task
     def check_system_health():
         """Comprehensive system health check"""
-        
+
         health_status = {
             'timestamp': timezone.now(),
             'database': check_database_health(),
@@ -1763,81 +1763,81 @@ class ProductionMonitor:
             'memory_usage': check_memory_usage(),
             'disk_usage': check_disk_usage()
         }
-        
+
         # Store health metrics
         SystemHealthMetric.objects.create(**health_status)
-        
+
         # Check for critical issues
         critical_issues = []
-        
+
         if not health_status['database']['healthy']:
             critical_issues.append("Database connection issues")
-        
+
         if health_status['memory_usage'] > 90:
             critical_issues.append(f"High memory usage: {health_status['memory_usage']}%")
-        
+
         if health_status['api_performance']['avg_response_time'] > 1.0:
             critical_issues.append("API performance degraded")
-        
+
         # Send alerts for critical issues
         if critical_issues:
             send_critical_alert.delay(critical_issues)
-        
+
         return health_status
-    
+
     @staticmethod
     def check_database_health() -> dict:
         """Check database connectivity and performance"""
         try:
             start_time = time.time()
-            
+
             # Test connection
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
                 result = cursor.fetchone()
-            
+
             response_time = time.time() - start_time
-            
+
             # Check active connections
             active_connections = connection.queries_log
-            
+
             return {
                 'healthy': True,
                 'response_time': response_time,
                 'active_connections': len(active_connections)
             }
-            
+
         except Exception as e:
             return {
                 'healthy': False,
                 'error': str(e)
             }
-    
+
     @staticmethod
     def check_api_performance() -> dict:
         """Check API endpoint performance"""
-        
+
         test_endpoints = [
             '/api/v1/exchanges/',
             '/api/v1/tickers/',
             '/api/v1/strategies/',
             '/dashboard/metrics-table/'
         ]
-        
+
         response_times = []
-        
+
         for endpoint in test_endpoints:
             try:
                 start_time = time.time()
                 response = requests.get(f"http://localhost:8000{endpoint}")
                 response_time = time.time() - start_time
-                
+
                 if response.status_code == 200:
                     response_times.append(response_time)
-                    
+
             except Exception:
                 continue
-        
+
         if response_times:
             return {
                 'avg_response_time': sum(response_times) / len(response_times),
@@ -1922,7 +1922,7 @@ class ProductionMonitor:
 
 1. **Enhanced Capabilities**
    - Multi-user access with permissions
-   - Historical data analysis and visualization  
+   - Historical data analysis and visualization
    - External API for integrations
    - Improved monitoring and alerting
 

@@ -30,16 +30,16 @@ Commands:
     quick           Run unit tests with fail-fast (development)
     coverage        Run tests with detailed coverage report
     markers         Show available pytest markers
-    
+
 Test Categories:
     unit-apis       Unit tests for API clients
     unit-core       Unit tests for core logic
     integration-config   Integration tests for configuration
     integration-viz      Integration tests for visualization
-    
+
 Examples:
     $0 unit                    # Fast unit tests
-    $0 integration            # Integration tests only  
+    $0 integration            # Integration tests only
     $0 quick                  # Fast development feedback
     $0 coverage               # Full coverage report
     $0 unit-core              # Only core unit tests

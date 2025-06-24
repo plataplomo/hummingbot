@@ -100,7 +100,7 @@ exchanges:
     enabled: true
     api_base_url: "https://api.hyperliquid.xyz"
     # ...
-  
+
   backpack:
     enabled: true
     # ...
@@ -127,7 +127,7 @@ risk:
   global:
     max_position_usd: 1000.0
     # ...
-  
+
   strategies:
     hl_perp_bp_spot:
       max_position_usd: 1000.0
@@ -162,4 +162,4 @@ The system validates your configuration on load and will:
 1. **Never** commit your `secrets.yaml` file to version control
 2. Use the most specific configuration parameters for your use case
 3. Always set `safe_mode: true` initially and only disable after thorough testing
-4. Check the logs for configuration warnings or errors on startup 
+4. Check the logs for configuration warnings or errors on startup

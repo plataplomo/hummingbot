@@ -87,11 +87,11 @@ This architecture makes `ExchangeAPI` and `HttpClient` truly generic. All exchan
             data_dict_for_http_client = data
         else:
             raise TypeError(f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. Got {type(data)}")
-        
+
         # NO _clean_order_type_fields here. That's authenticator's job if needed on data_dict.
 
         # ... (Rate Limiting logic) ...
-        
+
         response_content, status_code, _processed_headers, response_headers_dict = \
             await self._http_client.request(
                 method=method,

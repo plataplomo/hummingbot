@@ -84,7 +84,7 @@ class BackpackAdapter:
         # Use existing components exactly as they are
         self.api = BackpackAPI(config, secrets)
         self.account_service = BackpackAccountService(self.api)
-    
+
     async def get_account_summary(self):
         # Wrap existing method, don't reimplement
         return await self.account_service.get_account_summary()
@@ -97,15 +97,15 @@ class EnhancedPortfolioTracker(PortfolioTracker):
     def __init__(self, storage_adapter=None):
         super().__init__()  # Existing functionality unchanged
         self.storage = storage_adapter  # Optional persistence
-    
+
     async def record_trade(self, trade):
         # Call existing method
         result = await super().record_trade(trade)
-        
+
         # Add optional persistence
         if self.storage:
             await self.storage.save_trade(trade)
-        
+
         return result
 ```
 

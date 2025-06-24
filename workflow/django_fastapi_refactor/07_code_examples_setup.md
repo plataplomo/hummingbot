@@ -90,28 +90,28 @@ from pathlib import Path
 
 class BaseAdapter(abc.ABC):
     """Base adapter class for integrating with existing CyberDelta components"""
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self._setup_cyberdelta_path()
         self._initialized = False
-    
+
     def _setup_cyberdelta_path(self):
         """Add existing cyberdelta to Python path"""
         cyberdelta_path = Path(__file__).parent.parent.parent / "cyberdelta"
         if str(cyberdelta_path) not in sys.path:
             sys.path.insert(0, str(cyberdelta_path))
-    
+
     @abc.abstractmethod
     async def initialize(self):
         """Initialize the adapter with existing components"""
         pass
-    
+
     @abc.abstractmethod
     async def shutdown(self):
         """Clean shutdown of adapter"""
         pass
-    
+
     async def health_check(self) -> Dict[str, Any]:
         """Health check for monitoring"""
         return {
@@ -137,47 +137,47 @@ from cyberdelta.config.secrets_manager import get_secrets_config
 
 class TradingAdapter(BaseAdapter):
     """Adapter exposing existing trading engine through modern interfaces"""
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
-        
+
         # Store references to existing components
         self.engine: Optional[Engine] = None
         self.portfolio_tracker: Optional[PortfolioTracker] = None
         self.risk_manager: Optional[RiskManager] = None
         self.performance_tracker: Optional[PerformanceTracker] = None
         self.strategies: Dict[str, Any] = {}
-    
+
     async def initialize(self):
         """Initialize using existing CyberDelta components"""
         try:
             # Use existing configuration system
             app_config = get_app_settings()
             secrets_config = get_secrets_config()
-            
+
             # Initialize existing components exactly as they are
             self.engine = Engine(name="CyberDelta_Service")
-            
+
             # Initialize portfolio tracker with existing configuration
             self.portfolio_tracker = PortfolioTracker(
                 config=app_config.portfolio,
                 exchanges=app_config.exchanges
             )
-            
+
             # Initialize risk manager with existing configuration
             self.risk_manager = RiskManager(
                 config=app_config.risk_management,
                 portfolio_tracker=self.portfolio_tracker
             )
-            
+
             # Load existing strategies
             await self._load_strategies(app_config, secrets_config)
-            
+
             self._initialized = True
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to initialize TradingAdapter: {e}")
-    
+
     async def _load_strategies(self, app_config, secrets_config):
         """Load strategies using existing strategy system"""
         # Load funding rate arbitrage strategy with existing configuration
@@ -194,33 +194,33 @@ class TradingAdapter(BaseAdapter):
                 **self.config.get("strategy_params", {})
             }
         )
-        
+
         # Add strategy to engine using existing methods
         self.engine.add_strategy(funding_strategy)
         self.strategies["HL-BP-Funding"] = funding_strategy
-    
+
     async def shutdown(self):
         """Shutdown using existing component methods"""
         if self.engine:
             await self.engine.stop()
-        
+
         if self.portfolio_tracker:
             await self.portfolio_tracker.stop()
-        
+
         self._initialized = False
-    
+
     # Public API methods that wrap existing functionality
-    
+
     async def list_strategies(self) -> List[Dict[str, Any]]:
         """List all strategies using existing engine"""
         if not self._initialized:
             raise RuntimeError("Adapter not initialized")
-        
+
         strategies = []
         for name, strategy in self.engine.strategies.items():
             # Get performance data using existing portfolio tracker
             performance = await self._get_strategy_performance(name)
-            
+
             strategies.append({
                 'id': name,
                 'name': name,
@@ -232,21 +232,21 @@ class TradingAdapter(BaseAdapter):
                 'config': getattr(strategy, 'params', {}),
                 'last_update': strategy.last_update.isoformat() if hasattr(strategy, 'last_update') else None
             })
-        
+
         return strategies
-    
+
     async def start_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Start strategy using existing engine"""
         if not self._initialized:
             raise RuntimeError("Adapter not initialized")
-        
+
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         try:
             # Use existing engine method - zero changes to core logic
             await self.engine.enable_strategy(strategy_name)
-            
+
             return {
                 'strategy_name': strategy_name,
                 'status': 'started',
@@ -255,19 +255,19 @@ class TradingAdapter(BaseAdapter):
             }
         except Exception as e:
             raise RuntimeError(f"Failed to start strategy {strategy_name}: {e}")
-    
+
     async def stop_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Stop strategy using existing engine"""
         if not self._initialized:
             raise RuntimeError("Adapter not initialized")
-        
+
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         try:
             # Use existing engine method - zero changes to core logic
             await self.engine.disable_strategy(strategy_name)
-            
+
             return {
                 'strategy_name': strategy_name,
                 'status': 'stopped',
@@ -276,16 +276,16 @@ class TradingAdapter(BaseAdapter):
             }
         except Exception as e:
             raise RuntimeError(f"Failed to stop strategy {strategy_name}: {e}")
-    
+
     async def get_portfolio_summary(self) -> Dict[str, Any]:
         """Get portfolio summary using existing portfolio tracker"""
         if not self._initialized:
             raise RuntimeError("Adapter not initialized")
-        
+
         try:
             # Use existing portfolio tracker method
             summary = await self.portfolio_tracker.get_portfolio_summary()
-            
+
             return {
                 'total_value': float(summary.total_value),
                 'total_pnl': float(summary.total_pnl),
@@ -318,13 +318,13 @@ class TradingAdapter(BaseAdapter):
             }
         except Exception as e:
             raise RuntimeError(f"Failed to get portfolio summary: {e}")
-    
+
     async def _get_strategy_performance(self, strategy_name: str) -> Dict[str, Any]:
         """Get strategy performance using existing portfolio tracker"""
         try:
             # Use existing performance calculation
             performance = await self.portfolio_tracker.get_strategy_performance(strategy_name)
-            
+
             return {
                 'total_pnl': float(performance.total_pnl),
                 'daily_pnl': float(performance.daily_pnl),
@@ -382,7 +382,7 @@ market_data_adapter: Optional[MarketDataAdapter] = None
 async def lifespan(app: FastAPI):
     """Lifecycle management for FastAPI app"""
     global market_data_adapter
-    
+
     # Startup
     try:
         market_data_adapter = MarketDataAdapter()
@@ -436,7 +436,7 @@ async def get_market_data_adapter() -> MarketDataAdapter:
 async def health_check(adapter: MarketDataAdapter = Depends(get_market_data_adapter)):
     """Health check endpoint"""
     health_status = await adapter.health_check()
-    
+
     return {
         "status": "healthy" if health_status["status"] == "healthy" else "unhealthy",
         "service": "market_data",
@@ -478,7 +478,7 @@ async def get_ticker(
 ):
     """
     Get ticker data for a specific symbol on an exchange.
-    
+
     This endpoint wraps the existing CyberDelta API clients to provide
     standardized REST access to market data.
     """
@@ -527,7 +527,7 @@ class TickerResponse(BaseModel):
     price_change_pct_24h: Optional[float] = Field(None, description="24-hour price change percentage")
     timestamp: str = Field(..., description="Data timestamp (ISO format)")
     server_time: str = Field(..., description="Server timestamp (ISO format)")
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -581,91 +581,91 @@ from adapters.market_data_adapter import MarketDataAdapter
 class DashboardView(LoginRequiredMixin, TemplateView):
     """Main dashboard view with HTMX integration"""
     template_name = 'dashboard/index.html'
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.trading_adapter = None
         self.market_adapter = None
-    
+
     async def _get_adapters(self):
         """Initialize adapters for dashboard data"""
         if not self.trading_adapter:
             self.trading_adapter = TradingAdapter()
             await self.trading_adapter.initialize()
-        
+
         if not self.market_adapter:
             self.market_adapter = MarketDataAdapter()
             await self.market_adapter.initialize()
-        
+
         return self.trading_adapter, self.market_adapter
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get dashboard data using existing cyberdelta components
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             trading_adapter, market_adapter = loop.run_until_complete(self._get_adapters())
-            
+
             # Get data using existing components
             portfolio_data = loop.run_until_complete(trading_adapter.get_portfolio_summary())
             strategies_data = loop.run_until_complete(trading_adapter.list_strategies())
-            
+
             context.update({
                 'portfolio': portfolio_data,
                 'strategies': strategies_data,
                 'user': self.request.user,
                 'page_title': 'Trading Dashboard'
             })
-            
+
         except Exception as e:
             context.update({
                 'error': str(e),
                 'portfolio': {},
                 'strategies': []
             })
-        
+
         return context
 
 class PerformanceChartView(LoginRequiredMixin, TemplateView):
     """Performance chart component using Plotly.js"""
     template_name = 'dashboard/components/performance_chart.html'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Get parameters from request
         strategies = self.request.GET.getlist('strategies')
         time_range = self.request.GET.get('time_range', '24h')
-        
+
         if not strategies:
             strategies = ['HL-BP-Funding']  # Default strategy
-        
+
         try:
             # Get performance data using existing components
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             trading_adapter = TradingAdapter()
             loop.run_until_complete(trading_adapter.initialize())
-            
+
             # Get performance data for each strategy
             performance_data = {
                 'timestamps': [],
                 'strategies': {}
             }
-            
+
             for strategy_name in strategies:
                 strategy_performance = loop.run_until_complete(
                     trading_adapter._get_strategy_performance(strategy_name)
                 )
                 performance_data['strategies'][strategy_name] = strategy_performance
-            
+
             # Create Plotly figure data
             plotly_data = self._create_plotly_figure(performance_data)
-            
+
             context.update({
                 'chart_data': json.dumps(plotly_data),
                 'selected_strategies': strategies,
@@ -679,7 +679,7 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
                     {'value': '30d', 'label': '30 Days'},
                 ]
             })
-            
+
         except Exception as e:
             context.update({
                 'error': str(e),
@@ -687,17 +687,17 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
                 'selected_strategies': strategies,
                 'time_range': time_range
             })
-        
+
         return context
-    
+
     def _create_plotly_figure(self, performance_data):
         """Create Plotly figure data for performance chart"""
         traces = []
-        
+
         # Create sample data for demonstration
         import numpy as np
         from datetime import datetime, timedelta
-        
+
         # Generate sample timestamps
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=24)
@@ -705,11 +705,11 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
             (start_time + timedelta(minutes=i*15)).isoformat()
             for i in range(96)  # 15-minute intervals for 24 hours
         ]
-        
+
         for strategy_name, strategy_data in performance_data['strategies'].items():
             # Generate sample cumulative returns
             cumulative_returns = np.cumsum(np.random.normal(0.001, 0.02, 96))
-            
+
             traces.append({
                 'x': timestamps,
                 'y': cumulative_returns.tolist(),
@@ -718,7 +718,7 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
                 'name': strategy_name,
                 'line': {'width': 2}
             })
-        
+
         layout = {
             'title': {
                 'text': 'Strategy Performance',
@@ -732,7 +732,7 @@ class PerformanceChartView(LoginRequiredMixin, TemplateView):
             'height': 400,
             'margin': {'l': 60, 'r': 60, 't': 80, 'b': 60}
         }
-        
+
         return {'data': traces, 'layout': layout}
 
 @require_http_methods(["POST"])
@@ -741,17 +741,17 @@ def strategy_control(request, strategy_name, action):
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         trading_adapter = TradingAdapter()
         loop.run_until_complete(trading_adapter.initialize())
-        
+
         if action == 'start':
             result = loop.run_until_complete(trading_adapter.start_strategy(strategy_name))
         elif action == 'stop':
             result = loop.run_until_complete(trading_adapter.stop_strategy(strategy_name))
         else:
             result = {'success': False, 'error': 'Invalid action'}
-        
+
         if request.headers.get('HX-Request'):
             # Return HTMX partial update
             return render(request, 'dashboard/partials/strategy_status.html', {
@@ -761,10 +761,10 @@ def strategy_control(request, strategy_name, action):
         else:
             # Return JSON for API calls
             return JsonResponse(result)
-            
+
     except Exception as e:
         error_result = {'success': False, 'error': str(e)}
-        
+
         if request.headers.get('HX-Request'):
             return render(request, 'dashboard/partials/strategy_status.html', {
                 'strategy_name': strategy_name,
@@ -1142,32 +1142,32 @@ async def test_trading_adapter_initialization():
     """Test that adapter properly initializes with existing components"""
     adapter = TradingAdapter()
     await adapter.initialize()
-    
+
     assert adapter._initialized == True
     assert adapter.engine is not None
     assert adapter.portfolio_tracker is not None
-    
+
     await adapter.shutdown()
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_strategy_lifecycle():
     """Test strategy start/stop through adapter"""
     adapter = TradingAdapter()
     await adapter.initialize()
-    
+
     # Test list strategies
     strategies = await adapter.list_strategies()
     assert len(strategies) > 0
-    
+
     # Test start strategy
     strategy_name = strategies[0]['name']
     result = await adapter.start_strategy(strategy_name)
     assert result['status'] == 'started'
-    
+
     # Test stop strategy
     result = await adapter.stop_strategy(strategy_name)
     assert result['status'] == 'stopped'
-    
+
     await adapter.shutdown()
 
 # tests/test_api_endpoints.py - Test FastAPI endpoints
@@ -1206,18 +1206,18 @@ from datetime import datetime
 
 class SystemHealthChecker:
     """Monitor health of all services"""
-    
+
     def __init__(self):
         self.services = {
             'market_data': 'http://localhost:8001/health',
             'trading_engine': 'http://localhost:8002/health',
             'web_dashboard': 'http://localhost:8000/health/',
         }
-    
+
     async def check_all_services(self) -> Dict[str, Any]:
         """Check health of all services"""
         results = {}
-        
+
         async with aiohttp.ClientSession() as session:
             for service_name, url in self.services.items():
                 try:
@@ -1239,7 +1239,7 @@ class SystemHealthChecker:
                         'status': 'error',
                         'error': str(e)
                     }
-        
+
         return {
             'timestamp': datetime.utcnow().isoformat(),
             'overall_status': 'healthy' if all(
@@ -1260,7 +1260,7 @@ from typing import Dict, Any
 
 class PerformanceMonitor:
     """Monitor system performance metrics"""
-    
+
     async def get_system_metrics(self) -> Dict[str, Any]:
         """Get current system performance metrics"""
         return {

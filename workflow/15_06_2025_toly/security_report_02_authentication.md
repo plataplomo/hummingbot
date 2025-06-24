@@ -51,7 +51,7 @@ The authentication mechanisms have been updated: Backpack now uses ED25519 signa
 *   **Backpack ED25519 Signature (Improved):**
     ```python
     # cyberdelta/apis/backpack/bp_auth.py
-    def _build_content_part(self, method: str, params: dict[str, Any] | None, 
+    def _build_content_part(self, method: str, params: dict[str, Any] | None,
                            data: dict[str, Any] | None) -> str:
         """Build content part for signing based on method and data."""
         if method.upper() == "GET" and params:
@@ -197,7 +197,7 @@ graph TD
 ```python
 # Example: Hyperliquid private key validation
 def _validate_private_key_format(self, processed_pk_str: str) -> None:
-    if not (len(processed_pk_str) == 64 and 
+    if not (len(processed_pk_str) == 64 and
             all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)):
         raise ValueError("Private key must be a 64-character hex string")
 

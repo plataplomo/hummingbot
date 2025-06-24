@@ -114,11 +114,11 @@ The project has established a solid foundation for time handling with centralize
    # tests/fixtures/time_fixtures.py
    from typing import Protocol
    from datetime import datetime, UTC
-   
+
    class FreezerProtocol(Protocol):
        """Protocol for pytest-freezer fixture."""
        def move_to(self, target: datetime | str) -> None: ...
-   
+
    @pytest.fixture
    def frozen_test_time(freezer: FreezerProtocol) -> datetime:
        """Standard frozen time for tests."""
@@ -127,7 +127,7 @@ The project has established a solid foundation for time handling with centralize
        return test_time
    ```
 
-2. **Apply Missing Test Markers** 
+2. **Apply Missing Test Markers**
    - Add `@pytest.mark.timing` to 48+ identified test files
    - Remove duplicate `FreezerProtocol` definitions
 
@@ -150,7 +150,7 @@ The project has established a solid foundation for time handling with centralize
    dependencies = [
        "ciso8601>=2.3.0",  # Fast ISO8601 parser
    ]
-   
+
    # For high-frequency API parsing
    try:
        import ciso8601
@@ -215,7 +215,7 @@ The project has established a solid foundation for time handling with centralize
        test_time = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
        freezer.move_to(test_time)
        return test_time
-   
+
    @pytest.fixture
    def mock_time_factory():
        """Factory for creating standardized time mocks."""
@@ -278,20 +278,20 @@ The CyberDeltaEngine has a **solid production foundation** for time handling wit
 
 **Production Strengths**:
 - ✅ Excellent UTC enforcement across 269 time-related files
-- ✅ Proper monotonic timing in rate limiter  
+- ✅ Proper monotonic timing in rate limiter
 - ✅ Thread-safe authentication timestamp generation
 - ✅ Comprehensive VCR timestamp filtering
 
 **Critical Testing Gaps**:
 - ❌ pytest-freezer installed but used in only 2/350+ test files
-- ❌ 93 files use fragmented unittest.mock time patterns  
+- ❌ 93 files use fragmented unittest.mock time patterns
 - ❌ 48+ timing tests lack markers
 - ❌ Most tests use non-deterministic `datetime.now(UTC)`
 
 ### Priority-Corrected Approach
 
 1. **URGENT**: Fix testing non-determinism and technical debt (Week 1)
-2. **High Impact**: Add performance optimizations like ciso8601 (Weeks 2-4)  
+2. **High Impact**: Add performance optimizations like ciso8601 (Weeks 2-4)
 3. **Long-term**: Advanced features and comprehensive optimization (Months 2-3)
 
 ### Business Impact

@@ -123,7 +123,7 @@ def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | No
     """Parse order price field, returning None for zero or invalid values."""
     if not price_value or price_value == "0":
         return None
-    
+
     parsed_price = parse_decimal_value(
         price_value,
         allow_none=True,
@@ -151,7 +151,7 @@ def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | No
 **Comprehensive Pydantic Validation:**
 *   **Centralized Validation Utilities (`cyberdelta/utils/parsing.py`):**
     *   `validate_str_field()` - UTF-8 validation, length limits, empty string handling
-    *   `parse_decimal_value()` - Secure decimal parsing with finite value checks  
+    *   `parse_decimal_value()` - Secure decimal parsing with finite value checks
     *   `validate_enum_field()` - Strict enum validation with allowed value sets
 *   **Exchange-Specific Response Models:**
     *   All API responses use strict Pydantic validation with `extra="forbid"`

@@ -127,24 +127,24 @@ from cyberdelta.monitoring.performance_tracker import PerformanceTracker
 
 class TradingAdapter:
     """Adapter to expose existing trading engine through Django
-    
+
     This adapter wraps the production-ready trading components without
     modifying any existing logic. All enhancements like auto-lending
     and margin support are preserved.
     """
-    
+
     def __init__(self):
         # Use existing components exactly as-is
         self.engine = Engine(name="CyberDelta_Web")
         self.portfolio_tracker = PortfolioTracker(...)
         self.performance_tracker = PerformanceTracker(...)
         self.strategies = {}
-        
+
     def get_strategy_performance(self, strategy_name: str, days: int = 30):
         """Get strategy performance using existing portfolio tracker"""
         # Direct call to existing method - no changes to core logic
         return self.portfolio_tracker.get_strategy_performance(strategy_name, days)
-    
+
     def get_active_strategies(self):
         """Get list of active strategies from existing engine"""
         return [
@@ -156,12 +156,12 @@ class TradingAdapter:
             }
             for name, strategy in self.engine.strategies.items()
         ]
-    
+
     def start_strategy(self, strategy_name: str) -> bool:
         """Start strategy using existing engine"""
         self.engine.enable_strategy(strategy_name)
         return True
-    
+
     def stop_strategy(self, strategy_name: str) -> bool:
         """Stop strategy using existing engine"""
         self.engine.disable_strategy(strategy_name)
@@ -214,20 +214,20 @@ from cyberdelta.config.secrets_manager import get_secrets_config
 
 class ExchangeAdapter:
     """Adapter to expose existing exchange APIs through FastAPI
-    
+
     This preserves all sophisticated features including:
     - Backpack auto-lending detection
-    - Margin and collateral support  
+    - Margin and collateral support
     - Weight-based rate limiting for Hyperliquid
     - Comprehensive error handling
     """
-    
+
     def __init__(self, exchange: str):
         # Use existing configuration system
         self.config = get_app_settings()
         self.secrets = get_secrets_config()
         self.exchange = exchange
-        
+
         # Use existing API clients - ZERO changes to existing code
         if exchange == "hyperliquid":
             self.api = HyperliquidAPI(
@@ -239,12 +239,12 @@ class ExchangeAdapter:
                 self.config.exchanges.backpack,
                 self.secrets.exchanges.backpack
             )
-        
+
     async def get_ticker(self, symbol: str) -> dict:
         """Get ticker data using existing API client"""
         # Direct call to existing method
         ticker_data = await self.hl_api.get_ticker(symbol)
-        
+
         # Optional: Transform for external API if needed
         return {
             'symbol': symbol,
@@ -254,12 +254,12 @@ class ExchangeAdapter:
             'volume': ticker_data.volume_24h,
             'timestamp': ticker_data.timestamp.isoformat()
         }
-    
+
     async def get_candles(self, symbol: str, interval: str, limit: int = 100) -> list:
         """Get candle data using existing API client"""
         # Direct call to existing method
         candles = await self.hl_api.get_candles(symbol, interval, limit)
-        
+
         # Transform to standard format
         return [
             {
@@ -272,12 +272,12 @@ class ExchangeAdapter:
             }
             for candle in candles
         ]
-    
+
     async def start_websocket_stream(self, symbols: list[str]):
         """Start WebSocket stream using existing WebSocket manager"""
         # Use existing WebSocket implementation
         await self.hl_api.connect_websocket()
-        
+
         # Subscribe to symbols using existing subscription logic
         for symbol in symbols:
             await self.hl_api.subscribe_to_ticker(symbol)
@@ -330,15 +330,15 @@ from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStr
 
 class StrategyAdapter:
     """Adapter to expose existing strategy system through FastAPI"""
-    
+
     def __init__(self):
         # Use existing strategy components
         self.engine = Engine(name="CyberDelta_API")
         self.strategy_manager = StrategyManager(...)
-        
+
         # Load existing strategies
         self._load_strategies()
-    
+
     def _load_strategies(self):
         """Load strategies using existing strategy system"""
         # Use existing strategy loading logic
@@ -354,9 +354,9 @@ class StrategyAdapter:
                 "min_profit_usd": 10.0
             }
         )
-        
+
         self.engine.add_strategy(funding_strategy)
-    
+
     async def list_strategies(self) -> list[dict]:
         """List all strategies using existing engine"""
         strategies = []
@@ -369,47 +369,47 @@ class StrategyAdapter:
                 'status': 'active' if strategy.enabled else 'inactive'
             })
         return strategies
-    
+
     async def start_strategy(self, strategy_name: str) -> dict:
         """Start strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         # Use existing engine method
         self.engine.enable_strategy(strategy_name)
-        
+
         return {
             'strategy_name': strategy_name,
             'status': 'started',
             'message': f'Strategy {strategy_name} started successfully'
         }
-    
+
     async def stop_strategy(self, strategy_name: str) -> dict:
         """Stop strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         # Use existing engine method
         self.engine.disable_strategy(strategy_name)
-        
+
         return {
             'strategy_name': strategy_name,
             'status': 'stopped',
             'message': f'Strategy {strategy_name} stopped successfully'
         }
-    
+
     async def get_strategy_performance(self, strategy_name: str) -> dict:
         """Get strategy performance using existing portfolio tracker"""
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         strategy = self.engine.strategies[strategy_name]
-        
+
         # Use existing performance calculation logic
         performance = self.strategy_manager.portfolio_tracker.get_strategy_performance(
             strategy_name
         )
-        
+
         return {
             'strategy_name': strategy_name,
             'total_pnl': float(performance.total_pnl),
@@ -479,17 +479,17 @@ from shared.database.models import Exchange, Strategy
 
 class ConfigurationAdapter:
     """Adapter between database config and existing cyberdelta config system"""
-    
+
     def __init__(self):
         # Use existing config system as fallback
         self.file_config = get_app_settings()
         self.secrets_config = get_secrets_config()
-    
+
     async def get_app_settings(self) -> AppSettings:
         """Get app settings combining database and file config"""
         # Start with existing file-based config
         config = self.file_config
-        
+
         # Override with database settings if available
         db_exchanges = Exchange.objects.filter(is_active=True)
         if db_exchanges.exists():
@@ -499,9 +499,9 @@ class ConfigurationAdapter:
                     # Merge database config with file config
                     existing_config = getattr(config.exchanges, db_exchange.name)
                     existing_config.update(db_exchange.api_config)
-        
+
         return config
-    
+
     async def save_strategy_config(self, strategy_name: str, config_dict: dict):
         """Save strategy configuration to database"""
         strategy, created = Strategy.objects.get_or_create(
@@ -512,19 +512,19 @@ class ConfigurationAdapter:
                 'is_active': False
             }
         )
-        
+
         if not created:
             strategy.config = config_dict
             strategy.save()
-        
+
         return strategy
-    
+
     async def load_strategy_configs(self) -> dict:
         """Load strategy configurations from database"""
         strategies = {}
         for db_strategy in Strategy.objects.filter(is_active=True):
             strategies[db_strategy.name] = db_strategy.config
-        
+
         return strategies
 ```
 
@@ -540,26 +540,26 @@ from typing import Callable, Dict, Any
 
 class MessageBroker:
     """Redis-based message broker for service communication"""
-    
+
     def __init__(self, redis_url: str = "redis://localhost:6379/0"):
         self.redis_client = redis.Redis.from_url(redis_url, decode_responses=True)
         self.subscribers: Dict[str, Callable] = {}
-    
+
     async def publish(self, channel: str, message: Dict[str, Any]):
         """Publish message to channel"""
         await self.redis_client.publish(channel, json.dumps(message))
-    
+
     async def subscribe(self, channel: str, handler: Callable):
         """Subscribe to channel with message handler"""
         self.subscribers[channel] = handler
         # Start listening in background
         asyncio.create_task(self._listen(channel))
-    
+
     async def _listen(self, channel: str):
         """Listen for messages on channel"""
         pubsub = self.redis_client.pubsub()
         await pubsub.subscribe(channel)
-        
+
         async for message in pubsub.listen():
             if message['type'] == 'message':
                 data = json.loads(message['data'])
@@ -577,12 +577,12 @@ class ExistingWebSocketHandler:
     def __init__(self):
         # Existing initialization
         self.message_broker = MessageBroker()
-    
+
     async def on_ticker_update(self, ticker_data):
         """Existing method - just add message publishing"""
         # Existing ticker processing logic (unchanged)
         processed_ticker = self.process_ticker_data(ticker_data)
-        
+
         # NEW: Publish to message broker for new services
         await self.message_broker.publish('ticker_updates', {
             'exchange': 'hyperliquid',
@@ -590,7 +590,7 @@ class ExistingWebSocketHandler:
             'price': float(processed_ticker.last_price),
             'timestamp': processed_ticker.timestamp.isoformat()
         })
-        
+
         # Existing signal generation logic (unchanged)
         await self.process_signals(processed_ticker)
 ```

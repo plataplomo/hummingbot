@@ -55,11 +55,11 @@ async def build_batch_place_order_payload(
     asset_indices: list[int],
 ) -> HyperliquidApiPlaceOrderRequest:
     """Build a batch order placement request for multiple orders.
-    
+
     Args:
         orders: List of order arguments
         asset_indices: Corresponding asset indices for each order
-        
+
     Returns:
         Single request containing all orders
     """
@@ -68,7 +68,7 @@ async def build_batch_place_order_payload(
         # Reuse existing order spec building logic
         order_spec = self._build_order_spec(args, asset_index)
         order_specs.append(order_spec)
-    
+
     return HyperliquidApiPlaceOrderRequest(
         type="order",
         orders=order_specs,  # Multiple orders in one request!
@@ -85,7 +85,7 @@ async def build_batch_cancel_order_payload(
         HyperliquidRawCancelItem(a=asset_idx, o=order_id)
         for asset_idx, order_id in cancels
     ]
-    
+
     return HyperliquidApiCancelOrderRequest(
         type="cancel",
         cancels=cancel_items
@@ -123,11 +123,11 @@ The exchange response for batch orders contains a `statuses` list with one statu
 ```python
 # In HyperliquidTradingService
 async def place_batch_orders(
-    self, 
+    self,
     orders: list[PlaceOrderArgs]
 ) -> list[Order]:
     """Place multiple orders in a single API request.
-    
+
     Benefits:
     - Single HTTP request instead of N
     - Single EIP-712 signature
@@ -137,7 +137,7 @@ async def place_batch_orders(
     # Validate all orders
     for args in orders:
         self._validate_place_order_params(args, "place_batch_orders")
-    
+
     # Get asset indices for all symbols
     asset_indices = []
     for args in orders:
@@ -145,15 +145,15 @@ async def place_batch_orders(
         if asset_index is None:
             raise APIError(f"Asset index for {args.symbol} not found")
         asset_indices.append(asset_index)
-    
+
     # Build batch payload
     batch_payload = await self._request_builder.build_batch_place_order_payload(
         orders, asset_indices
     )
-    
+
     # Execute single request
     raw_response, http_status = await self._place_order_raw(batch_payload)
-    
+
     # Process responses for all orders
     return self._process_batch_place_order_response(
         raw_response, http_status, orders
@@ -179,7 +179,7 @@ async def test_create_six_buy_limit_orders_batch(self, hl_api):
     for i in range(6):
         price_offset = Decimal("0.01") * (i + 1)
         test_price = base_price * (Decimal("0.93") + price_offset)
-        
+
         orders.append(PlaceOrderArgs(
             symbol=symbol,
             side=OrderSide.BUY,
@@ -190,12 +190,12 @@ async def test_create_six_buy_limit_orders_batch(self, hl_api):
             post_only=True,
             reduce_only=False,
         ))
-    
+
     # Place all orders in one batch
     start_time = time.time()
     placed_orders = await hl_api.trading.place_batch_orders(orders)
     elapsed = time.time() - start_time
-    
+
     logger.info(f"Placed {len(placed_orders)} orders in {elapsed:.2f} seconds")
     # Expected: <1 second instead of 9 seconds!
 ```

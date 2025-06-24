@@ -18,4 +18,3 @@ alwaysApply: true # This constraint should always be active
         *   **DO** **stop work** on the blocked task and explicitly state that **user review and potential configuration adjustment are required** before proceeding. Report this clearly in the workflow documentation.
 
 3.  **Rationale:** Maintaining consistent, project-wide static analysis standards defined in configuration is crucial for code quality and predictability. Unauthorized changes undermine these standards. Issues potentially requiring configuration changes need careful consideration and explicit approval by the project maintainers (the user, in this context).
-

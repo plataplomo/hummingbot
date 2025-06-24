@@ -42,7 +42,7 @@ The application now enforces secure protocols (HTTPS/WSS) through Pydantic URL v
             timeout=sentinel
         )
         ```
-    *   **Security Status:** 
+    *   **Security Status:**
         *   ✅ No code disables SSL verification
         *   ✅ Certificate validation enabled by default
         *   ✅ No custom SSL context that weakens security
@@ -111,12 +111,12 @@ The application now enforces secure protocols (HTTPS/WSS) through Pydantic URL v
     *   All URLs validated at configuration load time
     *   `HttpUrl` type ensures valid URL format
     *   `AnyUrl` type for WebSocket URLs
-    
+
 *   **Secure Defaults Maintained:**
     *   No custom SSL context that weakens security
     *   Certificate validation enabled by default
     *   No code path disables SSL verification
-    
+
 *   **Clear Security Rules:**
     *   Documented requirement for HTTPS/WSS
     *   Prohibition on certificate validation bypass
@@ -173,7 +173,7 @@ connector = aiohttp.TCPConnector(
 ```python
 class HttpClientConfig(BaseModel):
     rest_endpoint: HttpUrl  # Ensures HTTPS validation
-    
+
 class WebSocketManagerConfig(BaseModel):
     ws_url: AnyUrl  # Validates WSS protocol format
 ```

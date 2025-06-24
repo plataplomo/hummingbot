@@ -13,7 +13,7 @@ Based on comprehensive code analysis, Hyperliquid's API models **already fully s
    # In hl_raw_api_request_payloads.py
    class HyperliquidApiPlaceOrderRequest(HyperliquidBaseRequestPayload):
        orders: list[HyperliquidRawOrderItemSpec]  # Already accepts multiple orders!
-   
+
    class HyperliquidApiCancelOrderRequest(HyperliquidBaseRequestPayload):
        cancels: list[HyperliquidRawCancelItem]  # Already accepts multiple cancels!
    ```
@@ -47,26 +47,26 @@ The test `test_create_six_buy_limit_orders_with_random_symbols` shows:
 ```python
 async def place_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
     """Place multiple orders in a single batch request.
-    
+
     Benefits:
     - Single HTTP request for all orders
     - Single EIP-712 signature
     - Atomic operation per exchange rules
     - Massive performance improvement
-    
+
     Args:
         orders: List of order placement arguments
-        
+
     Returns:
         List of placed Order objects
-        
+
     Raises:
         APIError: If validation fails or API request fails
     """
     # Validate all orders first
     for args in orders:
         self._validate_place_order_params(args, "place_orders")
-    
+
     # Get asset indices for all symbols
     asset_indices = []
     for args in orders:
@@ -77,23 +77,23 @@ async def place_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
                 code=APIErrorCode.VALIDATION_ERROR.value
             )
         asset_indices.append(asset_index)
-    
+
     # Build batch payload using existing infrastructure
     order_specs = []
     for args, asset_index in zip(orders, asset_indices):
         order_spec = self._request_builder._build_order_item_spec(args, asset_index)
         order_specs.append(order_spec)
-    
+
     batch_payload = HyperliquidApiPlaceOrderRequest(
         type="order",
         orders=order_specs,  # Multiple orders!
         grouping="na",
         broker=None
     )
-    
+
     # Execute single request
     raw_response, http_status = await self._place_order_raw(batch_payload)
-    
+
     # Process all statuses
     return self._process_batch_place_order_response(
         raw_response, http_status, orders
@@ -108,14 +108,14 @@ def _process_batch_place_order_response(
     """Process batch order placement response."""
     if not raw_response.response or not raw_response.response.data:
         raise APIError("Invalid response structure")
-    
+
     response_data = raw_response.response.data
     if len(response_data.statuses) != len(original_orders):
         raise APIError(
             f"Response status count ({len(response_data.statuses)}) "
             f"doesn't match request count ({len(original_orders)})"
         )
-    
+
     placed_orders = []
     for i, (status, args) in enumerate(zip(response_data.statuses, original_orders)):
         try:
@@ -128,7 +128,7 @@ def _process_batch_place_order_response(
                 code=e.code,
                 original_exception=e
             ) from e
-    
+
     return placed_orders
 ```
 
@@ -136,36 +136,36 @@ def _process_batch_place_order_response(
 
 ```python
 async def cancel_orders(
-    self, 
+    self,
     cancel_args: list[CancelOrderArgs]
 ) -> list[CancelOrderResult]:
     """Cancel multiple orders in a single batch request."""
     # Validate arguments
     for args in cancel_args:
         self._validate_cancel_order_params(args, "cancel_orders")
-    
+
     # Build batch cancel payload
     cancel_items = []
     for args in cancel_args:
         asset_index = await self._get_asset_index_callable(args.symbol)
         if asset_index is None:
             raise APIError(f"Asset index for {args.symbol} not found")
-        
+
         cancel_items.append(
             HyperliquidRawCancelItem(
                 a=asset_index,
                 o=int(args.order_id)
             )
         )
-    
+
     batch_payload = HyperliquidApiCancelOrderRequest(
         type="cancel",
         cancels=cancel_items
     )
-    
+
     # Execute request
     raw_response, http_status = await self._cancel_order_raw(batch_payload)
-    
+
     # Process responses
     return self._process_batch_cancel_response(
         raw_response, http_status, cancel_args
@@ -179,30 +179,30 @@ async def cancel_orders(
 ```python
 async def place_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
     """Place multiple orders in a single batch request.
-    
+
     This method provides significant performance improvements over placing
     orders individually by batching them into a single API request.
-    
+
     Args:
         orders: List of order placement arguments
-        
+
     Returns:
         List of placed Order objects
-        
+
     Raises:
         APIError: If any order fails validation or the API request fails
     """
     return await self.trading_service.place_orders(orders)
 
 async def cancel_orders(
-    self, 
+    self,
     cancel_args: list[CancelOrderArgs]
 ) -> list[CancelOrderResult]:
     """Cancel multiple orders in a single batch request.
-    
+
     Args:
         cancel_args: List of cancellation arguments
-        
+
     Returns:
         List of CancelOrderResult objects indicating success/failure
     """
@@ -219,13 +219,13 @@ Add these abstract methods to support batch operations across all exchanges:
 @abstractmethod
 async def place_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
     """Place multiple orders in a single batch request.
-    
+
     Args:
         orders: List of order placement arguments
-        
+
     Returns:
         List of placed Order objects
-        
+
     Note:
         Not all exchanges support batch operations. Implementations
         should fall back to sequential placement if needed.
@@ -234,7 +234,7 @@ async def place_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
 
 @abstractmethod
 async def cancel_orders(
-    self, 
+    self,
     cancel_args: list[CancelOrderArgs]
 ) -> list[CancelOrderResult]:
     """Cancel multiple orders in a single batch request."""
@@ -248,7 +248,7 @@ async def cancel_orders(
 ```python
 class TestHyperliquidBatchOperations:
     """Test batch order placement and cancellation operations."""
-    
+
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_place_batch_orders_success(self, hl_api):
@@ -265,22 +265,22 @@ class TestHyperliquidBatchOperations:
                 time_in_force=TimeInForce.GTC,
                 post_only=True
             ))
-        
+
         # Place all orders in one batch
         start_time = time.time()
         placed_orders = await hl_api.place_orders(orders)
         elapsed = time.time() - start_time
-        
+
         # Validate results
         assert len(placed_orders) == 6
         assert elapsed < 1.0  # Should be much faster than 9 seconds
-        
+
         # Validate each order
         for order in placed_orders:
             assert isinstance(order, Order)
             assert order.exchange_order_id is not None
             assert order.status in [OrderStatus.OPEN, OrderStatus.NEW]
-    
+
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_place_batch_orders_partial_failure(self, hl_api):
@@ -291,10 +291,10 @@ class TestHyperliquidBatchOperations:
             PlaceOrderArgs(quantity=Decimal("999999")),  # Too large
             PlaceOrderArgs(...),  # Valid order
         ]
-        
+
         with pytest.raises(APIError) as exc_info:
             await hl_api.place_orders(orders)
-        
+
         assert "Order 2/3 failed" in str(exc_info.value)
 ```
 
@@ -305,7 +305,7 @@ class TestHyperliquidBatchOperations:
 async def test_batch_vs_sequential_performance(self, hl_api):
     """Compare batch vs sequential order placement performance."""
     orders = [create_test_order(i) for i in range(6)]
-    
+
     # Sequential placement
     sequential_start = time.time()
     sequential_results = []
@@ -313,15 +313,15 @@ async def test_batch_vs_sequential_performance(self, hl_api):
         result = await hl_api.place_order(order)
         sequential_results.append(result)
     sequential_time = time.time() - sequential_start
-    
+
     # Cancel all for clean state
     await hl_api.cancel_all_orders()
-    
+
     # Batch placement
     batch_start = time.time()
     batch_results = await hl_api.place_orders(orders)
     batch_time = time.time() - batch_start
-    
+
     # Validate improvement
     assert batch_time < sequential_time / 3  # At least 3x faster
     logger.info(

@@ -46,7 +46,7 @@ This is the **first phase** of a major refactor to implement a new "Rate Limit S
         hyperliquid:
           # ... (exchange_name, api_base_url, etc.) ...
           # REMOVE old rate_limit_per_minute for Hyperliquid
-          ip_weight_limit_per_minute: 1140 
+          ip_weight_limit_per_minute: 1140
           info_request_type_ip_weights:
             l2Book: 2                 # Level 2 Order Book
             allMids: 2                # All Mid Prices
@@ -55,7 +55,7 @@ This is the **first phase** of a major refactor to implement a new "Rate Limit S
           default_info_weight: 20
           exchange_action_base_ip_weight: 1
           address_action_safety_net:
-            rate_per_minute: 300 
+            rate_per_minute: 300
         ```
     *   **Backpack Section:**
         ```yaml
@@ -134,12 +134,12 @@ This phase builds on the foundational changes from Phase 1. We will now define t
             async def prepare_and_acquire(self, request_context: Dict[str, Any]) -> Dict[str, Any] | None:
                 """
                 Prepares for and acquires necessary rate limit tokens/permissions.
-                Can optionally modify and return the request data payload if needed 
+                Can optionally modify and return the request data payload if needed
                 (e.g., to inject a rate-limit specific nonce, though not used by HL/BP REST).
                 Should raise APIError(code=RATE_LIMITED) if acquisition times out or fails.
-                
+
                 Args:
-                    request_context: Dict containing details like 'method', 'endpoint', 
+                    request_context: Dict containing details like 'method', 'endpoint',
                                      'action_payload', 'exchange_name', 'request_weight'.
                 Returns:
                     Optionally, a modified action_payload dict, or None if no modifications.
@@ -188,13 +188,13 @@ This phase builds on the foundational changes from Phase 1. We will now define t
         class HyperliquidRateLimitStrategy(RateLimitStrategy):
             def __init__(self, hl_exchange_config: ExchangeSpecificConfig):
                 self._request_weighter = HyperliquidRequestWeighter(hl_exchange_config)
-                
+
                 # IP Weight Limiter
                 ip_rate_rpm = hl_exchange_config.ip_weight_limit_per_minute
                 ip_rate_rps = ip_rate_rpm / 60.0
                 ip_bucket = max(1, int(ip_rate_rps * 2)) # Example bucket factor
                 self._ip_weight_limiter = TokenBucketRateLimiterRuntime(rate=ip_rate_rps, bucket_size=ip_bucket)
-                
+
                 # Address Action Count Limiter (Safety Net)
                 aa_rate_rpm = hl_exchange_config.address_action_safety_net.rate_per_minute
                 aa_rate_rps = aa_rate_rpm / 60.0
@@ -210,10 +210,10 @@ This phase builds on the foundational changes from Phase 1. We will now define t
 
                 if ip_cost > 0:
                     await self._ip_weight_limiter.acquire(tokens_to_consume=ip_cost)
-                
+
                 if address_action_cost > 0: # Only for /exchange actions
                     await self._address_action_limiter.acquire(tokens_to_consume=address_action_cost)
-                
+
                 return None # Does not modify data payload
         ```
 
@@ -313,7 +313,7 @@ With the "Rate Limit Strategy" pattern implemented for REST API calls (Phases 1 
                         finally:
                             await self.lock.acquire() # Re-acquire lock
                         # After waiting, clear the ban state and proceed to token acquisition
-                        self.is_ip_banned_until = None 
+                        self.is_ip_banned_until = None
                     else: # Ban duration has passed
                         self.is_ip_banned_until = None
                 ```

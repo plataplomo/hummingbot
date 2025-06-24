@@ -75,7 +75,7 @@ A robust API client must not only handle successful responses but also correctly
             ```python
             # Inside the test
             bad_secrets = ApiKeyAuthSecrets(api_key=SecretStr("bad_key"), api_secret=SecretStr("bad_secret"))
-            api = bp_api_with_di(secrets=bad_secrets) 
+            api = bp_api_with_di(secrets=bad_secrets)
             ```
           *   **Action & Assert:** Use `pytest.raises(APIError)` to wrap the call `await api.get_balances()`.
           *   Inside the `with` block, assert on the caught exception:

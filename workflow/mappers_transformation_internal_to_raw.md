@@ -9,7 +9,7 @@
 
 **SOLUTION**: Now using proper Request Builder Pattern that creates validated Raw Pydantic models directly.
 
-### 2. **Business Logic in Authenticator** ⚠️ PARTIALLY FIXED  
+### 2. **Business Logic in Authenticator** ⚠️ PARTIALLY FIXED
 ~~Authenticator contained transformation and validation logic~~
 
 **INTENDED SOLUTION**: Business logic moved to HyperliquidPayloadSigningMapper. Authenticator now only signs.
@@ -42,7 +42,7 @@ PlaceOrderArgs → RequestBuilder → Raw Pydantic Model → ExchangeAPI → Ser
 
 ### 1. **Request Builder Pattern** (Layer 3)
 ✅ **Location**: `cyberdelta/apis/hyperliquid/hl_request_builder.py`
-✅ **Purpose**: Constructs type-safe, validated request payloads  
+✅ **Purpose**: Constructs type-safe, validated request payloads
 ✅ **Pattern**: Takes internal args → Returns Raw Pydantic models
 
 ```python
@@ -53,11 +53,11 @@ def build_place_order_payload(
     # ... other internal params
 ) -> HyperliquidApiPlaceOrderRequest:  # Raw Pydantic model
     """INTERNAL → RAW transformation with full validation."""
-    
+
     # Direct wire format conversion
     limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(price)
     sz_wire = HyperliquidRequestBuilder._decimal_to_wire_format(quantity)
-    
+
     # Create validated Raw Pydantic model
     wire_order = HyperliquidRawOrderItemSpec(
         a=asset_index,           # Validated by RawNonNegativeInt
@@ -66,7 +66,7 @@ def build_place_order_payload(
         s=sz_wire,               # Validated by RawFiniteDecimalStr
         # ... all fields validated by Pydantic
     )
-    
+
     return HyperliquidApiPlaceOrderRequest(  # Raw model returned
         type="order",
         orders=[wire_order],  # List of validated Raw models
@@ -95,13 +95,13 @@ class HyperliquidEip712Authenticator:
     def _prepare_action_payload(self, action: BaseModel | dict[str, Any]) -> dict[str, Any]:
         """Prepare action payload for signing."""
         # This logic should be in PayloadSigningMapper
-        
+
     def _serialize_pydantic_model(self, model: BaseModel) -> dict[str, Any]:
         """Serialize Pydantic model for signing."""
         # This logic should be in PayloadSigningMapper
 ```
 
-### 4. **Service Layer** (Layer 4) 
+### 4. **Service Layer** (Layer 4)
 ✅ **Location**: `cyberdelta/apis/hyperliquid/services/hl_trading_service.py`
 ✅ **Purpose**: Uses RequestBuilder to create requests, handles responses
 ✅ **Pattern**: Service → RequestBuilder → Raw models → HTTP → Response
@@ -114,7 +114,7 @@ class HyperliquidEip712Authenticator:
 ## Key Architectural Principles - CURRENT STATE
 
 1. **Request Builder Pattern**: ✅ INTERNAL args → RAW models directly
-2. **Pydantic Validation**: ✅ All boundaries protected with Pydantic models  
+2. **Pydantic Validation**: ✅ All boundaries protected with Pydantic models
 3. **Raw/Internal Separation**: ✅ Clear separation maintained
 4. **Mapper Pattern**: ✅ Used correctly for RAW → INTERNAL (responses)
 5. **Signing Preparation**: ❌ NOT separate - still embedded in authenticator

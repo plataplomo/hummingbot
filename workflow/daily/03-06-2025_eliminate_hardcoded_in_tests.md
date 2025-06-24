@@ -48,7 +48,7 @@ This separates test configuration from main application configuration, allowing 
 
         general:
           # For testing, we might want a more verbose log level by default
-          log_level: DEBUG 
+          log_level: DEBUG
           # Other general settings can be minimal or specific for tests if needed
 
         exchanges:
@@ -66,7 +66,7 @@ This separates test configuration from main application configuration, allowing 
             symbols: {"ETH": "ETH", "BTC": "BTC", "PURP": "PURP"} # Sample test symbols
             # Test-specific rate limits (can be more lenient or specific)
             rate_limit_per_minute: 10000 # Higher for testing if needed, or specific test values
-            ip_weight_limit_per_minute: 10000 
+            ip_weight_limit_per_minute: 10000
             info_request_type_ip_weights: {"l2Book": 1, "allMids": 1} # Lower weights for tests
             default_info_weight: 1
             exchange_action_base_ip_weight: 1
@@ -84,7 +84,7 @@ This separates test configuration from main application configuration, allowing 
             chain_id: null
             rate_limit_per_minute: 10000 # Higher for testing if needed
             symbols: {"SOL_USDC": "SOL_USDC", "PYTH_USDC": "PYTH_USDC"} # Sample test symbols
-          
+
           # Add other exchanges if they need specific test configurations
 
         # Other sections like strategies, risk, etc., can be minimal or omitted
@@ -117,7 +117,7 @@ This separates test configuration from main application configuration, allowing 
             # Optional: Dedicated private key for testnet if different from above
             private_key_testnet: "0x0000000000000000000000000000000000000000000000000000000000000002"
             # Optional: Seed passphrase for deriving multiple testnet accounts
-            testnet_seed_passphrase: "test test test test test test test test test test test junk" 
+            testnet_seed_passphrase: "test test test test test test test test test test test junk"
             passphrase: null # Or your encryption passphrase if the test keys are encrypted
 
           backpack:
@@ -180,7 +180,7 @@ This centralizes the loading of test configurations, making it consistent with h
         def test_config_file_path() -> Path:
             # Assumes test_config.yaml is in tests/config/ relative to project root
             # Adjust path if your project structure is different or if conftest is nested deeper
-            return Path(__file__).parent / "config" / "test_config.yaml" 
+            return Path(__file__).parent / "config" / "test_config.yaml"
 
         @pytest.fixture(scope="session")
         def test_secrets_file_path() -> Path:
@@ -203,7 +203,7 @@ This centralizes the loading of test configurations, making it consistent with h
                 pytest.fail(f"Failed to load test AppSettings from {test_config_file_path}: {e}")
             # Add a default return to satisfy linters, though pytest.fail should exit
             # This path should ideally not be reached if pytest.fail works as expected.
-            raise RuntimeError("test_app_settings fixture failed unexpectedly.") 
+            raise RuntimeError("test_app_settings fixture failed unexpectedly.")
         ```
    *   **Create `test_secrets_config` Fixture:**
         ```python
@@ -230,7 +230,7 @@ This centralizes the loading of test configurations, making it consistent with h
             # If not, this fixture needs to be more robust or have a simpler default.
             # For now, let's assume AppSettings loads and has this structure.
             is_mainnet_from_config = test_app_settings.exchanges.get("hyperliquid", {}).get("is_mainnet_environment", False) # Default to testnet if not in config
-            
+
             # Allow override via environment variable
             env_override = os.environ.get("CYBERDELTA_TEST_ENV_HL")
             if env_override:

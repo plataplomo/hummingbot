@@ -183,7 +183,7 @@ def is_valid_decimal_str(value: object) -> TypeGuard[str]:
 # Modern approach - validation instead of casting
 class ExchangeResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    
+
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: object) -> datetime:

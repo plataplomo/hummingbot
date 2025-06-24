@@ -27,7 +27,7 @@ class HyperliquidRawOrder(BaseModel):
     oid: RawNonNegativeInt                     # Order ID
     cloid: RawOptionalNonEmptyString64HL       # Client Order ID
     asset: RawAssetString64HL                  # Asset symbol
-    side: RawSideStr                           # "B" or "A" 
+    side: RawSideStr                           # "B" or "A"
     limit_px: RawFiniteDecimalStr              # Limit price
     sz: RawNonNegativeFiniteDecimalStr         # Size
     timestamp: RawTimestampMsInt               # Creation timestamp
@@ -47,7 +47,7 @@ class HyperliquidRawOrder(BaseModel):
 
 **Order States:**
 - **"open"** → `OrderStatus.OPEN`
-- **"filled"** → `OrderStatus.FILLED` 
+- **"filled"** → `OrderStatus.FILLED`
 - **"canceled"** → `OrderStatus.CANCELED`
 - **"rejected"** → `OrderStatus.REJECTED`
 
@@ -73,7 +73,7 @@ graph TD
 - **User Stream:** `HyperliquidRawWsOrderUpdate` events
 - **Fill Events:** `HyperliquidRawWsFillEvent` for executions
 - **Real-time Nature:** Live order status and fill notifications
-- **Event Structure:** 
+- **Event Structure:**
   ```python
   {
     "eventType": "orderUpdate",
@@ -263,14 +263,14 @@ graph TD
 # Enhanced internal Order model
 class Order(BaseModel):
     # Core fields remain the same
-    
+
     # Enhanced extension slots
     hl_details: HyperliquidOrderDetails | None = Field(default=None)
     bp_details: BackpackOrderDetails | None = Field(default=None)
-    
+
     # Standardized lifecycle tracking
     state_transitions: list[OrderStateTransition] = Field(default_factory=list)
-    
+
     # Cross-exchange order correlation
     correlation_id: str | None = Field(default=None)
 ```
@@ -292,9 +292,9 @@ class OrderStateTransition(BaseModel):
 ```python
 class OrderPlacementStrategy:
     """Handle order placement failures and retries."""
-    
+
     async def place_with_fallback(
-        self, 
+        self,
         primary_exchange: str,
         fallback_exchange: str,
         order_args: PlaceOrderArgs
@@ -305,9 +305,9 @@ class OrderPlacementStrategy:
 ```python
 class OrderStatusReconciler:
     """Reconcile order status across exchanges."""
-    
+
     async def reconcile_order_status(
-        self, 
+        self,
         order_id: str,
         expected_status: OrderStatus
     ) -> ReconciliationResult
@@ -348,7 +348,7 @@ sequenceDiagram
     participant Client
     participant HL_API
     participant HL_WS
-    
+
     Client->>HL_API: POST /exchange (order action)
     HL_API-->>Client: Exchange response
     HL_WS-->>Client: orderUpdate event (status: open)
@@ -362,7 +362,7 @@ sequenceDiagram
     participant Client
     participant BP_API
     participant BP_WS
-    
+
     Client->>BP_API: POST /api/v1/order
     BP_API-->>Client: Order response (status: NEW)
     BP_WS-->>Client: orderUpdate (orderAccepted)

@@ -165,7 +165,7 @@ services:
     extends: cyberdelta
     environment:
       - STRATEGY_NAME=funding_arbitrage
-  
+
   strategy2:
     extends: cyberdelta
     environment:

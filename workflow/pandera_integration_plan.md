@@ -79,35 +79,35 @@ flowchart TD
         A2[CSV/Parquet Files<br/>Historical Data]
         A3[Synthetic Data<br/>Testing]
     end
-    
+
     subgraph Ingestion[Data Ingestion Layer]
         B1[API Response → DataFrame]
         B2[File Load → DataFrame]
         B3[Generated → DataFrame]
     end
-    
+
     subgraph Validation1[🛡️ Pandera Validation]
         C1[market_data_schema<br/>OHLCV constraints]
         C2[funding_rate_schema<br/>Rate bounds]
     end
-    
+
     subgraph Core[Core Processing]
         D1[Backtesting Engine]
         D2[Performance Tracker]
         D3[Strategy Execution]
     end
-    
+
     subgraph Validation2[🛡️ Pandera Validation]
         C3[returns_schema<br/>Return bounds]
         C4[trades_schema<br/>PnL validation]
     end
-    
+
     subgraph Analytics[Analytics & Visualization]
         E1[Metric Calculations]
         E2[Dashboard Updates]
         E3[Report Generation]
     end
-    
+
     A1 --> B1
     A2 --> B2
     A3 --> B3
@@ -172,7 +172,7 @@ from typing import Optional
 
 class MarketDataSchema:
     """Schema for OHLCV market data validation."""
-    
+
     # Basic OHLCV schema for single-index DataFrames
     ohlcv_schema = DataFrameSchema(
         columns={
@@ -230,13 +230,13 @@ class MarketDataSchema:
         # Cross-column validation
         checks=[
             # OHLCV relationship: low <= open,close <= high
-            Check(lambda df: (df["low"] <= df["open"]).all(), 
+            Check(lambda df: (df["low"] <= df["open"]).all(),
                   error="Low price must be <= open price"),
-            Check(lambda df: (df["low"] <= df["close"]).all(), 
+            Check(lambda df: (df["low"] <= df["close"]).all(),
                   error="Low price must be <= close price"),
-            Check(lambda df: (df["open"] <= df["high"]).all(), 
+            Check(lambda df: (df["open"] <= df["high"]).all(),
                   error="Open price must be <= high price"),
-            Check(lambda df: (df["close"] <= df["high"]).all(), 
+            Check(lambda df: (df["close"] <= df["high"]).all(),
                   error="Close price must be <= high price"),
         ],
         strict=True,  # No extra columns allowed
@@ -244,7 +244,7 @@ class MarketDataSchema:
         name="OHLCV Market Data",
         description="Validates standard OHLCV market data structure"
     )
-    
+
     # Extended schema with funding rate for perpetual futures
     ohlcv_with_funding_schema = ohlcv_schema.add_columns({
         "funding_rate": Column(
@@ -261,7 +261,7 @@ class MarketDataSchema:
 
 class TradingDataSchema:
     """Schema for trading and performance data validation."""
-    
+
     trades_schema = DataFrameSchema(
         columns={
             "trade_id": Column(str, nullable=False, unique=True),
@@ -287,7 +287,7 @@ class TradingDataSchema:
         ],
         name="Trades Data",
     )
-    
+
     returns_schema = DataFrameSchema(
         index=Index(pd.DatetimeIndex, name="timestamp", nullable=False),
         columns={
@@ -310,11 +310,11 @@ def validate_pnl(row: pd.Series) -> bool:
     """Validate PnL calculation for a trade."""
     if pd.isna(row["exit_price"]) or pd.isna(row["pnl"]):
         return True
-    
+
     expected_pnl = (row["exit_price"] - row["entry_price"]) * row["quantity"]
     if row["side"] == "sell":
         expected_pnl = -expected_pnl
-    
+
     # Allow small floating point differences
     return abs(row["pnl"] - expected_pnl) < 0.01
 ```
@@ -330,7 +330,7 @@ class BacktestEngine:
     def load_data(self, csv_path: str) -> pd.DataFrame:
         """Load and validate market data from CSV."""
         df = pd.read_csv(csv_path, index_col="timestamp", parse_dates=True)
-        
+
         # Validate data structure
         try:
             if "funding_rate" in df.columns:
@@ -340,7 +340,7 @@ class BacktestEngine:
         except pa.errors.SchemaError as e:
             logger.error(f"Market data validation failed: {e}")
             raise ValueError(f"Invalid market data format: {e}")
-        
+
         logger.info(f"Loaded and validated {len(df)} rows of market data")
         return df
 ```
@@ -358,7 +358,7 @@ class PerformanceTracker:
         """Get validated returns DataFrame."""
         # Existing implementation
         return returns_df
-    
+
     @pa.check_output(TradingDataSchema.trades_schema)
     def get_trades_dataframe(self) -> pd.DataFrame:
         """Get validated trades DataFrame."""
@@ -375,7 +375,7 @@ class PerformanceTracker:
 
 class FinancialValidators:
     """Custom validators for financial data constraints."""
-    
+
     @staticmethod
     def sharpe_ratio_bounds(df: pd.DataFrame) -> bool:
         """Validate Sharpe ratio is within reasonable bounds."""
@@ -383,7 +383,7 @@ class FinancialValidators:
         if sharpe is None:
             return True
         return -10 <= sharpe <= 10
-    
+
     @staticmethod
     def max_drawdown_bounds(df: pd.DataFrame) -> bool:
         """Validate maximum drawdown is between 0 and -100%."""
@@ -420,13 +420,13 @@ from pandera.strategies import dataframe_strategy
 import pytest
 
 class TestMarketDataSchema:
-    
+
     @hypothesis.given(dataframe_strategy(MarketDataSchema.ohlcv_schema))
     def test_valid_ohlcv_data(self, df):
         """Test that generated valid data passes validation."""
         validated = MarketDataSchema.ohlcv_schema.validate(df)
         assert len(validated) == len(df)
-    
+
     def test_ohlcv_relationships(self):
         """Test OHLCV relationship constraints."""
         df = pd.DataFrame({
@@ -436,7 +436,7 @@ class TestMarketDataSchema:
             "close": [95.0],
             "volume": [1000.0],
         }, index=pd.DatetimeIndex(["2024-01-01"]))
-        
+
         with pytest.raises(pa.errors.SchemaError, match="high price"):
             MarketDataSchema.ohlcv_schema.validate(df)
 ```
@@ -460,26 +460,26 @@ class ValidationMetrics:
     row_count: int
     column_count: int
     errors: List[str]
-    
+
 class ValidationMonitor:
     """Monitor DataFrame validation performance and errors."""
-    
+
     def __init__(self):
         self.metrics: List[ValidationMetrics] = []
-    
+
     def validate_with_metrics(
-        self, 
-        df: pd.DataFrame, 
+        self,
+        df: pd.DataFrame,
         schema: DataFrameSchema
     ) -> pd.DataFrame:
         """Validate DataFrame and collect metrics."""
         start_time = time.time()
         errors = []
-        
+
         try:
             validated = schema.validate(df)
             validation_time = time.time() - start_time
-            
+
             metric = ValidationMetrics(
                 schema_name=schema.name or "unnamed",
                 validation_time=validation_time,
@@ -488,13 +488,13 @@ class ValidationMonitor:
                 errors=errors
             )
             self.metrics.append(metric)
-            
+
             return validated
-            
+
         except pa.errors.SchemaErrors as e:
             validation_time = time.time() - start_time
             errors = [str(err) for err in e.schema_errors]
-            
+
             metric = ValidationMetrics(
                 schema_name=schema.name or "unnamed",
                 validation_time=validation_time,
@@ -527,16 +527,16 @@ async def process_market_data(api_response: dict) -> pd.DataFrame:
         df = pd.DataFrame(api_response["data"])
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df.set_index("timestamp", inplace=True)
-        
+
         # Validate structure and constraints
         validated_df = MarketDataSchema.ohlcv_schema.validate(df)
-        
+
         # Additional security checks
         if len(validated_df) > 100000:
             raise ValueError("Suspicious data size - possible DoS attempt")
-        
+
         return validated_df
-        
+
     except pa.errors.SchemaError as e:
         logger.warning(f"Invalid market data from API: {e}")
         # Don't expose internal schema details in user-facing errors
@@ -592,7 +592,7 @@ def validate_large_dataset(df: pd.DataFrame, schema: DataFrameSchema) -> pd.Data
         # Validate structure on sample
         sample = df.sample(n=10000, random_state=42)
         schema.validate(sample)
-        
+
         # Validate full dataset with basic checks only
         return schema.validate(df, lazy=True)
     else:
@@ -630,12 +630,12 @@ market_data_schema = DataFrameSchema(
     name="OHLCV Market Data",
     description="""
     Validates market data for backtesting and live trading.
-    
+
     Expected format:
     - Index: DatetimeIndex (UTC)
     - Columns: open, high, low, close, volume
     - Constraints: OHLCV relationships, positive prices
-    
+
     Used by:
     - BacktestEngine.load_data()
     - LiveDataFeed.process_tick()

@@ -26,14 +26,14 @@ async def get_connection_stats(self) -> dict[str, Any]:
 # Add logging to _execute_single_request
 async def _execute_single_request(self, ...):
     session = await self._get_session()
-    
+
     # Log connection stats before request
     if logger.isEnabledFor(logging.DEBUG):
         stats = await self.get_connection_stats()
         logger.debug(f"[{self.exchange_name}] Connection pool stats BEFORE request: {stats}")
-    
+
     # ... existing request code ...
-    
+
     # Log connection stats after request
     if logger.isEnabledFor(logging.DEBUG):
         stats = await self.get_connection_stats()
@@ -60,46 +60,46 @@ async def verify_connection_pooling():
     """Verify that connections are being reused."""
     # Load production config
     config = load_config("production")
-    
+
     # Create single API instance
     api = HyperliquidAPI(
         exchange_config=config.exchanges.hyperliquid,
         exchange_secrets=config.secrets.hyperliquid
     )
-    
+
     try:
         # Make multiple requests and time them
         timings = []
-        
+
         for i in range(5):
             start = time.time()
-            
+
             # Make a simple API call (e.g., get account info)
             await api.account.get_account_summary()
-            
+
             elapsed = time.time() - start
             timings.append(elapsed)
-            
+
             logger.info(f"Request {i+1}: {elapsed:.3f}s")
-            
+
             # Get connection stats
             if hasattr(api._http_client, 'get_connection_stats'):
                 stats = await api._http_client.get_connection_stats()
                 logger.info(f"Connection stats: {stats}")
-            
+
             # Small delay between requests
             await asyncio.sleep(0.1)
-        
+
         # Analyze results
         logger.info("\n=== Connection Pooling Analysis ===")
         logger.info(f"First request: {timings[0]:.3f}s (includes connection setup)")
         logger.info(f"Subsequent avg: {sum(timings[1:])/len(timings[1:]):.3f}s")
-        
+
         if timings[0] > timings[1] * 1.5:
             logger.info("✅ Connection pooling is working! First request slower than subsequent.")
         else:
             logger.warning("⚠️ Connection pooling may not be working effectively.")
-            
+
     finally:
         # Clean up
         if hasattr(api._http_client, 'close_session'):
@@ -136,26 +136,26 @@ class ConnectionMetrics:
         self.request_count = 0
         self.connection_created_count = 0
         self.request_timings = []
-    
+
     async def track_request(self, api_client, operation):
         start = time.time()
-        
+
         # Check if new connection was created
         initial_stats = await api_client._http_client.get_connection_stats()
-        
+
         # Perform operation
         result = await operation()
-        
+
         # Check stats after
         final_stats = await api_client._http_client.get_connection_stats()
-        
+
         elapsed = time.time() - start
         self.request_count += 1
         self.request_timings.append(elapsed)
-        
+
         if final_stats['total_connections'] > initial_stats['total_connections']:
             self.connection_created_count += 1
-        
+
         # Log metrics every 100 requests
         if self.request_count % 100 == 0:
             avg_time = sum(self.request_timings[-100:]) / 100
@@ -166,7 +166,7 @@ class ConnectionMetrics:
             Connection Reuse Rate: {(1 - self.connection_created_count/self.request_count)*100:.1f}%
             Avg Request Time (last 100): {avg_time:.3f}s
             """)
-        
+
         return result
 ```
 
@@ -193,7 +193,7 @@ class ConnectionMetrics:
 class TradingApp:
     def __init__(self):
         self.api = HyperliquidAPI(config)  # Create once
-    
+
     async def place_order(self, ...):
         return await self.api.trading.place_order(...)  # Reuse
 

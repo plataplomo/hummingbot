@@ -1,5 +1,5 @@
 ---
-description: 
+description:
 globs: ["*.py,*.pyi"]
 alwaysApply: true
 ---
@@ -58,5 +58,3 @@ alwaysApply: true
 - **Certificate Validation:** Ensure the HTTP client (`aiohttp`) performs standard TLS certificate validation by default. Do not disable certificate verification unless absolutely necessary for specific, justified local testing scenarios (and never in production).
 - **No Downgrades:** Prevent accidental downgrades to insecure protocols (HTTP/WS).
 - **Library Updates:** Keep underlying TLS/SSL libraries (provided by Python and the OS) updated to patch known vulnerabilities.
-
-

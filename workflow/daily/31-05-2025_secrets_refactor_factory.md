@@ -179,4 +179,3 @@ Similar to the Hyperliquid authenticator refactoring, the `BackpackAPIComponents
     *   Run static analysis.
     *   List modified files.
     *   Confirm tests pass.
-

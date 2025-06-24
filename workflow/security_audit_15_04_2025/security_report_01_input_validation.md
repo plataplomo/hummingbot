@@ -13,7 +13,7 @@ Since the June 2025 update, the application has further strengthened its input v
 1.  **API Response Validation (FULLY RESOLVED - Excellent):**
     *   **Previous State**: Direct `@dataclass` instantiation with minimal validation
     *   **Current State**: Industry-standard Pydantic model validation for ALL API responses
-    *   **Implementation**: 
+    *   **Implementation**:
         - All API responses validated through Pydantic `BaseModel` classes with strict typing
         - Raw models in `/cyberdelta/apis/backpack/models/` and `/cyberdelta/apis/hyperliquid/models/`
         - Strict schema validation with `extra="forbid"` to reject unexpected fields
@@ -68,7 +68,7 @@ Since the June 2025 update, the application has further strengthened its input v
     # Example: RawBpTicker with comprehensive validation
     class RawBpTicker(BaseModel):
         model_config = ConfigDict(extra="forbid")  # Reject unexpected fields
-        
+
         symbol: str
         firstPrice: RawBpStringToFiniteDecimal  # Custom validator ensures finite Decimal
         lastPrice: RawBpStringToFiniteDecimal
@@ -93,7 +93,7 @@ Since the June 2025 update, the application has further strengthened its input v
         api_secret: SecretStr | None = None
         private_key: SecretStr | None = None
         private_key_passphrase: SecretStr | None = None
-        
+
         @model_validator(mode="after")
         def validate_credentials(self) -> Self:
             if self.api_key and self.api_secret:
@@ -112,7 +112,7 @@ Since the June 2025 update, the application has further strengthened its input v
     def _calculate_checksum(self, state: dict[str, Any]) -> int:
         state_json = json.dumps(state, sort_keys=True)
         return hash(state_json)
-    
+
     # Atomic save with backup
     def save_state(self) -> None:
         temp_file = self.state_file.with_suffix('.tmp')
@@ -130,13 +130,13 @@ Since the June 2025 update, the application has further strengthened its input v
         B -- JSON Response --> C[Pydantic Raw Model];
         C -- Validated Data --> D[Mapper];
         D -- Domain Model --> E[Application Logic];
-        
+
         subgraph "Security Layers"
             B -- Rate Limiting --> C;
             C -- Schema Validation --> D;
             D -- Business Rules --> E;
         end
-        
+
         E -- Type-Safe Operations --> F[Trading Engine];
     ```
 
@@ -146,13 +146,13 @@ Since the June 2025 update, the application has further strengthened its input v
         A[Config File] -- yaml.safe_load --> B[Raw Dict];
         B -- Pydantic Validation --> C[Config Models];
         C -- SecretStr Wrapping --> D[Secure Config];
-        
+
         subgraph "Validation Layers"
             A -- File Permissions Check --> B;
             B -- Schema Validation --> C;
             C -- Business Rules --> D;
         end
-        
+
         D -- Validated Settings --> E[Application];
     ```
 
@@ -205,7 +205,7 @@ Since the June 2025 update, the application has further strengthened its input v
        orders: dict[str, Order]
        last_update: datetime
        version: str
-       
+
    # Validate on load/save
    validated_state = TradingState.model_validate(state_data)
    ```

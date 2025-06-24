@@ -196,7 +196,7 @@ exchanges:
     api_base_url: "https://api.hyperliquid.xyz"
     ws_url: "wss://api.hyperliquid.xyz/ws"
     rate_limit_per_minute: 120
-    
+
   backpack:
     enabled: true
     api_base_url: "https://api.backpack.exchange"
@@ -222,13 +222,13 @@ validation:
     accuracy_threshold: 0.0005  # Maximum tolerated prediction error
     alert_on_threshold: true    # Alert when threshold is exceeded
     data_retention_days: 90     # Days to keep validation data
-    
+
   position_reconciliation:
     enabled: true
     threshold: 0.05            # 5% discrepancy threshold
     auto_correct: false        # Whether to auto-correct discrepancies
     check_interval: 3600       # Seconds between checks
-    
+
   circuit_breaker:
     enabled: true
     exchanges:
@@ -247,7 +247,7 @@ validation:
 
 ```yaml
 # CyberDeltaEngine Secrets Configuration
-# 
+#
 # IMPORTANT: DO NOT STORE REAL SECRETS IN THE REPOSITORY
 # Store this file at: ~/.cyberdelta/secrets.yaml
 
@@ -335,11 +335,11 @@ data = generate_synthetic_data(days=60, symbols=['BTC-PERP', 'ETH-PERP'], data_t
 class MyStrategy(BacktestStrategy):
     def __init__(self):
         super().__init__("MyCustomStrategy")
-        
+
     def initialize(self, data):
         # Strategy initialization logic here
         return True
-        
+
     def update(self, current_data):
         # Strategy update logic here
         signals = []
@@ -423,4 +423,4 @@ price_data = generate_synthetic_data(
     symbols=['BTC', 'ETH'],
     data_type='price'
 )
-``` 
+```

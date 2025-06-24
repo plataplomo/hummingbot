@@ -11,7 +11,7 @@ Signing for path https://api.hyperliquid.xyz/info is not implemented. Only /exch
 In `HyperliquidAccountService`, 4 methods were incorrectly using `is_signed=True` for `/info` endpoint calls:
 
 1. `_get_raw_clearinghouse_state()` - line 158
-2. `_fetch_order_history_data()` - line 574  
+2. `_fetch_order_history_data()` - line 574
 3. `_fetch_trade_history_data()` - line 753
 4. `_fetch_open_orders_data()` - line 864
 
@@ -24,7 +24,7 @@ Hyperliquid has a unique API design:
 - **Signing**: NEVER signed - not cryptographically authenticated
 - **Examples**: get_balances, get_positions, get_account_summary, get_order_history
 
-### `/exchange` Endpoint (Private, Always Signed)  
+### `/exchange` Endpoint (Private, Always Signed)
 - **Purpose**: All state-changing operations
 - **Authentication**: ALWAYS required
 - **Signing**: ALWAYS signed with EIP-712 cryptographic signatures
@@ -76,10 +76,10 @@ Updated class names:
 
 ### Before Fix
 - 68 failed tests (all with signing errors)
-- 190 passed tests 
+- 190 passed tests
 - Error: `Signing for path .../info is not implemented`
 
-### After Fix  
+### After Fix
 - 31 failed tests (legitimate business logic issues, no signing errors)
 - 65 passed tests
 - No more signing errors ✅

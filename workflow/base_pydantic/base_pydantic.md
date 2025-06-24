@@ -65,7 +65,7 @@ T = TypeVar('T', bound=BaseModel)
 
 class HttpRequestParams(BaseModel):
     """Type-safe HTTP request parameters.
-    
+
     Consistent with RequestBuilder pattern used in exchanges.
     """
     model_config = ConfigDict(
@@ -76,17 +76,17 @@ class HttpRequestParams(BaseModel):
 
 class HttpRequestHeaders(BaseModel):
     """Type-safe HTTP headers following exchange patterns."""
-    
+
     # Common headers
     content_type: str | None = Field(None, alias="Content-Type")
     accept: str | None = Field(None, alias="Accept")
     user_agent: str | None = Field(None, alias="User-Agent")
-    
+
     # Exchange-specific headers (extension pattern)
     x_api_key: str | None = Field(None, alias="X-API-Key")
     x_timestamp: str | None = Field(None, alias="X-Timestamp")
     x_signature: str | None = Field(None, alias="X-Signature")
-    
+
     model_config = ConfigDict(
         extra="allow",
         frozen=True,
@@ -95,18 +95,18 @@ class HttpRequestHeaders(BaseModel):
 
 class HttpRequestContext(BaseModel):
     """Request context following architecture patterns."""
-    
+
     method: str
     endpoint: str
     params: HttpRequestParams | None = None
     headers: HttpRequestHeaders | None = None
     is_signed: bool = False
     request_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    
+
     # Rate limiting context (consistent with RateLimitRequestContext)
     request_weight: int = 1
     endpoint_group: str | None = None
-    
+
     model_config = ConfigDict(frozen=True)
 ```
 
@@ -122,43 +122,43 @@ T = TypeVar('T', bound=BaseModel)
 # Raw WebSocket models (what we receive)
 class RawWebSocketMessage(BaseModel):
     """Raw WebSocket message as received from exchange."""
-    
+
     # Common fields across exchanges
     stream: str | None = None
     channel: str | None = None
     event: str | None = None
     data: Any = None
-    
+
     # Extension pattern for exchange-specific fields
     bp_envelope: dict[str, Any] | None = None
     hl_envelope: dict[str, Any] | None = None
-    
+
     model_config = ConfigDict(extra="allow", frozen=True)
 
 # Internal WebSocket models (after transformation)
 class WebSocketMessage(BaseModel):
     """Internal WebSocket message after transformation."""
-    
+
     channel_type: str  # normalized channel type
     symbol: str | None = None
     data: Any  # Will be validated by handlers
     timestamp: datetime
     sequence: int | None = None
-    
+
     # Extension slots
     bp_details: BackpackWsDetails | None = None
     hl_details: HyperliquidWsDetails | None = None
-    
+
     model_config = ConfigDict(frozen=True)
 
 # Handler registration model
 class WebSocketSubscription(BaseModel):
     """Subscription model consistent with exchange patterns."""
-    
+
     topic: str  # e.g., "orderbook.BTC-USD"
     handler_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     handler: MessageHandler
-    
+
     model_config = ConfigDict(frozen=True)
 ```
 
@@ -170,18 +170,18 @@ class WebSocketSubscription(BaseModel):
 # base/rate_limit_models.py (enhance existing)
 class RateLimitRequestContext(BaseModel):
     """Enhanced context for rate limiting decisions."""
-    
+
     exchange_name: str
     method: str
     endpoint: str
     action_payload: BaseModel | None = None  # Changed from dict
     request_weight: int = 1
     endpoint_group: str | None = None
-    
+
     # New fields for better tracking
     request_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 ```
 
@@ -191,27 +191,27 @@ class RateLimitRequestContext(BaseModel):
 # base/models/error_models.py
 class ExchangeErrorResponse(BaseModel):
     """Raw error response from exchange."""
-    
+
     code: str | int | None = None
     message: str | None = None
     details: Any = None
-    
+
     # Extension slots for exchange-specific error data
     bp_error: BackpackErrorDetails | None = None
     hl_error: HyperliquidErrorDetails | None = None
-    
+
     model_config = ConfigDict(extra="allow", frozen=True)
 
 class ProcessedError(BaseModel):
     """Processed error after mapping."""
-    
+
     api_error_code: APIErrorCode
     message: str
     http_status: int | None = None
     retry_after: float | None = None
     request_context: HttpRequestContext | None = None
     original_error: ExchangeErrorResponse | None = None
-    
+
     model_config = ConfigDict(frozen=True)
 ```
 
@@ -221,7 +221,7 @@ class ProcessedError(BaseModel):
 
 ```python
 class ExchangeAPI(ABC):
-    
+
     # Phase 1: Add overloaded methods for backward compatibility
     @overload
     async def _request(
@@ -237,7 +237,7 @@ class ExchangeAPI(ABC):
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         ...
-    
+
     @overload
     async def _request(
         self,
@@ -246,11 +246,11 @@ class ExchangeAPI(ABC):
         serialize_none_as_null: bool = False,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         ...
-    
+
     # Phase 2: Update internal methods to use models
     def _build_http_config_data(self) -> HttpConfigData:
         """Build HTTP configuration following established patterns."""
-        
+
         # Determine endpoint (same logic as current)
         if self._config.is_mainnet_environment:
             rest_endpoint = str(self._config.api_base_url_mainnet)
@@ -258,7 +258,7 @@ class ExchangeAPI(ABC):
             rest_endpoint = str(self._config.api_base_url_testnet)
         else:
             rest_endpoint = str(self._config.api_base_url_mainnet)
-        
+
         # Return model instead of dict
         return HttpConfigData(
             rest_endpoint=rest_endpoint,
@@ -280,11 +280,11 @@ FlexibleMessageHandler = Union[
 # Phase 2: Handler adapter for migration
 class MessageHandlerAdapter:
     """Adapter to support both handler types during migration."""
-    
+
     def __init__(self, handler: FlexibleMessageHandler):
         self._handler = handler
         self._is_legacy = self._detect_legacy_handler(handler)
-    
+
     async def handle(self, raw_message: dict[str, Any]) -> None:
         if self._is_legacy:
             # Call legacy handler with dict
@@ -293,7 +293,7 @@ class MessageHandlerAdapter:
             # Transform and call new handler
             message = self._transform_to_internal(raw_message)
             await self._handler(message)
-    
+
     def _transform_to_internal(self, raw: dict[str, Any]) -> WebSocketMessage:
         """Transform raw message to internal model."""
         # Use existing mapper pattern
@@ -313,7 +313,7 @@ class MessageHandlerAdapter:
 # base/service_base.py
 class BaseService(ABC):
     """Base service with Pydantic integration."""
-    
+
     def __init__(
         self,
         http_client_requester: HttpClientRequesterSig,
@@ -327,14 +327,14 @@ class BaseService(ABC):
         self._response_handler = response_handler
         self._mapper = mapper
         self._exchange_name = exchange_name
-    
+
     async def _execute_request(
         self,
         context: HttpRequestContext,
         payload: BaseModel | None = None
     ) -> tuple[Any, int, Mapping[str, str]]:
         """Execute request with proper context."""
-        
+
         return await self._http_requester(
             method=context.method,
             endpoint=context.endpoint,
@@ -354,7 +354,7 @@ class BaseService(ABC):
 ```python
 # connectivity/http_client.py
 class HttpClient:
-    
+
     # Add typed request method
     async def request_typed(
         self,
@@ -364,7 +364,7 @@ class HttpClient:
         serialize_none_as_null: bool = False,
     ) -> TypedResponse[T]:
         """Type-safe request method."""
-        
+
         # Convert context to current parameters
         response, status, headers = await self.request(
             method=context.method,
@@ -376,7 +376,7 @@ class HttpClient:
             is_signed=context.is_signed,
             serialize_none_as_null=serialize_none_as_null
         )
-        
+
         # Return typed response
         return TypedResponse(
             status_code=status,
@@ -392,14 +392,14 @@ class HttpClient:
 ```python
 # connectivity/ws_manager.py
 class WebSocketManager:
-    
+
     # Add typed message sending
     async def send_typed(self, message: BaseModel) -> bool:
         """Send typed message with automatic serialization."""
-        
+
         # Use existing send_json with Pydantic serialization
         return await self.send_json(message)
-    
+
     # Add typed handler registration
     def register_typed_handler(
         self,
@@ -407,7 +407,7 @@ class WebSocketManager:
         handler: Callable[[WebSocketMessage], Awaitable[None]]
     ) -> None:
         """Register typed message handler."""
-        
+
         # Create adapter for backward compatibility
         adapter = MessageHandlerAdapter(handler)
         self._typed_handlers[channel_pattern] = adapter
@@ -445,13 +445,13 @@ class WebSocketManager:
 
 ```python
 class HyperliquidTradingService:
-    
+
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place order with typed models."""
-        
+
         # Build request payload (existing pattern)
         request_payload = self._request_builder.build_place_order_payload(args)
-        
+
         # Create typed context
         context = HttpRequestContext(
             method="POST",
@@ -459,18 +459,18 @@ class HyperliquidTradingService:
             is_signed=True,
             request_weight=1
         )
-        
+
         # Execute with typed request
         response, status, headers = await self._execute_request(
             context=context,
             payload=request_payload
         )
-        
+
         # Handle response (existing pattern)
         raw_order = self._response_handler.handle_place_order_response(
             response, status, headers
         )
-        
+
         # Transform (existing pattern)
         return self._mapper.transform_raw_order_to_internal(raw_order)
 ```
@@ -479,37 +479,37 @@ class HyperliquidTradingService:
 
 ```python
 class HyperliquidWsMessageRouter:
-    
+
     async def route_message(
         self,
         message: dict[str, Any],
         handlers: dict[str, MessageHandler]
     ) -> None:
         """Route with gradual typing."""
-        
+
         # Transform to typed model
         typed_message = RawWebSocketMessage.model_validate(message)
-        
+
         # Determine routing
         if typed_message.channel == "l2Book":
             await self._handle_orderbook_update_typed(typed_message, handlers)
         elif typed_message.channel == "trades":
             await self._handle_trades_update_typed(typed_message, handlers)
         # ... etc
-    
+
     async def _handle_orderbook_update_typed(
         self,
         message: RawWebSocketMessage,
         handlers: dict[str, MessageHandler]
     ) -> None:
         """Handle with validation."""
-        
+
         # Validate data structure
         raw_book = HyperliquidRawWsBookUpdate.model_validate(message.data)
-        
+
         # Transform to internal
         internal_book = self._mapper.transform_ws_orderbook_to_internal(raw_book)
-        
+
         # Call handler (with adapter if needed)
         handler = handlers.get(f"orderbook.{internal_book.symbol}")
         if handler:
@@ -544,7 +544,7 @@ class HyperliquidWsMessageRouter:
 ```python
 # tests/test_typed_models.py
 class TestTypedModels:
-    
+
     def test_http_request_context(self):
         """Test request context validation."""
         context = HttpRequestContext(
@@ -555,7 +555,7 @@ class TestTypedModels:
         )
         assert context.request_id  # Auto-generated
         assert context.method == "POST"
-    
+
     def test_websocket_message_transformation(self):
         """Test message transformation."""
         raw = {
@@ -563,11 +563,11 @@ class TestTypedModels:
             "data": {"bids": [], "asks": []},
             "timestamp": 1234567890
         }
-        
+
         message = RawWebSocketMessage.model_validate(raw)
         assert message.channel == "l2Book"
         assert isinstance(message.data, dict)
-    
+
     def test_backward_compatibility(self):
         """Test dict-based methods still work."""
         # Legacy call should still work

@@ -1,7 +1,7 @@
 # Time Fixtures Best Practices Guide
 
-**Last Updated**: June 2025  
-**Applies To**: CyberDeltaEngine Test Suite  
+**Last Updated**: June 2025
+**Applies To**: CyberDeltaEngine Test Suite
 
 ## Overview
 
@@ -119,7 +119,7 @@ fixed_time = datetime(2024, 1, 1, 12, 0, 0)
 # ✅ GOOD
 def test_something(frozen_time: FreezerProtocol) -> None:
     frozen_time.move_to("2024-01-01")
-    
+
 # ❌ BAD - No type hints
 def test_something(frozen_time):
     frozen_time.move_to("2024-01-01")
@@ -132,7 +132,7 @@ def test_something(frozen_time):
 def test_market_close(frozen_time: FreezerProtocol) -> None:
     # Set to 4 PM EST for NYSE close
     frozen_time.move_to("2024-01-01 21:00:00+00:00")  # 4 PM EST in UTC
-    
+
 # ❌ BAD - Magic time values
 def test_something(frozen_time: FreezerProtocol) -> None:
     frozen_time.move_to("2024-01-01 21:00:00+00:00")  # Why this time?
@@ -144,11 +144,11 @@ def test_something(frozen_time: FreezerProtocol) -> None:
 # ✅ GOOD - Test behavior over time
 def test_order_timeout(frozen_time: FreezerProtocol) -> None:
     order = place_order()
-    
+
     # Advance 29 seconds - should still be pending
     frozen_time.move_to(datetime.now(UTC) + timedelta(seconds=29))
     assert order.status == "pending"
-    
+
     # Advance past 30 second timeout
     frozen_time.move_to(datetime.now(UTC) + timedelta(seconds=31))
     assert order.status == "timeout"
@@ -161,7 +161,7 @@ def test_order_timeout(frozen_time: FreezerProtocol) -> None:
 @pytest.mark.timing
 def test_rate_limiter(frozen_time: FreezerProtocol) -> None:
     # Test implementation
-    
+
 # Run only timing tests
 # pytest -m timing
 
@@ -174,7 +174,7 @@ def test_rate_limiter(frozen_time: FreezerProtocol) -> None:
 ```python
 def test_funding_rate_calculation(frozen_time: FreezerProtocol) -> None:
     """Test funding rate calculation at market snapshot time.
-    
+
     Requires:
     - Time set to funding snapshot (00:00, 08:00, or 16:00 UTC)
     - Consistent time across all market data calls
@@ -190,7 +190,7 @@ def test_funding_rate_calculation(frozen_time: FreezerProtocol) -> None:
 ```python
 def test_none_timestamp_handling(frozen_time: FreezerProtocol) -> None:
     frozen_time.move_to("2024-01-01 12:00:00+00:00")
-    
+
     # When timestamp is None, should use current time
     result = process_order(timestamp=None)
     assert result.timestamp == datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -203,11 +203,11 @@ def test_order_expiry(frozen_time: FreezerProtocol) -> None:
     # Create order with 5 minute expiry
     frozen_time.move_to("2024-01-01 12:00:00+00:00")
     order = create_order(expiry_minutes=5)
-    
+
     # Check not expired after 4 minutes
     frozen_time.move_to("2024-01-01 12:04:00+00:00")
     assert not order.is_expired()
-    
+
     # Check expired after 6 minutes
     frozen_time.move_to("2024-01-01 12:06:00+00:00")
     assert order.is_expired()
@@ -218,17 +218,17 @@ def test_order_expiry(frozen_time: FreezerProtocol) -> None:
 ```python
 def test_rate_limit_enforcement(rate_limit_timer) -> None:
     limiter = RateLimiter(rate=10, per_second=1)  # 10 requests per second
-    
+
     # Make 10 requests - should succeed
     for _ in range(10):
         assert limiter.allow_request()
-    
+
     # 11th request should fail
     assert not limiter.allow_request()
-    
+
     # Advance 1 second
     rate_limit_timer(advance_seconds=1)
-    
+
     # Should allow requests again
     assert limiter.allow_request()
 ```
@@ -243,7 +243,7 @@ def test_market_data_with_vcr(
 ) -> None:
     # Freeze time for deterministic cassette matching
     frozen_time.move_to("2024-01-01 12:00:00+00:00")
-    
+
     # API calls will have consistent timestamps
     data = await get_market_data()
     assert data.timestamp == datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -329,7 +329,7 @@ Per TESTING_SECURITY_RULES.md, remember:
 
 This guide is a living document. When you:
 - Discover new patterns
-- Find better approaches  
+- Find better approaches
 - Encounter issues
 
 Please update this guide to help future developers.

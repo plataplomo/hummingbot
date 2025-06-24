@@ -177,7 +177,7 @@ The API client must use the correct URLs and signing parameters for the targeted
                       pass # Needs full derivation logic
                   except Exception as e_derive:
                       logger.error(f"Failed to derive account from testnet_seed_passphrase: {e_derive}. Falling back to private_key if available.")
-              
+
               # Then, when creating HyperliquidEip712Authenticator:
               # authenticator = HyperliquidEip712Authenticator(
               #    wallet_private_key_secret=pk_secret_for_auth, # Might be None if seed used
@@ -296,7 +296,7 @@ Tests need to reliably instantiate `HyperliquidAPI` configured for the correct e
             @pytest.fixture(scope="session")
             def active_hl_config(hl_test_environment: str) -> ExchangeSpecificConfig:
                 is_mainnet_env_flag = hl_test_environment == "mainnet"
-                
+
                 return ExchangeSpecificConfig.model_validate({
                     "exchange_name": ExchangeName.HYPERLIQUID,
                     "api_base_url_mainnet": "https://api.hyperliquid.xyz",

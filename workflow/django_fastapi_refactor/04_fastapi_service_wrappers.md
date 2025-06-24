@@ -133,7 +133,7 @@ market_data_service = MarketDataService()
 async def startup_event():
     """Initialize services using existing cyberdelta components"""
     await market_data_service.start()
-    
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup services"""
@@ -176,27 +176,27 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HLRawCandle
 
 class HyperliquidAdapter:
     """Adapter to expose existing Hyperliquid API through FastAPI
-    
+
     Preserves all production features:
     - EIP-712 signature handling
     - Weight-based rate limiting
     - Comprehensive error handling
     - WebSocket auto-reconnection
     """
-    
+
     def __init__(self):
         # Use existing configuration system - no changes to existing code
         self.config = get_app_settings()
         self.secrets = get_secrets_config()
-        
+
         # Initialize existing API client exactly as it's done currently
         self.hl_api = HyperliquidAPI(
             self.config.exchanges.hyperliquid,
             self.secrets.exchanges.hyperliquid
         )
-        
+
         self.is_connected = False
-        
+
     async def start(self):
         """Start adapter using existing API client"""
         try:
@@ -205,19 +205,19 @@ class HyperliquidAdapter:
             self.is_connected = True
         except Exception as e:
             raise RuntimeError(f"Failed to start Hyperliquid adapter: {e}")
-    
+
     async def stop(self):
         """Stop adapter using existing API client"""
         if self.is_connected:
             await self.hl_api.close()
             self.is_connected = False
-    
+
     async def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """Get ticker data using existing API client"""
         try:
             # Direct call to existing method - no changes to core logic
             ticker_result = await self.hl_api.get_ticker(symbol)
-            
+
             # Transform using existing data structures
             return {
                 "exchange": "hyperliquid",
@@ -233,13 +233,13 @@ class HyperliquidAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to get ticker for {symbol}: {e}")
-    
+
     async def get_all_tickers(self) -> List[Dict[str, Any]]:
         """Get all tickers using existing API client"""
         try:
             # Use existing method to get all available symbols
             all_mids = await self.hl_api.get_all_mids()
-            
+
             tickers = []
             for symbol, price_data in all_mids.items():
                 tickers.append({
@@ -248,15 +248,15 @@ class HyperliquidAdapter:
                     "last_price": float(price_data),
                     "timestamp": datetime.utcnow().isoformat()
                 })
-            
+
             return tickers
         except Exception as e:
             raise RuntimeError(f"Failed to get all tickers: {e}")
-    
+
     async def get_candles(
-        self, 
-        symbol: str, 
-        interval: str, 
+        self,
+        symbol: str,
+        interval: str,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
         limit: int = 100
@@ -271,7 +271,7 @@ class HyperliquidAdapter:
                 end_time=end_time,
                 limit=limit
             )
-            
+
             # Transform existing candle objects to API response format
             candle_data = []
             for candle in candles:
@@ -285,17 +285,17 @@ class HyperliquidAdapter:
                     "volume": float(candle.volume),
                     "trades_count": candle.trades_count if hasattr(candle, 'trades_count') else None
                 })
-            
+
             return candle_data
         except Exception as e:
             raise RuntimeError(f"Failed to get candles for {symbol}: {e}")
-    
+
     async def get_funding_rate(self, symbol: str) -> Dict[str, Any]:
         """Get funding rate using existing API client"""
         try:
             # Use existing funding rate method
             funding_data = await self.hl_api.get_funding_rate(symbol)
-            
+
             return {
                 "exchange": "hyperliquid",
                 "symbol": symbol,
@@ -308,13 +308,13 @@ class HyperliquidAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to get funding rate for {symbol}: {e}")
-    
+
     async def get_orderbook(self, symbol: str, depth: int = 20) -> Dict[str, Any]:
         """Get orderbook using existing API client"""
         try:
             # Use existing orderbook method
             orderbook = await self.hl_api.get_orderbook(symbol, depth)
-            
+
             return {
                 "exchange": "hyperliquid",
                 "symbol": symbol,
@@ -325,7 +325,7 @@ class HyperliquidAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to get orderbook for {symbol}: {e}")
-    
+
     async def subscribe_to_ticker(self, symbol: str):
         """Subscribe to ticker updates using existing WebSocket"""
         try:
@@ -333,7 +333,7 @@ class HyperliquidAdapter:
             await self.hl_api.subscribe_to_ticker(symbol)
         except Exception as e:
             raise RuntimeError(f"Failed to subscribe to ticker {symbol}: {e}")
-    
+
     async def subscribe_to_trades(self, symbol: str):
         """Subscribe to trade updates using existing WebSocket"""
         try:
@@ -341,7 +341,7 @@ class HyperliquidAdapter:
             await self.hl_api.subscribe_to_trades(symbol)
         except Exception as e:
             raise RuntimeError(f"Failed to subscribe to trades {symbol}: {e}")
-    
+
     def get_connection_status(self) -> Dict[str, Any]:
         """Get connection status"""
         return {
@@ -367,88 +367,88 @@ from services.cache_service import CacheService
 
 class MarketDataService:
     """Service coordinating all market data operations"""
-    
+
     def __init__(self):
         # Initialize adapters for existing APIs
         self.hyperliquid = HyperliquidAdapter()
         self.backpack = BackpackAdapter()
-        
+
         # Supporting services
         self.websocket_manager = WebSocketManager()
         self.cache_service = CacheService()
-        
+
         # Service state
         self.is_running = False
         self.start_time: Optional[datetime] = None
-        
+
         # Exchange mapping
         self.exchanges = {
             "hyperliquid": self.hyperliquid,
             "backpack": self.backpack
         }
-    
+
     async def start(self):
         """Start all market data services"""
         try:
             self.start_time = datetime.utcnow()
-            
+
             # Start exchange adapters
             await self.hyperliquid.start()
             await self.backpack.start()
-            
+
             # Start supporting services
             await self.websocket_manager.start()
-            
+
             self.is_running = True
             logging.info("Market data service started successfully")
-            
+
         except Exception as e:
             logging.error(f"Failed to start market data service: {e}")
             raise
-    
+
     async def stop(self):
         """Stop all market data services"""
         try:
             # Stop exchange adapters
             await self.hyperliquid.stop()
             await self.backpack.stop()
-            
+
             # Stop supporting services
             await self.websocket_manager.stop()
-            
+
             self.is_running = False
             logging.info("Market data service stopped")
-            
+
         except Exception as e:
             logging.error(f"Error stopping market data service: {e}")
-    
+
     async def get_ticker(self, exchange: str, symbol: str) -> Dict[str, Any]:
         """Get ticker data from specified exchange"""
         if exchange not in self.exchanges:
             raise ValueError(f"Unsupported exchange: {exchange}")
-        
+
         # Check cache first
         cached_ticker = await self.cache_service.get_ticker(exchange, symbol)
         if cached_ticker:
             return cached_ticker
-        
+
         # Get from exchange adapter
         adapter = self.exchanges[exchange]
         ticker_data = await adapter.get_ticker(symbol)
-        
+
         # Cache the result
         await self.cache_service.set_ticker(exchange, symbol, ticker_data)
-        
+
         return ticker_data
-    
+
     async def get_all_tickers(self, exchange: str) -> List[Dict[str, Any]]:
         """Get all tickers from specified exchange"""
         if exchange not in self.exchanges:
             raise ValueError(f"Unsupported exchange: {exchange}")
-        
+
         adapter = self.exchanges[exchange]
         return await adapter.get_all_tickers()
-    
+
     async def get_candles(
         self,
         exchange: str,
@@ -461,42 +461,42 @@ class MarketDataService:
         """Get candle data from specified exchange"""
         if exchange not in self.exchanges:
             raise ValueError(f"Unsupported exchange: {exchange}")
-        
+
         adapter = self.exchanges[exchange]
         return await adapter.get_candles(symbol, interval, start_time, end_time, limit)
-    
+
     async def get_funding_rate(self, exchange: str, symbol: str) -> Dict[str, Any]:
         """Get funding rate from specified exchange"""
         if exchange not in self.exchanges:
             raise ValueError(f"Unsupported exchange: {exchange}")
-        
+
         adapter = self.exchanges[exchange]
         return await adapter.get_funding_rate(symbol)
-    
+
     async def get_orderbook(self, exchange: str, symbol: str, depth: int = 20) -> Dict[str, Any]:
         """Get orderbook from specified exchange"""
         if exchange not in self.exchanges:
             raise ValueError(f"Unsupported exchange: {exchange}")
-        
+
         adapter = self.exchanges[exchange]
         return await adapter.get_orderbook(symbol, depth)
-    
+
     def get_connection_count(self) -> int:
         """Get total number of active connections"""
         return self.websocket_manager.get_connection_count()
-    
+
     def get_uptime_seconds(self) -> float:
         """Get service uptime in seconds"""
         if not self.start_time:
             return 0.0
         return (datetime.utcnow() - self.start_time).total_seconds()
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive service status"""
         exchange_statuses = {}
         for name, adapter in self.exchanges.items():
             exchange_statuses[name] = adapter.get_connection_status()
-        
+
         return {
             "service": "market_data",
             "running": self.is_running,
@@ -536,7 +536,7 @@ async def get_ticker(
 ):
     """
     Get ticker data for a specific symbol on an exchange.
-    
+
     This endpoint wraps the existing CyberDelta API clients to provide
     standardized REST access to market data.
     """
@@ -556,7 +556,7 @@ async def get_all_tickers(
 ):
     """
     Get all ticker data for an exchange.
-    
+
     This endpoint provides access to all available symbols on the specified exchange
     using the existing CyberDelta API infrastructure.
     """
@@ -583,7 +583,7 @@ async def get_ticker_history(
 ):
     """
     Get historical ticker data for analysis.
-    
+
     This endpoint leverages existing CyberDelta data collection to provide
     historical price information for analysis and charting.
     """
@@ -592,7 +592,7 @@ async def get_ticker_history(
         # For now, we'll get recent candles as approximation
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=hours)
-        
+
         candles = await service.get_candles(
             exchange=exchange,
             symbol=symbol,
@@ -601,7 +601,7 @@ async def get_ticker_history(
             end_time=end_time,
             limit=hours
         )
-        
+
         # Transform candles to ticker-like format
         history = [
             {
@@ -611,7 +611,7 @@ async def get_ticker_history(
             }
             for candle in candles
         ]
-        
+
         return {
             "exchange": exchange,
             "symbol": symbol,
@@ -619,7 +619,7 @@ async def get_ticker_history(
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat()
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 ```
@@ -643,7 +643,7 @@ class TickerResponse(BaseModel):
     price_change_pct_24h: Optional[float] = Field(None, description="24-hour price change percentage")
     timestamp: str = Field(..., description="Data timestamp (ISO format)")
     server_time: str = Field(..., description="Server timestamp (ISO format)")
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -695,14 +695,14 @@ from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStr
 
 class TradingEngineAdapter:
     """Adapter to expose existing trading engine through FastAPI
-    
+
     Preserves all production features:
     - Enhanced Backpack integration with auto-lending
     - Sophisticated portfolio tracking with margin calculations
     - Risk management with circuit breakers
     - Performance monitoring and historical tracking
     """
-    
+
     def __init__(self):
         # Initialize existing components exactly as they are currently
         self.engine = Engine(name="CyberDelta_API")
@@ -710,10 +710,10 @@ class TradingEngineAdapter:
         self.portfolio_tracker = PortfolioTracker(...)
         self.risk_manager = RiskManager(...)
         self.performance_tracker = PerformanceTracker(...)  # For historical data
-        
+
         # Load existing strategies
         self._load_strategies()
-    
+
     def _load_strategies(self):
         """Load strategies using existing strategy system"""
         # Use existing strategy configuration and loading logic
@@ -729,10 +729,10 @@ class TradingEngineAdapter:
                 "min_profit_usd": 10.0
             }
         )
-        
+
         # Use existing engine methods
         self.engine.add_strategy(funding_strategy)
-    
+
     async def list_strategies(self) -> List[Dict[str, Any]]:
         """List all strategies using existing engine"""
         strategies = []
@@ -748,16 +748,16 @@ class TradingEngineAdapter:
                 'performance': await self._get_strategy_performance(name)
             })
         return strategies
-    
+
     async def start_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Start strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         try:
             # Use existing engine method - no changes to core logic
             self.engine.enable_strategy(strategy_name)
-            
+
             return {
                 'strategy_name': strategy_name,
                 'status': 'started',
@@ -766,16 +766,16 @@ class TradingEngineAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to start strategy {strategy_name}: {e}")
-    
+
     async def stop_strategy(self, strategy_name: str) -> Dict[str, Any]:
         """Stop strategy using existing engine"""
         if strategy_name not in self.engine.strategies:
             raise ValueError(f"Strategy {strategy_name} not found")
-        
+
         try:
             # Use existing engine method - no changes to core logic
             self.engine.disable_strategy(strategy_name)
-            
+
             return {
                 'strategy_name': strategy_name,
                 'status': 'stopped',
@@ -784,13 +784,13 @@ class TradingEngineAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to stop strategy {strategy_name}: {e}")
-    
+
     async def get_portfolio_summary(self) -> Dict[str, Any]:
         """Get portfolio summary using existing portfolio tracker"""
         try:
             # Use existing portfolio tracker method
             summary = self.portfolio_tracker.get_portfolio_summary()
-            
+
             return {
                 'total_value': float(summary.total_value),
                 'total_pnl': float(summary.total_pnl),
@@ -804,13 +804,13 @@ class TradingEngineAdapter:
             }
         except Exception as e:
             raise RuntimeError(f"Failed to get portfolio summary: {e}")
-    
+
     async def _get_strategy_performance(self, strategy_name: str) -> Dict[str, Any]:
         """Get strategy performance using existing portfolio tracker"""
         try:
             # Use existing performance calculation
             performance = self.portfolio_tracker.get_strategy_performance(strategy_name)
-            
+
             return {
                 'total_pnl': float(performance.total_pnl),
                 'daily_pnl': float(performance.daily_pnl),

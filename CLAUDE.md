@@ -3,7 +3,7 @@
 ## IMPORTANT: Read Project Rules First
 Before starting any work, you MUST read ALL rule files from the `.claude/rules/` directory:
 
-1. List all files in `.claude/rules/` 
+1. List all files in `.claude/rules/`
 2. Read each `.md` file in that directory
 3. Apply all rules found there for this entire session
 

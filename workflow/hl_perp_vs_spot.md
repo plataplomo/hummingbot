@@ -89,7 +89,7 @@ Spot markets use two naming conventions:
 ### 4. Required API Endpoints for Spot
 
 - `info.spot_meta()` - Get all spot market metadata
-- `info.spot_meta_and_asset_ctxs()` - Get spot metadata with market contexts  
+- `info.spot_meta_and_asset_ctxs()` - Get spot metadata with market contexts
 - `info.spot_user_state(address)` - Get user's spot balances
 - `exchange.order()` - Same endpoint for both spot and perp orders
 
@@ -102,20 +102,20 @@ Modify `/cyberdelta/apis/hyperliquid/hl_asset_indexer.py`:
 ```python
 class HyperliquidAssetIndexResolver:
     SPOT_ASSET_OFFSET = 10000
-    
+
     async def resolve_symbol_to_asset_index(self, symbol: str) -> int | None:
         # Check if it's a spot market reference
         if symbol.startswith("@"):
             # Direct index reference for spot
             spot_index = int(symbol[1:])
             return spot_index + self.SPOT_ASSET_OFFSET
-        
+
         # Check if it's a canonical spot name (contains "/")
         if "/" in symbol:
             # Fetch spot meta and resolve
             spot_meta = await self._fetch_spot_meta()
             return self._resolve_spot_symbol(symbol, spot_meta)
-        
+
         # Otherwise, it's a perpetual
         return await self._resolve_perp_symbol(symbol)
 ```
@@ -155,7 +155,7 @@ def _determine_market_type(self, asset_index: int) -> str:
 
 def _transform_to_market(self, asset_def, asset_index: int):
     market_type = self._determine_market_type(asset_index)
-    
+
     if market_type == "Spot":
         # Parse spot market specifics
         base_symbol, quote_symbol = self._parse_spot_symbol(asset_def.name)
@@ -180,7 +180,7 @@ async def place_spot_order(self, args: PlaceOrderArgs) -> Order:
     # Validate it's a spot symbol
     if not self._is_spot_symbol(args.symbol):
         raise APIError("Symbol is not a spot market", APIErrorCode.INVALID_SYMBOL)
-    
+
     # Use existing order placement logic
     return await self.place_order(args)
 ```
@@ -217,7 +217,7 @@ async def test_place_spot_order(hl_api_for_test_env):
         price=Decimal("0.5"),
         time_in_force=TimeInForce.GTC,
     )
-    
+
     order = await hl_api_for_test_env.place_order(place_args)
     assert order.symbol == "PURR/USDC"
     assert order.market_type == "Spot"

@@ -111,19 +111,19 @@ After analyzing both exchange capabilities and existing models, there are two ar
 @abstractmethod
 async def get_collateral() -> MarginAccountSummary:
     """Retrieve collateral information for the account.
-    
+
     Returns comprehensive margin account summary including:
     - Total equity (acts as total collateral value)
     - Available equity (available collateral)
     - Margin requirements and usage
     - Exchange-specific collateral details in extension slots
-    
+
     For Backpack: bp_details.collateral_assets contains per-asset breakdown
     For Hyperliquid: hl_details contains aggregate collateral metrics
-    
+
     Returns:
         MarginAccountSummary: Complete collateral and margin state
-        
+
     Raises:
         APIError: If collateral data cannot be retrieved
     """
@@ -160,13 +160,13 @@ Add abstract method to ExchangeAPI:
 @abstractmethod
 async def get_collateral(self) -> MarginAccountSummary:
     """Retrieve collateral information for the account.
-    
+
     Returns comprehensive margin account summary including collateral data.
     For detailed per-asset breakdown, check exchange-specific extension slots.
-    
+
     Returns:
         MarginAccountSummary: Complete collateral and margin state
-        
+
     Raises:
         APIError: If collateral data cannot be retrieved
     """
@@ -184,32 +184,32 @@ async def get_collateral(self) -> MarginAccountSummary:
     """Retrieve collateral information via /api/v1/capital/collateral."""
     frame = inspect.currentframe()
     current_method = frame.f_code.co_name if frame is not None else "get_collateral"
-    
+
     status_code: int = 0
     raw_response_content: str | None = None
-    
+
     try:
         # Build request for collateral endpoint
         endpoint_path = "/api/v1/capital/collateral"
-        
+
         # Execute signed request
         raw_data, status_code, _ = await self._http_client_requester(
             method="GET",
             endpoint=endpoint_path,
             is_signed=True,
         )
-        
+
         # Handle response using existing collateral response handler
         raw_collateral_response = self._response_handler.handle_collateral_response(
             raw_data, status_code
         )
-        
+
         # Transform to MarginAccountSummary using existing mapper
         return self._account_mapper.transform_raw_collateral_to_margin_summary(
             raw_collateral_response,
             exchange_name=self._exchange_name
         )
-        
+
     except APIError:
         raise
     # ... standard error handling pattern
@@ -229,16 +229,16 @@ async def get_collateral(self) -> MarginAccountSummary:
     """Retrieve collateral information derived from clearinghouse state."""
     frame = inspect.currentframe()
     current_method = frame.f_code.co_name if frame is not None else "get_collateral"
-    
+
     try:
         # Leverage existing clearinghouse state fetching
         raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
-        
+
         # Use existing mapper that already creates MarginAccountSummary
         return self._account_mapper.transform_raw_clearinghouse_state_to_margin_summary(
             raw_clearinghouse_state,
         )
-        
+
     except APIError:
         raise
     # ... standard error handling pattern
@@ -260,18 +260,18 @@ def transform_raw_collateral_to_margin_summary(
     exchange_name: str
 ) -> MarginAccountSummary:
     """Transform Backpack collateral response to margin summary."""
-    
+
     # Core field mappings
     total_equity = parse_decimal_value(raw_collateral.net_equity, allow_none=False)
     available_equity = parse_decimal_value(raw_collateral.net_equity_available, allow_none=False)
-    
+
     # Calculate maintenance margin from margin fraction if available
     total_maintenance_margin = None
     if raw_collateral.margin_fraction:
         margin_frac = parse_decimal_value(raw_collateral.margin_fraction, allow_none=True)
         if margin_frac and total_equity:
             total_maintenance_margin = total_equity * margin_frac
-    
+
     # Build extension details with collateral assets
     collateral_assets_data = []
     for asset in raw_collateral.collateral:
@@ -282,7 +282,7 @@ def transform_raw_collateral_to_margin_summary(
             "total_quantity": str(asset.total_quantity),
             "available_quantity": str(asset.available_quantity),
         })
-    
+
     bp_details = BackpackMarginDetails(
         assets_value=parse_decimal_value(raw_collateral.assets_value),
         liabilities_value=parse_decimal_value(raw_collateral.liabilities_value),
@@ -296,7 +296,7 @@ def transform_raw_collateral_to_margin_summary(
         collateral_assets=collateral_assets_data,
         source_endpoint="/api/v1/capital/collateral",
     )
-    
+
     return MarginAccountSummary(
         exchange=exchange_name,
         timestamp=datetime.now(UTC),

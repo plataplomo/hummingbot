@@ -1,5 +1,5 @@
 ---
-description: 
+description:
 globs: ["*.py,*.pyi"]
 alwaysApply: false
 ---
@@ -28,5 +28,3 @@ alwaysApply: true # This is a fundamental requirement for financial software
 7.  **Rationale:** Using `Decimal` guarantees precision required for financial calculations, prevents floating-point inaccuracies common with `float`, ensures consistency, and aligns with best practices for building reliable trading and financial systems. The target exchange APIs often require or return string representations of precise numbers, making `Decimal` the appropriate internal type.
 
 8.  **Enforcement:** Mypy errors related to `float` vs. `Decimal` (`arg-type`, `assignment`, `operator`) involving financial quantities are considered **critical** and must be fixed by adhering to `Decimal` usage.
-
-

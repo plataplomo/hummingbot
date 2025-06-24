@@ -68,7 +68,7 @@ This sets up the foundational infrastructure for cassette-based testing across t
                 # Use 'none' to ensure no new recordings if cassettes should be complete.
                 # For development, 'once' or 'new_episodes' is common.
                 # For CI, 'none' is often preferred after initial recording.
-                "record_mode": os.environ.get("VCR_RECORD_MODE", "once"), 
+                "record_mode": os.environ.get("VCR_RECORD_MODE", "once"),
                 "decode_compressed_response": True, # Useful for gzipped responses
             }
 
@@ -79,7 +79,7 @@ This sets up the foundational infrastructure for cassette-based testing across t
         # For pytest-recording, it often picks up a vcr_config fixture automatically.
         # Refer to pytest-recording docs for the best way to apply module/session-wide config.
         # A common pattern is to define a vcr fixture that uses this config:
-        
+
         # @pytest.fixture(scope='module')
         # def vcr(vcr, vcr_config): # vcr here is the one from pytest-recording
         #     # This way of configuring might depend on pytest-recording's exact API
@@ -88,7 +88,7 @@ This sets up the foundational infrastructure for cassette-based testing across t
         #     # If not, we may need to configure the default VCR instance more directly
         #     # or use the vcr fixture with custom_patches.
         #     # For now, just define vcr_config. pytest-recording should find it.
-        #     return vcr 
+        #     return vcr
         ```
       *   **Cassette Directory:** Ensure `tests/cassettes/` is created (or will be created by VCR.py). Add this directory to `.gitignore`.
       *   **Record Mode:** Set a sensible default record mode (e.g., `once`). This can be overridden via environment variable `VCR_RECORD_MODE` or pytest command-line options provided by `pytest-recording`.
@@ -137,7 +137,7 @@ This serves as a proof-of-concept for using cassettes, establishes the pattern f
             api = hl_api_with_di()
             # ... rest of the test making the API call ...
             # with vcr.use_cassette('hl_all_mids.yaml'): # Optional: explicit naming
-            all_mids_data = await api.market_data_service.get_all_mids() 
+            all_mids_data = await api.market_data_service.get_all_mids()
             # ... assertions ...
         ```
       *   `pytest-recording` often names cassettes automatically based on the test function name. Explicit naming with `vcr.use_cassette()` is also an option for more control.
@@ -204,7 +204,7 @@ Cassettes must **never** contain real API keys, private keys, signatures, or per
                       data['signature']['s'] = "0xFILTERED_S"
                       data['signature']['v'] = 0 # Or some placeholder int
                   if 'nonce' in data: # Nonce changes, can make matching hard if not filtered
-                      data['nonce'] = "FILTERED_NONCE" 
+                      data['nonce'] = "FILTERED_NONCE"
                   request_or_response.body = json.dumps(data).encode('utf-8')
               except (UnicodeDecodeError, json.JSONDecodeError):
                   pass # Not a JSON body we can parse and filter this way
@@ -228,7 +228,7 @@ Cassettes must **never** contain real API keys, private keys, signatures, or per
               "filter_headers": [
                   ('User-Agent', 'CyberDeltaEngine-Test-Suite/1.0'),
                   # General Authorization header filter
-                  ('Authorization', 'FILTERED_AUTHORIZATION_HEADER'), 
+                  ('Authorization', 'FILTERED_AUTHORIZATION_HEADER'),
                   # Backpack specific headers filtering can also be done here if simple,
                   # or use before_record_request for more control.
                   ('X-API-Key', 'FILTERED_BACKPACK_API_KEY'),
@@ -241,7 +241,7 @@ Cassettes must **never** contain real API keys, private keys, signatures, or per
                   ('timestamp', 'FILTERED_QUERY_TIMESTAMP'),
               ],
               "before_record_request": [
-                  filter_hl_signature, 
+                  filter_hl_signature,
                   # If Backpack headers need more complex logic than filter_headers provides
                   # lambda r: setattr(r, 'headers', filter_backpack_auth_headers(r.headers)) or r
               ],

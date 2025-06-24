@@ -53,7 +53,7 @@ def ensure_dict_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     if not isinstance(response, dict):
         logger.error(f"SECURITY: Type mismatch for {context}")
         raise APIError(
@@ -61,7 +61,7 @@ def ensure_dict_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     return response
 
 
@@ -78,7 +78,7 @@ def ensure_list_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     if not isinstance(response, list):
         logger.error(f"SECURITY: Type mismatch for {context}")
         raise APIError(
@@ -86,7 +86,7 @@ def ensure_list_response(
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
         )
-    
+
     return response
 ```
 
@@ -130,13 +130,13 @@ return secure_transform(
 # ❌ OLD WAY - Manual validation
 async def get_ticker(self, symbol: str) -> Ticker:
     raw_data, status_code, _ = await self._http_client_requester(...)
-    
+
     if raw_data is None:
         raise APIError(...)  # Manual error
-    
+
     if not isinstance(raw_data, dict):
         raise APIError(...)  # More manual validation
-        
+
     raw_ticker = self._response_handler.handle_get_ticker_response(...)
     return self._mapper.transform_raw_ticker_to_internal(raw_ticker)
 
@@ -145,14 +145,14 @@ from cyberdelta.apis.utils.response_validation import ensure_dict_response
 
 async def get_ticker(self, symbol: str) -> Ticker:
     raw_data, status_code, _ = await self._http_client_requester(...)
-    
+
     # One line replaces all manual validation
     validated_data = ensure_dict_response(
-        raw_data, 
-        f"ticker ({symbol})", 
+        raw_data,
+        f"ticker ({symbol})",
         status_code
     )
-    
+
     raw_ticker = self._response_handler.handle_get_ticker_response(...)
     return self._mapper.transform_raw_ticker_to_internal(raw_ticker)
 ```
@@ -166,7 +166,7 @@ Since services now validate, response handlers can be simpler:
 def handle_get_ticker_response(self, raw_response_content: RawJsonResponse, ...):
     if not isinstance(raw_response_content, dict):
         raise APIError(...)  # This is now redundant
-    
+
     return BackpackRawTicker.model_validate(raw_response_content)
 
 # ✅ NEW - Trust validated input
@@ -218,7 +218,7 @@ return [
 # In service
 if raw_data is None:
     return None  # Valid case
-    
+
 validated_data = ensure_dict_response(raw_data, "order", status_code)
 ```
 
@@ -232,7 +232,7 @@ def test_mapper_prevents_validation_bypass():
         "asset": "BTC",
         "total_quantity": "-100",  # Negative attack
     }
-    
+
     with pytest.raises(TransformationError):
         mapper.transform_balance(malicious_data)
 ```
@@ -243,10 +243,10 @@ def test_service_validates_response_type():
     """Ensure services validate response types."""
     # Mock returns wrong type
     mock_http_client.return_value = ("not_a_dict", 200, {})
-    
+
     with pytest.raises(APIError) as exc:
         await service.get_ticker("BTC")
-        
+
     assert "expected dict" in str(exc.value)
 ```
 

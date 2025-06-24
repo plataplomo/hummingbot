@@ -15,14 +15,14 @@ class WebSocketManager:
         self.message_handler = message_handler
         self.ws = None
         self.reconnect_attempts = 0
-    
+
     async def connect(self):
         try:
             self.ws = await websockets.connect(self.url)
             asyncio.create_task(self._message_loop())
         except Exception as e:
             await self._handle_connection_error(e)
-    
+
     async def _message_loop(self):
         try:
             async for message in self.ws:
@@ -92,16 +92,16 @@ from typing import Dict, Any
 
 class RedisDataPublisher:
     """Publishes real-time data to Redis for external consumers"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis(decode_responses=True)
         self.enabled = True  # Can disable if not needed
-    
+
     async def publish_ticker(self, exchange: str, ticker_data: Dict[str, Any]):
         """Publish ticker update to Redis"""
         if not self.enabled:
             return
-            
+
         try:
             channel = f"market_data:{exchange}"
             message = {
@@ -114,12 +114,12 @@ class RedisDataPublisher:
         except Exception as e:
             # Log but don't crash core engine
             logger.debug(f"Redis publish error: {e}")
-    
+
     async def publish_trade(self, trade_data: Dict[str, Any]):
         """Publish trade execution to Redis"""
         if not self.enabled:
             return
-            
+
         try:
             message = {
                 'type': 'trade',
@@ -129,12 +129,12 @@ class RedisDataPublisher:
             self.redis_client.publish('trades', json.dumps(message))
         except Exception as e:
             logger.debug(f"Redis publish error: {e}")
-    
+
     async def publish_position_update(self, position_data: Dict[str, Any]):
         """Publish position update to Redis"""
         if not self.enabled:
             return
-            
+
         try:
             message = {
                 'type': 'position',
@@ -150,11 +150,11 @@ class RedisDataPublisher:
 async def handle_ticker_message(self, message: Dict):
     """Existing ticker handler with Redis publish added"""
     # ... existing processing ...
-    
+
     # Add this line to publish to Redis
     if hasattr(self, 'redis_publisher'):
         await self.redis_publisher.publish_ticker('hyperliquid', ticker_data)
-    
+
     # ... rest of existing code ...
 ```
 
@@ -170,7 +170,7 @@ from django.core.management.base import BaseCommand
 
 class RedisWebSocketBridge:
     """Bridges Redis pub/sub to Django Channels"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis(decode_responses=True)
         self.channel_layer = get_channel_layer()
@@ -181,15 +181,15 @@ class RedisWebSocketBridge:
             'positions',
             'signals'
         ]
-    
+
     async def start(self):
         """Start listening to Redis channels"""
         pubsub = self.redis_client.pubsub()
-        
+
         # Subscribe to all channels
         for channel in self.subscriptions:
             pubsub.subscribe(channel)
-        
+
         # Process messages
         while True:
             try:
@@ -199,13 +199,13 @@ class RedisWebSocketBridge:
             except Exception as e:
                 logger.error(f"Redis listener error: {e}")
                 await asyncio.sleep(1)
-    
+
     async def process_message(self, message):
         """Process Redis message and broadcast to WebSocket clients"""
         try:
             channel = message['channel']
             data = json.loads(message['data'])
-            
+
             # Route based on channel
             if channel.startswith('market_data:'):
                 await self.broadcast_market_data(data)
@@ -215,10 +215,10 @@ class RedisWebSocketBridge:
                 await self.broadcast_position(data)
             elif channel == 'signals':
                 await self.broadcast_signal(data)
-                
+
         except Exception as e:
             logger.error(f"Message processing error: {e}")
-    
+
     async def broadcast_market_data(self, data):
         """Broadcast market data to subscribed clients"""
         await self.channel_layer.group_send(
@@ -228,7 +228,7 @@ class RedisWebSocketBridge:
                 "message": data
             }
         )
-    
+
     async def broadcast_trade(self, data):
         """Broadcast trade to authorized clients"""
         await self.channel_layer.group_send(
@@ -242,7 +242,7 @@ class RedisWebSocketBridge:
 # Management command to run the bridge
 class Command(BaseCommand):
     help = 'Run Redis to WebSocket bridge'
-    
+
     def handle(self, *args, **options):
         bridge = RedisWebSocketBridge()
         asyncio.run(bridge.start())
@@ -259,47 +259,47 @@ from django.contrib.auth.models import AnonymousUser
 
 class MarketDataConsumer(AsyncWebsocketConsumer):
     """WebSocket consumer for market data streaming"""
-    
+
     async def connect(self):
         self.user = self.scope["user"]
         self.subscribed_symbols = set()
-        
+
         # Accept connection
         await self.accept()
-        
+
         # Join market data group
         await self.channel_layer.group_add("market_data", self.channel_name)
-        
+
         # Send initial state from database
         await self.send_initial_state()
-    
+
     async def disconnect(self, close_code):
         # Leave all groups
         await self.channel_layer.group_discard("market_data", self.channel_name)
-    
+
     async def receive(self, text_data):
         """Handle client messages"""
         try:
             data = json.loads(text_data)
             command = data.get('command')
-            
+
             if command == 'subscribe':
                 symbols = data.get('symbols', [])
                 self.subscribed_symbols.update(symbols)
                 await self.send_confirmation('subscribed', symbols)
-                
+
             elif command == 'unsubscribe':
                 symbols = data.get('symbols', [])
                 self.subscribed_symbols.difference_update(symbols)
                 await self.send_confirmation('unsubscribed', symbols)
-                
+
         except json.JSONDecodeError:
             await self.send_error('Invalid JSON')
-    
+
     async def market_data_update(self, event):
         """Handle market data updates from Redis bridge"""
         message = event['message']
-        
+
         # Filter based on client subscriptions
         if 'data' in message and 'symbol' in message['data']:
             symbol = message['data']['symbol']
@@ -308,7 +308,7 @@ class MarketDataConsumer(AsyncWebsocketConsumer):
                     'type': 'market_data',
                     'data': message
                 }))
-    
+
     async def send_initial_state(self):
         """Send initial market state from database"""
         tickers = await self.get_latest_tickers()
@@ -316,12 +316,12 @@ class MarketDataConsumer(AsyncWebsocketConsumer):
             'type': 'initial_state',
             'tickers': tickers
         }))
-    
+
     @database_sync_to_async
     def get_latest_tickers(self):
         """Get latest tickers from database"""
         from django_wrapper.apps.persistence.models import Ticker
-        
+
         tickers = {}
         for ticker in Ticker.objects.select_related('trading_pair').filter(
             timestamp__gte=timezone.now() - timedelta(minutes=5)
@@ -334,52 +334,52 @@ class MarketDataConsumer(AsyncWebsocketConsumer):
                 'ask': float(ticker.ask_price) if ticker.ask_price else None,
                 'timestamp': ticker.timestamp.isoformat()
             }
-        
+
         return tickers
 
 class TradingConsumer(AsyncWebsocketConsumer):
     """WebSocket consumer for trading operations"""
-    
+
     async def connect(self):
         self.user = self.scope["user"]
-        
+
         # Require authentication
         if not self.user.is_authenticated:
             await self.close(code=4001)
             return
-        
+
         # Check trading permission
         if not await self.has_trading_permission():
             await self.close(code=4003)
             return
-        
+
         await self.accept()
-        
+
         # Join user-specific groups
         await self.channel_layer.group_add(f"user_{self.user.id}", self.channel_name)
         await self.channel_layer.group_add("trades", self.channel_name)
-    
+
     async def disconnect(self, close_code):
         if hasattr(self, 'user') and self.user.is_authenticated:
             await self.channel_layer.group_discard(f"user_{self.user.id}", self.channel_name)
             await self.channel_layer.group_discard("trades", self.channel_name)
-    
+
     async def receive(self, text_data):
         """Handle trading commands"""
         try:
             data = json.loads(text_data)
             command = data.get('command')
-            
+
             if command == 'get_portfolio':
                 await self.send_portfolio()
             elif command == 'get_positions':
                 await self.send_positions()
             elif command == 'get_orders':
                 await self.send_orders()
-                
+
         except Exception as e:
             await self.send_error(str(e))
-    
+
     async def trade_update(self, event):
         """Handle trade updates from Redis bridge"""
         # Only send trades for this user
@@ -389,7 +389,7 @@ class TradingConsumer(AsyncWebsocketConsumer):
                 'type': 'trade',
                 'data': trade_data
             }))
-    
+
     @database_sync_to_async
     def has_trading_permission(self):
         """Check if user can view trading data"""
@@ -437,38 +437,38 @@ CHANNEL_LAYERS = {
 
 class WebSocketConnectionPool:
     """Manage WebSocket connections efficiently"""
-    
+
     def __init__(self, max_connections: int = 100):
         self.max_connections = max_connections
         self.connections = {}
         self.connection_count = defaultdict(int)
-    
+
     async def add_connection(self, user_id: int, channel_name: str):
         """Add connection to pool"""
         if user_id not in self.connections:
             self.connections[user_id] = set()
-        
+
         self.connections[user_id].add(channel_name)
         self.connection_count[user_id] += 1
-        
+
         # Limit connections per user
         if self.connection_count[user_id] > 5:
             oldest = list(self.connections[user_id])[0]
             await self.remove_connection(user_id, oldest)
-    
+
     async def broadcast_to_user(self, user_id: int, message: dict):
         """Send message to all user connections"""
         if user_id in self.connections:
             channel_layer = get_channel_layer()
             for channel_name in self.connections[user_id]:
                 await channel_layer.send(channel_name, message)
-    
+
     async def remove_connection(self, user_id: int, channel_name: str):
         """Remove connection from pool"""
         if user_id in self.connections:
             self.connections[user_id].discard(channel_name)
             self.connection_count[user_id] -= 1
-            
+
             if not self.connections[user_id]:
                 del self.connections[user_id]
                 del self.connection_count[user_id]
@@ -484,7 +484,7 @@ import asyncio
 
 class MessageThrottler:
     """Throttle WebSocket messages per user/symbol"""
-    
+
     def __init__(self):
         self.last_sent = defaultdict(lambda: defaultdict(datetime))
         self.min_intervals = {
@@ -492,33 +492,33 @@ class MessageThrottler:
             'trade': timedelta(milliseconds=50),    # Max 20/second
             'position': timedelta(seconds=1),       # Max 1/second
         }
-    
+
     def should_send(self, user_id: int, message_type: str, symbol: str) -> bool:
         """Check if message should be sent based on throttling"""
         now = datetime.now()
         key = f"{message_type}:{symbol}"
         last = self.last_sent[user_id][key]
-        
+
         min_interval = self.min_intervals.get(message_type, timedelta(seconds=0))
-        
+
         if now - last >= min_interval:
             self.last_sent[user_id][key] = now
             return True
-        
+
         return False
-    
+
     def cleanup_old_entries(self):
         """Remove old throttling entries"""
         cutoff = datetime.now() - timedelta(minutes=5)
-        
+
         for user_id in list(self.last_sent.keys()):
             user_data = self.last_sent[user_id]
-            
+
             # Remove old entries
             for key in list(user_data.keys()):
                 if user_data[key] < cutoff:
                     del user_data[key]
-            
+
             # Remove empty user entries
             if not user_data:
                 del self.last_sent[user_id]
@@ -528,15 +528,15 @@ class OptimizedMarketDataConsumer(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.throttler = MessageThrottler()
-    
+
     async def market_data_update(self, event):
         """Handle market data with throttling"""
         message = event['message']
-        
+
         if 'data' in message and 'symbol' in message['data']:
             symbol = message['data']['symbol']
             message_type = message.get('type', 'ticker')
-            
+
             # Apply throttling
             if self.throttler.should_send(self.user.id, message_type, symbol):
                 await self.send(text_data=json.dumps({
@@ -573,12 +573,12 @@ websocket_errors = prometheus_client.Counter(
 
 class WebSocketHealthMonitor:
     """Monitor WebSocket health metrics"""
-    
+
     @staticmethod
     def record_connection(consumer_type: str, delta: int):
         """Record connection change"""
         websocket_connections.labels(consumer_type=consumer_type).inc(delta)
-    
+
     @staticmethod
     def record_message(direction: str, message_type: str):
         """Record message processed"""
@@ -586,27 +586,27 @@ class WebSocketHealthMonitor:
             direction=direction,
             message_type=message_type
         ).inc()
-    
+
     @staticmethod
     def record_error(error_type: str):
         """Record error occurrence"""
         websocket_errors.labels(error_type=error_type).inc()
-    
+
     @staticmethod
     def check_redis_bridge_health() -> bool:
         """Check if Redis bridge is running"""
         redis_client = redis.Redis()
-        
+
         # Check if we're receiving messages
         last_message_key = "redis_bridge:last_message"
         last_message_time = redis_client.get(last_message_key)
-        
+
         if last_message_time:
             time_since_last = time.time() - float(last_message_time)
             if time_since_last > 60:  # No messages for 1 minute
                 logger.warning(f"Redis bridge stale: {time_since_last}s since last message")
                 return False
-        
+
         return True
 ```
 

@@ -7,7 +7,7 @@ Backpack Exchange implements an **auto-lending** feature (`autoLend`) that autom
 - The collateral endpoint (`/api/v1/capital/collateral`) shows the lent balances
 - The account settings endpoint (`/api/v1/account`) indicates if `autoLend` is enabled
 
-**Critical Business Logic**: 
+**Critical Business Logic**:
 - When `autoLend=true`: True Balance = Spot Balance + Collateral Balance (though spot is usually 0)
 - When `autoLend=false`: True Balance = Spot Balance (collateral may still show values)
 - **Always query BOTH endpoints and sum the balances for complete accuracy**
@@ -189,7 +189,7 @@ for asset in collateral_data["collateral"]:
     symbol = asset["symbol"]
     if symbol not in balances:
         balances[symbol] = {}
-    
+
     balances[symbol].update({
         "collateral_total": Decimal(asset["totalQuantity"]),
         "lend_quantity": Decimal(asset["lendQuantity"]),
@@ -209,7 +209,7 @@ for symbol, data in balances.items():
         # When autoLend is false, both endpoints should show similar totals
         # Use spot as primary source
         true_total = data.get("spot_total", 0)
-    
+
     data["true_total_balance"] = true_total
 ```
 
@@ -303,7 +303,7 @@ else:
 # File: cyberdelta/apis/backpack/services/bp_account_service.py:310-385
 async def get_balances(self) -> dict[str, SpotBalance]:
     """Retrieves all spot balances from the account.
-    
+
     Note: Handles Backpack's auto-lending feature where spot balances may show
     zero when funds are auto-lent. When all spot balances are zero, this method
     automatically fetches collateral data to provide complete balance information
@@ -390,7 +390,7 @@ enhanced_balances[asset_symbol] = SpotBalance(
 ### Previous Implementation Issues (Now Resolved)
 
 ~~1. **Enhanced Balance Retrieval**: Uses only spot endpoint~~ ✅ **FIXED**
-~~2. **Auto-Staking Detection**: Manual comparison needed~~ ✅ **AUTOMATED**  
+~~2. **Auto-Staking Detection**: Manual comparison needed~~ ✅ **AUTOMATED**
 ~~3. **Test Updates**: Required manual handling~~ ✅ **TRANSPARENT**
 ~~4. **Documentation**: Missing warnings about auto-staking~~ ✅ **DOCUMENTED**
 ~~5. **SpotBalance Enhancement**: lend_quantity not populated~~ ✅ **IMPLEMENTED**
@@ -403,39 +403,39 @@ async def get_true_balances(api: BackpackAPI) -> dict[str, Decimal]:
     # 1. Get account settings
     account_data = await api._get_raw_account_summary()  # /api/v1/account
     auto_lend = account_data.auto_lend
-    
+
     # 2. Get spot balances
     spot_balances = await api.get_balances()  # /api/v1/capital
-    
+
     # 3. Get collateral data
     collateral_raw = await api._fetch_raw_collateral()  # /api/v1/capital/collateral
-    
+
     # 4. Combine both sources
     true_balances = {}
-    
+
     # Add spot balances
     for symbol, spot_balance in spot_balances.items():
         true_balances[symbol] = spot_balance.total_quantity
-    
+
     # Add collateral balances
     if collateral_raw and collateral_raw.collateral:
         for asset in collateral_raw.collateral:
             symbol = asset.symbol
             collateral_total = asset.total_quantity
-            
+
             if symbol in true_balances:
                 # Sum spot + collateral
                 true_balances[symbol] += collateral_total
             else:
                 # Asset only in collateral
                 true_balances[symbol] = collateral_total
-    
+
     # Log for debugging
     logger.info(f"AutoLend enabled: {auto_lend}")
     for symbol, balance in true_balances.items():
         if balance > 0:
             logger.info(f"{symbol}: {balance}")
-    
+
     return true_balances
 ```
 

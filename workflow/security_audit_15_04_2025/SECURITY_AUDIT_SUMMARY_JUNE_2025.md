@@ -121,7 +121,7 @@ The application is well-suited for production use in financial trading with the 
 
 For detailed findings, see individual reports:
 - [Input Validation Report](./security_report_01_input_validation.md)
-- [Authentication Report](./security_report_02_authentication.md)  
+- [Authentication Report](./security_report_02_authentication.md)
 - [Secrets Management Report](./security_report_03_secrets_management.md)
 - [Secure Coding Report](./security_report_04_secure_coding.md)
 - [TLS Security Report](./security_report_05_tls.md)

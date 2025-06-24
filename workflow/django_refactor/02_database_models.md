@@ -33,7 +33,7 @@ class Asset(models.Model):
     decimals = models.PositiveSmallIntegerField(default=8)
     is_stablecoin = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    
+
     class Meta:
         ordering = ['symbol']
 
@@ -53,7 +53,7 @@ class TradingPair(models.Model):
     min_order_size = models.DecimalField(max_digits=20, decimal_places=10)
     max_order_size = models.DecimalField(max_digits=20, decimal_places=10, null=True)
     tick_size = models.DecimalField(max_digits=20, decimal_places=10)
-    
+
     class Meta:
         unique_together = ['exchange', 'symbol']
         ordering = ['exchange', 'symbol']
@@ -74,7 +74,7 @@ class Ticker(models.Model):
     price_change_24h = models.DecimalField(max_digits=10, decimal_places=4, null=True)
     timestamp = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-timestamp']
         indexes = [
@@ -94,7 +94,7 @@ class Candle(models.Model):
     volume = models.DecimalField(max_digits=20, decimal_places=10)
     quote_volume = models.DecimalField(max_digits=20, decimal_places=10, null=True)
     trade_count = models.PositiveIntegerField(null=True)
-    
+
     class Meta:
         unique_together = ['trading_pair', 'interval', 'open_time']
         ordering = ['-open_time']
@@ -110,7 +110,7 @@ class FundingRate(models.Model):
     next_funding_time = models.DateTimeField()
     timestamp = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['trading_pair', 'timestamp']
         ordering = ['-timestamp']
@@ -126,7 +126,7 @@ class OrderBook(models.Model):
     asks = models.JSONField()  # [["price", "quantity"], ...]
     timestamp = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-timestamp']
         indexes = [
@@ -151,7 +151,7 @@ class Account(models.Model):
     ])
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['exchange', 'account_id', 'account_type']
 
@@ -164,7 +164,7 @@ class Balance(models.Model):
     locked_balance = models.DecimalField(max_digits=20, decimal_places=10, default=0)
     timestamp = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['account', 'asset', 'timestamp']
         ordering = ['-timestamp']
@@ -185,7 +185,7 @@ class Position(models.Model):
     margin_requirement = models.DecimalField(max_digits=20, decimal_places=10, null=True)
     timestamp = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['account', 'trading_pair', 'timestamp']
         ordering = ['-timestamp']
@@ -218,7 +218,7 @@ class Order(models.Model):
     time_in_force = models.CharField(max_length=10, default='GTC')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = ['account', 'order_id']
         ordering = ['-created_at']
@@ -241,7 +241,7 @@ class Trade(models.Model):
     is_maker = models.BooleanField(default=False)
     executed_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['account', 'trade_id']
         ordering = ['-executed_at']
@@ -277,7 +277,7 @@ class StrategyInstance(models.Model):
     max_position_size = models.DecimalField(max_digits=20, decimal_places=10)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = ['strategy', 'name']
 
@@ -306,7 +306,7 @@ class TradeSignal(models.Model):
     ], default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     executed_at = models.DateTimeField(null=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -332,7 +332,7 @@ class ArbitrageOpportunity(models.Model):
     is_executed = models.BooleanField(default=False)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -408,17 +408,17 @@ GROUP BY trading_pair_id, day;
 ### Indexing Strategy
 ```sql
 -- Performance-critical indexes
-CREATE INDEX CONCURRENTLY idx_candle_pair_interval_time 
+CREATE INDEX CONCURRENTLY idx_candle_pair_interval_time
 ON market_data_candle (trading_pair_id, interval, open_time DESC);
 
-CREATE INDEX CONCURRENTLY idx_ticker_pair_time 
+CREATE INDEX CONCURRENTLY idx_ticker_pair_time
 ON market_data_ticker (trading_pair_id, timestamp DESC);
 
-CREATE INDEX CONCURRENTLY idx_trade_account_time 
+CREATE INDEX CONCURRENTLY idx_trade_account_time
 ON portfolio_trade (account_id, executed_at DESC);
 
 -- Composite indexes for dashboard queries
-CREATE INDEX CONCURRENTLY idx_signal_strategy_status_time 
+CREATE INDEX CONCURRENTLY idx_signal_strategy_status_time
 ON strategies_tradesignal (strategy_instance_id, status, created_at DESC);
 ```
 
@@ -441,23 +441,23 @@ from cyberdelta.core import CyberDeltaEngine
 
 class DataSyncService:
     """Synchronizes data from core engine to Django database"""
-    
+
     def __init__(self):
         self.engine = None  # Reference to running core engine
         self.sync_interval = 5  # seconds
-        
+
     async def connect_to_core(self):
         """Establish connection to core engine process"""
         # Connect via IPC, Redis, or ZeroMQ
         pass
-        
+
     async def sync_market_data(self):
         """Sync market data from core to database"""
         while True:
             try:
                 # Get latest data from core
                 tickers = await self.engine.get_latest_tickers()
-                
+
                 # Bulk create in database
                 ticker_objects = []
                 for ticker_data in tickers:
@@ -470,27 +470,27 @@ class DataSyncService:
                             timestamp=ticker_data.timestamp
                         )
                     )
-                
+
                 # Efficient bulk insert
                 Ticker.objects.bulk_create(
                     ticker_objects,
                     batch_size=1000,
                     ignore_conflicts=True
                 )
-                
+
                 await asyncio.sleep(self.sync_interval)
-                
+
             except Exception as e:
                 logger.error(f"Market data sync error: {e}")
                 await asyncio.sleep(self.sync_interval * 2)
-    
+
     async def sync_portfolio_data(self):
         """Sync portfolio data from core to database"""
         while True:
             try:
                 # Get portfolio state from core
                 portfolio_state = await self.engine.get_portfolio_state()
-                
+
                 # Update balances
                 for balance_data in portfolio_state.balances:
                     Balance.objects.update_or_create(
@@ -503,7 +503,7 @@ class DataSyncService:
                             'timestamp': timezone.now()
                         }
                     )
-                
+
                 # Update positions
                 for position_data in portfolio_state.positions:
                     Position.objects.update_or_create(
@@ -518,9 +518,9 @@ class DataSyncService:
                             'timestamp': timezone.now()
                         }
                     )
-                
+
                 await asyncio.sleep(self.sync_interval * 2)  # Less frequent
-                
+
             except Exception as e:
                 logger.error(f"Portfolio sync error: {e}")
                 await asyncio.sleep(self.sync_interval * 4)
@@ -537,25 +537,25 @@ class Command(BaseCommand):
 # apps/bridge/event_bridge.py
 class EventBridge:
     """Bridges events from core engine to Django"""
-    
+
     def __init__(self):
         self.redis_client = redis.Redis()
         self.channel_layer = get_channel_layer()
-        
+
     async def listen_for_events(self):
         """Listen for events from core engine"""
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe('core_events')
-        
+
         for message in pubsub.listen():
             if message['type'] == 'message':
                 event = json.loads(message['data'])
                 await self.handle_core_event(event)
-    
+
     async def handle_core_event(self, event: Dict[str, Any]):
         """Process events from core engine"""
         event_type = event['type']
-        
+
         if event_type == 'trade_executed':
             # Save to database
             Trade.objects.create(
@@ -567,13 +567,13 @@ class EventBridge:
                 fee=event['fee'],
                 executed_at=event['timestamp']
             )
-            
+
             # Broadcast to WebSocket clients
             await self.channel_layer.group_send("trades", {
                 "type": "trade_update",
                 "trade": event
             })
-            
+
         elif event_type == 'signal_generated':
             # Save trading signal
             TradeSignal.objects.create(

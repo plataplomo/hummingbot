@@ -283,7 +283,7 @@ for sb in internal_spot_balances:
 
 The major security improvements have been successfully implemented:
 
-- ✅ **Secure Transform Pattern**: All mappers use `secure_transform()` 
+- ✅ **Secure Transform Pattern**: All mappers use `secure_transform()`
 - ✅ **Enhanced Parsing**: Robust `parse_decimal_value()` and `parse_datetime_utc()`
 - ✅ **Structured Error Handling**: Consistent TransformationError patterns
 - ✅ **Security Logging**: Comprehensive audit trails for all transformations
@@ -314,7 +314,7 @@ calculated_total_equity = calculate_equity_from_balances(...)
 # Recommended domain model approach
 @dataclass
 class MarginAccountSummary:
-    def calculate_total_equity(self, spot_balances: list[SpotBalance], 
+    def calculate_total_equity(self, spot_balances: list[SpotBalance],
                              positions: list[DerivativePosition]) -> Decimal:
         # Business logic belongs here
 ```
@@ -349,7 +349,7 @@ if transformation_failure_rate > THRESHOLD:
 
 **✅ EXCELLENT Compliance:**
 - ✅ No `eval()` or `exec()` usage
-- ✅ No pickle deserialization  
+- ✅ No pickle deserialization
 - ✅ Comprehensive type validation throughout
 - ✅ Security event logging for all transformations
 - ✅ Structured error handling prevents information leakage
@@ -365,7 +365,7 @@ The mapper layer has undergone substantial security improvements and now represe
 
 **Major Achievements:**
 1. ✅ **Complete adoption of secure transformation patterns** across all mappers
-2. ✅ **Centralized security logging** with comprehensive audit trails  
+2. ✅ **Centralized security logging** with comprehensive audit trails
 3. ✅ **Enhanced parsing utilities** with field-level validation context
 4. ✅ **Structured error handling** preventing information leakage
 5. ✅ **Type safety** throughout the transformation pipeline
