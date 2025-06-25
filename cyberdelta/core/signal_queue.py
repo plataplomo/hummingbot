@@ -1083,7 +1083,7 @@ class PrioritySignalQueue:
 
     async def stop(self) -> None:
         """Stop the signal queue gracefully.
-        
+
         This method is called during shutdown to ensure clean termination
         of the signal queue processing.
         """

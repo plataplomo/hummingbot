@@ -13,6 +13,7 @@ import os  # Added for path manipulation
 import signal
 import sys
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -27,6 +28,7 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio_tracker_async_save import patch_portfolio_tracker
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
@@ -34,7 +36,7 @@ from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
-from cyberdelta.utils.state_manager import StateManager
+from cyberdelta.utils.async_state_manager import AsyncStateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
@@ -86,15 +88,49 @@ async def _close_api_connections(app_state: dict[str, Any]) -> None:
 async def _save_application_state(app_state: dict[str, Any]) -> None:
     """Save application state to persistent storage."""
     logger.info("Saving final state...")
+
+    # Save portfolio state using async save_state
     if "portfolio_tracker" in app_state:
         try:
             await app_state["portfolio_tracker"].save_state()
+            logger.info("Portfolio state saved successfully")
         except Exception as e:
             logger.error(f"Error saving portfolio state: {e}", exc_info=True)
 
+    # Save general application state using AsyncStateManager
     if "state_manager" in app_state:
         try:
-            await app_state["state_manager"].save_state()
+            # Prepare comprehensive application state
+            engine = app_state.get("engine") if "engine" in app_state else None
+            data_handler = app_state.get("data_handler") if "data_handler" in app_state else None
+
+            general_state = {
+                "shutdown_time": datetime.now(UTC).isoformat(),
+                "version": "1.0",
+                "components": {
+                    "engine": {
+                        "name": engine.name if engine else None,
+                        "is_running": engine.is_running if engine else False,
+                    },
+                    "data_handler": {
+                        "running": data_handler._running if data_handler else False,
+                        "connected_exchanges": (
+                            list(data_handler.api_clients.keys()) if data_handler else []
+                        ),
+                    },
+                },
+                "statistics": {
+                    "total_strategies": len(engine.strategies) if engine else 0,
+                    "enabled_strategies": len(engine.enabled_strategies) if engine else 0,
+                },
+            }
+
+            # Use async save_state with the state data
+            success = await app_state["state_manager"].save_state(general_state)
+            if success:
+                logger.info("General application state saved successfully")
+            else:
+                logger.error("Failed to save general application state")
         except Exception as e:
             logger.error(f"Error saving general state: {e}", exc_info=True)
 
@@ -169,8 +205,12 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
     try:
         logger.info("Initializing core components...")
-        # StateManager expects Config
-        state_manager = StateManager(config)
+        # Patch PortfolioTracker with async save/load methods
+        patch_portfolio_tracker()
+        logger.info("PortfolioTracker patched with async methods")
+
+        # Use AsyncStateManager instead of regular StateManager
+        state_manager = AsyncStateManager(config)
         app_state["state_manager"] = state_manager
 
         # SymbolMapper is required by PortfolioTracker and ExecutionHandler
@@ -506,7 +546,7 @@ async def _handle_shutdown_and_cleanup(
     all_tasks = [t for t in asyncio.all_tasks() if t != current_task and not t.done()]
     if all_tasks:
         logger.debug(f"Waiting for {len(all_tasks)} remaining tasks...")
-        done, pending = await asyncio.wait(all_tasks, timeout=1.0)
+        _, pending = await asyncio.wait(all_tasks, timeout=1.0)
         if pending:
             logger.debug(f"{len(pending)} tasks still pending after final wait")
             for task in pending:

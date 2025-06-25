@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-06-25T20:13:10.841369+00:00",
+  "portfolio_state": {
+    "balances": {},
+    "positions": {},
+    "orders": {},
+    "last_update_time": {
+      "hyperliquid": "0001-01-01 00:00:00+00:00",
+      "backpack": "0001-01-01 00:00:00+00:00"
+    },
+    "last_reconciliation_time": {
+      "hyperliquid": "0001-01-01 00:00:00+00:00",
+      "backpack": "0001-01-01 00:00:00+00:00"
+    },
+    "high_watermark": "0.0",
+    "realized_pnl": "0.0"
+  },
+  "metadata": {
+    "exchanges": [
+      "hyperliquid",
+      "backpack"
+    ],
+    "active_symbols": [],
+    "watchlist": [],
+    "high_watermark": "0.0",
+    "realized_pnl": "0.0"
+  }
+}

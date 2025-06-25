@@ -32,7 +32,7 @@ exchanges:
     api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
     ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
     # Environment flag - set to false to use testnet (default for development)
-    is_mainnet_environment: false
+    is_mainnet_environment: true
     # Hyperliquid-specific rate limiting configuration
     ip_weight_limit_per_minute: 1140  # Total IP weight budget per minute
     info_request_type_ip_weights:
@@ -57,6 +57,13 @@ exchanges:
       # Map internal symbol names to exchange-specific symbols
       BTC: "BTC"
       ETH: "ETH"
+      SOL: "SOL"
+      SUI: "SUI"
+      HYPE: "HYPE"
+      FARTCOIN: "FARTCOIN"
+      XRP: "XRP"
+      VIRTUAL: "VIRTUAL"
+      ADA: "ADA"
     # Optional HTTP Client Settings (examples)
     request_timeout_seconds: 20
     ws_ping_interval_seconds: 25
@@ -77,9 +84,15 @@ exchanges:
     is_mainnet_environment: true
     rate_limit_per_minute: 120  # Backpack uses simple rate limiting
     symbols:
-      BTC: "BTC_USDC" # Example Spot market
-      # BTC: "BTC-PERP" # Example Perp market
-      ETH: "ETH_USDC"
+      BTC: "BTC_PERP"
+      ETH: "ETH_PERP"
+      SOL: "SOL_PERP"
+      SUI: "SUI_PERP"
+      HYPE: "HYPE_PERP"
+      FARTCOIN: "FARTCOIN_PERP"
+      XRP: "XRP_PERP"
+      VIRTUAL: "VIRTUAL_PERP"
+      ADA: "ADA_PERP"
     # Optional HTTP Client Settings (examples)
     request_timeout_seconds: 15.0
     # chain_id is not required for Backpack, so it can be omitted
@@ -93,8 +106,8 @@ strategies:
     # Define symbols using the internal names (mapped above)
     long_exchange: "backpack" # Where we go long (buy spot)
     short_exchange: "hyperliquid"  # Where we go short (sell perpetual)
-    symbol_long: "BTC"        # Internal symbol for the long leg
-    symbol_short: "BTC"       # Internal symbol for the short leg
+    symbol_long: "HYPE"        # Internal symbol for the long leg
+    symbol_short: "HYPE"       # Internal symbol for the short leg
 
     params:
       funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)

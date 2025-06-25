@@ -4,7 +4,7 @@
     "": {
       "name": "cyberdeltaengine",
       "devDependencies": {
-        "@anthropic-ai/claude-code": "^1.0.33",
+        "@anthropic-ai/claude-code": "^1.0.34",
         "@types/bun": "latest",
       },
       "peerDependencies": {
