@@ -19,10 +19,10 @@ from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTrad
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pytest import approx
+from pytest import approx  # pyright: ignore[reportUnknownVariableType]
 
 from cyberdelta.validation.funding_data import (
     FundingData,

@@ -13,7 +13,8 @@ from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTrading
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import CancelOrderResult
 
 
 # Import fixtures from the shared conftest
@@ -545,8 +546,16 @@ class TestBackpackTradingServiceOrderManagement:
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
 
-        # The service returns a bool, not a complex result
-        mock_cancel_result = True
+        # The service returns CancelOrderResult
+        mock_cancel_result = CancelOrderResult(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
         mock_request_builder.build_cancel_order_payload.return_value = mock_payload
         mock_http_client_requester.return_value = (

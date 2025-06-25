@@ -33,7 +33,6 @@ from cyberdelta.apis.connectivity.connectivity_models import (
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
-    ParsedJsonResponse,
 )
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.models.api_error import APIError
@@ -56,6 +55,7 @@ from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 if TYPE_CHECKING:
@@ -878,8 +878,8 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_order(self, args: CancelOrderArgs) -> bool:
-        """Cancel an existing order by its ID. Returns True if successful."""
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
+        """Cancel an existing order by its ID. Returns detailed cancellation result."""
         raise NotImplementedError
 
     @abstractmethod
@@ -896,6 +896,61 @@ class ExchangeAPI(ABC):
         Raises:
             APIError: If the API returns an error during the operation.
 
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
+        """Place multiple orders in a single batch request for improved performance.
+
+        This method provides significant performance benefits by batching multiple order
+        placements into a single API call when supported by the exchange. Implementations
+        should fall back to sequential placement if batch operations are not supported.
+
+        Args:
+            orders: List of validated PlaceOrderArgs for batch placement
+
+        Returns:
+            List of successfully placed Order objects
+
+        Raises:
+            APIError: If validation fails or API request fails
+            ValueError: If orders list is empty or contains invalid parameters
+            NotImplementedError: If the exchange does not support batch operations
+
+        Note:
+            - Not all exchanges support batch operations
+            - Implementations may have batch size limits
+            - Market orders may not be supported in batch operations
+            - Partial failures should be handled gracefully with detailed error reporting
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def cancel_batch_orders(
+        self, cancel_args: list[CancelOrderArgs]
+    ) -> list[CancelOrderResult]:
+        """Cancel multiple orders in a single batch request for improved performance.
+
+        This method batches multiple order cancellations into a single API call when
+        supported by the exchange. Implementations should fall back to sequential
+        cancellation if batch operations are not supported.
+
+        Args:
+            cancel_args: List of validated CancelOrderArgs for batch cancellation
+
+        Returns:
+            List of CancelOrderResult objects indicating success/failure for each order
+
+        Raises:
+            APIError: If validation fails or API request fails
+            ValueError: If cancel_args list is empty
+            NotImplementedError: If the exchange does not support batch operations
+
+        Note:
+            - Not all exchanges support batch cancellation
+            - Implementations may have batch size limits
+            - Results include individual success/failure status for each order
         """
         raise NotImplementedError
 

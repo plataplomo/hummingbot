@@ -27,7 +27,6 @@ from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollate
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -55,7 +54,7 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
-from cyberdelta.utils.typing import is_dict_response, is_list_response
+from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response, is_list_response
 
 
 if TYPE_CHECKING:

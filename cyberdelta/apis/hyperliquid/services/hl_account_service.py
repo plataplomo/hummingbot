@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING, NoReturn
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-
 # Mappers
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -75,6 +73,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.account_settings import AccountSettings
 from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supports these
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 if TYPE_CHECKING:

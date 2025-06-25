@@ -650,6 +650,57 @@ Ensures the string is not empty or just whitespace, with a specific error messag
 """
 
 
+# --- Validator for Hyperliquid Client Order ID (cloid) ---
+def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
+    """Validates optional client order ID (cloid) according to Hyperliquid spec.
+
+    Client Order ID (cloid) is an optional 128 bit hex string,
+    e.g. 0x1234567890abcdef1234567890abcdef
+
+    Requirements:
+    - Must be a 128-bit hex string (32 hex chars)
+    - Must start with '0x' prefix
+    - Total length must be exactly 34 characters (0x + 32 hex chars)
+    """
+    if v is None:
+        return None
+
+    if not isinstance(v, str):
+        field_name = info.field_name or "cloid"
+        raise ValueError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+
+    field_name = info.field_name or "cloid"
+
+    # Check for 0x prefix
+    if not v.startswith("0x"):
+        raise ValueError(f"{field_name}: Must start with '0x' prefix")
+
+    # Check exact length: 0x + 32 hex chars = 34 total
+    if len(v) != 34:
+        raise ValueError(
+            f"{field_name}: Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}"
+        )
+
+    # Check if the part after 0x is valid hex
+    hex_part = v[2:]
+    try:
+        int(hex_part, 16)
+    except ValueError as err:
+        raise ValueError(f"{field_name}: Invalid hex string after '0x' prefix") from err
+
+    return v
+
+
+RawOptionalCloidHL = Annotated[
+    str | None,
+    BeforeValidator(_validate_optional_cloid),
+]
+"""
+Optional Client Order ID (cloid) for Hyperliquid orders.
+Must be a 128-bit hex string with 0x prefix (e.g., 0x1234567890abcdef1234567890abcdef).
+"""
+
+
 # --- Order Status (from spec and test_hl_raw_open_orders.py) ---
 _ALLOWED_ORDER_STATUSES_HL = {"open"}
 RawOrderStatusHL = Annotated[

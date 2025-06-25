@@ -30,7 +30,13 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.logging_config import get_logger
-from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -263,7 +269,7 @@ class TestHyperliquidPerpOrdersPrivate:
         cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
 
         # Validate cancellation success
-        assert cancel_result is True, "cancel_order() should return True on success"
+        assert cancel_result.success is True, "cancel_order() should return True on success"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -315,8 +321,9 @@ class TestHyperliquidPerpOrdersPrivate:
     ) -> None:
         """Test cancel_order() with non-existent order ID.
 
-        This tests that our HyperliquidErrorMapper correctly maps Hyperliquid's
-        "Order was never placed" or similar error to ORDER_NOT_FOUND.
+        This tests that our service correctly returns a failed CancelOrderResult
+        when attempting to cancel a non-existent order, following the API contract
+        where cancel_order returns CancelOrderResult instead of raising exceptions.
         """
         # Get test symbol from exchange
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
@@ -327,23 +334,31 @@ class TestHyperliquidPerpOrdersPrivate:
             symbol=test_symbol,
         )
 
-        # Should raise APIError with ORDER_NOT_FOUND
-        with pytest.raises(APIError) as exc_info:
-            await hl_api_for_test_env.cancel_order(cancel_args)
+        # Should return failed CancelOrderResult (not raise exception)
+        cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
 
-        # Validate error mapping
-        api_error = exc_info.value
-        assert api_error.code == APIErrorCode.ORDER_NOT_FOUND.value, (
-            f"HyperliquidErrorMapper should map order not found to ORDER_NOT_FOUND, got "
-            f"{api_error.code}"
+        # Validate the failed result
+        assert isinstance(cancel_result, CancelOrderResult), (
+            f"Expected CancelOrderResult, got {type(cancel_result)}"
+        )
+        assert not cancel_result.success, "Cancel operation should fail for non-existent order"
+        assert cancel_result.status == CancelOrderResultStatus.FAILED, (
+            f"Expected FAILED status, got {cancel_result.status}"
+        )
+        assert cancel_result.order_id == "99999999999999999", (
+            f"Order ID should match request, got {cancel_result.order_id}"
+        )
+        assert cancel_result.symbol == test_symbol, (
+            f"Symbol should match request, got {cancel_result.symbol}"
         )
 
-        # Check for common Hyperliquid order not found phrases
-        message_lower = api_error.message.lower()
-        assert any(
-            phrase in message_lower
-            for phrase in ["not found", "never placed", "invalid", "does not exist"]
-        ), f"Error message should indicate order not found: {api_error.message}"
+        # Check for common Hyperliquid order not found phrases in message
+        if cancel_result.message:
+            message_lower = cancel_result.message.lower()
+            assert any(
+                phrase in message_lower
+                for phrase in ["not found", "never placed", "invalid", "does not exist"]
+            ), f"Error message should indicate order not found: {cancel_result.message}"
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -499,7 +514,7 @@ class TestHyperliquidPerpOrdersPrivate:
             cancel_args = CancelOrderArgs(order_id=order_id, symbol=test_symbol)
             cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
 
-            assert cancel_result is True, "Order cancellation should succeed"
+            assert cancel_result.success is True, "Order cancellation should succeed"
 
         except Exception as e:
             # If cancellation fails, this is a critical error for test cleanup

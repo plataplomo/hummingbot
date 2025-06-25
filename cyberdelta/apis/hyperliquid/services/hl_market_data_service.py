@@ -16,9 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-# Project-specific imports for connectivity and base types
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
-
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -61,6 +58,9 @@ from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
+
+# Project-specific imports for connectivity and base types
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)

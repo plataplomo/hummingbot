@@ -347,7 +347,7 @@ class BackpackAPI(ExchangeAPI):
         """Place a new order."""
         return await self.trading_service.place_order(args=args)
 
-    async def cancel_order(self, args: CancelOrderArgs) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel an existing order."""
         return await self.trading_service.cancel_order(args=args)
 
@@ -525,3 +525,47 @@ class BackpackAPI(ExchangeAPI):
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders."""
         return await self.trading_service.cancel_all_orders(symbol=symbol)
+
+    async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
+        """Place multiple orders in a single batch request.
+
+        Note: Backpack exchange does not currently support native batch operations.
+        This implementation falls back to sequential order placement for compatibility.
+
+        Args:
+            orders: List of validated PlaceOrderArgs for batch placement
+
+        Returns:
+            List of successfully placed Order objects
+
+        Raises:
+            NotImplementedError: Backpack does not support batch operations yet
+        """
+        raise NotImplementedError(
+            "Batch order placement is not yet implemented for Backpack exchange. "
+            "Backpack does not support native batch operations. "
+            "Use individual place_order() calls instead."
+        )
+
+    async def cancel_batch_orders(
+        self, cancel_args: list[CancelOrderArgs]
+    ) -> list[CancelOrderResult]:
+        """Cancel multiple orders in a single batch request.
+
+        Note: Backpack exchange does not currently support native batch operations.
+        This implementation falls back to sequential order cancellation for compatibility.
+
+        Args:
+            cancel_args: List of validated CancelOrderArgs for batch cancellation
+
+        Returns:
+            List of CancelOrderResult objects indicating success/failure for each order
+
+        Raises:
+            NotImplementedError: Backpack does not support batch operations yet
+        """
+        raise NotImplementedError(
+            "Batch order cancellation is not yet implemented for Backpack exchange. "
+            "Backpack does not support native batch operations. "
+            "Use individual cancel_order() calls instead."
+        )

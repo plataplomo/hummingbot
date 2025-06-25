@@ -41,7 +41,7 @@ class TestHyperliquidRequestBuilderTrading:
             quantity=Decimal("1.5"),
             time_in_force=TimeInForce.GTC,
             price=Decimal("2000.50"),
-            client_order_id="clOrd123",
+            client_order_id="0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
             reduce_only=False,
             post_only=False,
         )
@@ -61,7 +61,7 @@ class TestHyperliquidRequestBuilderTrading:
         assert action.t.limit is not None
         assert action.t.limit.tif == "Gtc"
         assert action.r is False
-        assert action.c == "clOrd123"
+        assert action.c == "0x" + "0" * 30 + "7b"
 
     def test_build_place_order_payload_market(self, asset_index: int) -> None:
         """Test build_place_order_payload for a MARKET order."""
@@ -395,3 +395,289 @@ class TestHyperliquidRequestBuilderTrading:
             args=args_large,
         )
         assert request_large.oid == args_large.order_id
+
+    def test_build_batch_place_order_payload_success(self, asset_index: int) -> None:
+        """Test successful batch order placement payload building."""
+        # Create multiple orders for batch
+        orders_data = [
+            (
+                PlaceOrderArgs(
+                    symbol="BTC_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1.0"),
+                    price=Decimal("30000.00"),
+                    time_in_force=TimeInForce.GTC,
+                    post_only=True,
+                    reduce_only=False,
+                ),
+                asset_index,
+            ),
+            (
+                PlaceOrderArgs(
+                    symbol="ETH_USDC",
+                    side=OrderSide.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("2.5"),
+                    price=Decimal("2000.50"),
+                    time_in_force=TimeInForce.IOC,
+                    post_only=False,
+                    reduce_only=True,
+                ),
+                asset_index + 1,
+            ),
+            (
+                PlaceOrderArgs(
+                    symbol="SOL_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("10.0"),
+                    price=Decimal("100.75"),
+                    time_in_force=TimeInForce.GTC,
+                    client_order_id="0x" + "0" * 30 + "03",  # Valid 128-bit hex string
+                    post_only=False,
+                    reduce_only=False,
+                ),
+                asset_index + 2,
+            ),
+        ]
+
+        # Create TIF mapping
+        tif_mapping: dict[str, str | None] = {
+            "BTC_USDC": "Gtc",
+            "ETH_USDC": "Ioc",
+            "SOL_USDC": "Gtc",
+        }
+
+        # Build batch payload
+        builder = HyperliquidRequestBuilder()
+        batch_payload = builder.build_batch_place_order_payload(
+            orders_with_indices=orders_data,
+            tif_mapping=tif_mapping,
+        )
+
+        # Validate batch payload structure
+        assert isinstance(batch_payload, HyperliquidApiPlaceOrderRequest)
+        assert batch_payload.type == "order"
+        assert batch_payload.grouping == "na"
+        assert len(batch_payload.orders) == 3
+
+        # Validate first order
+        order1 = batch_payload.orders[0]
+        assert order1.a == asset_index
+        assert order1.b is True  # BUY
+        assert order1.p == "30000"
+        assert order1.s == "1"
+        assert order1.r is False  # not reduce_only
+        assert order1.t.limit is not None
+        assert order1.t.limit.tif == "Gtc"
+
+        # Validate second order
+        order2 = batch_payload.orders[1]
+        assert order2.a == asset_index + 1
+        assert order2.b is False  # SELL
+        assert order2.p == "2000.5"
+        assert order2.s == "2.5"
+        assert order2.r is True  # reduce_only
+        assert order2.t.limit is not None
+        assert order2.t.limit.tif == "Ioc"
+
+        # Validate third order
+        order3 = batch_payload.orders[2]
+        assert order3.a == asset_index + 2
+        assert order3.b is True  # BUY
+        assert order3.p == "100.75"
+        assert order3.s == "10"
+        assert order3.r is False  # not reduce_only
+        assert order3.c == "0x" + "0" * 30 + "03"
+
+    def test_build_batch_place_order_payload_empty_list(self) -> None:
+        """Test batch order payload building with empty orders list."""
+        builder = HyperliquidRequestBuilder()
+
+        with pytest.raises(
+            ValueError, match="Cannot create batch order payload with empty order list"
+        ):
+            builder.build_batch_place_order_payload(
+                orders_with_indices=[],
+                tif_mapping=None,
+            )
+
+    def test_build_batch_place_order_payload_size_limit(self, asset_index: int) -> None:
+        """Test batch order payload building with size limit exceeded."""
+        # Create 51 orders (exceeds limit of 50)
+        orders_data = []
+        for i in range(51):
+            order_args = PlaceOrderArgs(
+                symbol=f"TOKEN{i}_USDC",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1.0"),
+                price=Decimal("100.0"),
+                time_in_force=TimeInForce.GTC,
+            )
+            orders_data.append((order_args, asset_index + i))
+
+        builder = HyperliquidRequestBuilder()
+
+        with pytest.raises(ValueError, match="Batch size 51 exceeds maximum of 50 orders"):
+            builder.build_batch_place_order_payload(
+                orders_with_indices=orders_data,
+                tif_mapping=None,
+            )
+
+    def test_build_batch_place_order_payload_no_tif_mapping(self, asset_index: int) -> None:
+        """Test batch order payload building without TIF mapping."""
+        orders_data = [
+            (
+                PlaceOrderArgs(
+                    symbol="BTC_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1.0"),
+                    price=Decimal("30000.00"),
+                    time_in_force=TimeInForce.GTC,
+                ),
+                asset_index,
+            ),
+        ]
+
+        builder = HyperliquidRequestBuilder()
+        batch_payload = builder.build_batch_place_order_payload(
+            orders_with_indices=orders_data,
+            tif_mapping=None,  # No TIF mapping
+        )
+
+        # Should still work with default TIF
+        assert len(batch_payload.orders) == 1
+        order = batch_payload.orders[0]
+        assert order.t.limit is not None
+        # Should use default TIF from the order spec building logic
+
+    def test_build_batch_cancel_order_payload_success(self) -> None:
+        """Test successful batch cancel order payload building."""
+        # Create cancel items (asset_index, order_id) pairs
+        cancel_items = [
+            (1, 12345),
+            (2, 67890),
+            (3, 54321),
+        ]
+
+        builder = HyperliquidRequestBuilder()
+        batch_payload = builder.build_batch_cancel_order_payload(cancel_items)
+
+        # Validate batch cancel payload structure
+        assert isinstance(batch_payload, HyperliquidApiCancelOrderRequest)
+        assert batch_payload.type == "cancel"
+        assert len(batch_payload.cancels) == 3
+
+        # Validate cancel items
+        assert batch_payload.cancels[0].a == 1
+        assert batch_payload.cancels[0].o == 12345
+        assert batch_payload.cancels[1].a == 2
+        assert batch_payload.cancels[1].o == 67890
+        assert batch_payload.cancels[2].a == 3
+        assert batch_payload.cancels[2].o == 54321
+
+    def test_build_batch_cancel_order_payload_empty_list(self) -> None:
+        """Test batch cancel payload building with empty cancel list."""
+        builder = HyperliquidRequestBuilder()
+
+        with pytest.raises(
+            ValueError, match="Cannot create batch cancel payload with empty cancel list"
+        ):
+            builder.build_batch_cancel_order_payload([])
+
+    def test_build_batch_cancel_order_payload_size_limit(self) -> None:
+        """Test batch cancel payload building with size limit exceeded."""
+        # Create 51 cancel items (exceeds limit of 50)
+        cancel_items = [(i, i * 1000) for i in range(51)]
+
+        builder = HyperliquidRequestBuilder()
+
+        with pytest.raises(ValueError, match="Batch size 51 exceeds maximum of 50 cancellations"):
+            builder.build_batch_cancel_order_payload(cancel_items)
+
+    def test_build_order_item_spec_reusability(self, asset_index: int) -> None:
+        """Test that _build_order_item_spec method works correctly for reuse."""
+        args = PlaceOrderArgs(
+            symbol="BTC_USDC",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.5"),
+            price=Decimal("30000.50"),
+            time_in_force=TimeInForce.GTC,
+            client_order_id="0x" + "0" * 30 + "04",  # Valid 128-bit hex string
+            reduce_only=False,
+            post_only=True,
+        )
+
+        builder = HyperliquidRequestBuilder()
+
+        # Test the extracted helper method directly
+        order_spec = builder._build_order_item_spec(
+            args=args,
+            asset_index=asset_index,
+            tif_str="Gtc",
+        )
+
+        # Validate the order spec
+        assert isinstance(order_spec, HyperliquidRawOrderItemSpec)
+        assert order_spec.a == asset_index
+        assert order_spec.b is True  # BUY
+        assert order_spec.p == "30000.5"
+        assert order_spec.s == "1.5"
+        assert order_spec.r is False  # not reduce_only
+        assert order_spec.c == "0x" + "0" * 30 + "04"
+        assert order_spec.t.limit is not None
+        assert order_spec.t.limit.tif == "Gtc"
+
+    def test_batch_order_with_mixed_order_types(self, asset_index: int) -> None:
+        """Test batch payload with mixed order types (limit, stop, etc)."""
+        orders_data = [
+            (
+                PlaceOrderArgs(
+                    symbol="BTC_USDC",
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("1.0"),
+                    price=Decimal("30000.00"),
+                    time_in_force=TimeInForce.GTC,
+                ),
+                asset_index,
+            ),
+            (
+                PlaceOrderArgs(
+                    symbol="ETH_USDC",
+                    side=OrderSide.SELL,
+                    order_type=OrderType.STOP_LIMIT,
+                    quantity=Decimal("2.0"),
+                    price=Decimal("1900.00"),
+                    stop_price=Decimal("1950.00"),
+                    time_in_force=TimeInForce.GTC,
+                ),
+                asset_index + 1,
+            ),
+        ]
+
+        builder = HyperliquidRequestBuilder()
+        tif_mapping_mixed: dict[str, str | None] = {"BTC_USDC": "Gtc", "ETH_USDC": "Gtc"}
+        batch_payload = builder.build_batch_place_order_payload(
+            orders_with_indices=orders_data,
+            tif_mapping=tif_mapping_mixed,
+        )
+
+        # Validate mixed order types
+        assert len(batch_payload.orders) == 2
+
+        # First order: LIMIT
+        order1 = batch_payload.orders[0]
+        assert order1.t.limit is not None
+        assert order1.t.trigger is None
+
+        # Second order: STOP_LIMIT (should have trigger)
+        order2 = batch_payload.orders[1]
+        assert order2.t.trigger is not None
+        assert order2.t.trigger.trigger_px == "1950"
+        assert order2.t.trigger.is_market is False  # STOP_LIMIT
+        assert order2.t.trigger.tpsl == "sl"

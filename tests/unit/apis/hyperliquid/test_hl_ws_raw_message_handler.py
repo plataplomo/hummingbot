@@ -117,7 +117,7 @@ def test_handle_user_fill_event_payload_valid() -> None:
         "time": 1678886400000,
         "hash": "0x123",
         "oid": 12345,
-        "cloid": "clientOrder1",
+        "cloid": "0x" + "0" * 30 + "01",  # Valid 128-bit hex string
         "isMaker": True,
     }
     expected_model = HyperliquidRawWsFillEvent.model_validate(valid_payload)
@@ -149,7 +149,7 @@ def test_handle_user_order_event_payload_valid() -> None:
     # This payload is for HyperliquidRawOrder (from hl_raw_open_orders.py)
     valid_payload = {
         "oid": 12345,  # Added missing required field
-        "cloid": "clientOid123",
+        "cloid": "0x" + "0" * 30 + "02",  # Valid 128-bit hex string
         "asset": "ETH",
         "side": "B",
         "limitPx": "2000.0",

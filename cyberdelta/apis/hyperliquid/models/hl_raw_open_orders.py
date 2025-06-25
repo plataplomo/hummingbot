@@ -49,7 +49,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawLaxEthereumAddressStrHL,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
-    RawOptionalNonEmptyString64HL,
+    RawOptionalCloidHL,
     RawOrderStatusHL,
     RawPositiveFiniteDecimalStr,
     RawSideStr,
@@ -124,7 +124,7 @@ class HyperliquidRawOrder(BaseModel):
 
     Fields:
         oid (RawNonNegativeInt): Order ID.
-        cloid (RawOptionalNonEmptyString64HL | None): Client order ID.
+        cloid (RawOptionalCloidHL): Client order ID (128-bit hex string).
         asset (RawAssetString64HL): Asset symbol.
         side (RawSideStr): Side ('B' or 'A').
         limit_px (RawFiniteDecimalStr): Limit price.
@@ -138,7 +138,7 @@ class HyperliquidRawOrder(BaseModel):
     """
 
     oid: RawNonNegativeInt = Field(..., alias="oid")
-    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
+    cloid: RawOptionalCloidHL = Field(None, alias="cloid")
     asset: RawAssetString64HL = Field(..., alias="asset")
     side: RawSideStr = Field(..., alias="side")
     limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
@@ -166,6 +166,7 @@ class HyperliquidRawSimpleOpenOrder(BaseModel):
         sz: Current size as decimal string
         timestamp: Order timestamp in milliseconds
         orig_sz: Original size as decimal string
+        cloid: Optional client order ID (128-bit hex string)
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")
@@ -175,6 +176,7 @@ class HyperliquidRawSimpleOpenOrder(BaseModel):
     sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
     timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
     orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
+    cloid: RawOptionalCloidHL = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 
@@ -266,7 +268,7 @@ class HyperliquidRawOrderSpec(BaseModel):
         reduce_only: Reduce-only flag (RawStrictBool).
         order_type: Order type details (dict[str, object], must not be empty).
         trigger: Optional trigger spec (HyperliquidRawTriggerInfo | None).
-        cloid: Optional client order ID (RawOptionalNonEmptyString64HL | None).
+        cloid: Optional client order ID (RawOptionalCloidHL).
     """
 
     asset: RawNonNegativeInt = Field(..., alias="asset")
@@ -276,7 +278,7 @@ class HyperliquidRawOrderSpec(BaseModel):
     reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
     order_type: dict[str, object] = Field(..., alias="orderType")
     trigger: HyperliquidRawTriggerInfo | None = Field(None, alias="trigger")
-    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
+    cloid: RawOptionalCloidHL = Field(None, alias="cloid")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
     @field_validator("order_type")

@@ -7,10 +7,10 @@ architectural separation between HTTP layer and exchange-specific logic.
 
 from typing import Any, TypeVar
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)

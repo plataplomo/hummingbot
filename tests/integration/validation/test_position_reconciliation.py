@@ -935,7 +935,7 @@ class TestPositionReconciliationSystem:
             # Patch _reconcile_exchange to return a known structure to avoid internal errors
             # This helps test check_positions's aggregation logic rather than
             # _reconcile_exchange itself here.
-            mock_reconcile_result = {
+            mock_reconcile_result: dict[str, Any] = {
                 "success": True,
                 "discrepancies": [],
                 "symbols_checked": 0,

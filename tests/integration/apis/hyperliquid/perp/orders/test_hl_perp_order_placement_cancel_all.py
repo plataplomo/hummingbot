@@ -235,7 +235,7 @@ class TestHyperliquidPerpOrdersComprehensive:
             cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
 
             # Validate cancellation success
-            assert cancel_result is True, "cancel_order() should return True on success"
+            assert cancel_result.success is True, "cancel_order() should return successful result"
 
             # Verify order is no longer in open orders using public API polling
             await self._verify_order_cancellation_using_public_api(
@@ -423,7 +423,7 @@ class TestHyperliquidPerpOrdersComprehensive:
     # Helper Methods
 
     def _process_cancellation_results(
-        self, cancel_results: list[bool | BaseException]
+        self, cancel_results: list[CancelOrderResult | BaseException]
     ) -> dict[str, int]:
         """Process cancellation results and return success/failure counts."""
         successful_cancellations = 0
@@ -438,14 +438,14 @@ class TestHyperliquidPerpOrdersComprehensive:
                     continue
                 else:
                     pytest.fail(f"Unexpected error cancelling order {i + 1}: {result}")
-            elif isinstance(result, bool):
-                # Test that cancel_order returns boolean
-                if result is True:
+            elif isinstance(result, CancelOrderResult):
+                # Test that cancel_order returns CancelOrderResult
+                if result.success is True:
                     successful_cancellations += 1
-                elif result is False:
+                elif result.success is False:
                     failed_cancellations += 1
                 else:
-                    pytest.fail(f"cancel_order should return boolean, got {type(result)}: {result}")
+                    pytest.fail(f"cancel_order returned invalid result: {result}")
             else:
                 pytest.fail(
                     f"Unexpected cancellation result type for order {i + 1}: "
@@ -457,7 +457,7 @@ class TestHyperliquidPerpOrdersComprehensive:
     async def _handle_successful_cancellations(
         self,
         api: HyperliquidAPI,
-        cancel_results: list[bool | BaseException],
+        cancel_results: list[CancelOrderResult | BaseException],
         orders_available: list[Order],
         successful_count: int,
     ) -> None:
@@ -467,7 +467,11 @@ class TestHyperliquidPerpOrdersComprehensive:
             for _i, (result, order) in enumerate(
                 zip(cancel_results, orders_available, strict=False)
             ):
-                if isinstance(result, bool) and result is True and order.exchange_order_id:
+                if (
+                    isinstance(result, CancelOrderResult)
+                    and result.success is True
+                    and order.exchange_order_id
+                ):
                     successfully_cancelled_order_ids.add(order.exchange_order_id)
 
             # Use public API polling to verify cancellation

@@ -7,11 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 # Type alias for the HTTP client requester callable

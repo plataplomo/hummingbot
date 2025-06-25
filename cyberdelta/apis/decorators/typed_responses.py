@@ -12,9 +12,9 @@ from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = logging.getLogger(__name__)

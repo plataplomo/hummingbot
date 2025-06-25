@@ -69,7 +69,7 @@ def create_raw_order(
     sz: str = "1.5",
     remaining_sz: str = "0.5",
     oid: int = 12345,
-    cloid: str | None = "test_order_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
@@ -101,7 +101,7 @@ def create_raw_historical_order(
     sz: str = "10.0",
     remaining_sz: str = "2.5",
     oid: int = 98765,
-    cloid: str | None = "test_historical_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     coin: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
@@ -168,7 +168,7 @@ class TestTransformRawOrderToInternal:
             sz="1.5",
             remaining_sz="0.5",
             oid=12345,
-            cloid="test_order_001",
+            cloid="0x" + "0" * 30 + "1" * 2,  # Valid 128-bit hex string
             asset="ETH-PERP",
         )
 
@@ -176,7 +176,7 @@ class TestTransformRawOrderToInternal:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "12345"
-        assert result.client_order_id == "test_order_001"
+        assert result.client_order_id == "0x" + "0" * 30 + "1" * 2
         assert result.symbol == "ETH-PERP"
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
@@ -409,7 +409,7 @@ class TestTransformRawHistoricalOrderToInternal:
             sz="10.0",
             remaining_sz="0.0",
             oid=98765,
-            cloid="test_historical_001",
+            cloid="0x" + "0" * 30 + "2" * 2,  # Valid 128-bit hex string
             coin="SOL-PERP",
         )
 
@@ -417,7 +417,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "98765"
-        assert result.client_order_id == "test_historical_001"
+        assert result.client_order_id == "0x" + "0" * 30 + "2" * 2
         assert result.symbol == "SOL-PERP"
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
@@ -645,7 +645,7 @@ class TestTransformationIntegration:
             sz="5.0",
             remaining_sz="2.0",
             oid=12345,
-            cloid="client-order-123",
+            cloid="0x" + "0" * 30 + "3" * 2,  # Valid 128-bit hex string
             coin="ETH-PERP",
         )
 
@@ -658,7 +658,7 @@ class TestTransformationIntegration:
         assert result.time_in_force == TimeInForce.IOC
         assert result.symbol == "ETH-PERP"
         assert result.exchange_order_id == "12345"
-        assert result.client_order_id == "client-order-123"
+        assert result.client_order_id == "0x" + "0" * 30 + "3" * 2
         assert result.price == Decimal("1000.0")
         assert result.quantity_requested == Decimal("5.0")
         assert result.quantity_filled == Decimal("3.0")  # sz - remaining_sz
@@ -714,7 +714,7 @@ class TestAdvancedScenarios:
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test transformation with very long client order IDs."""
-        long_cloid = "client_order_" + "a" * 50  # 63 characters total
+        long_cloid = "0x" + "a" * 32  # Valid 128-bit hex string
         raw_order = create_raw_order(cloid=long_cloid)
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)

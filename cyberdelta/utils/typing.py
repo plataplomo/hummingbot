@@ -10,7 +10,9 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any, TypeGuard
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+
+# Type alias for parsed JSON responses (moved here to avoid circular import)
+ParsedJsonResponse = dict[str, Any] | list[Any] | str
 
 
 # Type alias for types that can potentially be parsed into a Decimal
@@ -20,6 +22,7 @@ PotentialDecimalInput = str | int | float | Decimal
 LevelSequence = Sequence[Any]  # Using Sequence for broader compatibility
 
 __all__ = [
+    "ParsedJsonResponse",
     "PotentialDecimalInput",
     "LevelSequence",
     "is_sequence_of_any",

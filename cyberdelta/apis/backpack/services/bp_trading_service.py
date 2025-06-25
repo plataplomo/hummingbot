@@ -20,7 +20,6 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -41,7 +40,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.utils.typing import is_dict_response
+from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
 logger = get_logger(__name__)
@@ -299,7 +298,7 @@ class BackpackTradingService:
             exchange_message=raw_response_content,
         )
 
-    async def cancel_order(self, args: CancelOrderArgs) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel an existing order on the Backpack exchange.
 
         Attempts to cancel the specified order by its ID. The order must be
@@ -309,7 +308,7 @@ class BackpackTradingService:
             args: CancelOrderArgs containing the order ID and optional symbol
 
         Returns:
-            bool: True if the order was successfully cancelled
+            CancelOrderResult: Detailed cancellation result information
 
         Raises:
             APIError: If cancellation fails due to API errors or order not found
@@ -402,7 +401,7 @@ class BackpackTradingService:
 
     async def _execute_cancel_order_request(
         self, args: CancelOrderArgs, current_method: str
-    ) -> bool:
+    ) -> CancelOrderResult:
         """Execute the cancel order API request and process the response."""
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
         if args.symbol is None:
@@ -433,7 +432,7 @@ class BackpackTradingService:
         status_code: int,
         order_id: str,
         symbol: str | None,
-    ) -> bool:
+    ) -> CancelOrderResult:
         """Process the cancel order API response."""
         # Backpack's cancel order returns the cancelled order details or an error.
         # The response handler needs to determine success.

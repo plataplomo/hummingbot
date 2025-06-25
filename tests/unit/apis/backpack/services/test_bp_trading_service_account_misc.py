@@ -19,7 +19,8 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.market.order import CancelOrderResult
 
 
 # Import fixtures from the shared conftest
@@ -300,7 +301,15 @@ class TestBackpackTradingServiceAccountMisc:
             200,
             {},
         )
-        mock_response_handler.handle_cancel_order_response.return_value = True
+        mock_response_handler.handle_cancel_order_response.return_value = CancelOrderResult(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
         # Test that the service can cancel orders
         result = await bp_trading_service.cancel_order(
@@ -313,7 +322,7 @@ class TestBackpackTradingServiceAccountMisc:
         assert call_args[1]["is_signed"] is True
         assert call_args[1]["method"] == "DELETE"
         assert call_args[1]["endpoint"] == "/api/v1/order"
-        assert result is True
+        assert result.success is True
 
     @pytest.mark.asyncio
     async def test_service_handles_bulk_operations_correctly(
@@ -464,12 +473,19 @@ class TestBackpackTradingServiceAccountMisc:
             "orderId": "123",
         }
         mock_http_client_requester.return_value = ({"status": "CANCELLED"}, 200, {})
-        mock_response_handler.handle_cancel_order_response.return_value = True
+        mock_response_handler.handle_cancel_order_response.return_value = CancelOrderResult(
+            symbol=symbol,
+            order_id="123",
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
         cancelled = await bp_trading_service.cancel_order(
             args=CancelOrderArgs(order_id="123", symbol=symbol),
         )
-        assert cancelled is True
+        assert cancelled.success is True
 
         # If we reach here, the service is properly configured for all trading operations
-        assert True

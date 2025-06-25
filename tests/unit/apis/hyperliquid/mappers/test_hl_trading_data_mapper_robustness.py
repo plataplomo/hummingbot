@@ -58,7 +58,7 @@ def create_raw_order(
     sz: str = "1.5",
     remaining_sz: str = "0.5",
     oid: int = 12345,
-    cloid: str | None = "test_order_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
@@ -90,7 +90,7 @@ def create_raw_historical_order(
     sz: str = "10.0",
     remaining_sz: str = "2.5",
     oid: int = 98765,
-    cloid: str | None = "test_historical_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     coin: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
@@ -251,50 +251,60 @@ class TestUnicodeAndSpecialCharacters:
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
-        """Test transformation with Unicode characters in client order IDs."""
-        unicode_cloids = [
-            "order_🚀_123",
-            "заказ_456",
-            "注文_789",
-            "オーダー_012",
-            "émoji_345",
-        ]
+        """Test transformation with None client order IDs generates valid UUIDs.
 
-        for cloid in unicode_cloids:
-            order = create_raw_order(cloid=cloid)
-            result = trading_data_mapper.transform_raw_order_to_internal(order)
-            assert result.client_order_id == cloid
+        Note: Unicode characters are no longer valid in cloids since they must be
+        128-bit hex strings. This test now verifies proper UUID generation when
+        cloid is None.
+        """
+        # Test that None cloid generates a valid UUID
+        order = create_raw_order(cloid=None)
+        result = trading_data_mapper.transform_raw_order_to_internal(order)
+
+        # Should have generated a UUID for client_order_id
+        assert result.client_order_id is not None
+        assert isinstance(result.client_order_id, str)
+        assert len(result.client_order_id) > 0
+
+        # Test multiple orders get different UUIDs
+        order2 = create_raw_order(cloid=None)
+        result2 = trading_data_mapper.transform_raw_order_to_internal(order2)
+        assert result2.client_order_id != result.client_order_id
 
     def test_special_characters_in_strings(
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
-        """Test transformation with special characters and edge cases."""
-        # Test each case individually to avoid type issues
-        test_order1 = create_raw_order(asset="BTC\\PERP", cloid="order\\123")
+        """Test transformation with special characters in asset symbols.
+
+        Note: Special characters in cloids are no longer valid since cloids must be
+        128-bit hex strings. This test focuses on special characters in asset symbols.
+        """
+        # Test each case individually with None cloid (will generate UUIDs)
+        test_order1 = create_raw_order(asset="BTC\\PERP", cloid=None)
         result1 = trading_data_mapper.transform_raw_order_to_internal(test_order1)
         assert result1.symbol == "BTC\\PERP"
-        assert result1.client_order_id == "order\\123"
+        assert result1.client_order_id is not None  # UUID generated
 
-        test_order2 = create_raw_order(asset="ETH/PERP", cloid="order/456")
+        test_order2 = create_raw_order(asset="ETH/PERP", cloid=None)
         result2 = trading_data_mapper.transform_raw_order_to_internal(test_order2)
         assert result2.symbol == "ETH/PERP"
-        assert result2.client_order_id == "order/456"
+        assert result2.client_order_id is not None  # UUID generated
 
-        test_order3 = create_raw_order(asset="SOL PERP", cloid="order 789")
+        test_order3 = create_raw_order(asset="SOL PERP", cloid=None)
         result3 = trading_data_mapper.transform_raw_order_to_internal(test_order3)
         assert result3.symbol == "SOL PERP"
-        assert result3.client_order_id == "order 789"
+        assert result3.client_order_id is not None  # UUID generated
 
-        test_order4 = create_raw_order(asset="AVAX.PERP", cloid="order.012")
+        test_order4 = create_raw_order(asset="AVAX.PERP", cloid=None)
         result4 = trading_data_mapper.transform_raw_order_to_internal(test_order4)
         assert result4.symbol == "AVAX.PERP"
-        assert result4.client_order_id == "order.012"
+        assert result4.client_order_id is not None  # UUID generated
 
-        test_order5 = create_raw_order(asset="ADA-PERP-X", cloid="order-345")
+        test_order5 = create_raw_order(asset="ADA-PERP-X", cloid=None)
         result5 = trading_data_mapper.transform_raw_order_to_internal(test_order5)
         assert result5.symbol == "ADA-PERP-X"
-        assert result5.client_order_id == "order-345"
+        assert result5.client_order_id is not None  # UUID generated
 
 
 # --- Tests for Error Handling and Exception Scenarios ---
@@ -387,7 +397,7 @@ class TestPerformanceAndMemory:
         orders = [
             create_raw_order(
                 oid=i,
-                cloid=f"order_{i:06d}",
+                cloid=None,  # Let mapper generate UUIDs
                 limit_px=f"{100.0 + i * 0.01:.2f}",
                 sz=f"{1.0 + i * 0.001:.3f}",
             )
@@ -408,19 +418,22 @@ class TestPerformanceAndMemory:
         self,
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
-        """Test memory efficiency with very large string values."""
-        # Create order with very long strings (but within limits)
-        long_cloid = "order_" + "a" * 50  # Close to 64 character limit
+        """Test memory efficiency with large asset name strings.
+
+        Note: cloids must be 128-bit hex strings, so we test with None cloid
+        and focus on long asset names.
+        """
+        # Create order with very long asset name
         long_asset = "VERYLONGASSETSYMBOLNAME"  # Long but valid asset name
 
         order = create_raw_order(
-            cloid=long_cloid,
+            cloid=None,  # Let mapper generate UUID
             asset=long_asset,
         )
 
         # Should handle large strings efficiently
         result = trading_data_mapper.transform_raw_order_to_internal(order)
-        assert result.client_order_id == long_cloid
+        assert result.client_order_id is not None  # UUID generated
         assert result.symbol == long_asset
 
     def test_high_precision_calculation_stability(
@@ -470,7 +483,7 @@ class TestComplexIntegrationScenarios:
         for status, remaining, expected_status in open_status_progression:
             order = create_raw_order(
                 oid=12345,
-                cloid="rapid_order_001",
+                cloid=None,  # Let mapper generate UUID
                 asset="BTC-PERP",
                 limit_px="50000.0",
                 sz="1.0",
@@ -483,7 +496,7 @@ class TestComplexIntegrationScenarios:
         # Test filled status using historical order
         filled_order = create_raw_historical_order(
             oid=12345,
-            cloid="rapid_order_001",
+            cloid=None,  # Let mapper generate UUID
             coin="BTC-PERP",
             limit_px="50000.0",
             sz="1.0",
@@ -502,7 +515,7 @@ class TestComplexIntegrationScenarios:
         identical_orders = [
             create_raw_order(
                 oid=99999,
-                cloid="concurrent_test",
+                cloid=None,  # Let mapper generate UUID
                 asset="ETH-PERP",
                 limit_px="3000.0",
                 sz="2.0",

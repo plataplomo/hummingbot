@@ -44,7 +44,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawDefaultString,
     RawFiniteDecimalStr,
     RawNonNegativeInt,
-    RawOptionalNonEmptyString64HL,
+    RawOptionalCloidHL,
     RawPositiveFiniteDecimalStr,
     RawSideStr,
     RawStrictBool,
@@ -94,7 +94,7 @@ class HyperliquidRawWsFillEvent(BaseModel):
     time: RawTimestampMsInt = Field(..., alias="time")
     hash: RawTradeHashStringHL = Field(..., alias="hash")
     oid: RawNonNegativeInt = Field(..., alias="oid")
-    cloid: RawOptionalNonEmptyString64HL = Field(None, alias="cloid")
+    cloid: RawOptionalCloidHL = Field(None, alias="cloid")
     is_maker: RawStrictBool = Field(..., alias="isMaker")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 

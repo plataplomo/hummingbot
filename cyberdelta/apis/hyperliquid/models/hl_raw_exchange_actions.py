@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
     RawNonNegativeInt,
-    RawOptionalNonEmptyString64HL,
+    RawOptionalCloidHL,
     RawStrictBool,
     RawStrictEthereumAddressStrHL,
 )
@@ -66,7 +66,7 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     s: RawFiniteDecimalStr = Field(..., alias="size")
     r: RawStrictBool = Field(..., alias="reduce_only")
     t: HyperliquidRawOrderType = Field(..., alias="order_type_details")
-    c: RawOptionalNonEmptyString64HL | None = Field(default=None, alias="client_order_id")
+    c: RawOptionalCloidHL = Field(default=None, alias="client_order_id")
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
 

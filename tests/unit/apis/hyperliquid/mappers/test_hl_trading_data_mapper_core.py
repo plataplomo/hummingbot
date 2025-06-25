@@ -55,7 +55,7 @@ def create_raw_order(
     sz: str = "1.5",
     remaining_sz: str = "0.5",
     oid: int = 12345,
-    cloid: str | None = "test_order_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
@@ -87,7 +87,7 @@ def create_raw_historical_order(
     sz: str = "2.5",  # remaining size - should be smaller than original
     remaining_sz: str = "10.0",  # original size - should be larger
     oid: int = 98765,
-    cloid: str | None = "test_historical_001",
+    cloid: str | None = None,  # Use None by default since cloid is optional
     asset: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:

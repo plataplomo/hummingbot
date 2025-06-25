@@ -41,7 +41,7 @@ from cyberdelta.core.models import (
     Transfer,
     Withdrawal,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 
@@ -389,12 +389,20 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(
             backpack_api.trading_service,
             "cancel_order",
-            return_value=True,
+            return_value=CancelOrderResult(
+                symbol="SOL_USDC",
+                order_id="order123",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            ),
         ) as mock_cancel:
             cancel_args = CancelOrderArgs(order_id="order123", symbol="SOL_USDC")
             result = await backpack_api.cancel_order(cancel_args)
 
-            assert result is True
+            assert result.success is True
             mock_cancel.assert_called_once_with(args=cancel_args)
 
     @pytest.mark.asyncio

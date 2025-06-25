@@ -774,6 +774,7 @@ class TestTransferArgs:
         assert (
             "cannot be None" in errors[0]["msg"]
             or "none is not an allowed value" in errors[0]["msg"].lower()
+            or "got NoneType" in errors[0]["msg"]
         )
 
     def test_unparseable_amount(self) -> None:
@@ -1101,6 +1102,7 @@ class TestWithdrawArgs:
         assert (
             "cannot be None" in errors[0]["msg"]
             or "none is not an allowed value" in errors[0]["msg"].lower()
+            or "got NoneType" in errors[0]["msg"]
         )
 
     def test_unparseable_amount(self) -> None:

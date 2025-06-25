@@ -15,7 +15,6 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -26,6 +25,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 class HyperliquidAssetIndexResolver:

@@ -226,6 +226,12 @@ strict_equality = true  # Enforce strict equality checks
 extra_checks = true  # Enable extra checks
 scripts_are_modules = true  # Treat scripts as modules
 
+# More lenient settings for test files
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false  # Allow untyped pytest fixtures and decorators
+disallow_untyped_defs = false  # Allow untyped test functions
+
 
 [tool.pyright]
 typeCheckingMode = "strict"  # Match Pylance

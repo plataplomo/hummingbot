@@ -40,7 +40,6 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 
 # Assuming BackpackRawTrade is for individual trades, used in lists
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublicTrade
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse  # Import ParsedJsonResponse
 
 # Base API error models
 from cyberdelta.apis.models.api_error import APIError, TransformationError
@@ -67,6 +66,7 @@ from cyberdelta.core.models.market import (
 
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.utils.typing import ParsedJsonResponse  # Import ParsedJsonResponse
 
 
 if TYPE_CHECKING:

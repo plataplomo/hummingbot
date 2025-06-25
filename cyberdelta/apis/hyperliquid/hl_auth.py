@@ -413,7 +413,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         for i, order_item in enumerate(orders):
             # Force serialize the order item to ensure proper structure
             if isinstance(order_item, BaseModel):
-                # If it's a Pydantic model, dump it excluding None values
                 order_item_dict = order_item.model_dump(
                     by_alias=False, exclude_none=True, mode="python"
                 )

@@ -116,13 +116,23 @@ class TestHyperliquidTradingServiceManagement:
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
-        # Mock HTTP client to return successful response
-        mock_http_client_requester.return_value = (mock_raw_open_orders_data, 200, {})
+        # Mock HTTP client to return successful responses
+        # First call: get open orders (returns list)
+        # Second call: cancel batch orders (returns dict)
+        mock_cancel_response = {
+            "status": "ok",
+            "response": None,
+            "data": {"type": "cancel", "statuses": ["success", "success"]},
+        }
+        mock_http_client_requester.side_effect = [
+            (mock_raw_open_orders_data, 200, {}),  # First call: get open orders
+            (mock_cancel_response, 200, {}),  # Second call: cancel batch orders
+        ]
 
-        # Mock asset indices
-        mock_get_asset_index_callable.side_effect = [1, 2]  # BTC=1, ETH=2
+        # Mock asset indices for batch cancellation (only BTC orders)
+        mock_get_asset_index_callable.side_effect = [1, 1]  # BTC=1 for both BTC orders
 
-        # Mock cancel response
+        # Mock batch cancel response for 2 BTC orders
         from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
             HyperliquidRawExchangeResponse,
             HyperliquidRawExchangeResponseData,
@@ -131,9 +141,28 @@ class TestHyperliquidTradingServiceManagement:
         mock_cancel_raw_response = HyperliquidRawExchangeResponse(
             status="ok",
             response=None,
-            data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
+            data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success", "success"]),
         )
         mock_hl_response_handler.handle_exchange_response.return_value = mock_cancel_raw_response
+
+        # Mock batch cancel order payload
+        from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
+            HyperliquidApiCancelOrderRequest,
+        )
+        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+            HyperliquidRawCancelItem,
+        )
+
+        mock_batch_cancel_payload = HyperliquidApiCancelOrderRequest(
+            type="cancel",
+            cancels=[
+                HyperliquidRawCancelItem(a=1, o=123),  # BTC order 123
+                HyperliquidRawCancelItem(a=1, o=789),  # BTC order 789
+            ],
+        )
+        mock_hl_request_builder.build_batch_cancel_order_payload.return_value = (
+            mock_batch_cancel_payload
+        )
 
         # Mock the trading mapper to return proper Order objects
         from decimal import Decimal
@@ -145,7 +174,7 @@ class TestHyperliquidTradingServiceManagement:
         btc_order_1 = Order(
             exchange_order_id="123",
             symbol="BTC",
-            side=OrderSide.SELL,  # "A" = Ask = Sell
+            side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.5"),
             price=Decimal("50000"),
@@ -159,7 +188,7 @@ class TestHyperliquidTradingServiceManagement:
         eth_order = Order(
             exchange_order_id="456",
             symbol="ETH",
-            side=OrderSide.BUY,  # "B" = Bid = Buy
+            side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("2.0"),
             price=Decimal("3000"),
@@ -173,7 +202,7 @@ class TestHyperliquidTradingServiceManagement:
         btc_order_2 = Order(
             exchange_order_id="789",
             symbol="BTC",
-            side=OrderSide.SELL,  # "A" = Ask = Sell
+            side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("1.0"),
             price=Decimal("51000"),
@@ -260,13 +289,23 @@ class TestHyperliquidTradingServiceManagement:
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
-        # Mock HTTP client to return successful response
-        mock_http_client_requester.return_value = (mock_raw_open_orders_data, 200, {})
+        # Mock HTTP client to return successful responses
+        # First call: get open orders (returns list)
+        # Second call: cancel batch orders (returns dict)
+        mock_cancel_response = {
+            "status": "ok",
+            "response": None,
+            "data": {"type": "cancel", "statuses": ["success", "success"]},
+        }
+        mock_http_client_requester.side_effect = [
+            (mock_raw_open_orders_data, 200, {}),  # First call: get open orders
+            (mock_cancel_response, 200, {}),  # Second call: cancel batch orders
+        ]
 
-        # Mock asset indices
+        # Mock asset indices for batch cancellation (both orders)
         mock_get_asset_index_callable.side_effect = [1, 2]  # BTC=1, ETH=2
 
-        # Mock cancel response
+        # Mock batch cancel response for both orders
         from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
             HyperliquidRawExchangeResponse,
             HyperliquidRawExchangeResponseData,
@@ -275,9 +314,28 @@ class TestHyperliquidTradingServiceManagement:
         mock_cancel_raw_response = HyperliquidRawExchangeResponse(
             status="ok",
             response=None,
-            data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success"]),
+            data=HyperliquidRawExchangeResponseData(type="cancel", statuses=["success", "success"]),
         )
         mock_hl_response_handler.handle_exchange_response.return_value = mock_cancel_raw_response
+
+        # Mock batch cancel order payload for both orders
+        from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
+            HyperliquidApiCancelOrderRequest,
+        )
+        from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
+            HyperliquidRawCancelItem,
+        )
+
+        mock_batch_cancel_payload = HyperliquidApiCancelOrderRequest(
+            type="cancel",
+            cancels=[
+                HyperliquidRawCancelItem(a=1, o=111),  # BTC order 111
+                HyperliquidRawCancelItem(a=2, o=222),  # ETH order 222
+            ],
+        )
+        mock_hl_request_builder.build_batch_cancel_order_payload.return_value = (
+            mock_batch_cancel_payload
+        )
 
         # Mock the trading mapper to return proper Order objects
         from decimal import Decimal
@@ -289,7 +347,7 @@ class TestHyperliquidTradingServiceManagement:
         btc_order_1 = Order(
             exchange_order_id="111",
             symbol="BTC",
-            side=OrderSide.SELL,  # "A" = Ask = Sell
+            side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.5"),
             price=Decimal("50000"),
@@ -303,7 +361,7 @@ class TestHyperliquidTradingServiceManagement:
         eth_order = Order(
             exchange_order_id="222",
             symbol="ETH",
-            side=OrderSide.BUY,  # "B" = Bid = Buy
+            side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("2.0"),
             price=Decimal("3000"),

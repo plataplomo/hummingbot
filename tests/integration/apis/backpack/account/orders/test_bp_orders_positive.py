@@ -264,7 +264,7 @@ class TestBackpackOrdersPositive:
         )
         success = await bp_api_for_test_env.cancel_order(cancel_args)
 
-        assert success is True
+        assert success.success is True
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

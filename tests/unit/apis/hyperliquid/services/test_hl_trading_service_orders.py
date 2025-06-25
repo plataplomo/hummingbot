@@ -373,7 +373,7 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.place_order(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Exchange action (order) returned no content" in exc_info.value.message
+        assert "Exchange action (order) returned invalid content" in exc_info.value.message
         mock_http_client_requester.assert_called_once()
 
     @pytest.mark.asyncio
@@ -890,7 +890,7 @@ class TestHyperliquidTradingServiceOrders:
             await hl_trading_service.cancel_order(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Exchange action (cancel) returned no content" in exc_info.value.message
+        assert "Exchange action (cancel) returned invalid content" in exc_info.value.message
         mock_http_client_requester.assert_called_once()
 
     @pytest.mark.asyncio
@@ -940,7 +940,10 @@ class TestHyperliquidTradingServiceOrders:
             args=CancelOrderArgs(order_id=str(order_id), symbol=symbol),
         )
 
-        assert result is True  # cancel_order returns boolean, not raw response
+        # cancel_order now returns CancelOrderResult, not boolean
+        assert result.success is True
+        assert result.order_id == str(order_id)
+        assert result.symbol == symbol
         mock_get_asset_index_callable.assert_called_once_with(symbol)
         # Note: cancel_order creates HyperliquidRawCancelOrderAction directly,
         # doesn't use request builder

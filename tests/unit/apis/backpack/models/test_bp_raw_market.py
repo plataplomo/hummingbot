@@ -532,8 +532,8 @@ def valid_depth_update_data() -> dict[str, Any]:
     """Return valid depth update data for testing."""
     return {
         "lastUpdateId": "update12345",
-        "bids": [["23.49", "10.5"], ["23.48", "5.2"]],
-        "asks": [["23.51", "8.1"], ["23.52", "12.0"]],
+        "b": [["23.49", "10.5"], ["23.48", "5.2"]],  # Changed from "bids" to "b"
+        "a": [["23.51", "8.1"], ["23.52", "12.0"]],  # Changed from "asks" to "a"
         "e": "depth.SOL_USDC",  # Example optional field
         "E": 1678886400234,  # Example optional field
     }
@@ -666,8 +666,8 @@ def test_BackpackRawDepthUpdateEvent_optional_fields_none(
 def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[str, Any]) -> None:
     """Test BackpackRawDepthUpdateEvent empty levels."""
     data = valid_depth_update_data
-    data["bids"] = []
-    data["asks"] = []
+    data["b"] = []  # Changed from "bids" to "b"
+    data["a"] = []  # Changed from "asks" to "a"
     depth = BackpackRawDepthUpdateEvent.model_validate(data)
     assert depth.bids == []
     assert depth.asks == []
@@ -681,18 +681,18 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
     [
         ("lastUpdateId", "", "String cannot be empty"),
         ("lastUpdateId", None, "Expected string, got NoneType"),
-        ("bids", None, "Must be a list"),
-        ("asks", "not-a-list", "Must be a list"),
-        ("bids", [[], ["1", "2"]], "length 2"),
-        ("asks", [["1"]], "length 2"),
-        ("bids", [["1", "2", "3"]], "length 2"),
-        ("asks", ["1", "2"], "Each item must be a list or tuple"),
-        ("asks", [["1", 2]], "Expected string"),
-        ("bids", [["inf", "1"]], "Price must be finite"),
-        ("asks", [["1", "nan"]], "Quantity must be finite"),
-        ("bids", [["", "1"]], "String cannot be empty"),
-        ("asks", [["1", ""]], "String cannot be empty"),
-        ("bids", [["1", "-1"]], "Quantity cannot be negative"),
+        ("b", None, "Must be a sequence"),
+        ("a", "not-a-list", "Must be a sequence"),
+        ("b", [[], ["1", "2"]], "length 2"),
+        ("a", [["1"]], "length 2"),
+        ("b", [["1", "2", "3"]], "length 2"),
+        ("a", ["1", "2"], "Each item must be a sequence"),
+        ("a", [["1", 2]], "Expected string"),
+        ("b", [["inf", "1"]], "Price must be finite"),
+        ("a", [["1", "nan"]], "Quantity must be finite"),
+        ("b", [["", "1"]], "String cannot be empty"),
+        ("a", [["1", ""]], "String cannot be empty"),
+        ("b", [["1", "-1"]], "Quantity cannot be negative"),
         ("e", "", "String cannot be empty"),
         ("E", "abc", "Invalid timestamp format"),
     ],
@@ -709,11 +709,12 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
 
     # Determine expected exception type based on field and value
     expected_exception: type[Exception] = ValidationError
+    # The field validator raises TypeError for these specific cases
     if (
-        (field == "bids" and value is None)
-        or (field == "asks" and value == "not-a-list")
-        or (field == "asks" and value == ["1", "2"])
-        or (field == "asks" and value == [["1", 2]])
+        (field == "b" and value is None)
+        or (field == "a" and value == "not-a-list")
+        or (field == "a" and value == ["1", "2"])
+        or (field == "a" and value == [["1", 2]])
     ):
         expected_exception = TypeError
 

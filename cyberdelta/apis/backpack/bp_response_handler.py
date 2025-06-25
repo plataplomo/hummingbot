@@ -39,7 +39,6 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.utils.response_validation import (
@@ -47,6 +46,8 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)
@@ -266,7 +267,7 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         order_id: str,
         symbol: str,
-    ) -> bool:
+    ) -> CancelOrderResult:
         """Validate the raw response for the Cancel Order endpoint.
 
         Expects no content on success.
@@ -278,7 +279,20 @@ class BackpackResponseHandler:
                 f"Received unexpected content after cancelling order {order_id} "
                 f"for {symbol}: {raw_response_content!r}",
             )
-        return True
+
+        # Create CancelOrderResult for successful cancellation
+        from cyberdelta.core.models.enums import CancelOrderResultStatus
+        from cyberdelta.core.models.market.order import CancelOrderResult
+
+        return CancelOrderResult(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=raw_response_content if isinstance(raw_response_content, dict) else None,
+        )
 
     @staticmethod
     def handle_get_open_orders_response(

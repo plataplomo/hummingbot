@@ -12,7 +12,7 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 # from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService

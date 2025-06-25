@@ -33,8 +33,13 @@ class TestMarketOrder:
         """Create a mock market order service."""
         service = AsyncMock(spec=MarketOrderService)
         service.calculate_aggressive_price.return_value = Decimal("50100")
+
         # Make round_to_step_size return the same value passed in
-        service.round_to_step_size.side_effect = lambda qty, symbol: qty
+
+        def _round_to_step_size(qty: Decimal, symbol: str) -> Decimal:
+            return qty
+
+        service.round_to_step_size.side_effect = _round_to_step_size
         return service
 
     @pytest.fixture

@@ -57,7 +57,7 @@ FULL_VALID_PLACE_ORDER_ACTION_LIMIT_WITH_TRIGGER_AND_CLOID: dict[str, Any] = {
     "reduceOnly": True,
     "orderType": VALID_LIMIT_ORDER_TYPE_IOC,
     "trigger": VALID_TRIGGER_DETAILS_TP_MARKET_DATA,
-    "cloid": "my_client_order_id_123",
+    "cloid": "0x" + "0" * 30 + "01",  # Valid 128-bit hex string
 }
 
 MINIMAL_VALID_PLACE_ORDER_ACTION_MARKET: dict[str, Any] = {
@@ -339,15 +339,15 @@ class TestHyperliquidRawPlaceOrderAction:
     def test_invalid_cloid_too_long(self) -> None:
         """Test invalid cloid too long."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = "a" * 65
-        with pytest.raises(ValidationError, match="cloid: String value too long"):
+        data["cloid"] = "0x" + "a" * 65  # 65 hex chars after 0x = 67 total chars (way too long)
+        with pytest.raises(ValidationError, match="Must be exactly 34 characters"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_cloid_empty_if_present(self) -> None:
         """Test invalid cloid empty if present."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["cloid"] = ""
-        with pytest.raises(ValidationError, match="cloid: String cannot be empty"):
+        with pytest.raises(ValidationError, match="Must start with '0x' prefix"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_valid_cloid_none(self) -> None:
@@ -360,9 +360,9 @@ class TestHyperliquidRawPlaceOrderAction:
     def test_valid_cloid_present(self) -> None:
         """Test valid cloid present."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = "test_cloid"
+        data["cloid"] = "0x" + "0" * 30 + "02"  # Valid 128-bit hex string
         parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert parsed.cloid == "test_cloid"
+        assert parsed.cloid == "0x" + "0" * 30 + "02"
 
 
 class TestHyperliquidRawOrder:

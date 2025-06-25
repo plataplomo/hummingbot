@@ -20,7 +20,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
     RawLaxEthereumAddressStrHL,
     RawNonNegativeInt,
-    RawOptionalNonEmptyString64HL,
+    RawOptionalCloidHL,
     RawStrictBool,
     RawTifStr,
 )
@@ -101,7 +101,7 @@ class HyperliquidRawPlaceOrderAction(BaseModel):
     reduceOnly: RawStrictBool = Field(...)
     orderType: HyperliquidRawOrderType = Field(...)
     trigger: HyperliquidRawTriggerInfo | None = Field(default=None)
-    cloid: RawOptionalNonEmptyString64HL | None = Field(
+    cloid: RawOptionalCloidHL = Field(
         default=None,
         description="Client Order ID (string, e.g., user-defined or 0x...)",
     )

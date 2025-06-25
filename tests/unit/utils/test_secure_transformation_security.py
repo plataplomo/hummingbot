@@ -20,7 +20,7 @@ from cyberdelta.utils.secure_transformation import (
 
 
 # Test models for validation
-class TestBalance(BaseModel):
+class MockBalance(BaseModel):
     """Test model for balance validation."""
 
     asset: str = Field(..., min_length=1, max_length=10)
@@ -29,7 +29,7 @@ class TestBalance(BaseModel):
     exchange: str
 
 
-class TestOrder(BaseModel):
+class MockOrder(BaseModel):
     """Test model for order validation."""
 
     symbol: str
@@ -39,7 +39,7 @@ class TestOrder(BaseModel):
     order_type: str = Field(..., pattern="^(limit|market)$")
 
 
-class TestPosition(BaseModel):
+class MockPosition(BaseModel):
     """Test model for position validation."""
 
     symbol: str
@@ -64,12 +64,12 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError) as exc_info:
             secure_transform(
                 data=malicious_data,
-                model_class=TestBalance,
+                model_class=MockBalance,
                 context="balance_update",
                 source_exchange="backpack",
             )
 
-        assert "Validation failed" in str(exc_info.value)
+        assert "Security validation failed" in str(exc_info.value)
         assert "balance_update" in str(exc_info.value)
         # The actual validation error should contain details
         assert "validation errors" in str(exc_info.value)
@@ -77,7 +77,7 @@ class TestSecureTransformSecurity:
     def test_validation_bypass_prevention(self) -> None:
         """Test that direct instantiation bypass is prevented."""
         # This is what mappers were doing wrong (direct instantiation)
-        # balance = TestBalance(asset="BTC", quantity=-100, ...)  # Would bypass!
+        # balance = MockBalance(asset="BTC", quantity=-100, ...)  # Would bypass!
 
         # secure_transform prevents this
         data = {
@@ -90,7 +90,7 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError):
             secure_transform(
                 data=data,
-                model_class=TestBalance,
+                model_class=MockBalance,
                 context="validation_bypass_test",
                 source_exchange="test",
             )
@@ -109,13 +109,13 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError) as exc_info:
             secure_transform(
                 data=malicious_data,
-                model_class=TestOrder,
+                model_class=MockOrder,
                 context="order_creation",
                 source_exchange="backpack",
             )
 
         # Pydantic should fail to parse the malicious quantity
-        assert "Validation failed" in str(exc_info.value)
+        assert "Security validation failed" in str(exc_info.value)
 
     def test_field_injection_attacks(self) -> None:
         """Test that extra fields don't cause security issues."""
@@ -134,14 +134,15 @@ class TestSecureTransformSecurity:
         # Should succeed but ignore extra fields
         result = secure_transform(
             data=data_with_extra_fields,
-            model_class=TestBalance,
+            model_class=MockBalance,
             context="field_injection_test",
             source_exchange="backpack",
         )
 
         assert result.asset == "BTC"
         assert result.quantity == Decimal("100.5")
-        assert not hasattr(result, "__class__")
+        # __class__ always exists but should not be overridden with malicious value
+        assert result.__class__.__name__ == "MockBalance"
         assert not hasattr(result, "isAdmin")
 
     def test_constraint_validation_enforcement(self) -> None:
@@ -197,12 +198,12 @@ class TestSecureTransformSecurity:
             with pytest.raises(TransformationError) as exc_info:
                 secure_transform(
                     data=test_case["data"],
-                    model_class=TestOrder,
+                    model_class=MockOrder,
                     context="constraint_test",
                     source_exchange="test",
                 )
 
-            assert "Validation failed" in str(exc_info.value)
+            assert "Security validation failed" in str(exc_info.value)
             assert "validation errors" in str(exc_info.value)
 
     def test_decimal_precision_attacks(self) -> None:
@@ -218,7 +219,7 @@ class TestSecureTransformSecurity:
         # Should handle gracefully
         result = secure_transform(
             data=precision_attack_data,
-            model_class=TestBalance,
+            model_class=MockBalance,
             context="precision_test",
             source_exchange="backpack",
         )
@@ -240,14 +241,14 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError) as exc_info:
             secure_transform(
                 data=long_asset_data,
-                model_class=TestBalance,
+                model_class=MockBalance,
                 context="string_length_test",
                 source_exchange="backpack",
             )
 
-        assert "Validation failed" in str(exc_info.value)
+        assert "Security validation failed" in str(exc_info.value)
 
-    @patch("cyberdelta.utils.secure_transformation.logger")
+    @patch("cyberdelta.utils.secure_transformation.security_logger")
     def test_security_logging(self, mock_logger: MagicMock) -> None:
         """Test that security events are properly logged."""
         # Test successful transformation logging
@@ -261,7 +262,7 @@ class TestSecureTransformSecurity:
         # Verify successful transformation occurs
         _ = secure_transform(
             data=valid_data,
-            model_class=TestBalance,
+            model_class=MockBalance,
             context="security_log_test",
             source_exchange="backpack",
         )
@@ -269,8 +270,8 @@ class TestSecureTransformSecurity:
         # Check debug log for successful transformation
         mock_logger.debug.assert_called()
         debug_call = str(mock_logger.debug.call_args)
-        assert "Successful transformation" in debug_call
-        assert "TestBalance" in debug_call
+        assert "Successful validation" in debug_call
+        assert "MockBalance" in debug_call
 
         # Test failed transformation logging
         mock_logger.reset_mock()
@@ -284,7 +285,7 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError):
             secure_transform(
                 data=invalid_data,
-                model_class=TestBalance,
+                model_class=MockBalance,
                 context="security_fail_test",
                 source_exchange="backpack",
             )
@@ -292,8 +293,8 @@ class TestSecureTransformSecurity:
         # Check error log
         mock_logger.error.assert_called()
         error_call = str(mock_logger.error.call_args)
-        assert "Transformation validation failed" in error_call
-        assert "TestBalance" in error_call
+        assert "SECURITY ALERT" in error_call
+        assert "MockBalance" in error_call
 
     def test_secure_transform_with_audit_compliance(self) -> None:
         """Test audit logging for compliance requirements."""
@@ -305,17 +306,29 @@ class TestSecureTransformSecurity:
             "pnl": "10500",
         }
 
-        with patch("cyberdelta.utils.secure_transformation.logger") as mock_logger:
+        with patch("cyberdelta.utils.secure_transformation.logging.getLogger") as mock_get_logger:
+            mock_audit_logger = MagicMock()
+            mock_security_logger = MagicMock()
+
+            def get_logger_side_effect(name: str) -> MagicMock:
+                if name == "cyberdelta.audit":
+                    return mock_audit_logger
+                elif name == "cyberdelta.security":
+                    return mock_security_logger
+                return MagicMock()
+
+            mock_get_logger.side_effect = get_logger_side_effect
+
             result = secure_transform_with_audit(
                 data=position_data,
-                model_class=TestPosition,
+                model_class=MockPosition,
                 context="position_update",
                 source_exchange="hyperliquid",
             )
 
             # Verify audit log was called
-            mock_logger.info.assert_called()
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
+            mock_audit_logger.info.assert_called()
+            info_calls = [str(call) for call in mock_audit_logger.info.call_args_list]
 
             # Should have audit log
             audit_log_found = any("AUDIT" in call for call in info_calls)
@@ -330,14 +343,14 @@ class TestSecureTransformSecurity:
         """Test thread safety of secure_transform."""
         import threading
 
-        results = []
-        errors = []
+        results: list[MockBalance] = []
+        errors: list[TransformationError] = []
 
         def transform_concurrently(data: dict[str, Any], should_fail: bool) -> None:
             try:
                 result = secure_transform(
                     data=data,
-                    model_class=TestBalance,
+                    model_class=MockBalance,
                     context=f"thread_{threading.current_thread().name}",
                     source_exchange="test",
                 )
@@ -345,7 +358,7 @@ class TestSecureTransformSecurity:
             except TransformationError as e:
                 errors.append(e)
 
-        threads = []
+        threads: list[threading.Thread] = []
 
         # Create mix of valid and invalid data
         for i in range(20):
@@ -383,7 +396,7 @@ class TestSecureTransformSecurity:
 
         # Verify each successful result
         for result in results:
-            assert isinstance(result, TestBalance)
+            assert isinstance(result, MockBalance)
             assert result.quantity >= 0
 
     def test_memory_safety_large_objects(self) -> None:
@@ -400,7 +413,7 @@ class TestSecureTransformSecurity:
 
         # Should handle without memory issues
         result = secure_transform(
-            data=large_data, model_class=TestBalance, context="memory_test", source_exchange="test"
+            data=large_data, model_class=MockBalance, context="memory_test", source_exchange="test"
         )
 
         assert result.asset == "BTC"
@@ -420,7 +433,7 @@ class TestSecureTransformSecurity:
         with pytest.raises(TransformationError) as exc_info:
             secure_transform(
                 data=sensitive_data,
-                model_class=TestBalance,
+                model_class=MockBalance,
                 context="sensitive_test",
                 source_exchange="backpack",
             )
@@ -432,7 +445,7 @@ class TestSecureTransformSecurity:
         assert "user_123" not in error_message
 
         # Should contain generic error info
-        assert "Validation failed" in error_message
+        assert "Security validation failed" in error_message
         assert "sensitive_test" in error_message
 
 

@@ -31,8 +31,14 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
+from cyberdelta.core.models.market.order import CancelOrderResult, Order
 
 
 # Removed hardcoded test constants - now using active fixtures from conftest.py
@@ -433,7 +439,15 @@ class TestBackpackAPITradingOperations:
         api = bp_api_with_di()
 
         # Configure mock trading service
-        mock_bp_trading_service.cancel_order.return_value = True
+        mock_bp_trading_service.cancel_order.return_value = CancelOrderResult(
+            symbol="SOL",
+            order_id="order_789",
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
         # Test delegation
         cancel_args = CancelOrderArgs(order_id="order_789", symbol="SOL")
@@ -441,7 +455,7 @@ class TestBackpackAPITradingOperations:
 
         # Verify service was called and result returned
         mock_bp_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
-        assert result is True
+        assert result.success is True
 
         await api.close()
 

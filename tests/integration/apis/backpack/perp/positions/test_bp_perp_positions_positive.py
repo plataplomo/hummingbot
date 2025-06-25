@@ -167,7 +167,7 @@ class TestBackpackPerpPositionsPrivate:
 
             # Validate entry price is within reasonable bounds relative to tick size
             # (e.g., not wildly off due to parsing errors, but allow natural precision variance)
-            if position.entry_price is not None and tick_size > Decimal("0"):
+            if tick_size > Decimal("0"):
                 # Entry price should be at least somewhat close to a valid tick increment
                 # Allow for averaging effects but catch major parsing/calculation errors
                 normalized_price = (position.entry_price / tick_size).quantize(

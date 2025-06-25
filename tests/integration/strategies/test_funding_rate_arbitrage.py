@@ -338,6 +338,9 @@ async def test_evaluate_entry_opportunity_found(
         risk_adjusted_return=Decimal("0.008"),
     )
 
+    def mock_size_opportunity(opp: ArbitrageOpportunity) -> SizedOpportunity:
+        return mock_sized_opportunity
+
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
         patch.object(
@@ -354,7 +357,7 @@ async def test_evaluate_entry_opportunity_found(
         patch.object(
             strategy.risk_manager,
             "size_opportunity",
-            side_effect=lambda opp: mock_sized_opportunity,
+            side_effect=mock_size_opportunity,
         ) as mock_calc_size,
         patch.object(
             strategy,

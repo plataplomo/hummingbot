@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import SecretStr
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_payload_serialization_strategy import (
@@ -29,6 +28,7 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 from cyberdelta.config.config_models import ExchangeSpecificConfig
 from cyberdelta.config.logging_config import get_logger
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 if TYPE_CHECKING:

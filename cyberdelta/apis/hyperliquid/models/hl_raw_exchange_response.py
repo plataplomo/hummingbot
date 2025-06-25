@@ -38,6 +38,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawFiniteDecimalStr,
     RawNonNegativeFiniteDecimalStr,
     RawNonNegativeInt,
+    RawOptionalCloidHL,
     RawOptionalNonEmptyString1024HL,
     RawStatusStringHL,
     RawTxHashStr,
@@ -55,6 +56,9 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
     """Raw model for a 'resting' order status within an exchange response."""
 
     oid: RawNonNegativeInt = Field(...)
+    cloid: RawOptionalCloidHL = Field(
+        default=None, description="Client order ID if provided in the original order"
+    )
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -64,6 +68,9 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
     oid: RawNonNegativeInt = Field(...)
     total_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="totalSz")
     avg_px: RawFiniteDecimalStr = Field(..., alias="avgPx")
+    cloid: RawOptionalCloidHL = Field(
+        default=None, description="Client order ID if provided in the original order"
+    )
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

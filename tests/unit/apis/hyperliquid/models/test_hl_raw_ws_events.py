@@ -28,7 +28,7 @@ def test_ws_fill_event_happy_path() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": True,
     }
     model = HyperliquidRawWsFillEvent.model_validate(obj)
@@ -71,7 +71,7 @@ def test_ws_fill_event_constraint_errors() -> None:
         "time": -1,
         "hash": "h" * 65,
         "oid": -1,
-        "cloid": "c" * 65,
+        "cloid": "0x" + "c" * 65,  # Invalid - too long
         "isMaker": False,
     }
     with pytest.raises(ValidationError):
@@ -104,7 +104,7 @@ def test_ws_fill_event_extra_field() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": True,
         "foo": 1,
     }
@@ -122,7 +122,7 @@ def test_ws_fill_event_adversarial_strings() -> None:
         "time": 1,
         "hash": "abc123",
         "oid": 1,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": False,
     }
     model = HyperliquidRawWsFillEvent.model_validate(obj)
@@ -517,7 +517,7 @@ def test_ws_fill_event_cloid_empty_string() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "",
+        "cloid": "",  # Invalid - empty string
         "isMaker": True,
     }
     with pytest.raises(ValidationError):
@@ -552,7 +552,7 @@ def test_ws_fill_event_cloid_very_long() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "c" * 100,
+        "cloid": "0x" + "c" * 100,  # Invalid - too long
         "isMaker": True,
     }
     with pytest.raises(ValidationError):
@@ -570,7 +570,7 @@ def test_ws_fill_event_hash_unicode_control() -> None:
         "time": 1234567890,
         "hash": "abc\n123",
         "oid": 42,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": True,
     }
     model = HyperliquidRawWsFillEvent.model_validate(obj)
@@ -606,7 +606,7 @@ def test_ws_event_extra_fields_everywhere() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": True,
         "foo": 1,
     }
@@ -620,7 +620,7 @@ def test_ws_event_extra_fields_everywhere() -> None:
         "time": 1234567890,
         "hash": "abc123",
         "oid": 42,
-        "cloid": "cl123",
+        "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
         "isMaker": True,
         "position": {"coin": "ETH", "foo": 1},
     }

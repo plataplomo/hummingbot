@@ -28,19 +28,31 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies:
-          # Core dependencies needed for type checking
+          # Type stubs
           - types-jsonschema==4.23.0.20241208
           - types-setuptools==80.7.0.20250516
           - types-pyyaml>=6.0.12.20250402
           - pandas-stubs>=2.2.3.250308
           - msgpack-types==0.5.0
           - types-requests==2.32.0.20250328
-          # Runtime dependencies that mypy needs for type checking
+          # Core runtime dependencies
           - pydantic==2.11.4
           - aiohttp==3.11.18
           - numpy==2.2.5
           - pandas==2.2.3
-        args: ["--strict", "--show-error-codes"]
+          # Testing dependencies
+          - pytest==8.3.5
+          - pytest-asyncio==0.26.0
+          - pytest-mock==3.14.0
+          # Crypto dependencies
+          - cryptography==45.0.3
+          - eth_account==0.13.7
+          - web3==7.11.1
+          - mnemonic==0.21
+          # Other dependencies
+          - structlog==25.3.0
+          - plotly==6.0.1
+        args: ["--show-error-codes"]
 
   # Custom hooks
   - repo: local

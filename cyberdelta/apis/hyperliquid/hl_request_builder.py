@@ -351,22 +351,23 @@ class HyperliquidRequestBuilder:
         return HyperliquidRawCandleSnapshotRequestPayload(type="candleSnapshot", req=req_details)
 
     @staticmethod
-    def build_place_order_payload(
+    def _build_order_item_spec_static(
         args: PlaceOrderArgs,
         asset_index: int,
-        tif_str: str | None = None,  # Pass mapped TIF from service
-    ) -> HyperliquidApiPlaceOrderRequest:
-        """Build the Pydantic model for placing orders.
+        tif_str: str | None = None,
+    ) -> HyperliquidRawOrderItemSpec:
+        """Build a single order item specification for use in batch or single order requests.
 
-        Pure factory method creating the exact wire format structure expected by Hyperliquid API.
+        Static helper method for creating order specs with proper wire format conversion.
+        This is the core logic shared between single and batch order placement.
 
         Args:
             args: Validated PlaceOrderArgs containing order parameters
             asset_index: Hyperliquid-specific asset index for the symbol
-            tif_str: Optional time-in-force string mapped from service layer
+            tif_str: Optional time-in-force string override
 
         Returns:
-            HyperliquidApiPlaceOrderRequest: Validated Raw API model
+            HyperliquidRawOrderItemSpec: Validated order specification for Hyperliquid API
         """
         is_buy = args.side == OrderSide.BUY
 
@@ -400,35 +401,76 @@ class HyperliquidRequestBuilder:
                 limit=HyperliquidRawLimitOrderTypeDetails(tif="Ioc")
             )
         elif args.order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
-            # For stop orders, create trigger order type
-            if args.stop_price is not None:
-                trigger_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.stop_price)
-                is_market = args.order_type == OrderType.STOP_MARKET
-                order_type_model = HyperliquidRawOrderType(
-                    trigger=HyperliquidRawTriggerInfo(
-                        triggerPx=trigger_px_wire, isMarket=is_market, tpsl="sl"
-                    )
-                )
-            else:
-                # Fallback to limit order if no stop price
-                order_type_model = HyperliquidRawOrderType(
-                    limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
-                )
+            # Construct trigger information for stop orders
+            if args.stop_price is None:
+                raise ValueError(f"Stop orders require stop_price, got None for {args.order_type}")
+
+            trigger_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.stop_price)
+            is_market = args.order_type == OrderType.STOP_MARKET
+
+            trigger_info = HyperliquidRawTriggerInfo(
+                triggerPx=trigger_px_wire,
+                isMarket=is_market,
+                tpsl="sl",  # All stop orders are stop-loss ("sl")
+            )
+
+            order_type_model = HyperliquidRawOrderType(trigger=trigger_info)
         else:
-            # Default fallback for unsupported order types
             raise ValueError(f"Unsupported order type: {args.order_type}")
 
-        # Create validated Pydantic model - INTERNAL → RAW transformation
-        # Architecture Compliance: All fields validated by Pydantic at boundary
-        # Build the raw order specification with full validation
-        wire_order = HyperliquidRawOrderItemSpec(
+        # Build and return the order specification
+        return HyperliquidRawOrderItemSpec(
             asset_index=asset_index,
             is_buy=is_buy,
-            limit_px=limit_px_wire,  # Wire format string validated by RawFiniteDecimalStr
-            size=sz_wire,  # Wire format string validated by RawFiniteDecimalStr
+            limit_px=limit_px_wire,
+            size=sz_wire,
             reduce_only=args.reduce_only,
             order_type_details=order_type_model,  # Pydantic model with proper validation
             client_order_id=args.client_order_id,
+        )
+
+    def _build_order_item_spec(
+        self,
+        args: PlaceOrderArgs,
+        asset_index: int,
+        tif_str: str | None = None,
+    ) -> HyperliquidRawOrderItemSpec:
+        """Build a single order item specification for use in batch or single order requests.
+
+        Instance wrapper around static method for backward compatibility.
+        This method delegates to the static implementation.
+
+        Args:
+            args: Validated PlaceOrderArgs containing order parameters
+            asset_index: Hyperliquid-specific asset index for the symbol
+            tif_str: Optional time-in-force string mapped from service layer
+
+        Returns:
+            HyperliquidRawOrderItemSpec: Validated Raw order specification
+        """
+        return HyperliquidRequestBuilder._build_order_item_spec_static(args, asset_index, tif_str)
+
+    @staticmethod
+    def build_place_order_payload(
+        args: PlaceOrderArgs,
+        asset_index: int,
+        tif_str: str | None = None,  # Pass mapped TIF from service
+    ) -> HyperliquidApiPlaceOrderRequest:
+        """Build the Pydantic model for placing orders.
+
+        Pure factory method creating the exact wire format structure expected by Hyperliquid API.
+
+        Args:
+            args: Validated PlaceOrderArgs containing order parameters
+            asset_index: Hyperliquid-specific asset index for the symbol
+            tif_str: Optional time-in-force string mapped from service layer
+
+        Returns:
+            HyperliquidApiPlaceOrderRequest: Validated Raw API model
+        """
+        # Use the static helper method to build the order spec
+        wire_order = HyperliquidRequestBuilder._build_order_item_spec_static(
+            args, asset_index, tif_str
         )
 
         # Return the final request payload with Pydantic validation
@@ -569,6 +611,92 @@ class HyperliquidRequestBuilder:
             coin=RawHlCoinName(args.symbol),
             startTime=start_time_ms,
             endTime=end_time_ms,
+        )
+
+    def build_batch_place_order_payload(
+        self,
+        orders_with_indices: list[tuple[PlaceOrderArgs, int]],
+        tif_mapping: dict[str, str | None] | None = None,
+    ) -> HyperliquidApiPlaceOrderRequest:
+        """Build the Pydantic model for placing multiple orders in a single batch request.
+
+        Enables massive performance improvements by batching multiple orders into one API call,
+        reducing from N HTTP requests to 1, and from N EIP-712 signatures to 1.
+
+        Args:
+            orders_with_indices: List of (PlaceOrderArgs, asset_index) tuples for batch placement
+            tif_mapping: Optional mapping of symbol->tif_str for custom time-in-force per order
+
+        Returns:
+            HyperliquidApiPlaceOrderRequest: Validated Raw API model with multiple orders
+
+        Raises:
+            ValueError: If any order has invalid parameters or batch is empty
+        """
+        if not orders_with_indices:
+            raise ValueError("Cannot create batch order payload with empty order list")
+
+        if len(orders_with_indices) > 50:  # Conservative batch size limit
+            raise ValueError(
+                f"Batch size {len(orders_with_indices)} exceeds maximum of 50 orders. "
+                "Consider splitting into smaller batches."
+            )
+
+        # Build order specs for all orders in the batch
+        order_specs: list[HyperliquidRawOrderItemSpec] = []
+        for args, asset_index in orders_with_indices:
+            # Get TIF for this specific order if provided
+            tif_str = None
+            if tif_mapping:
+                tif_str = tif_mapping.get(args.symbol)
+
+            # Use the extracted helper method to build each order spec
+            order_spec = self._build_order_item_spec(args, asset_index, tif_str)
+            order_specs.append(order_spec)
+
+        # Return the final batch request payload with Pydantic validation
+        return HyperliquidApiPlaceOrderRequest(
+            type="order",
+            orders=order_specs,  # Multiple orders in one request!
+            grouping="na",  # Default grouping per Hyperliquid API
+        )
+
+    def build_batch_cancel_order_payload(
+        self,
+        cancel_items: list[tuple[int, int]],  # (asset_index, order_id) pairs
+    ) -> HyperliquidApiCancelOrderRequest:
+        """Build the Pydantic model for cancelling multiple orders in a single batch request.
+
+        Enables performance improvements by batching multiple cancellations into one API call.
+
+        Args:
+            cancel_items: List of (asset_index, order_id) tuples for batch cancellation
+
+        Returns:
+            HyperliquidApiCancelOrderRequest: Validated Raw API model with multiple cancels
+
+        Raises:
+            ValueError: If cancel list is empty or exceeds batch limits
+        """
+        if not cancel_items:
+            raise ValueError("Cannot create batch cancel payload with empty cancel list")
+
+        if len(cancel_items) > 50:  # Conservative batch size limit
+            raise ValueError(
+                f"Batch size {len(cancel_items)} exceeds maximum of 50 cancellations. "
+                "Consider splitting into smaller batches."
+            )
+
+        # Build cancel item specs for all cancellations in the batch
+        cancel_specs: list[HyperliquidRawCancelItem] = []
+        for asset_index, order_id in cancel_items:
+            cancel_spec = HyperliquidRawCancelItem(a=asset_index, o=order_id)
+            cancel_specs.append(cancel_spec)
+
+        # Return the final batch cancel request payload with Pydantic validation
+        return HyperliquidApiCancelOrderRequest(
+            type="cancel",
+            cancels=cancel_specs,  # Multiple cancels in one request!
         )
 
     # No changes needed for comments about /info endpoints and build_info_request_payload

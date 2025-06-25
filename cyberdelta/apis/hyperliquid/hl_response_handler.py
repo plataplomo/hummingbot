@@ -7,7 +7,6 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -53,6 +52,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)

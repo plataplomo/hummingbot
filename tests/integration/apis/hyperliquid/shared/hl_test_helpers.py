@@ -917,3 +917,25 @@ async def get_safe_test_price(
         Safe test price that won't immediately execute
     """
     return await HyperliquidTestHelpers.get_dynamic_test_price(api, symbol, side, tolerance)
+
+
+def generate_test_cloid() -> str:
+    """Generate a valid 128-bit hex client order ID for Hyperliquid.
+
+    Hyperliquid requires client order IDs to be 128-bit hex strings
+    with 0x prefix (e.g., 0x1234567890abcdef1234567890abcdef).
+
+    Returns:
+        Valid cloid string in format: 0x + 32 hex characters
+
+    Example:
+        >>> cloid = generate_test_cloid()
+        >>> assert cloid.startswith("0x")
+        >>> assert len(cloid) == 34  # 0x + 32 hex chars
+    """
+    import secrets
+
+    # Generate 16 random bytes (128 bits)
+    random_bytes = secrets.token_bytes(16)
+    # Convert to hex and add 0x prefix
+    return "0x" + random_bytes.hex()

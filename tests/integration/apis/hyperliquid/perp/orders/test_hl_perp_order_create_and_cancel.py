@@ -98,7 +98,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
 
             # Use 10% below market for buy order to avoid accidental fills
             test_price = await get_safe_test_price(
-                hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=Decimal("10")
+                hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("10")
             )
 
             test_quantity = await get_minimal_test_quantity(
@@ -206,7 +206,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, symbol)
 
                 test_price = await get_safe_test_price(
-                    hl_api_for_test_env, symbol, OrderSide.BUY, tolerance=Decimal("10")
+                    hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("10")
                 )
 
                 test_quantity = await get_minimal_test_quantity(
@@ -273,7 +273,13 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             cancel_result = await hl_api_for_test_env.cancel_order(cancel_args)
 
             # Validate cancellation success
-            assert cancel_result is True, "cancel_order() should return True on success"
+            assert cancel_result.success is True, (
+                "cancel_order() should return successful CancelOrderResult"
+            )
+            assert cancel_result.order_id == order_id, (
+                "Cancel result should contain correct order ID"
+            )
+            assert cancel_result.symbol == symbol, "Cancel result should contain correct symbol"
             logger.info(f"Successfully cancelled order: {order_id}")
 
             # Brief wait for exchange to process cancellation

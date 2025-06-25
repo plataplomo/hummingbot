@@ -21,7 +21,7 @@ import pytest
 # Using TYPE_CHECKING import pattern to satisfy mypy while maintaining runtime functionality.
 # Mypy=[import-untyped] Ruff=[]
 try:
-    import plotly.graph_objects as go  # type: ignore[import-untyped]
+    import plotly.graph_objects as go  # type: ignore [import-untyped]
 except ImportError:
     go = None
 

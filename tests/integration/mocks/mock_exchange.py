@@ -799,7 +799,7 @@ class MockExchangeAPI(ExchangeAPI):
         )
         return order
 
-    async def cancel_order(self, args: CancelOrderArgs) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Mock implementation for cancelling an order."""
         self._check_error("cancel_order")
         await self._simulate_latency()
@@ -808,9 +808,20 @@ class MockExchangeAPI(ExchangeAPI):
         order_id = args.order_id
         symbol = args.symbol
 
+        from cyberdelta.core.models.enums import CancelOrderResultStatus
+        from cyberdelta.core.models.market.order import CancelOrderResult
+
         if order_id not in self._orders:
             logger.warning(f"Mock order not found for order_id: {order_id}")
-            return False
+            return CancelOrderResult(
+                symbol=symbol,
+                order_id=order_id,
+                client_order_id=args.client_order_id,
+                success=False,
+                message="Order not found",
+                status=CancelOrderResultStatus.NOT_FOUND,
+                raw_response=None,
+            )
 
         order = self._orders[order_id]
 
@@ -819,11 +830,27 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning(
                 f"Mock order {order_id} symbol mismatch: expected {symbol}, found {order.symbol}",
             )
-            return False
+            return CancelOrderResult(
+                symbol=symbol,
+                order_id=order_id,
+                client_order_id=args.client_order_id,
+                success=False,
+                message=f"Symbol mismatch: expected {symbol}, found {order.symbol}",
+                status=CancelOrderResultStatus.FAILED,
+                raw_response=None,
+            )
 
         if order.status not in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
             logger.warning(f"Mock order {order_id} is not in a cancellable state: {order.status}")
-            return False
+            return CancelOrderResult(
+                symbol=symbol,
+                order_id=order_id,
+                client_order_id=args.client_order_id,
+                success=False,
+                message=f"Order not in cancellable state: {order.status}",
+                status=CancelOrderResultStatus.ALREADY_CANCELLED_OR_CLOSED,
+                raw_response=None,
+            )
 
         # Simulate cancellation
         self._orders[order_id].status = OrderStatus.CANCELED
@@ -832,7 +859,15 @@ class MockExchangeAPI(ExchangeAPI):
             del self.open_orders[order_id]
 
         logger.info(f"MockExchange {self.exchange_name}: Cancelled order {order_id}")
-        return True
+        return CancelOrderResult(
+            symbol=symbol,
+            order_id=order_id,
+            client_order_id=args.client_order_id,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Get order details by exchange ID or client ID."""
@@ -1145,6 +1180,86 @@ class MockExchangeAPI(ExchangeAPI):
         return markets
 
     # --- END OF ADDED PLACEHOLDERS ---
+
+    async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
+        """Mock implementation of place_batch_orders."""
+        self._check_error("place_batch_orders")
+        await self._simulate_latency()
+
+        results: list[Order] = []
+        for order_args in orders:
+            try:
+                # Place each order individually
+                order = await self.place_order(order_args)
+                results.append(order)
+            except Exception as e:
+                # In batch operations, we continue even if some orders fail
+                logger.error(f"MockExchange {self.exchange_name}: Failed to place batch order: {e}")
+                # Create a failed order object
+                failed_order = Order(
+                    client_order_id=order_args.client_order_id
+                    or f"failed_{self._order_id_counter}",
+                    exchange_order_id="",
+                    exchange=self.exchange_name,
+                    symbol=order_args.symbol,
+                    side=order_args.side,
+                    order_type=order_args.order_type,
+                    status=OrderStatus.REJECTED,
+                    quantity_requested=order_args.quantity,
+                    quantity_filled=Decimal("0"),
+                    price=order_args.price,
+                    average_fill_price=None,
+                    time_in_force=order_args.time_in_force,
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                    triggered_at=None,
+                    strategy_name=None,  # PlaceOrderArgs doesn't have strategy_name
+                    signal_id=None,  # PlaceOrderArgs doesn't have signal_id
+                    reduce_only=order_args.reduce_only,
+                    post_only=order_args.post_only,
+                )
+                results.append(failed_order)
+
+        logger.info(
+            f"MockExchange {self.exchange_name}: Placed batch of {len(results)} orders "
+            f"(Success: {sum(1 for o in results if o.status != OrderStatus.REJECTED)})"
+        )
+        return results
+
+    async def cancel_batch_orders(
+        self, cancel_args: list[CancelOrderArgs]
+    ) -> list[CancelOrderResult]:
+        """Mock implementation of cancel_batch_orders."""
+        self._check_error("cancel_batch_orders")
+        await self._simulate_latency()
+
+        results: list[CancelOrderResult] = []
+        for cancel_arg in cancel_args:
+            try:
+                # Cancel each order individually
+                cancel_result = await self.cancel_order(cancel_arg)
+                results.append(cancel_result)
+            except Exception as e:
+                # In batch operations, we continue even if some cancellations fail
+                logger.error(
+                    f"MockExchange {self.exchange_name}: Failed to cancel batch order: {e}"
+                )
+                results.append(
+                    CancelOrderResult(
+                        symbol=cancel_arg.symbol or "",
+                        order_id=cancel_arg.order_id,
+                        client_order_id=cancel_arg.client_order_id,
+                        success=False,
+                        message=str(e),
+                        status=CancelOrderResultStatus.FAILED,
+                    )
+                )
+
+        logger.info(
+            f"MockExchange {self.exchange_name}: Cancelled batch of {len(results)} orders "
+            f"(Success: {sum(1 for r in results if r.success)})"
+        )
+        return results
 
     async def close(self) -> None:
         """Close any resources held by the mock API (e.g., WebSocket connection)."""

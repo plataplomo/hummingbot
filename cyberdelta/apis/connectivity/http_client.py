@@ -30,12 +30,10 @@ from cyberdelta.apis.connectivity.connectivity_models import (
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.logging_config import get_logger
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)
-
-# Type alias for parsed JSON responses
-ParsedJsonResponse = dict[str, Any] | list[Any] | str
 
 
 class HttpRequestFailedError(APIError):

@@ -200,7 +200,7 @@ class TestBackpackAccountServicePositions:
             await bp_account_service.get_positions(symbol=symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"No data received for positions for {symbol}, status: 200" in exc_info.value.message
+        assert "Unexpected response type for positions: NoneType" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_positions_validation_error_via_public_api(

@@ -17,9 +17,9 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawRecentPublicTrade,
 )
-from cyberdelta.apis.connectivity.http_client import ParsedJsonResponse
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 # Import fixtures from the shared conftest

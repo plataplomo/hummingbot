@@ -201,9 +201,20 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """Execute a withdrawal with the specified arguments."""
         return MagicMock(spec=Withdrawal)
 
-    async def cancel_order(self, args: CancelOrderArgs) -> bool:
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel an order with the specified arguments."""
-        return True
+        from cyberdelta.core.models.enums import CancelOrderResultStatus
+        from cyberdelta.core.models.market.order import CancelOrderResult
+
+        return CancelOrderResult(
+            symbol=args.symbol,
+            order_id=args.order_id,
+            client_order_id=args.client_order_id,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for the specified symbol or all symbols."""
@@ -238,6 +249,14 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
         """Mock implementation of update_account_settings."""
         return MagicMock(spec=AccountSettings)
+
+    async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
+        """Mock implementation of place_batch_orders."""
+        return [MagicMock(spec=Order) for _ in orders]
+
+    async def cancel_batch_orders(self, orders: list[CancelOrderArgs]) -> list[CancelOrderResult]:
+        """Mock implementation of cancel_batch_orders."""
+        return [MagicMock(spec=CancelOrderResult) for _ in orders]
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
         return MockSubscriptionPayload(type="subscribe", channel=topic)

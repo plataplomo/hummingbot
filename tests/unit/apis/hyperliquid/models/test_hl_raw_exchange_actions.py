@@ -178,7 +178,7 @@ def test_order_item_spec_valid_limit() -> None:
         "size": "1.0",
         "reduce_only": False,
         "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
-        "client_order_id": "cloid123",
+        "client_order_id": "0x" + "0" * 30 + "a" * 2,  # Valid 128-bit hex string
     }
     item_spec = HyperliquidRawOrderItemSpec.model_validate(data)
     assert item_spec.a == 0
@@ -189,7 +189,7 @@ def test_order_item_spec_valid_limit() -> None:
     # Test that order type is properly deserialized as HyperliquidRawOrderType
     assert item_spec.t.limit is not None
     assert item_spec.t.limit.tif == "Gtc"
-    assert item_spec.c == "cloid123"
+    assert item_spec.c == "0x" + "0" * 30 + "a" * 2
     assert item_spec.model_config.get("extra") == "forbid"
     assert item_spec.model_config.get("frozen") is True
     assert item_spec.model_config.get("populate_by_name") is True
@@ -236,8 +236,12 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
         ),
         # Removed test for both None - raw models no longer validate business logic
         ("order_type_details", None, "Field required"),
-        ("client_order_id", "", "String cannot be empty"),
-        ("client_order_id", "a" * 65, "String value too long"),  # Max 64
+        ("client_order_id", "", "Must start with '0x' prefix"),  # Empty string fails validation
+        (
+            "client_order_id",
+            "0x" + "a" * 33,
+            "Must be exactly 34 characters",
+        ),  # Too long hex string (35 total chars)
     ],
 )
 def test_order_item_spec_invalid_fields(
@@ -253,7 +257,7 @@ def test_order_item_spec_invalid_fields(
         "size": "1.0",
         "reduce_only": False,
         "order_type_details": VALID_LIMIT_ORDER_TYPE_DETAILS_GTC,
-        "client_order_id": "cloid123",
+        "client_order_id": "0x" + "0" * 30 + "b" * 2,  # Valid 128-bit hex string
     }
     if value is None and field_alias in base_data:  # Test missing required field
         del base_data[field_alias]

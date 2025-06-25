@@ -377,8 +377,7 @@ class TestHyperliquidAPIComponentIntegration:
                 # Check all items are Orders without using comprehension
                 all_orders = True
                 # Type narrowing: after isinstance check, result is a list
-                result_list: list[Any] = result
-                for item in result_list:
+                for item in result:  # pyright: ignore[reportUnknownVariableType]
                     if not isinstance(item, Order):
                         all_orders = False
                         break
@@ -495,8 +494,7 @@ class TestHyperliquidAPIConcurrentOperations:
                 else:
                     all_orders = True
                     # Type narrowing: result is a non-empty list
-                    result_list: list[Any] = result
-                    for item in result_list:
+                    for item in result:  # pyright: ignore[reportUnknownVariableType]
                         if not isinstance(item, Order):
                             all_orders = False
                             break
