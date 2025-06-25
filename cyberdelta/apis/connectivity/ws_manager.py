@@ -430,7 +430,7 @@ class WebSocketManager:
             current_task_listen_loop.cancelled() if current_task_listen_loop else "N/A"
         )
 
-        self._logger.info(
+        self._logger.debug(
             f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
             f"Iteration {iteration}. "
             f"Cancelled state: {cancelled_state}",
@@ -452,7 +452,7 @@ class WebSocketManager:
         current_task = asyncio.current_task()
         task_name = current_task.get_name() if current_task else "UnknownTask"
 
-        self._logger.info(
+        self._logger.debug(
             f"[{self._exchange_name} _listen::{task_name}] "
             f"Iteration {iteration}. "
             f"Msg type: {msg.type if msg else 'None'}.",

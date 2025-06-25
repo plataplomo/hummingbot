@@ -1081,6 +1081,19 @@ class PrioritySignalQueue:
         finally:
             self.logger.info("PrioritySignalQueue run loop stopped.")
 
+    async def stop(self) -> None:
+        """Stop the signal queue gracefully.
+        
+        This method is called during shutdown to ensure clean termination
+        of the signal queue processing.
+        """
+        self.logger.info("Stopping PrioritySignalQueue...")
+        # Signal any waiting tasks
+        self.new_signal_event.set()
+        # Clear any remaining signals
+        await self.clear()
+        self.logger.info("PrioritySignalQueue stopped.")
+
     async def process_signal(self) -> TradeSignal | None:
         """Process the next available signal from the queue.
 

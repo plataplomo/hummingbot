@@ -58,7 +58,7 @@ def secure_transform[T: BaseModel](
     """
     try:
         # Security event logging
-        security_logger.info(
+        security_logger.debug(
             f"SECURITY: Transformation attempt - "
             f"context={context}, model={model_class.__name__}, source={source_exchange}"
         )

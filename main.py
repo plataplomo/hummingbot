@@ -76,6 +76,11 @@ async def _close_api_connections(app_state: dict[str, Any]) -> None:
             logger.warning(f"{len(pending)} API close tasks timed out or failed.")
             for task in pending:
                 task.cancel()
+                # Try to await the cancelled task to clean up properly
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
 
 async def _save_application_state(app_state: dict[str, Any]) -> None:
@@ -494,6 +499,18 @@ async def _handle_shutdown_and_cleanup(
         _, pending = await asyncio.wait(main_tasks, timeout=0)
         if not pending:
             logger.info("All main component tasks completed.")
+
+    # Final cleanup: ensure any remaining tasks are awaited
+    # This helps aiohttp sessions close properly before the event loop exits
+    current_task = asyncio.current_task()
+    all_tasks = [t for t in asyncio.all_tasks() if t != current_task and not t.done()]
+    if all_tasks:
+        logger.debug(f"Waiting for {len(all_tasks)} remaining tasks...")
+        done, pending = await asyncio.wait(all_tasks, timeout=1.0)
+        if pending:
+            logger.debug(f"{len(pending)} tasks still pending after final wait")
+            for task in pending:
+                task.cancel()
 
     logger.info("CyberDeltaEngine main function finished.")
 

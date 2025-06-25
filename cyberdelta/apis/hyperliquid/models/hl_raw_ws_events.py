@@ -48,6 +48,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawPositiveFiniteDecimalStr,
     RawSideStr,
     RawStrictBool,
+    RawStrictEthereumAddressStrHL,
     RawTimestampMsInt,
     RawTradeHashStringHL,
 )
@@ -208,6 +209,8 @@ class HyperliquidRawWsTradeEvent(BaseModel):
         side (str): Side of the trade ('B' for buy, 'A' for ask/sell).
         time (int): Timestamp of the trade event (epoch ms).
         hash (str): Unique trade hash.
+        tid (int): Trade ID.
+        users (list[str]): List of user addresses involved in the trade.
     """
 
     coin: RawAssetString64HL = Field(..., alias="coin")
@@ -216,6 +219,8 @@ class HyperliquidRawWsTradeEvent(BaseModel):
     side: RawSideStr = Field(..., alias="side")
     time: RawTimestampMsInt = Field(..., alias="time")
     hash: RawTradeHashStringHL = Field(..., alias="hash")
+    tid: RawNonNegativeInt = Field(..., alias="tid")
+    users: list[RawStrictEthereumAddressStrHL] = Field(..., alias="users")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
 

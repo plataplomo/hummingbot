@@ -785,6 +785,10 @@ class DataHandler:
 
     # --- Connection Management ---
 
+    async def stop(self) -> None:
+        """Stop the data handler gracefully."""
+        await self.shutdown()
+
     async def shutdown(self) -> None:
         """Stop all WebSocket connections and associated tasks."""
         logger.info("Stopping WebSocket connections...")
