@@ -52,8 +52,8 @@ class TestBackpackMarginBalancesPositive:
         assert account_summary.timestamp is not None
 
         # Core fields should be populated
-        assert account_summary.total_equity >= Decimal("0")
-        assert account_summary.available_equity >= Decimal("0")
+        assert account_summary.total_equity >= Decimal(0)
+        assert account_summary.available_equity >= Decimal(0)
 
         # Backpack-specific details should exist
         assert account_summary.bp_details is not None
@@ -64,16 +64,18 @@ class TestBackpackMarginBalancesPositive:
 
         # Check enhanced equity breakdown
         if bp_details.assets_value is not None:
-            assert bp_details.assets_value >= Decimal("0")
+            assert bp_details.assets_value >= Decimal(0)
 
         if bp_details.liabilities_value is not None:
-            assert bp_details.liabilities_value >= Decimal("0")
+            assert bp_details.liabilities_value >= Decimal(0)
 
         # Equity calculation consistency
         if bp_details.assets_value is not None and bp_details.liabilities_value is not None:
             calculated_equity = bp_details.assets_value - bp_details.liabilities_value
             assert is_within_tolerance(
-                account_summary.total_equity, calculated_equity, tolerance=SMALL_VALUE_TOLERANCE
+                account_summary.total_equity,
+                calculated_equity,
+                tolerance=SMALL_VALUE_TOLERANCE,
             ), (
                 f"Large discrepancy between total_equity ({account_summary.total_equity}) "
                 f"and calculated equity ({calculated_equity})"
@@ -180,7 +182,7 @@ class TestBackpackMarginBalancesPositive:
         if positions:
             # If we have positions, certain fields should be populated
             assert account_summary.total_position_notional is not None
-            assert account_summary.total_position_notional >= Decimal("0")
+            assert account_summary.total_position_notional >= Decimal(0)
 
             # Calculate expected total notional
             expected_notional = Decimal(
@@ -188,7 +190,7 @@ class TestBackpackMarginBalancesPositive:
                     abs(pos.size * pos.mark_price)
                     for pos in positions
                     if pos.size != 0 and pos.mark_price is not None
-                )
+                ),
             )
 
             # Allow for small differences due to price movements
@@ -196,7 +198,7 @@ class TestBackpackMarginBalancesPositive:
                 assert is_within_tolerance(
                     account_summary.total_position_notional,
                     expected_notional,
-                    tolerance_percent=Decimal("5"),  # 5% tolerance for price movements
+                    tolerance_percent=Decimal(5),  # 5% tolerance for price movements
                 ), (
                     f"Large notional discrepancy: "
                     f"account={account_summary.total_position_notional}, "
@@ -205,10 +207,10 @@ class TestBackpackMarginBalancesPositive:
 
             # Check margin requirements
             if account_summary.total_initial_margin_required is not None:
-                assert account_summary.total_initial_margin_required >= Decimal("0")
+                assert account_summary.total_initial_margin_required >= Decimal(0)
 
             if account_summary.total_maintenance_margin_required is not None:
-                assert account_summary.total_maintenance_margin_required >= Decimal("0")
+                assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
             # Initial margin should be >= maintenance margin
             if (
@@ -243,7 +245,7 @@ class TestBackpackMarginBalancesPositive:
             # or when liabilities exceed a certain threshold relative to equity.
             # It appears to be calculated as a ratio where higher values indicate higher risk.
             # Values > 1 are valid and indicate leveraged positions or high margin usage.
-            assert margin_fraction >= Decimal("0"), (
+            assert margin_fraction >= Decimal(0), (
                 f"Margin fraction should be non-negative, got {margin_fraction}"
             )
 
@@ -251,14 +253,14 @@ class TestBackpackMarginBalancesPositive:
             logger.info(
                 f"Margin fraction from API: {margin_fraction}, "
                 f"Maintenance margin: {account_summary.total_maintenance_margin_required}, "
-                f"Total equity: {account_summary.total_equity}"
+                f"Total equity: {account_summary.total_equity}",
             )
 
             # If margin fraction is > 1, it indicates leverage or high margin usage
-            if margin_fraction > Decimal("1"):
+            if margin_fraction > Decimal(1):
                 logger.info(
                     "Margin fraction > 1 indicates leveraged position or "
-                    f"high margin usage: {margin_fraction}"
+                    f"high margin usage: {margin_fraction}",
                 )
 
         # Available equity should account for margin requirements
@@ -304,7 +306,7 @@ class TestBackpackMarginBalancesPositive:
 
             # Check collateral weight
             collateral_weight = Decimal(asset.get("collateralWeight", "0"))
-            assert Decimal("0") <= collateral_weight <= Decimal("1")
+            assert Decimal(0) <= collateral_weight <= Decimal(1)
 
             # Stablecoins typically have weight of 1, but only if they're the asset itself
             # not if they're part of a trading pair symbol
@@ -313,7 +315,7 @@ class TestBackpackMarginBalancesPositive:
                 # Only check weight=1 if there's actual balance
                 balance_notional = Decimal(asset.get("balanceNotional", "0"))
                 if balance_notional > 0:
-                    assert collateral_weight == Decimal("1"), (
+                    assert collateral_weight == Decimal(1), (
                         f"Expected stablecoin {symbol} to have collateral weight of 1, "
                         f"got {collateral_weight}"
                     )
@@ -325,7 +327,9 @@ class TestBackpackMarginBalancesPositive:
             if balance_notional > 0:
                 expected_collateral = balance_notional * collateral_weight
                 assert is_within_tolerance(
-                    collateral_value, expected_collateral, tolerance=COLLATERAL_VALUE_TOLERANCE
+                    collateral_value,
+                    expected_collateral,
+                    tolerance=COLLATERAL_VALUE_TOLERANCE,
                 ), (
                     f"Collateral value mismatch for {symbol}: "
                     f"value={collateral_value}, "

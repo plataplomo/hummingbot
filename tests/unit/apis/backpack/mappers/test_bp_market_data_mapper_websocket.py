@@ -551,7 +551,8 @@ class TestWebSocketTradeEventTransformation:
         # The mapper should raise TransformationError for zero values since
         # Trade model validates price > 0 and quantity > 0
         with pytest.raises(
-            TransformationError, match="Failed to transform BackpackRawPublicTradeEvent"
+            TransformationError,
+            match="Failed to transform BackpackRawPublicTradeEvent",
         ):
             mapper.transform_ws_trade_event_to_internal(raw_trade)
 

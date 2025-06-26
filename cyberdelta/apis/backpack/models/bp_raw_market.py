@@ -212,7 +212,7 @@ class BackpackRawOrderBook(BaseModel):
         # More detailed structural assertions (e.g., on v[0]) are omitted here;
         # Pydantic's subsequent validation on element types is comprehensive.
 
-        return cast(list[tuple[str, str]], v)
+        return cast("list[tuple[str, str]]", v)
 
 
 # --- Raw WebSocket Event Models ---
@@ -265,14 +265,14 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         if not is_sequence_of_any(v):
             raise TypeError("Must be a sequence (list or tuple)")
 
-        v_seq = cast(Sequence[object], v)
+        v_seq = cast("Sequence[object]", v)
 
         processed_levels: list[tuple[object, object]] = []
         for level_item_raw_obj in v_seq:
             if not is_sequence_of_any(level_item_raw_obj):
                 raise TypeError("Each item must be a sequence (list or tuple)")
 
-            level_item_seq = cast(Sequence[object], level_item_raw_obj)
+            level_item_seq = cast("Sequence[object]", level_item_raw_obj)
 
             if len(level_item_seq) != 2:
                 raise ValueError("length 2")

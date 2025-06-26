@@ -77,8 +77,8 @@ class DerivativePosition(BaseModel):
     entry_price: Decimal | None = Field(default=None)  # Validated > 0 if size != 0 later
     timestamp: datetime  # Required, UTC
     # --- Optional Core Fields ---
-    mark_price: Decimal | None = Field(default=None, ge=Decimal("0"))
-    liquidation_price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    mark_price: Decimal | None = Field(default=None, ge=Decimal(0))
+    liquidation_price: Decimal | None = Field(default=None, ge=Decimal(0))
     unrealized_pnl: Decimal | None = None  # Can be negative
     realized_pnl: Decimal | None = None  # Can be negative
     strategy_name: str | None = None
@@ -125,7 +125,7 @@ class DerivativePosition(BaseModel):
     @classmethod
     def parse_required_decimal(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal ('size'), ensuring finite."""
@@ -153,7 +153,7 @@ class DerivativePosition(BaseModel):
     @classmethod
     def parse_optional_decimal(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimals, ensuring finite if present."""
@@ -171,7 +171,7 @@ class DerivativePosition(BaseModel):
     @classmethod
     def parse_required_datetime(
         cls,
-        v: str | int | float | datetime | None,
+        v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
@@ -189,7 +189,7 @@ class DerivativePosition(BaseModel):
 
     def is_active(self) -> bool:
         """Check if the position has a non-zero size."""
-        return self.size != Decimal("0")
+        return self.size != Decimal(0)
 
     # --- Model Validators ---
 
@@ -203,20 +203,19 @@ class DerivativePosition(BaseModel):
 
     def _validate_entry_price_logic(self) -> None:
         """Validate entry price consistency with position size."""
-        if self.size != Decimal("0"):
+        if self.size != Decimal(0):
             if self.entry_price is None:
                 raise ValueError("entry_price must be provided if size is non-zero")
-            if self.entry_price <= Decimal("0"):
+            if self.entry_price <= Decimal(0):
                 raise ValueError("entry_price must be positive (> 0) if size is non-zero")
-        else:  # size == 0
-            if self.entry_price is not None:
-                raise ValueError("entry_price must be None if size is zero")
+        elif self.entry_price is not None:
+            raise ValueError("entry_price must be None if size is zero")
 
     def _validate_side_size_logic(self) -> None:
         """Validate side consistency with position size."""
-        if self.size > Decimal("0") and self.side != OrderSide.BUY:
+        if self.size > Decimal(0) and self.side != OrderSide.BUY:
             raise ValueError("side must be BUY if size is positive")
-        if self.size < Decimal("0") and self.side != OrderSide.SELL:
+        if self.size < Decimal(0) and self.side != OrderSide.SELL:
             raise ValueError("side must be SELL if size is negative")
 
     def _validate_extension_slot_consistency(self) -> None:
@@ -250,7 +249,7 @@ class HyperliquidPositionDetails(BaseModel):
     leverage_type: str = Field(...)  # 'cross' or 'isolated'
     leverage_value: int = Field(..., ge=0)
     max_leverage: int = Field(..., ge=0)
-    margin_used: Decimal | None = Field(default=None, ge=Decimal("0"))
+    margin_used: Decimal | None = Field(default=None, ge=Decimal(0))
 
     # Config: Immutable, ignore extra fields during creation
     model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
@@ -285,7 +284,7 @@ class HyperliquidPositionDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(  # Renamed for clarity
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
@@ -323,7 +322,7 @@ class BackpackPositionDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(  # Renamed for clarity and consistency
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""

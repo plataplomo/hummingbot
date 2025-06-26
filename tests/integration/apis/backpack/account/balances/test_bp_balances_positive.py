@@ -30,7 +30,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/balances_positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/balances_positive"],
+    indirect=True,
 )
 class TestBackpackBalancesPositive:
     """Test balance retrieval when account has positive balances."""
@@ -58,10 +60,10 @@ class TestBackpackBalancesPositive:
 
             # For positive balance tests, total should be > 0 for at least one asset
             assert isinstance(balance.total_quantity, Decimal)
-            assert balance.total_quantity >= Decimal("0")
+            assert balance.total_quantity >= Decimal(0)
 
             assert isinstance(balance.available_quantity, Decimal)
-            assert balance.available_quantity >= Decimal("0")
+            assert balance.available_quantity >= Decimal(0)
             assert balance.available_quantity <= balance.total_quantity
 
             # Check timestamp
@@ -74,7 +76,7 @@ class TestBackpackBalancesPositive:
             assert isinstance(balance.bp_details, BackpackSpotBalanceDetails)
 
         # Ensure we have at least one positive balance
-        positive_balances = [b for b in balances.values() if b.total_quantity > Decimal("0")]
+        positive_balances = [b for b in balances.values() if b.total_quantity > Decimal(0)]
         assert len(positive_balances) > 0, "Expected at least one positive balance"
 
     @pytest.mark.vcr
@@ -89,10 +91,10 @@ class TestBackpackBalancesPositive:
 
         usdc_balance = balances.get("USDC")
         assert usdc_balance is not None, "Expected USDC balance to be present"
-        assert usdc_balance.total_quantity >= Decimal("0")
+        assert usdc_balance.total_quantity >= Decimal(0)
 
         # For an active trading account, USDC should have some balance
-        if usdc_balance.total_quantity > Decimal("0"):
+        if usdc_balance.total_quantity > Decimal(0):
             # Verify balance details
             assert usdc_balance.bp_details is not None
 
@@ -101,7 +103,7 @@ class TestBackpackBalancesPositive:
 
             # Locked amount = total - available
             locked_amount = usdc_balance.total_quantity - usdc_balance.available_quantity
-            assert locked_amount >= Decimal("0")
+            assert locked_amount >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -150,7 +152,7 @@ class TestBackpackBalancesPositive:
             # If present, should be zero or small amount
             assert isinstance(doge_balance, SpotBalance)
             assert doge_balance.asset == "DOGE"
-            assert doge_balance.total_quantity >= Decimal("0")
+            assert doge_balance.total_quantity >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -166,14 +168,14 @@ class TestBackpackBalancesPositive:
         locked_balances = [
             b
             for b in balances.values()
-            if b.total_quantity > Decimal("0") and b.available_quantity < b.total_quantity
+            if b.total_quantity > Decimal(0) and b.available_quantity < b.total_quantity
         ]
 
         if locked_balances:
             # If we have locked balances, verify the details
             for balance in locked_balances:
                 locked_amount = balance.total_quantity - balance.available_quantity
-                assert locked_amount > Decimal("0")
+                assert locked_amount > Decimal(0)
 
                 # bp_details might have open_order_quantity which represents locked in orders
                 if balance.bp_details and hasattr(balance.bp_details, "open_order_quantity"):
@@ -195,7 +197,7 @@ class TestBackpackBalancesPositive:
         for balance in balances.values():
             if balance.bp_details and hasattr(balance.bp_details, "lend_quantity"):
                 lend_qty = balance.bp_details.lend_quantity
-                if lend_qty is not None and lend_qty > Decimal("0"):
+                if lend_qty is not None and lend_qty > Decimal(0):
                     # Lend quantity represents autostaked amount
                     # Note: In the current implementation, lend_quantity is not populated
                     # from the /api/v1/capital endpoint, only from /api/v1/capital/collateral
@@ -212,7 +214,7 @@ class TestBackpackBalancesPositive:
         balances = await bp_api_for_test_env.get_balances()
 
         for balance in balances.values():
-            if balance.total_quantity > Decimal("0"):
+            if balance.total_quantity > Decimal(0):
                 # Check that decimal precision is maintained
                 total_str = str(balance.total_quantity)
                 available_str = str(balance.available_quantity)
@@ -233,7 +235,7 @@ class TestBackpackBalancesPositive:
         return any(
             balance.bp_details
             and balance.bp_details.lend_quantity
-            and balance.bp_details.lend_quantity > Decimal("0")
+            and balance.bp_details.lend_quantity > Decimal(0)
             for balance in balances.values()
         )
 
@@ -250,7 +252,7 @@ class TestBackpackBalancesPositive:
             if balance.asset in ["USDC", "USDT"]
         )
 
-        if total_balance_value > Decimal("0"):
+        if total_balance_value > Decimal(0):
             # For accounts with non-USD assets (like SOL), equity includes their USD value
             # So equity will be higher than just USD balances
             assert account_summary.total_equity >= total_balance_value * Decimal("0.9"), (
@@ -261,10 +263,10 @@ class TestBackpackBalancesPositive:
             # Log for debugging
             logger.debug(
                 f"Auto-lending detected - Account Equity: {account_summary.total_equity}, "
-                f"USD Balances: {total_balance_value}"
+                f"USD Balances: {total_balance_value}",
             )
             for asset, balance in balances.items():
-                if balance.total_quantity > Decimal("0"):
+                if balance.total_quantity > Decimal(0):
                     lend_qty = balance.bp_details.lend_quantity if balance.bp_details else None
                     logger.debug(f"  {asset}: {balance.total_quantity} (lent: {lend_qty})")
 
@@ -275,7 +277,7 @@ class TestBackpackBalancesPositive:
     ) -> None:
         """Validate balances in normal (non-auto-lending) scenario."""
         # 1. Total equity must be non-negative
-        assert account_summary.total_equity >= Decimal("0"), (
+        assert account_summary.total_equity >= Decimal(0), (
             f"Total equity cannot be negative: {account_summary.total_equity}"
         )
 
@@ -287,7 +289,7 @@ class TestBackpackBalancesPositive:
         )
 
         # 3. Equity must be at least equal to stablecoin balances
-        if total_stablecoin_balance > Decimal("0"):
+        if total_stablecoin_balance > Decimal(0):
             assert account_summary.total_equity >= total_stablecoin_balance * Decimal("0.999"), (
                 f"Account equity ({account_summary.total_equity}) is less than "
                 f"stablecoin balances ({total_stablecoin_balance}). "
@@ -300,11 +302,11 @@ class TestBackpackBalancesPositive:
             for asset, balance in balances.items()
             if (
                 asset not in ["USDC", "USDT", "BUSD", "DAI", "TUSD"]
-                and balance.total_quantity > Decimal("0")
+                and balance.total_quantity > Decimal(0)
             )
         ]
 
-        if non_stablecoin_assets and total_stablecoin_balance > Decimal("0"):
+        if non_stablecoin_assets and total_stablecoin_balance > Decimal(0):
             logger.debug(f"Non-stablecoin assets held: {non_stablecoin_assets}")
             logger.debug(f"Total equity: {account_summary.total_equity}")
             logger.debug(f"Stablecoin balance: {total_stablecoin_balance}")
@@ -322,16 +324,16 @@ class TestBackpackBalancesPositive:
     def _validate_derivatives(self, account_summary: MarginAccountSummary) -> None:
         """Validate derivative-related fields in account summary."""
         if account_summary.total_position_notional is not None:
-            assert account_summary.total_position_notional >= Decimal("0"), (
+            assert account_summary.total_position_notional >= Decimal(0), (
                 f"Position notional cannot be negative: {account_summary.total_position_notional}"
             )
 
             # If we have positions, check that margin requirements make sense
-            if account_summary.total_position_notional > Decimal("0"):
+            if account_summary.total_position_notional > Decimal(0):
                 assert account_summary.total_initial_margin_required is not None, (
                     "Account has positions but no initial margin reported"
                 )
-                assert account_summary.total_initial_margin_required > Decimal("0"), (
+                assert account_summary.total_initial_margin_required > Decimal(0), (
                     f"Positive position notional ({account_summary.total_position_notional}) "
                     f"but zero/negative initial margin "
                     f"({account_summary.total_initial_margin_required})"

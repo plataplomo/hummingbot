@@ -294,7 +294,7 @@ class TestStrategyParamsHLPerpBPSpot:
                 "min_profit_usd": 10,
             },
         )
-        assert params.funding_threshold == Decimal("1")
+        assert params.funding_threshold == Decimal(1)
 
         # From float
         params = StrategyParamsHLPerpBPSpot.model_validate(

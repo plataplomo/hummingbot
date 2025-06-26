@@ -161,7 +161,10 @@ class HyperliquidAssetIndexResolver:
             ) from e_req
 
     def _process_response(
-        self, raw_response_content: ParsedJsonResponse | None, status_code: int, symbol: str
+        self,
+        raw_response_content: ParsedJsonResponse | None,
+        status_code: int,
+        symbol: str,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Process and validate the API response."""
         if raw_response_content is None:
@@ -224,11 +227,10 @@ class HyperliquidAssetIndexResolver:
         """Get the index from cache or raise an error if not found."""
         if symbol in self._asset_to_index_cache:
             return self._asset_to_index_cache[symbol]
-        else:
-            self.logger.error(
-                f"[{self._exchange_name_for_log}] Asset index for {symbol} not found after fetch.",
-            )
-            raise APIError(
-                f"Asset index for symbol '{symbol}' not found.",
-                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-            )
+        self.logger.error(
+            f"[{self._exchange_name_for_log}] Asset index for {symbol} not found after fetch.",
+        )
+        raise APIError(
+            f"Asset index for symbol '{symbol}' not found.",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+        )

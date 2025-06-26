@@ -121,7 +121,7 @@ class TestBackpackAccountServiceTransfers:
     ) -> None:
         """Test public transfer handles APIError raised by the http_client_requester."""
         asset = "USDC"
-        amount = Decimal("50")
+        amount = Decimal(50)
         from_account = "SPOT"
         to_account = "FUTURES"
         api_error_instance = APIError("Requester failed", code=APIErrorCode.SERVER_ERROR.value)

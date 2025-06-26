@@ -123,7 +123,7 @@ class RealTimeDashboard:
                                                 dcc.RadioItems(
                                                     id="time-range-selector",
                                                     options=cast(
-                                                        Any,
+                                                        "Any",
                                                         [
                                                             {"label": "1 Hour", "value": "1h"},
                                                             {"label": "1 Day", "value": "1d"},
@@ -565,7 +565,7 @@ class RealTimeDashboard:
                 className="small",
             )
 
-            return cast(Component, table)
+            return cast("Component", table)
 
     def _get_returns_data(self, strategies: list[str], time_range: str) -> pd.DataFrame:
         """Get returns data for selected strategies and time range.
@@ -583,7 +583,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return cast(pd.DataFrame, self.data_cache[cache_key])
+            return cast("pd.DataFrame", self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -626,7 +626,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return cast(pd.DataFrame, self.data_cache[cache_key])
+            return cast("pd.DataFrame", self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -668,7 +668,7 @@ class RealTimeDashboard:
 
         # Check if data is in cache and still fresh
         if cache_key in self.data_cache:
-            return cast(pd.DataFrame, self.data_cache[cache_key])
+            return cast("pd.DataFrame", self.data_cache[cache_key])
 
         # Get time range
         end_time = datetime.now(UTC)
@@ -706,9 +706,8 @@ class RealTimeDashboard:
             self.server_thread = threading.Thread(target=self._run_server, daemon=True)
             self.server_thread.start()
             return self.server_thread
-        else:
-            self._run_server()
-            return None
+        self._run_server()
+        return None
 
     def _run_server(self) -> None:
         """Run the dashboard server."""
@@ -749,5 +748,4 @@ def launch_dashboard(
 
     if use_threading:
         return dashboard, thread
-    else:
-        return dashboard
+    return dashboard

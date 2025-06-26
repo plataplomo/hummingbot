@@ -43,7 +43,9 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
         if state_file_path is None:
             # Use default path from config if available
             state_file_path = getattr(
-                self.app_settings.general, "portfolio_state_file", "data/portfolio_state.json"
+                self.app_settings.general,
+                "portfolio_state_file",
+                "data/portfolio_state.json",
             )
 
         # Ensure state_file_path is not None for type checker
@@ -113,7 +115,9 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
         # Determine load path
         if state_file_path is None:
             state_file_path = getattr(
-                self.app_settings.general, "portfolio_state_file", "data/portfolio_state.json"
+                self.app_settings.general,
+                "portfolio_state_file",
+                "data/portfolio_state.json",
             )
 
         # Ensure state_file_path is not None for type checker
@@ -246,7 +250,7 @@ def patch_portfolio_tracker() -> None:
 
     # Replace the placeholder methods with our async implementations
     # Cast to Any to satisfy type checker, then assign methods
-    pt_any = cast(Any, PortfolioTracker)
+    pt_any = cast("Any", PortfolioTracker)
     pt_any.save_state = save_state
     pt_any.load_state = load_state
 

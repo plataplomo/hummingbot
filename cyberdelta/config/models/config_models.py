@@ -67,7 +67,7 @@ class GeneralSettings(BaseModel):
 
     @field_validator("log_level", mode="before")
     @classmethod
-    def _validate_log_level(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+    def _validate_log_level(cls, v: str | float | bool, info: ValidationInfo) -> str:
         return validate_enum_field(
             v,
             allowed={"INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"},
@@ -78,7 +78,7 @@ class GeneralSettings(BaseModel):
     @classmethod
     def _validate_module_log_levels(
         cls,
-        v: dict[str, str] | list[str] | str | int | float | bool | None,
+        v: dict[str, str] | list[str] | str | float | bool | None,
         info: ValidationInfo,
     ) -> dict[str, str] | None:
         """Validate module_log_levels dictionary structure and values."""
@@ -247,7 +247,7 @@ class ExchangeSpecificConfig(BaseModel):
     @classmethod
     def _validate_url_strings(
         cls,
-        v: str | int | float | bool | None | HttpUrl | AnyUrl,
+        v: str | float | bool | None | HttpUrl | AnyUrl,
         info: ValidationInfo,
     ) -> str | None:
         # Testnet URLs can be None
@@ -263,7 +263,7 @@ class ExchangeSpecificConfig(BaseModel):
     @classmethod
     def _validate_symbols_dict(
         cls,
-        v: dict[str, str] | list[str] | str | int | float | bool,
+        v: dict[str, str] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, str]:
         if not isinstance(v, dict):
@@ -363,8 +363,8 @@ class GlobalRiskSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    max_position_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
-    max_total_exposure_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
+    max_position_usd: ConfigDecimal = Field(..., gt=Decimal(0))
+    max_total_exposure_usd: ConfigDecimal = Field(..., gt=Decimal(0))
 
 
 class RiskSettings(BaseModel):
@@ -375,12 +375,12 @@ class RiskSettings(BaseModel):
     global_risk: GlobalRiskSettings = Field(..., alias="global")
     use_simple_sizing_path: bool = True
     simple_sizing_method: Literal["fixed_usd", "fixed_fraction"] = "fixed_fraction"
-    simple_fixed_fraction: ConfigDecimal = Field(Decimal("0.1"), gt=Decimal("0"), lt=Decimal("1"))
-    simple_fixed_usd_size: ConfigDecimal = Field(Decimal("10.0"), gt=Decimal("0"))
+    simple_fixed_fraction: ConfigDecimal = Field(Decimal("0.1"), gt=Decimal(0), lt=Decimal(1))
+    simple_fixed_usd_size: ConfigDecimal = Field(Decimal("10.0"), gt=Decimal(0))
 
     @field_validator("simple_sizing_method", mode="before")
     @classmethod
-    def _validate_sizing_method(cls, v: str | int | float | bool, info: ValidationInfo) -> str:
+    def _validate_sizing_method(cls, v: str | float | bool, info: ValidationInfo) -> str:
         return validate_enum_field(
             v,
             allowed={"fixed_usd", "fixed_fraction"},
@@ -394,7 +394,7 @@ class ExecutionCompensationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     use_limit_orders: bool = True
-    limit_price_offset_pct: ConfigDecimal = Field(Decimal("0.05"), ge=Decimal("0"))
+    limit_price_offset_pct: ConfigDecimal = Field(Decimal("0.05"), ge=Decimal(0))
 
 
 class ExecutionSettings(BaseModel):
@@ -402,10 +402,10 @@ class ExecutionSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    max_slippage_pct: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
+    max_slippage_pct: ConfigDecimal = Field(..., gt=Decimal(0), lt=Decimal(1))
     max_retries: int = Field(3, gt=0)
-    retry_delay_base_sec: ConfigDecimal = Field(Decimal("1.0"), gt=Decimal("0"))
-    settlement_delay: ConfigDecimal = Field(Decimal("2.0"), ge=Decimal("0"))
+    retry_delay_base_sec: ConfigDecimal = Field(Decimal("1.0"), gt=Decimal(0))
+    settlement_delay: ConfigDecimal = Field(Decimal("2.0"), ge=Decimal(0))
     compensation: ExecutionCompensationSettings
 
 
@@ -428,7 +428,7 @@ class PositionReconciliationSettings(BaseModel):
 
     enabled: bool = True
     check_interval_sec: int = Field(600, gt=0)
-    max_discrepancy_pct: ConfigDecimal = Field(Decimal("0.01"), ge=Decimal("0"), lt=Decimal("1"))
+    max_discrepancy_pct: ConfigDecimal = Field(Decimal("0.01"), ge=Decimal(0), lt=Decimal(1))
 
 
 class BalanceMonitoringSettings(BaseModel):
@@ -444,7 +444,7 @@ class BalanceMonitoringSettings(BaseModel):
     @classmethod
     def _validate_balance_thresholds_keys(
         cls,
-        v: dict[str, str | int | float | Decimal] | list[str] | str | int | float | bool,
+        v: dict[str, str | int | float | Decimal] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, str | int | float | Decimal]:
         """Validate dictionary structure and keys before ConfigDecimal processes values."""
@@ -474,7 +474,7 @@ class BalanceMonitoringSettings(BaseModel):
     ) -> dict[str, Decimal]:
         """Validate that all Decimal values are positive after ConfigDecimal parsing."""
         for key, value in v.items():
-            if value <= Decimal("0"):
+            if value <= Decimal(0):
                 raise ValueError(
                     f"Field '{info.field_name or 'min_balance_thresholds_usd'}.{key}': "
                     f"Balance threshold must be positive, got {value}.",
@@ -517,7 +517,7 @@ class MonitoringSettings(BaseModel):
     @classmethod
     def _validate_alert_methods(
         cls,
-        v: list[str | int | float | bool] | str | int | float | bool,
+        v: list[str | int | float | bool] | str | float | bool,
         info: ValidationInfo,
     ) -> list[str]:
         if not isinstance(v, list):
@@ -551,7 +551,7 @@ class PortfolioTrackerConfig(BaseModel):
 
     data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
     initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    initial_positions: list[dict[str, Any]] = Field(default_factory=lambda: [])
+    initial_positions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AppSettings(BaseModel):
@@ -572,7 +572,7 @@ class AppSettings(BaseModel):
     @classmethod
     def _validate_exchanges_dict(
         cls,
-        v: dict[str, dict[str, str | int | float | bool]] | list[str] | str | int | float | bool,
+        v: dict[str, dict[str, str | int | float | bool]] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, dict[str, str | int | float | bool]]:
         if not isinstance(v, dict):

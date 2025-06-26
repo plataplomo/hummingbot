@@ -45,7 +45,7 @@ async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
         if not spot_symbols:
             raise RuntimeError(
                 "No spot symbols available from exchange. "
-                "WebSocket tests require real trading symbols."
+                "WebSocket tests require real trading symbols.",
             )
 
         return spot_symbols[:3]  # Return first 3 for testing
@@ -53,7 +53,7 @@ async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
     except Exception as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
-            "WebSocket tests require real market data and cannot use hardcoded symbols."
+            "WebSocket tests require real market data and cannot use hardcoded symbols.",
         ) from e
 
 
@@ -70,7 +70,9 @@ async def get_websocket_topics_for_symbol(symbol: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/basic"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/basic"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketBasicOperations:
     """Test basic WebSocket operations using real market data."""
@@ -91,7 +93,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         if not available_symbols:
             pytest.fail(
                 "No trading symbols available from exchange. "
-                "WebSocket functionality requires real market symbols."
+                "WebSocket functionality requires real market symbols.",
             )
 
         test_symbol = available_symbols[0]
@@ -108,7 +110,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         except Exception as e:
             pytest.fail(
                 f"WebSocket subscription failed for real symbol {test_symbol}: {e}. "
-                "WebSocket operations are critical and must work reliably."
+                "WebSocket operations are critical and must work reliably.",
             )
 
     @pytest.mark.vcr
@@ -126,7 +128,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         if len(available_symbols) < 2:
             pytest.fail(
                 f"Need at least 2 trading symbols, got {len(available_symbols)}. "
-                "WebSocket tests require multiple real market symbols."
+                "WebSocket tests require multiple real market symbols.",
             )
 
         async def handler1(message: dict[str, Any], full_message: dict[str, Any]) -> None:
@@ -146,7 +148,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         except Exception as e:
             pytest.fail(
                 f"Multiple WebSocket subscriptions failed: {e}. "
-                "Multi-symbol WebSocket operations are critical for trading."
+                "Multi-symbol WebSocket operations are critical for trading.",
             )
 
     @pytest.mark.vcr
@@ -184,18 +186,20 @@ class TestBackpackAPIWebSocketBasicOperations:
 
             logger.info(
                 f"✓ Connection status validation passed: "
-                f"{initial_status} -> {after_subscription_status}"
+                f"{initial_status} -> {after_subscription_status}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"WebSocket connection status validation failed: {e}. "
-                "Connection state tracking is critical for trading operations."
+                "Connection state tracking is critical for trading operations.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/lifecycle"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/lifecycle"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketLifecycle:
     """Test WebSocket connection lifecycle with real operations."""
@@ -227,12 +231,13 @@ class TestBackpackAPIWebSocketLifecycle:
         except Exception as e:
             pytest.fail(
                 f"Subscription lifecycle failed for {test_symbol}: {e}. "
-                "WebSocket subscription is a critical trading operation."
+                "WebSocket subscription is a critical trading operation.",
             )
 
         # Test handler replacement with same topic
         async def replacement_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             logger.info(f"Replacement handler: {message}")
 
@@ -242,7 +247,7 @@ class TestBackpackAPIWebSocketLifecycle:
         except Exception as e:
             pytest.fail(
                 f"Handler replacement failed for {test_symbol}: {e}. "
-                "WebSocket handler management is critical for real-time data."
+                "WebSocket handler management is critical for real-time data.",
             )
 
     @pytest.mark.vcr
@@ -260,7 +265,7 @@ class TestBackpackAPIWebSocketLifecycle:
         if len(available_symbols) < 3:
             pytest.fail(
                 f"Need at least 3 symbols for concurrent testing, got {len(available_symbols)}. "
-                "Concurrent WebSocket operations require multiple real symbols."
+                "Concurrent WebSocket operations require multiple real symbols.",
             )
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
@@ -277,17 +282,19 @@ class TestBackpackAPIWebSocketLifecycle:
         try:
             await asyncio.gather(*[task for _, task in subscription_tasks])
             logger.info(
-                f"✓ Concurrent subscriptions successful for {len(subscription_tasks)} symbols"
+                f"✓ Concurrent subscriptions successful for {len(subscription_tasks)} symbols",
             )
         except Exception as e:
             pytest.fail(
                 f"Concurrent WebSocket subscriptions failed: {e}. "
-                "Concurrent operations are critical for multi-asset trading."
+                "Concurrent operations are critical for multi-asset trading.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/edge_cases"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/edge_cases"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketEdgeCases:
     """Test WebSocket edge cases with proper error handling."""
@@ -332,7 +339,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 if "connection" in str(e).lower() or "network" in str(e).lower():
                     pytest.fail(
                         f"Network/connection error during invalid topic test {invalid_topic}: {e}. "
-                        "Network issues should not occur during topic validation."
+                        "Network issues should not occur during topic validation.",
                     )
                 else:
                     # API validation errors are acceptable
@@ -364,7 +371,7 @@ class TestBackpackAPIWebSocketEdgeCases:
             # Connection failures should fail the test
             pytest.fail(
                 f"WebSocket connection establishment failed: {e}. "
-                "WebSocket connectivity is critical for real-time trading data."
+                "WebSocket connectivity is critical for real-time trading data.",
             )
 
     @pytest.mark.vcr
@@ -396,13 +403,13 @@ class TestBackpackAPIWebSocketEdgeCases:
             assert isinstance(final_state, bool), "Final connection state should be boolean"
 
             logger.info(
-                f"✓ Subscription -> connection sequence completed, final state: {final_state}"
+                f"✓ Subscription -> connection sequence completed, final state: {final_state}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Subscription-connection sequence failed: {e}. "
-                "Sequential WebSocket operations are critical for trading setup."
+                "Sequential WebSocket operations are critical for trading setup.",
             )
 
     @pytest.mark.vcr
@@ -436,11 +443,11 @@ class TestBackpackAPIWebSocketEdgeCases:
                 )
 
             logger.info(
-                f"✓ Rapid subscription operations completed: {rapid_subscription_count} operations"
+                f"✓ Rapid subscription operations completed: {rapid_subscription_count} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Rapid subscription operations failed: {e}. "
-                "High-frequency WebSocket operations are critical for trading systems."
+                "High-frequency WebSocket operations are critical for trading systems.",
             )

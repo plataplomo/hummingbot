@@ -341,7 +341,9 @@ class PortfolioTracker:
             return False
 
     def _process_balances_data(
-        self, exchange_id: str, balances_data: dict[str, SpotBalance]
+        self,
+        exchange_id: str,
+        balances_data: dict[str, SpotBalance],
     ) -> dict[str, SpotBalance]:
         """Process raw balances data and filter valid balances."""
         updated_balances: dict[str, SpotBalance] = {}
@@ -376,7 +378,9 @@ class PortfolioTracker:
         return updated_balances
 
     async def _update_balances_state(
-        self, exchange_id: str, updated_balances: dict[str, SpotBalance]
+        self,
+        exchange_id: str,
+        updated_balances: dict[str, SpotBalance],
     ) -> None:
         """Update internal balances state with new data."""
         async with self._lock:
@@ -423,7 +427,9 @@ class PortfolioTracker:
                 )
 
     def _handle_empty_balances(
-        self, exchange_id: str, balances_data: dict[str, SpotBalance]
+        self,
+        exchange_id: str,
+        balances_data: dict[str, SpotBalance],
     ) -> None:
         """Handle the case when no valid balances were processed."""
         # This implies that balances_data was not None,
@@ -481,7 +487,7 @@ class PortfolioTracker:
             # Pydantic handles parsing 'total', 'available' from str/int/float via validators
             parsed = SpotBalance(**balance_data)
             # Additional runtime checks (redundant with Pydantic ge=0 but defensive)
-            if parsed.total_quantity < Decimal("0") or parsed.available_quantity < Decimal("0"):
+            if parsed.total_quantity < Decimal(0) or parsed.available_quantity < Decimal(0):
                 logger.error(
                     "negative_balance_values",
                     exchange_id=exchange_id,
@@ -511,7 +517,7 @@ class PortfolioTracker:
 
     @staticmethod
     def _safe_decimal_convert(
-        value: str | Decimal | int | float | None,
+        value: str | Decimal | float | None,
         field_name: str,
         asset: str,
         exchange_id: str,
@@ -633,13 +639,13 @@ class PortfolioTracker:
                         "quantity_requested",
                         order_instance.symbol,
                         exchange_id,
-                    ) or Decimal("0")
+                    ) or Decimal(0)
                     order_instance.quantity_filled = self._safe_decimal_convert(
                         order_instance.quantity_filled,
                         "quantity_filled",
                         order_instance.symbol,
                         exchange_id,
-                    ) or Decimal("0")
+                    ) or Decimal(0)
                     if isinstance(order_instance.status, str):
                         try:
                             order_instance.status = OrderStatus(order_instance.status)
@@ -750,7 +756,7 @@ class PortfolioTracker:
         if order.status in [
             OrderStatus.FILLED,
             OrderStatus.PARTIALLY_FILLED,
-        ] and order.quantity_filled > Decimal("0"):
+        ] and order.quantity_filled > Decimal(0):
             logger.info(
                 f"Order {order_id_str} on {exchange_id} is {order.status}. "
                 f"Triggering trade processing (placeholder).",
@@ -861,7 +867,10 @@ class PortfolioTracker:
         return base_symbol
 
     async def _update_position_from_trade(
-        self, exchange_id: str, trade: Trade, base_symbol: str
+        self,
+        exchange_id: str,
+        trade: Trade,
+        base_symbol: str,
     ) -> None:
         """Update position based on trade execution."""
 
@@ -884,7 +893,10 @@ class PortfolioTracker:
                     )
                 else:
                     self._modify_existing_position(
-                        current_position, trade, base_symbol, exchange_id
+                        current_position,
+                        trade,
+                        base_symbol,
+                        exchange_id,
                     )
 
         await _update_position_async()
@@ -940,7 +952,10 @@ class PortfolioTracker:
         self.positions[exchange_id][base_symbol] = current_position
 
     def _increase_position(
-        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+        self,
+        current_position: DerivativePosition,
+        trade: Trade,
+        base_symbol: str,
     ) -> None:
         """Increase an existing position."""
         logger.debug(
@@ -982,7 +997,10 @@ class PortfolioTracker:
         )
 
     def _decrease_or_flip_position(
-        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+        self,
+        current_position: DerivativePosition,
+        trade: Trade,
+        base_symbol: str,
     ) -> None:
         """Decrease or flip an existing position."""
         logger.debug(
@@ -1005,7 +1023,7 @@ class PortfolioTracker:
         current_entry_price: Decimal,
     ) -> Decimal:
         """Calculate realized PnL for the trade."""
-        realized_pnl_for_this_trade = Decimal("0")
+        realized_pnl_for_this_trade = Decimal(0)
 
         if current_entry_price != Decimal(0):  # Avoid PNL calc if entry was 0
             if current_position.side == OrderSide.BUY:  # Closing/reducing a long
@@ -1026,7 +1044,10 @@ class PortfolioTracker:
         return realized_pnl_for_this_trade
 
     def _update_position_size(
-        self, current_position: DerivativePosition, trade: Trade, base_symbol: str
+        self,
+        current_position: DerivativePosition,
+        trade: Trade,
+        base_symbol: str,
     ) -> None:
         """Update position size based on trade."""
         if trade.quantity < abs(current_position.size):
@@ -1077,7 +1098,6 @@ class PortfolioTracker:
             context="_update_balances_from_trade_method",
             message=f"Placeholder: Update balances for trade {trade.id} on {exchange_id}",
         )
-        pass
 
     def _update_realized_pnl(self, amount: Decimal) -> None:
         """Update the total realized PNL."""
@@ -1170,7 +1190,7 @@ class PortfolioTracker:
             for asset, balance in balances.items():
                 # Defensive check for zero quantity
                 # (is None check removed as total_quantity is not Optional)
-                if balance.total_quantity == Decimal("0"):
+                if balance.total_quantity == Decimal(0):
                     continue
 
                 price = await self._get_asset_price_in_base(exchange_id, asset, base_currency)
@@ -1245,7 +1265,7 @@ class PortfolioTracker:
 
         for position_key, position in positions.items():
             # Defensive checks (is None checks removed as size/symbol are not Optional)
-            if position.size == Decimal("0"):
+            if position.size == Decimal(0):
                 continue  # Skip zero size positions
 
             # Get current market price
@@ -1332,12 +1352,19 @@ class PortfolioTracker:
             for position_key, position in positions.items():
                 # Process realized PNL
                 total_realized_pnl = await self._process_position_realized_pnl(
-                    position, position_key, exchange_id, base_currency, total_realized_pnl
+                    position,
+                    position_key,
+                    exchange_id,
+                    base_currency,
+                    total_realized_pnl,
                 )
 
                 # Process unrealized PNL
                 unrealized_pnl = await self._calculate_position_unrealized_pnl(
-                    position, position_key, exchange_id, base_currency
+                    position,
+                    position_key,
+                    exchange_id,
+                    base_currency,
                 )
                 if unrealized_pnl is not None:
                     total_unrealized_pnl += unrealized_pnl
@@ -1416,7 +1443,7 @@ class PortfolioTracker:
         """Calculate unrealized PNL for a single position."""
         # DEFENSIVE CHECK: Check entry_price is not None *before* size check
         # because a non-zero size *requires* a non-None entry_price (model validation)
-        if position.size == Decimal("0") or position.entry_price is None:
+        if position.size == Decimal(0) or position.entry_price is None:
             logger.debug(
                 f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
                 f"due to zero size or missing entry price.",
@@ -1425,7 +1452,9 @@ class PortfolioTracker:
 
         # Get prices in base currency
         mark_price_in_base, entry_price_in_base = await self._get_position_prices_in_base(
-            position, exchange_id, base_currency
+            position,
+            exchange_id,
+            base_currency,
         )
 
         # Calculate unrealized PNL if possible
@@ -1433,7 +1462,10 @@ class PortfolioTracker:
             # DEFENSIVE CHECK: Type narrowing for mypy. Mypy=[unreachable] Ruff=[]
             if mark_price_in_base is not None and entry_price_in_base is not None:
                 return self._compute_unrealized_pnl(
-                    position, mark_price_in_base, entry_price_in_base, exchange_id
+                    position,
+                    mark_price_in_base,
+                    entry_price_in_base,
+                    exchange_id,
                 )
         else:
             logger.warning(
@@ -1448,7 +1480,10 @@ class PortfolioTracker:
         return None
 
     async def _get_position_prices_in_base(
-        self, position: DerivativePosition, exchange_id: str, base_currency: str
+        self,
+        position: DerivativePosition,
+        exchange_id: str,
+        base_currency: str,
     ) -> tuple[Decimal | None, Decimal | None]:
         """Get mark price and entry price converted to base currency."""
         # 1. Get Mark Price in the requested Base Currency
@@ -1473,7 +1508,11 @@ class PortfolioTracker:
         # 4. Convert Entry Price from Quote Currency to Base Currency
         if entry_price_in_quote is not None:
             entry_price_in_base = await self._convert_entry_price_to_base(
-                entry_price_in_quote, quote_currency, base_currency, exchange_id, position.symbol
+                entry_price_in_quote,
+                quote_currency,
+                base_currency,
+                exchange_id,
+                position.symbol,
             )
         else:
             entry_price_in_base = None
@@ -1484,7 +1523,7 @@ class PortfolioTracker:
         """Extract quote currency from symbol."""
         if "-" in symbol:
             return symbol.split("-")[-1]
-        elif "_" in symbol:
+        if "_" in symbol:
             return symbol.split("_")[-1]
         return None
 
@@ -1508,16 +1547,17 @@ class PortfolioTracker:
         )
         if quote_to_base_rate is not None:
             return entry_price_in_quote * quote_to_base_rate
-        else:
-            logger.warning(
-                f"Cannot convert entry price for {symbol} "
-                f"from {quote_currency} to {base_currency}. "
-                f"Skipping unrealized PNL.",
-            )
-            return None
+        logger.warning(
+            f"Cannot convert entry price for {symbol} "
+            f"from {quote_currency} to {base_currency}. "
+            f"Skipping unrealized PNL.",
+        )
+        return None
 
     def _can_calculate_unrealized_pnl(
-        self, mark_price_in_base: Decimal | None, entry_price_in_base: Decimal | None
+        self,
+        mark_price_in_base: Decimal | None,
+        entry_price_in_base: Decimal | None,
     ) -> bool:
         """Check if unrealized PNL can be calculated."""
         return (
@@ -1689,12 +1729,12 @@ class PortfolioTracker:
         if not isinstance(balances_data_get, dict):
             return
 
-        balances_data_typed = cast(dict[str, Any], balances_data_get)
+        balances_data_typed = cast("dict[str, Any]", balances_data_get)
         for ex_id_str, assets_dict_any in balances_data_typed.items():
             if not isinstance(assets_dict_any, dict):
                 continue
 
-            current_assets_items = cast(dict[str, Any], assets_dict_any)
+            current_assets_items = cast("dict[str, Any]", assets_dict_any)
             for k_asset_raw, bal_data_any in current_assets_items.items():
                 asset_str = str(k_asset_raw)
                 cls._process_single_balance(tracker, ex_id_str, asset_str, bal_data_any)
@@ -1733,12 +1773,12 @@ class PortfolioTracker:
         if not isinstance(positions_data_get, dict):
             return
 
-        positions_data_typed = cast(dict[str, Any], positions_data_get)
+        positions_data_typed = cast("dict[str, Any]", positions_data_get)
         for ex_id_str_pos, syms_dict_any in positions_data_typed.items():
             if not isinstance(syms_dict_any, dict):
                 continue
 
-            syms_dict_typed = cast(dict[str, Any], syms_dict_any)
+            syms_dict_typed = cast("dict[str, Any]", syms_dict_any)
             for sym_str, pos_data_any in syms_dict_typed.items():
                 cls._process_single_position(tracker, ex_id_str_pos, sym_str, pos_data_any)
 
@@ -1758,7 +1798,7 @@ class PortfolioTracker:
                     str(k): v for k, v in pos_data_any.items()
                 }
                 tracker.positions[ex_id_str_pos][sym_str] = DerivativePosition.model_validate(
-                    validated_pos_dict_for_model
+                    validated_pos_dict_for_model,
                 )
             except ValidationError as e:
                 logger.error(
@@ -1778,12 +1818,12 @@ class PortfolioTracker:
         if not isinstance(orders_data_get, dict):
             return
 
-        orders_data_typed = cast(dict[str, Any], orders_data_get)
+        orders_data_typed = cast("dict[str, Any]", orders_data_get)
         for ex_id_str_ord, ords_dict_any in orders_data_typed.items():
             if not isinstance(ords_dict_any, dict):
                 continue
 
-            ords_dict_typed = cast(dict[str, Any], ords_dict_any)
+            ords_dict_typed = cast("dict[str, Any]", ords_dict_any)
             for ord_id_str, order_data_any in ords_dict_typed.items():
                 cls._process_single_order(tracker, ex_id_str_ord, ord_id_str, order_data_any)
 
@@ -1829,22 +1869,27 @@ class PortfolioTracker:
         if not isinstance(last_update_data_get, dict):
             return
 
-        last_update_data_typed = cast(dict[str, Any], last_update_data_get)
+        last_update_data_typed = cast("dict[str, Any]", last_update_data_get)
         for ex_id_str_lut, ts_data_any_lut in last_update_data_typed.items():
             cls._process_timestamp(
-                tracker.last_update_time, ex_id_str_lut, ts_data_any_lut, "last_update_time"
+                tracker.last_update_time,
+                ex_id_str_lut,
+                ts_data_any_lut,
+                "last_update_time",
             )
 
     @classmethod
     def _load_last_reconciliation_times(
-        cls, tracker: PortfolioTracker, data: dict[str, Any]
+        cls,
+        tracker: PortfolioTracker,
+        data: dict[str, Any],
     ) -> None:
         """Load last reconciliation times from dictionary."""
         last_reconciliation_data_get = data.get("last_reconciliation_time", {})
         if not isinstance(last_reconciliation_data_get, dict):
             return
 
-        last_reconciliation_data_typed = cast(dict[str, Any], last_reconciliation_data_get)
+        last_reconciliation_data_typed = cast("dict[str, Any]", last_reconciliation_data_get)
         for ex_id_str_lrt, ts_data_any_lrt in last_reconciliation_data_typed.items():
             cls._process_timestamp(
                 tracker.last_reconciliation_time,
@@ -1865,19 +1910,18 @@ class PortfolioTracker:
         try:
             if isinstance(ts_data_any, datetime):
                 target_dict[ex_id_str] = ts_data_any
+            # Ensure ts_data_any is not None before passing to parse_datetime_utc
+            elif ts_data_any is not None:
+                parsed_ts = parse_datetime_utc(
+                    ts_data_any,
+                    field_name=f"{field_name}.{ex_id_str}",
+                )
+                if parsed_ts:
+                    target_dict[ex_id_str] = parsed_ts
             else:
-                # Ensure ts_data_any is not None before passing to parse_datetime_utc
-                if ts_data_any is not None:
-                    parsed_ts = parse_datetime_utc(
-                        ts_data_any,
-                        field_name=f"{field_name}.{ex_id_str}",
-                    )
-                    if parsed_ts:
-                        target_dict[ex_id_str] = parsed_ts
-                else:
-                    logger.warning(
-                        f"Received None for {field_name} for {ex_id_str}, skipping.",
-                    )
+                logger.warning(
+                    f"Received None for {field_name} for {ex_id_str}, skipping.",
+                )
         except Exception as e:
             logger.error(
                 "timestamp_deserialization_error",
@@ -1929,7 +1973,7 @@ class PortfolioTracker:
         active: set[str] = set()
         for positions in self.positions.values():
             for pos in positions.values():
-                if pos.size != Decimal("0"):
+                if pos.size != Decimal(0):
                     active.add(pos.symbol)
         for orders in self.orders.values():
             for order in orders.values():
@@ -1991,9 +2035,8 @@ class PortfolioTracker:
                     if isinstance(order_data_item, dict):
                         if self._process_order_dict(order_data_item, current_orders, exchange_id):
                             updated_count += 1
-                    else:  # order_data_item must be an Order
-                        if self._process_order_object(order_data_item, current_orders, exchange_id):
-                            new_count += 1
+                    elif self._process_order_object(order_data_item, current_orders, exchange_id):
+                        new_count += 1
 
                 self.orders[exchange_id] = current_orders
                 self.logger.info(
@@ -2004,7 +2047,8 @@ class PortfolioTracker:
         asyncio.create_task(_do_parse())
 
     def _prepare_order_items(
-        self, orders_data: list[Order] | dict[str, Any]
+        self,
+        orders_data: list[Order] | dict[str, Any],
     ) -> list[Order | dict[str, Any]]:
         """Prepare order items for processing."""
         items_to_process: list[Order | dict[str, Any]] = []
@@ -2015,7 +2059,7 @@ class PortfolioTracker:
                     items_to_process.append(item_val)
                 elif isinstance(item_val, dict):
                     # Explicitly cast to the expected dict type for the list
-                    items_to_process.append(cast(dict[str, Any], item_val))
+                    items_to_process.append(cast("dict[str, Any]", item_val))
                 else:
                     self.logger.warning(
                         f"Skipping unexpected value type in orders_data dict: {type(item_val)}",
@@ -2027,7 +2071,10 @@ class PortfolioTracker:
         return items_to_process
 
     def _process_order_dict(
-        self, order_dict_data: dict[str, Any], current_orders: dict[str, Order], exchange_id: str
+        self,
+        order_dict_data: dict[str, Any],
+        current_orders: dict[str, Order],
+        exchange_id: str,
     ) -> bool:
         """Process an order from dictionary data. Returns True if successful."""
         try:
@@ -2047,7 +2094,10 @@ class PortfolioTracker:
             return False
 
     def _process_order_object(
-        self, order_obj: Order, current_orders: dict[str, Order], exchange_id: str
+        self,
+        order_obj: Order,
+        current_orders: dict[str, Order],
+        exchange_id: str,
     ) -> bool:
         """Process an order object. Returns True if successful."""
         self._normalize_order_fields(order_obj, exchange_id)
@@ -2068,13 +2118,13 @@ class PortfolioTracker:
             "quantity_requested",
             order.symbol,
             exchange_id,
-        ) or Decimal("0")
+        ) or Decimal(0)
         order.quantity_filled = self._safe_decimal_convert(
             order.quantity_filled,
             "quantity_filled",
             order.symbol,
             exchange_id,
-        ) or Decimal("0")
+        ) or Decimal(0)
 
     def _normalize_order_status(self, order: Order) -> None:
         """Normalize order status field."""
@@ -2116,7 +2166,7 @@ class PortfolioTracker:
         portfolio tracker to its previous state.
         """
         # ... (Implementation as before) ...
-        pass  # Placeholder
+        # Placeholder
 
     async def initialize_portfolio(self) -> None:
         """Initialize portfolio state from exchange APIs.
@@ -2126,7 +2176,7 @@ class PortfolioTracker:
         exchanges to establish the starting state.
         """
         # ... (Implementation as before) ...
-        pass  # Placeholder
+        # Placeholder
 
     # --- Price Helper --- #
     async def _get_asset_price_in_base(
@@ -2197,13 +2247,13 @@ class PortfolioTracker:
             has_valid_price = (
                 ticker_direct
                 and ticker_direct.price is not None
-                and ticker_direct.price > Decimal("0")
+                and ticker_direct.price > Decimal(0)
             )
             logger.debug(
                 f"[{exchange_id}] Ticker direct price check for {symbol_direct}: {has_valid_price}",
             )
 
-        if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal("0"):
+        if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal(0):
             logger.debug(
                 f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
                 f"for {symbol_direct}: {ticker_direct.price}",
@@ -2230,7 +2280,7 @@ class PortfolioTracker:
             has_valid_inverse_price = (
                 ticker_inverse
                 and ticker_inverse.price is not None
-                and ticker_inverse.price > Decimal("0")
+                and ticker_inverse.price > Decimal(0)
             )
             logger.debug(
                 f"[{exchange_id}] Ticker inverse price check for {symbol_inverse}: "
@@ -2240,7 +2290,7 @@ class PortfolioTracker:
         if (
             ticker_inverse
             and ticker_inverse.price is not None
-            and ticker_inverse.price > Decimal("0")
+            and ticker_inverse.price > Decimal(0)
         ):
             price = Decimal("1.0") / ticker_inverse.price
             logger.debug(
@@ -2339,15 +2389,14 @@ class PortfolioTracker:
             summary = await client.get_account_summary()
             if summary:
                 return exchange_id, summary
-            else:
-                logger.warning(
-                    "no_account_summary_found",
-                    exchange_id=exchange_id,
-                    action="fetch_exchange_account_summary",
-                    issue="no_account_summary",
-                    message=f"No account summary found for {exchange_id}",
-                )
-                return None
+            logger.warning(
+                "no_account_summary_found",
+                exchange_id=exchange_id,
+                action="fetch_exchange_account_summary",
+                issue="no_account_summary",
+                message=f"No account summary found for {exchange_id}",
+            )
+            return None
         except Exception as e:
             logger.exception(
                 "account_summary_fetch_error",

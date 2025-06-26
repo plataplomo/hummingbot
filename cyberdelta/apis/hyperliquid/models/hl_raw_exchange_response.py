@@ -57,7 +57,8 @@ class HyperliquidRawExchangeStatusResting(BaseModel):
 
     oid: RawNonNegativeInt = Field(...)
     cloid: RawOptionalCloidHL = Field(
-        default=None, description="Client order ID if provided in the original order"
+        default=None,
+        description="Client order ID if provided in the original order",
     )
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -69,7 +70,8 @@ class HyperliquidRawExchangeStatusFilled(BaseModel):
     total_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="totalSz")
     avg_px: RawFiniteDecimalStr = Field(..., alias="avgPx")
     cloid: RawOptionalCloidHL = Field(
-        default=None, description="Client order ID if provided in the original order"
+        default=None,
+        description="Client order ID if provided in the original order",
     )
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
 
@@ -137,7 +139,8 @@ class HyperliquidRawExchangeResponse(BaseModel):
         | HyperliquidRawExchangeResponseNested
         | None
     ) = Field(
-        None, description="Error message when status is 'err' or response data when status is 'ok'"
+        None,
+        description="Error message when status is 'err' or response data when status is 'ok'",
     )
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -147,11 +150,12 @@ class HyperliquidRawExchangeResponse(BaseModel):
         if self.status == "ok":
             if isinstance(self.response, HyperliquidRawExchangeResponseData):
                 return self.response
-            elif isinstance(self.response, HyperliquidRawExchangeResponseNested):
+            if isinstance(self.response, HyperliquidRawExchangeResponseNested):
                 # Return a flattened version
                 return HyperliquidRawExchangeResponseData(
-                    type=self.response.type, statuses=self.response.data.statuses
+                    type=self.response.type,
+                    statuses=self.response.data.statuses,
                 )
-            elif self.data:
+            if self.data:
                 return self.data
         return None

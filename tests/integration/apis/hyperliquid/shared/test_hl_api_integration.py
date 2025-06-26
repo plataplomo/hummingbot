@@ -61,7 +61,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/shared/integration"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/shared/integration"],
+    indirect=True,
 )
 class TestHyperliquidAPIComponentIntegration:
     """Comprehensive integration tests for Hyperliquid API component interactions.
@@ -94,10 +96,15 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Place a limit order (won't execute immediately)
         minimal_size = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
         test_price = await HyperliquidTestHelpers.get_dynamic_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            Decimal(10),
         )
 
         order_args = PlaceOrderArgs(
@@ -127,13 +134,15 @@ class TestHyperliquidAPIComponentIntegration:
 
             # Cleanup: cancel the order
             cancel_args = CancelOrderArgs(
-                symbol=test_symbol, order_id=placed_order.exchange_order_id
+                symbol=test_symbol,
+                order_id=placed_order.exchange_order_id,
             )
             await hl_api_for_test_env.cancel_order(cancel_args)
 
             # Wait for order cancellation
             await HyperliquidTestHelpers.wait_for_order_cancellation(
-                hl_api_for_test_env, test_symbol
+                hl_api_for_test_env,
+                test_symbol,
             )
 
         except APIError as e:
@@ -180,7 +189,7 @@ class TestHyperliquidAPIComponentIntegration:
             # the ticker price may occasionally fall outside the current bid-ask spread.
             # This is a sanity check rather than a strict requirement - we allow a reasonable
             # deviation.
-            mid_price = (best_bid + best_ask) / Decimal("2")
+            mid_price = (best_bid + best_ask) / Decimal(2)
             max_deviation_pct = Decimal("0.02")  # Allow 2% deviation from mid price
             tolerance = mid_price * max_deviation_pct
 
@@ -198,7 +207,10 @@ class TestHyperliquidAPIComponentIntegration:
         if ticker.price:
             # Calculate order size based on market constraints
             minimal_size = await HyperliquidTestHelpers.get_minimal_order_size(
-                hl_api_for_test_env, test_symbol, OrderSide.BUY, ticker.price
+                hl_api_for_test_env,
+                test_symbol,
+                OrderSide.BUY,
+                ticker.price,
             )
 
             # Verify the calculated size meets market constraints
@@ -244,10 +256,15 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Test order model consistency
         minimal_size = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
         test_price = await HyperliquidTestHelpers.get_dynamic_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            Decimal(10),
         )
 
         order_args = PlaceOrderArgs(
@@ -273,12 +290,14 @@ class TestHyperliquidAPIComponentIntegration:
             # Cleanup
             if placed_order.exchange_order_id:
                 cancel_args = CancelOrderArgs(
-                    symbol=test_symbol, order_id=placed_order.exchange_order_id
+                    symbol=test_symbol,
+                    order_id=placed_order.exchange_order_id,
                 )
                 try:
                     await hl_api_for_test_env.cancel_order(cancel_args)
                     await HyperliquidTestHelpers.wait_for_order_cancellation(
-                        hl_api_for_test_env, test_symbol
+                        hl_api_for_test_env,
+                        test_symbol,
                     )
                 except APIError:
                     pass  # Cancellation failure is acceptable in cleanup
@@ -352,7 +371,8 @@ class TestHyperliquidAPIComponentIntegration:
         return successful_results, errors
 
     def _categorize_results(
-        self, successful_results: list[Any]
+        self,
+        successful_results: list[Any],
     ) -> tuple[
         MarginAccountSummary | None,
         Market | None,
@@ -428,7 +448,7 @@ class TestHyperliquidAPIComponentIntegration:
 
         # Categorize results
         account_data, market_data, ticker_data, orders_data = self._categorize_results(
-            successful_results
+            successful_results,
         )
 
         # Validate data consistency across concurrent results
@@ -465,7 +485,8 @@ class TestHyperliquidAPIConcurrentOperations:
         return successful_results, errors
 
     def _categorize_results(
-        self, successful_results: list[Any]
+        self,
+        successful_results: list[Any],
     ) -> tuple[
         MarginAccountSummary | None,
         Market | None,
@@ -541,7 +562,9 @@ class TestHyperliquidAPIConcurrentOperations:
             )
 
     async def _execute_concurrent_operations(
-        self, hl_api_for_test_env: HyperliquidAPI, test_symbol: str
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
+        test_symbol: str,
     ) -> tuple[list[Any], datetime, datetime]:
         """Execute concurrent operations and return results with timing."""
 
@@ -586,7 +609,8 @@ class TestHyperliquidAPIConcurrentOperations:
 
         # Execute operations concurrently
         results, start_time, end_time = await self._execute_concurrent_operations(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Validate timing
@@ -602,7 +626,7 @@ class TestHyperliquidAPIConcurrentOperations:
 
         # Categorize results
         account_data, market_data, ticker_data, orders_data = self._categorize_results(
-            successful_results
+            successful_results,
         )
 
         # Validate data consistency
@@ -638,7 +662,7 @@ class TestHyperliquidAPIConcurrentOperations:
                 symbol=invalid_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
                 time_in_force=TimeInForce.IOC,
             )
             await hl_api_for_test_env.place_order(order_args)

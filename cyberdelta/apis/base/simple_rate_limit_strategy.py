@@ -50,7 +50,6 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         cost = request_context.request_weight
         if cost > 0:  # Only acquire if cost is positive
             await self.limiter.acquire(tokens_to_consume=cost)
-        return None  # Does not modify data payload
 
     async def handle_exchange_retry_after(
         self,

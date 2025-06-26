@@ -24,13 +24,13 @@ class MarketOrderConfig(BaseModel):
     # Slippage configuration
     default_slippage_pct: Decimal = Field(
         default=Decimal("0.001"),
-        gt=Decimal("0"),
+        gt=Decimal(0),
         le=Decimal("0.1"),
         description="Default slippage percentage (0.001 = 0.1%)",
     )
     max_slippage_pct: Decimal = Field(
         default=Decimal("0.05"),
-        gt=Decimal("0"),
+        gt=Decimal(0),
         le=Decimal("0.2"),
         description="Maximum allowed slippage percentage (0.05 = 5%)",
     )
@@ -38,7 +38,7 @@ class MarketOrderConfig(BaseModel):
     # Price deviation limits
     max_price_deviation_pct: Decimal = Field(
         default=Decimal("0.10"),
-        gt=Decimal("0"),
+        gt=Decimal(0),
         le=Decimal("0.5"),
         description="Maximum price deviation from reference (0.10 = 10%)",
     )
@@ -88,7 +88,7 @@ class MarketOrderConfig(BaseModel):
         """Validate percentage values are finite and positive."""
         if not v.is_finite():
             raise ValueError("Percentage must be a finite decimal")
-        if v <= Decimal("0"):
+        if v <= Decimal(0):
             raise ValueError("Percentage must be positive")
         return v
 
@@ -101,9 +101,11 @@ class MarketOrderConfig(BaseModel):
 
         for symbol, slippage in v.items():
             parsed = parse_decimal_value(
-                slippage, allow_none=False, field_name=f"slippage_by_symbol[{symbol}]"
+                slippage,
+                allow_none=False,
+                field_name=f"slippage_by_symbol[{symbol}]",
             )
-            if parsed is None or not parsed.is_finite() or parsed <= Decimal("0"):
+            if parsed is None or not parsed.is_finite() or parsed <= Decimal(0):
                 raise ValueError(f"Invalid slippage for {symbol}: {slippage}")
 
         return v
@@ -128,7 +130,7 @@ class MarketOrderConfig(BaseModel):
         Returns:
             Decimal: Validated slippage capped at max_slippage_pct
         """
-        if not slippage.is_finite() or slippage < Decimal("0"):
+        if not slippage.is_finite() or slippage < Decimal(0):
             return self.default_slippage_pct
 
         return min(slippage, self.max_slippage_pct)

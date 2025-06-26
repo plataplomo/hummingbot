@@ -519,15 +519,7 @@ class BackpackAPI(ExchangeAPI):
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
-        logger.info(
-            "backpack_websocket_subscribing",
-            exchange=self.exchange_name,
-            topic=topic,
-            action="delegating_to_base",
-            message=(
-                f"[{self.exchange_name}] Subscribe called for topic: {topic}. Delegating to base."
-            ),
-        )
+        # Removed redundant subscription log - base class already logs
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
@@ -585,11 +577,12 @@ class BackpackAPI(ExchangeAPI):
         raise NotImplementedError(
             "Batch order placement is not yet implemented for Backpack exchange. "
             "Backpack does not support native batch operations. "
-            "Use individual place_order() calls instead."
+            "Use individual place_order() calls instead.",
         )
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request.
 
@@ -608,5 +601,5 @@ class BackpackAPI(ExchangeAPI):
         raise NotImplementedError(
             "Batch order cancellation is not yet implemented for Backpack exchange. "
             "Backpack does not support native batch operations. "
-            "Use individual cancel_order() calls instead."
+            "Use individual cancel_order() calls instead.",
         )

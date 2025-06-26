@@ -252,11 +252,14 @@ class HyperliquidResponseHandler:
         try:
             # Pass symbol through validation context for None response handling
             return HyperliquidRawOrderBookResponse.model_validate(
-                raw_response_content, context={"symbol": symbol}
+                raw_response_content,
+                context={"symbol": symbol},
             )
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -276,13 +279,15 @@ class HyperliquidResponseHandler:
         try:
             # Use RootModel for validation - it handles list structure
             validated_response = HyperliquidRawRecentTradesResponse.model_validate(
-                raw_response_content
+                raw_response_content,
             )
             # Return the items from the RootModel
             return validated_response.items
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -303,7 +308,9 @@ class HyperliquidResponseHandler:
             return HyperliquidRawCandleSnapshot.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, f"candle snapshot ({symbol}, {interval})", raw_response_content
+                e,
+                f"candle snapshot ({symbol}, {interval})",
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -322,7 +329,9 @@ class HyperliquidResponseHandler:
             return HyperliquidRawHistoricalOrderResponse.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, f"order status (user: {user_address}, order: {order_id})", raw_response_content
+                e,
+                f"order status (user: {user_address}, order: {order_id})",
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -346,7 +355,9 @@ class HyperliquidResponseHandler:
             return [HyperliquidRawAssetCtx.model_validate(item) for item in validated_list]
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, "spot asset contexts", validated_list
+                e,
+                "spot asset contexts",
+                validated_list,
             ) from e
 
     @staticmethod
@@ -417,13 +428,15 @@ class HyperliquidResponseHandler:
         try:
             # Use RootModel for validation - it handles list structure and filtering
             validated_response = HyperliquidRawHistoricalOrdersResponse.model_validate(
-                raw_response_content
+                raw_response_content,
             )
             # Return the items from the RootModel
             return validated_response.items
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content
+                e,
+                context,
+                raw_response_content,
             ) from e
 
     @staticmethod
@@ -442,7 +455,7 @@ class HyperliquidResponseHandler:
         try:
             # Use RootModel for validation - it handles all preprocessing
             validated_response = HyperliquidRawFundingHistoryResponse.model_validate(
-                raw_response_content
+                raw_response_content,
             )
             # Return the items from the RootModel
             return validated_response.items
@@ -452,7 +465,7 @@ class HyperliquidResponseHandler:
                 first_error = e.errors()[0]
                 # Check if it's a type error at the root level
                 if first_error.get("loc") == () and "expected list" in str(
-                    first_error.get("msg", "")
+                    first_error.get("msg", ""),
                 ):
                     error_message = str(first_error.get("msg"))
                     logger.error(
@@ -463,16 +476,17 @@ class HyperliquidResponseHandler:
                         message=f"{error_message}. Raw: {raw_response_content!r}",
                     )
                     raise APIError(
-                        message=error_message, code=APIErrorCode.INVALID_RESPONSE.value
+                        message=error_message,
+                        code=APIErrorCode.INVALID_RESPONSE.value,
                     ) from e
                 # Check if it's an item type error
-                elif len(first_error.get("loc", ())) > 1 and "Expected dict" in str(
-                    first_error.get("msg", "")
+                if len(first_error.get("loc", ())) > 1 and "Expected dict" in str(
+                    first_error.get("msg", ""),
                 ):
                     error_message = str(first_error.get("msg"))
                     logger.error(
                         f"[HyperliquidResponseHandler] {error_message}. "
-                        f"Full raw response: {raw_response_content!r}"
+                        f"Full raw response: {raw_response_content!r}",
                     )
                     raise APIError(
                         message=error_message,
@@ -481,7 +495,11 @@ class HyperliquidResponseHandler:
 
             # Default error handling
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e
 
     @staticmethod
@@ -502,5 +520,9 @@ class HyperliquidResponseHandler:
             return HyperliquidRawAllMids.model_validate(raw_response_content)
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e

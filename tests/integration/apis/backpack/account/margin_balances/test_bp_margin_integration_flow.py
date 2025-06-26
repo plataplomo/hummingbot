@@ -43,8 +43,8 @@ class TestBackpackMarginIntegrationFlow:
             assert isinstance(balance, SpotBalance), f"{symbol} balance should be SpotBalance"
             assert balance.exchange == "backpack", f"{symbol} should be from backpack exchange"
             assert balance.asset == symbol, f"{symbol} asset field mismatch"
-            assert balance.total_quantity >= Decimal("0"), f"{symbol} total should be non-negative"
-            assert balance.available_quantity >= Decimal("0"), (
+            assert balance.total_quantity >= Decimal(0), f"{symbol} total should be non-negative"
+            assert balance.available_quantity >= Decimal(0), (
                 f"{symbol} available should be non-negative"
             )
             assert balance.available_quantity <= balance.total_quantity, (
@@ -54,7 +54,7 @@ class TestBackpackMarginIntegrationFlow:
             # Validate bp_details if present
             if balance.bp_details and balance.total_quantity > 0:
                 if balance.bp_details.lend_quantity is not None:
-                    assert balance.bp_details.lend_quantity >= Decimal("0"), (
+                    assert balance.bp_details.lend_quantity >= Decimal(0), (
                         f"{symbol} lend_quantity should be non-negative"
                     )
                     assert balance.bp_details.lend_quantity <= balance.total_quantity, (
@@ -62,12 +62,12 @@ class TestBackpackMarginIntegrationFlow:
                     )
 
                 if balance.bp_details.open_order_quantity is not None:
-                    assert balance.bp_details.open_order_quantity >= Decimal("0"), (
+                    assert balance.bp_details.open_order_quantity >= Decimal(0), (
                         f"{symbol} open_order_quantity should be non-negative"
                     )
 
                 if balance.bp_details.collateral_weight is not None:
-                    assert Decimal("0") <= balance.bp_details.collateral_weight <= Decimal("1"), (
+                    assert Decimal(0) <= balance.bp_details.collateral_weight <= Decimal(1), (
                         f"{symbol} collateral_weight should be between 0 and 1"
                     )
 
@@ -85,8 +85,8 @@ class TestBackpackMarginIntegrationFlow:
         assert account_summary.timestamp is not None, "Should have timestamp"
 
         # Core financial fields
-        assert account_summary.total_equity >= Decimal("0"), "Total equity should be non-negative"
-        assert account_summary.available_equity >= Decimal("0"), (
+        assert account_summary.total_equity >= Decimal(0), "Total equity should be non-negative"
+        assert account_summary.available_equity >= Decimal(0), (
             "Available equity should be non-negative"
         )
         assert account_summary.available_equity <= account_summary.total_equity, (
@@ -101,20 +101,22 @@ class TestBackpackMarginIntegrationFlow:
 
         # Validate equity breakdown if available
         if bp_details.assets_value is not None and bp_details.liabilities_value is not None:
-            assert bp_details.assets_value >= Decimal("0"), "Assets value should be non-negative"
-            assert bp_details.liabilities_value >= Decimal("0"), (
+            assert bp_details.assets_value >= Decimal(0), "Assets value should be non-negative"
+            assert bp_details.liabilities_value >= Decimal(0), (
                 "Liabilities value should be non-negative"
             )
 
             # Equity = Assets - Liabilities
             calculated_equity = bp_details.assets_value - bp_details.liabilities_value
             assert is_within_tolerance(
-                calculated_equity, account_summary.total_equity, tolerance=SMALL_VALUE_TOLERANCE
+                calculated_equity,
+                account_summary.total_equity,
+                tolerance=SMALL_VALUE_TOLERANCE,
             ), f"Equity calculation mismatch: {calculated_equity} != {account_summary.total_equity}"
 
         # Validate margin fraction
         if bp_details.margin_fraction is not None:
-            assert bp_details.margin_fraction >= Decimal("0"), (
+            assert bp_details.margin_fraction >= Decimal(0), (
                 "Margin fraction should be non-negative"
             )
 
@@ -179,7 +181,7 @@ class TestBackpackMarginIntegrationFlow:
         if positions:
             # With positions, should have position notional
             assert account_summary.total_position_notional is not None
-            assert account_summary.total_position_notional >= Decimal("0")
+            assert account_summary.total_position_notional >= Decimal(0)
 
             # Calculate expected notional from positions
             expected_notional = Decimal(
@@ -187,7 +189,7 @@ class TestBackpackMarginIntegrationFlow:
                     abs(pos.size * pos.mark_price)
                     for pos in positions
                     if pos.size != 0 and pos.mark_price is not None
-                )
+                ),
             )
 
             if expected_notional > 0:
@@ -206,10 +208,10 @@ class TestBackpackMarginIntegrationFlow:
 
             # Validate margin requirements
             if account_summary.total_initial_margin_required is not None:
-                assert account_summary.total_initial_margin_required >= Decimal("0")
+                assert account_summary.total_initial_margin_required >= Decimal(0)
 
             if account_summary.total_maintenance_margin_required is not None:
-                assert account_summary.total_maintenance_margin_required >= Decimal("0")
+                assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
             # Initial margin >= maintenance margin
             if (
@@ -267,7 +269,8 @@ class TestBackpackMarginIntegrationFlow:
 
             # Get values with proper defaults (handle both camelCase and snake_case)
             collateral_weight_str = asset.get(
-                "collateralWeight", asset.get("collateral_weight", "0")
+                "collateralWeight",
+                asset.get("collateral_weight", "0"),
             )
             balance_notional_str = asset.get("balanceNotional", asset.get("balance_notional", "0"))
 
@@ -283,14 +286,14 @@ class TestBackpackMarginIntegrationFlow:
             balance_notional = Decimal(balance_notional_str)
 
             # Validate weight range
-            assert Decimal("0") <= collateral_weight <= Decimal("1"), (
+            assert Decimal(0) <= collateral_weight <= Decimal(1), (
                 f"{symbol} collateral weight out of range: {collateral_weight}"
             )
             weights_validated = True
 
             # Check stablecoins have weight of 1 when they have substantial balance
             if is_stablecoin(symbol) and balance_notional > DUST_THRESHOLD:
-                assert collateral_weight == Decimal("1"), (
+                assert collateral_weight == Decimal(1), (
                     f"Stablecoin {symbol} with balance {balance_notional} should have "
                     f"collateral weight of 1, got {collateral_weight}"
                 )

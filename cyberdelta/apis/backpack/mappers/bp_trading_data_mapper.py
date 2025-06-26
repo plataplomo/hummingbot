@@ -65,7 +65,7 @@ class BackpackTradingDataMapper:
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
             return OrderSide.BUY
-        elif side_lower in ("sell", "ask"):
+        if side_lower in ("sell", "ask"):
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
@@ -119,13 +119,13 @@ class BackpackTradingDataMapper:
             if raw_order and raw_order.takeProfitTriggerPrice:
                 if bp_type_lower == "market":
                     return OrderType.TAKE_PROFIT_MARKET
-                elif bp_type_lower == "limit":
+                if bp_type_lower == "limit":
                     return OrderType.TAKE_PROFIT_LIMIT
             # Otherwise it's a stop loss order
             else:
                 if bp_type_lower == "market":
                     return OrderType.STOP_MARKET
-                elif bp_type_lower == "limit":
+                if bp_type_lower == "limit":
                     return OrderType.STOP_LIMIT
 
         type_map = {
@@ -209,7 +209,7 @@ class BackpackTradingDataMapper:
                 raise TransformationError("quantity_requested is required")
 
             # For now, assume no filled quantity available in basic order data
-            quantity_filled = Decimal("0")
+            quantity_filled = Decimal(0)
 
             # Parse price
             order_price = None
@@ -269,7 +269,7 @@ class BackpackTradingDataMapper:
         )
 
         # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
-        if quantity_requested is None or quantity_requested == Decimal("0"):
+        if quantity_requested is None or quantity_requested == Decimal(0):
             if raw_order.triggerQuantity:
                 quantity_requested = parse_decimal_value(
                     raw_order.triggerQuantity,
@@ -277,14 +277,14 @@ class BackpackTradingDataMapper:
                     field_name="triggerQuantity",
                 )
 
-        if quantity_requested is None or quantity_requested <= Decimal("0"):
+        if quantity_requested is None or quantity_requested <= Decimal(0):
             raise TransformationError("quantity_requested is required and must be > 0")
 
         quantity_filled = parse_decimal_value(
             raw_order.executedQuantity,
             allow_none=True,
             field_name="executedQuantity",
-        ) or Decimal("0")
+        ) or Decimal(0)
 
         return quantity_requested, quantity_filled
 
@@ -303,7 +303,8 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _calculate_average_fill_price(
-        raw_order: BackpackRawOrder, quantity_filled: Decimal
+        raw_order: BackpackRawOrder,
+        quantity_filled: Decimal,
     ) -> Decimal | None:
         """Calculate average fill price for filled orders.
 
@@ -319,7 +320,8 @@ class BackpackTradingDataMapper:
         """
         # First try to use the provided avgFillPrice
         avg_fill_price = BackpackTradingDataMapper._parse_order_price(
-            raw_order.avgFillPrice, "avgFillPrice"
+            raw_order.avgFillPrice,
+            "avgFillPrice",
         )
 
         if avg_fill_price is not None:
@@ -335,22 +337,23 @@ class BackpackTradingDataMapper:
         # If no avgFillPrice but order has fills, calculate from quote quantity
         if quantity_filled > 0 and raw_order.executedQuoteQuantity:
             executed_quote = parse_decimal_value(
-                raw_order.executedQuoteQuantity, allow_none=True, field_name="executedQuoteQuantity"
+                raw_order.executedQuoteQuantity,
+                allow_none=True,
+                field_name="executedQuoteQuantity",
             )
 
             if executed_quote is not None and executed_quote > 0:
                 calculated_avg_price = executed_quote / quantity_filled
                 return calculated_avg_price
-            else:
-                logger.warning(
-                    f"Could not calculate average fill price for order {raw_order.id}: "
-                    f"executed_quote={executed_quote}, quantity_filled={quantity_filled}"
-                )
+            logger.warning(
+                f"Could not calculate average fill price for order {raw_order.id}: "
+                f"executed_quote={executed_quote}, quantity_filled={quantity_filled}",
+            )
 
         logger.warning(
             f"No average fill price available for order {raw_order.id}: "
             f"avgFillPrice={raw_order.avgFillPrice}, quantity_filled={quantity_filled}, "
-            f"executedQuoteQuantity={raw_order.executedQuoteQuantity}"
+            f"executedQuoteQuantity={raw_order.executedQuoteQuantity}",
         )
         return None
 
@@ -394,7 +397,9 @@ class BackpackTradingDataMapper:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order.side)
             mapped_type = BackpackTradingDataMapper._map_type_to_internal(
-                raw_order.orderType, raw_order.triggerPrice, raw_order
+                raw_order.orderType,
+                raw_order.triggerPrice,
+                raw_order,
             )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(raw_order.status)
             mapped_tif = BackpackTradingDataMapper._map_time_in_force(
@@ -413,7 +418,8 @@ class BackpackTradingDataMapper:
                 "triggerPrice",
             )
             average_fill_price = BackpackTradingDataMapper._calculate_average_fill_price(
-                raw_order, quantity_filled
+                raw_order,
+                quantity_filled,
             )
 
             # Parse timestamps
@@ -441,7 +447,9 @@ class BackpackTradingDataMapper:
                 if raw_order.stopLossTriggerPrice
                 else None,
                 sl_limit_price=parse_decimal_value(
-                    raw_order.stopLossLimitPrice, field_name="stopLossLimitPrice", allow_none=True
+                    raw_order.stopLossLimitPrice,
+                    field_name="stopLossLimitPrice",
+                    allow_none=True,
                 )
                 if raw_order.stopLossLimitPrice
                 else None,
@@ -462,7 +470,9 @@ class BackpackTradingDataMapper:
                 else None,
                 tp_trigger_by=None,  # Can be mapped from takeProfitTriggerBy if needed
                 trigger_quantity=parse_decimal_value(
-                    raw_order.triggerQuantity, field_name="triggerQuantity", allow_none=True
+                    raw_order.triggerQuantity,
+                    field_name="triggerQuantity",
+                    allow_none=True,
                 )
                 if raw_order.triggerQuantity
                 else None,
@@ -537,7 +547,9 @@ class BackpackTradingDataMapper:
             # Map enums
             mapped_side = BackpackTradingDataMapper._map_side_to_internal(raw_order_update.side)
             mapped_type = BackpackTradingDataMapper._map_type_to_internal(
-                raw_order_update.order_type, None, None
+                raw_order_update.order_type,
+                None,
+                None,
             )
             mapped_status = BackpackTradingDataMapper._map_status_to_internal(
                 raw_order_update.order_status,
@@ -556,12 +568,12 @@ class BackpackTradingDataMapper:
                 # DEFENSIVE CHECK: Ensure quantity_requested is not None after parsing.
                 # Mypy=[unreachable] Ruff=[unreachable]
                 if quantity_requested is None:
-                    quantity_requested = Decimal("0")
+                    quantity_requested = Decimal(0)
             else:
-                quantity_requested = Decimal("0")
+                quantity_requested = Decimal(0)
 
             # For WebSocket order updates, we don't have filled quantity info
-            quantity_filled = Decimal("0")
+            quantity_filled = Decimal(0)
 
             # Parse price
             order_price = None

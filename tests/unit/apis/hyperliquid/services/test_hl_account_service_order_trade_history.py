@@ -62,7 +62,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
                     },
                     "status": "filled",
                     "statusTimestamp": 1704067200000,
-                }
+                },
             ],
             200,
             {},
@@ -131,7 +131,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
                     },
                     "status": "filled",
                     "statusTimestamp": 1704067200000,
-                }
+                },
             ],
             user_address="0xTestWalletAddress",
         )
@@ -263,7 +263,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         ]
         mapped_order1 = MagicMock(symbol="BTC", created_at=datetime(2023, 1, 1, 0, 0, tzinfo=UTC))
         mapped_order2 = MagicMock(
-            symbol="ETH", created_at=datetime(2023, 1, 1, 0, 0, 1, tzinfo=UTC)
+            symbol="ETH",
+            created_at=datetime(2023, 1, 1, 0, 0, 1, tzinfo=UTC),
         )
 
         def map_side_effect(
@@ -274,14 +275,12 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             # Match based on the oid property since the business logic creates new objects
             if hasattr(raw_historical_order, "oid") and raw_historical_order.oid == 1:
                 return mapped_order1
-            elif hasattr(raw_historical_order, "oid") and raw_historical_order.oid == 2:
+            if hasattr(raw_historical_order, "oid") and raw_historical_order.oid == 2:
                 return mapped_order2
-            else:
-                # Default fallback - check coin field
-                if hasattr(raw_historical_order, "coin") and raw_historical_order.coin == "BTC":
-                    return mapped_order1
-                else:
-                    return mapped_order2
+            # Default fallback - check coin field
+            if hasattr(raw_historical_order, "coin") and raw_historical_order.coin == "BTC":
+                return mapped_order1
+            return mapped_order2
 
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.side_effect = (
             map_side_effect
@@ -703,7 +702,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
                     },
                     "status": "filled",
                     "statusTimestamp": 1704067200000,
-                }
+                },
             ],
             200,
             {},
@@ -772,13 +771,19 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         mock_internal_orders = [
             MagicMock(
-                symbol="BTC", id="order1", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+                symbol="BTC",
+                id="order1",
+                created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
             ),
             MagicMock(
-                symbol="ETH", id="order2", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+                symbol="ETH",
+                id="order2",
+                created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
             ),
             MagicMock(
-                symbol="BTC", id="order3", created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+                symbol="BTC",
+                id="order3",
+                created_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
             ),
         ]
         mock_hl_trading_mapper.transform_raw_historical_order_to_internal.side_effect = (

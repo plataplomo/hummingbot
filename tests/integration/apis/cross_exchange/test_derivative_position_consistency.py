@@ -20,7 +20,8 @@ class TestCrossExchangeDerivativePositionConsistency:
 
     @pytest.mark.asyncio
     async def test_position_model_consistency(
-        self, exchange_client: BackpackAPI | HyperliquidAPI
+        self,
+        exchange_client: BackpackAPI | HyperliquidAPI,
     ) -> None:
         """Validate DerivativePosition model across exchanges."""
         try:
@@ -41,11 +42,11 @@ class TestCrossExchangeDerivativePositionConsistency:
                 # Price validation
                 if position.entry_price is not None:
                     assert isinstance(position.entry_price, Decimal)
-                    assert position.entry_price > Decimal("0")
+                    assert position.entry_price > Decimal(0)
 
                 if position.mark_price is not None:
                     assert isinstance(position.mark_price, Decimal)
-                    assert position.mark_price > Decimal("0")
+                    assert position.mark_price > Decimal(0)
 
         except NotImplementedError:
             pytest.skip(f"get_positions not implemented for {exchange_client.exchange_name}")
@@ -53,7 +54,9 @@ class TestCrossExchangeDerivativePositionConsistency:
     @pytest.mark.parametrize("precision", [8, 10, 12])
     @pytest.mark.asyncio
     async def test_position_precision_handling(
-        self, exchange_client: BackpackAPI | HyperliquidAPI, precision: int
+        self,
+        exchange_client: BackpackAPI | HyperliquidAPI,
+        precision: int,
     ) -> None:
         """Test decimal precision handling across exchanges."""
         try:

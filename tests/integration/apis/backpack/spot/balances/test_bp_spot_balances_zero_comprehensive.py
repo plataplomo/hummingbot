@@ -41,7 +41,9 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/balances/zero_balance"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/balances/zero_balance"],
+    indirect=True,
 )
 @pytest.mark.zero_balance
 class TestBackpackSpotBalancesZeroComprehensive:
@@ -99,10 +101,10 @@ class TestBackpackSpotBalancesZeroComprehensive:
             )
 
             # Validate financial constraints for zero balance accounts
-            assert balance.total_quantity >= Decimal("0"), (
+            assert balance.total_quantity >= Decimal(0), (
                 f"total_quantity must be non-negative, got {balance.total_quantity}"
             )
-            assert balance.available_quantity >= Decimal("0"), (
+            assert balance.available_quantity >= Decimal(0), (
                 f"available_quantity must be non-negative, got {balance.available_quantity}"
             )
 
@@ -183,7 +185,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
 
         for _, balance in balances.items():
             # Test very small balance handling
-            if balance.total_quantity > Decimal("0"):
+            if balance.total_quantity > Decimal(0):
                 # Validate that small balances maintain precision
                 assert balance.total_quantity.is_finite(), (
                     f"Balance {balance.total_quantity} should be finite"
@@ -259,8 +261,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
                 # If some fail due to rate limiting, that's acceptable
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, dict), f"Result {i} should be dict"
                 successful_results.append(result)

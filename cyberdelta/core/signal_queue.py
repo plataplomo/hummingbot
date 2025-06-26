@@ -280,7 +280,7 @@ class PrioritySignalQueue:
         metadata = {
             "utility_score": getattr(opportunity, "utility_score", 0.0),
             "confidence_score": getattr(opportunity, "confidence_score", None),
-            "expected_profit": str(getattr(opportunity, "expected_profit", Decimal("0"))),
+            "expected_profit": str(getattr(opportunity, "expected_profit", Decimal(0))),
             "basis_volatility": getattr(opportunity, "basis_volatility", None),
             "long_exchange": opportunity.long_exchange,
             "short_exchange": opportunity.short_exchange,
@@ -296,11 +296,11 @@ class PrioritySignalQueue:
         quantity: Decimal
         if (
             opportunity.optimal_size is not None
-            and opportunity.optimal_size > Decimal("0")
-            and price > Decimal("0")
+            and opportunity.optimal_size > Decimal(0)
+            and price > Decimal(0)
         ):
             quantity = opportunity.optimal_size / price
-            if quantity <= Decimal("0"):  # If calculated quantity is not positive
+            if quantity <= Decimal(0):  # If calculated quantity is not positive
                 quantity = Decimal("0.000001")  # Placeholder for gt=0 constraint
         else:
             # Fallback if optimal_size is None or price is not suitable for division
@@ -444,21 +444,20 @@ class PrioritySignalQueue:
                     message=f"Peeked signal: {signal.symbol}",
                 )
                 return signal
-            else:
-                # If breaker check fails for peeked signal, it might be good to log
-                # but we don't remove it on peek.
-                self.logger.warning(
-                    "peek_circuit_breaker_check_failed",
-                    signal_id=signal.signal_id,
-                    action="circuit_breaker_check",
-                    message=(
-                        f"Peek: Circuit breaker check failed for signal {signal.signal_id}. "
-                        f"Signal remains in queue but would be rejected on get."
-                    ),
-                )
-                # Depending on desired behavior, we could return None here too.
-                # For now, return the signal but note it would be blocked.
-                return signal  # Or None, if strict rejection on peek is desired
+            # If breaker check fails for peeked signal, it might be good to log
+            # but we don't remove it on peek.
+            self.logger.warning(
+                "peek_circuit_breaker_check_failed",
+                signal_id=signal.signal_id,
+                action="circuit_breaker_check",
+                message=(
+                    f"Peek: Circuit breaker check failed for signal {signal.signal_id}. "
+                    f"Signal remains in queue but would be rejected on get."
+                ),
+            )
+            # Depending on desired behavior, we could return None here too.
+            # For now, return the signal but note it would be blocked.
+            return signal  # Or None, if strict rejection on peek is desired
 
     async def get_signals(
         self,
@@ -785,7 +784,9 @@ class PrioritySignalQueue:
         return True
 
     def _check_exchange_level_breakers(
-        self, signal: TradeSignal, exchanges_to_check: list[str]
+        self,
+        signal: TradeSignal,
+        exchanges_to_check: list[str],
     ) -> bool:
         """Check exchange-level circuit breakers."""
         for exchange_name in set(exchanges_to_check):  # Use set to avoid redundant checks
@@ -1142,10 +1143,9 @@ class PrioritySignalQueue:
         if self.new_signal_event.is_set():
             # Event is already set, signals should be available
             return await self.pop_signals(max_signals)
-        else:
-            # Can't wait in a synchronous context
-            self.logger.debug("Cannot wait for signals in synchronous context")
-            return []
+        # Can't wait in a synchronous context
+        self.logger.debug("Cannot wait for signals in synchronous context")
+        return []
 
     async def pop_signals(self, max_signals: int = 1) -> list[TradeSignal]:
         """Atomically pop the highest priority signals from the queue."""
@@ -1339,4 +1339,3 @@ class PrioritySignalQueue:
 
         """
         # Implementation of process_signal method
-        pass

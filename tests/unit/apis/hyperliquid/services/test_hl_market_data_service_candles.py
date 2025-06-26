@@ -74,21 +74,21 @@ class TestHyperliquidMarketDataServiceCandles:
         expected_candles = [
             Candle(  # Use open_time for internal Candle model
                 open_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
-                open=Decimal("3000"),
-                high=Decimal("3005"),
-                low=Decimal("2995"),
-                close=Decimal("3002"),
-                volume=Decimal("100"),
+                open=Decimal(3000),
+                high=Decimal(3005),
+                low=Decimal(2995),
+                close=Decimal(3002),
+                volume=Decimal(100),
                 symbol=symbol,
                 interval=interval,
             ),
             Candle(
                 open_time=datetime.fromtimestamp((start_time_ms + 60000) / 1000, tz=UTC),
-                open=Decimal("3002"),
-                high=Decimal("3010"),
-                low=Decimal("3000"),
-                close=Decimal("3008"),
-                volume=Decimal("120"),
+                open=Decimal(3002),
+                high=Decimal(3010),
+                low=Decimal(3000),
+                close=Decimal(3008),
+                volume=Decimal(120),
                 symbol=symbol,
                 interval=interval,
             ),
@@ -140,7 +140,7 @@ class TestHyperliquidMarketDataServiceCandles:
                     timeframe=interval,
                     start_time_ms=start_time_ms,
                     end_time_ms=end_time_ms,
-                )
+                ),
             )
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
                 mock_raw_candle_data,
@@ -207,7 +207,7 @@ class TestHyperliquidMarketDataServiceCandles:
                 timeframe=interval,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
-            )
+            ),
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
         # Mapper should not be called since HTTP client returned None
@@ -267,7 +267,7 @@ class TestHyperliquidMarketDataServiceCandles:
                 timeframe=interval,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
-            )
+            ),
         )
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_not_called()
 
@@ -311,7 +311,7 @@ class TestHyperliquidMarketDataServiceCandles:
                 timeframe=interval,
                 start_time_ms=start_time_ms,
                 end_time_ms=end_time_ms,
-            )
+            ),
         )
         mock_http_client_requester.assert_not_called()
 
@@ -671,11 +671,11 @@ class TestHyperliquidMarketDataServiceCandles:
             # Mock mapper
             expected_candle = Candle(
                 open_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
-                open=Decimal("3000"),
-                high=Decimal("3010"),
-                low=Decimal("2990"),
-                close=Decimal("3005"),
-                volume=Decimal("100"),
+                open=Decimal(3000),
+                high=Decimal(3010),
+                low=Decimal(2990),
+                close=Decimal(3005),
+                volume=Decimal(100),
                 symbol=symbol,
                 interval=interval,
             )
@@ -702,5 +702,5 @@ class TestHyperliquidMarketDataServiceCandles:
                         timeframe=interval,
                         start_time_ms=start_time_ms,
                         end_time_ms=end_time_ms,
-                    )
+                    ),
                 )

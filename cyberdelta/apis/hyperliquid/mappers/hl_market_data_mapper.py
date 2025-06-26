@@ -80,7 +80,7 @@ class HyperliquidMarketDataMapper:
         try:
             if hl_side == "B":
                 return OrderSide.BUY
-            elif hl_side == "A":
+            if hl_side == "A":
                 return OrderSide.SELL
 
             raise TransformationError(
@@ -172,7 +172,7 @@ class HyperliquidMarketDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidMarketDataMapper] Failed to transform asset context to ticker: {e}. "
-                f"Symbol: {raw_asset_ctx.name}"
+                f"Symbol: {raw_asset_ctx.name}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}",
@@ -200,10 +200,14 @@ class HyperliquidMarketDataMapper:
         try:
             # Parse bid and ask levels
             bids = HyperliquidMarketDataMapper._parse_order_book_levels(
-                raw_book, level_index=0, depth=depth
+                raw_book,
+                level_index=0,
+                depth=depth,
             )
             asks = HyperliquidMarketDataMapper._parse_order_book_levels(
-                raw_book, level_index=1, depth=depth
+                raw_book,
+                level_index=1,
+                depth=depth,
             )
 
             # Parse timestamp
@@ -232,7 +236,7 @@ class HyperliquidMarketDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidMarketDataMapper] Failed to transform order book: {e}. "
-                f"Symbol: {raw_book.coin}"
+                f"Symbol: {raw_book.coin}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
@@ -320,7 +324,7 @@ class HyperliquidMarketDataMapper:
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
             min_quantity_threshold = Decimal("0.000001")  # 1 micro unit minimum
-            if price <= Decimal("0") or quantity <= min_quantity_threshold:
+            if price <= Decimal(0) or quantity <= min_quantity_threshold:
                 logger.warning(
                     f"Invalid trade data: price={price}, quantity={quantity}. Skipping trade.",
                 )
@@ -370,7 +374,7 @@ class HyperliquidMarketDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidMarketDataMapper] Failed to transform public trade: {e}. "
-                f"Symbol: {raw_trade.coin}, Hash: {raw_trade.hash}"
+                f"Symbol: {raw_trade.coin}, Hash: {raw_trade.hash}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}",
@@ -414,7 +418,7 @@ class HyperliquidMarketDataMapper:
 
                 if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
                     # Convert hourly rate to 8-hour rate
-                    funding_rate_8hr = hourly_funding_rate * Decimal("8")
+                    funding_rate_8hr = hourly_funding_rate * Decimal(8)
 
             except ValueError:
                 logger.warning(
@@ -827,13 +831,14 @@ class HyperliquidMarketDataMapper:
                     asset_ctx = asset_ctx_lookup.get(asset_def.name)
 
                     market = HyperliquidMarketDataMapper._create_market_from_asset_definition(
-                        asset_def, asset_ctx
+                        asset_def,
+                        asset_ctx,
                     )
                     markets.append(market)
 
                 except Exception as e:
                     logger.warning(
-                        f"Failed to transform asset definition {asset_def.name} to Market: {e}"
+                        f"Failed to transform asset definition {asset_def.name} to Market: {e}",
                     )
                     continue
 
@@ -960,7 +965,8 @@ class HyperliquidMarketDataMapper:
             Market object for the specified asset
         """
         return HyperliquidMarketDataMapper._create_market_from_asset_definition(
-            asset_def, asset_ctx
+            asset_def,
+            asset_ctx,
         )
 
     @staticmethod
@@ -985,7 +991,9 @@ class HyperliquidMarketDataMapper:
             for symbol, price_str in raw_all_mids.root.items():
                 # Use our standard decimal parsing utility
                 decimal_price = parse_decimal_value(
-                    price_str, allow_none=False, field_name=f"mid_price[{symbol}]"
+                    price_str,
+                    allow_none=False,
+                    field_name=f"mid_price[{symbol}]",
                 )
                 if decimal_price is not None:
                     prices[symbol] = decimal_price

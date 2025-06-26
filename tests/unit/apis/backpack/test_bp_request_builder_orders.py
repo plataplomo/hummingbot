@@ -138,7 +138,7 @@ class TestBuildPlaceOrderPayload:
             symbol=symbol_spot,
             side=sell_order_side,
             order_type=stop_market_order_type,
-            quantity=Decimal("5"),
+            quantity=Decimal(5),
             time_in_force=gtc_time_in_force,
             trigger_price=trigger_price,
         )
@@ -174,8 +174,8 @@ class TestBuildPlaceOrderPayload:
             order_type=stop_limit_order_type,
             quantity=Decimal("0.1"),
             time_in_force=gtc_time_in_force,
-            price=Decimal("1700"),
-            trigger_price=Decimal("1690"),
+            price=Decimal(1700),
+            trigger_price=Decimal(1690),
         )
 
         assert isinstance(payload, BackpackRawOrderExecuteRequest)
@@ -212,7 +212,7 @@ class TestBuildPlaceOrderPayload:
             symbol=symbol_spot,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             time_in_force=TimeInForce.IOC,
         )
 
@@ -238,13 +238,13 @@ class TestBuildPlaceOrderPayload:
             "symbol": symbol_spot,
             "side": OrderSide.BUY,
             "order_type": order_type,
-            "quantity": Decimal("1"),
+            "quantity": Decimal(1),
             "time_in_force": TimeInForce.GTC,
         }
         if order_type == OrderType.LIMIT:
-            kwargs["price"] = Decimal("100")
+            kwargs["price"] = Decimal(100)
         elif order_type == OrderType.STOP_MARKET:
-            kwargs["trigger_price"] = Decimal("100")
+            kwargs["trigger_price"] = Decimal(100)
 
         payload = BackpackRequestBuilder.build_place_order_payload(**kwargs)
 

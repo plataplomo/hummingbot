@@ -163,10 +163,14 @@ class TestMapRawClearinghouseStateToMarginSummary:
             cumFunding=None,
         )
         asset_pos_1 = HyperliquidRawAssetPosition(
-            asset="ETH", position=raw_position_1_info, type=None
+            asset="ETH",
+            position=raw_position_1_info,
+            type=None,
         )
         asset_pos_2 = HyperliquidRawAssetPosition(
-            asset="BTC", position=raw_position_2_info, type=None
+            asset="BTC",
+            position=raw_position_2_info,
+            type=None,
         )
 
         base_dump_python_names = raw_clearinghouse_state_base_fixture.model_dump(by_alias=False)
@@ -242,7 +246,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
             current_raw_state,
         )
 
-        assert summary.total_unrealized_pnl == Decimal("0")
+        assert summary.total_unrealized_pnl == Decimal(0)
         assert summary.total_equity == Decimal("12000.0")
         assert summary.total_initial_margin_required == Decimal("0.0")
         assert summary.total_maintenance_margin_required == Decimal("0.0")
@@ -286,8 +290,8 @@ class TestMapRawClearinghouseStateToMarginSummary:
         # Adjust expected value to match actual calculation precision
         assert summary.total_maintenance_margin_required == Decimal("76.111111110111110")
         assert summary.available_equity == Decimal("9800.555555555555555")
-        assert summary.total_position_notional == Decimal("2001")
-        assert summary.total_unrealized_pnl == Decimal("0")
+        assert summary.total_position_notional == Decimal(2001)
+        assert summary.total_unrealized_pnl == Decimal(0)
 
         # Verify HL-specific details
         assert summary.hl_details is not None
@@ -323,7 +327,7 @@ class TestMapRawClearinghouseStateToMarginSummary:
         )
 
         assert summary.total_equity == Decimal("0.0")
-        assert summary.total_unrealized_pnl == Decimal("0")
+        assert summary.total_unrealized_pnl == Decimal(0)
         assert summary.total_initial_margin_required == Decimal("0.0")
         assert summary.total_maintenance_margin_required == Decimal("0.0")
         assert summary.available_equity == Decimal("0.0")
@@ -365,8 +369,8 @@ class TestMapRawClearinghouseStateToSpotBalances:
         # Business logic always creates a USDC balance with zero values when no balances exist
         assert len(spot_balances) == 1
         assert "USDC" in spot_balances
-        assert spot_balances["USDC"].total_quantity == Decimal("0")
-        assert spot_balances["USDC"].available_quantity == Decimal("0")
+        assert spot_balances["USDC"].total_quantity == Decimal(0)
+        assert spot_balances["USDC"].available_quantity == Decimal(0)
 
     def test_usdc_balance_from_account_value(
         self,
@@ -411,7 +415,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
         assert usdc_balance.exchange == ExchangeName.HYPERLIQUID.value
         assert usdc_balance.asset == "USDC"
         assert usdc_balance.total_quantity == Decimal("10000.0")
-        assert usdc_balance.available_quantity == Decimal("0")
+        assert usdc_balance.available_quantity == Decimal(0)
         assert isinstance(usdc_balance.timestamp, datetime)
         assert usdc_balance.hl_details is not None
         assert isinstance(usdc_balance.hl_details, HyperliquidSpotBalanceDetails)

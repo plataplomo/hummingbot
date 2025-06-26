@@ -25,7 +25,8 @@ class RateLimitStrategy(ABC):
 
     @abstractmethod
     async def prepare_and_acquire(
-        self, request_context: RateLimitRequestContext
+        self,
+        request_context: RateLimitRequestContext,
     ) -> dict[str, Any] | None:
         """Prepares for and acquires necessary rate limit tokens/permissions.
 
@@ -43,7 +44,6 @@ class RateLimitStrategy(ABC):
             APIError: If rate limiting fails or times out.
 
         """
-        pass
 
     @abstractmethod
     async def handle_exchange_retry_after(
@@ -65,4 +65,3 @@ class RateLimitStrategy(ABC):
             request_context: RateLimitRequestContext model with request details.
 
         """
-        pass

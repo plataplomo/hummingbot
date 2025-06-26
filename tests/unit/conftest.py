@@ -87,7 +87,6 @@ class MockResponse:
         exc_tb: types.TracebackType | None,
     ) -> None:
         """Exit async context manager."""
-        pass
 
     def raise_for_status(self) -> None:  # Add return type hint
         """Raise an exception for HTTP error status codes."""
@@ -120,7 +119,6 @@ class MockClientSession:
         exc_tb: types.TracebackType | None,
     ) -> None:
         """Exit async context manager."""
-        pass
 
     async def close(self) -> None:
         """Close the mock session."""

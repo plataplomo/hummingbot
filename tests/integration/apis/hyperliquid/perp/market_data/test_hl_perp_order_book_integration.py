@@ -13,7 +13,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/order_book"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -35,12 +37,14 @@ async def test_hl_get_perp_order_book_btc_success(
     bid_price, _bid_size = order_book.bids[0]
     ask_price, _ask_size = order_book.asks[0]
 
-    assert isinstance(bid_price, Decimal) and bid_price > Decimal("0")
+    assert isinstance(bid_price, Decimal) and bid_price > Decimal(0)
     assert isinstance(ask_price, Decimal) and ask_price > bid_price
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/order_book"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/order_book"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio

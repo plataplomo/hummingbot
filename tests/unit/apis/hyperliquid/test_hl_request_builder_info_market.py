@@ -97,7 +97,8 @@ class TestHyperliquidRequestBuilderInfoMarket:
         assert payload_15m.req.interval == "15m"
 
     def test_build_historical_orders_payload_multiple_calls(
-        self, valid_wallet_address: str
+        self,
+        valid_wallet_address: str,
     ) -> None:
         """Test build_historical_orders_payload with multiple calls."""
         # Test that the method works consistently

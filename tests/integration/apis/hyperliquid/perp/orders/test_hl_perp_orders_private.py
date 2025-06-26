@@ -58,7 +58,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/orders/positive"],
+    indirect=True,
 )
 class TestHyperliquidPerpOrdersPrivate:
     """Comprehensive private perpetual orders integration tests for /exchange endpoint operations.
@@ -92,16 +94,22 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters - use market-based tolerance calculation
         market_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
         # Calculate safe tolerance as 5% of current market price for test orders
         safe_tolerance = market_price * Decimal("0.05")
 
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=safe_tolerance
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=safe_tolerance,
         )
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Define order parameters using dynamic values
@@ -163,21 +171,20 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # For new orders, quantity_filled should be 0 - use exchange precision
         exchange_precision = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
-        zero_quantity = Decimal("0").quantize(exchange_precision["step_size"])
+        zero_quantity = Decimal(0).quantize(exchange_precision["step_size"])
         assert placed_order.quantity_filled == zero_quantity, (
             f"New order should have zero filled quantity, got {placed_order.quantity_filled}"
         )
 
         # Validate business logic constraints
-        assert placed_order.quantity_requested > Decimal("0"), (
+        assert placed_order.quantity_requested > Decimal(0), (
             f"quantity_requested must be positive, got {placed_order.quantity_requested}"
         )
-        assert placed_order.price > Decimal("0"), (
-            f"price must be positive, got {placed_order.price}"
-        )
-        assert placed_order.quantity_filled >= Decimal("0"), (
+        assert placed_order.price > Decimal(0), f"price must be positive, got {placed_order.price}"
+        assert placed_order.quantity_filled >= Decimal(0), (
             f"quantity_filled must be non-negative, got {placed_order.quantity_filled}"
         )
         assert placed_order.quantity_filled <= placed_order.quantity_requested, (
@@ -214,15 +221,21 @@ class TestHyperliquidPerpOrdersPrivate:
         # Get dynamic test parameters that are safe and won't fill
         # Calculate safe tolerance to ensure no fill - use market price differential
         market_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
         # Use 5% below market as safe tolerance to avoid fills
         safe_tolerance = market_price * Decimal("0.05")
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=safe_tolerance
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=safe_tolerance,
         )
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # First place an order using dynamic values
@@ -284,10 +297,15 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic values based on a valid symbol for test parameters
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, valid_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            valid_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, valid_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            valid_symbol,
+            OrderSide.BUY,
         )
 
         # Create order with non-existent asset but using realistic price/quantity values
@@ -377,12 +395,16 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get market constraints to calculate edge case values
         constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Get a safe test price far below market to avoid filling
         edge_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
 
         # Calculate quantity that meets both minimum quantity AND minimum notional requirements
@@ -402,13 +424,13 @@ class TestHyperliquidPerpOrdersPrivate:
         from decimal import ROUND_UP
 
         rounded_steps = (required_min_quantity / step_size).quantize(
-            Decimal("1"), rounding=ROUND_UP
+            Decimal(1),
+            rounding=ROUND_UP,
         )
         edge_quantity = rounded_steps * step_size
 
         # Ensure we meet exchange minimum quantity
-        if edge_quantity < min_quantity:
-            edge_quantity = min_quantity
+        edge_quantity = max(edge_quantity, min_quantity)
 
         # Calculate final notional value for verification
         notional_value = edge_quantity * edge_price
@@ -440,7 +462,7 @@ class TestHyperliquidPerpOrdersPrivate:
 
             # Validate the order actually tests precision at a reasonable level
             # (not just using huge quantities that don't test precision)
-            max_reasonable_quantity = min_quantity * Decimal("100")  # Within 100x of minimum
+            max_reasonable_quantity = min_quantity * Decimal(100)  # Within 100x of minimum
             assert edge_quantity <= max_reasonable_quantity, (
                 f"Precision test should use reasonable quantities: "
                 f"{edge_quantity} <= {max_reasonable_quantity}"
@@ -484,10 +506,15 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for initial order
         initial_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         initial_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Place initial order using dynamic values
@@ -537,17 +564,27 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for orders
         test_price_1 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity_1 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         test_price_2 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.90")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.90"),
         )
         test_quantity_2 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Place multiple orders using dynamic values
@@ -630,10 +667,15 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for order
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Place an order using dynamic values
@@ -726,10 +768,15 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for order
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Place an order using dynamic values
@@ -781,7 +828,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 # Order cancellation is critical - don't hide failures
                 pytest.fail(
                     f"Failed to cancel order during cleanup: {e}. "
-                    "Order cancellation is critical for test isolation."
+                    "Order cancellation is critical for test isolation.",
                 )
 
     @pytest.mark.vcr
@@ -801,17 +848,27 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for orders
         test_price_1 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity_1 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         test_price_2 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.90")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.90"),
         )
         test_quantity_2 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Place orders using dynamic values
@@ -886,17 +943,27 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Get dynamic test parameters for different orders
         test_price_1 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.95")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.95"),
         )
         test_quantity_1 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         test_price_2 = await get_safe_test_price(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, tolerance=Decimal("0.90")
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.90"),
         )
         test_quantity_2 = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Create multiple orders using dynamic values
@@ -932,8 +999,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 # Order placement failures might be expected
                 if "insufficient" in e.message.lower() or "minimum" in e.message.lower():
                     continue  # Expected business logic error
-                else:
-                    pytest.fail(f"Unexpected error placing order: {e}")
+                pytest.fail(f"Unexpected error placing order: {e}")
 
         # Test comprehensive cancel_all_orders
         try:

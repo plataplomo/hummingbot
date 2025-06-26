@@ -67,32 +67,32 @@ class Order(BaseModel):
     status: OrderStatus = Field(default=OrderStatus.NEW, description="Current status of the order.")
     quantity_requested: Decimal = Field(
         ...,
-        gt=Decimal("0"),
+        gt=Decimal(0),
         description="Requested base quantity (must be positive).",
     )
     quote_quantity_requested: Decimal | None = Field(
         default=None,
-        gt=Decimal("0"),
+        gt=Decimal(0),
         description="Optional requested quote quantity (must be positive if set).",
     )
     quantity_filled: Decimal = Field(
-        default=Decimal("0"),
-        ge=Decimal("0"),
+        default=Decimal(0),
+        ge=Decimal(0),
         description="Total filled base quantity (non-negative).",
     )
     price: Decimal | None = Field(
         default=None,
-        gt=Decimal("0"),
+        gt=Decimal(0),
         description="Limit price (positive if set).",
     )
     stop_price: Decimal | None = Field(
         default=None,
-        gt=Decimal("0"),
+        gt=Decimal(0),
         description="Stop trigger price (positive if set).",
     )
     average_fill_price: Decimal | None = Field(
         default=None,
-        gt=Decimal("0"),
+        gt=Decimal(0),
         description="Weighted average fill price (positive if filled > 0).",
     )
     trigger_by: TriggerType | None = Field(
@@ -123,7 +123,8 @@ class Order(BaseModel):
     strategy_name: str | None = Field(None, description="Optional strategy identifier.")
     signal_id: str | None = Field(None, description="Optional signal identifier.")
     trades: list[Trade] = Field(
-        default_factory=lambda: [], description="List of associated trade fills."
+        default_factory=list,
+        description="List of associated trade fills.",
     )
 
     # --- Extension Slots ---
@@ -170,7 +171,7 @@ class Order(BaseModel):
     @classmethod
     def validate_average_fill_price(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Validate average fill price specifically."""
@@ -200,7 +201,7 @@ class Order(BaseModel):
     @classmethod
     def parse_optional_decimal_finite_positive(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite and positive if present."""
@@ -221,7 +222,7 @@ class Order(BaseModel):
     @classmethod
     def parse_required_decimal_finite_positive(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and positive (via Field)."""
@@ -240,7 +241,7 @@ class Order(BaseModel):
     @classmethod
     def parse_required_decimal_finite_non_negative(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative (via Field)."""
@@ -259,7 +260,7 @@ class Order(BaseModel):
     @classmethod
     def parse_required_datetime_utc(
         cls,
-        v: str | int | float | datetime,
+        v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
@@ -276,7 +277,7 @@ class Order(BaseModel):
     @classmethod
     def parse_optional_datetime_utc(
         cls,
-        v: str | int | float | datetime | None,
+        v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime, ensuring UTC if present."""
@@ -334,7 +335,7 @@ class HyperliquidOrderDetails(BaseModel):
 
     remaining_sz: Decimal | None = Field(
         default=None,
-        ge=Decimal("0"),
+        ge=Decimal(0),
         description="Remaining unfilled size (non-negative).",
     )
     # Add other HL-specific fields as needed
@@ -344,7 +345,7 @@ class HyperliquidOrderDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
@@ -366,17 +367,17 @@ class BackpackOrderDetails(BaseModel):
     """Backpack-specific order enrichment fields. Immutable."""
 
     # Fields based on Task Instructions
-    executed_quote_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
+    executed_quote_quantity: Decimal | None = Field(default=None, ge=Decimal(0))
     self_trade_prevention: SelfTradePrevention | None = None
     expiry_reason: OrderExpiryReason | None = None
     origin: OrderUpdateOrigin | None = None
-    sl_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    sl_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    sl_trigger_price: Decimal | None = Field(default=None, gt=Decimal(0))
+    sl_limit_price: Decimal | None = Field(default=None, gt=Decimal(0))
     sl_trigger_by: TriggerType | None = None
-    tp_trigger_price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    tp_limit_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    tp_trigger_price: Decimal | None = Field(default=None, gt=Decimal(0))
+    tp_limit_price: Decimal | None = Field(default=None, gt=Decimal(0))
     tp_trigger_by: TriggerType | None = None
-    trigger_quantity: Decimal | None = Field(default=None, gt=Decimal("0"))
+    trigger_quantity: Decimal | None = Field(default=None, gt=Decimal(0))
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 
@@ -392,7 +393,7 @@ class BackpackOrderDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""
@@ -449,8 +450,8 @@ class CancelOrderResult(BaseModel):
 
 
 __all__ = [
-    "Order",
-    "HyperliquidOrderDetails",
     "BackpackOrderDetails",
     "CancelOrderResult",
+    "HyperliquidOrderDetails",
+    "Order",
 ]

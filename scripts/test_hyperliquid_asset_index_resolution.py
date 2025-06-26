@@ -36,7 +36,7 @@ async def test_asset_index_resolution() -> None:
 
     # Mock the request builder to return a proper payload
     mock_request_builder.build_info_request_payload.return_value = MagicMock(
-        model_dump=lambda by_alias=True, exclude_none=True: {"type": "metaAndAssetCtxs"}
+        model_dump=lambda by_alias=True, exclude_none=True: {"type": "metaAndAssetCtxs"},
     )
 
     # Mock the API response with sample asset metadata
@@ -49,7 +49,7 @@ async def test_asset_index_resolution() -> None:
                 {"name": "OP", "szDecimals": 18},
                 {"name": "MATIC", "szDecimals": 18},
                 {"name": "SOL", "szDecimals": 9},
-            ]
+            ],
         },
         [],  # Empty asset contexts for this test
     ]

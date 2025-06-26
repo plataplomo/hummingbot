@@ -96,11 +96,11 @@ def test_derivative_position_flat_creation(
 ) -> None:
     """Test successful creation of a flat position (size=0)."""
     data = base_derivative_position_data.copy()
-    data["size"] = Decimal("0")
+    data["size"] = Decimal(0)
     data["entry_price"] = None  # Required for size=0
     data["side"] = OrderSide.SELL  # Side can be last known side when flat
     pos = DerivativePosition(**data)
-    assert pos.size == Decimal("0")
+    assert pos.size == Decimal(0)
     assert pos.entry_price is None
     assert pos.is_active() is False
 
@@ -173,19 +173,19 @@ def test_derivative_position_mutability(
         "  Input should be greater than or equal to 0"
     )
     with pytest.raises(ValidationError, match=match_str):
-        pos.mark_price = Decimal("-100")
+        pos.mark_price = Decimal(-100)
 
     # Test assignment triggering model validation (size vs entry_price)
     pos.size = Decimal("1.0")
-    pos.entry_price = Decimal("50000")  # Set valid entry price first
+    pos.entry_price = Decimal(50000)  # Set valid entry price first
     # Setting size to 0 when entry_price is non-None should fail
     with pytest.raises(ValidationError, match="entry_price must be None if size is zero"):
-        pos.size = Decimal("0")
+        pos.size = Decimal(0)
 
     # Correct the state first to allow valid assignment
     pos.entry_price = None
-    pos.size = Decimal("0")  # Should now succeed
-    assert pos.size == Decimal("0")
+    pos.size = Decimal(0)  # Should now succeed
+    assert pos.size == Decimal(0)
     assert pos.entry_price is None
 
     # Test mutating details slot (should be allowed)
@@ -226,7 +226,7 @@ def test_derivative_position_mutability(
         ("entry_price", Decimal("NaN"), "Value must be finite if provided"),
         ("mark_price", Decimal("-0.01"), "Input should be greater than or equal to 0"),
         ("mark_price", Decimal("Infinity"), "Value must be finite if provided"),
-        ("liquidation_price", Decimal("-100"), "Input should be greater than or equal to 0"),
+        ("liquidation_price", Decimal(-100), "Input should be greater than or equal to 0"),
         ("unrealized_pnl", Decimal("NaN"), "Value must be finite if provided"),
         # Optional Strings
         ("strategy_name", 12345, "Value error, strategy_name: Expected string, got int"),
@@ -243,10 +243,10 @@ def test_derivative_position_invalid_field_inputs(
     """Test validation failures for individual field invalid inputs."""
     data = base_derivative_position_data.copy()
     # Ensure base state is valid before testing the target field
-    if data.get("size", Decimal("1")) == Decimal("0") and field != "entry_price":
+    if data.get("size", Decimal(1)) == Decimal(0) and field != "entry_price":
         data["entry_price"] = None
-    elif data.get("size", Decimal("1")) != Decimal("0") and data.get("entry_price") is None:
-        data["entry_price"] = Decimal("50000")  # Need valid entry for non-zero size
+    elif data.get("size", Decimal(1)) != Decimal(0) and data.get("entry_price") is None:
+        data["entry_price"] = Decimal(50000)  # Need valid entry for non-zero size
 
     data[field] = value
     # Use a more general regex for Pydantic's verbose error messages
@@ -266,14 +266,14 @@ def test_derivative_position_model_validation_failures(
     # Case 1: Size positive, Side SELL
     data["size"] = Decimal("1.0")
     data["side"] = OrderSide.SELL
-    data["entry_price"] = Decimal("100")
+    data["entry_price"] = Decimal(100)
     with pytest.raises(ValidationError, match="side must be BUY if size is positive"):
         DerivativePosition(**data)
 
     # Case 2: Size negative, Side BUY
     data["size"] = Decimal("-1.0")
     data["side"] = OrderSide.BUY
-    data["entry_price"] = Decimal("100")
+    data["entry_price"] = Decimal(100)
     with pytest.raises(ValidationError, match="side must be SELL if size is negative"):
         DerivativePosition(**data)
 
@@ -286,7 +286,7 @@ def test_derivative_position_model_validation_failures(
 
     # Case 4: Size non-zero, Entry Price zero
     data["size"] = Decimal("1.0")
-    data["entry_price"] = Decimal("0")
+    data["entry_price"] = Decimal(0)
     with pytest.raises(
         ValidationError,
         match="entry_price must be positive .* if size is non-zero",
@@ -295,7 +295,7 @@ def test_derivative_position_model_validation_failures(
 
     # Case 5: Size non-zero, Entry Price negative
     data["size"] = Decimal("1.0")
-    data["entry_price"] = Decimal("-10")
+    data["entry_price"] = Decimal(-10)
     with pytest.raises(
         ValidationError,
         match="entry_price must be positive .* if size is non-zero",
@@ -303,8 +303,8 @@ def test_derivative_position_model_validation_failures(
         DerivativePosition(**data)
 
     # Case 6: Size zero, Entry Price non-None
-    data["size"] = Decimal("0")
-    data["entry_price"] = Decimal("100")
+    data["size"] = Decimal(0)
+    data["entry_price"] = Decimal(100)
     data["side"] = OrderSide.BUY  # Reset side
     with pytest.raises(ValidationError, match="entry_price must be None if size is zero"):
         DerivativePosition(**data)
@@ -378,7 +378,7 @@ def test_hyperliquid_details_creation_and_immutability(
         ("leverage_value", -1, "Must be non-negative"),
         ("leverage_value", "abc", "Expected int"),
         ("max_leverage", -5, "Must be non-negative"),
-        ("margin_used", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("margin_used", Decimal(-1), "Input should be greater than or equal to 0"),
         ("margin_used", Decimal("NaN"), "Value must be finite if provided"),
     ],
 )
@@ -414,7 +414,7 @@ def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[
 
     # Test immutability
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        details.cumulative_funding = Decimal("0")
+        details.cumulative_funding = Decimal(0)
 
 
 @pytest.mark.parametrize(

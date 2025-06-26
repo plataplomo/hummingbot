@@ -30,8 +30,6 @@ R = TypeVar("R")
 class TransformationError(Exception):
     """Critical security error in data transformation requiring immediate attention."""
 
-    pass
-
 
 class SecureTransform[T: BaseModel]:
     """Type-safe security decorator that enforces Pydantic validation.
@@ -68,31 +66,32 @@ class SecureTransform[T: BaseModel]:
 
     @overload
     def __call__(
-        self, func: Callable[P, Awaitable[dict[str, object]]]
+        self,
+        func: Callable[P, Awaitable[dict[str, object]]],
     ) -> Callable[P, Awaitable[T]]: ...
 
     def __call__(
-        self, func: Callable[P, dict[str, object]] | Callable[P, Awaitable[dict[str, object]]]
+        self,
+        func: Callable[P, dict[str, object]] | Callable[P, Awaitable[dict[str, object]]],
     ) -> Callable[P, T] | Callable[P, Awaitable[T]]:
         """Support both sync and async functions."""
         if asyncio.iscoroutinefunction(func):
-            async_func = cast(Callable[P, Awaitable[dict[str, object]]], func)
+            async_func = cast("Callable[P, Awaitable[dict[str, object]]]", func)
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 transformation_data = await async_func(*args, **kwargs)
                 return self._transform_data(transformation_data, func.__name__)
 
-            return cast(Callable[P, Awaitable[T]], async_wrapper)
-        else:
-            sync_func = cast(Callable[P, dict[str, object]], func)
+            return cast("Callable[P, Awaitable[T]]", async_wrapper)
+        sync_func = cast("Callable[P, dict[str, object]]", func)
 
-            @wraps(func)
-            def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-                transformation_data = sync_func(*args, **kwargs)
-                return self._transform_data(transformation_data, func.__name__)
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            transformation_data = sync_func(*args, **kwargs)
+            return self._transform_data(transformation_data, func.__name__)
 
-            return cast(Callable[P, T], sync_wrapper)
+        return cast("Callable[P, T]", sync_wrapper)
 
     def _transform_data(self, data: dict[str, object], func_name: str) -> T:
         """Core transformation logic matching current secure_transform utility."""
@@ -102,7 +101,8 @@ class SecureTransform[T: BaseModel]:
         # Security monitoring
         if self.enable_monitoring:
             logger.info(
-                f"SECURITY: Secure transformation attempt: {method_context} from {exchange_context}"
+                f"SECURITY: Secure transformation attempt: "
+                f"{method_context} from {exchange_context}",
             )
 
         try:
@@ -121,7 +121,9 @@ class SecureTransform[T: BaseModel]:
             # Audit trail
             if self.enable_audit:
                 _create_audit_record(
-                    source_data=data, target_model=validated_model, context=method_context
+                    source_data=data,
+                    target_model=validated_model,
+                    context=method_context,
                 )
 
             return validated_model
@@ -130,10 +132,10 @@ class SecureTransform[T: BaseModel]:
             # Maintain existing error pattern
             logger.error(
                 f"SECURITY ALERT: Validation failed in {method_context} "
-                f"from {exchange_context}: {e}"
+                f"from {exchange_context}: {e}",
             )
             raise TransformationError(
-                f"Security validation failed for {self.target_model.__name__}: {e}"
+                f"Security validation failed for {self.target_model.__name__}: {e}",
             ) from e
 
 
@@ -151,13 +153,14 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
             except (ValueError, TypeError) as e:
                 if "cannot be negative" not in str(e):
                     raise ValueError(
-                        f"Financial field {field} must be numeric: {data[field]}"
+                        f"Financial field {field} must be numeric: {data[field]}",
                     ) from e
                 raise
 
 
 def _validate_custom_constraints(
-    data: dict[str, Any], constraints: dict[str, dict[str, Any]]
+    data: dict[str, Any],
+    constraints: dict[str, dict[str, Any]],
 ) -> None:
     """Helper to validate custom field constraints."""
     for field, rules in constraints.items():
@@ -195,11 +198,12 @@ class BusinessLogicValidator[**P, R]:
     def __call__(self, func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 
     def __call__(
-        self, func: Callable[P, R] | Callable[P, Awaitable[R]]
+        self,
+        func: Callable[P, R] | Callable[P, Awaitable[R]],
     ) -> Callable[P, R] | Callable[P, Awaitable[R]]:
         """Validate while preserving function signature."""
         if asyncio.iscoroutinefunction(func):
-            async_func = cast(Callable[P, Awaitable[R]], func)
+            async_func = cast("Callable[P, Awaitable[R]]", func)
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -210,26 +214,25 @@ class BusinessLogicValidator[**P, R]:
 
                 return result
 
-            return cast(Callable[P, Awaitable[R]], async_wrapper)
-        else:
-            sync_func = cast(Callable[P, R], func)
+            return cast("Callable[P, Awaitable[R]]", async_wrapper)
+        sync_func = cast("Callable[P, R]", func)
 
-            @wraps(func)
-            def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                result: R = sync_func(*args, **kwargs)
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            result: R = sync_func(*args, **kwargs)
 
-                # Perform validation only on dict results
-                self._validate_if_dict(result)
+            # Perform validation only on dict results
+            self._validate_if_dict(result)
 
-                return result
+            return result
 
-            return cast(Callable[P, R], sync_wrapper)
+        return cast("Callable[P, R]", sync_wrapper)
 
     def _validate_if_dict(self, result: object) -> None:
         """Validate result if it's a dict and not a BaseModel."""
         if isinstance(result, dict):
             # Cast to satisfy type checker - we know it's a dict
-            dict_result = cast(dict[str, Any], result)
+            dict_result = cast("dict[str, Any]", result)
             try:
                 # BaseModel has model_validate, plain dicts don't
                 if not hasattr(dict_result, "model_validate"):
@@ -293,7 +296,9 @@ def _check_oversized_data(data: dict[str, Any], max_field_count: int) -> list[st
 
 
 def _validate_http_response(
-    raw_response_content: object, raw_model: type[BaseModel], status_code: int
+    raw_response_content: object,
+    raw_model: type[BaseModel],
+    status_code: int,
 ) -> BaseModel:
     """Helper to validate HTTP response as raw model."""
     if raw_response_content is None:
@@ -367,11 +372,12 @@ class SecurityMonitor[**P, R]:
     def __call__(self, func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]: ...
 
     def __call__(
-        self, func: Callable[P, R] | Callable[P, Awaitable[R]]
+        self,
+        func: Callable[P, R] | Callable[P, Awaitable[R]],
     ) -> Callable[P, R] | Callable[P, Awaitable[R]]:
         """Monitor while preserving types."""
         if asyncio.iscoroutinefunction(func):
-            async_func = cast(Callable[P, Awaitable[R]], func)
+            async_func = cast("Callable[P, Awaitable[R]]", func)
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -379,17 +385,16 @@ class SecurityMonitor[**P, R]:
                 self._monitor_result(result, func.__name__)
                 return result
 
-            return cast(Callable[P, Awaitable[R]], async_wrapper)
-        else:
-            sync_func = cast(Callable[P, R], func)
+            return cast("Callable[P, Awaitable[R]]", async_wrapper)
+        sync_func = cast("Callable[P, R]", func)
 
-            @wraps(func)
-            def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                result = sync_func(*args, **kwargs)
-                self._monitor_result(result, func.__name__)
-                return result
+        @wraps(func)
+        def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            result = sync_func(*args, **kwargs)
+            self._monitor_result(result, func.__name__)
+            return result
 
-            return cast(Callable[P, R], sync_wrapper)
+        return cast("Callable[P, R]", sync_wrapper)
 
     def _monitor_result(self, result: object, func_name: str) -> None:
         """Monitor for security anomalies."""
@@ -399,11 +404,11 @@ class SecurityMonitor[**P, R]:
         anomalies: list[str] = []
 
         if self.alert_on_negative:
-            anomalies.extend(_check_negative_values(cast(dict[str, Any], result)))
+            anomalies.extend(_check_negative_values(cast("dict[str, Any]", result)))
 
         if self.alert_on_oversized:
             anomalies.extend(
-                _check_oversized_data(cast(dict[str, Any], result), self.max_field_count)
+                _check_oversized_data(cast("dict[str, Any]", result), self.max_field_count),
             )
 
         if anomalies:
@@ -492,12 +497,14 @@ def secure_mapped_response(
                 # or financial fields exist
                 if business_constraints or financial_fields:
                     decorated_mapper = business_logic_validated(
-                        constraints=business_constraints, financial_fields=financial_fields
+                        constraints=business_constraints,
+                        financial_fields=financial_fields,
                     )
 
                     # Create a wrapper that returns dict for business logic validation
                     async def dict_wrapper(
-                        *map_args: object, **map_kwargs: object
+                        *map_args: object,
+                        **map_kwargs: object,
                     ) -> dict[str, object]:
                         result = await mapper_func(*map_args, **map_kwargs)
                         return result.model_dump() if hasattr(result, "model_dump") else {}
@@ -506,16 +513,14 @@ def secure_mapped_response(
                     # Get the dict result and convert back to model
                     dict_result = await validated_dict_func(validated_raw)
                     return target_model.model_validate(dict_result)
-                else:
-                    result = await mapper_func(validated_raw)
-                    if isinstance(result, BaseModel):
-                        return result
-                    raise TypeError(f"Mapper returned non-BaseModel type: {type(result)}")
-            else:
                 result = await mapper_func(validated_raw)
                 if isinstance(result, BaseModel):
                     return result
                 raise TypeError(f"Mapper returned non-BaseModel type: {type(result)}")
+            result = await mapper_func(validated_raw)
+            if isinstance(result, BaseModel):
+                return result
+            raise TypeError(f"Mapper returned non-BaseModel type: {type(result)}")
 
         return wrapper
 
@@ -523,7 +528,9 @@ def secure_mapped_response(
 
 
 def _create_audit_record(
-    source_data: dict[str, Any], target_model: BaseModel, context: str
+    source_data: dict[str, Any],
+    target_model: BaseModel,
+    context: str,
 ) -> None:
     """Create cryptographic audit record for security monitoring."""
     source_hash = hashlib.sha256(str(source_data).encode()).hexdigest()
@@ -583,7 +590,8 @@ class SecureTransformStack[T: BaseModel]:
         # 2. Business logic validation
         if self.financial_fields or self.constraints:
             validator = BusinessLogicValidator[..., dict[str, object]](
-                financial_fields=self.financial_fields, constraints=self.constraints
+                financial_fields=self.financial_fields,
+                constraints=self.constraints,
             )
             validated_func = validator(monitored_func)
         else:

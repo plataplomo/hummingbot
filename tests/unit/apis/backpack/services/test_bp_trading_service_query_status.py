@@ -298,7 +298,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_internal_order = MagicMock()
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
@@ -345,7 +345,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_endpoint_path = "/api/v1/order"
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -387,7 +387,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_raw_response = {"invalid": "order_data"}
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
@@ -419,7 +419,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_raw_response = {"id": order_id, "symbol": symbol}
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_order_status_response.side_effect = Exception(
@@ -446,7 +446,7 @@ class TestBackpackTradingServiceQueryStatus:
         order_id = "nonexistent_order"
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (None, 404, {})
 
@@ -527,7 +527,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_internal_order = MagicMock()
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
@@ -578,7 +578,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_endpoint_path = "/api/v1/order"
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -620,7 +620,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_raw_response = {"invalid": "order_data"}
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 

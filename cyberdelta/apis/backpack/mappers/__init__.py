@@ -26,7 +26,7 @@ from .bp_trading_data_mapper import BackpackTradingDataMapper
 
 
 __all__ = [
-    "BackpackMarketDataMapper",
     "BackpackAccountDataMapper",
+    "BackpackMarketDataMapper",
     "BackpackTradingDataMapper",
 ]

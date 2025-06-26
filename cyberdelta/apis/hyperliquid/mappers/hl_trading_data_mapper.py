@@ -94,7 +94,7 @@ class HyperliquidTradingDataMapper:
         try:
             if hl_side == "B":
                 return OrderSide.BUY
-            elif hl_side == "A":
+            if hl_side == "A":
                 return OrderSide.SELL
 
             raise TransformationError(
@@ -138,7 +138,7 @@ class HyperliquidTradingDataMapper:
             if mapped_status == OrderStatus.UNKNOWN and hl_status.lower() not in status_map:
                 logger.warning(
                     f"[HyperliquidTradingDataMapper] Unknown order status '{hl_status}', "
-                    f"mapping to UNKNOWN"
+                    f"mapping to UNKNOWN",
                 )
 
             return mapped_status
@@ -171,7 +171,7 @@ class HyperliquidTradingDataMapper:
         trigger_type = HyperliquidTradingDataMapper._get_trigger_type(trigger)
         if trigger_type == "sl":
             return OrderType.STOP_LIMIT
-        elif trigger_type == "tp":
+        if trigger_type == "tp":
             return OrderType.TAKE_PROFIT_LIMIT
         return OrderType.LIMIT
 
@@ -181,7 +181,7 @@ class HyperliquidTradingDataMapper:
         trigger_type = HyperliquidTradingDataMapper._get_trigger_type(trigger)
         if trigger_type == "sl":
             return OrderType.STOP_MARKET
-        elif trigger_type == "tp":
+        if trigger_type == "tp":
             return OrderType.TAKE_PROFIT_MARKET
         return OrderType.MARKET
 
@@ -208,7 +208,7 @@ class HyperliquidTradingDataMapper:
             # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
             if "limit" in order_type:
                 return HyperliquidTradingDataMapper._map_limit_order_type(trigger)
-            elif "market" in order_type:
+            if "market" in order_type:
                 return HyperliquidTradingDataMapper._map_market_order_type(trigger)
 
             logger.warning(
@@ -254,14 +254,14 @@ class HyperliquidTradingDataMapper:
 
                 if tif_str == "GTC":
                     return TimeInForce.GTC
-                elif tif_str == "IOC":
+                if tif_str == "IOC":
                     return TimeInForce.IOC
-                elif tif_str == "ALO":
+                if tif_str == "ALO":
                     return TimeInForce.ALO
-                elif tif_str:
+                if tif_str:
                     logger.warning(
                         f"[HyperliquidTradingDataMapper] Unknown TIF value '{tif_str}', "
-                        f"defaulting to GTC"
+                        f"defaulting to GTC",
                     )
 
             return TimeInForce.GTC
@@ -318,7 +318,7 @@ class HyperliquidTradingDataMapper:
                 field_name="remainingSz",
             )
             if remaining_sz is None:
-                remaining_sz = Decimal("0")
+                remaining_sz = Decimal(0)
 
             quantity_filled = quantity_requested - remaining_sz
 
@@ -330,7 +330,7 @@ class HyperliquidTradingDataMapper:
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
-            if price is not None and price == Decimal("0"):
+            if price is not None and price == Decimal(0):
                 price = None
 
             return quantity_requested, quantity_filled, price
@@ -369,12 +369,14 @@ class HyperliquidTradingDataMapper:
         try:
             # Parse all order components
             order_components = HyperliquidTradingDataMapper._parse_order_components(
-                raw_order, trigger
+                raw_order,
+                trigger,
             )
 
             # Create and return the Order object
             return HyperliquidTradingDataMapper._create_order_from_components(
-                raw_order, order_components
+                raw_order,
+                order_components,
             )
 
         except TransformationError:
@@ -383,7 +385,7 @@ class HyperliquidTradingDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidTradingDataMapper] Failed to transform order: {e}. "
-                f"Raw order: {raw_order.model_dump_json()}"
+                f"Raw order: {raw_order.model_dump_json()}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawOrder to Order: {e}",
@@ -391,7 +393,8 @@ class HyperliquidTradingDataMapper:
             ) from e
 
     def transform_raw_simple_open_order_to_internal(
-        self, raw_simple_order: HyperliquidRawSimpleOpenOrder
+        self,
+        raw_simple_order: HyperliquidRawSimpleOpenOrder,
     ) -> Order:
         """Transforms a HyperliquidRawSimpleOpenOrder to an Internal Order model.
 
@@ -424,11 +427,11 @@ class HyperliquidTradingDataMapper:
             if quantity_requested is not None and quantity_sz is not None:
                 quantity_filled = quantity_requested - quantity_sz
             else:
-                quantity_filled = Decimal("0")
+                quantity_filled = Decimal(0)
             price = parse_decimal_value(raw_simple_order.limit_px, field_name="limit_px")
 
             # For simple orders, these are not available
-            average_fill_price = None if quantity_filled == Decimal("0") else None
+            average_fill_price = None if quantity_filled == Decimal(0) else None
             stop_price = None
             trigger_by = None
 
@@ -445,7 +448,7 @@ class HyperliquidTradingDataMapper:
                 "status": status.value,
                 "time_in_force": time_in_force.value,
                 "quantity_requested": str(
-                    quantity_requested if quantity_requested is not None else Decimal("0")
+                    quantity_requested if quantity_requested is not None else Decimal(0),
                 ),
                 "quantity_filled": str(quantity_filled),
                 "price": str(price) if price is not None else None,
@@ -482,7 +485,7 @@ class HyperliquidTradingDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidTradingDataMapper] Failed to transform simple order: {e}. "
-                f"Raw order: {raw_simple_order.model_dump_json()}"
+                f"Raw order: {raw_simple_order.model_dump_json()}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawSimpleOpenOrder to Order: {e}",
@@ -497,7 +500,8 @@ class HyperliquidTradingDataMapper:
         """Parse all components needed for Order creation."""
         # Map enums
         side, order_type, status, time_in_force = HyperliquidTradingDataMapper._parse_order_enums(
-            raw_order, trigger
+            raw_order,
+            trigger,
         )
 
         # Parse quantities and price
@@ -514,7 +518,9 @@ class HyperliquidTradingDataMapper:
         # Calculate average_fill_price
         average_fill_price, quantity_filled = (
             HyperliquidTradingDataMapper._calculate_average_fill_price(
-                raw_order, quantity_filled, price
+                raw_order,
+                quantity_filled,
+                price,
             )
         )
 
@@ -621,7 +627,7 @@ class HyperliquidTradingDataMapper:
                     f"but no valid price available. Setting quantity_filled=0 to "
                     f"maintain model consistency.",
                 )
-                quantity_filled = Decimal("0")
+                quantity_filled = Decimal(0)
 
         return average_fill_price, quantity_filled
 
@@ -698,12 +704,14 @@ class HyperliquidTradingDataMapper:
         try:
             # Parse all historical order components
             order_components = HyperliquidTradingDataMapper._parse_historical_order_components(
-                raw_historical_order, trigger
+                raw_historical_order,
+                trigger,
             )
 
             # Create and return the Order object
             return HyperliquidTradingDataMapper._create_historical_order_from_components(
-                raw_historical_order, order_components
+                raw_historical_order,
+                order_components,
             )
 
         except TransformationError:
@@ -712,7 +720,7 @@ class HyperliquidTradingDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidTradingDataMapper] Failed to transform historical order: {e}. "
-                f"Raw order: {raw_historical_order.model_dump_json()}"
+                f"Raw order: {raw_historical_order.model_dump_json()}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
@@ -757,13 +765,13 @@ class HyperliquidTradingDataMapper:
         # Parse quantities and price
         quantity_requested, quantity_filled, price = (
             HyperliquidTradingDataMapper._parse_historical_quantities_and_price(
-                raw_historical_order
+                raw_historical_order,
             )
         )
 
         # Parse timestamps
         created_at, updated_at = HyperliquidTradingDataMapper._parse_historical_timestamps(
-            raw_historical_order
+            raw_historical_order,
         )
 
         # Parse trigger/stop logic (reuse existing method)
@@ -772,7 +780,9 @@ class HyperliquidTradingDataMapper:
         # Calculate average_fill_price (reuse existing method with different order ID)
         average_fill_price, quantity_filled = (
             HyperliquidTradingDataMapper._calculate_historical_average_fill_price(
-                raw_historical_order, quantity_filled, price
+                raw_historical_order,
+                quantity_filled,
+                price,
             )
         )
 
@@ -812,7 +822,7 @@ class HyperliquidTradingDataMapper:
             field_name="remainingSz",
         )
         if remaining_sz is None:
-            remaining_sz = Decimal("0")
+            remaining_sz = Decimal(0)
 
         quantity_filled = quantity_requested - remaining_sz
 
@@ -824,7 +834,7 @@ class HyperliquidTradingDataMapper:
         )
         # For market orders, Hyperliquid uses limit_px="0", but internal Order
         # expects price=None
-        if price is not None and price == Decimal("0"):
+        if price is not None and price == Decimal(0):
             price = None
 
         return quantity_requested, quantity_filled, price
@@ -873,7 +883,7 @@ class HyperliquidTradingDataMapper:
                     f"but no valid price available. Setting quantity_filled=0 to "
                     f"maintain model consistency.",
                 )
-                quantity_filled = Decimal("0")
+                quantity_filled = Decimal(0)
 
         return average_fill_price, quantity_filled
 

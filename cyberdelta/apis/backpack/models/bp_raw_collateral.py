@@ -28,28 +28,44 @@ class BackpackRawCollateralAsset(BaseModel):
     """
 
     symbol: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="symbol", description="Asset symbol (e.g., BTC, ETH, USDC)"
+        ...,
+        alias="symbol",
+        description="Asset symbol (e.g., BTC, ETH, USDC)",
     )
     asset_mark_price: RawBpStringToFiniteDecimal = Field(
-        ..., alias="assetMarkPrice", description="Current mark price of the asset"
+        ...,
+        alias="assetMarkPrice",
+        description="Current mark price of the asset",
     )
     total_quantity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="totalQuantity", description="Total quantity held (sum of all balance types)"
+        ...,
+        alias="totalQuantity",
+        description="Total quantity held (sum of all balance types)",
     )
     balance_notional: RawBpStringToFiniteDecimal = Field(
-        ..., alias="balanceNotional", description="Notional value of balance (quantity × price)"
+        ...,
+        alias="balanceNotional",
+        description="Notional value of balance (quantity × price)",
     )
     collateral_weight: RawBpStringToFiniteDecimal = Field(
-        ..., alias="collateralWeight", description="Risk weight factor (0-1) applied to this asset"
+        ...,
+        alias="collateralWeight",
+        description="Risk weight factor (0-1) applied to this asset",
     )
     collateral_value: RawBpStringToFiniteDecimal = Field(
-        ..., alias="collateralValue", description="Effective collateral value (notional × weight)"
+        ...,
+        alias="collateralValue",
+        description="Effective collateral value (notional × weight)",
     )
     open_order_quantity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="openOrderQuantity", description="Quantity locked in open orders"
+        ...,
+        alias="openOrderQuantity",
+        description="Quantity locked in open orders",
     )
     lend_quantity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="lendQuantity", description="Quantity currently lent out to other users"
+        ...,
+        alias="lendQuantity",
+        description="Quantity currently lent out to other users",
     )
     available_quantity: RawBpStringToFiniteDecimal = Field(
         ...,
@@ -81,27 +97,41 @@ class BackpackRawCollateralResponse(BaseModel):
 
     # Core Equity Fields (required in OpenAPI spec)
     net_equity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="netEquity", description="Total account equity (assets - liabilities)"
+        ...,
+        alias="netEquity",
+        description="Total account equity (assets - liabilities)",
     )
     net_equity_available: RawBpStringToFiniteDecimal = Field(
-        ..., alias="netEquityAvailable", description="Available equity for new positions"
+        ...,
+        alias="netEquityAvailable",
+        description="Available equity for new positions",
     )
     net_equity_locked: RawBpStringToFiniteDecimal = Field(
-        ..., alias="netEquityLocked", description="Equity locked in open orders/positions"
+        ...,
+        alias="netEquityLocked",
+        description="Equity locked in open orders/positions",
     )
     assets_value: RawBpStringToFiniteDecimal = Field(
-        ..., alias="assetsValue", description="Total value of all assets"
+        ...,
+        alias="assetsValue",
+        description="Total value of all assets",
     )
     liabilities_value: RawBpStringToFiniteDecimal = Field(
-        ..., alias="liabilitiesValue", description="Total value of all liabilities"
+        ...,
+        alias="liabilitiesValue",
+        description="Total value of all liabilities",
     )
 
     # Margin Fields (required in OpenAPI spec)
     imf: RawBpStringToFiniteDecimal = Field(
-        ..., alias="imf", description="Initial Margin Fraction (account-level)"
+        ...,
+        alias="imf",
+        description="Initial Margin Fraction (account-level)",
     )
     mmf: RawBpStringToFiniteDecimal = Field(
-        ..., alias="mmf", description="Maintenance Margin Fraction (account-level)"
+        ...,
+        alias="mmf",
+        description="Maintenance Margin Fraction (account-level)",
     )
     margin_fraction: str | None = Field(
         None,
@@ -111,21 +141,31 @@ class BackpackRawCollateralResponse(BaseModel):
 
     # Position & Risk Fields (required in OpenAPI spec)
     borrow_liability: RawBpStringToFiniteDecimal = Field(
-        ..., alias="borrowLiability", description="Total borrowed amount liability"
+        ...,
+        alias="borrowLiability",
+        description="Total borrowed amount liability",
     )
     pnl_unrealized: RawBpStringToFiniteDecimal = Field(
-        ..., alias="pnlUnrealized", description="Total unrealized PnL across positions"
+        ...,
+        alias="pnlUnrealized",
+        description="Total unrealized PnL across positions",
     )
     unsettled_equity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="unsettledEquity", description="Equity pending settlement"
+        ...,
+        alias="unsettledEquity",
+        description="Equity pending settlement",
     )
     net_exposure_futures: RawBpStringToFiniteDecimal = Field(
-        ..., alias="netExposureFutures", description="Net futures/perp exposure notional"
+        ...,
+        alias="netExposureFutures",
+        description="Net futures/perp exposure notional",
     )
 
     # Collateral Details (required array in OpenAPI spec)
     collateral: list[BackpackRawCollateralAsset] = Field(
-        ..., alias="collateral", description="Per-asset collateral breakdown"
+        ...,
+        alias="collateral",
+        description="Per-asset collateral breakdown",
     )
 
     model_config = ConfigDict(

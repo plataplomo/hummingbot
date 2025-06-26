@@ -22,8 +22,6 @@ logger = get_logger(__name__)
 class ConfigurationError(Exception):
     """Raised when configuration or secrets loading/validation fails."""
 
-    pass
-
 
 class SecretsManager:
     """Manages loading of secrets from secure location outside source tree.
@@ -106,7 +104,7 @@ class SecretsManager:
         try:
             self.secrets_data = SecretsConfig.model_validate(secrets_data_dict)
             self.secrets_loaded = True
-            secrets_data_typed = cast(dict[str, Any], secrets_data_dict)
+            secrets_data_typed = cast("dict[str, Any]", secrets_data_dict)
             logger.info(
                 "secrets_loaded_successfully",
                 secrets_path=str(self.secrets_path),

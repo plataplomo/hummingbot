@@ -220,7 +220,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload with client_transfer_id."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             from_account="MARGIN",
             to_account="SPOT",
             client_transfer_id="myInternalTransfer123",
@@ -240,7 +240,7 @@ class TestBuildInternalTransferPayload:
         """Test build_internal_transfer_payload formats symbol correctly."""
         payload = BackpackRequestBuilder.build_internal_transfer_payload(
             asset_symbol="sol-perp",  # Test with format that needs changing
-            amount=Decimal("5"),
+            amount=Decimal(5),
             from_account="SPOT",
             to_account="FUTURES",
         )

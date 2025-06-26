@@ -44,7 +44,9 @@ class TestBackpackMarketOrderIntegration:
     """Integration tests for Backpack market orders."""
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_market_buy_order_btc_spot(
@@ -67,14 +69,18 @@ class TestBackpackMarketOrderIntegration:
 
         # Get minimal test quantity from real market data
         test_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-            backpack_api, symbol, OrderSide.BUY
+            backpack_api,
+            symbol,
+            OrderSide.BUY,
         )
         logger.info(f"Using minimal test quantity: {test_quantity} for {symbol}")
 
         # Create market order executor
         service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
         market_order = MarketOrder(
-            exchange_api=backpack_api, market_order_service=service, config=market_order_config
+            exchange_api=backpack_api,
+            market_order_service=service,
+            config=market_order_config,
         )
 
         # Place market buy order
@@ -99,12 +105,15 @@ class TestBackpackMarketOrderIntegration:
             # We need to check order history to verify the fill
             logger.info(
                 f"Market order placed: {order.exchange_order_id}. "
-                "Polling order history for confirmation..."
+                "Polling order history for confirmation...",
             )
 
             # Verify order appears in history (polls every 2 seconds for up to 40 seconds)
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
-                backpack_api, order, max_wait_seconds=40, poll_interval=2.0
+                backpack_api,
+                order,
+                max_wait_seconds=40,
+                poll_interval=2.0,
             )
             assert found_in_history, (
                 f"Order {order.exchange_order_id} not found in trading history after polling"
@@ -112,7 +121,8 @@ class TestBackpackMarketOrderIntegration:
 
             # Get the actual filled quantity from history
             filled_quantity = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-                backpack_api, order.exchange_order_id
+                backpack_api,
+                order.exchange_order_id,
             )
             assert filled_quantity is not None and filled_quantity > 0, (
                 f"Order {order.exchange_order_id} not filled or fill quantity not found"
@@ -129,17 +139,19 @@ class TestBackpackMarketOrderIntegration:
 
             logger.info(
                 f"Successfully placed and verified market buy order: "
-                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Failed to execute market buy order for {symbol}: {e}. "
-                "Market order execution is a critical operation that must work reliably."
+                "Market order execution is a critical operation that must work reliably.",
             )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_market_sell_previous_buy_btc_spot(
@@ -177,25 +189,28 @@ class TestBackpackMarketOrderIntegration:
 
         # Double-check the quantity from history to ensure accuracy
         historical_quantity = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-            backpack_api, buy_order_id
+            backpack_api,
+            buy_order_id,
         )
 
         if historical_quantity is None:
             pytest.fail(
                 f"Could not find previous buy order {buy_order_id} in history. "
-                "Cannot proceed with sell test without knowing exact quantity to sell."
+                "Cannot proceed with sell test without knowing exact quantity to sell.",
             )
 
         # Use the historical quantity for selling
         sell_quantity = historical_quantity
         logger.info(
-            f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}"
+            f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}",
         )
 
         # Create market order executor
         service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
         market_order = MarketOrder(
-            exchange_api=backpack_api, market_order_service=service, config=market_order_config
+            exchange_api=backpack_api,
+            market_order_service=service,
+            config=market_order_config,
         )
 
         # Place market sell order
@@ -219,12 +234,15 @@ class TestBackpackMarketOrderIntegration:
             # For Backpack IOC orders, check order history
             logger.info(
                 f"Market sell order placed: {order.exchange_order_id}. "
-                "Waiting for order to appear in history..."
+                "Waiting for order to appear in history...",
             )
 
             # Verify order appears in history (polls automatically)
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
-                backpack_api, order, max_wait_seconds=40, poll_interval=2.0
+                backpack_api,
+                order,
+                max_wait_seconds=40,
+                poll_interval=2.0,
             )
             assert found_in_history, (
                 f"Order {order.exchange_order_id} not found in trading history after polling"
@@ -232,7 +250,8 @@ class TestBackpackMarketOrderIntegration:
 
             # Get the actual filled quantity from history
             filled_quantity = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-                backpack_api, order.exchange_order_id
+                backpack_api,
+                order.exchange_order_id,
             )
             assert filled_quantity is not None and filled_quantity > 0, (
                 f"Order {order.exchange_order_id} not filled or fill quantity not found"
@@ -259,7 +278,8 @@ class TestBackpackMarketOrderIntegration:
 
             # Verify order appears in history
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
-                backpack_api, filled_order
+                backpack_api,
+                filled_order,
             )
             assert found_in_history, (
                 f"Order {filled_order.exchange_order_id} not found in trading history"
@@ -267,7 +287,7 @@ class TestBackpackMarketOrderIntegration:
 
             logger.info(
                 f"Successfully placed and verified market sell order: "
-                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
             )
 
             # Clean up test data
@@ -277,7 +297,7 @@ class TestBackpackMarketOrderIntegration:
         except Exception as e:
             pytest.fail(
                 f"Failed to execute market sell order for {symbol}: {e}. "
-                "Market order execution is a critical operation that must work reliably."
+                "Market order execution is a critical operation that must work reliably.",
             )
 
     async def _find_perp_symbol(self, backpack_api: BackpackAPI) -> str | None:
@@ -322,7 +342,9 @@ class TestBackpackMarketOrderIntegration:
         return None
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_market_order_perp_market(
@@ -346,13 +368,17 @@ class TestBackpackMarketOrderIntegration:
 
             # Get minimal test quantity
             test_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-                backpack_api, perp_symbol, OrderSide.BUY
+                backpack_api,
+                perp_symbol,
+                OrderSide.BUY,
             )
 
             # Create market order executor
             service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
             market_order = MarketOrder(
-                exchange_api=backpack_api, market_order_service=service, config=market_order_config
+                exchange_api=backpack_api,
+                market_order_service=service,
+                config=market_order_config,
             )
 
             # Place buy order
@@ -365,7 +391,10 @@ class TestBackpackMarketOrderIntegration:
             # Verify buy order appears in history
             logger.info(f"Perp buy order placed: {buy_order.exchange_order_id}")
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
-                backpack_api, buy_order, max_wait_seconds=40, poll_interval=2.0
+                backpack_api,
+                buy_order,
+                max_wait_seconds=40,
+                poll_interval=2.0,
             )
             assert found_in_history, f"Buy order {buy_order.exchange_order_id} not found in history"
 
@@ -383,7 +412,7 @@ class TestBackpackMarketOrderIntegration:
                 pytest.fail(
                     f"PERP buy order {buy_order.exchange_order_id} verification failed. "
                     "Unable to get filled quantity from history. This is a critical failure "
-                    "as we cannot verify order execution."
+                    "as we cannot verify order execution.",
                 )
 
             # Immediately sell to close position
@@ -397,7 +426,10 @@ class TestBackpackMarketOrderIntegration:
 
             # Verify sell order appears in history
             found_sell = await MarketOrderTestHelpers.verify_order_in_history(
-                backpack_api, sell_order, max_wait_seconds=40, poll_interval=2.0
+                backpack_api,
+                sell_order,
+                max_wait_seconds=40,
+                poll_interval=2.0,
             )
             assert found_sell, f"Sell order {sell_order.exchange_order_id} not found in history"
 
@@ -417,11 +449,13 @@ class TestBackpackMarketOrderIntegration:
         except Exception as e:
             pytest.fail(
                 f"Failed to test perpetual market orders: {e}. "
-                "Market order functionality must work across all market types."
+                "Market order functionality must work across all market types.",
             )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_insufficient_liquidity_error_spot(
@@ -445,7 +479,7 @@ class TestBackpackMarketOrderIntegration:
                 pytest.fail(
                     f"No orderbook data available for {symbol}. "
                     "Cannot test insufficient liquidity without orderbook data. "
-                    "This is a critical failure as orderbook access is required."
+                    "This is a critical failure as orderbook access is required.",
                 )
 
             # Calculate total available liquidity on ask side
@@ -462,13 +496,15 @@ class TestBackpackMarketOrderIntegration:
 
             logger.info(
                 f"Testing insufficient liquidity with quantity {excessive_quantity} "
-                f"(available: {total_ask_quantity})"
+                f"(available: {total_ask_quantity})",
             )
 
             # Create market order executor
             service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
             market_order = MarketOrder(
-                exchange_api=backpack_api, market_order_service=service, config=market_order_config
+                exchange_api=backpack_api,
+                market_order_service=service,
+                config=market_order_config,
             )
 
             # This should raise InsufficientLiquidityError
@@ -496,13 +532,15 @@ class TestBackpackMarketOrderIntegration:
                     f"Expected InsufficientLiquidityError but got INSUFFICIENT_FUNDS. "
                     f"The MarketOrder class should check liquidity BEFORE placing the order. "
                     f"It should not send orders that exceed available liquidity to the exchange. "
-                    f"Error: {e}"
+                    f"Error: {e}",
                 )
             else:
                 pytest.fail(f"Expected InsufficientLiquidityError but got {type(e).__name__}: {e}")
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_price_deviation_protection_spot(
@@ -520,7 +558,9 @@ class TestBackpackMarketOrderIntegration:
 
         # Get minimal test quantity
         test_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-            backpack_api, symbol, OrderSide.BUY
+            backpack_api,
+            symbol,
+            OrderSide.BUY,
         )
 
         # Get order book data to determine realistic tight slippage
@@ -546,7 +586,9 @@ class TestBackpackMarketOrderIntegration:
         # Create market order executor with tight config
         service = MarketOrderService(exchange_api=backpack_api, config=tight_config)
         market_order = MarketOrder(
-            exchange_api=backpack_api, market_order_service=service, config=tight_config
+            exchange_api=backpack_api,
+            market_order_service=service,
+            config=tight_config,
         )
 
         try:
@@ -560,7 +602,7 @@ class TestBackpackMarketOrderIntegration:
 
             # If it didn't fail, that's okay - market might have tight spreads
             logger.info(
-                "Market order succeeded despite tight slippage - market spreads must be very tight"
+                "Market order succeeded despite tight slippage - market spreads must be very tight",
             )
 
         except PriceDeviationError as e:
@@ -575,7 +617,7 @@ class TestBackpackMarketOrderIntegration:
             # Other errors indicate a problem
             pytest.fail(
                 f"Unexpected error type {type(e).__name__}: {e}. "
-                "Expected either success or PriceDeviationError."
+                "Expected either success or PriceDeviationError.",
             )
 
     async def _execute_and_verify_market_order(
@@ -597,12 +639,16 @@ class TestBackpackMarketOrderIntegration:
         # Verify order appears in history
         logger.info(f"{market_type} order placed: {order.exchange_order_id}")
         found = await MarketOrderTestHelpers.verify_order_in_history(
-            backpack_api, order, max_wait_seconds=40, poll_interval=2.0
+            backpack_api,
+            order,
+            max_wait_seconds=40,
+            poll_interval=2.0,
         )
         assert found, f"{market_type} order {order.exchange_order_id} not found in history"
 
         filled_quantity = await MarketOrderTestHelpers.get_filled_quantity_from_history(
-            backpack_api, order.exchange_order_id or order.client_order_id
+            backpack_api,
+            order.exchange_order_id or order.client_order_id,
         )
 
         if filled_quantity and filled_quantity > 0:
@@ -620,11 +666,18 @@ class TestBackpackMarketOrderIntegration:
         """Test spot market execution."""
         spot_symbol = await MarketOrderTestHelpers.get_test_symbol(backpack_api, "backpack")
         spot_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-            backpack_api, spot_symbol, OrderSide.BUY
+            backpack_api,
+            spot_symbol,
+            OrderSide.BUY,
         )
 
         return await self._execute_and_verify_market_order(
-            market_order, backpack_api, spot_symbol, OrderSide.BUY, spot_quantity, "Spot"
+            market_order,
+            backpack_api,
+            spot_symbol,
+            OrderSide.BUY,
+            spot_quantity,
+            "Spot",
         )
 
     async def _test_perp_market(
@@ -645,11 +698,18 @@ class TestBackpackMarketOrderIntegration:
 
         perp_symbol = perp_markets[0].symbol
         perp_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
-            backpack_api, perp_symbol, OrderSide.BUY
+            backpack_api,
+            perp_symbol,
+            OrderSide.BUY,
         )
 
         return await self._execute_and_verify_market_order(
-            market_order, backpack_api, perp_symbol, OrderSide.BUY, perp_quantity, "Perp"
+            market_order,
+            backpack_api,
+            perp_symbol,
+            OrderSide.BUY,
+            perp_quantity,
+            "Perp",
         )
 
     async def _cleanup_positions(
@@ -668,21 +728,26 @@ class TestBackpackMarketOrderIntegration:
                 )
                 # Verify cleanup order appears in history
                 found_cleanup = await MarketOrderTestHelpers.verify_order_in_history(
-                    backpack_api, cleanup_order, max_wait_seconds=40, poll_interval=2.0
+                    backpack_api,
+                    cleanup_order,
+                    max_wait_seconds=40,
+                    poll_interval=2.0,
                 )
                 if not found_cleanup:
                     logger.warning(
-                        f"Cleanup order {cleanup_order.exchange_order_id} not found in history"
+                        f"Cleanup order {cleanup_order.exchange_order_id} not found in history",
                     )
                 logger.info(f"Cleaned up position for {symbol}")
             except Exception as e:
                 pytest.fail(
                     f"Failed to clean up {symbol} position: {e}. "
-                    "Position cleanup is critical and must succeed."
+                    "Position cleanup is critical and must succeed.",
                 )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["core/execution/orders/backpack"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["core/execution/orders/backpack"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_cross_market_type_execution(
@@ -699,7 +764,9 @@ class TestBackpackMarketOrderIntegration:
         # Create market order executor
         service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
         market_order = MarketOrder(
-            exchange_api=backpack_api, market_order_service=service, config=market_order_config
+            exchange_api=backpack_api,
+            market_order_service=service,
+            config=market_order_config,
         )
 
         executed_orders: list[tuple[str, OrderSide, Decimal]] = []
@@ -711,7 +778,7 @@ class TestBackpackMarketOrderIntegration:
                 executed_orders.append(spot_result)
         except Exception as e:
             pytest.fail(
-                f"Failed spot market order: {e}. Cross-market execution must work reliably."
+                f"Failed spot market order: {e}. Cross-market execution must work reliably.",
             )
 
         # Try to test perp market if available
@@ -723,7 +790,7 @@ class TestBackpackMarketOrderIntegration:
             # Only skip if no perp markets available
             if "PERP" not in str(e) and "perpetual" not in str(e).lower():
                 pytest.fail(
-                    f"Failed perp market order: {e}. Cross-market execution must work reliably."
+                    f"Failed perp market order: {e}. Cross-market execution must work reliably.",
                 )
             else:
                 logger.info(f"No perpetual markets available: {e}")
@@ -736,7 +803,9 @@ class TestBackpackMarketOrderIntegration:
 
     @pytest_asyncio.fixture(autouse=True)
     async def cleanup(
-        self, backpack_api: BackpackAPI, request: pytest.FixtureRequest
+        self,
+        backpack_api: BackpackAPI,
+        request: pytest.FixtureRequest,
     ) -> AsyncGenerator[None]:
         """Clean up any test positions after each test."""
         yield  # Run the test
@@ -755,5 +824,5 @@ class TestBackpackMarketOrderIntegration:
             # Cleanup errors should not be silenced for real failures
             pytest.fail(
                 f"Error during test cleanup: {e}. "
-                "Test cleanup is critical to prevent interference with other tests."
+                "Test cleanup is critical to prevent interference with other tests.",
             )

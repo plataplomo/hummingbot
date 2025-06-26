@@ -47,7 +47,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/positions/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/positions/positive"],
+    indirect=True,
 )
 class TestHyperliquidPerpPositionsPrivate:
     """Comprehensive private position integration tests for /exchange endpoint operations.
@@ -64,7 +66,9 @@ class TestHyperliquidPerpPositionsPrivate:
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def _validate_position_fields(
-        self, test_position: DerivativePosition, test_symbol: str
+        self,
+        test_position: DerivativePosition,
+        test_symbol: str,
     ) -> None:
         """Validate core position fields and financial data types."""
         assert isinstance(test_position, DerivativePosition), (
@@ -93,21 +97,23 @@ class TestHyperliquidPerpPositionsPrivate:
             )
 
     async def _validate_position_business_logic(
-        self, test_position: DerivativePosition, placed_order: Order
+        self,
+        test_position: DerivativePosition,
+        placed_order: Order,
     ) -> None:
         """Validate business logic constraints for the position."""
         # Validate business logic constraints
-        assert test_position.size != Decimal("0"), (
+        assert test_position.size != Decimal(0), (
             f"Position size should be non-zero after opening trade, got {test_position.size}"
         )
-        assert test_position.entry_price is not None and test_position.entry_price > Decimal("0"), (
+        assert test_position.entry_price is not None and test_position.entry_price > Decimal(0), (
             f"entry_price must be positive, got {test_position.entry_price}"
         )
 
         # Validate position side matches order side
-        if test_position.size > Decimal("0"):
+        if test_position.size > Decimal(0):
             assert placed_order.side == OrderSide.BUY, "Long position should result from BUY order"
-        elif test_position.size < Decimal("0"):
+        elif test_position.size < Decimal(0):
             assert placed_order.side == OrderSide.SELL, (
                 "Short position should result from SELL order"
             )
@@ -127,18 +133,21 @@ class TestHyperliquidPerpPositionsPrivate:
         """
         # Get available trading symbols from exchange (fail-fast approach)
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         test_symbol = available_symbols[0]
 
         # Get minimal viable order size using real market data
         minimal_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Define order parameters to open a position
@@ -172,9 +181,9 @@ class TestHyperliquidPerpPositionsPrivate:
             await self._validate_position_business_logic(test_position, placed_order)
 
         # Clean up - attempt to close position if one was opened
-        if test_position is not None and test_position.size != Decimal("0"):
+        if test_position is not None and test_position.size != Decimal(0):
             # Place opposite order to close position
-            close_side = OrderSide.SELL if test_position.size > Decimal("0") else OrderSide.BUY
+            close_side = OrderSide.SELL if test_position.size > Decimal(0) else OrderSide.BUY
             close_quantity = abs(test_position.size)
 
             close_args = PlaceOrderArgs(
@@ -204,18 +213,21 @@ class TestHyperliquidPerpPositionsPrivate:
         """
         # Get available trading symbols from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         test_symbol = available_symbols[0]
 
         # Get minimal viable order size
         minimal_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Step 1: First open a position
@@ -234,14 +246,14 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_open = await hl_api_for_test_env.get_positions()
         test_position_after_open = None
         for position in positions_after_open:
-            if position.symbol == test_symbol and position.size != Decimal("0"):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 test_position_after_open = position
                 break
 
         # Step 3: Close the position if it was opened
         if test_position_after_open is not None:
             close_side = (
-                OrderSide.SELL if test_position_after_open.size > Decimal("0") else OrderSide.BUY
+                OrderSide.SELL if test_position_after_open.size > Decimal(0) else OrderSide.BUY
             )
             close_quantity = abs(test_position_after_open.size)
 
@@ -286,26 +298,29 @@ class TestHyperliquidPerpPositionsPrivate:
         """
         # Get available trading symbols from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         test_symbol = available_symbols[0]
 
         # Get unreasonably large quantity - use exchange max
         constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
         # Use the exchange's max quantity if available, or a very large number
-        large_quantity = constraints.get("max_quantity", Decimal("1000000"))
+        large_quantity = constraints.get("max_quantity", Decimal(1000000))
 
         # Create order with unrealistically large quantity to trigger insufficient margin
         # Use LIMIT order FAR BELOW market so it won't execute but will trigger margin check
         current_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
         # Use price 50% below market - won't execute but will trigger margin validation
         non_executable_price = current_price * Decimal("0.5")  # 50% below market
@@ -351,11 +366,12 @@ class TestHyperliquidPerpPositionsPrivate:
         """
         # Get available trading symbols from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         test_symbol = available_symbols[0]
@@ -363,7 +379,9 @@ class TestHyperliquidPerpPositionsPrivate:
         # Get minimal order size that meets $10 minimum requirement
         # This ensures we meet exchange minimum notional requirements for testnet
         small_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Test very small position size
@@ -383,7 +401,7 @@ class TestHyperliquidPerpPositionsPrivate:
             positions = await hl_api_for_test_env.get_positions()
             test_position = None
             for position in positions:
-                if position.symbol == test_symbol and position.size != Decimal("0"):
+                if position.symbol == test_symbol and position.size != Decimal(0):
                     test_position = position
                     break
 
@@ -400,9 +418,9 @@ class TestHyperliquidPerpPositionsPrivate:
                 )
 
                 # Clean up small position
-                if abs(test_position.size) > Decimal("0"):
+                if abs(test_position.size) > Decimal(0):
                     close_side = (
-                        OrderSide.SELL if test_position.size > Decimal("0") else OrderSide.BUY
+                        OrderSide.SELL if test_position.size > Decimal(0) else OrderSide.BUY
                     )
                     close_args = PlaceOrderArgs(
                         symbol=test_symbol,
@@ -435,16 +453,20 @@ class TestHyperliquidPerpPositionsPrivate:
         """Test position-affecting order with invalid asset/symbol error."""
         # Get minimal viable order size for a valid symbol to understand exchange constraints
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test invalid symbol handling."
+                "No perpetual symbols available from exchange. "
+                "Cannot test invalid symbol handling.",
             )
 
         test_symbol = available_symbols[0]
         minimal_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Create order with non-existent asset to open position
@@ -482,18 +504,21 @@ class TestHyperliquidPerpPositionsPrivate:
         """
         # Get available trading symbols from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         test_symbol = available_symbols[0]
 
         # Get minimal viable order size
         minimal_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Calculate additional position size (same as minimal to ensure it fills)
@@ -516,7 +541,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_initial = await hl_api_for_test_env.get_positions()
         initial_position = None
         for position in positions_after_initial:
-            if position.symbol == test_symbol and position.size != Decimal("0"):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 initial_position = position
                 break
 
@@ -539,7 +564,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_add = await hl_api_for_test_env.get_positions()
         test_position = None
         for position in positions_after_add:
-            if position.symbol == test_symbol and position.size != Decimal("0"):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 test_position = position
                 break
 
@@ -553,7 +578,7 @@ class TestHyperliquidPerpPositionsPrivate:
         # Validate the increase is approximately the additional quantity
         # (allowing for partial fills)
         size_increase = test_position.size - initial_size
-        assert size_increase > Decimal("0"), (
+        assert size_increase > Decimal(0), (
             f"Position should have increased by a positive amount: increase={size_increase}"
         )
 
@@ -573,7 +598,7 @@ class TestHyperliquidPerpPositionsPrivate:
         # (should be between initial and current market)
         if initial_position.entry_price and test_position.entry_price:
             # Entry price should be a weighted average after adding to position
-            assert test_position.entry_price > Decimal("0"), "Entry price should be positive"
+            assert test_position.entry_price > Decimal(0), "Entry price should be positive"
 
         # Step 4: Clean up - close entire position
         if test_position:

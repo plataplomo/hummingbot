@@ -64,3 +64,4 @@ secrets.yaml
 /cyberdelta/config/secrets.yaml
 ~/.cyberdelta/secrets.yaml
 /home/*/.cyberdelta/secrets.yaml
+logs/cyberdelta.log

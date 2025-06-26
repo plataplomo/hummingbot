@@ -233,7 +233,7 @@ def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, valu
         )
 
 
-def _validate_funding_rate_numeric_timestamp(v: int | float, field_name: str) -> int | float:
+def _validate_funding_rate_numeric_timestamp(v: float, field_name: str) -> int | float:
     """Validate numeric timestamp for funding rate with stricter year range."""
     dt_object = parse_datetime_utc(v, field_name=field_name)
     if dt_object is None:
@@ -244,7 +244,7 @@ def _validate_funding_rate_numeric_timestamp(v: int | float, field_name: str) ->
 
 def _validate_funding_rate_numeric_string_timestamp(
     s_val: str,
-    numeric_value: int | float,
+    numeric_value: float,
     field_name: str,
 ) -> int | float:
     """Validate numeric string timestamp for funding rate."""
@@ -319,7 +319,7 @@ def _validate_year_range(dt_object: datetime, field_name: str, value: object) ->
         )
 
 
-def _validate_numeric_timestamp(v: int | float, field_name: str) -> int | float:
+def _validate_numeric_timestamp(v: float, field_name: str) -> int | float:
     """Validate numeric timestamp and return if valid."""
     dt_object = parse_datetime_utc(v, field_name=field_name)
     if dt_object is None:
@@ -341,7 +341,7 @@ def _try_parse_as_numeric(s_val: str) -> tuple[bool, int | float | None]:
 
 def _validate_numeric_string_timestamp(
     s_val: str,
-    numeric_value: int | float,
+    numeric_value: float,
     field_name: str,
 ) -> int | float:
     """Validate string that represents a numeric timestamp."""
@@ -433,18 +433,16 @@ def _validate_optional_non_empty_string_max_len(
             v = str(v)
         elif not isinstance(v, str):
             raise ValueError(f"{field_name}: raw value must be a string or integer")
-    else:
-        if not isinstance(v, str):
-            raise ValueError(f"{field_name}: raw value must be a string")
+    elif not isinstance(v, str):
+        raise ValueError(f"{field_name}: raw value must be a string")
 
     if not v.strip():  # Check for empty or whitespace-only string
         if field_name == "clientId" or field_name == "client_id":
             raise ValueError(
                 "Value error, clientId cannot be an empty or whitespace-only string if provided.",
             )
-        else:
-            # Align with test_bp_raw_market.py for field 'e' ('event_type')
-            raise ValueError(f"Field {field_name}: String cannot be empty")
+        # Align with test_bp_raw_market.py for field 'e' ('event_type')
+        raise ValueError(f"Field {field_name}: String cannot be empty")
 
     return validate_str_field(v, field_name=field_name, max_length=max_length, allow_empty=False)
 
@@ -764,7 +762,7 @@ def _validate_kline_int_field(v: object, info: ValidationInfo, field_alias: str)
         # (6, "end_time_ms", "1700000059999", TypeError, "Raw value must be an integer"),
         # (8, "trade_count", "50", TypeError, "Raw value must be an integer"),
         raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
-    elif isinstance(v, int):
+    if isinstance(v, int):
         val_int = v
     elif isinstance(
         v,
@@ -1146,7 +1144,7 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
 
     Returns original string. Specific error for non-finite.
     """
-    field_name = info.field_name if info.field_name else "quantity"  # Default to quantity
+    field_name = info.field_name or "quantity"  # Default to quantity
     if not isinstance(v, str):
         raise ValueError("Input should be a valid string")
 
@@ -1179,7 +1177,7 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
 
     Returns original string. Specific error for non-finite and negative.
     """
-    field_name = info.field_name if info.field_name else "price"
+    field_name = info.field_name or "price"
     if not isinstance(v, str):
         raise ValueError("Input should be a valid string")
 
@@ -1211,7 +1209,7 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
 
     Returns original string. Specific error for negative value.
     """
-    field_name = info.field_name if info.field_name else "amount"
+    field_name = info.field_name or "amount"
     if not isinstance(v, str):
         raise ValueError("Input should be a valid string")
 
@@ -1243,7 +1241,7 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
 
     Returns original string. Specific error for negative value.
     """
-    field_name = info.field_name if info.field_name else "amount"
+    field_name = info.field_name or "amount"
     if not isinstance(v, str):
         raise ValueError("Input should be a valid string")
 

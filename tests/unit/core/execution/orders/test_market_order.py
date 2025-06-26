@@ -32,7 +32,7 @@ class TestMarketOrder:
     def mock_market_order_service(self) -> AsyncMock:
         """Create a mock market order service."""
         service = AsyncMock(spec=MarketOrderService)
-        service.calculate_aggressive_price.return_value = Decimal("50100")
+        service.calculate_aggressive_price.return_value = Decimal(50100)
 
         # Make round_to_step_size return the same value passed in
 
@@ -70,11 +70,11 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1"),
-            price=Decimal("50100"),
+            quantity_requested=Decimal(1),
+            price=Decimal(50100),
             status=OrderStatus.FILLED,
-            quantity_filled=Decimal("1"),
-            average_fill_price=Decimal("50100"),
+            quantity_filled=Decimal(1),
+            average_fill_price=Decimal(50100),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -91,11 +91,11 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("10"),
-            price=Decimal("50100"),
+            quantity_requested=Decimal(10),
+            price=Decimal(50100),
             status=OrderStatus.PARTIALLY_FILLED,
-            quantity_filled=Decimal("6"),
-            average_fill_price=Decimal("50100"),
+            quantity_filled=Decimal(6),
+            average_fill_price=Decimal(50100),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -112,10 +112,10 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("10"),
-            price=Decimal("50100"),
+            quantity_requested=Decimal(10),
+            price=Decimal(50100),
             status=OrderStatus.CANCELED,
-            quantity_filled=Decimal("0"),
+            quantity_filled=Decimal(0),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -137,15 +137,15 @@ class TestMarketOrder:
         result = await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
         )
 
         # Verify service called correctly
-        mock_market_order_service.round_to_step_size.assert_called_once_with(Decimal("1"), "BTC")
+        mock_market_order_service.round_to_step_size.assert_called_once_with(Decimal(1), "BTC")
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("1"),  # rounded quantity from round_to_step_size
+            quantity=Decimal(1),  # rounded quantity from round_to_step_size
             max_slippage=None,
         )
 
@@ -156,13 +156,13 @@ class TestMarketOrder:
         assert args.symbol == "BTC"
         assert args.side == OrderSide.BUY
         assert args.order_type == OrderType.LIMIT
-        assert args.quantity == Decimal("1")
-        assert args.price == Decimal("50100")
+        assert args.quantity == Decimal(1)
+        assert args.price == Decimal(50100)
         assert args.time_in_force == TimeInForce.IOC
 
         # Verify result
         assert result.status == OrderStatus.FILLED
-        assert result.quantity_filled == Decimal("1")
+        assert result.quantity_filled == Decimal(1)
 
     @pytest.mark.asyncio
     async def test_execute_market_order_partial_fill(
@@ -178,11 +178,11 @@ class TestMarketOrder:
         result = await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
         )
 
         assert result.status == OrderStatus.PARTIALLY_FILLED
-        assert result.quantity_filled == Decimal("6")
+        assert result.quantity_filled == Decimal(6)
 
     @pytest.mark.asyncio
     async def test_execute_market_order_cancelled(
@@ -198,11 +198,11 @@ class TestMarketOrder:
         result = await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
         )
 
         assert result.status == OrderStatus.CANCELED
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_execute_market_order_disabled(self, market_order: MarketOrder) -> None:
@@ -213,7 +213,7 @@ class TestMarketOrder:
             await market_order.execute_market_order(
                 symbol="BTC",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
     @pytest.mark.asyncio
@@ -230,7 +230,7 @@ class TestMarketOrder:
         await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             max_slippage=Decimal("0.01"),  # 1% max slippage
         )
 
@@ -238,13 +238,16 @@ class TestMarketOrder:
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             max_slippage=Decimal("0.01"),
         )
 
     @pytest.mark.asyncio
     async def test_execute_market_order_with_client_id(
-        self, market_order: MarketOrder, mock_exchange_api: AsyncMock, filled_order: Order
+        self,
+        market_order: MarketOrder,
+        mock_exchange_api: AsyncMock,
+        filled_order: Order,
     ) -> None:
         """Test market order with client order ID."""
         mock_exchange_api.place_order.return_value = filled_order
@@ -252,7 +255,7 @@ class TestMarketOrder:
         await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             client_order_id="MY_ORDER_123",
         )
 
@@ -279,11 +282,11 @@ class TestMarketOrder:
             await market_order.execute_market_order(
                 symbol="BTC",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
     @pytest.mark.skip(
-        reason="Business logic attempts to modify frozen Order model - needs refactoring"
+        reason="Business logic attempts to modify frozen Order model - needs refactoring",
     )
     @pytest.mark.asyncio
     async def test_execute_market_order_with_retry(
@@ -300,11 +303,11 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("10"),
-            price=Decimal("50100"),
+            quantity_requested=Decimal(10),
+            price=Decimal(50100),
             status=OrderStatus.PARTIALLY_FILLED,
-            quantity_filled=Decimal("6"),
-            average_fill_price=Decimal("50100"),
+            quantity_filled=Decimal(6),
+            average_fill_price=Decimal(50100),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -319,11 +322,11 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("4"),
-            price=Decimal("50100"),
+            quantity_requested=Decimal(4),
+            price=Decimal(50100),
             status=OrderStatus.FILLED,
-            quantity_filled=Decimal("4"),
-            average_fill_price=Decimal("50100"),
+            quantity_filled=Decimal(4),
+            average_fill_price=Decimal(50100),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -336,7 +339,7 @@ class TestMarketOrder:
         result = await market_order.execute_market_order_with_retry(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
             max_retries=1,
         )
 
@@ -344,7 +347,7 @@ class TestMarketOrder:
         assert mock_exchange_api.place_order.call_count == 2
 
         # Total filled should be 10
-        assert result.quantity_filled == Decimal("10")
+        assert result.quantity_filled == Decimal(10)
 
     @pytest.mark.asyncio
     async def test_execute_market_order_with_retry_no_fill(
@@ -359,7 +362,7 @@ class TestMarketOrder:
         result = await market_order.execute_market_order_with_retry(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
             max_retries=2,
         )
 
@@ -367,21 +370,21 @@ class TestMarketOrder:
         assert mock_exchange_api.place_order.call_count == 3
 
         # No fills
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.status == OrderStatus.CANCELED
 
     def test_validate_order_parameters(self, market_order: MarketOrder) -> None:
         """Test order parameter validation."""
         # Valid parameters
-        market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("1"))
+        market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal(1))
 
         # Invalid symbol
         with pytest.raises(ValueError, match="Symbol must be"):
-            market_order.validate_order_parameters("", OrderSide.BUY, Decimal("1"))
+            market_order.validate_order_parameters("", OrderSide.BUY, Decimal(1))
 
         # Invalid quantity
         with pytest.raises(ValueError, match="Quantity must be"):
-            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("0"))
+            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal(0))
 
         # Non-finite quantity
         with pytest.raises(ValueError, match="Quantity must be finite"):
@@ -389,7 +392,9 @@ class TestMarketOrder:
 
     @pytest.mark.asyncio
     async def test_service_error_propagation(
-        self, market_order: MarketOrder, mock_market_order_service: AsyncMock
+        self,
+        market_order: MarketOrder,
+        mock_market_order_service: AsyncMock,
     ) -> None:
         """Test that service errors are propagated correctly."""
         mock_market_order_service.calculate_aggressive_price.side_effect = ValueError("Test error")
@@ -398,7 +403,7 @@ class TestMarketOrder:
             await market_order.execute_market_order(
                 symbol="BTC",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
     @pytest.mark.asyncio
@@ -415,11 +420,11 @@ class TestMarketOrder:
             symbol="BTC",
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
-            quantity_requested=Decimal("1"),
-            price=Decimal("49900"),
+            quantity_requested=Decimal(1),
+            price=Decimal(49900),
             status=OrderStatus.FILLED,
-            quantity_filled=Decimal("1"),
-            average_fill_price=Decimal("49900"),
+            quantity_filled=Decimal(1),
+            average_fill_price=Decimal(49900),
             time_in_force=TimeInForce.IOC,
             updated_at=None,
             triggered_at=None,
@@ -428,17 +433,17 @@ class TestMarketOrder:
         )
 
         mock_exchange_api.place_order.return_value = sell_order
-        mock_market_order_service.calculate_aggressive_price.return_value = Decimal("49900")
+        mock_market_order_service.calculate_aggressive_price.return_value = Decimal(49900)
 
         result = await market_order.execute_market_order(
             symbol="BTC",
             side=OrderSide.SELL,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
         )
 
         # Verify sell side passed correctly
         args = mock_exchange_api.place_order.call_args[0][0]
         assert args.side == OrderSide.SELL
-        assert args.price == Decimal("49900")
+        assert args.price == Decimal(49900)
 
         assert result.status == OrderStatus.FILLED

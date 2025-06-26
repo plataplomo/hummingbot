@@ -163,7 +163,8 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
         # Preprocess asset contexts with name enrichment from universe
         preprocessed_asset_ctxs = cls._preprocess_asset_ctxs_list(
-            asset_ctxs_list, preprocessed_meta
+            asset_ctxs_list,
+            preprocessed_meta,
         )
 
         return {"meta": preprocessed_meta, "asset_ctxs": preprocessed_asset_ctxs}

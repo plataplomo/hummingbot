@@ -48,4 +48,3 @@ class IAuthenticator(ABC):
             headers, params, and data for the authenticated request.
 
         """
-        pass

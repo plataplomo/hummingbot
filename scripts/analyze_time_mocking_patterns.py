@@ -127,7 +127,10 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Analyze time mocking patterns in test files")
     parser.add_argument(
-        "--target-dir", type=Path, default=Path("tests"), help="Directory to analyze"
+        "--target-dir",
+        type=Path,
+        default=Path("tests"),
+        help="Directory to analyze",
     )
     parser.add_argument("--output", type=Path, help="Output file for the report (default: stdout)")
 

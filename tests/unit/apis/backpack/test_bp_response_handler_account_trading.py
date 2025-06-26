@@ -22,7 +22,7 @@ pytest_plugins = ["tests.unit.apis.backpack.conftest_response_handler"]
 
 # Type aliases for clarity
 type RawJsonPrim = str | int | float | bool | None
-type RawJson = dict[str, "RawJson"] | list["RawJson"] | RawJsonPrim
+type RawJson = dict[str, RawJson] | list[RawJson] | RawJsonPrim
 type RawJsonResponse = RawJson
 
 

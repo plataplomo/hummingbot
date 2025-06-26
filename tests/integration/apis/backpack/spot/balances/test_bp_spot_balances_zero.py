@@ -27,7 +27,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/balances/zero_balance"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/balances/zero_balance"],
+    indirect=True,
 )
 class TestBackpackSpotBalancesZero:
     """Integration tests for Backpack balances with $0 balance (empty account scenarios)."""
@@ -90,7 +92,8 @@ class TestBackpackSpotBalancesZero:
 
         try:
             results: list[dict[str, SpotBalance] | BaseException] = await asyncio.gather(
-                *tasks, return_exceptions=True
+                *tasks,
+                return_exceptions=True,
             )
 
             successes = [r for r in results if isinstance(r, dict)]
@@ -173,7 +176,7 @@ class TestBackpackSpotBalancesZero:
                     assert result[asset].total_quantity == first_result[asset].total_quantity
 
         logger.info(
-            f"✓ Concurrent balance requests consistent: {len(successful_results)} successful"
+            f"✓ Concurrent balance requests consistent: {len(successful_results)} successful",
         )
 
     @pytest.mark.vcr
@@ -190,18 +193,18 @@ class TestBackpackSpotBalancesZero:
             assert isinstance(spot_balance.available_quantity, Decimal)
             assert isinstance(spot_balance.total_quantity, Decimal)
 
-            if spot_balance.available_quantity == Decimal("0"):
+            if spot_balance.available_quantity == Decimal(0):
                 assert str(spot_balance.available_quantity) == "0"
                 logger.info(f"✓ Zero available balance precise for {asset_symbol}")
 
-            if spot_balance.total_quantity == Decimal("0"):
+            if spot_balance.total_quantity == Decimal(0):
                 assert str(spot_balance.total_quantity) == "0"
                 logger.info(f"✓ Zero total balance precise for {asset_symbol}")
 
-            total_value = spot_balance.total_quantity + Decimal("0")
+            total_value = spot_balance.total_quantity + Decimal(0)
             assert total_value == spot_balance.total_quantity
 
-            assert spot_balance.total_quantity >= Decimal("0")
+            assert spot_balance.total_quantity >= Decimal(0)
             assert spot_balance.available_quantity <= spot_balance.total_quantity
 
             logger.info(f"✓ Decimal operations stable for {asset_symbol}")

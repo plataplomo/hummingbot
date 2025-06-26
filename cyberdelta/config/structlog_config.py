@@ -17,6 +17,15 @@ from structlog.typing import EventDict, Processor
 from cyberdelta.config.models.config_models import AppSettings
 
 
+# Add TRACE level below DEBUG
+TRACE_LEVEL = 5
+logging.addLevelName(TRACE_LEVEL, "TRACE")
+
+
+# Note: We don't add trace method to logging.Logger due to type checking issues.
+# The TraceLevelLogger wrapper provides trace functionality instead.
+
+
 def add_timestamp(_: object, __: str, event_dict: EventDict) -> EventDict:
     """Add ISO format timestamp to log events."""
     event_dict["timestamp"] = datetime.now(UTC).isoformat()
@@ -47,16 +56,15 @@ def strip_ansi_codes(_: object, __: str, event_dict: EventDict) -> EventDict:
     ansi_pattern = re.compile(r"\x1b\[[0-9;]*m")
 
     def strip_value(
-        value: str | dict[str, Any] | list[Any] | int | float | bool | None,
+        value: str | dict[str, Any] | list[Any] | float | bool | None,
     ) -> str | dict[str, Any] | list[Any] | int | float | bool | None:
         if isinstance(value, str):
             return ansi_pattern.sub("", value)
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return {k: strip_value(v) for k, v in value.items()}
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return [strip_value(v) for v in value]
-        else:
-            return value
+        return value
 
     return {key: strip_value(value) for key, value in event_dict.items()}
 
@@ -171,17 +179,81 @@ def setup_file_logging(log_file: str, level: int) -> None:
     root_logger.addHandler(file_handler)
 
 
-def get_logger(name: str | None = None, **context: object) -> structlog.BoundLogger:
-    """Get a configured structlog logger.
+class TraceLevelLogger:
+    """Wrapper to add trace level support to structlog BoundLogger."""
+
+    def __init__(self, logger: structlog.BoundLogger) -> None:
+        """Initialize the trace logger wrapper.
+
+        Args:
+            logger: The structlog BoundLogger to wrap
+        """
+        self._logger = logger
+
+    def debug(self, event: str | None = None, **kwargs: object) -> None:
+        """Log at DEBUG level."""
+        self._logger.debug(event, **kwargs)
+
+    def info(self, event: str | None = None, **kwargs: object) -> None:
+        """Log at INFO level."""
+        self._logger.info(event, **kwargs)
+
+    def warning(self, event: str | None = None, **kwargs: object) -> None:
+        """Log at WARNING level."""
+        self._logger.warning(event, **kwargs)
+
+    def error(self, event: str | None = None, **kwargs: object) -> None:
+        """Log at ERROR level."""
+        self._logger.error(event, **kwargs)
+
+    def critical(self, event: str | None = None, **kwargs: object) -> None:
+        """Log at CRITICAL level."""
+        self._logger.critical(event, **kwargs)
+
+    def exception(self, event: str | None = None, **kwargs: object) -> None:
+        """Log an exception with traceback."""
+        self._logger.exception(event, **kwargs)
+
+    def trace(self, event: str, **kwargs: object) -> None:
+        """Log at TRACE level (below DEBUG)."""
+        # Use debug with special marker since structlog doesn't support custom levels
+        self._logger.debug(f"[TRACE] {event}", **kwargs)
+
+    def bind(self, **kwargs: object) -> TraceLevelLogger:
+        """Bind context to logger."""
+        return TraceLevelLogger(self._logger.bind(**kwargs))
+
+    def unbind(self, *keys: str) -> TraceLevelLogger:
+        """Unbind context from logger."""
+        return TraceLevelLogger(self._logger.unbind(*keys))
+
+    def try_unbind(self, *keys: str) -> TraceLevelLogger:
+        """Try to unbind context from logger."""
+        return TraceLevelLogger(self._logger.try_unbind(*keys))
+
+    def __getattr__(self, name: str) -> object:
+        """Delegate any other attribute access to the wrapped logger.
+
+        Args:
+            name: The attribute name
+
+        Returns:
+            The attribute from the wrapped logger
+        """
+        return getattr(self._logger, name)
+
+
+def get_logger(name: str | None = None, **context: object) -> TraceLevelLogger:
+    """Get a configured structlog logger with trace support.
 
     Args:
         name: Logger name (defaults to module name)
         **context: Additional context to bind to logger
 
     Returns:
-        Configured structlog logger with context
+        Configured structlog logger with context and trace support
     """
     logger: structlog.BoundLogger = structlog.get_logger(name)
     if context:
         logger = logger.bind(**context)
-    return logger
+    return TraceLevelLogger(logger)

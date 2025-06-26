@@ -34,8 +34,6 @@ logger = get_logger(__name__)  # Use standard logging logger
 class SymbolMappingError(Exception):
     """Custom exception for symbol mapping failures."""
 
-    pass
-
 
 class SymbolMapper:
     """Centralized utility for mapping between internal symbols and exchange-specific symbols.
@@ -99,7 +97,7 @@ class SymbolMapper:
             )
             return
 
-        exchange_data: dict[str, Any] = cast(dict[str, Any], exchange_data_any)
+        exchange_data: dict[str, Any] = cast("dict[str, Any]", exchange_data_any)
 
         if "symbols" not in exchange_data:
             logger.warning(
@@ -114,7 +112,7 @@ class SymbolMapper:
             )
             return
 
-        symbol_map_dict: dict[str, Any] = cast(dict[str, Any], symbol_map)
+        symbol_map_dict: dict[str, Any] = cast("dict[str, Any]", symbol_map)
         self._process_symbol_mappings(exchange_id, symbol_map_dict)
 
     def _process_symbol_mappings(self, exchange_id: str, symbol_map_dict: dict[str, Any]) -> None:
@@ -125,7 +123,10 @@ class SymbolMapper:
             self._process_single_symbol_mapping(exchange_id, internal_symbol, exchange_symbol)
 
     def _process_single_symbol_mapping(
-        self, exchange_id: str, internal_symbol: str, exchange_symbol: object
+        self,
+        exchange_id: str,
+        internal_symbol: str,
+        exchange_symbol: object,
     ) -> None:
         """Process a single symbol mapping entry."""
         # internal_symbol is guaranteed to be str since it's a dict key from config
@@ -141,7 +142,10 @@ class SymbolMapper:
         self._all_internal_symbols.add(internal_symbol)
 
     def _add_internal_to_exchange_mapping(
-        self, exchange_id: str, internal_symbol: str, exchange_symbol: str
+        self,
+        exchange_id: str,
+        internal_symbol: str,
+        exchange_symbol: str,
     ) -> None:
         """Add mapping from internal symbol to exchange symbol."""
         if internal_symbol not in self._internal_to_exchange:
@@ -154,7 +158,10 @@ class SymbolMapper:
         self._internal_to_exchange[internal_symbol][exchange_id] = exchange_symbol
 
     def _add_exchange_to_internal_mapping(
-        self, exchange_id: str, internal_symbol: str, exchange_symbol: str
+        self,
+        exchange_id: str,
+        internal_symbol: str,
+        exchange_symbol: str,
     ) -> None:
         """Add mapping from exchange symbol to internal symbol."""
         if exchange_symbol in self._exchange_to_internal[exchange_id]:

@@ -27,10 +27,10 @@ class TestRiskManagerValidation:
         # Test with a valid opportunity (needs size_opportunity to return something)
         valid_sized = SizedOpportunity(
             sample_opportunity,
-            Decimal("100"),
-            Decimal("100"),
+            Decimal(100),
+            Decimal(100),
             Decimal("0.1"),  # allocation_percentage
-            Decimal("1"),
+            Decimal(1),
             Decimal("0.01"),  # expected_return
             Decimal("0.1"),  # risk_adjusted_return
         )
@@ -80,8 +80,8 @@ class TestRiskManagerValidation:
                     symbol="OTHER-PERP",
                     long_exchange="other_long",
                     short_exchange="other_short",
-                    long_price=Decimal("99"),
-                    short_price=Decimal("101"),
+                    long_price=Decimal(99),
+                    short_price=Decimal(101),
                     long_funding_rate=Decimal("0.0"),
                     short_funding_rate=Decimal("0.0"),
                     net_funding_differential=Decimal("0.0"),

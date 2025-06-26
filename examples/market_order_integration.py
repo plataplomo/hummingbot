@@ -42,7 +42,9 @@ class ExchangeAgnosticMarketOrderExecutor:
         self._initialize_exchanges(config_manager, secrets_manager)
 
     def _initialize_exchanges(
-        self, config_manager: ConfigManager, secrets_manager: SecretsManager
+        self,
+        config_manager: ConfigManager,
+        secrets_manager: SecretsManager,
     ) -> None:
         """Initialize exchange instances."""
         # Get configs
@@ -94,7 +96,9 @@ class ExchangeAgnosticMarketOrderExecutor:
 
         # Create executor
         self.market_orders[exchange_name] = MarketOrder(
-            exchange_api=exchange_api, market_order_service=service, config=config
+            exchange_api=exchange_api,
+            market_order_service=service,
+            config=config,
         )
 
     def _get_exchange_specific_config(self, exchange_name: str) -> MarketOrderConfig:
@@ -111,13 +115,12 @@ class ExchangeAgnosticMarketOrderExecutor:
                     "default": Decimal("0.002"),
                 },
             )
-        elif exchange_name == "backpack":
+        if exchange_name == "backpack":
             return MarketOrderConfig(
                 default_slippage_pct=Decimal("0.002"),  # 0.2% for Backpack
                 max_slippage_pct=Decimal("0.05"),
             )
-        else:
-            return MarketOrderConfig()  # Default config
+        return MarketOrderConfig()  # Default config
 
     async def execute_market_order(
         self,
@@ -158,7 +161,10 @@ class ExchangeAgnosticMarketOrderExecutor:
 
         try:
             order = await market_order.execute_market_order(
-                symbol=symbol, side=side, quantity=quantity, max_slippage=max_slippage
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                max_slippage=max_slippage,
             )
 
             execution_time_ms = (time.time() - start_time) * 1000
@@ -168,9 +174,9 @@ class ExchangeAgnosticMarketOrderExecutor:
                 symbol=symbol,
                 side=side,
                 requested_qty=quantity,
-                filled_qty=order.quantity_filled or Decimal("0"),
-                expected_price=order.price or Decimal("0"),  # In real use, calculate expected
-                actual_price=order.average_fill_price or order.price or Decimal("0"),
+                filled_qty=order.quantity_filled or Decimal(0),
+                expected_price=order.price or Decimal(0),  # In real use, calculate expected
+                actual_price=order.average_fill_price or order.price or Decimal(0),
                 expected_slippage=Decimal("0.001"),  # Would calculate from config
                 status=order.status,
                 execution_time_ms=execution_time_ms,
@@ -249,7 +255,10 @@ async def main() -> None:
     # Example 1: Execute a market order on Hyperliquid
     try:
         await executor.execute_market_order(
-            exchange_name="hyperliquid", symbol="BTC", side=OrderSide.BUY, quantity=Decimal("0.01")
+            exchange_name="hyperliquid",
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal("0.01"),
         )
         # Hyperliquid order executed successfully
     except Exception as e:

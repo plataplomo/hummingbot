@@ -290,7 +290,7 @@ class TestTransformRawAssetCtxToFundingRate:
         assert funding_rate.hl_details is not None
         assert funding_rate.hl_details.hl_funding_hourly == expected_hourly_rate
         # 8-hour funding rate (standard Hyperliquid period)
-        assert funding_rate.funding_rate == expected_hourly_rate * Decimal("8")
+        assert funding_rate.funding_rate == expected_hourly_rate * Decimal(8)
 
         # Additional funding rate fields
         assert funding_rate.predicted_rate is None  # Set to None by mapper
@@ -324,7 +324,7 @@ class TestTransformRawAssetCtxToFundingRate:
         expected_hourly_rate = Decimal(raw_ctx.funding)
         assert funding_rate.hl_details is not None
         assert funding_rate.hl_details.hl_funding_hourly == expected_hourly_rate
-        assert funding_rate.funding_rate == expected_hourly_rate * Decimal("8")
+        assert funding_rate.funding_rate == expected_hourly_rate * Decimal(8)
 
         # Mark price and impact price handling
         assert funding_rate.mark_price == Decimal(raw_ctx.mark_px)
@@ -433,13 +433,13 @@ class TestTransformRawAssetCtxToFundingRate:
 
             # Business logic rounds extremely small values
             if abs(float(funding_value)) < 0.00000001:
-                expected_hourly_rate = Decimal("0")
+                expected_hourly_rate = Decimal(0)
             else:
                 expected_hourly_rate = Decimal(funding_value)
 
             assert funding_rate.hl_details is not None
             assert funding_rate.hl_details.hl_funding_hourly == expected_hourly_rate
-            assert funding_rate.funding_rate == expected_hourly_rate * Decimal("8")
+            assert funding_rate.funding_rate == expected_hourly_rate * Decimal(8)
 
 
 # --- Tests for core business logic validation ---

@@ -28,7 +28,7 @@ pytest_plugins = ["tests.unit.apis.backpack.conftest_response_handler"]
 
 # Type aliases for clarity
 type RawJsonPrim = str | int | float | bool | None
-type RawJson = dict[str, "RawJson"] | list["RawJson"] | RawJsonPrim
+type RawJson = dict[str, RawJson] | list[RawJson] | RawJsonPrim
 type RawJsonResponse = RawJson
 
 
@@ -334,11 +334,11 @@ class TestHandleGetMarketDataResponse:
         assert isinstance(klines[0], BackpackRawKline)
         assert klines[0].start_time_ms == 1678886400000
         assert klines[0].open_price.quantize(10) == 138  # Decimal comparison
-        assert klines[0].high_price.quantize(10) == Decimal("140")  # 139.5 quantizes to 140
+        assert klines[0].high_price.quantize(10) == Decimal(140)  # 139.5 quantizes to 140
 
         assert isinstance(klines[1], BackpackRawKline)
         assert klines[1].start_time_ms == 1678886460000
-        assert klines[1].close_price.quantize(10) == Decimal("140")  # 139.8 quantizes to 140
+        assert klines[1].close_price.quantize(10) == Decimal(140)  # 139.8 quantizes to 140
 
     def test_empty_klines_list(self, symbol_spot: str) -> None:
         """Test handling empty market data response."""
@@ -713,7 +713,7 @@ class TestHandleGetMarketsResponse:
             },
             {
                 # Missing required fields
-                "symbol": "BTC_USDC"
+                "symbol": "BTC_USDC",
                 # Missing baseSymbol, quoteSymbol, marketType, filters, orderBookState, createdAt
             },
         ]
@@ -775,7 +775,10 @@ class TestHandleGetMarketResponse:
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
         market = BackpackResponseHandler.handle_get_market_response(
-            cast("ParsedJsonResponse", raw_data), symbol_spot, 200, {}
+            cast("ParsedJsonResponse", raw_data),
+            symbol_spot,
+            200,
+            {},
         )
         assert isinstance(market, BackpackRawMarket)
         assert market.symbol == symbol_spot
@@ -789,7 +792,10 @@ class TestHandleGetMarketResponse:
         raw_data = ["not", "a", "dict"]
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
-                cast("ParsedJsonResponse", raw_data), symbol_spot, 400, {}
+                cast("ParsedJsonResponse", raw_data),
+                symbol_spot,
+                400,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "expected dict" in exc_info.value.message
@@ -805,7 +811,10 @@ class TestHandleGetMarketResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
-                cast("ParsedJsonResponse", raw_data), symbol_spot, 200, {}
+                cast("ParsedJsonResponse", raw_data),
+                symbol_spot,
+                200,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid market for {symbol_spot}" in exc_info.value.message
@@ -831,7 +840,10 @@ class TestHandleGetMarketResponse:
         }
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
-                cast("ParsedJsonResponse", raw_data), symbol_spot, 200, {}
+                cast("ParsedJsonResponse", raw_data),
+                symbol_spot,
+                200,
+                {},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid market for {symbol_spot}" in exc_info.value.message
@@ -852,7 +864,10 @@ class TestHandleGetMarketResponse:
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
         market = BackpackResponseHandler.handle_get_market_response(
-            cast("ParsedJsonResponse", raw_data), symbol_spot, 200, {}
+            cast("ParsedJsonResponse", raw_data),
+            symbol_spot,
+            200,
+            {},
         )
         assert isinstance(market, BackpackRawMarket)
         assert market.symbol == symbol_spot
@@ -868,7 +883,10 @@ class TestHandleGetMarketResponse:
         raw_data = "not a dict"
         with pytest.raises(APIError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
-                cast("ParsedJsonResponse", raw_data), symbol, 404, {}
+                cast("ParsedJsonResponse", raw_data),
+                symbol,
+                404,
+                {},
             )
         assert f"market for {symbol}" in exc_info.value.message
         assert exc_info.value.http_status == 404

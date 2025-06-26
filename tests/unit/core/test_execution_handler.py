@@ -40,7 +40,7 @@ def create_mock_order(
     symbol: str = "BTC-PERP",
     side: OrderSide = OrderSide.BUY,
     order_type: OrderType | None = None,  # Auto-detect if None
-    price: Decimal | None = Decimal("30000"),
+    price: Decimal | None = Decimal(30000),
     quantity_requested: Decimal = Decimal("1.0"),
     quantity_filled: Decimal = Decimal("0.0"),
     status: OrderStatus = OrderStatus.OPEN,
@@ -178,4 +178,4 @@ def test_execution_handler() -> None:
     # # assert exec_result.error_message is not None
     # # assert exec_result.order_id == original_order_id
     # # mock_hl_api.place_order.assert_called_once()  # Only initial order placement
-    pass  # Added pass to prevent indentation error
+    # Added pass to prevent indentation error

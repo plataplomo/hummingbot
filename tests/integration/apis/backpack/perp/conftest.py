@@ -35,15 +35,15 @@ async def bp_perp_test_config(
         # Get actual constraints from first available perp market
         constraints = await get_market_constraints(bp_api_for_test_env, perp_symbols[0])
         min_quantity = constraints.get("min_quantity", constraints["step_size"])
-        max_leverage = constraints.get("max_leverage", Decimal("100"))
+        max_leverage = constraints.get("max_leverage", Decimal(100))
 
         return {
             "symbols": perp_symbols,
             "min_position_size": min_quantity,
             "test_sizes": [
                 min_quantity,  # Minimum size
-                min_quantity * Decimal("10"),  # 10x minimum
-                min_quantity * Decimal("100"),  # 100x minimum
+                min_quantity * Decimal(10),  # 10x minimum
+                min_quantity * Decimal(100),  # 100x minimum
             ],
             "max_leverage": int(max_leverage),
         }

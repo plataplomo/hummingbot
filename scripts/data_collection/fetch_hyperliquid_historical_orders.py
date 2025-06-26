@@ -80,7 +80,7 @@ def main() -> None:
     orders_raw = data.get("orders", [])
     if isinstance(orders_raw, list) and orders_raw:
         # Type assertion: we know orders_raw is a list at this point
-        orders = cast(list[dict[str, Any]], orders_raw)
+        orders = cast("list[dict[str, Any]]", orders_raw)
         # Order Analysis
         _ = len(orders)  # Analysis completed
 

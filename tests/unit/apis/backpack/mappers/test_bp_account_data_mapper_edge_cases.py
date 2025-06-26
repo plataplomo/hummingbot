@@ -255,7 +255,7 @@ class TestEdgeCasesAndRobustness:
         # Mypy=[union-attr] Ruff=[N/A]
         assert result is not None, "Expected Trade object but got None"
         assert result.price == Decimal("0.00000123")
-        assert result.quantity == Decimal("1500000")
+        assert result.quantity == Decimal(1500000)
         assert result.fee == Decimal("0.000000025")
 
     def test_negative_values_handling(

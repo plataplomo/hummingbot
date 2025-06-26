@@ -242,7 +242,10 @@ class StrategyManager:
             await self._process_single_strategy(strategy, data, strategy_name)
 
     async def _process_single_strategy(
-        self, strategy: Strategy, data: Candle, strategy_name: str
+        self,
+        strategy: Strategy,
+        data: Candle,
+        strategy_name: str,
     ) -> None:
         """Process data through a single strategy and handle generated signals."""
         try:
@@ -336,7 +339,7 @@ class StrategyManager:
             #     )
             #     return False
             # signal = sized_signal  # Replace original signal with sized one
-            pass  # Placeholder for future risk management integration
+            # Placeholder for future risk management integration
             return True
 
         except Exception as risk_e:

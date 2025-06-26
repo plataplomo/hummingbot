@@ -63,7 +63,7 @@ def test_trade_minimal_valid() -> None:
     assert trade.price == price
     assert trade.quantity == quantity
     assert trade.cost == price * quantity
-    assert trade.fee == Decimal("0")
+    assert trade.fee == Decimal(0)
     assert trade.fee_asset is None
     assert trade.is_maker is None
     assert trade.exchange == "backpack"
@@ -267,7 +267,7 @@ def test_trade_positive_constraints() -> None:
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
-            price=Decimal("0"),
+            price=Decimal(0),
             quantity=Decimal("2.0"),
         )
     # quantity
@@ -280,7 +280,7 @@ def test_trade_positive_constraints() -> None:
             order_id="order-xyz",
             exchange="backpack",
             price=Decimal("100.0"),
-            quantity=Decimal("0"),
+            quantity=Decimal(0),
         )
 
 
@@ -294,10 +294,10 @@ def test_trade_decimal_parsing() -> None:
         order_id="order-xyz",
         exchange="backpack",
         price=Decimal("100.0"),
-        quantity=Decimal("2"),
+        quantity=Decimal(2),
     )
     assert trade.price == Decimal("100.0")
-    assert trade.quantity == Decimal("2")
+    assert trade.quantity == Decimal(2)
     assert trade.cost == Decimal("200.0")
 
 

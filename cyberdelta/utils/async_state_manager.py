@@ -158,14 +158,13 @@ class AsyncStateManager:
                     state_file=self.state_file,
                 )
                 return True
-            else:
-                logger.error(
-                    "state_write_failed",
-                    action="saving_state",
-                    message=f"Failed to write state to {self.state_file}",
-                    state_file=self.state_file,
-                )
-                return False
+            logger.error(
+                "state_write_failed",
+                action="saving_state",
+                message=f"Failed to write state to {self.state_file}",
+                state_file=self.state_file,
+            )
+            return False
 
         except Exception as e:
             logger.error(
@@ -356,7 +355,7 @@ class AsyncStateManager:
         metadata_raw = state_data.get("metadata", {})
         if not isinstance(metadata_raw, dict):
             return False
-        metadata = cast(dict[str, Any], metadata_raw)
+        metadata = cast("dict[str, Any]", metadata_raw)
 
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False
@@ -407,7 +406,7 @@ class AsyncStateManager:
             def _read_sync() -> dict[str, Any]:
                 with open(file_path, encoding="utf-8") as f:
                     data = json.load(f)
-                    return cast(dict[str, Any], data)
+                    return cast("dict[str, Any]", data)
 
             return await loop.run_in_executor(None, _read_sync)
         except Exception as e:

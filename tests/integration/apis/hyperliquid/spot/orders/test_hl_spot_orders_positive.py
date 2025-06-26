@@ -39,7 +39,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/orders/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/spot/orders/positive"],
+    indirect=True,
 )
 class TestHyperliquidSpotOrdersPrivate:
     """Comprehensive private spot orders integration tests for /exchange endpoint operations.
@@ -68,7 +70,7 @@ class TestHyperliquidSpotOrdersPrivate:
             symbol="USDC@0",  # Hypothetical spot trading pair format
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
             price=Decimal("1.001"),
             time_in_force=TimeInForce.GTC,
         )

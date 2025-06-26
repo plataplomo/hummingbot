@@ -28,7 +28,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -58,12 +60,12 @@ async def test_hl_get_perp_market_btc_success(
     assert isinstance(market.tick_size, Decimal), (
         f"tick_size should be Decimal, got {type(market.tick_size)}"
     )
-    assert market.tick_size > Decimal("0"), f"tick_size should be positive, got {market.tick_size}"
+    assert market.tick_size > Decimal(0), f"tick_size should be positive, got {market.tick_size}"
 
     assert isinstance(market.step_size, Decimal), (
         f"step_size should be Decimal, got {type(market.step_size)}"
     )
-    assert market.step_size > Decimal("0"), f"step_size should be positive, got {market.step_size}"
+    assert market.step_size > Decimal(0), f"step_size should be positive, got {market.step_size}"
 
     # Validate tick_size and step_size are within reasonable exchange bounds
     # Use exchange-specific constraints instead of hardcoded values
@@ -93,7 +95,7 @@ async def test_hl_get_perp_market_btc_success(
         assert isinstance(market.min_price, Decimal), (
             f"min_price should be Decimal, got {type(market.min_price)}"
         )
-        assert market.min_price >= Decimal("0"), (
+        assert market.min_price >= Decimal(0), (
             f"min_price should be non-negative, got {market.min_price}"
         )
 
@@ -101,7 +103,7 @@ async def test_hl_get_perp_market_btc_success(
         assert isinstance(market.max_price, Decimal), (
             f"max_price should be Decimal, got {type(market.max_price)}"
         )
-        assert market.max_price >= Decimal("0"), (
+        assert market.max_price >= Decimal(0), (
             f"max_price should be non-negative, got {market.max_price}"
         )
 
@@ -140,7 +142,7 @@ async def test_hl_get_perp_market_btc_success(
             assert isinstance(market.hl_details.mark_price, Decimal), (
                 f"mark_price should be Decimal, got {type(market.hl_details.mark_price)}"
             )
-            assert market.hl_details.mark_price >= Decimal("0"), (
+            assert market.hl_details.mark_price >= Decimal(0), (
                 f"mark_price should be non-negative, got {market.hl_details.mark_price}"
             )
 
@@ -153,7 +155,9 @@ async def test_hl_get_perp_market_btc_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -173,12 +177,14 @@ async def test_hl_get_perp_market_eth_success(
     assert market.base_symbol == "ETH", f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
     assert market.quote_symbol == "USD", f"Expected quote_symbol 'USD', got '{market.quote_symbol}'"
 
-    assert market.tick_size <= Decimal("10"), f"ETH tick_size seems too large: {market.tick_size}"
-    assert market.step_size <= Decimal("1"), f"ETH step_size seems too large: {market.step_size}"
+    assert market.tick_size <= Decimal(10), f"ETH tick_size seems too large: {market.tick_size}"
+    assert market.step_size <= Decimal(1), f"ETH step_size seems too large: {market.step_size}"
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -200,7 +206,9 @@ async def test_hl_get_perp_market_sol_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -220,7 +228,9 @@ async def test_hl_get_perp_market_nonexistent_symbol_returns_none(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -240,7 +250,9 @@ async def test_hl_get_perp_market_invalid_symbol_handling(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -283,12 +295,12 @@ async def test_hl_get_perp_markets_success(
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal for {market.symbol}"
         )
-        assert market.tick_size > Decimal("0"), f"tick_size should be positive for {market.symbol}"
+        assert market.tick_size > Decimal(0), f"tick_size should be positive for {market.symbol}"
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal for {market.symbol}"
         )
-        assert market.step_size > Decimal("0"), f"step_size should be positive for {market.symbol}"
+        assert market.step_size > Decimal(0), f"step_size should be positive for {market.symbol}"
 
         assert isinstance(market.status, str), f"status should be str for {market.symbol}"
         assert len(market.status) > 0, f"status should not be empty for {market.symbol}"
@@ -314,7 +326,9 @@ async def test_hl_get_perp_markets_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -354,7 +368,9 @@ async def test_hl_get_perp_markets_data_consistency(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -396,13 +412,15 @@ async def test_hl_get_perp_markets_hyperliquid_specific_validation(
             )
 
             if market.hl_details.mark_price is not None:
-                assert market.hl_details.mark_price > Decimal("0"), (
+                assert market.hl_details.mark_price > Decimal(0), (
                     f"mark_price should be positive for {market.symbol}"
                 )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -428,16 +446,16 @@ async def test_hl_get_perp_markets_precision_validation(
         assert market.step_size.is_finite(), f"step_size should be finite for {market.symbol}"
         assert not market.step_size.is_nan(), f"step_size should not be NaN for {market.symbol}"
 
-        doubled_tick = market.tick_size * Decimal("2")
+        doubled_tick = market.tick_size * Decimal(2)
         assert isinstance(doubled_tick, Decimal), (
             f"Arithmetic with tick_size should maintain Decimal type for {market.symbol}"
         )
 
-        half_step = market.step_size / Decimal("2")
+        half_step = market.step_size / Decimal(2)
         assert isinstance(half_step, Decimal), (
             f"Division should maintain Decimal type for {market.symbol}"
         )
-        assert half_step > Decimal("0"), f"Half step should be positive for {market.symbol}"
+        assert half_step > Decimal(0), f"Half step should be positive for {market.symbol}"
 
         if market.hl_details is not None:
             if market.hl_details.mark_price is not None:
@@ -458,7 +476,9 @@ async def test_hl_get_perp_markets_precision_validation(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -510,7 +530,9 @@ async def test_hl_get_perp_market_vs_get_markets_consistency(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/market"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/market"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -545,12 +567,12 @@ async def test_hl_perp_market_business_logic_validation(
             f"min_quantity ({market.min_quantity})"
         )
 
-    assert market.tick_size <= Decimal("1000"), (
+    assert market.tick_size <= Decimal(1000), (
         f"tick_size seems too large for USD pair: {market.tick_size}"
     )
     assert market.tick_size >= Decimal("0.000001"), f"tick_size seems too small: {market.tick_size}"
 
-    assert market.step_size <= Decimal("1000"), f"step_size seems too large: {market.step_size}"
+    assert market.step_size <= Decimal(1000), f"step_size seems too large: {market.step_size}"
     assert market.step_size >= Decimal("0.000001"), f"step_size seems too small: {market.step_size}"
 
     if market.hl_details is not None:
@@ -561,10 +583,10 @@ async def test_hl_perp_market_business_logic_validation(
 
         if market.hl_details.mark_price is not None:
             if market.symbol == "BTC":
-                assert market.hl_details.mark_price > Decimal("1000"), (
+                assert market.hl_details.mark_price > Decimal(1000), (
                     f"BTC mark price seems too low: {market.hl_details.mark_price}"
                 )
-                assert market.hl_details.mark_price < Decimal("1000000"), (
+                assert market.hl_details.mark_price < Decimal(1000000), (
                     f"BTC mark price seems too high: {market.hl_details.mark_price}"
                 )
 

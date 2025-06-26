@@ -33,7 +33,7 @@ class TestRiskManagerDependencyFailures:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "bad_capital",
-        [Decimal("0"), Decimal("-100"), None, "invalid_decimal"],
+        [Decimal(0), Decimal(-100), None, "invalid_decimal"],
     )
     async def test_size_opportunity_bad_total_capital(
         self,

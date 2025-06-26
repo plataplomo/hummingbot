@@ -97,6 +97,12 @@ strategies:
       funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
       max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
       min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
+      min_funding_differential: 0.0001  # Minimum funding rate differential to consider
+      check_interval: 60  # Check for opportunities every 60 seconds
+      risk_aversion: 1.5  # Risk aversion parameter for position sizing
+      rebalance_threshold: 0.05  # Rebalance when position drift exceeds 5%
+      perp_exchange: "hyperliquid"  # Exchange for perpetual positions
+      spot_exchange: "backpack"  # Exchange for spot positions
 
 # Risk management (Simplified for Prototype 0.0.1)
 risk:

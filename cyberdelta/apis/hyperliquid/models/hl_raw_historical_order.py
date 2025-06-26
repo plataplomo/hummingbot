@@ -180,12 +180,11 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                     metadata={"original_response_item": status_item},
                 )
-            else:
-                raise APIError(
-                    message=f"Unexpected order status response: {status_item}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    metadata={"original_response_item": status_item},
-                )
+            raise APIError(
+                message=f"Unexpected order status response: {status_item}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                metadata={"original_response_item": status_item},
+            )
 
         # Handle non-dict items
         if not is_dict_str_any(status_item):
@@ -208,11 +207,10 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
                 code=APIErrorCode.ORDER_NOT_FOUND.value,
                 metadata={"original_response": data},
             )
-        else:
-            raise APIError(
-                message=f"Invalid order status response format: got string {data!r}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-            )
+        raise APIError(
+            message=f"Invalid order status response format: got string {data!r}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
 
     @classmethod
     def _normalize_order_structure(cls, data: dict[str, Any]) -> dict[str, Any]:
@@ -250,7 +248,7 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
 
 
 class HyperliquidRawHistoricalOrdersResponse(
-    RootModel[list[HyperliquidRawHistoricalOrderResponse]]
+    RootModel[list[HyperliquidRawHistoricalOrderResponse]],
 ):
     """Response model for list of historical orders from historicalOrders endpoint.
 
@@ -289,7 +287,7 @@ class HyperliquidRawHistoricalOrdersResponse(
 
                 logger = get_logger(__name__)
                 logger.warning(
-                    f"Skipping non-dict item in historical orders list at index {i}: {item!r}"
+                    f"Skipping non-dict item in historical orders list at index {i}: {item!r}",
                 )
                 continue
 

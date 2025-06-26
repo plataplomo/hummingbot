@@ -43,7 +43,8 @@ class TestRiskManagerConstraints:
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("3000.0")
         mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
-            total_quantity=Decimal("50000"), available_quantity=Decimal("50000")
+            total_quantity=Decimal(50000),
+            available_quantity=Decimal(50000),
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
@@ -53,8 +54,8 @@ class TestRiskManagerConstraints:
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
-            long_price=Decimal("30000"),
-            short_price=Decimal("29900"),
+            long_price=Decimal(30000),
+            short_price=Decimal(29900),
             long_funding_rate=Decimal("0.01"),
             short_funding_rate=Decimal("0.005"),
             net_funding_differential=Decimal("0.005"),
@@ -94,7 +95,8 @@ class TestRiskManagerConstraints:
             "4500.0",
         )  # High existing exposure; adding 1000 would exceed 5000 limit
         mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
-            total_quantity=Decimal("1000"), available_quantity=Decimal("1000")
+            total_quantity=Decimal(1000),
+            available_quantity=Decimal(1000),
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
@@ -103,8 +105,8 @@ class TestRiskManagerConstraints:
             symbol="BTC-PERP",
             long_exchange="hyperliquid",
             short_exchange="backpack",
-            long_price=Decimal("30000"),
-            short_price=Decimal("29900"),
+            long_price=Decimal(30000),
+            short_price=Decimal(29900),
             long_funding_rate=Decimal("0.01"),
             short_funding_rate=Decimal("0.005"),
             net_funding_differential=Decimal("0.005"),

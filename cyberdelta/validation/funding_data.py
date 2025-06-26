@@ -80,8 +80,8 @@ class IntegratedFundingData:
     secondary_available: bool
     tertiary_available: bool
     confidence_score: float
-    source_data: dict[SourceType, FundingData] = field(default_factory=lambda: {})
-    metadata: dict[str, Any] = field(default_factory=lambda: {})
+    source_data: dict[SourceType, FundingData] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_age(self) -> float:
         """Get the age of the integrated data in seconds.
@@ -267,7 +267,7 @@ class ArbitrageOpportunity(BaseModel):
     @classmethod
     def parse_decimal_fields(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse and validate decimal fields ensuring finite values.
@@ -284,7 +284,7 @@ class ArbitrageOpportunity(BaseModel):
 
     @field_validator("timestamp", mode="before")
     @classmethod
-    def parse_timestamp(cls, v: str | int | float | datetime | None, info: object) -> datetime:
+    def parse_timestamp(cls, v: str | float | datetime | None, info: object) -> datetime:
         """Parse and validate timestamp fields.
 
         Args:

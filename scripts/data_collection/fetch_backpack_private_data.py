@@ -133,7 +133,7 @@ class BackpackPrivateDataCollector:
             json_data = (
                 auth_components.data
                 if method.upper() in ["POST", "PUT"]
-                else (auth_components.data if auth_components.data else None)
+                else (auth_components.data or None)
             )
 
             # Add timeout to prevent signature expiration (Backpack has 5 second window)
@@ -150,10 +150,9 @@ class BackpackPrivateDataCollector:
                     response_data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return response_data
-                else:
-                    error_text = await response.text()
-                    logger.error(f"HTTP {response.status} error for {url}: {error_text}")
-                    return None
+                error_text = await response.text()
+                logger.error(f"HTTP {response.status} error for {url}: {error_text}")
+                return None
         except Exception as e:
             logger.error(f"Error fetching {method} {path}: {e}")
             return None

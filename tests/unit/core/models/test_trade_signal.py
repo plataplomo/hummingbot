@@ -221,7 +221,7 @@ def test_tradesignal_decimal_parsing(minimal_signal_data: dict[str, Any]) -> Non
     signal = TradeSignal(**data)
     assert signal.price == Decimal("60000.5")
     assert signal.quantity == Decimal("1.23")
-    assert signal.stop_loss == Decimal("58000")
+    assert signal.stop_loss == Decimal(58000)
     assert signal.take_profit == Decimal("62000.0")
 
 
@@ -312,7 +312,7 @@ def test_tradesignal_mutability(minimal_signal_data: dict[str, Any]) -> None:
 
     # Modify invalidly - Constraint (gt=0)
     with pytest.raises(ValidationError):
-        signal.quantity = Decimal("-1")
+        signal.quantity = Decimal(-1)
 
     # Modify invalidly - Type
     with pytest.raises(ValidationError, match=r"price.*Cannot convert .* to Decimal"):

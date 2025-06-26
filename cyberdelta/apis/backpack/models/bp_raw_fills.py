@@ -77,7 +77,8 @@ class BackpackRawFill(BaseModel):
     trade_id: RawBpNonNegativeInt = Field(..., alias="tradeId")
     client_id: RawBpOptionalNonEmptyStringMax128 | None = Field(None, alias="clientId")
     system_order_type: RawBpOptionalNonEmptyStringMax128 | None = Field(
-        None, alias="systemOrderType"
+        None,
+        alias="systemOrderType",
     )
 
 

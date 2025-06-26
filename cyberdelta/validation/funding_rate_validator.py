@@ -305,7 +305,7 @@ class FundingRateValidator:
                 f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}"
             ),
         )
-        return cast(dict[str, float | None], metrics)
+        return cast("dict[str, float | None]", metrics)
 
     def get_validation_report(self, days: int = 7) -> dict[str, dict[str, dict[str, float | None]]]:
         """Generate a comprehensive validation report.
@@ -322,11 +322,9 @@ class FundingRateValidator:
         # Get unique exchange-symbol pairs from all predictions and payments
         exchange_symbols: set[tuple[str, str]] = set()
 
-        for prediction in self.predictions:
-            exchange_symbols.add((prediction["exchange"], prediction["symbol"]))
+        exchange_symbols.update((prediction["exchange"], prediction["symbol"]) for prediction in self.predictions)
 
-        for payment in self.payments:
-            exchange_symbols.add((payment["exchange"], payment["symbol"]))
+        exchange_symbols.update((payment["exchange"], payment["symbol"]) for payment in self.payments)
 
         # Generate report for each pair
         for exchange, symbol in exchange_symbols:

@@ -138,7 +138,6 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             )
 
         # Hyperliquid doesn't modify the payload for rate limiting
-        return None
 
     async def trigger_ip_ban_on_main_pool(self, duration_seconds: float) -> None:
         """Trigger an IP ban on the main IP weight limiter.

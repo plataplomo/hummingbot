@@ -443,7 +443,8 @@ class TestTransformRawHistoricalOrderToInternal:
         mock_parse.return_value = None
 
         with pytest.raises(
-            TransformationError, match="quantity_requested \\(orig_sz\\) is required"
+            TransformationError,
+            match="quantity_requested \\(orig_sz\\) is required",
         ):
             trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 

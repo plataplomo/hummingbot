@@ -53,10 +53,10 @@ class Ticker(BaseModel):
     symbol: str
     timestamp: datetime
     # Using Field for default=None and validation (ge=0)
-    price: Decimal | None = Field(default=None, ge=Decimal("0"))
-    bid: Decimal | None = Field(default=None, ge=Decimal("0"))
-    ask: Decimal | None = Field(default=None, ge=Decimal("0"))
-    volume: Decimal | None = Field(default=None, ge=Decimal("0"))
+    price: Decimal | None = Field(default=None, ge=Decimal(0))
+    bid: Decimal | None = Field(default=None, ge=Decimal(0))
+    ask: Decimal | None = Field(default=None, ge=Decimal(0))
+    volume: Decimal | None = Field(default=None, ge=Decimal(0))
     hl_details: HyperliquidTickerDetails | None = Field(default=None)
     bp_details: BackpackTickerDetails | None = Field(default=None)
 
@@ -70,7 +70,7 @@ class Ticker(BaseModel):
 
     @field_validator("timestamp", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: datetime | int | float | str | None) -> datetime:
+    def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
         """Validate and parse the 'timestamp' field to a required UTC datetime object."""
         dt = parse_datetime_utc(v, field_name="timestamp")
         if dt is None:
@@ -81,7 +81,7 @@ class Ticker(BaseModel):
     @classmethod
     def validate_and_parse_decimal_optional(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Validate, parse, and check finiteness for optional Decimal fields.
@@ -131,16 +131,15 @@ class Ticker(BaseModel):
             and self.ask.is_finite()
         ):
             try:
-                mid = (self.bid + self.ask) / Decimal("2")
+                mid = (self.bid + self.ask) / Decimal(2)
                 # Check if calculation resulted in non-finite
                 if mid.is_finite():
                     return mid
-                else:
-                    logger.warning(
-                        f"Mid-price calculation for {self.symbol} resulted in non-finite value "
-                        f"from bid={self.bid}, ask={self.ask}",
-                    )
-                    return None
+                logger.warning(
+                    f"Mid-price calculation for {self.symbol} resulted in non-finite value "
+                    f"from bid={self.bid}, ask={self.ask}",
+                )
+                return None
             except InvalidOperation:  # Catch only InvalidOperation for calculation issues
                 # Should not happen if inputs are finite Decimals, but defensive
                 logger.error(
@@ -180,12 +179,12 @@ class BackpackTickerDetails(BaseModel):
         trades (Optional[int]): Number of trades (24h)
     """
 
-    first_price: Decimal | None = Field(default=None, ge=Decimal("0"))
-    high: Decimal | None = Field(default=None, ge=Decimal("0"))
-    low: Decimal | None = Field(default=None, ge=Decimal("0"))
+    first_price: Decimal | None = Field(default=None, ge=Decimal(0))
+    high: Decimal | None = Field(default=None, ge=Decimal(0))
+    low: Decimal | None = Field(default=None, ge=Decimal(0))
     price_change: Decimal | None = Field(default=None)  # Can be negative
     price_change_percent: Decimal | None = Field(default=None)  # Can be negative
-    quote_volume: Decimal | None = Field(default=None, ge=Decimal("0"))
+    quote_volume: Decimal | None = Field(default=None, ge=Decimal(0))
     trades: int | None = Field(default=None, ge=0)
 
     model_config = ConfigDict(extra="ignore", frozen=True)

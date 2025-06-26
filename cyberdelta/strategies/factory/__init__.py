@@ -3,4 +3,4 @@
 from .strategy_factory import StrategyCreationError, StrategyFactory
 
 
-__all__ = ["StrategyFactory", "StrategyCreationError"]
+__all__ = ["StrategyCreationError", "StrategyFactory"]

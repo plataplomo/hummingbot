@@ -75,8 +75,6 @@ logger = get_logger(__name__)
 class MockAPIError(Exception):
     """Custom exception for mock API errors in integration testing."""
 
-    pass
-
 
 # Minimal placeholder ErrorMapper to resolve import issues for this mock file
 class MockErrorMapper(IErrorMapper):
@@ -163,15 +161,15 @@ class MockExchangeAPI(ExchangeAPI):
             super().__init__(
                 exchange_name,
                 config,
-                cast(AnyExchangeSecrets, secrets),
+                cast("AnyExchangeSecrets", secrets),
                 error_mapper=mock_error_mapper,
             )
         else:
             # For dict configs, cast to ExchangeSpecificConfig (legacy behavior)
             super().__init__(
                 exchange_name,
-                cast(ExchangeSpecificConfig, config_copy),
-                cast(AnyExchangeSecrets, secrets),
+                cast("ExchangeSpecificConfig", config_copy),
+                cast("AnyExchangeSecrets", secrets),
                 error_mapper=mock_error_mapper,
             )
         self.full_config = config_obj  # Store the full config object if provided
@@ -198,17 +196,16 @@ class MockExchangeAPI(ExchangeAPI):
                 self.maker_fee = Decimal(default_fee)
                 self.taker_fee = Decimal(default_fee)
                 self.fee_asset = default_asset
+        # Fallback if full_config not provided (less ideal)
+        elif isinstance(config, dict):
+            self.maker_fee = Decimal(str(config.get("maker_fee", default_fee)))
+            self.taker_fee = Decimal(str(config.get("taker_fee", default_fee)))
+            self.fee_asset = config.get("collateral_asset", default_asset)
         else:
-            # Fallback if full_config not provided (less ideal)
-            if isinstance(config, dict):
-                self.maker_fee = Decimal(str(config.get("maker_fee", default_fee)))
-                self.taker_fee = Decimal(str(config.get("taker_fee", default_fee)))
-                self.fee_asset = config.get("collateral_asset", default_asset)
-            else:
-                # config is ExchangeSpecificConfig, use defaults
-                self.maker_fee = Decimal(default_fee)
-                self.taker_fee = Decimal(default_fee)
-                self.fee_asset = default_asset
+            # config is ExchangeSpecificConfig, use defaults
+            self.maker_fee = Decimal(default_fee)
+            self.taker_fee = Decimal(default_fee)
+            self.fee_asset = default_asset
         # ---------------------------------------------------
 
         # Simulation parameters
@@ -330,8 +327,8 @@ class MockExchangeAPI(ExchangeAPI):
                 SpotBalance(
                     exchange=self.exchange_name,
                     asset="USDC",
-                    total_quantity=Decimal("10000"),
-                    available_quantity=Decimal("10000"),
+                    total_quantity=Decimal(10000),
+                    available_quantity=Decimal(10000),
                     timestamp=now,
                 ),
             ).total_quantity,  # Example logic
@@ -340,13 +337,13 @@ class MockExchangeAPI(ExchangeAPI):
                 SpotBalance(
                     exchange=self.exchange_name,
                     asset="USDC",
-                    total_quantity=Decimal("9000"),
-                    available_quantity=Decimal("9000"),
+                    total_quantity=Decimal(9000),
+                    available_quantity=Decimal(9000),
                     timestamp=now,
                 ),
             ).available_quantity,  # Example logic
-            total_initial_margin_required=Decimal("1000"),
-            total_maintenance_margin_required=Decimal("500"),
+            total_initial_margin_required=Decimal(1000),
+            total_maintenance_margin_required=Decimal(500),
             total_unrealized_pnl=Decimal(
                 sum((pos.unrealized_pnl or Decimal(0)) for pos in self._positions.values()),
             ),
@@ -659,9 +656,9 @@ class MockExchangeAPI(ExchangeAPI):
             asset_to_check = quote_asset
             ticker_price = self._mock_tickers.get(
                 args.symbol,
-                Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=now),
-            ).price or Decimal("0")
-            required_balance = args.quantity * (args.price if args.price else ticker_price)
+                Ticker(symbol=args.symbol, price=Decimal(0), timestamp=now),
+            ).price or Decimal(0)
+            required_balance = args.quantity * (args.price or ticker_price)
         else:  # SELL
             asset_to_check = base_asset
             required_balance = args.quantity
@@ -670,8 +667,8 @@ class MockExchangeAPI(ExchangeAPI):
             asset_to_check,
             SpotBalance(
                 asset=asset_to_check,
-                total_quantity=Decimal("0"),
-                available_quantity=Decimal("0"),
+                total_quantity=Decimal(0),
+                available_quantity=Decimal(0),
                 exchange=self.exchange_name,
                 timestamp=now,
             ),
@@ -706,13 +703,13 @@ class MockExchangeAPI(ExchangeAPI):
     def _get_fill_price(self, args: PlaceOrderArgs, timestamp: datetime) -> Decimal:
         """Get fill price for an order."""
         if args.order_type == OrderType.LIMIT:
-            return args.price or Decimal("0")
+            return args.price or Decimal(0)
 
         ticker = self._mock_tickers.get(
             args.symbol,
-            Ticker(symbol=args.symbol, price=Decimal("0"), timestamp=timestamp),
+            Ticker(symbol=args.symbol, price=Decimal(0), timestamp=timestamp),
         )
-        return ticker.price or Decimal("0")
+        return ticker.price or Decimal(0)
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place an order. Mock implementation."""
@@ -768,7 +765,7 @@ class MockExchangeAPI(ExchangeAPI):
                     f"Cannot determine fill price for trade sim for order "
                     f"{order.client_order_id}. Using 0.",
                 )
-                fill_price_for_trade = Decimal("0")
+                fill_price_for_trade = Decimal(0)
 
             trade_cost = qty_filled * fill_price_for_trade
             trade_fee = trade_cost * trade_fee_rate
@@ -1206,7 +1203,7 @@ class MockExchangeAPI(ExchangeAPI):
                     order_type=order_args.order_type,
                     status=OrderStatus.REJECTED,
                     quantity_requested=order_args.quantity,
-                    quantity_filled=Decimal("0"),
+                    quantity_filled=Decimal(0),
                     price=order_args.price,
                     average_fill_price=None,
                     time_in_force=order_args.time_in_force,
@@ -1222,12 +1219,13 @@ class MockExchangeAPI(ExchangeAPI):
 
         logger.info(
             f"MockExchange {self.exchange_name}: Placed batch of {len(results)} orders "
-            f"(Success: {sum(1 for o in results if o.status != OrderStatus.REJECTED)})"
+            f"(Success: {sum(1 for o in results if o.status != OrderStatus.REJECTED)})",
         )
         return results
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Mock implementation of cancel_batch_orders."""
         self._check_error("cancel_batch_orders")
@@ -1242,7 +1240,7 @@ class MockExchangeAPI(ExchangeAPI):
             except Exception as e:
                 # In batch operations, we continue even if some cancellations fail
                 logger.error(
-                    f"MockExchange {self.exchange_name}: Failed to cancel batch order: {e}"
+                    f"MockExchange {self.exchange_name}: Failed to cancel batch order: {e}",
                 )
                 results.append(
                     CancelOrderResult(
@@ -1252,12 +1250,12 @@ class MockExchangeAPI(ExchangeAPI):
                         success=False,
                         message=str(e),
                         status=CancelOrderResultStatus.FAILED,
-                    )
+                    ),
                 )
 
         logger.info(
             f"MockExchange {self.exchange_name}: Cancelled batch of {len(results)} orders "
-            f"(Success: {sum(1 for r in results if r.success)})"
+            f"(Success: {sum(1 for r in results if r.success)})",
         )
         return results
 

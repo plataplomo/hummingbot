@@ -168,7 +168,7 @@ class PerformanceMetricsCalculator:
         if total_trades == 0:
             return Decimal("0.0")
 
-        win_rate = (Decimal(str(len(winning_trades))) / Decimal(str(total_trades))) * Decimal("100")
+        win_rate = (Decimal(str(len(winning_trades))) / Decimal(str(total_trades))) * Decimal(100)
         return win_rate
 
     @staticmethod
@@ -260,7 +260,7 @@ class PerformanceMetricsCalculator:
         metrics["annualized_volatility"] = Decimal(str(returns.std() * np.sqrt(periods_per_year)))
 
         logger.info(
-            "Calculated performance metrics: %s",
-            {k: f"{v:.4f}" for k, v in metrics.items()},
+            "calculated_performance_metrics",
+            metrics={k: f"{v:.4f}" for k, v in metrics.items()},
         )
         return metrics

@@ -50,9 +50,9 @@ def create_mock_opportunity(
     long_funding_rate: Decimal = Decimal("0.0001"),
     short_funding_rate: Decimal = Decimal("-0.0001"),
     net_funding_differential: Decimal = Decimal("0.0002"),
-    long_price: Decimal = Decimal("100"),
-    short_price: Decimal = Decimal("100"),
-    expected_profit: Decimal = Decimal("1"),
+    long_price: Decimal = Decimal(100),
+    short_price: Decimal = Decimal(100),
+    expected_profit: Decimal = Decimal(1),
     utility_score: float = 0.5,
     basis_volatility: Decimal = Decimal("0.001"),
     timestamp: datetime | None = None,
@@ -78,7 +78,7 @@ def create_mock_signal(
     symbol: str,
     signal_type: SignalType = SignalType.ENTER_LONG,
     side: OrderSide = OrderSide.BUY,
-    price: Decimal = Decimal("100"),
+    price: Decimal = Decimal(100),
     exchange: str | list[str] = "MULTI",
     confidence: float | None = 0.5,
     quantity: Decimal | None = None,
@@ -132,22 +132,22 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
             timestamp=datetime.now(UTC),
             symbol="BTC-PERP",
             size=Decimal("1.0"),
-            entry_price=Decimal("29500"),
-            mark_price=Decimal("30000"),
+            entry_price=Decimal(29500),
+            mark_price=Decimal(30000),
             side=OrderSide.BUY,
-            liquidation_price=Decimal("28000"),
-            unrealized_pnl=Decimal("500"),
+            liquidation_price=Decimal(28000),
+            unrealized_pnl=Decimal(500),
         ),
         ("backpack", "BTC_USDC"): DerivativePosition(
             exchange="backpack",
             timestamp=datetime.now(UTC),
             symbol="BTC_USDC",
             size=Decimal("-1.0"),
-            entry_price=Decimal("29510"),
-            mark_price=Decimal("29990"),
+            entry_price=Decimal(29510),
+            mark_price=Decimal(29990),
             side=OrderSide.SELL,
-            liquidation_price=Decimal("31000"),
-            unrealized_pnl=Decimal("-480"),
+            liquidation_price=Decimal(31000),
+            unrealized_pnl=Decimal(-480),
         ),
     }
     return positions.get((ex, sym))
@@ -163,7 +163,7 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
             timestamp=now,
             bid=Decimal("29999.0"),
             ask=Decimal("30001.0"),
-            volume=Decimal("1000"),
+            volume=Decimal(1000),
         )
     if exchange_id == "backpack" and symbol == "BTC_USDC":
         return Ticker(
@@ -172,7 +172,7 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
             timestamp=now,
             bid=Decimal("29989.0"),
             ask=Decimal("29991.0"),
-            volume=Decimal("500"),
+            volume=Decimal(500),
         )
     return None
 
@@ -202,7 +202,9 @@ async def test_process_data_scheduling(
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
         patch.object(
-            strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
+            strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=fake_get_funding_rate,
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
@@ -232,7 +234,9 @@ async def test_process_data_no_scheduling_if_recent_check(
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
         patch.object(
-            strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
+            strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=fake_get_funding_rate,
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
@@ -265,7 +269,7 @@ async def test_process_data_rebalance_signal_generation(
                 timestamp=now,
                 bid=Decimal("30999.0"),
                 ask=Decimal("31001.0"),
-                volume=Decimal("1000"),
+                volume=Decimal(1000),
             )
         if (ex, sym) == ("backpack", "BTC_USDC"):
             return Ticker(
@@ -274,7 +278,7 @@ async def test_process_data_rebalance_signal_generation(
                 timestamp=now,
                 bid=Decimal("30499.0"),
                 ask=Decimal("30501.0"),
-                volume=Decimal("500"),
+                volume=Decimal(500),
             )
         return None
 
@@ -286,10 +290,14 @@ async def test_process_data_rebalance_signal_generation(
     mock_data: Candle = create_mock_candle()
     with (
         patch.object(
-            strategy.data_handler, "get_latest_ticker", side_effect=rebalance_ticker_prices
+            strategy.data_handler,
+            "get_latest_ticker",
+            side_effect=rebalance_ticker_prices,
         ),
         patch.object(
-            strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
+            strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=fake_get_funding_rate,
         ),
         patch.object(
             strategy.portfolio_tracker,
@@ -327,12 +335,12 @@ async def test_evaluate_entry_opportunity_found(
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
     """Test that evaluate_entry_opportunities identifies and logs profitable opportunities."""
-    mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal("100"))
+    mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal(100))
     ep = cast("Decimal", mock_opportunity.expected_profit)
     mock_sized_opportunity = SizedOpportunity(
         opportunity=mock_opportunity,
-        long_size=Decimal("10000"),
-        short_size=Decimal("10000"),
+        long_size=Decimal(10000),
+        short_size=Decimal(10000),
         allocation_percentage=Decimal("0.1"),
         expected_profit=ep,
         expected_return=Decimal("0.01"),
@@ -345,7 +353,9 @@ async def test_evaluate_entry_opportunity_found(
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
         patch.object(
-            strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
+            strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=fake_get_funding_rate,
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(strategy, "_should_rebalance", return_value=False) as mock_should_rebalance,
@@ -391,7 +401,9 @@ async def test_evaluate_entry_opportunity_no_opportunity(
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
         patch.object(
-            strategy.data_handler, "get_latest_funding_rate", side_effect=fake_get_funding_rate
+            strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=fake_get_funding_rate,
         ),
         patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
         patch.object(
@@ -435,11 +447,11 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "open_time": datetime.now(UTC) - timedelta(minutes=1),
-        "open": Decimal("29900"),
-        "high": Decimal("30100"),
-        "low": Decimal("29800"),
-        "close": Decimal("30000"),
-        "volume": Decimal("1000"),
+        "open": Decimal(29900),
+        "high": Decimal(30100),
+        "low": Decimal(29800),
+        "close": Decimal(30000),
+        "volume": Decimal(1000),
         "interval": "1m",
     }
     merged_args = {**defaults, **kwargs}

@@ -35,7 +35,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.requires_ba
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/balances/private"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/spot/balances/private"],
+    indirect=True,
 )
 @pytest.mark.spot
 @pytest.mark.requires_balance
@@ -180,7 +182,7 @@ class TestHyperliquidSpotBalancesPrivate:
         with pytest.raises((ValueError, TypeError)) as exc_info:
             WithdrawArgs(
                 asset="USDC",
-                amount=Decimal("0"),
+                amount=Decimal(0),
                 address="0x742d35Cc6634C0532925a3b8D8F3b6B4E7c5bD92",
             )
 

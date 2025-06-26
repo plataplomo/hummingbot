@@ -154,16 +154,16 @@ class PerformanceDataPersistence:
         """
         if isinstance(data, dict):
             return self._make_dict_serializable(data)
-        else:  # data is list[Any]
-            serializable_list: list[Any] = []
-            for item in data:
-                if isinstance(item, dict):
-                    serializable_list.append(self._make_dict_serializable(item))
-                elif isinstance(item, datetime):
-                    serializable_list.append(item.isoformat())
-                else:
-                    serializable_list.append(item)
-            return serializable_list
+        # data is list[Any]
+        serializable_list: list[Any] = []
+        for item in data:
+            if isinstance(item, dict):
+                serializable_list.append(self._make_dict_serializable(item))
+            elif isinstance(item, datetime):
+                serializable_list.append(item.isoformat())
+            else:
+                serializable_list.append(item)
+        return serializable_list
 
     def _make_dict_serializable(self, item: dict[str, Any]) -> dict[str, Any]:
         """Make a dictionary JSON serializable.
@@ -211,14 +211,14 @@ class PerformanceDataPersistence:
 
         if data_type == "returns":
             return self._post_process_returns_data(loaded_data)
-        elif data_type in ["trades", "signals", "funding_rates"]:
+        if data_type in ["trades", "signals", "funding_rates"]:
             return self._post_process_list_data(loaded_data)
-        else:
-            # Unknown data type, return as-is
-            return loaded_data
+        # Unknown data type, return as-is
+        return loaded_data
 
     def _post_process_returns_data(
-        self, loaded_data: dict[str, Any] | list[Any]
+        self,
+        loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
         """Post-process returns data to convert timestamp keys back to datetime objects."""
         # For returns data, convert timestamp keys back to datetime objects
@@ -245,11 +245,11 @@ class PerformanceDataPersistence:
                 else:
                     processed_returns[strategy_name] = strategy_data
             return processed_returns
-        else:
-            return loaded_data
+        return loaded_data
 
     def _post_process_list_data(
-        self, loaded_data: dict[str, Any] | list[Any]
+        self,
+        loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
         """Post-process list-based data to convert datetime fields in each item."""
         # For list-based data, convert datetime fields in each item
@@ -263,8 +263,7 @@ class PerformanceDataPersistence:
                 else:
                     processed_list.append(item)
             return processed_list
-        else:
-            return loaded_data
+        return loaded_data
 
     def _post_process_dict(self, item: dict[str, Any]) -> dict[str, Any]:
         """Post-process a dictionary to convert datetime strings back to datetime objects.

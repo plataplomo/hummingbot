@@ -313,7 +313,7 @@ class TestSecureTransformSecurity:
             def get_logger_side_effect(name: str) -> MagicMock:
                 if name == "cyberdelta.audit":
                     return mock_audit_logger
-                elif name == "cyberdelta.security":
+                if name == "cyberdelta.security":
                     return mock_security_logger
                 return MagicMock()
 
@@ -349,7 +349,7 @@ class TestSecureTransformSecurity:
             # Verify result is correct
             assert result.symbol == "BTC-USD"
             assert result.size == Decimal("10.5")
-            assert result.pnl == Decimal("10500")
+            assert result.pnl == Decimal(10500)
 
     def test_concurrent_transformation_safety(self) -> None:
         """Test thread safety of secure_transform."""
@@ -425,11 +425,14 @@ class TestSecureTransformSecurity:
 
         # Should handle without memory issues
         result = secure_transform(
-            data=large_data, model_class=MockBalance, context="memory_test", source_exchange="test"
+            data=large_data,
+            model_class=MockBalance,
+            context="memory_test",
+            source_exchange="test",
         )
 
         assert result.asset == "BTC"
-        assert result.quantity == Decimal("100")
+        assert result.quantity == Decimal(100)
 
     def test_error_message_safety(self) -> None:
         """Test that error messages don't leak sensitive information."""

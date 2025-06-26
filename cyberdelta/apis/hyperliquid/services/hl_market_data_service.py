@@ -12,7 +12,7 @@ Raw Pydantic Models.
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -70,9 +70,6 @@ HttpClientRequesterSig = Callable[
     ...,
     Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
-
-if TYPE_CHECKING:
-    pass
 
 
 class HyperliquidMarketDataService:
@@ -174,7 +171,9 @@ class HyperliquidMarketDataService:
 
             # Use centralized validation - metaAndAssetCtxs returns a list
             validated_raw_data = ensure_list_response(
-                raw_response_content, "metaAndAssetCtxs", status_code
+                raw_response_content,
+                "metaAndAssetCtxs",
+                status_code,
             )
 
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
@@ -367,7 +366,9 @@ class HyperliquidMarketDataService:
             raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
 
     def _validate_candle_snapshot_params(
-        self, args: GetCandleSnapshotArgs, current_method: str
+        self,
+        args: GetCandleSnapshotArgs,
+        current_method: str,
     ) -> None:
         """Validate candle snapshot parameters.
 
@@ -391,7 +392,7 @@ class HyperliquidMarketDataService:
         # Validate time range
         if args.start_time_ms < 0:
             raise ValueError(
-                f"[{current_method}] Start time cannot be negative: {args.start_time_ms}"
+                f"[{current_method}] Start time cannot be negative: {args.start_time_ms}",
             )
 
         if args.end_time_ms < 0:
@@ -400,7 +401,7 @@ class HyperliquidMarketDataService:
         if args.start_time_ms >= args.end_time_ms:
             raise ValueError(
                 f"[{current_method}] Start time ({args.start_time_ms}) must be before "
-                f"end time ({args.end_time_ms})"
+                f"end time ({args.end_time_ms})",
             )
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
@@ -435,7 +436,7 @@ class HyperliquidMarketDataService:
             # Assuming HyperliquidRequestBuilder has or will have this method:
             try:
                 request_payload_model = self._request_builder.build_l2_book_request_payload(
-                    GetL2BookArgs(symbol=symbol)
+                    GetL2BookArgs(symbol=symbol),
                 )
             except Exception as e:
                 # Wrap request builder exceptions in APIError
@@ -448,7 +449,7 @@ class HyperliquidMarketDataService:
                     message=f"[{self._exchange_name}] Request builder failed for l2Book: {e}",
                 )
                 raise APIError(
-                    message=f"Failed to build l2Book request for symbol {symbol}: {str(e)}",
+                    message=f"Failed to build l2Book request for symbol {symbol}: {e!s}",
                     code=APIErrorCode.UNKNOWN.value,
                     original_exception=e,
                 ) from e
@@ -593,7 +594,10 @@ class HyperliquidMarketDataService:
                     http_status=status_code,
                 )
             validated_raw_trades = self._process_recent_trades_response(
-                raw_response_content_parsed, symbol, status_code, headers
+                raw_response_content_parsed,
+                symbol,
+                status_code,
+                headers,
             )
             internal_trades = self._map_recent_trades_to_internal(validated_raw_trades, symbol)
 
@@ -606,12 +610,18 @@ class HyperliquidMarketDataService:
             raise
         except TransformationError as e_transform:
             self._handle_recent_trades_transformation_error(
-                e_transform, symbol, status_code, raw_response_content
+                e_transform,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except ValidationError as e_val:
             self._handle_recent_trades_validation_error(
-                e_val, symbol, status_code, raw_response_content
+                e_val,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except (ValueError, TypeError) as e_service_logic:
@@ -619,7 +629,10 @@ class HyperliquidMarketDataService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_recent_trades_unexpected_error(
-                e_unexpected, symbol, status_code, raw_response_content
+                e_unexpected,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
@@ -668,7 +681,7 @@ class HyperliquidMarketDataService:
                         # Create a copy with the name field populated for the mapper
                         asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
                         return self._mapper.transform_raw_asset_ctx_to_funding_rate(
-                            asset_ctx_with_name
+                            asset_ctx_with_name,
                         )
 
             logger.warning(
@@ -760,10 +773,13 @@ class HyperliquidMarketDataService:
                 return []
 
             symbols_to_process = self._determine_symbols_to_process(
-                args.symbols, all_contexts_response.asset_ctxs
+                args.symbols,
+                all_contexts_response.asset_ctxs,
             )
             rates = self._process_funding_rates_for_symbols(
-                symbols_to_process, all_contexts_response.asset_ctxs, args.symbols
+                symbols_to_process,
+                all_contexts_response.asset_ctxs,
+                args.symbols,
             )
             return rates
 
@@ -771,7 +787,9 @@ class HyperliquidMarketDataService:
             raise
         except TransformationError as e_transform:
             self._handle_funding_rates_transformation_error(
-                e_transform, status_code, raw_response_content
+                e_transform,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except ValidationError as e_val:
@@ -782,7 +800,9 @@ class HyperliquidMarketDataService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_funding_rates_unexpected_error(
-                e_unexpected, status_code, raw_response_content
+                e_unexpected,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
@@ -799,7 +819,9 @@ class HyperliquidMarketDataService:
 
         try:
             raw_funding_history_items = await self._fetch_historical_funding_rates_data(
-                args.symbol, start_time_ms, end_time_ms
+                args.symbol,
+                start_time_ms,
+                end_time_ms,
             )
             return self._map_historical_funding_rates_to_internal(raw_funding_history_items)
 
@@ -807,12 +829,16 @@ class HyperliquidMarketDataService:
             raise  # Re-raise APIErrors
         except TransformationError as e_transform:
             self._handle_historical_funding_rates_transformation_error(
-                e_transform, status_code, raw_response_content
+                e_transform,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except ValidationError as e_val:
             self._handle_historical_funding_rates_validation_error(
-                e_val, status_code, raw_response_content
+                e_val,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except (ValueError, TypeError) as e_service_logic:
@@ -820,12 +846,15 @@ class HyperliquidMarketDataService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_historical_funding_rates_unexpected_error(
-                e_unexpected, status_code, raw_response_content
+                e_unexpected,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
     def _validate_and_convert_historical_funding_times(
-        self, args: GetHistoricalFundingRatesArgs
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> tuple[int, int | None]:
         """Validate and convert historical funding rate time parameters."""
         frame = inspect.currentframe()
@@ -859,7 +888,10 @@ class HyperliquidMarketDataService:
         return start_time_ms, end_time_ms
 
     async def _fetch_historical_funding_rates_data(
-        self, symbol: str, start_time_ms: int, end_time_ms: int | None
+        self,
+        symbol: str,
+        start_time_ms: int,
+        end_time_ms: int | None,
     ) -> list[Any]:
         """Fetch historical funding rates data from the API."""
         from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
@@ -883,7 +915,7 @@ class HyperliquidMarketDataService:
                 symbol=symbol,
                 start_time=start_dt,
                 end_time=end_dt,
-            )
+            ),
         )
 
         raw_response_content, status_code, headers = await self._http_client_requester(
@@ -897,7 +929,9 @@ class HyperliquidMarketDataService:
 
         # Use centralized validation
         validated_raw_data = ensure_list_response(
-            raw_response_content, f"historical funding rates for {symbol}", status_code
+            raw_response_content,
+            f"historical funding rates for {symbol}",
+            status_code,
         )
 
         raw_funding_history_items: list[HyperliquidRawFundingHistoryItem] = (
@@ -910,7 +944,8 @@ class HyperliquidMarketDataService:
         return raw_funding_history_items
 
     def _map_historical_funding_rates_to_internal(
-        self, raw_funding_history_items: list[Any]
+        self,
+        raw_funding_history_items: list[Any],
     ) -> list[FundingRate]:
         """Map raw historical funding rate items to internal FundingRate objects."""
         internal_funding_rates: list[FundingRate] = []
@@ -980,7 +1015,8 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_historical_funding_rates_service_logic_error(
-        self, error: ValueError | TypeError
+        self,
+        error: ValueError | TypeError,
     ) -> None:
         """Handle service logic errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
@@ -995,7 +1031,10 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_historical_funding_rates_unexpected_error(
-        self, error: Exception, status_code: int, raw_response_content: ParsedJsonResponse | None
+        self,
+        error: Exception,
+        status_code: int,
+        raw_response_content: ParsedJsonResponse | None,
     ) -> None:
         """Handle unexpected errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
@@ -1044,7 +1083,10 @@ class HyperliquidMarketDataService:
 
         try:
             raw_candles = await self._fetch_market_data_from_api(
-                symbol, interval, start_time_ms, end_time_ms
+                symbol,
+                interval,
+                start_time_ms,
+                end_time_ms,
             )
             return self._mapper.transform_raw_candle_snapshot_to_candles(
                 raw_candles,
@@ -1057,12 +1099,18 @@ class HyperliquidMarketDataService:
             raise
         except TransformationError as e_transform:
             self._handle_market_data_transformation_error(
-                e_transform, symbol, status_code, raw_response_content
+                e_transform,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except ValidationError as e_val:
             self._handle_market_data_validation_error(
-                e_val, symbol, status_code, raw_response_content
+                e_val,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except (ValueError, TypeError) as e_service_logic:
@@ -1070,12 +1118,16 @@ class HyperliquidMarketDataService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_market_data_unexpected_error(
-                e_unexpected, symbol, status_code, raw_response_content
+                e_unexpected,
+                symbol,
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
     def _validate_and_prepare_market_data_params(
-        self, args: GetMarketDataArgs
+        self,
+        args: GetMarketDataArgs,
     ) -> tuple[str, str, int, int]:
         """Validate and prepare market data parameters."""
         frame = inspect.currentframe()
@@ -1117,7 +1169,11 @@ class HyperliquidMarketDataService:
         return symbol, interval, start_time_ms, end_time_ms
 
     async def _fetch_market_data_from_api(
-        self, symbol: str, interval: str, start_time_ms: int, end_time_ms: int
+        self,
+        symbol: str,
+        interval: str,
+        start_time_ms: int,
+        end_time_ms: int,
     ) -> HyperliquidRawCandleSnapshot:
         """Fetch market data from the API."""
         logger.debug(
@@ -1132,7 +1188,7 @@ class HyperliquidMarketDataService:
                     timeframe=interval,
                     start_time_ms=start_time_ms,
                     end_time_ms=end_time_ms,
-                )
+                ),
             )
         except Exception as e:
             # Wrap request builder exceptions in APIError
@@ -1140,7 +1196,7 @@ class HyperliquidMarketDataService:
                 f"[{self._exchange_name}] Request builder failed for candle snapshot: {e}",
             )
             raise APIError(
-                message=(f"Failed to build candle snapshot request for symbol {symbol}: {str(e)}"),
+                message=(f"Failed to build candle snapshot request for symbol {symbol}: {e!s}"),
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e,
             ) from e
@@ -1229,7 +1285,9 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_market_data_service_logic_error(
-        self, error: ValueError | TypeError, symbol: str
+        self,
+        error: ValueError | TypeError,
+        symbol: str,
     ) -> None:
         """Handle service logic errors for market data."""
         current_method = "get_market_data"
@@ -1245,7 +1303,11 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_market_data_unexpected_error(
-        self, error: Exception, symbol: str, status_code: int, raw_response_content: str | None
+        self,
+        error: Exception,
+        symbol: str,
+        status_code: int,
+        raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for market data."""
         current_method = "get_market_data"
@@ -1270,13 +1332,14 @@ class HyperliquidMarketDataService:
                     raise ValueError("All symbols in list must be non-empty strings.")
 
     def _determine_symbols_to_process(
-        self, symbols: list[str] | None, asset_ctxs: list[Any]
+        self,
+        symbols: list[str] | None,
+        asset_ctxs: list[Any],
     ) -> list[str]:
         """Determine which symbols to process for funding rates."""
         if symbols:
             return symbols
-        else:
-            return [str(ctx.name) for ctx in asset_ctxs if ctx.name]
+        return [str(ctx.name) for ctx in asset_ctxs if ctx.name]
 
     def _process_funding_rates_for_symbols(
         self,
@@ -1314,7 +1377,10 @@ class HyperliquidMarketDataService:
         return rates
 
     def _handle_funding_rates_transformation_error(
-        self, error: TransformationError, status_code: int, raw_response_content: str | None
+        self,
+        error: TransformationError,
+        status_code: int,
+        raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for funding rates."""
         logger.error(
@@ -1331,7 +1397,10 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_funding_rates_validation_error(
-        self, error: ValidationError, status_code: int, raw_response_content: str | None
+        self,
+        error: ValidationError,
+        status_code: int,
+        raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for funding rates."""
         logger.error(
@@ -1359,7 +1428,10 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_funding_rates_unexpected_error(
-        self, error: Exception, status_code: int, raw_response_content: str | None
+        self,
+        error: Exception,
+        status_code: int,
+        raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for funding rates."""
         logger.error(
@@ -1375,12 +1447,13 @@ class HyperliquidMarketDataService:
         ) from error
 
     async def _fetch_recent_trades_data(
-        self, symbol: str
+        self,
+        symbol: str,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Fetch raw recent trades data from API."""
         endpoint_path = "/info"
         request_payload_model = self._request_builder.build_recent_trades_request_payload(
-            GetRecentTradesArgs(symbol=symbol)
+            GetRecentTradesArgs(symbol=symbol),
         )
         request_payload_data: dict[str, Any] = request_payload_model.model_dump(
             by_alias=True,
@@ -1438,7 +1511,9 @@ class HyperliquidMarketDataService:
         )
 
     def _map_recent_trades_to_internal(
-        self, validated_raw_trades: list[HyperliquidRawPublicTrade], symbol: str
+        self,
+        validated_raw_trades: list[HyperliquidRawPublicTrade],
+        symbol: str,
     ) -> list[Trade]:
         """Map validated raw trades to internal Trade objects."""
         internal_trades: list[Trade] = []
@@ -1497,7 +1572,9 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_recent_trades_service_logic_error(
-        self, error: ValueError | TypeError, symbol: str
+        self,
+        error: ValueError | TypeError,
+        symbol: str,
     ) -> None:
         """Handle service logic errors for recent trades."""
         logger.error(
@@ -1512,7 +1589,11 @@ class HyperliquidMarketDataService:
         ) from error
 
     def _handle_recent_trades_unexpected_error(
-        self, error: Exception, symbol: str, status_code: int, raw_response_content: str | None
+        self,
+        error: Exception,
+        symbol: str,
+        status_code: int,
+        raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for recent trades."""
         logger.error(
@@ -1551,11 +1632,11 @@ class HyperliquidMarketDataService:
 
             # Transform to internal Market models using mapper
             markets = self._mapper.transform_raw_meta_and_asset_ctxs_to_markets(
-                raw_meta_and_asset_ctxs
+                raw_meta_and_asset_ctxs,
             )
 
             logger.debug(
-                f"[{self._exchange_name}] Transformed {len(markets)} markets from meta response"
+                f"[{self._exchange_name}] Transformed {len(markets)} markets from meta response",
             )
 
             return markets
@@ -1693,7 +1774,9 @@ class HyperliquidMarketDataService:
 
             # Parse response with proper validation
             raw_all_mids = self._response_handler.handle_all_mids_response(
-                validated_raw_data, status_code, headers
+                validated_raw_data,
+                status_code,
+                headers,
             )
 
             # Transform to internal MidPrices model

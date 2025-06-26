@@ -46,7 +46,9 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/account/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/account/positive"],
+    indirect=True,
 )
 class TestHyperliquidAccountSummaryPrivate:
     """Comprehensive private account summary integration tests for /exchange operations.
@@ -105,12 +107,14 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get current market price first
         current_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Get market constraints for dynamic pricing
         market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Calculate safe test price using market constraints - below market to avoid fills
@@ -119,19 +123,23 @@ class TestHyperliquidAccountSummaryPrivate:
         # Calculate discount based on market volatility or use conservative default
         discount_ratio = market_constraints.get("safe_discount_ratio", Decimal("0.3"))
         price_discount_ticks = max(
-            int(current_price * discount_ratio / tick_size), 1
+            int(current_price * discount_ratio / tick_size),
+            1,
         )  # Safe discount below market, at least 1 tick
         safe_limit_price = current_price - (tick_size * price_discount_ticks)
 
         # Ensure price respects tick size
         # Ensure price respects tick size using exchange-specific rounding
         tick_precision = market_constraints.get("tick_precision", 0)
-        rounding_factor = Decimal("1") if tick_precision == 0 else Decimal("0.1") ** tick_precision
+        rounding_factor = Decimal(1) if tick_precision == 0 else Decimal("0.1") ** tick_precision
         safe_limit_price = (safe_limit_price / tick_size).quantize(rounding_factor) * tick_size
 
         # Get minimal order size using test helper that meets exchange requirements
         order_qty = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, safe_limit_price
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            safe_limit_price,
         )
 
         # Get market constraints for debugging
@@ -142,14 +150,14 @@ class TestHyperliquidAccountSummaryPrivate:
         # Log for debugging
         logger.info(
             f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} "
-            f"(30% below market), Order qty: {order_qty}"
+            f"(30% below market), Order qty: {order_qty}",
         )
         logger.info(
             f"Market constraints - tick_size: {market_info.tick_size}, "
-            f"step_size: {market_info.step_size}, min_quantity: {market_info.min_quantity}"
+            f"step_size: {market_info.step_size}, min_quantity: {market_info.min_quantity}",
         )
         logger.info(
-            f"Price validation - price % tick_size = {safe_limit_price % market_info.tick_size}"
+            f"Price validation - price % tick_size = {safe_limit_price % market_info.tick_size}",
         )
 
         # Define order parameters that should impact account metrics (but still testnet-safe)
@@ -200,7 +208,7 @@ class TestHyperliquidAccountSummaryPrivate:
         )
 
         # Use exchange-specific minimum balance instead of hardcoded zero
-        min_balance = market_constraints.get("min_balance", Decimal("0"))
+        min_balance = market_constraints.get("min_balance", Decimal(0))
         assert updated_summary.available_equity >= min_balance, (
             f"Available equity should be at least minimum balance {min_balance}, "
             f"got {updated_summary.available_equity}"
@@ -255,7 +263,9 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get minimal order size using test helper that meets exchange requirements
         order_qty = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Execute a market order that should create/modify a position
@@ -336,29 +346,33 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get market constraints to calculate realistic stress test parameters
         market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Calculate an order size that would likely exceed available margin
         # Use market-based calculation instead of arbitrary multiplier
         max_position_value = market_constraints.get("max_position_value")
         # Use exchange-specific minimum equity threshold
-        min_equity_threshold = market_constraints.get("min_equity_for_trading", Decimal("0"))
+        min_equity_threshold = market_constraints.get("min_equity_for_trading", Decimal(0))
         if max_position_value and current_summary.available_equity > min_equity_threshold:
             # Order value much larger than available equity but within exchange limits
-            max_stress_multiplier = market_constraints.get("max_stress_multiplier", Decimal("50"))
+            max_stress_multiplier = market_constraints.get("max_stress_multiplier", Decimal(50))
             stress_multiplier = min(
-                max_position_value / current_summary.available_equity, max_stress_multiplier
+                max_position_value / current_summary.available_equity,
+                max_stress_multiplier,
             )
             stress_order_value = current_summary.available_equity * stress_multiplier
             current_price = await HyperliquidTestHelpers.get_current_market_price(
-                hl_api_for_test_env, test_symbol
+                hl_api_for_test_env,
+                test_symbol,
             )
             stress_quantity = stress_order_value / current_price
         else:
             # Get unreasonably large quantity from exchange constraints instead of hardcoded value
             stress_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
-                hl_api_for_test_env, test_symbol
+                hl_api_for_test_env,
+                test_symbol,
             )
 
         # Define stress order that should trigger margin error
@@ -368,7 +382,8 @@ class TestHyperliquidAccountSummaryPrivate:
             order_type=OrderType.LIMIT,
             quantity=stress_quantity,
             price=await HyperliquidTestHelpers.get_current_market_price(
-                hl_api_for_test_env, test_symbol
+                hl_api_for_test_env,
+                test_symbol,
             ),  # Current market price from exchange
             time_in_force=TimeInForce.GTC,
         )
@@ -443,12 +458,16 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get current market price and calculate minimum order size for precision test
         precision_test_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Get minimal order size using test helper that meets exchange requirements
         precision_qty = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, precision_test_price
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            precision_test_price,
         )
 
         # Test with a proper precision order that meets exchange minimums
@@ -520,11 +539,12 @@ class TestHyperliquidAccountSummaryPrivate:
 
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
         market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Validate baseline consistency using exchange-specific constraints
-        min_balance = market_constraints.get("min_balance", Decimal("0"))
+        min_balance = market_constraints.get("min_balance", Decimal(0))
         assert baseline.available_equity <= baseline.total_equity, (
             "Baseline: Available equity should not exceed total equity"
         )
@@ -534,12 +554,16 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Get current market price and calculate minimum order size for consistency test
         consistency_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_test_env, test_symbol
+            hl_api_for_test_env,
+            test_symbol,
         )
 
         # Get minimal order size using test helper that meets exchange requirements
         consistency_qty = await HyperliquidTestHelpers.get_minimal_order_size(
-            hl_api_for_test_env, test_symbol, OrderSide.BUY, consistency_price
+            hl_api_for_test_env,
+            test_symbol,
+            OrderSide.BUY,
+            consistency_price,
         )
 
         # Execute a series of operations and validate consistency at each step

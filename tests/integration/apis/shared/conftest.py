@@ -26,7 +26,7 @@ def precision_test_amounts() -> list[Decimal]:
     return [
         Decimal("0.00000001"),  # Dust
         Decimal("0.1"),  # Small
-        Decimal("100"),  # Normal
+        Decimal(100),  # Normal
         Decimal("999999.99"),  # Large
     ]
 

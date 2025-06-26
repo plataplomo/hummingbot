@@ -50,7 +50,7 @@ class TestSecurityValidationScenarios:
 
         # Test with integer instead of dict
         with pytest.raises(APIError) as exc_info:
-            ensure_dict_response(cast(Any, 12345), "ticker", 200)
+            ensure_dict_response(cast("Any", 12345), "ticker", 200)
 
         assert "expected dict, got int" in str(exc_info.value)
 
@@ -103,13 +103,19 @@ class TestSecurityValidationScenarios:
 
         # Should validate only specified fields, ignoring malicious extras
         validate_required_fields(
-            malicious_response, ["asset", "quantity"], "balance", 200
+            malicious_response,
+            ["asset", "quantity"],
+            "balance",
+            200,
         )  # Should not raise
 
         # But should fail if required field is missing
         with pytest.raises(APIError) as exc_info:
             validate_required_fields(
-                malicious_response, ["asset", "quantity", "timestamp"], "balance", 200
+                malicious_response,
+                ["asset", "quantity", "timestamp"],
+                "balance",
+                200,
             )
 
         assert "Missing required fields" in str(exc_info.value)
@@ -364,18 +370,27 @@ class TestValidationErrorHandling:
 
         # Field with empty string value (should pass - existence check only)
         validate_required_fields(
-            {"asset": "", "quantity": "0"}, ["asset", "quantity"], "empty_values", 200
+            {"asset": "", "quantity": "0"},
+            ["asset", "quantity"],
+            "empty_values",
+            200,
         )
 
         # Field with None value (should pass - field exists)
         validate_required_fields(
-            {"asset": "BTC", "quantity": None}, ["asset", "quantity"], "none_value", 200
+            {"asset": "BTC", "quantity": None},
+            ["asset", "quantity"],
+            "none_value",
+            200,
         )
 
         # Nested field check (not supported, would fail)
         with pytest.raises(APIError):
             validate_required_fields(
-                {"data": {"asset": "BTC"}}, ["data.asset"], "nested_field", 200
+                {"data": {"asset": "BTC"}},
+                ["data.asset"],
+                "nested_field",
+                200,
             )
 
 

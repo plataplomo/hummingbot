@@ -81,37 +81,37 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
     # Set up risk configuration
     mock.risk.global_risk.max_position_usd = Decimal(
-        mock_config_dict["risk"]["global"]["max_position_usd"]
+        mock_config_dict["risk"]["global"]["max_position_usd"],
     )
     mock.risk.global_risk.max_total_exposure_usd = Decimal(
-        mock_config_dict["risk"]["global"]["max_total_exposure_usd"]
+        mock_config_dict["risk"]["global"]["max_total_exposure_usd"],
     )
     mock.risk.global_risk.min_position_usd = Decimal(
-        mock_config_dict["risk"]["global"]["min_position_usd"]
+        mock_config_dict["risk"]["global"]["min_position_usd"],
     )
     mock.risk.global_risk.max_portfolio_leverage = Decimal(
-        mock_config_dict["risk"]["global"]["max_portfolio_leverage"]
+        mock_config_dict["risk"]["global"]["max_portfolio_leverage"],
     )
     mock.risk.global_risk.max_drawdown_limit_ratio = Decimal(
-        mock_config_dict["risk"]["global"]["max_drawdown_limit_ratio"]
+        mock_config_dict["risk"]["global"]["max_drawdown_limit_ratio"],
     )
 
     mock.risk.strategy.max_single_position_exposure_ratio = Decimal(
-        mock_config_dict["risk"]["strategy"]["max_single_position_exposure_ratio"]
+        mock_config_dict["risk"]["strategy"]["max_single_position_exposure_ratio"],
     )
     mock.risk.strategy.max_leverage_per_trade = Decimal(
-        mock_config_dict["risk"]["strategy"]["max_leverage_per_trade"]
+        mock_config_dict["risk"]["strategy"]["max_leverage_per_trade"],
     )
     mock.risk.strategy.min_net_funding_differential = Decimal(
-        mock_config_dict["risk"]["strategy"]["min_net_funding_differential"]
+        mock_config_dict["risk"]["strategy"]["min_net_funding_differential"],
     )
 
     mock.risk.kelly.fraction = Decimal(mock_config_dict["risk"]["kelly"]["fraction"])
     mock.risk.kelly.min_acceptable_fraction = Decimal(
-        mock_config_dict["risk"]["kelly"]["min_acceptable_fraction"]
+        mock_config_dict["risk"]["kelly"]["min_acceptable_fraction"],
     )
     mock.risk.kelly.max_acceptable_fraction = Decimal(
-        mock_config_dict["risk"]["kelly"]["max_acceptable_fraction"]
+        mock_config_dict["risk"]["kelly"]["max_acceptable_fraction"],
     )
     mock.risk.kelly.min_volatility = Decimal(mock_config_dict["risk"]["kelly"]["min_volatility"])
 
@@ -140,14 +140,14 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 def mock_portfolio_tracker() -> MagicMock:
     """Return mock portfolio tracker for testing."""
     tracker = MagicMock(spec=PortfolioTrackerProtocol)
-    tracker.get_total_capital.return_value = Decimal("10000")
+    tracker.get_total_capital.return_value = Decimal(10000)
     # Update to return SpotBalance
     tracker.get_exchange_balance.return_value = SpotBalance(
         exchange="mock_exchange",
         asset="USD",
         timestamp=datetime.now(UTC),
-        total_quantity=Decimal("1000"),
-        available_quantity=Decimal("1000"),
+        total_quantity=Decimal(1000),
+        available_quantity=Decimal(1000),
     )
     tracker.get_all_positions.return_value = []  # Default to no positions
     tracker.get_current_drawdown.return_value = Decimal("0.05")  # 5% drawdown
@@ -235,8 +235,8 @@ def sample_opportunity_dict() -> dict[str, Any]:
         "symbol": "BTC-PERP",
         "long_exchange": "exchange_a",
         "short_exchange": "exchange_b",
-        "long_price": Decimal("30000"),
-        "short_price": Decimal("29900"),
+        "long_price": Decimal(30000),
+        "short_price": Decimal(29900),
         "long_funding_rate": Decimal("0.0001"),
         "short_funding_rate": Decimal("-0.00005"),
         "net_funding_differential": Decimal("0.00015"),  # (0.0001 - (-0.00005))

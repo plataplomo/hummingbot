@@ -47,7 +47,7 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
         if not spot_symbols:
             raise RuntimeError(
                 "No spot symbols available from exchange. "
-                "WebSocket subscription tests require real trading symbols."
+                "WebSocket subscription tests require real trading symbols.",
             )
 
         return {
@@ -59,7 +59,7 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket subscription tests require real market data and "
-            "cannot use hardcoded symbols."
+            "cannot use hardcoded symbols.",
         ) from e
 
 
@@ -82,7 +82,9 @@ async def validate_websocket_topic_format(topic: str) -> bool:
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/subscriptions"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/subscriptions"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketSubscriptions:
     """Test WebSocket subscription methods with real market data."""
@@ -103,7 +105,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         if not symbols["spot"]:
             pytest.fail(
                 "No spot symbols available from exchange. "
-                "WebSocket subscription requires real trading symbols."
+                "WebSocket subscription requires real trading symbols.",
             )
 
         test_symbol = symbols["spot"][0]
@@ -112,7 +114,8 @@ class TestBackpackAPIWebSocketSubscriptions:
         received_messages: list[dict[str, Any]] = []
 
         async def subscription_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             """Handler for subscription messages."""
             received_messages.append(message)
@@ -132,7 +135,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         except Exception as e:
             pytest.fail(
                 f"Dynamic symbol subscription failed for {test_symbol}: {e}. "
-                "WebSocket subscriptions are critical for real-time trading data."
+                "WebSocket subscriptions are critical for real-time trading data.",
             )
 
     @pytest.mark.vcr
@@ -150,7 +153,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         if len(symbols["spot"]) < 2:
             pytest.fail(
                 f"Need at least 2 spot symbols, got {len(symbols['spot'])}. "
-                "Multi-stream testing requires multiple real symbols."
+                "Multi-stream testing requires multiple real symbols.",
             )
 
         symbol1, symbol2 = symbols["spot"][0], symbols["spot"][1]
@@ -185,17 +188,17 @@ class TestBackpackAPIWebSocketSubscriptions:
                 if not await validate_websocket_topic_format(topic):
                     pytest.fail(
                         f"Invalid topic format: {topic}. "
-                        "Topic format validation is critical for WebSocket connectivity."
+                        "Topic format validation is critical for WebSocket connectivity.",
                     )
 
             logger.info(
-                f"✓ Successfully subscribed to {len(stream_configs)} different stream types"
+                f"✓ Successfully subscribed to {len(stream_configs)} different stream types",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Multiple stream type subscriptions failed: {e}. "
-                "Multi-stream WebSocket functionality is critical for comprehensive trading data."
+                "Multi-stream WebSocket functionality is critical for comprehensive trading data.",
             )
 
     @pytest.mark.vcr
@@ -212,7 +215,8 @@ class TestBackpackAPIWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
 
         async def consistency_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             logger.info(f"Consistency handler: {message}")
 
@@ -240,13 +244,14 @@ class TestBackpackAPIWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ State consistency validated: {initial_state} -> {after_first} -> {after_second}"
+                f"✓ State consistency validated: "
+                f"{initial_state} -> {after_first} -> {after_second}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Subscription state consistency test failed: {e}. "
-                "State consistency is critical for reliable WebSocket operations."
+                "State consistency is critical for reliable WebSocket operations.",
             )
 
     @pytest.mark.vcr
@@ -264,7 +269,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         if len(symbols["spot"]) < 3:
             pytest.fail(
                 f"Need at least 3 symbols for helper method testing, got {len(symbols['spot'])}. "
-                "Helper method tests require multiple real symbols."
+                "Helper method tests require multiple real symbols.",
             )
 
         symbol1, symbol2, symbol3 = symbols["spot"][:3]
@@ -287,7 +292,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         except Exception as e:
             pytest.fail(
                 f"Helper subscription methods failed with real symbols: {e}. "
-                "Helper methods are critical for simplified WebSocket integration."
+                "Helper methods are critical for simplified WebSocket integration.",
             )
 
     @pytest.mark.vcr
@@ -305,7 +310,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         if len(symbols["spot"]) < 3:
             pytest.fail(
                 f"Need at least 3 symbols for concurrent testing, got {len(symbols['spot'])}. "
-                "Concurrent subscription tests require multiple real symbols."
+                "Concurrent subscription tests require multiple real symbols.",
             )
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
@@ -332,13 +337,13 @@ class TestBackpackAPIWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Concurrent subscriptions successful: {len(subscription_tasks)} operations"
+                f"✓ Concurrent subscriptions successful: {len(subscription_tasks)} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Concurrent subscriptions failed: {e}. "
-                "Concurrent WebSocket operations are critical for high-frequency trading."
+                "Concurrent WebSocket operations are critical for high-frequency trading.",
             )
 
     @pytest.mark.vcr
@@ -377,18 +382,20 @@ class TestBackpackAPIWebSocketSubscriptions:
 
             logger.info(
                 f"✓ Connection lifecycle completed: "
-                f"subscription={subscription_state}, connection={connection_state}"
+                f"subscription={subscription_state}, connection={connection_state}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"WebSocket connection lifecycle failed: {e}. "
-                "Connection lifecycle management is critical for trading system reliability."
+                "Connection lifecycle management is critical for trading system reliability.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/advanced"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/advanced"],
+    indirect=True,
 )
 class TestBackpackAPIAdvancedSubscriptions:
     """Test advanced WebSocket subscription scenarios."""
@@ -425,7 +432,7 @@ class TestBackpackAPIAdvancedSubscriptions:
             if subscription_count == 0:
                 pytest.fail(
                     "No subscriptions created - insufficient market types available. "
-                    "Mixed market testing requires both spot and perp symbols."
+                    "Mixed market testing requires both spot and perp symbols.",
                 )
 
             connection_state = bp_api_for_test_env.is_connected
@@ -435,13 +442,13 @@ class TestBackpackAPIAdvancedSubscriptions:
             )
 
             logger.info(
-                f"✓ Mixed market subscriptions successful: {subscription_count} subscriptions"
+                f"✓ Mixed market subscriptions successful: {subscription_count} subscriptions",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Mixed market type subscriptions failed: {e}. "
-                "Multi-market WebSocket functionality is critical for comprehensive trading."
+                "Multi-market WebSocket functionality is critical for comprehensive trading.",
             )
 
     @pytest.mark.vcr
@@ -494,7 +501,7 @@ class TestBackpackAPIAdvancedSubscriptions:
                     # Valid scenarios should not fail
                     pytest.fail(
                         f"Valid subscription failed for {topic}: {e}. "
-                        "Valid WebSocket subscriptions are critical and must succeed."
+                        "Valid WebSocket subscriptions are critical and must succeed.",
                     )
                 else:
                     # Invalid scenarios may fail, which is acceptable
@@ -505,10 +512,10 @@ class TestBackpackAPIAdvancedSubscriptions:
         if successful_subscriptions == 0:
             pytest.fail(
                 "No successful subscriptions occurred. "
-                "At least one valid subscription must succeed for WebSocket functionality."
+                "At least one valid subscription must succeed for WebSocket functionality.",
             )
 
         logger.info(
             f"✓ Error handling test completed: {successful_subscriptions} successful, "
-            f"{handled_errors} handled errors"
+            f"{handled_errors} handled errors",
         )

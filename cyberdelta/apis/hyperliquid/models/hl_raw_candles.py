@@ -119,7 +119,7 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         if not is_dict_str_any(values):
             raise ValueError(
-                f"Candle snapshot response must be a dict, got {type(values).__name__}"
+                f"Candle snapshot response must be a dict, got {type(values).__name__}",
             )
 
         # values is now properly typed as dict[str, Any] due to TypeGuard

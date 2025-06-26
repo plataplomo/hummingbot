@@ -16,8 +16,8 @@ def assert_valid_spot_balance(balance: SpotBalance) -> None:
     assert isinstance(balance.available_quantity, Decimal)
 
     # Value validation
-    assert balance.total_quantity >= Decimal("0")
-    assert balance.available_quantity >= Decimal("0")
+    assert balance.total_quantity >= Decimal(0)
+    assert balance.available_quantity >= Decimal(0)
     assert balance.total_quantity >= balance.available_quantity
 
     # Precision validation
@@ -38,21 +38,21 @@ def assert_valid_spot_balance(balance: SpotBalance) -> None:
         bp_details = balance.bp_details
         if bp_details.open_order_quantity is not None:
             assert isinstance(bp_details.open_order_quantity, Decimal)
-            assert bp_details.open_order_quantity >= Decimal("0")
+            assert bp_details.open_order_quantity >= Decimal(0)
 
 
 def assert_valid_derivative_position(position: DerivativePosition) -> None:
     """Common derivative position assertions."""
     assert isinstance(position.size, Decimal)
     assert position.size.is_finite()
-    if position.size != Decimal("0"):
+    if position.size != Decimal(0):
         assert position.entry_price is not None
-        assert position.entry_price > Decimal("0")
+        assert position.entry_price > Decimal(0)
 
 
 def assert_valid_order_lifecycle(order: Order) -> None:
     """Common order lifecycle assertions."""
     assert order.quantity_filled <= order.quantity_requested
-    if order.quantity_filled > Decimal("0"):
+    if order.quantity_filled > Decimal(0):
         assert order.average_fill_price is not None
-        assert order.average_fill_price > Decimal("0")
+        assert order.average_fill_price > Decimal(0)

@@ -28,7 +28,9 @@ from cyberdelta.utils.parsing import validate_str_field
 
 
 class HyperliquidRawL2UsdTransferPayload(
-    BaseModel, EthereumAddressNormalizer, SigningPayloadSerializer
+    BaseModel,
+    EthereumAddressNormalizer,
+    SigningPayloadSerializer,
 ):
     """Payload for an L2 USDC transfer action.
 
@@ -50,7 +52,9 @@ class HyperliquidRawL2UsdTransferPayload(
 
 
 class HyperliquidRawWithdrawalToL1ActionPayload(
-    BaseModel, EthereumAddressNormalizer, SigningPayloadSerializer
+    BaseModel,
+    EthereumAddressNormalizer,
+    SigningPayloadSerializer,
 ):
     """Payload for withdrawing funds to L1.
 

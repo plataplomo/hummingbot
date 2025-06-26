@@ -66,7 +66,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    batch_length = len(cast(list[Any], actions)) if actions else 1  # type: ignore [redundant-cast]
+                    batch_length = len(cast("list[Any]", actions)) if actions else 1  # type: ignore [redundant-cast]
 
             # Formula: base_weight + (batch_length // 40)
             base_weight = self.hl_exchange_config.exchange_action_base_ip_weight or 1
@@ -79,7 +79,7 @@ class HyperliquidRequestWeighter:
             return ip_weight
 
         # Handle /info endpoint with type-specific weights
-        elif endpoint == "/info":
+        if endpoint == "/info":
             api_type = None
             if action_payload:
                 api_type = action_payload.get("type")
@@ -107,12 +107,11 @@ class HyperliquidRequestWeighter:
             return ip_weight
 
         # Handle other endpoints with default weight
-        else:
-            ip_weight = self.hl_exchange_config.default_info_weight or 20
-            logger.warning(
-                f"Hyperliquid unknown endpoint '{endpoint}', using default ip_weight={ip_weight}",
-            )
-            return ip_weight
+        ip_weight = self.hl_exchange_config.default_info_weight or 20
+        logger.warning(
+            f"Hyperliquid unknown endpoint '{endpoint}', using default ip_weight={ip_weight}",
+        )
+        return ip_weight
 
     def get_address_action_count(self, endpoint: str, action_payload: dict[str, Any] | None) -> int:
         """Calculate the address action count for a given request.
@@ -133,7 +132,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    action_count = len(cast(list[Any], actions)) if actions else 1  # type: ignore [redundant-cast]
+                    action_count = len(cast("list[Any]", actions)) if actions else 1  # type: ignore [redundant-cast]
 
             logger.debug(
                 "hyperliquid_exchange_request_weight",

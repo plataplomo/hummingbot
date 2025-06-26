@@ -163,13 +163,13 @@ def get_secrets_manager() -> SecretsManager:
 
 # Export the primary interfaces for configuration access
 __all__ = [
-    "get_app_settings",  # Primary way to access application settings
-    "get_secrets_config",  # Primary way to access secrets
-    "get_config_manager",  # Access to config manager
-    "get_secrets_manager",  # Access to secrets manager
     "AppSettings",  # Export the Pydantic model class
-    "SecretsConfig",  # Export the Pydantic model class
     "ConfigManager",  # Export the manager class for advanced use cases
-    "SecretsManager",  # Export the manager class for advanced use cases
     "ConfigurationError",  # Export the exception class
+    "SecretsConfig",  # Export the Pydantic model class
+    "SecretsManager",  # Export the manager class for advanced use cases
+    "get_app_settings",  # Primary way to access application settings
+    "get_config_manager",  # Access to config manager
+    "get_secrets_config",  # Primary way to access secrets
+    "get_secrets_manager",  # Access to secrets manager
 ]

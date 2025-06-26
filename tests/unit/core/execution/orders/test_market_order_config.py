@@ -96,7 +96,7 @@ class TestMarketOrderConfig:
 
         # Zero percentage should fail
         with pytest.raises(ValidationError) as exc_info:
-            MarketOrderConfig(max_slippage_pct=Decimal("0"))
+            MarketOrderConfig(max_slippage_pct=Decimal(0))
         assert "greater than 0" in str(exc_info.value)
 
         # Too high percentage should fail

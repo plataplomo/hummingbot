@@ -16,6 +16,7 @@ from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
 
 if TYPE_CHECKING:
@@ -24,7 +25,6 @@ if TYPE_CHECKING:
     # Keep Callable import for type hinting observers
     from collections.abc import Callable, Coroutine
 
-    pass
 
 logger = structlog.get_logger(__name__)
 
@@ -104,6 +104,16 @@ class DataHandler:
 
         # Initialize data structures based on config
         self._setup_data_structures()
+
+        # Funding rate refresh tasks (if needed for exchanges without WebSocket support)
+        self._funding_refresh_tasks: dict[str, asyncio.Task[Any]] = {}
+
+        # Error suppressor for repeated warnings
+        self._error_suppressor = ErrorSuppressor(logger)
+
+        # Sampled logger for high-frequency updates
+        self._sampled_logger = SampledLogger(logger, sample_rate=0.02)  # 2% sampling
+
         logger.info("DataHandler initialized.")
 
     def _load_staleness_config(self) -> None:
@@ -111,7 +121,7 @@ class DataHandler:
         # TODO: Add data_handler.staleness_defaults configuration to AppSettings when needed
         # For now, use hardcoded defaults
         default_ticker_sec = 60.0
-        default_funding_sec = 3600.0
+        default_funding_sec = 3300.0  # 55 minutes for funding rates (they update hourly)
 
         # Access exchanges configuration directly from AppSettings
         exchanges_conf = self.app_settings.exchanges
@@ -431,7 +441,10 @@ class DataHandler:
         # Subscribe to ticker/price data for each symbol
         for symbol in symbols:
             symbol_tasks = self._create_symbol_subscription_tasks(
-                exchange_id, client, symbol, handlers
+                exchange_id,
+                client,
+                symbol,
+                handlers,
             )
             subscribe_tasks.extend(symbol_tasks)
 
@@ -439,6 +452,11 @@ class DataHandler:
         user_events_task = self._create_user_events_subscription(exchange_id, client, handlers)
         if user_events_task:
             subscribe_tasks.append(user_events_task)
+
+        # Subscribe to exchange-specific funding data
+        funding_task = self._create_funding_subscription(exchange_id, client, handlers)
+        if funding_task:
+            subscribe_tasks.append(funding_task)
 
         return subscribe_tasks
 
@@ -479,8 +497,20 @@ class DataHandler:
         """Create user events subscription task."""
         if exchange_id == "hyperliquid":
             return client.subscribe("userEvents", handlers["user_events"])
-        elif exchange_id == "backpack":
+        if exchange_id == "backpack":
             return client.subscribe("account", handlers["user_events"])
+        return None
+
+    def _create_funding_subscription(
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
+        handlers: dict[str, Any],
+    ) -> Coroutine[Any, Any, None] | None:
+        """Create funding rate subscription task."""
+        # Note: Hyperliquid doesn't provide funding rates via WebSocket
+        # Funding rates must be fetched via REST API (get_funding_rates)
+        # Backpack funding is already subscribed per-symbol in _create_symbol_subscription_tasks
         return None
 
     async def _handle_ticker_message(
@@ -586,9 +616,13 @@ class DataHandler:
         data_payload: dict[str, Any],
         full_message: dict[str, Any],
     ) -> None:
-        """Handle funding rate update messages."""
+        """Handle funding rate update messages.
+
+        Note: Hyperliquid doesn't provide funding rates via WebSocket.
+        This handler is only for exchanges that support WebSocket funding updates (e.g., Backpack).
+        """
         try:
-            # Extract symbol and funding rate data from the message
+            # Extract symbol from the funding update
             symbol = data_payload.get("symbol") or full_message.get("symbol")
             if not symbol:
                 logger.warning(
@@ -730,16 +764,40 @@ class DataHandler:
             if exchange_id not in self.last_update_time:
                 self.last_update_time[exchange_id] = {}
 
+        # Check for significant price change before logging
+        old_ticker = self.tickers[exchange_id].get(symbol)
+        old_price = float(old_ticker.price) if old_ticker and old_ticker.price else None
+        new_price = float(data.price) if data.price else None
+
         self.tickers[exchange_id][symbol] = data
         self.last_update_time[exchange_id][symbol] = timestamp
-        logger.debug(
-            "ticker_updated",
-            exchange_id=exchange_id,
-            symbol=symbol,
-            price=float(data.price) if data.price else None,
-            action="update_ticker",
-            message=f"Updated ticker: {exchange_id}/{symbol} - {data.price}",
-        )
+
+        # Only log significant price changes (0.1% threshold)
+        if old_price and new_price and old_price != 0:
+            price_change_pct = abs(new_price - old_price) / old_price
+            if price_change_pct > 0.001:  # 0.1% threshold
+                logger.debug(
+                    "ticker_updated",
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    price=new_price,
+                    price_change_pct=round(price_change_pct * 100, 4),
+                    action="update_ticker",
+                    message=(
+                        f"Significant ticker update: {exchange_id}/{symbol} - {data.price} "
+                        f"({price_change_pct * 100:.2f}% change)"
+                    ),
+                )
+        elif not old_ticker:
+            # Log first update for a symbol
+            logger.debug(
+                "ticker_updated",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                price=new_price,
+                action="update_ticker",
+                message=f"Initial ticker: {exchange_id}/{symbol} - {data.price}",
+            )
 
     def _update_order_book(
         self,
@@ -758,7 +816,9 @@ class DataHandler:
         # Use a separate timestamp field for order book updates if needed
         # self.last_update_time[exchange_id][f"{symbol}_ob"] = timestamp
         self.last_update_time[exchange_id][symbol] = timestamp  # Or reuse main symbol timestamp
-        logger.debug(
+
+        # Sample order book updates to reduce spam (2% sampling rate)
+        self._sampled_logger.debug_sampled(
             "order_book_updated",
             exchange_id=exchange_id,
             symbol=symbol,
@@ -783,7 +843,23 @@ class DataHandler:
                 self.last_update_time[exchange_id] = {}
 
         self.funding_rates[exchange_id][symbol] = data  # Store the full object
-        self.last_update_time[exchange_id][symbol] = data.timestamp
+        # Store funding-specific timestamp to avoid conflicts with ticker updates
+        self.last_update_time[exchange_id][f"{symbol}_funding"] = timestamp
+        # Only log funding rate changes, not every update
+        old_funding = self.funding_rates.get(exchange_id, {}).get(symbol)
+        old_rate = old_funding.funding_rate if old_funding else None
+        new_rate = data.funding_rate
+
+        if old_rate != new_rate:
+            logger.debug(
+                "funding_rate_changed",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                old_rate=float(old_rate) if old_rate is not None else None,
+                new_rate=float(new_rate) if new_rate is not None else None,
+                action="update_funding_rate",
+                message=f"Funding rate changed: {exchange_id}/{symbol} - {old_rate} -> {new_rate}",
+            )
 
     def _update_user_fills(self, exchange_id: str, symbol: str, fills: list[Trade]) -> None:
         # Ensure structures are initialized if symbol is new
@@ -816,7 +892,6 @@ class DataHandler:
             f"DataHandler._update_user_fills for {exchange_id}/{symbol} "
             f"called but not fully implemented.",
         )
-        pass
 
     # --- Observer Notification Methods ---
 
@@ -892,36 +967,92 @@ class DataHandler:
         return order_book_obj
 
     def get_latest_funding_rate(self, exchange_id: str, symbol: str) -> FundingRate | None:
-        """Get the latest funding rate data for a symbol on an exchange."""
-        funding_rate_obj = self.funding_rates.get(exchange_id, {}).get(symbol)
-        if not funding_rate_obj:  # funding_rate_obj is FundingRate | None
-            return None
+        """Get the latest funding rate data for a symbol on an exchange.
 
-        # funding_rate_obj is now confirmed to be a FundingRate object
-        rate = funding_rate_obj.funding_rate
-        next_time = funding_rate_obj.next_funding_time
-        timestamp = funding_rate_obj.timestamp  # Get timestamp from the object
-
-        if rate is None or next_time is None:
-            logger.debug(
-                f"Incomplete funding data for {exchange_id}/{symbol}: "
-                f"rate={rate}, next_time={next_time}",
+        For Hyperliquid, this will trigger an on-demand fetch if data is stale or missing.
+        Returns the funding rate even if stale, with a staleness warning logged.
+        """
+        # Check if we have the symbol mapping
+        if exchange_id not in self.funding_rates:
+            logger.warning(
+                f"Exchange {exchange_id} not found in funding rates data. "
+                f"Available exchanges: {list(self.funding_rates.keys())}",
             )
             return None
 
-        # Check if data is stale
-        # Use the timestamp from the FundingRate object for staleness check
-        if timestamp < dt_real.now(UTC) - self.staleness_thresholds.get(
+        funding_rate_obj = self.funding_rates.get(exchange_id, {}).get(symbol)
+
+        # For Hyperliquid, if data is missing or very stale, fetch on-demand
+        if exchange_id == "hyperliquid":
+            staleness_threshold = self.staleness_thresholds.get(
+                f"{exchange_id}_funding",
+                timedelta(minutes=55),  # 55 minutes for Hyperliquid funding (updates hourly)
+            )
+
+            should_fetch = False
+            if not funding_rate_obj:
+                should_fetch = True
+            else:
+                rate = funding_rate_obj.funding_rate
+                timestamp = funding_rate_obj.timestamp
+                if rate is None or (dt_real.now(UTC) - timestamp) > staleness_threshold:
+                    should_fetch = True
+
+            if should_fetch:
+                # Create async task to fetch funding rates
+                # Note: This is a synchronous method, so we can't await here
+                # Instead, return stale data if available and log need for async fetch
+                logger.warning(
+                    "hyperliquid_funding_fetch_needed",
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    action="fetch_funding_rates",
+                    message=(
+                        f"[{exchange_id}] Funding rate data for {symbol} is missing or stale. "
+                        "Consider implementing async funding rate fetching in strategy."
+                    ),
+                )
+
+        if not funding_rate_obj:
+            logger.warning(
+                f"No funding rate data for {exchange_id} - {symbol}. "
+                f"Available symbols: {list(self.funding_rates.get(exchange_id, {}).keys())}",
+            )
+            return None
+
+        # Check if data is complete
+        rate = funding_rate_obj.funding_rate
+        timestamp = funding_rate_obj.timestamp
+
+        if rate is None:
+            logger.debug(
+                f"Incomplete funding data for {exchange_id}/{symbol}: rate={rate}",
+            )
+            return None
+
+        # Check staleness but still return the data
+        staleness_threshold = self.staleness_thresholds.get(
             f"{exchange_id}_funding",
             self.default_staleness_threshold,
-        ):
-            logger.warning(
-                f"Funding rate data for {exchange_id} - {symbol} is stale. "
-                f"Last update: {timestamp}",
-            )
-            return None
+        )
+        age = dt_real.now(UTC) - timestamp
 
-        # Return the validated FundingRate object
+        if age > staleness_threshold:
+            # Use error suppressor for repeated stale funding warnings
+            error_key = f"stale_funding_{exchange_id}_{symbol}"
+            self._error_suppressor.log_once(
+                error_key,
+                "warning",
+                "funding_rate_stale_but_returning",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                last_update=timestamp.isoformat(),
+                age_seconds=age.total_seconds(),
+                staleness_threshold_seconds=staleness_threshold.total_seconds(),
+                funding_rate=float(rate),
+            )
+
+        # Return the funding rate object even if stale
         return funding_rate_obj
 
     def get_all_tickers(self, exchange_id: str) -> dict[str, Ticker]:
@@ -1004,14 +1135,17 @@ class DataHandler:
                 )
             else:
                 self._register_observer_fallback(
-                    observer, f"unrecognized_type_{param_type.__name__}"
+                    observer,
+                    f"unrecognized_type_{param_type.__name__}",
                 )
         except TypeError:
             # issubclass can fail if param_type is not a class
             self._register_observer_fallback(observer, f"invalid_type_{param_type}")
 
     def _register_observer_by_string_type(
-        self, observer: Callable[..., Any], type_string: str
+        self,
+        observer: Callable[..., Any],
+        type_string: str,
     ) -> None:
         """Register observer based on string type annotation."""
         if type_string == "Candle":
@@ -1112,70 +1246,167 @@ class DataHandler:
         """Stop the data handler gracefully."""
         await self.shutdown()
 
-    async def shutdown(self) -> None:
-        """Stop all WebSocket connections and associated tasks."""
-        logger.info("Stopping WebSocket connections...")
-        self._running = False  # Signal loops to stop
+    async def fetch_funding_rates(self, exchange_id: str, symbols: list[str] | None = None) -> None:
+        """Fetch funding rates for specified symbols via REST API.
 
-        # Cancel all running WebSocket message handling tasks
-        tasks_to_process = list(self.ws_tasks.values())
-        if tasks_to_process:
-            logger.debug(
-                "websocket_tasks_cancelling",
-                tasks_count=len(tasks_to_process),
-                action="cancel_websocket_tasks",
-                message=f"Cancelling {len(tasks_to_process)} WebSocket tasks...",
+        This is useful for exchanges like Hyperliquid that don't provide
+        funding rates via WebSocket.
+
+        Args:
+            exchange_id: Exchange identifier
+            symbols: List of symbols to fetch, or None for all configured symbols
+        """
+        # Import here to avoid circular import
+        from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
+
+        try:
+            client = self.api_clients.get(exchange_id)
+            if not client:
+                logger.error(f"No API client found for {exchange_id}")
+                return
+
+            # Use configured symbols if none specified
+            if symbols is None:
+                symbols = list(self.tickers.get(exchange_id, {}).keys())
+
+            if not symbols:
+                logger.debug(f"No symbols to fetch funding for {exchange_id}")
+                return
+
+            # Fetch funding rates via REST API
+            logger.debug(f"Fetching funding rates for {exchange_id}: {symbols}")
+            rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=symbols))
+
+            # Update cache with fresh data
+            for rate in rates:
+                if rate.symbol in symbols:
+                    self._update_funding_rate(exchange_id, rate.symbol, rate, dt_real.now(UTC))
+                    logger.debug(
+                        f"Updated funding rate for {exchange_id}:{rate.symbol} = "
+                        f"{rate.funding_rate}",
+                    )
+
+            logger.info(
+                "funding_rates_fetched",
+                exchange_id=exchange_id,
+                symbols_fetched=len(rates),
+                symbols_requested=len(symbols),
+                action="fetch_funding_rates",
+                message=f"Fetched {len(rates)} funding rates for {exchange_id}",
             )
-            for task_like in tasks_to_process:
-                if hasattr(task_like, "cancel") and callable(task_like.cancel):
-                    try:
-                        task_like.cancel()
-                    except RuntimeError as e:  # More specific for Task.cancel errors
-                        logger.warning(
-                            "task_cancellation_error",
-                            task_type=str(type(task_like)),
-                            error_message=str(e),
-                            action="cancel_task",
-                            message=f"Error cancelling task-like object {type(task_like)}: {e}",
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"Unexpected error cancelling task-like object {type(task_like)}: {e}",
-                        )
 
-            # Wait for all tasks to acknowledge cancellation or complete
-            await asyncio.gather(*tasks_to_process, return_exceptions=True)
-            logger.debug("WebSocket tasks processed for cancellation and gathered.")
+        except Exception as e:
+            logger.error(
+                "funding_rates_fetch_failed",
+                exchange_id=exchange_id,
+                error=str(e),
+                action="fetch_funding_rates",
+                message=f"Failed to fetch funding rates for {exchange_id}: {e}",
+            )
+
+    async def _cancel_funding_refresh_tasks(self) -> None:
+        """Cancel all funding refresh tasks."""
+        for exchange_id, task in self._funding_refresh_tasks.items():
+            if not task.done():
+                logger.info(f"Cancelling funding refresh task for {exchange_id}")
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    async def _cancel_websocket_tasks(self) -> None:
+        """Cancel all running WebSocket message handling tasks."""
+        tasks_to_process = list(self.ws_tasks.values())
+        if not tasks_to_process:
+            return
+
+        logger.debug(
+            "websocket_tasks_cancelling",
+            tasks_count=len(tasks_to_process),
+            action="cancel_websocket_tasks",
+            message=f"Cancelling {len(tasks_to_process)} WebSocket tasks...",
+        )
+
+        for task_like in tasks_to_process:
+            self._cancel_single_task(task_like)
+
+        # Wait for all tasks to acknowledge cancellation or complete
+        await asyncio.gather(*tasks_to_process, return_exceptions=True)
+        logger.debug("WebSocket tasks processed for cancellation and gathered.")
         self.ws_tasks.clear()
 
-        # Close WebSocket connections via API clients
+    def _cancel_single_task(self, task_like: object) -> None:
+        """Cancel a single task-like object safely."""
+        if not (hasattr(task_like, "cancel") and callable(task_like.cancel)):
+            return
+
+        try:
+            task_like.cancel()
+        except RuntimeError as e:  # More specific for Task.cancel errors
+            logger.warning(
+                "task_cancellation_error",
+                task_type=str(type(task_like)),
+                error_message=str(e),
+                action="cancel_task",
+                message=f"Error cancelling task-like object {type(task_like)}: {e}",
+            )
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error cancelling task-like object {type(task_like)}: {e}",
+            )
+
+    async def _close_websocket_connections(self) -> None:
+        """Close WebSocket connections via API clients."""
         close_tasks: list[Awaitable[Any]] = []
+
         for exchange_id, client in self.api_clients.items():
-            if hasattr(client, "close_websocket"):
-                logger.debug(
-                    "websocket_connection_closing",
-                    exchange_id=exchange_id,
-                    action="close_websocket_connection",
-                    message=f"Closing WebSocket connection for {exchange_id}...",
-                )
-                close_method = client.close_websocket
-                close_tasks.append(close_method())
-            elif hasattr(client, "close"):  # General close as last resort
-                logger.debug(
-                    "general_connection_closing",
-                    exchange_id=exchange_id,
-                    method="close",
-                    action="close_general_connection",
-                    message=f"Closing general connection for {exchange_id} via close()...",
-                )
-                close_method = client.close
-                close_tasks.append(close_method())
+            close_task = self._get_client_close_task(exchange_id, client)
+            if close_task:
+                close_tasks.append(close_task)
 
         if close_tasks:
             await asyncio.gather(*close_tasks, return_exceptions=True)
             logger.info("WebSocket connections closed.")
 
         self.ws_connections.clear()  # Clear connection references
+
+    def _get_client_close_task(
+        self, exchange_id: str, client: ExchangeAPI,
+    ) -> Awaitable[Any] | None:
+        """Get the close task for a client if it has a close method."""
+        if hasattr(client, "close_websocket"):
+            logger.debug(
+                "websocket_connection_closing",
+                exchange_id=exchange_id,
+                action="close_websocket_connection",
+                message=f"Closing WebSocket connection for {exchange_id}...",
+            )
+            return client.close_websocket()
+        if hasattr(client, "close"):  # General close as last resort
+            logger.debug(
+                "general_connection_closing",
+                exchange_id=exchange_id,
+                method="close",
+                action="close_general_connection",
+                message=f"Closing general connection for {exchange_id} via close()...",
+            )
+            return client.close()
+        return None
+
+    async def shutdown(self) -> None:
+        """Stop all WebSocket connections and associated tasks."""
+        logger.info("Stopping WebSocket connections...")
+        self._running = False  # Signal loops to stop
+
+        # Cancel funding refresh tasks
+        await self._cancel_funding_refresh_tasks()
+
+        # Cancel all running WebSocket message handling tasks
+        await self._cancel_websocket_tasks()
+
+        # Close WebSocket connections via API clients
+        await self._close_websocket_connections()
 
     # --- Staleness Check ---
 

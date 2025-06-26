@@ -59,12 +59,12 @@ class TestBackpackAccountServiceAccountInfo:
         mock_internal_margin_summary = MarginAccountSummary(
             exchange="backpack_test_account",
             timestamp=datetime.now(UTC),
-            total_equity=Decimal("0"),
-            available_equity=Decimal("0"),
+            total_equity=Decimal(0),
+            available_equity=Decimal(0),
             bp_details=mock_bp_details,
-            total_initial_margin_required=Decimal("0"),
-            total_maintenance_margin_required=Decimal("0"),
-            total_position_notional=Decimal("0"),
+            total_initial_margin_required=Decimal(0),
+            total_maintenance_margin_required=Decimal(0),
+            total_position_notional=Decimal(0),
         )
 
         # Patch the internal helper methods of the service instance

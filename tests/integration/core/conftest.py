@@ -82,21 +82,27 @@ def market_order_config() -> MarketOrderConfig:
 
 @pytest.fixture
 def hyperliquid_market_order(
-    hyperliquid_api: HyperliquidAPI, market_order_config: MarketOrderConfig
+    hyperliquid_api: HyperliquidAPI,
+    market_order_config: MarketOrderConfig,
 ) -> MarketOrder:
     """Create MarketOrder instance for Hyperliquid."""
     service = MarketOrderService(exchange_api=hyperliquid_api, config=market_order_config)
     return MarketOrder(
-        exchange_api=hyperliquid_api, market_order_service=service, config=market_order_config
+        exchange_api=hyperliquid_api,
+        market_order_service=service,
+        config=market_order_config,
     )
 
 
 @pytest.fixture
 def backpack_market_order(
-    backpack_api: BackpackAPI, market_order_config: MarketOrderConfig
+    backpack_api: BackpackAPI,
+    market_order_config: MarketOrderConfig,
 ) -> MarketOrder:
     """Create MarketOrder instance for Backpack."""
     service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
     return MarketOrder(
-        exchange_api=backpack_api, market_order_service=service, config=market_order_config
+        exchange_api=backpack_api,
+        market_order_service=service,
+        config=market_order_config,
     )

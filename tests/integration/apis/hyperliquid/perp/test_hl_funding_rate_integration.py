@@ -45,7 +45,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -76,7 +78,8 @@ async def test_hl_get_historical_funding_rates_btc_success(
     if len(funding_rates) > 0:
         # Get exchange-specific funding rate bounds - NO HARDCODED VALUES
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
-            hl_api_for_test_env, "BTC"
+            hl_api_for_test_env,
+            "BTC",
         )
 
         for i, funding_rate in enumerate(funding_rates):
@@ -105,7 +108,7 @@ async def test_hl_get_historical_funding_rates_btc_success(
                     pytest.fail(f"Funding rate {funding_rate.funding_rate} is not finite")
             else:
                 pytest.fail(
-                    f"Funding rate is None for BTC at index {i} - exchange must provide rate"
+                    f"Funding rate is None for BTC at index {i} - exchange must provide rate",
                 )
 
             # Validate timestamp is within requested range
@@ -120,7 +123,9 @@ async def test_hl_get_historical_funding_rates_btc_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -149,7 +154,8 @@ async def test_hl_get_historical_funding_rates_eth_success(
     if len(funding_rates) > 0:
         # Get exchange-specific funding rate bounds for ETH - NO HARDCODED VALUES
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
-            hl_api_for_test_env, "ETH"
+            hl_api_for_test_env,
+            "ETH",
         )
 
         for funding_rate in funding_rates:
@@ -176,7 +182,9 @@ async def test_hl_get_historical_funding_rates_eth_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -190,7 +198,8 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
     """
     # Get available perpetual symbols dynamically - NO HARDCODED SYMBOLS
     available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-        hl_api_for_test_env, limit=5
+        hl_api_for_test_env,
+        limit=5,
     )
 
     # Use dynamic time range
@@ -214,7 +223,8 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
             if funding_rates:
                 # Get real exchange bounds - NO HARDCODED BOUNDS
                 funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
-                    hl_api_for_test_env, symbol
+                    hl_api_for_test_env,
+                    symbol,
                 )
 
                 for funding_rate in funding_rates:
@@ -235,7 +245,7 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
                         # Validate rate is finite
                         if not funding_rate.funding_rate.is_finite():
                             pytest.fail(
-                                f"{symbol} funding rate {funding_rate.funding_rate} is not finite"
+                                f"{symbol} funding rate {funding_rate.funding_rate} is not finite",
                             )
 
                         # Validate exchange-specific bounds
@@ -250,7 +260,7 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
                         )
                     else:
                         pytest.fail(
-                            f"Funding rate is None for {symbol} - exchange must provide rate"
+                            f"Funding rate is None for {symbol} - exchange must provide rate",
                         )
 
         except APIError as e:
@@ -264,7 +274,9 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -340,7 +352,8 @@ async def test_hl_get_historical_funding_rates_edge_cases(
         if long_range_rates:
             # Validate data consistency over long range using real bounds
             funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
-                hl_api_for_test_env, "BTC"
+                hl_api_for_test_env,
+                "BTC",
             )
 
             for rate in long_range_rates:
@@ -370,7 +383,9 @@ async def test_hl_get_historical_funding_rates_edge_cases(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -409,10 +424,10 @@ async def test_hl_funding_rate_precision_and_calculations(
                     pytest.fail(f"Funding rate {funding_rate.funding_rate} is not finite")
 
                 # Test arithmetic operations maintain precision
-                doubled_rate = funding_rate.funding_rate * Decimal("2")
+                doubled_rate = funding_rate.funding_rate * Decimal(2)
                 assert isinstance(doubled_rate, Decimal), "Arithmetic should maintain Decimal type"
 
-                halved_rate = funding_rate.funding_rate / Decimal("2")
+                halved_rate = funding_rate.funding_rate / Decimal(2)
                 assert isinstance(halved_rate, Decimal), "Division should maintain Decimal type"
 
                 # Validate rate can be quantized to exchange precision
@@ -421,7 +436,7 @@ async def test_hl_funding_rate_precision_and_calculations(
                     rate_str = str(funding_rate.funding_rate)
                     if "." in rate_str:
                         decimal_places = len(rate_str.split(".")[1])
-                        exchange_precision = Decimal("1") / (Decimal("10") ** decimal_places)
+                        exchange_precision = Decimal(1) / (Decimal(10) ** decimal_places)
                         quantized_rate = funding_rate.funding_rate.quantize(exchange_precision)
                         assert isinstance(quantized_rate, Decimal), "Quantization should work"
                 except Exception as e:
@@ -431,7 +446,9 @@ async def test_hl_funding_rate_precision_and_calculations(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr
@@ -458,7 +475,8 @@ async def test_hl_funding_rate_time_series_consistency(
     if len(funding_rates) > 1:
         # Get exchange bounds for reasonable change validation
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
-            hl_api_for_test_env, "BTC"
+            hl_api_for_test_env,
+            "BTC",
         )
 
         # Validate time series ordering
@@ -499,7 +517,9 @@ async def test_hl_funding_rate_time_series_consistency(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/funding"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/funding"],
+    indirect=True,
 )
 @pytest.mark.asyncio
 @pytest.mark.vcr

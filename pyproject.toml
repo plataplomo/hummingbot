@@ -155,6 +155,15 @@ select = [  # Linting rules to apply
     "COM", # comments
     "S",   # security
     "C",   # complexity
+    "FURB",# bugbear
+    "RET", # return
+#    "TC",  # type-checking
+    "RUF", # redundant-use-of-function
+    "SIM", # similar
+    "ERA", # commented-out-code
+#    "DOC", # docstrings
+#    "INP", # import
+#    "PLR",
 ]
 
 # Ignore rules that conflict with current codebase formatting

@@ -88,8 +88,8 @@ class TestFailureScenarios:
                 asset="USDT",
                 # total=Decimal("10000"), # Use correct fields
                 # available=Decimal("10000"),
-                total_quantity=Decimal("10000"),  # Add missing
-                available_quantity=Decimal("10000"),  # Add missing
+                total_quantity=Decimal(10000),  # Add missing
+                available_quantity=Decimal(10000),  # Add missing
                 timestamp=now,  # Add missing
             ),
         )
@@ -99,8 +99,8 @@ class TestFailureScenarios:
                 asset="USDT",
                 # total=Decimal("10000"), # Use correct fields
                 # available=Decimal("10000"),
-                total_quantity=Decimal("10000"),  # Add missing
-                available_quantity=Decimal("10000"),  # Add missing
+                total_quantity=Decimal(10000),  # Add missing
+                available_quantity=Decimal(10000),  # Add missing
                 timestamp=now,  # Add missing
             ),
         )
@@ -128,10 +128,10 @@ class TestFailureScenarios:
         # Create a sized opportunity (details don't matter much as it should fail)
         sized_opportunity = SizedOpportunity(
             opportunity=basic_opportunity,  # basic_opportunity uses mock_bp as long
-            long_size=Decimal("1000"),
-            short_size=Decimal("1000"),
+            long_size=Decimal(1000),
+            short_size=Decimal(1000),
             allocation_percentage=Decimal("0.1"),  # Use Decimal
-            expected_profit=Decimal("10"),
+            expected_profit=Decimal(10),
             expected_return=Decimal("0.01"),  # Use Decimal
             risk_adjusted_return=Decimal("0.01"),  # Use Decimal
         )
@@ -210,8 +210,8 @@ class TestFailureScenarios:
             symbol="BTC",  # Corrected argument name
             long_exchange=other_exchange,
             short_exchange=target_exchange,
-            long_price=Decimal("30010"),
-            short_price=Decimal("30000"),  # Prices reversed
+            long_price=Decimal(30010),
+            short_price=Decimal(30000),  # Prices reversed
             long_funding_rate=Decimal("0.0001"),  # Dummy value
             short_funding_rate=Decimal("-0.00005"),  # Dummy value
             net_funding_differential=Decimal("-0.0001"),  # Dummy value
@@ -225,10 +225,10 @@ class TestFailureScenarios:
         # Create a sized opportunity for the other exchange
         other_sized_opportunity = SizedOpportunity(
             opportunity=other_opportunity,
-            long_size=Decimal("1000"),
-            short_size=Decimal("1000"),
+            long_size=Decimal(1000),
+            short_size=Decimal(1000),
             allocation_percentage=Decimal("0.1"),  # Use Decimal
-            expected_profit=Decimal("10"),
+            expected_profit=Decimal(10),
             expected_return=Decimal("0.01"),  # Use Decimal
             risk_adjusted_return=Decimal("0.01"),  # Use Decimal
         )
@@ -278,7 +278,7 @@ class TestFailureScenarios:
             # that's actually fine - it shows the other exchange's circuit breaker didn't trip
             logger.info(
                 f"Execution on {other_exchange} failed with: {other_result.error_message}. "
-                f"This is expected if it's not due to circuit breaker."
+                f"This is expected if it's not due to circuit breaker.",
             )
         elif other_result.status == ExecutionStatus.REJECTED:
             # Add None check before 'in'

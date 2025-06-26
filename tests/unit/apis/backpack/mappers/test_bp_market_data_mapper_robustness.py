@@ -174,10 +174,10 @@ class TestBoundaryValueHandling:
 
         result_zero = mapper.transform_raw_ticker_to_internal(raw_ticker_zero)
 
-        assert result_zero.price == Decimal("0")
+        assert result_zero.price == Decimal(0)
         assert result_zero.bid is None  # Not available from Backpack ticker endpoint
         assert result_zero.ask is None  # Not available from Backpack ticker endpoint
-        assert result_zero.volume == Decimal("0")
+        assert result_zero.volume == Decimal(0)
 
     def test_massive_order_book_levels(
         self,

@@ -13,7 +13,8 @@ This strategy:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import asyncio
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, getcontext
 from typing import Any, cast
 
@@ -21,6 +22,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
     # MarketData, # Removed
+    FundingRate,
     OrderSide,
     SignalType,
     Ticker,
@@ -96,6 +98,7 @@ class FundingRateArbitrageStrategy(Strategy):
         self.last_opportunity_check: datetime | None = None
         self.active_opportunities: list[ArbitrageOpportunity] = []
         self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
+        self._consecutive_failures = 0  # Track consecutive funding rate failures
         # Defensive: ensure check_interval is always int
         # max_history = self._get_int_param("history_length", 24)  # Unused, remove
 
@@ -151,29 +154,118 @@ class FundingRateArbitrageStrategy(Strategy):
                 return default
         return default
 
-    async def _check_opportunity(self) -> ArbitrageOpportunity | None:
-        """Check for funding rate arbitrage opportunity between perp and spot markets.
+    async def _get_funding_rate_with_retry(
+        self,
+        exchange_id: str,
+        symbol: str,
+        max_retries: int = 3,
+    ) -> FundingRate | None:
+        """Get funding rate with exponential backoff retry."""
+        for attempt in range(max_retries):
+            try:
+                rate = self.data_handler.get_latest_funding_rate(exchange_id, symbol)
+                if rate is not None:
+                    return rate
 
-        Returns:
-            ArbitrageOpportunity if found, None otherwise
+                # If no data and not last attempt, wait before retry
+                if attempt < max_retries - 1:
+                    wait_time = (2**attempt) * 0.5  # 0.5s, 1s, 2s
+                    logger.debug(
+                        f"Retrying funding rate fetch for {exchange_id}:{symbol} "
+                        f"(attempt {attempt + 1}/{max_retries}) after {wait_time}s",
+                    )
+                    await asyncio.sleep(wait_time)
 
-        """
-        # Get max_history at the start so it's always defined
-        max_history = self._get_int_param("history_length", 24)
+            except Exception as e:
+                logger.error(
+                    f"Error fetching funding rate for {exchange_id}:{symbol}: {e}",
+                    exc_info=True,
+                )
 
-        # Get funding rate from perp exchange
-        funding_rate = self.data_handler.get_latest_funding_rate(self.perp_exchange, self.symbol)
-        if funding_rate is None:
-            logger.warning(
-                "funding_rate_data_unavailable",
+        return None
+
+    async def _ensure_fresh_hyperliquid_funding(self) -> None:
+        """Ensure Hyperliquid funding rates are fresh by fetching if needed."""
+        if self.perp_exchange != "hyperliquid":
+            return
+
+        current_rate = self.data_handler.get_latest_funding_rate(
+            self.perp_exchange,
+            self.symbol,
+        )
+
+        if self._should_fetch_hyperliquid_funding(current_rate):
+            await self.data_handler.fetch_funding_rates(self.perp_exchange, [self.symbol])
+
+    def _should_fetch_hyperliquid_funding(self, current_rate: FundingRate | None) -> bool:
+        """Check if Hyperliquid funding rates need to be fetched."""
+        if not current_rate:
+            return True
+
+        # Hyperliquid funding rates update hourly at the top of the hour
+        now = datetime.now(UTC)
+        age = now - current_rate.timestamp
+
+        # Fetch if data is older than 55 minutes
+        if age > timedelta(minutes=55):
+            return True
+
+        # Also fetch if we're within 5 minutes after the hour
+        # and data is from before the hour
+        minutes_past_hour = now.minute
+        if minutes_past_hour <= 5:
+            # Check if the cached data is from before this hour
+            current_hour_start = now.replace(minute=0, second=0, microsecond=0)
+            if current_rate.timestamp < current_hour_start:
+                logger.debug(
+                    f"Fetching funding rate as we're {minutes_past_hour} minutes "
+                    f"past the hour and cached data is from before "
+                    f"{current_hour_start}",
+                )
+                return True
+
+        return False
+
+    def _handle_funding_rate_failure(self) -> None:
+        """Handle funding rate retrieval failure and log context."""
+        self._consecutive_failures += 1
+
+        # Log with context
+        perp_ticker = self.data_handler.get_latest_ticker(self.perp_exchange, self.symbol)
+        spot_symbol = self.symbol_mapping.get(self.symbol, "")
+        spot_ticker = (
+            self.data_handler.get_latest_ticker(self.spot_exchange, spot_symbol)
+            if spot_symbol
+            else None
+        )
+
+        logger.error(
+            "funding_rate_unavailable_with_context",
+            strategy=self.name,
+            symbol=self.symbol,
+            perp_exchange=self.perp_exchange,
+            consecutive_failures=self._consecutive_failures,
+            perp_price=float(perp_ticker.price) if perp_ticker and perp_ticker.price else None,
+            spot_price=float(spot_ticker.price) if spot_ticker and spot_ticker.price else None,
+            has_perp_connection=self.perp_exchange in self.data_handler.api_clients,
+            action="skipping_opportunity_check",
+        )
+
+        # Trigger alert if too many consecutive failures
+        if self._consecutive_failures >= 10:
+            logger.critical(
+                "funding_rate_critical_failure",
                 strategy=self.name,
-                symbol=self.symbol,
-                perp_exchange=self.perp_exchange,
-                action="skipping_opportunity_check",
-                message=f"Could not get funding rate for {self.symbol} on {self.perp_exchange}",
+                consecutive_failures=self._consecutive_failures,
+                message="Funding rate data unavailable for extended period",
             )
-            return None
 
+    async def _process_arbitrage_opportunity(
+        self,
+        funding_rate: FundingRate,
+        max_history: int,
+    ) -> ArbitrageOpportunity | None:
+        """Process the arbitrage opportunity with valid funding rate."""
         # Get current time
         now = datetime.now(UTC)
 
@@ -226,6 +318,36 @@ class FundingRateArbitrageStrategy(Strategy):
             long_price,
             short_price,
         )
+
+    async def _check_opportunity(self) -> ArbitrageOpportunity | None:
+        """Check for funding rate arbitrage opportunity between perp and spot markets.
+
+        Returns:
+            ArbitrageOpportunity if found, None otherwise
+
+        """
+        # Get max_history at the start so it's always defined
+        max_history = self._get_int_param("history_length", 24)
+
+        # For Hyperliquid, check if we need to fetch fresh funding rates
+        await self._ensure_fresh_hyperliquid_funding()
+
+        # Get funding rate with retries
+        funding_rate = await self._get_funding_rate_with_retry(
+            self.perp_exchange,
+            self.symbol,
+            max_retries=3,
+        )
+
+        if funding_rate is None:
+            self._handle_funding_rate_failure()
+            return None
+
+        # Reset failure counter on success
+        self._consecutive_failures = 0
+
+        # Process the opportunity
+        return await self._process_arbitrage_opportunity(funding_rate, max_history)
 
     def _get_and_validate_prices(self) -> tuple[Decimal, Decimal, Ticker, Ticker] | None:
         """Get and validate prices for perp and spot markets."""
@@ -371,7 +493,10 @@ class FundingRateArbitrageStrategy(Strategy):
         return expected_profit, float(utility_score)
 
     def _get_entry_prices(
-        self, perp_ticker: Ticker, spot_ticker: Ticker, perp_side: str
+        self,
+        perp_ticker: Ticker,
+        spot_ticker: Ticker,
+        perp_side: str,
     ) -> tuple[Decimal, Decimal] | None:
         """Get entry prices for long and short positions."""
         # Ensure prices are not None before using them
@@ -420,8 +545,8 @@ class FundingRateArbitrageStrategy(Strategy):
             short_exchange=self.spot_exchange if perp_side == "LONG" else self.perp_exchange,
             long_price=long_price,
             short_price=short_price,
-            long_funding_rate=nfd if perp_side == "LONG" else Decimal("0"),
-            short_funding_rate=nfd if perp_side == "SHORT" else Decimal("0"),
+            long_funding_rate=nfd if perp_side == "LONG" else Decimal(0),
+            short_funding_rate=nfd if perp_side == "SHORT" else Decimal(0),
             net_funding_differential=nfd,
             timestamp=now,
             expected_profit=expected_profit,
@@ -512,8 +637,8 @@ class FundingRateArbitrageStrategy(Strategy):
 
         """
         base_slippage = Decimal("0.0001")
-        ref_size = Decimal("10000")
-        if size <= Decimal("0") or ref_size <= Decimal("0"):
+        ref_size = Decimal(10000)
+        if size <= Decimal(0) or ref_size <= Decimal(0):
             return base_slippage
         try:
             size_ratio = size / ref_size
@@ -664,7 +789,7 @@ class FundingRateArbitrageStrategy(Strategy):
             self.active_opportunities.append(opportunity)
 
             sized_opportunity_raw = self.risk_manager.size_opportunity(opportunity)
-            sized_opportunity = cast(SizedOpportunity | None, sized_opportunity_raw)
+            sized_opportunity = cast("SizedOpportunity | None", sized_opportunity_raw)
 
             if (
                 sized_opportunity
@@ -708,7 +833,7 @@ class FundingRateArbitrageStrategy(Strategy):
                         f"no entry signals generated"
                     ),
                 )
-        return signals if signals else None
+        return signals or None
 
     def _should_rebalance(
         self,
@@ -829,7 +954,7 @@ class FundingRateArbitrageStrategy(Strategy):
     ) -> list[TradeSignal]:
         """Generate entry signals for a given opportunity."""
         signals: list[TradeSignal] = []
-        default_size = Decimal("0")  # Default for quantity if price is zero
+        default_size = Decimal(0)  # Default for quantity if price is zero
 
         perp_side = OrderSide.BUY if opportunity.net_funding_differential > 0 else OrderSide.SELL
         spot_side = OrderSide.SELL if opportunity.net_funding_differential > 0 else OrderSide.BUY
@@ -1011,11 +1136,18 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Calculate net exposure and check if rebalancing is needed
         net_exposure = self._calculate_net_exposure(
-            perp_position, spot_position, perp_price_rebal, spot_price_rebal
+            perp_position,
+            spot_position,
+            perp_price_rebal,
+            spot_price_rebal,
         )
 
         if not self._should_rebalance_based_on_exposure(
-            net_exposure, perp_position, spot_position, perp_price_rebal, spot_price_rebal
+            net_exposure,
+            perp_position,
+            spot_position,
+            perp_price_rebal,
+            spot_price_rebal,
         ):
             return signals
 
@@ -1072,7 +1204,9 @@ class FundingRateArbitrageStrategy(Strategy):
         return perp_position, spot_position, spot_symbol
 
     def _get_and_validate_rebalance_prices(
-        self, perp_ticker_live: Ticker | None, spot_ticker_live: Ticker | None
+        self,
+        perp_ticker_live: Ticker | None,
+        spot_ticker_live: Ticker | None,
     ) -> tuple[Decimal, Decimal] | None:
         """Get and validate live prices for rebalancing."""
         if perp_ticker_live is None or spot_ticker_live is None:
@@ -1153,7 +1287,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 ),
             )
             return True
-        elif abs(net_exposure) > threshold_value and threshold_value > Decimal(0):
+        if abs(net_exposure) > threshold_value > Decimal(0):
             logger.info(
                 "rebalance_triggered_exposure_exceeds_threshold",
                 strategy=self.name,
@@ -1198,17 +1332,16 @@ class FundingRateArbitrageStrategy(Strategy):
                 exchange_to_adjust = self.spot_exchange
                 symbol_to_adjust = spot_symbol
                 price_to_use = spot_price
-        else:  # Net short, need to buy something
-            if perp_position.size < 0:  # If perp is short, buy some back
-                side = OrderSide.BUY
-                exchange_to_adjust = self.perp_exchange
-                symbol_to_adjust = self.symbol
-                price_to_use = perp_price
-            else:  # Perp is long, buy more of spot (if spot is short)
-                side = OrderSide.BUY
-                exchange_to_adjust = self.spot_exchange
-                symbol_to_adjust = spot_symbol
-                price_to_use = spot_price
+        elif perp_position.size < 0:  # If perp is short, buy some back
+            side = OrderSide.BUY
+            exchange_to_adjust = self.perp_exchange
+            symbol_to_adjust = self.symbol
+            price_to_use = perp_price
+        else:  # Perp is long, buy more of spot (if spot is short)
+            side = OrderSide.BUY
+            exchange_to_adjust = self.spot_exchange
+            symbol_to_adjust = spot_symbol
+            price_to_use = spot_price
 
         if price_to_use <= Decimal(0):
             logger.warning(
@@ -1229,7 +1362,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         quantity_to_rebalance = abs(net_exposure) / price_to_use
 
-        if quantity_to_rebalance <= Decimal("0"):
+        if quantity_to_rebalance <= Decimal(0):
             return None
 
         signal = TradeSignal(

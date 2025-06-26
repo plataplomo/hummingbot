@@ -353,7 +353,7 @@ class TestBackpackEd25519Authenticator:
         assert ("DELETE", "/api/v1/order") in auth.INSTRUCTION_MAP
 
         # Verify instruction values are strings
-        assert isinstance(auth.INSTRUCTION_MAP[("GET", "/api/v1/capital")], str)
+        assert isinstance(auth.INSTRUCTION_MAP["GET", "/api/v1/capital"], str)
 
     @pytest.mark.asyncio
     async def test_signing_string_generation_order_cancel_example(

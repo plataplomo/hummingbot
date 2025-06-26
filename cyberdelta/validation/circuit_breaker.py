@@ -21,8 +21,6 @@ logger = get_logger(__name__)
 class CircuitBreakerTrippedError(Exception):
     """Custom exception raised when a circuit breaker prevents an operation."""
 
-    pass
-
 
 class BreakerState(Enum):
     """State of a circuit breaker."""
@@ -79,30 +77,29 @@ class CircuitBreaker(ABC):
                 action="blocking_operations",
                 message=f"Circuit breaker '{self.name}' tripped. Reason: {reason}",
             )
+        # If already open, maybe update reason if different or just log repeated trip
+        elif self.trip_reason != reason:
+            logger.warning(
+                "circuit_breaker_reason_updated",
+                breaker_name=self.name,
+                old_reason=self.trip_reason,
+                new_reason=reason,
+                trip_count=self.trip_count,
+                action="reason_updated",
+                message=f"Circuit breaker '{self.name}' trip reason updated to: {reason}",
+            )
+            self.trip_reason = reason
         else:
-            # If already open, maybe update reason if different or just log repeated trip
-            if self.trip_reason != reason:
-                logger.warning(
-                    "circuit_breaker_reason_updated",
-                    breaker_name=self.name,
-                    old_reason=self.trip_reason,
-                    new_reason=reason,
-                    trip_count=self.trip_count,
-                    action="reason_updated",
-                    message=f"Circuit breaker '{self.name}' trip reason updated to: {reason}",
-                )
-                self.trip_reason = reason
-            else:
-                logger.warning(
-                    "circuit_breaker_tripped_again",
-                    breaker_name=self.name,
-                    reason=reason,
-                    trip_count=self.trip_count,
-                    action="repeated_trip",
-                    message=(
-                        f"Circuit breaker '{self.name}' tripped again for the same reason: {reason}"
-                    ),
-                )
+            logger.warning(
+                "circuit_breaker_tripped_again",
+                breaker_name=self.name,
+                reason=reason,
+                trip_count=self.trip_count,
+                action="repeated_trip",
+                message=(
+                    f"Circuit breaker '{self.name}' tripped again for the same reason: {reason}"
+                ),
+            )
                 # Optionally update trip_time on subsequent trips?
                 # self.trip_time = datetime.now(timezone.utc)
 
@@ -197,10 +194,9 @@ class CircuitBreaker(ABC):
         if recovery_successful:
             self.reset()
             return True
-        else:
-            # Re-trip the breaker with the same reason
-            self.trip(f"Recovery failed: {self.trip_reason}")
-            return False
+        # Re-trip the breaker with the same reason
+        self.trip(f"Recovery failed: {self.trip_reason}")
+        return False
 
     @abstractmethod
     def _check_recovery(self) -> bool:
@@ -210,7 +206,6 @@ class CircuitBreaker(ABC):
             True if recovery was successful, False otherwise
 
         """
-        pass
 
     @abstractmethod
     def check(
@@ -223,7 +218,6 @@ class CircuitBreaker(ABC):
         Implement in subclasses to evaluate specific conditions.
         Should call self.trip() if the breaker should trip.
         """
-        pass
 
     def get_status(self) -> dict[str, Any]:
         """Get the current status of this breaker.
@@ -561,7 +555,7 @@ class APIErrorBreaker(CircuitBreaker):
                 ),
             )
             return True
-        elif success_recovery:
+        if success_recovery:
             logger.info(
                 "api_breaker_recovery_allowed_with_errors",
                 breaker_name=self.name,
@@ -575,20 +569,19 @@ class APIErrorBreaker(CircuitBreaker):
                 ),
             )
             return True
-        else:
-            logger.info(
-                "api_breaker_recovery_rejected",
-                breaker_name=self.name,
-                recent_error_count=len(recent_errors),
-                consecutive_success_count=self.consecutive_success_count,
-                action="recovery_check",
-                message=(
-                    f"APIErrorBreaker {self.name} recovery check: "
-                    f"{len(recent_errors)} recent errors, "
-                    f"{self.consecutive_success_count} consecutive successes - recovery rejected"
-                ),
-            )
-            return False
+        logger.info(
+            "api_breaker_recovery_rejected",
+            breaker_name=self.name,
+            recent_error_count=len(recent_errors),
+            consecutive_success_count=self.consecutive_success_count,
+            action="recovery_check",
+            message=(
+                f"APIErrorBreaker {self.name} recovery check: "
+                f"{len(recent_errors)} recent errors, "
+                f"{self.consecutive_success_count} consecutive successes - recovery rejected"
+            ),
+        )
+        return False
 
 
 class LiquidityBreaker(CircuitBreaker):
@@ -857,19 +850,20 @@ class CircuitBreakerSystem:
                             message=f"Execution blocked: {reason}",
                         )
                         return False, reason
-                    else:
-                        logger.info(
-                            "global_breaker_recovered",
-                            breaker_name=breaker_name,
-                            new_state="CLOSED",
-                            action="breaker_recovery",
-                            message=f"Global breaker '{breaker_name}' recovered and is now CLOSED.",
-                        )
+                    logger.info(
+                        "global_breaker_recovered",
+                        breaker_name=breaker_name,
+                        new_state="CLOSED",
+                        action="breaker_recovery",
+                        message=f"Global breaker '{breaker_name}' recovered and is now CLOSED.",
+                    )
 
         return True, None
 
     def _check_exchange_breakers(
-        self, exchange: str, symbol: str | None
+        self,
+        exchange: str,
+        symbol: str | None,
     ) -> tuple[bool, str | None]:
         """Check exchange-specific circuit breakers."""
         if exchange not in self.exchange_breakers:
@@ -886,26 +880,29 @@ class CircuitBreakerSystem:
         return True, None
 
     def _get_breakers_to_check(
-        self, breaker_item: CircuitBreaker | dict[str, CircuitBreaker], symbol: str | None
+        self,
+        breaker_item: CircuitBreaker | dict[str, CircuitBreaker],
+        symbol: str | None,
     ) -> list[CircuitBreaker]:
         """Get the list of breakers to check based on the breaker item type."""
         breakers_to_check: list[CircuitBreaker] = []
 
         if isinstance(breaker_item, CircuitBreaker):
             breakers_to_check.append(breaker_item)
-        else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
-            # This is a dict of symbol-specific breakers
-            if symbol and symbol in breaker_item:
-                actual_breaker = breaker_item[symbol]
-                breakers_to_check.append(actual_breaker)
-            elif not symbol:
-                for s_breaker in breaker_item.values():
-                    breakers_to_check.append(s_breaker)
+        # This is a dict of symbol-specific breakers
+        elif symbol and symbol in breaker_item:
+            actual_breaker = breaker_item[symbol]
+            breakers_to_check.append(actual_breaker)
+        elif not symbol:
+            for s_breaker in breaker_item.values():
+                breakers_to_check.append(s_breaker)
 
         return breakers_to_check
 
     def _check_individual_breaker(
-        self, breaker: CircuitBreaker, exchange: str
+        self,
+        breaker: CircuitBreaker,
+        exchange: str,
     ) -> tuple[bool, str | None]:
         """Check an individual circuit breaker and handle recovery testing."""
         if not breaker.allow_operation():
@@ -941,11 +938,10 @@ class CircuitBreakerSystem:
                         message=f"Execution blocked for {exchange}: {reason}",
                     )
                     return False, reason
-                else:
-                    logger.info(
-                        f"Exchange breaker '{breaker.name}' for {exchange} recovered "
-                        f"and is now CLOSED.",
-                    )
+                logger.info(
+                    f"Exchange breaker '{breaker.name}' for {exchange} recovered "
+                    f"and is now CLOSED.",
+                )
 
         return True, None
 
@@ -1302,19 +1298,18 @@ class CircuitBreakerSystem:
                         f"Critical system breaker '{breaker_name}' tripped due to "
                         f"{system_name} unhealthiness.",
                     )
-            else:  # System is healthy
-                if breaker.state == BreakerState.OPEN or breaker.state == BreakerState.HALF_OPEN:
-                    # If the system is reported healthy and breaker was open/half-open,
-                    # attempt reset.
-                    # For critical systems, we might reset more assertively if health is confirmed.
-                    logger.info(
-                        f"Critical system '{system_name}' reported as healthy. "
-                        f"Resetting breaker '{breaker_name}'.",
-                    )
-                    breaker.reset()
-                    # For APIErrorBreaker types, ensure internal error counts are also cleared
-                    if isinstance(breaker, APIErrorBreaker):
-                        breaker.errors.clear()  # Clear past errors
+            elif breaker.state == BreakerState.OPEN or breaker.state == BreakerState.HALF_OPEN:
+                # If the system is reported healthy and breaker was open/half-open,
+                # attempt reset.
+                # For critical systems, we might reset more assertively if health is confirmed.
+                logger.info(
+                    f"Critical system '{system_name}' reported as healthy. "
+                    f"Resetting breaker '{breaker_name}'.",
+                )
+                breaker.reset()
+                # For APIErrorBreaker types, ensure internal error counts are also cleared
+                if isinstance(breaker, APIErrorBreaker):
+                    breaker.errors.clear()  # Clear past errors
 
     def reset_all_breakers(self) -> int:
         """Reset all circuit breakers registered in the system.
@@ -1375,7 +1370,9 @@ class CircuitBreakerSystem:
         try:
             # Determine cooldown
             cooldown = self._determine_cooldown(
-                breaker_specific_config, default_cooldown_override, name
+                breaker_specific_config,
+                default_cooldown_override,
+                name,
             )
 
             # Create the appropriate breaker instance
@@ -1482,28 +1479,30 @@ class CircuitBreakerSystem:
         """Instantiate the appropriate breaker based on class type."""
         if breaker_class == APIErrorBreaker:
             return self._create_api_error_breaker(name, breaker_specific_config, cooldown)
-        elif breaker_class == VolatilityBreaker:
+        if breaker_class == VolatilityBreaker:
             return self._create_volatility_breaker(name, breaker_specific_config, cooldown)
-        elif breaker_class == DrawdownBreaker:
+        if breaker_class == DrawdownBreaker:
             return self._create_drawdown_breaker(name, breaker_specific_config, cooldown)
-        elif breaker_class == LiquidityBreaker:
+        if breaker_class == LiquidityBreaker:
             return self._create_liquidity_breaker(name, breaker_specific_config, cooldown)
-        else:
-            logger.error(
-                "unknown_breaker_class",
-                breaker_class=breaker_class.__name__,
-                config_key=name,
-                action="creation_error",
-                message=(
-                    f"Attempted to create unknown or unhandled breaker class: "
-                    f"{breaker_class.__name__} for "
-                    f"config key '{name}'"
-                ),
-            )
-            return None
+        logger.error(
+            "unknown_breaker_class",
+            breaker_class=breaker_class.__name__,
+            config_key=name,
+            action="creation_error",
+            message=(
+                f"Attempted to create unknown or unhandled breaker class: "
+                f"{breaker_class.__name__} for "
+                f"config key '{name}'"
+            ),
+        )
+        return None
 
     def _create_api_error_breaker(
-        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+        self,
+        name: str,
+        breaker_specific_config: dict[str, Any],
+        cooldown: int,
     ) -> APIErrorBreaker:
         """Create an API error breaker from config."""
         error_threshold = int(breaker_specific_config.get("error_threshold", 5))
@@ -1515,7 +1514,10 @@ class CircuitBreakerSystem:
         return APIErrorBreaker(name, error_threshold, window_seconds, cooldown)
 
     def _create_volatility_breaker(
-        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+        self,
+        name: str,
+        breaker_specific_config: dict[str, Any],
+        cooldown: int,
     ) -> VolatilityBreaker:
         """Create a volatility breaker from config."""
         lookback_periods = int(breaker_specific_config.get("lookback_periods", 12))
@@ -1525,7 +1527,10 @@ class CircuitBreakerSystem:
         return VolatilityBreaker(name, lookback_periods, volatility_threshold, cooldown)
 
     def _create_drawdown_breaker(
-        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+        self,
+        name: str,
+        breaker_specific_config: dict[str, Any],
+        cooldown: int,
     ) -> DrawdownBreaker:
         """Create a drawdown breaker from config."""
         drawdown_threshold_val = breaker_specific_config.get(
@@ -1536,7 +1541,10 @@ class CircuitBreakerSystem:
         return DrawdownBreaker(name, drawdown_threshold, cooldown)
 
     def _create_liquidity_breaker(
-        self, name: str, breaker_specific_config: dict[str, Any], cooldown: int
+        self,
+        name: str,
+        breaker_specific_config: dict[str, Any],
+        cooldown: int,
     ) -> LiquidityBreaker:
         """Create a liquidity breaker from config."""
         min_liquidity_val = breaker_specific_config.get(

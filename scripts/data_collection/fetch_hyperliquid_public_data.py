@@ -89,11 +89,10 @@ class HyperliquidRateLimiter:
 
         if request_type in weight_2_requests:
             return 2
-        elif request_type in weight_60_requests:
+        if request_type in weight_60_requests:
             return 60
-        else:
-            # All other info requests have weight 20
-            return 20
+        # All other info requests have weight 20
+        return 20
 
     async def acquire(self, request_type: str) -> None:
         """Acquire permission to make a request, waiting if necessary.
@@ -114,16 +113,15 @@ class HyperliquidRateLimiter:
                     f"Current total: {current_weight + weight}/{self.total_weight_limit}",
                 )
                 break
+            # Calculate wait time based on oldest request that will expire
+            if self.requests:
+                oldest_time = min(ts for ts, _ in self.requests)
+                wait_time = max(0.1, oldest_time + self.window_seconds - time.time())
             else:
-                # Calculate wait time based on oldest request that will expire
-                if self.requests:
-                    oldest_time = min(ts for ts, _ in self.requests)
-                    wait_time = max(0.1, oldest_time + self.window_seconds - time.time())
-                else:
-                    wait_time = 1.0
+                wait_time = 1.0
 
-                logger.info(f"Rate limit reached. Waiting {wait_time:.1f}s for {request_type}")
-                await asyncio.sleep(wait_time)
+            logger.info(f"Rate limit reached. Waiting {wait_time:.1f}s for {request_type}")
+            await asyncio.sleep(wait_time)
 
 
 class HyperliquidDataCollector:
@@ -179,9 +177,8 @@ class HyperliquidDataCollector:
                     data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return data
-                else:
-                    logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
-                    return None
+                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                return None
         except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
@@ -555,8 +552,7 @@ class HyperliquidDataCollector:
         # Use configured symbols, fallback to common ones
         if self.configured_symbols:
             return list(self.configured_symbols.values())
-        else:
-            return ["ETH", "BTC", "SOL", "DOGE", "MATIC"]
+        return ["ETH", "BTC", "SOL", "DOGE", "MATIC"]
 
     def get_sample_users(self) -> list[str]:
         """Get sample user addresses for testing user-specific endpoints."""

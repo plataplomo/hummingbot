@@ -69,11 +69,11 @@ class TestHyperliquidBalancesZeroComprehensive:
                 assert isinstance(balance, SpotBalance), (
                     f"Balance for {asset_symbol} must be SpotBalance"
                 )
-                assert balance.total_quantity == Decimal("0"), (
+                assert balance.total_quantity == Decimal(0), (
                     f"Zero balance account should have 0 total quantity for {asset_symbol}, "
                     f"got {balance.total_quantity}"
                 )
-                assert balance.available_quantity == Decimal("0"), (
+                assert balance.available_quantity == Decimal(0), (
                     f"Zero balance account should have 0 available quantity for {asset_symbol}, "
                     f"got {balance.available_quantity}"
                 )
@@ -102,10 +102,10 @@ class TestHyperliquidBalancesZeroComprehensive:
             )
 
             # Zero balances should still follow constraints
-            assert balance.total_quantity >= Decimal("0"), (
+            assert balance.total_quantity >= Decimal(0), (
                 "Zero balances should still be non-negative"
             )
-            assert balance.available_quantity >= Decimal("0"), (
+            assert balance.available_quantity >= Decimal(0), (
                 "Zero available should still be non-negative"
             )
             assert balance.total_quantity >= balance.available_quantity, (
@@ -216,8 +216,7 @@ class TestHyperliquidBalancesZeroComprehensive:
                 # If some fail due to rate limiting, that's acceptable
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, dict), f"Result {i} should be dict"
                 successful_results.append(result)

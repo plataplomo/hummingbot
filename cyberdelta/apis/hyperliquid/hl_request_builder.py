@@ -126,7 +126,7 @@ class HyperliquidRequestBuilder:
         if precision_loss >= 1e-12:
             raise ValueError(
                 f"Wire format conversion causes precision loss for {value}. "
-                f"Loss: {precision_loss:.2e}"
+                f"Loss: {precision_loss:.2e}",
             )
 
         return rounded
@@ -297,16 +297,15 @@ class HyperliquidRequestBuilder:
                 type="withdrawEth",
                 action=eth_withdrawal_model,
             )
-        else:
-            withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
-                token=args.asset,
-                amount=amount_wire,
-                destination=args.destination_address,
-            )
-            return HyperliquidApiTokenWithdrawalRequest(
-                type="withdraw",
-                action=withdrawal_payload_model,
-            )
+        withdrawal_payload_model = HyperliquidRawWithdrawalToL1ActionPayload(
+            token=args.asset,
+            amount=amount_wire,
+            destination=args.destination_address,
+        )
+        return HyperliquidApiTokenWithdrawalRequest(
+            type="withdraw",
+            action=withdrawal_payload_model,
+        )
 
     @staticmethod
     def build_historical_orders_payload(
@@ -378,11 +377,11 @@ class HyperliquidRequestBuilder:
             if args.price is None:
                 raise ValueError(
                     "Market orders require a calculated aggressive price. "
-                    "The service layer must provide the price based on current market data."
+                    "The service layer must provide the price based on current market data.",
                 )
             limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.price)
         else:
-            price_for_wire = args.price if args.price is not None else Decimal("0")
+            price_for_wire = args.price if args.price is not None else Decimal(0)
             limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(price_for_wire)
 
         # Convert quantity to wire format
@@ -392,13 +391,13 @@ class HyperliquidRequestBuilder:
         if args.order_type == OrderType.LIMIT:
             # Use provided tif_str or default to "Gtc"
             order_type_model = HyperliquidRawOrderType(
-                limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc")
+                limit=HyperliquidRawLimitOrderTypeDetails(tif=tif_str or "Gtc"),
             )
         elif args.order_type == OrderType.MARKET:
             # Hyperliquid market orders are implemented as aggressive IoC limit orders
             # Based on official SDK: "Market Order is an aggressive Limit Order IoC"
             order_type_model = HyperliquidRawOrderType(
-                limit=HyperliquidRawLimitOrderTypeDetails(tif="Ioc")
+                limit=HyperliquidRawLimitOrderTypeDetails(tif="Ioc"),
             )
         elif args.order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
             # Construct trigger information for stop orders
@@ -470,7 +469,9 @@ class HyperliquidRequestBuilder:
         """
         # Use the static helper method to build the order spec
         wire_order = HyperliquidRequestBuilder._build_order_item_spec_static(
-            args, asset_index, tif_str
+            args,
+            asset_index,
+            tif_str,
         )
 
         # Return the final request payload with Pydantic validation
@@ -545,7 +546,8 @@ class HyperliquidRequestBuilder:
         # The RawLaxEthereumAddressStrHL in the model will handle format validation
         # Explicitly provide 'type' to satisfy Pydantic, even if model has a default Field value.
         return HyperliquidRawUserStateRequestPayload(
-            type="clearinghouseState", user=args.wallet_address
+            type="clearinghouseState",
+            user=args.wallet_address,
         )
 
     @staticmethod
@@ -639,7 +641,7 @@ class HyperliquidRequestBuilder:
         if len(orders_with_indices) > 50:  # Conservative batch size limit
             raise ValueError(
                 f"Batch size {len(orders_with_indices)} exceeds maximum of 50 orders. "
-                "Consider splitting into smaller batches."
+                "Consider splitting into smaller batches.",
             )
 
         # Build order specs for all orders in the batch
@@ -684,7 +686,7 @@ class HyperliquidRequestBuilder:
         if len(cancel_items) > 50:  # Conservative batch size limit
             raise ValueError(
                 f"Batch size {len(cancel_items)} exceeds maximum of 50 cancellations. "
-                "Consider splitting into smaller batches."
+                "Consider splitting into smaller batches.",
             )
 
         # Build cancel item specs for all cancellations in the batch

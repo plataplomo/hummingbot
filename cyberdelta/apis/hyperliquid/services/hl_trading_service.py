@@ -193,7 +193,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
-        elif isinstance(error, ValidationError):
+        if isinstance(error, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {context}: {error}",
@@ -206,38 +206,36 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
-        elif isinstance(error, ValueError | TypeError):
+        if isinstance(error, ValueError | TypeError):
             # Distinguish input validation from internal errors
             error_msg = str(error)
             if current_method in error_msg:
                 # Re-raise input validation errors
                 raise error
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for {context}: {error}",
-                    exc_info=True,
-                )
-                return APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=error,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                )
-        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for {context}: {error}",
                 exc_info=True,
             )
             return APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Service internal logic error.",
                 original_exception=error,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+            f"for {context}: {error}",
+            exc_info=True,
+        )
+        return APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=error,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        )
 
     async def _place_order_raw(
         self,
@@ -319,11 +317,11 @@ class HyperliquidTradingService:
         if self._wallet_address is None:
             raise RuntimeError(
                 "Wallet address validation failed unexpectedly. "
-                "This should not happen after _validate_wallet_address."
+                "This should not happen after _validate_wallet_address.",
             )
 
         request_payload_model = self._request_builder.build_open_orders_payload(
-            GetOpenOrdersArgs(wallet_address=self._wallet_address)
+            GetOpenOrdersArgs(wallet_address=self._wallet_address),
         )
 
         try:
@@ -335,7 +333,9 @@ class HyperliquidTradingService:
             )
             # Use centralized validation
             validated_raw_data = ensure_list_response(
-                raw_response_content, "open orders", status_code
+                raw_response_content,
+                "open orders",
+                status_code,
             )
 
             validated_response: HyperliquidRawOpenOrdersResponse = (
@@ -377,7 +377,7 @@ class HyperliquidTradingService:
         if self._wallet_address is None:
             raise RuntimeError(
                 "Wallet address validation failed unexpectedly. "
-                "This should not happen after _validate_wallet_address."
+                "This should not happen after _validate_wallet_address.",
             )
 
         request_payload_model: HyperliquidRawOrderStatusRequestPayload = (
@@ -385,7 +385,7 @@ class HyperliquidTradingService:
                 HyperliquidGetOrderStatusArgs(
                     wallet_address=self._wallet_address,
                     order_id=order_id,
-                )
+                ),
             )
         )
 
@@ -401,7 +401,9 @@ class HyperliquidTradingService:
             )
             # Use centralized validation
             validated_raw_data = ensure_dict_response(
-                raw_response_content, f"order status for OID {order_id}", status_code
+                raw_response_content,
+                f"order status for OID {order_id}",
+                status_code,
             )
 
             # Pass the raw response directly - model validator will handle preprocessing
@@ -539,17 +541,16 @@ class HyperliquidTradingService:
             ):
                 # Re-raise input validation errors
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for order {args.order_id}: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                ) from e_service_logic
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order {args.order_id}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -575,7 +576,9 @@ class HyperliquidTradingService:
         return orders[0]
 
     async def _place_orders_core(
-        self, orders: list[PlaceOrderArgs], current_method: str
+        self,
+        orders: list[PlaceOrderArgs],
+        current_method: str,
     ) -> list[Order]:
         """Core unified method for placing single or batch orders."""
         self._validate_orders_list(orders, current_method)
@@ -589,13 +592,18 @@ class HyperliquidTradingService:
         try:
             orders_with_indices, tif_mapping = await self._prepare_order_data(orders)
             place_order_payload = self._build_order_payload(
-                orders, orders_with_indices, tif_mapping
+                orders,
+                orders_with_indices,
+                tif_mapping,
             )
 
             raw_exchange_response, http_status = await self._place_order_raw(place_order_payload)
 
             return await self._process_order_response(
-                raw_exchange_response, http_status, orders, orders_with_indices
+                raw_exchange_response,
+                http_status,
+                orders,
+                orders_with_indices,
             )
 
         except APIError:
@@ -611,8 +619,7 @@ class HyperliquidTradingService:
         if not orders:
             if len(orders) == 0 and "batch" in current_method:
                 raise ValueError(f"[{current_method}] Cannot place empty batch of orders")
-            else:
-                raise ValueError(f"[{current_method}] Cannot place empty order list")
+            raise ValueError(f"[{current_method}] Cannot place empty order list")
 
         # Validate each order's parameters
         for order_args in orders:
@@ -627,7 +634,7 @@ class HyperliquidTradingService:
         if len(orders) > 50:
             raise ValueError(
                 f"[{current_method}] Batch size {len(orders)} exceeds maximum of 50 orders. "
-                "Consider splitting into smaller batches."
+                "Consider splitting into smaller batches.",
             )
 
         market_order_indices = [
@@ -637,11 +644,12 @@ class HyperliquidTradingService:
             raise ValueError(
                 f"[{current_method}] Market orders are not supported in batch operations "
                 f"for safety reasons. Found market orders at indices: {market_order_indices}. "
-                "Use individual place_order() calls for market orders."
+                "Use individual place_order() calls for market orders.",
             )
 
     async def _prepare_order_data(
-        self, orders: list[PlaceOrderArgs]
+        self,
+        orders: list[PlaceOrderArgs],
     ) -> tuple[list[tuple[PlaceOrderArgs, int]], dict[str, str | None]]:
         """Prepare order data with asset indices and TIF mappings."""
         orders_with_indices: list[tuple[PlaceOrderArgs, int]] = []
@@ -684,11 +692,10 @@ class HyperliquidTradingService:
                 asset_index=asset_index,
                 tif_str=tif_str,
             )
-        else:
-            return self._request_builder.build_batch_place_order_payload(
-                orders_with_indices=orders_with_indices,
-                tif_mapping=tif_mapping,
-            )
+        return self._request_builder.build_batch_place_order_payload(
+            orders_with_indices=orders_with_indices,
+            tif_mapping=tif_mapping,
+        )
 
     async def _process_order_response(
         self,
@@ -700,13 +707,16 @@ class HyperliquidTradingService:
         """Process order response for single or batch orders."""
         if len(orders) == 1:
             order = await self._process_place_order_response(
-                raw_exchange_response, http_status, orders[0]
+                raw_exchange_response,
+                http_status,
+                orders[0],
             )
             return [order]
-        else:
-            return await self._process_batch_place_order_response(
-                raw_exchange_response, http_status, orders
-            )
+        return await self._process_batch_place_order_response(
+            raw_exchange_response,
+            http_status,
+            orders,
+        )
 
     def _validate_place_order_params(self, args: PlaceOrderArgs, current_method: str) -> None:
         """Validate order parameters for Hyperliquid exchange.
@@ -723,20 +733,20 @@ class HyperliquidTradingService:
         if args.order_type not in supported_order_types:
             raise ValueError(
                 f"[{current_method}] Order type {args.order_type.value} is not supported "
-                f"by Hyperliquid. Supported types: {[ot.value for ot in supported_order_types]}"
+                f"by Hyperliquid. Supported types: {[ot.value for ot in supported_order_types]}",
             )
 
         # Validate time in force
         if args.time_in_force == TimeInForce.FOK:
             raise ValueError(
                 f"[{current_method}] TimeInForce FOK is not supported by Hyperliquid. "
-                f"Supported values: GTC, IOC, ALO"
+                f"Supported values: GTC, IOC, ALO",
             )
 
         # Validate price for limit orders
         if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and args.price is None:
             raise ValueError(
-                f"[{current_method}] Price is required for {args.order_type.value} orders"
+                f"[{current_method}] Price is required for {args.order_type.value} orders",
             )
 
         # Validate stop price for stop orders
@@ -745,7 +755,7 @@ class HyperliquidTradingService:
             and args.stop_price is None
         ):
             raise ValueError(
-                f"[{current_method}] Stop price is required for {args.order_type.value} orders"
+                f"[{current_method}] Stop price is required for {args.order_type.value} orders",
             )
 
     @staticmethod
@@ -763,29 +773,32 @@ class HyperliquidTradingService:
         if tif not in mapping:
             raise ValueError(
                 f"TimeInForce {tif.value} is not supported by Hyperliquid. "
-                f"Supported values: {list(mapping.keys())}"
+                f"Supported values: {list(mapping.keys())}",
             )
 
         return mapping[tif]
 
     def _process_pydantic_status(
-        self, status_raw: HyperliquidRawExchangeStatusObject, action_description: str
+        self,
+        status_raw: HyperliquidRawExchangeStatusObject,
+        action_description: str,
     ) -> dict[str, Any]:
         """Process Pydantic model status."""
         if status_raw.resting:
             return {"resting": status_raw.resting}
-        elif status_raw.filled:
+        if status_raw.filled:
             return {"filled": status_raw.filled}
-        elif status_raw.error:
+        if status_raw.error:
             return {"error": status_raw.error}
-        else:
-            raise APIError(
-                f"Unknown status structure for {action_description}",
-                APIErrorCode.INVALID_RESPONSE.value,
-            )
+        raise APIError(
+            f"Unknown status structure for {action_description}",
+            APIErrorCode.INVALID_RESPONSE.value,
+        )
 
     def _process_dict_resting_status(
-        self, status_raw: dict[str, Any], action_description: str
+        self,
+        status_raw: dict[str, Any],
+        action_description: str,
     ) -> dict[str, Any]:
         """Process dict resting status."""
         oid = status_raw["resting"].get("oid")
@@ -798,7 +811,9 @@ class HyperliquidTradingService:
         return {"resting": HyperliquidRawExchangeStatusResting(oid=oid)}
 
     def _process_dict_filled_status(
-        self, status_raw: dict[str, Any], action_description: str
+        self,
+        status_raw: dict[str, Any],
+        action_description: str,
     ) -> dict[str, Any]:
         """Process dict filled status."""
         filled_details = status_raw["filled"]
@@ -825,11 +840,13 @@ class HyperliquidTradingService:
                 oid=oid,
                 totalSz=total_sz,
                 avgPx=avg_px,
-            )
+            ),
         }
 
     def _process_dict_canceled_status(
-        self, status_raw: dict[str, Any], action_description: str
+        self,
+        status_raw: dict[str, Any],
+        action_description: str,
     ) -> dict[str, Any]:
         """Process dict canceled status."""
         oid = status_raw["canceled"].get("oid")
@@ -842,7 +859,9 @@ class HyperliquidTradingService:
         return {"canceled": {"oid": oid}}
 
     def _process_dict_status(
-        self, status_raw: dict[str, Any], action_description: str
+        self,
+        status_raw: dict[str, Any],
+        action_description: str,
     ) -> dict[str, Any]:
         """Process dict status for backwards compatibility."""
         # Check for resting status
@@ -879,7 +898,7 @@ class HyperliquidTradingService:
         # Any other string is treated as an error
         logger.warning(
             f"Encountered direct string status for {action_description}: '{status_raw}'. "
-            f"Treating as error."
+            f"Treating as error.",
         )
         return {"error": status_raw}
 
@@ -894,9 +913,9 @@ class HyperliquidTradingService:
             return self._process_pydantic_status(status_raw, action_description)
 
         # Handle dict status (for backwards compatibility)
-        elif isinstance(status_raw, dict):
+        if isinstance(status_raw, dict):
             # Type assertion for pyright - we know it's a dict after isinstance check
-            status_dict = cast(dict[str, Any], status_raw)
+            status_dict = cast("dict[str, Any]", status_raw)
             result = self._process_dict_status(status_dict, action_description)
             if result:  # If we found a recognized status
                 return result
@@ -912,7 +931,9 @@ class HyperliquidTradingService:
         )
 
     def _check_error_response(
-        self, raw_exchange_response: HyperliquidRawExchangeResponse, http_status: int
+        self,
+        raw_exchange_response: HyperliquidRawExchangeResponse,
+        http_status: int,
     ) -> None:
         """Check if the response is an error and raise appropriate exception."""
         if raw_exchange_response.status == "err" and raw_exchange_response.response:
@@ -954,9 +975,9 @@ class HyperliquidTradingService:
             # Handle successful statuses
             if "resting" in processed_status:
                 return await self._handle_resting_order(processed_status["resting"], args)
-            elif "filled" in processed_status:
+            if "filled" in processed_status:
                 return await self._handle_filled_order(processed_status["filled"], args)
-            elif "canceled" in processed_status:
+            if "canceled" in processed_status:
                 raise APIError(
                     f"Order was canceled unexpectedly: {processed_status}",
                     APIErrorCode.UNKNOWN.value,
@@ -965,7 +986,9 @@ class HyperliquidTradingService:
         raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
 
     async def _handle_resting_order(
-        self, resting_info: HyperliquidRawExchangeStatusResting, args: PlaceOrderArgs
+        self,
+        resting_info: HyperliquidRawExchangeStatusResting,
+        args: PlaceOrderArgs,
     ) -> Order:
         """Handle a resting (open) order response."""
         new_oid = resting_info.oid
@@ -983,7 +1006,7 @@ class HyperliquidTradingService:
             # If order status fetch fails, create a minimal Order object
             logger.warning(
                 f"Failed to fetch full order details for OID {new_oid}: {e}. "
-                "Creating minimal order object."
+                "Creating minimal order object.",
             )
 
         # Create a minimal order object with the information we have
@@ -1025,7 +1048,9 @@ class HyperliquidTradingService:
         )
 
     async def _handle_filled_order(
-        self, filled_info: HyperliquidRawExchangeStatusFilled, args: PlaceOrderArgs
+        self,
+        filled_info: HyperliquidRawExchangeStatusFilled,
+        args: PlaceOrderArgs,
     ) -> Order:
         """Handle a filled order response."""
         filled_oid = filled_info.oid
@@ -1051,11 +1076,10 @@ class HyperliquidTradingService:
                 field_name="avgPx",
             )
             return internal_order
-        else:
-            raise APIError(
-                f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
-                APIErrorCode.UNKNOWN.value,
-            )
+        raise APIError(
+            f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
+            APIErrorCode.UNKNOWN.value,
+        )
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
         """Place multiple orders in a single batch request for massive performance improvement.
@@ -1111,7 +1135,10 @@ class HyperliquidTradingService:
         failed_orders: list[tuple[int, str]] = []
 
         await self._process_batch_order_statuses(
-            response_data, original_orders, placed_orders, failed_orders
+            response_data,
+            original_orders,
+            placed_orders,
+            failed_orders,
         )
 
         self._handle_batch_order_failures(failed_orders, placed_orders, original_orders)
@@ -1133,10 +1160,11 @@ class HyperliquidTradingService:
                 f"than orders sent ({order_count})",
                 APIErrorCode.INVALID_RESPONSE.value,
             )
-        elif status_count < order_count:
+        if status_count < order_count:
             logger.warning(
                 f"[{self._exchange_name}] Batch response has fewer statuses ({status_count}) "
-                f"than orders sent ({order_count}). Some orders may have been filtered by exchange."
+                f"than orders sent ({order_count}). "
+                "Some orders may have been filtered by exchange.",
             )
 
     async def _process_batch_order_statuses(
@@ -1162,10 +1190,14 @@ class HyperliquidTradingService:
             args = original_orders[i]
             try:
                 await self._process_single_batch_order_status(
-                    status, args, i, placed_orders, failed_orders
+                    status,
+                    args,
+                    i,
+                    placed_orders,
+                    failed_orders,
                 )
             except Exception as e:
-                failed_orders.append((i, f"Processing error: {str(e)}"))
+                failed_orders.append((i, f"Processing error: {e!s}"))
 
         # Handle orders that didn't get a status response (filtered by exchange)
         for i in range(len(response_data.statuses), len(original_orders)):
@@ -1181,7 +1213,8 @@ class HyperliquidTradingService:
     ) -> None:
         """Process a single order status within a batch response."""
         processed_status = self._process_exchange_status(
-            status, f"place_batch_orders[{order_index}]"
+            status,
+            f"place_batch_orders[{order_index}]",
         )
 
         if "error" in processed_status:
@@ -1226,7 +1259,8 @@ class HyperliquidTradingService:
             )
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request for improved performance.
 
@@ -1293,7 +1327,7 @@ class HyperliquidTradingService:
         cancel_results: list[CancelOrderResult] = []
 
         for i, (status, args) in enumerate(
-            zip(response_data.statuses, original_cancel_args, strict=False)
+            zip(response_data.statuses, original_cancel_args, strict=False),
         ):
             try:
                 # Process this individual cancellation status
@@ -1307,7 +1341,7 @@ class HyperliquidTradingService:
                                 success=True,
                                 status=CancelOrderResultStatus.SUCCESS,
                                 message="Order canceled successfully",
-                            )
+                            ),
                         )
                     else:
                         cancel_results.append(
@@ -1317,12 +1351,13 @@ class HyperliquidTradingService:
                                 success=False,
                                 status=CancelOrderResultStatus.FAILED,
                                 message=f"Cancellation failed: {status}",
-                            )
+                            ),
                         )
                 else:
                     # Handle object status (similar to single order cancellation)
                     processed_status = self._process_exchange_status(
-                        status, f"cancel_batch_orders[{i}]"
+                        status,
+                        f"cancel_batch_orders[{i}]",
                     )
 
                     if "error" in processed_status:
@@ -1333,7 +1368,7 @@ class HyperliquidTradingService:
                                 success=False,
                                 status=CancelOrderResultStatus.FAILED,
                                 message=processed_status["error"],
-                            )
+                            ),
                         )
                     else:
                         # Assume success for non-error responses
@@ -1344,7 +1379,7 @@ class HyperliquidTradingService:
                                 success=True,
                                 status=CancelOrderResultStatus.SUCCESS,
                                 message="Order canceled successfully",
-                            )
+                            ),
                         )
 
             except Exception as e:
@@ -1355,8 +1390,8 @@ class HyperliquidTradingService:
                         symbol=args.symbol,
                         success=False,
                         status=CancelOrderResultStatus.FAILED,
-                        message=f"Processing error: {str(e)}",
-                    )
+                        message=f"Processing error: {e!s}",
+                    ),
                 )
 
         return cancel_results
@@ -1406,11 +1441,16 @@ class HyperliquidTradingService:
             raise
         except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
             return self._handle_get_open_orders_error(
-                e, current_method, status_code, raw_response_content
+                e,
+                current_method,
+                status_code,
+                raw_response_content,
             )
 
     def _process_raw_orders_to_internal(
-        self, raw_open_orders: list[HyperliquidRawSimpleOpenOrder], symbol: str | None
+        self,
+        raw_open_orders: list[HyperliquidRawSimpleOpenOrder],
+        symbol: str | None,
     ) -> list[Order]:
         """Process raw open orders and convert to internal Order objects."""
         internal_orders: list[Order] = []
@@ -1420,7 +1460,7 @@ class HyperliquidTradingService:
             if symbol is None or raw_simple_order.coin.upper() == symbol.upper():
                 try:
                     mapped_order = self._trading_mapper.transform_raw_simple_open_order_to_internal(
-                        raw_simple_order=raw_simple_order
+                        raw_simple_order=raw_simple_order,
                     )
                     internal_orders.append(mapped_order)
                 except Exception as e:
@@ -1453,7 +1493,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from error
-        elif isinstance(error, ValidationError):
+        if isinstance(error, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed: {error}",
@@ -1466,7 +1506,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from error
-        elif isinstance(error, ValueError | TypeError):
+        if isinstance(error, ValueError | TypeError):
             # Distinguish input validation from internal errors per ERROR_HANDLING.md
             error_msg = str(error)
             if current_method in error_msg and any(
@@ -1474,29 +1514,26 @@ class HyperliquidTradingService:
             ):
                 # Re-raise input validation errors
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                    f"{error}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=error,
-                ) from error
-        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: {error}",
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: {error}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Service internal logic error.",
                 original_exception=error,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
             ) from error
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure: {error}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=error,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from error
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel a specific order and return the cancellation result.
@@ -1521,7 +1558,9 @@ class HyperliquidTradingService:
         return results[0]
 
     async def _cancel_orders_core(
-        self, cancel_args: list[CancelOrderArgs], current_method: str
+        self,
+        cancel_args: list[CancelOrderArgs],
+        current_method: str,
     ) -> list[CancelOrderResult]:
         """Core unified method for canceling single or batch orders."""
         self._validate_cancel_args_list(cancel_args, current_method)
@@ -1531,11 +1570,14 @@ class HyperliquidTradingService:
             cancel_request_payload = self._build_cancel_payload(cancel_args, cancel_items)
 
             raw_exchange_response, http_status = await self._cancel_order_raw(
-                cancel_request_payload
+                cancel_request_payload,
             )
 
             return await self._process_cancel_response(
-                raw_exchange_response, http_status, cancel_args, cancel_items
+                raw_exchange_response,
+                http_status,
+                cancel_args,
+                cancel_items,
             )
 
         except APIError:
@@ -1547,23 +1589,26 @@ class HyperliquidTradingService:
             raise self._handle_service_error(e, current_method, order_context, 0, None) from e
 
     def _validate_cancel_args_list(
-        self, cancel_args: list[CancelOrderArgs], current_method: str
+        self,
+        cancel_args: list[CancelOrderArgs],
+        current_method: str,
     ) -> None:
         """Validate cancel args list."""
         if not cancel_args:
             if len(cancel_args) == 0 and "batch" in current_method:
                 raise ValueError(f"[{current_method}] Cannot cancel empty batch of orders")
-            else:
-                raise ValueError(f"[{current_method}] Cannot cancel empty order list")
+            raise ValueError(f"[{current_method}] Cannot cancel empty order list")
 
         if len(cancel_args) > 1 and len(cancel_args) > 50:
             raise ValueError(
                 f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of 50 "
-                "cancellations. Consider splitting into smaller batches."
+                "cancellations. Consider splitting into smaller batches.",
             )
 
     async def _prepare_cancel_data(
-        self, cancel_args: list[CancelOrderArgs], current_method: str
+        self,
+        cancel_args: list[CancelOrderArgs],
+        current_method: str,
     ) -> list[tuple[int, int]]:
         """Prepare cancel data with asset indices and order IDs."""
         cancel_items: list[tuple[int, int]] = []
@@ -1571,7 +1616,8 @@ class HyperliquidTradingService:
         for args in cancel_args:
             if len(cancel_args) == 1:
                 symbol, order_id_int = self._validate_and_prepare_cancel_order_params(
-                    args, current_method
+                    args,
+                    current_method,
                 )
             else:
                 symbol, order_id_int = self._validate_batch_cancel_params(args)
@@ -1605,7 +1651,9 @@ class HyperliquidTradingService:
         return symbol, order_id_int
 
     def _build_cancel_payload(
-        self, cancel_args: list[CancelOrderArgs], cancel_items: list[tuple[int, int]]
+        self,
+        cancel_args: list[CancelOrderArgs],
+        cancel_items: list[tuple[int, int]],
     ) -> HyperliquidApiCancelOrderRequest:
         """Build cancel payload for single or batch cancellations."""
         if len(cancel_args) == 1:
@@ -1614,8 +1662,7 @@ class HyperliquidTradingService:
                 asset_index=cancel_items[0][0],
                 order_id=cancel_items[0][1],
             )
-        else:
-            return self._request_builder.build_batch_cancel_order_payload(cancel_items)
+        return self._request_builder.build_batch_cancel_order_payload(cancel_items)
 
     async def _process_cancel_response(
         self,
@@ -1630,7 +1677,10 @@ class HyperliquidTradingService:
             if symbol is None:
                 raise ValueError("Symbol should not be None after validation")
             cancel_result = self._process_cancel_order_response(
-                raw_exchange_response, http_status, cancel_items[0][1], symbol
+                raw_exchange_response,
+                http_status,
+                cancel_items[0][1],
+                symbol,
             )
 
             if cancel_args[0].client_order_id:
@@ -1647,13 +1697,16 @@ class HyperliquidTradingService:
                 )
 
             return [cancel_result]
-        else:
-            return await self._process_batch_cancel_response(
-                raw_exchange_response, http_status, cancel_args
-            )
+        return await self._process_batch_cancel_response(
+            raw_exchange_response,
+            http_status,
+            cancel_args,
+        )
 
     def _validate_and_prepare_cancel_order_params(
-        self, args: CancelOrderArgs, current_method: str
+        self,
+        args: CancelOrderArgs,
+        current_method: str,
     ) -> tuple[str, int]:
         """Validate and prepare parameters for order cancellation."""
         # Extract validated fields from Pydantic model
@@ -1691,7 +1744,7 @@ class HyperliquidTradingService:
         logger.debug(
             f"[{self._exchange_name}] Cancel order response - "
             f"status: {raw_exchange_response.status}, "
-            f"response: {raw_exchange_response.response}, data: {raw_exchange_response.data}"
+            f"response: {raw_exchange_response.response}, data: {raw_exchange_response.data}",
         )
 
         try:
@@ -1712,7 +1765,7 @@ class HyperliquidTradingService:
                     error_message = processed_status["error"]
                     logger.warning(
                         f"[{self._exchange_name}] Failed to cancel order OID {order_id_int}: "
-                        f"{error_message}"
+                        f"{error_message}",
                     )
                     return CancelOrderResult(
                         symbol=symbol,
@@ -1758,7 +1811,7 @@ class HyperliquidTradingService:
         except APIError as e:
             # Convert API errors to failed CancelOrderResult instead of raising
             logger.warning(
-                f"[{self._exchange_name}] API error cancelling order OID {order_id_int}: {e}"
+                f"[{self._exchange_name}] API error cancelling order OID {order_id_int}: {e}",
             )
             return CancelOrderResult(
                 symbol=symbol,
@@ -1772,7 +1825,8 @@ class HyperliquidTradingService:
         except Exception as e:
             # Convert unexpected errors to failed CancelOrderResult
             logger.error(
-                f"[{self._exchange_name}] Unexpected error cancelling order OID {order_id_int}: {e}"
+                f"[{self._exchange_name}] Unexpected error cancelling "
+                f"order OID {order_id_int}: {e}",
             )
             return CancelOrderResult(
                 symbol=symbol,
@@ -1817,7 +1871,7 @@ class HyperliquidTradingService:
             if not open_orders_internal:
                 logger.info(
                     f"[{self._exchange_name}] No open orders found matching symbol "
-                    f"'{symbol if symbol else 'any'}' to cancel.",
+                    f"'{symbol or 'any'}' to cancel.",
                 )
                 return []
 
@@ -1831,7 +1885,11 @@ class HyperliquidTradingService:
             if isinstance(e, APIError):
                 raise
             raise self._handle_service_error(
-                e, current_method, "cancel all orders", status_code, raw_response_content
+                e,
+                current_method,
+                "cancel all orders",
+                status_code,
+                raw_response_content,
             ) from e
 
     def _validate_cancel_all_orders_prerequisites(self) -> None:
@@ -1839,7 +1897,8 @@ class HyperliquidTradingService:
         self._validate_wallet_address("cancel all orders")
 
     async def _process_all_order_cancellations(
-        self, open_orders_internal: list[Order]
+        self,
+        open_orders_internal: list[Order],
     ) -> list[CancelOrderResult]:
         """Process cancellations for all open orders using batch operations."""
         # First, handle orders without exchange_order_id
@@ -1867,14 +1926,14 @@ class HyperliquidTradingService:
             if order.exchange_order_id is None:
                 # This should never happen due to filtering above, but handle gracefully
                 logger.error(
-                    f"[{self._exchange_name}] Unexpected None exchange_order_id in valid_orders"
+                    f"[{self._exchange_name}] Unexpected None exchange_order_id in valid_orders",
                 )
                 continue
             cancel_args.append(
                 CancelOrderArgs(
                     order_id=order.exchange_order_id,
                     symbol=order.symbol,
-                )
+                ),
             )
 
         # Use batch cancellation for efficiency
@@ -1885,7 +1944,7 @@ class HyperliquidTradingService:
         successful_cancels = sum(1 for r in batch_results if r.success)
         logger.info(
             f"[{self._exchange_name}] Batch canceled "
-            f"{successful_cancels}/{len(valid_orders)} orders"
+            f"{successful_cancels}/{len(valid_orders)} orders",
         )
 
         return results
@@ -1914,7 +1973,9 @@ class HyperliquidTradingService:
         return order_id_to_cancel_str
 
     async def _execute_cancel_request(
-        self, order_id_int: int, order_symbol_for_cancel: str
+        self,
+        order_id_int: int,
+        order_symbol_for_cancel: str,
     ) -> bool:
         """Execute the cancellation request and return success status."""
         logger.debug(
@@ -1960,24 +2021,38 @@ class HyperliquidTradingService:
             success_flag = await self._execute_cancel_request(order_id_int, order_symbol_for_cancel)
 
             return self._create_success_result(
-                order_to_cancel, order_id_int, order_symbol_for_cancel, success_flag
+                order_to_cancel,
+                order_id_int,
+                order_symbol_for_cancel,
+                success_flag,
             )
 
         except ValueError:
             return self._create_invalid_order_id_result(
-                order_to_cancel, order_id_to_cancel_str, order_symbol_for_cancel
+                order_to_cancel,
+                order_id_to_cancel_str,
+                order_symbol_for_cancel,
             )
         except APIError as e_api:
             return self._create_api_error_result(
-                order_to_cancel, order_id_to_cancel_str, order_symbol_for_cancel, e_api
+                order_to_cancel,
+                order_id_to_cancel_str,
+                order_symbol_for_cancel,
+                e_api,
             )
         except Exception as e_generic:
             return self._create_generic_error_result(
-                order_to_cancel, order_id_to_cancel_str, order_symbol_for_cancel, e_generic
+                order_to_cancel,
+                order_id_to_cancel_str,
+                order_symbol_for_cancel,
+                e_generic,
             )
 
     def _create_invalid_order_id_result(
-        self, order_to_cancel: Order, order_id_to_cancel_str: str, order_symbol_for_cancel: str
+        self,
+        order_to_cancel: Order,
+        order_id_to_cancel_str: str,
+        order_symbol_for_cancel: str,
     ) -> CancelOrderResult:
         """Create result for invalid order ID format."""
         logger.error(
@@ -2125,7 +2200,7 @@ class HyperliquidTradingService:
         try:
             # Reuse existing request builder
             request_payload = self._request_builder.build_l2_book_request_payload(
-                GetL2BookArgs(symbol=symbol)
+                GetL2BookArgs(symbol=symbol),
             )
 
             # Reuse existing HTTP client
@@ -2144,7 +2219,10 @@ class HyperliquidTradingService:
                     http_status=status_code,
                 )
             validated_response = self._response_handler.handle_info_l2_book_response(
-                raw_response_content_parsed, symbol, status_code, headers
+                raw_response_content_parsed,
+                symbol,
+                status_code,
+                headers,
             )
 
             # We need access to market data mapper to transform the response
@@ -2155,7 +2233,7 @@ class HyperliquidTradingService:
         except (KeyError, AttributeError, ValidationError) as e:
             # Handle invalid symbol responses that might cause KeyError/AttributeError
             raise APIError(
-                message=f"Invalid symbol or failed to fetch order book for {symbol}: {str(e)}",
+                message=f"Invalid symbol or failed to fetch order book for {symbol}: {e!s}",
                 code=APIErrorCode.INVALID_SYMBOL.value,
                 http_status=status_code,
             ) from e
@@ -2165,7 +2243,7 @@ class HyperliquidTradingService:
         except Exception as e:
             # Handle any other unexpected errors
             raise APIError(
-                message=f"Unexpected error fetching order book for {symbol}: {str(e)}",
+                message=f"Unexpected error fetching order book for {symbol}: {e!s}",
                 code=APIErrorCode.UNKNOWN.value,
                 http_status=status_code,
             ) from e
@@ -2227,5 +2305,9 @@ class HyperliquidTradingService:
             if isinstance(e, APIError):
                 raise
             raise self._handle_service_error(
-                e, current_method, "get all open orders", status_code, raw_response_content
+                e,
+                current_method,
+                "get all open orders",
+                status_code,
+                raw_response_content,
             ) from e

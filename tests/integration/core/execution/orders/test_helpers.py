@@ -39,7 +39,7 @@ class MarketOrderTestHelpers:
         if not perp_markets:
             raise RuntimeError(
                 "No perpetual markets available on Hyperliquid. "
-                "Market order tests require perpetual markets."
+                "Market order tests require perpetual markets.",
             )
 
         # Prefer BTC market if available, otherwise use first available
@@ -63,7 +63,7 @@ class MarketOrderTestHelpers:
             # If no spot markets, try to use any available market for testing
             logger.warning(
                 f"No spot markets found. Available markets: "
-                f"{[(m.symbol, m.market_type) for m in markets[:5]]}"
+                f"{[(m.symbol, m.market_type) for m in markets[:5]]}",
             )
             if markets:
                 # Use first available market as fallback
@@ -71,7 +71,7 @@ class MarketOrderTestHelpers:
                 return markets[0].symbol
 
             raise RuntimeError(
-                f"No markets available on Backpack. Market types found: {market_types}"
+                f"No markets available on Backpack. Market types found: {market_types}",
             )
 
         # Prefer BTC_USDC if available
@@ -109,7 +109,7 @@ class MarketOrderTestHelpers:
             if not markets:
                 raise RuntimeError(
                     f"No markets available from {exchange_name}. "
-                    "Cannot run tests without available markets."
+                    "Cannot run tests without available markets.",
                 )
 
             # For Hyperliquid, get perpetual markets
@@ -117,16 +117,15 @@ class MarketOrderTestHelpers:
                 return MarketOrderTestHelpers._get_hyperliquid_symbol(markets)
 
             # For Backpack, get spot markets
-            elif exchange_name == "backpack":
+            if exchange_name == "backpack":
                 return MarketOrderTestHelpers._get_backpack_symbol(markets)
 
-            else:
-                raise RuntimeError(f"Unknown exchange: {exchange_name}")
+            raise RuntimeError(f"Unknown exchange: {exchange_name}")
 
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get test symbol from {exchange_name}: {e}. "
-                "Market order tests require dynamic symbol discovery from exchange."
+                "Market order tests require dynamic symbol discovery from exchange.",
             ) from e
 
     @staticmethod
@@ -158,12 +157,14 @@ class MarketOrderTestHelpers:
                 )
 
                 minimal_quantity: Decimal = await HyperliquidTestHelpers.get_minimal_order_size(
-                    exchange_api, symbol, side
+                    exchange_api,
+                    symbol,
+                    side,
                 )
 
                 logger.info(
                     f"Using Hyperliquid minimal order size for {symbol}: {minimal_quantity} "
-                    f"(meets $10 minimum notional requirement)"
+                    f"(meets $10 minimum notional requirement)",
                 )
 
                 return minimal_quantity
@@ -177,13 +178,13 @@ class MarketOrderTestHelpers:
             if not market.min_quantity:
                 raise RuntimeError(
                     f"Exchange did not provide min_quantity for {symbol}. "
-                    "Cannot proceed without exchange constraints."
+                    "Cannot proceed without exchange constraints.",
                 )
 
             if not market.step_size:
                 raise RuntimeError(
                     f"Exchange did not provide step_size for {symbol}. "
-                    "Cannot proceed without exchange constraints."
+                    "Cannot proceed without exchange constraints.",
                 )
 
             # Use exactly the exchange minimum - no buffers, no calculations
@@ -192,7 +193,7 @@ class MarketOrderTestHelpers:
 
             logger.info(
                 f"Using exchange minimum quantity for {symbol}: {minimal_quantity} "
-                f"(step_size: {market.step_size})"
+                f"(step_size: {market.step_size})",
             )
 
             return minimal_quantity
@@ -200,7 +201,7 @@ class MarketOrderTestHelpers:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get minimal test quantity for {symbol}: {e}. "
-                "Market order tests require real market data."
+                "Market order tests require real market data.",
             ) from e
 
     @staticmethod
@@ -229,7 +230,8 @@ class MarketOrderTestHelpers:
             try:
                 # Try to get order by ID - Backpack requires symbol parameter
                 args = GetOrderArgs(
-                    order_id=order.exchange_order_id or order.client_order_id, symbol=order.symbol
+                    order_id=order.exchange_order_id or order.client_order_id,
+                    symbol=order.symbol,
                 )
                 updated_order = await exchange_api.get_order(args)
 
@@ -257,7 +259,7 @@ class MarketOrderTestHelpers:
             await asyncio.sleep(0.1)
 
         raise TimeoutError(
-            f"Order {order.client_order_id} did not reach terminal state within {timeout} seconds"
+            f"Order {order.client_order_id} did not reach terminal state within {timeout} seconds",
         )
 
     @staticmethod
@@ -291,13 +293,15 @@ class MarketOrderTestHelpers:
                 start_time = end_time - timedelta(hours=1)  # Look back 1 hour
 
                 history_args = GetOrderHistoryArgs(
-                    limit=50, start_time=start_time, end_time=end_time
+                    limit=50,
+                    start_time=start_time,
+                    end_time=end_time,
                 )
                 orders = await exchange_api.get_order_history(history_args)
 
                 logger.debug(
                     f"Retrieved {len(orders) if orders else 0} orders from history, "
-                    f"looking for {order.exchange_order_id}"
+                    f"looking for {order.exchange_order_id}",
                 )
 
                 if orders:
@@ -306,14 +310,14 @@ class MarketOrderTestHelpers:
                         logger.debug(
                             f"Order {i + 1}: {historical_order.exchange_order_id} "
                             f"(status: {historical_order.status}, "
-                            f"symbol: {historical_order.symbol})"
+                            f"symbol: {historical_order.symbol})",
                         )
 
                         # Compare both as strings to handle type mismatches
                         if str(historical_order.exchange_order_id) == str(order.exchange_order_id):
                             logger.info(
                                 f"✅ Order {order.exchange_order_id} found in history "
-                                f"at position {i + 1}"
+                                f"at position {i + 1}",
                             )
                             return True
                         if (
@@ -323,7 +327,7 @@ class MarketOrderTestHelpers:
                         ):
                             logger.info(
                                 f"✅ Order {order.client_order_id} found in history "
-                                f"by client ID at position {i + 1}"
+                                f"by client ID at position {i + 1}",
                             )
                             return True
                 else:
@@ -348,7 +352,7 @@ class MarketOrderTestHelpers:
 
         logger.warning(
             f"verify_order_in_history timed out after {max_wait_seconds}s "
-            f"for order {order.exchange_order_id}"
+            f"for order {order.exchange_order_id}",
         )
         return False
 
@@ -371,7 +375,7 @@ class MarketOrderTestHelpers:
             logger.debug(
                 f"Checking order: exchange_id={historical_order.exchange_order_id}, "
                 f"client_id={historical_order.client_order_id}, "
-                f"filled={historical_order.quantity_filled}"
+                f"filled={historical_order.quantity_filled}",
             )
 
             order_matches = (
@@ -383,14 +387,13 @@ class MarketOrderTestHelpers:
                 if historical_order.quantity_filled and historical_order.quantity_filled > 0:
                     logger.info(
                         f"Found order {order_id} with filled quantity: "
-                        f"{historical_order.quantity_filled}"
+                        f"{historical_order.quantity_filled}",
                     )
                     return historical_order.quantity_filled
-                else:
-                    logger.debug(
-                        f"Found order {order_id} but quantity_filled is "
-                        f"{historical_order.quantity_filled}"
-                    )
+                logger.debug(
+                    f"Found order {order_id} but quantity_filled is "
+                    f"{historical_order.quantity_filled}",
+                )
 
         return None
 
@@ -408,13 +411,13 @@ class MarketOrderTestHelpers:
                 return None
 
             logger.debug(f"Retrieved {len(trades)} trades from history")
-            total_filled = Decimal("0")
+            total_filled = Decimal(0)
             matching_trades = 0
 
             for trade in trades:
                 logger.debug(
                     f"Checking trade: order_id={trade.order_id}, "
-                    f"quantity={trade.quantity}, symbol={trade.symbol}"
+                    f"quantity={trade.quantity}, symbol={trade.symbol}",
                 )
                 if trade.order_id == order_id:
                     total_filled += trade.quantity
@@ -422,11 +425,10 @@ class MarketOrderTestHelpers:
 
             if total_filled > 0:
                 logger.info(
-                    f"Found {matching_trades} trades for order {order_id} totaling: {total_filled}"
+                    f"Found {matching_trades} trades for order {order_id} totaling: {total_filled}",
                 )
                 return total_filled
-            else:
-                logger.debug(f"No matching trades found for order {order_id}")
+            logger.debug(f"No matching trades found for order {order_id}")
 
         except Exception as trade_error:
             # Trades endpoint may not be available for all market types (e.g., PERP markets)
@@ -461,26 +463,31 @@ class MarketOrderTestHelpers:
         for attempt in range(max_retries):
             try:
                 logger.debug(
-                    f"Attempt {attempt + 1}/{max_retries}: Looking for order {order_id} in history"
+                    f"Attempt {attempt + 1}/{max_retries}: Looking for order {order_id} in history",
                 )
 
                 # Prepare history args with time window
                 end_time = datetime.now(UTC)
                 start_time = end_time - timedelta(hours=1)  # Look back 1 hour
                 history_args = GetOrderHistoryArgs(
-                    limit=50, start_time=start_time, end_time=end_time
+                    limit=50,
+                    start_time=start_time,
+                    end_time=end_time,
                 )
 
                 # Check order history
                 order_quantity = await MarketOrderTestHelpers._check_order_history(
-                    exchange_api, order_id, history_args
+                    exchange_api,
+                    order_id,
+                    history_args,
                 )
                 if order_quantity is not None:
                     return order_quantity
 
                 # Check trade history
                 trade_quantity = await MarketOrderTestHelpers._check_trade_history(
-                    exchange_api, order_id
+                    exchange_api,
+                    order_id,
                 )
                 if trade_quantity is not None:
                     return trade_quantity
@@ -489,17 +496,17 @@ class MarketOrderTestHelpers:
                 if attempt < max_retries - 1:
                     logger.debug(
                         f"Order {order_id} not found in history, waiting {retry_delay}s "
-                        f"before retry {attempt + 2}"
+                        f"before retry {attempt + 2}",
                     )
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.warning(
-                        f"Order {order_id} not found in history after {max_retries} attempts"
+                        f"Order {order_id} not found in history after {max_retries} attempts",
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Error getting filled quantity from history (attempt {attempt + 1}): {e}"
+                    f"Error getting filled quantity from history (attempt {attempt + 1}): {e}",
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
@@ -525,14 +532,14 @@ class MarketOrderTestHelpers:
                     if order.symbol == symbol:
                         try:
                             cancel_args = CancelOrderArgs(
-                                order_id=order.exchange_order_id or order.client_order_id
+                                order_id=order.exchange_order_id or order.client_order_id,
                             )
                             await exchange_api.cancel_order(cancel_args)
                             logger.info(f"Cancelled open order: {order.exchange_order_id}")
                         except Exception as e:
                             raise RuntimeError(
                                 f"Failed to cancel order {order.exchange_order_id}: {e}. "
-                                "Order cancellation is critical for test cleanup."
+                                "Order cancellation is critical for test cleanup.",
                             ) from e
 
             # Note: We don't close positions as that might affect other tests
@@ -541,5 +548,5 @@ class MarketOrderTestHelpers:
         except Exception as e:
             raise RuntimeError(
                 f"Critical error during test cleanup: {e}. "
-                "Test cleanup must succeed to prevent interference."
+                "Test cleanup must succeed to prevent interference.",
             ) from e

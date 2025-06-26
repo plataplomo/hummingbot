@@ -166,7 +166,7 @@ class TestBackpackMarketDataServicePublicData:
         )
 
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (
             mock_raw_response_content,
@@ -214,7 +214,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_endpoint_path = "/api/v1/ticker"
 
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -251,7 +251,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_raw_response: dict[str, Any] = {"invalid": "ticker_data"}
 
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
@@ -280,7 +280,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_raw_response = {"symbol": symbol, "price": "100.0"}
 
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_ticker_response.side_effect = Exception("Unexpected error")

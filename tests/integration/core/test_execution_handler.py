@@ -137,7 +137,7 @@ class TestExecutionHandler:
         # Mock the execution attribute structure
         execution_mock = MagicMock()
         execution_mock.max_slippage_pct = Decimal(
-            mock_config_dict.get("execution.max_slippage_pct", "0.01")
+            mock_config_dict.get("execution.max_slippage_pct", "0.01"),
         )
         execution_mock.max_retries = mock_config_dict.get("execution.max_retries", 3)
         execution_mock.retry_delay_base_sec = mock_config_dict.get(
@@ -155,7 +155,7 @@ class TestExecutionHandler:
             mock_config_dict.get(
                 "execution.compensation.limit_price_offset_pct",
                 "0.05",
-            )
+            ),
         )
         execution_mock.compensation = compensation_mock
 
@@ -453,7 +453,7 @@ class TestExecutionHandler:
             quantity_filled=Decimal("0.1"),
             price=None,
             stop_price=None,
-            average_fill_price=Decimal("41000"),
+            average_fill_price=Decimal(41000),
             trigger_by=None,
             time_in_force=TimeInForce.IOC,
             reduce_only=False,
@@ -517,8 +517,8 @@ class TestExecutionHandler:
         mock_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            bid=Decimal("40900"),
-            ask=Decimal("40950"),
+            bid=Decimal(40900),
+            ask=Decimal(40950),
         )
         mock_hl_api.get_ticker.return_value = mock_ticker
 
@@ -574,7 +574,7 @@ class TestExecutionHandler:
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
             quantity_filled=sized_opportunity.long_size,
-            average_fill_price=Decimal("41000"),
+            average_fill_price=Decimal(41000),
             time_in_force=TimeInForce.IOC,
             created_at=datetime.now(UTC) - timedelta(seconds=10),
             updated_at=datetime.now(UTC),
@@ -624,8 +624,8 @@ class TestExecutionHandler:
         mock_hl_api.get_ticker.return_value = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            bid=Decimal("40900"),
-            ask=Decimal("40950"),
+            bid=Decimal(40900),
+            ask=Decimal(40950),
         )
 
         execution = TradeExecution(sized_opportunity)
@@ -646,7 +646,7 @@ class TestExecutionHandler:
             quantity_filled=Decimal("0.1"),
             price=None,
             stop_price=None,
-            average_fill_price=Decimal("41000"),
+            average_fill_price=Decimal(41000),
             trigger_by=None,
             time_in_force=TimeInForce.IOC,
             reduce_only=False,
@@ -692,19 +692,21 @@ class TestExecutionHandler:
         hl_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=now_ts,
-            bid=Decimal("41000"),
-            ask=Decimal("41050"),
+            bid=Decimal(41000),
+            ask=Decimal(41050),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=now_ts,
-            bid=Decimal("41100"),
-            ask=Decimal("41150"),
+            bid=Decimal(41100),
+            ask=Decimal(41150),
         )
         return hl_ticker, bp_ticker
 
     def _create_base_orders(
-        self, sized_opportunity: SizedOpportunity, now_ts: datetime
+        self,
+        sized_opportunity: SizedOpportunity,
+        now_ts: datetime,
     ) -> tuple[Order, Order]:
         """Create base order objects for concurrent execution test."""
         base_long_order = Order(
@@ -830,14 +832,21 @@ class TestExecutionHandler:
         """Handle order placement logic based on exchange and side."""
         if exchange_id == "hyperliquid" and side == OrderSide.BUY:
             return self._create_hyperliquid_buy_order(
-                execution_handler, sized_opportunity, base_long_order, hl_ticker, client_oid
+                execution_handler,
+                sized_opportunity,
+                base_long_order,
+                hl_ticker,
+                client_oid,
             )
-        elif exchange_id == "backpack" and side == OrderSide.SELL:
+        if exchange_id == "backpack" and side == OrderSide.SELL:
             return self._create_backpack_sell_order(
-                execution_handler, sized_opportunity, base_short_order, bp_ticker, client_oid
+                execution_handler,
+                sized_opportunity,
+                base_short_order,
+                bp_ticker,
+                client_oid,
             )
-        else:
-            raise ValueError(f"Unexpected exchange/side combination: {exchange_id}/{side}")
+        raise ValueError(f"Unexpected exchange/side combination: {exchange_id}/{side}")
 
     def _create_hyperliquid_buy_order(
         self,
@@ -851,7 +860,8 @@ class TestExecutionHandler:
         # Simulate the circuit breaker call that would happen in real code
         if execution_handler.circuit_breaker_system:
             execution_handler.circuit_breaker_system.record_api_success(
-                "hyperliquid", context=f"Order {base_long_order.exchange_order_id} placed"
+                "hyperliquid",
+                context=f"Order {base_long_order.exchange_order_id} placed",
             )
 
         from cyberdelta.core.models import Trade
@@ -870,13 +880,13 @@ class TestExecutionHandler:
                         side=OrderSide.BUY,
                         order_id=str(base_long_order.exchange_order_id),
                         quantity=sized_opportunity.long_size,
-                        price=hl_ticker.ask or Decimal("0"),
+                        price=hl_ticker.ask or Decimal(0),
                         executed_at=datetime.now(UTC),
                         exchange="hyperliquid",
-                        fee=Decimal("0"),
-                    )
+                        fee=Decimal(0),
+                    ),
                 ],
-            }
+            },
         )
 
     def _create_backpack_sell_order(
@@ -891,7 +901,8 @@ class TestExecutionHandler:
         # Simulate the circuit breaker call that would happen in real code
         if execution_handler.circuit_breaker_system:
             execution_handler.circuit_breaker_system.record_api_success(
-                "backpack", context=f"Order {base_short_order.exchange_order_id} placed"
+                "backpack",
+                context=f"Order {base_short_order.exchange_order_id} placed",
             )
 
         from cyberdelta.core.models import Trade
@@ -910,13 +921,13 @@ class TestExecutionHandler:
                         side=OrderSide.SELL,
                         order_id=str(base_short_order.exchange_order_id),
                         quantity=sized_opportunity.short_size,
-                        price=bp_ticker.bid or Decimal("0"),
+                        price=bp_ticker.bid or Decimal(0),
                         executed_at=datetime.now(UTC),
                         exchange="backpack",
-                        fee=Decimal("0"),
-                    )
+                        fee=Decimal(0),
+                    ),
                 ],
-            }
+            },
         )
 
     @pytest.mark.asyncio
@@ -1025,14 +1036,14 @@ class TestExecutionHandler:
         hl_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            bid=Decimal("41000"),
-            ask=Decimal("41050"),
+            bid=Decimal(41000),
+            ask=Decimal(41050),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
-            bid=Decimal("41100"),
-            ask=Decimal("41150"),
+            bid=Decimal(41100),
+            ask=Decimal(41150),
         )
 
         mock_hl_api.get_ticker.return_value = hl_ticker
@@ -1040,7 +1051,6 @@ class TestExecutionHandler:
 
         # Skip complex test setup for now - just test basic functionality
         # TODO: Implement proper test when the complex execution logic is ready
-        pass
 
     def test_get_execution_history(
         self,

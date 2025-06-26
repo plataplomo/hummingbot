@@ -38,9 +38,9 @@ class HyperliquidSpotBalanceDetails(BaseModel):
 class BackpackSpotBalanceDetails(BaseModel):
     """Immutable exchange-specific details for a Backpack spot balance."""
 
-    open_order_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
-    lend_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
-    collateral_weight: Decimal | None = Field(default=None, ge=Decimal("0"))
+    open_order_quantity: Decimal | None = Field(default=None, ge=Decimal(0))
+    lend_quantity: Decimal | None = Field(default=None, ge=Decimal(0))
+    collateral_weight: Decimal | None = Field(default=None, ge=Decimal(0))
 
     # Config: Immutable, ignore extra fields during creation
     model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
@@ -49,7 +49,7 @@ class BackpackSpotBalanceDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, allowing None but ensuring finite if present."""
@@ -96,8 +96,8 @@ class SpotBalance(BaseModel):
     exchange: str
     asset: str
     timestamp: datetime
-    total_quantity: Decimal = Field(ge=Decimal("0"))
-    available_quantity: Decimal = Field(ge=Decimal("0"))
+    total_quantity: Decimal = Field(ge=Decimal(0))
+    available_quantity: Decimal = Field(ge=Decimal(0))
     # --- Extension Slots ---
     hl_details: HyperliquidSpotBalanceDetails | None = Field(default=None)
     bp_details: BackpackSpotBalanceDetails | None = Field(default=None)
@@ -119,7 +119,7 @@ class SpotBalance(BaseModel):
     @classmethod
     def parse_required_datetime_utc(
         cls,
-        v: str | int | float | datetime,
+        v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
@@ -137,7 +137,7 @@ class SpotBalance(BaseModel):
     @classmethod
     def parse_required_decimal_finite(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative via Field."""

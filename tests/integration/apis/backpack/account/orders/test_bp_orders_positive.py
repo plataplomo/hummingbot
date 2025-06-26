@@ -44,7 +44,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/orders_positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/orders_positive"],
+    indirect=True,
 )
 class TestBackpackOrdersPositive:
     """Test order functionality when account has active orders."""
@@ -76,13 +78,13 @@ class TestBackpackOrdersPositive:
                 assert isinstance(order.side, OrderSide)
                 assert isinstance(order.order_type, OrderType)
                 assert isinstance(order.quantity_requested, Decimal)
-                assert order.quantity_requested > Decimal("0")
+                assert order.quantity_requested > Decimal(0)
 
                 # Price for limit orders
                 if order.order_type == OrderType.LIMIT:
                     assert order.price is not None
                     assert isinstance(order.price, Decimal)
-                    assert order.price > Decimal("0")
+                    assert order.price > Decimal(0)
 
                 # Timestamp
                 assert isinstance(order.created_at, datetime)
@@ -122,7 +124,10 @@ class TestBackpackOrdersPositive:
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -162,7 +167,10 @@ class TestBackpackOrdersPositive:
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.SELL, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.SELL,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -197,13 +205,18 @@ class TestBackpackOrdersPositive:
         # Generate deterministic client_order_id for VCR testing
         # Backpack requires client_order_id to be convertible to integer
         client_order_id = generate_deterministic_client_order_id(
-            test_name="test_place_order_with_client_order_id", symbol=symbol, side="BUY"
+            test_name="test_place_order_with_client_order_id",
+            symbol=symbol,
+            side="BUY",
         )
 
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -243,7 +256,10 @@ class TestBackpackOrdersPositive:
         symbol = DEFAULT_TEST_SYMBOL_SPOT
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -280,7 +296,10 @@ class TestBackpackOrdersPositive:
         # Buy order
         buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         buy_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, buy_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            buy_price,
         )
 
         args1 = PlaceOrderArgs(
@@ -296,7 +315,10 @@ class TestBackpackOrdersPositive:
         # Sell order
         sell_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
         sell_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.SELL, sell_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.SELL,
+            sell_price,
         )
 
         args2 = PlaceOrderArgs(
@@ -331,7 +353,10 @@ class TestBackpackOrdersPositive:
         # Create orders for the symbol using dynamic pricing
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -396,10 +421,16 @@ class TestBackpackOrdersPositive:
         # For post-only orders, we want a price that won't immediately fill
         # So we use a more conservative price offset
         test_price = await get_dynamic_test_price(
-            bp_api_for_test_env, symbol, OrderSide.BUY, tolerance_percent=Decimal("10")
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            tolerance_percent=Decimal(10),
         )
         test_quantity = await get_minimal_order_size(
-            bp_api_for_test_env, symbol, OrderSide.BUY, test_price
+            bp_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -425,7 +456,7 @@ class TestBackpackOrdersPositive:
 
             if order.status == OrderStatus.OPEN:
                 # If open, should not be filled
-                assert order.quantity_filled == Decimal("0")
+                assert order.quantity_filled == Decimal(0)
         except APIError as e:
             # Authentication signature issues indicate configuration problems
             # that need investigation
@@ -437,13 +468,12 @@ class TestBackpackOrdersPositive:
                     f"CRITICAL: Post-only order failed due to authentication issue. "
                     f"This indicates API credentials or signature generation problems "
                     f"that must be resolved. "
-                    f"Error: {e.code} - {e.message}"
+                    f"Error: {e.code} - {e.message}",
                 ) from e
-            else:
-                # For other API errors, re-raise as they may be expected (e.g., market conditions)
-                raise AssertionError(
-                    f"Post-only order failed with APIError: {e.code} - {e.message}"
-                ) from e
+            # For other API errors, re-raise as they may be expected (e.g., market conditions)
+            raise AssertionError(
+                f"Post-only order failed with APIError: {e.code} - {e.message}",
+            ) from e
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -460,12 +490,12 @@ class TestBackpackOrdersPositive:
 
         for order in partial_orders:
             # Partially filled orders should have filled quantity > 0 but < total
-            assert order.quantity_filled > Decimal("0")
+            assert order.quantity_filled > Decimal(0)
             assert order.quantity_filled < order.quantity_requested
 
             # Average fill price should be set
             assert order.average_fill_price is not None
-            assert order.average_fill_price > Decimal("0")
+            assert order.average_fill_price > Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

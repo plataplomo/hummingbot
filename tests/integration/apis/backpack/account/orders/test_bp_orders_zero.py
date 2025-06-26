@@ -43,7 +43,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/orders_zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/orders_zero"],
+    indirect=True,
 )
 class TestBackpackOrdersZero:
     """Test order functionality when account has no active orders."""
@@ -86,7 +88,7 @@ class TestBackpackOrdersZero:
         """Test cancelling all orders when no open orders exist."""
         # Backpack requires symbol parameter for cancel_all_orders
         results = await bp_api_for_zero_balance_test.cancel_all_orders(
-            symbol=DEFAULT_TEST_SYMBOL_SPOT
+            symbol=DEFAULT_TEST_SYMBOL_SPOT,
         )
 
         assert isinstance(results, list)
@@ -168,7 +170,10 @@ class TestBackpackOrdersZero:
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
         test_quantity = await get_minimal_order_size_for_zero_balance_test(
-            bp_api_for_zero_balance_test, symbol, side, test_price
+            bp_api_for_zero_balance_test,
+            symbol,
+            side,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -292,7 +297,7 @@ class TestBackpackOrdersZero:
         """Test that zero balance properly prevents order lifecycle operations."""
         # Start with no orders (verify initial state)
         initial_orders = await bp_api_for_zero_balance_test.get_all_open_orders(
-            GetAllOpenOrdersArgs()
+            GetAllOpenOrdersArgs(),
         )
         assert len(initial_orders) == 0
 
@@ -301,7 +306,10 @@ class TestBackpackOrdersZero:
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
         test_quantity = await get_minimal_order_size_for_zero_balance_test(
-            bp_api_for_zero_balance_test, symbol, side, test_price
+            bp_api_for_zero_balance_test,
+            symbol,
+            side,
+            test_price,
         )
 
         args = PlaceOrderArgs(
@@ -326,6 +334,6 @@ class TestBackpackOrdersZero:
 
         # Verify still no orders after failed attempt
         final_orders = await bp_api_for_zero_balance_test.get_all_open_orders(
-            GetAllOpenOrdersArgs()
+            GetAllOpenOrdersArgs(),
         )
         assert len(final_orders) == 0

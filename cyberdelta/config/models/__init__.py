@@ -13,8 +13,8 @@ __all__ = [
     "AppSettings",
     "ConfigDecimal",
     "NonEmptyConfigString",
-    "StringForLiteral",
+    "StrategiesSettings",
     "StrategyConfigHLPerpBPSpot",
     "StrategyParamsHLPerpBPSpot",
-    "StrategiesSettings",
+    "StringForLiteral",
 ]

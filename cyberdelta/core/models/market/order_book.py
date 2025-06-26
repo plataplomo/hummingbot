@@ -79,7 +79,7 @@ class OrderBook(BaseModel):
 
     @field_validator("timestamp", mode="before")
     @classmethod
-    def validate_timestamp(cls, v: datetime | int | float | str | None) -> datetime:
+    def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
         """Validate and parse the 'timestamp' field to a required UTC datetime object.
 
         Handles various input types (datetime, int/float ms epoch, ISO string)
@@ -147,7 +147,7 @@ class OrderBook(BaseModel):
 
         # Process each item in the list - we know v is a list from the isinstance check above
         # Cast to help pyright understand the type after isinstance check
-        v_list = cast(list[object], v)
+        v_list = cast("list[object]", v)
         list_length = len(v_list)
         for index in range(list_length):
             # Access items by index - pyright understands this pattern better
@@ -159,7 +159,10 @@ class OrderBook(BaseModel):
 
     @classmethod
     def _validate_single_level(
-        cls, level_raw: object, field_name: str, index: int
+        cls,
+        level_raw: object,
+        field_name: str,
+        index: int,
     ) -> tuple[Decimal, Decimal]:
         """Validate and parse a single order book level."""
         # 1. Validate Structure (Runtime check)
@@ -238,7 +241,10 @@ class OrderBook(BaseModel):
 
     @classmethod
     def _parse_and_validate_quantity(
-        cls, quantity_raw: object, field_name: str, index: int
+        cls,
+        quantity_raw: object,
+        field_name: str,
+        index: int,
     ) -> Decimal:
         """Parse and validate quantity value."""
         # 3. Validate and Parse Quantity (Runtime check + parse attempt)

@@ -204,7 +204,7 @@ class TestTradingDataMapperIntegration:
         # Verify the result is a complete, valid Order
         assert result.exchange == ExchangeName.BACKPACK.value
         assert result.symbol == "SOL_USDC"
-        assert result.quantity_requested > Decimal("0")
+        assert result.quantity_requested > Decimal(0)
         assert result.quantity_filled == Decimal("1.0")
         assert result.average_fill_price == Decimal("3000.00")
         assert result.created_at is not None
@@ -443,9 +443,9 @@ class TestTradingDataMapperIntegration:
 
             # Business logic checks
             assert result.quantity_filled <= result.quantity_requested
-            if result.quantity_filled > Decimal("0"):
+            if result.quantity_filled > Decimal(0):
                 assert result.average_fill_price is not None
-                assert result.average_fill_price > Decimal("0")
+                assert result.average_fill_price > Decimal(0)
 
         # Test orders without fills
         raw_order = create_raw_order(
@@ -456,5 +456,5 @@ class TestTradingDataMapperIntegration:
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.average_fill_price is None

@@ -70,7 +70,6 @@ class Strategy(ABC):
             Optional TradeSignal, list of TradeSignals, or None if no trade should be executed
 
         """
-        pass
 
     def update_historical_data(self, data: Candle, max_bars: int = 1000) -> None:
         """Update the strategy's historical data cache.

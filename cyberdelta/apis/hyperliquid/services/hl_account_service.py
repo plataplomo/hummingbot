@@ -155,7 +155,7 @@ class HyperliquidAccountService:
 
         endpoint_path = "/info"
         payload_model = self._request_builder.build_user_state_payload(
-            GetUserStateArgs(wallet_address=self._wallet_address)
+            GetUserStateArgs(wallet_address=self._wallet_address),
         )
         payload_dict = payload_model.model_dump()
 
@@ -181,14 +181,18 @@ class HyperliquidAccountService:
             # First try as dict (single user state)
             try:
                 validated_dict = ensure_dict_response(
-                    raw_data, "user state (clearinghouse)", status_code
+                    raw_data,
+                    "user state (clearinghouse)",
+                    status_code,
                 )
                 # Convert dict response to list format expected by handler
                 raw_data = [validated_dict]
             except APIError:
                 # If not a dict, must be a list
                 validated_list = ensure_list_response(
-                    raw_data, "user state (clearinghouse)", status_code
+                    raw_data,
+                    "user state (clearinghouse)",
+                    status_code,
                 )
                 if not validated_list:
                     raise APIError(
@@ -411,18 +415,17 @@ class HyperliquidAccountService:
             if current_method in error_msg and "symbol" in error_msg:
                 # Re-raise input validation errors
                 raise
-            else:
-                # Wrap internal errors as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                    f"{e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                ) from e_service_logic
+            # Wrap internal errors as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
@@ -547,17 +550,26 @@ class HyperliquidAccountService:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
-                e_transform, "get_order_history", status_code, raw_response_content
+                e_transform,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
         except ValidationError as e_val:
             self._handle_validation_error(
-                e_val, "get_order_history", status_code, raw_response_content
+                e_val,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
         except (ValueError, TypeError) as e_service_logic:
             self._handle_service_logic_error(e_service_logic, "get_order_history")
         except Exception as e_unexpected:
             self._handle_unexpected_error(
-                e_unexpected, "get_order_history", status_code, raw_response_content
+                e_unexpected,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
 
         # DEFENSIVE CHECK: This should never be reached as all error handlers raise exceptions
@@ -571,7 +583,8 @@ class HyperliquidAccountService:
             raise ValueError("'end_time' is required for Hyperliquid.")
 
     async def _fetch_order_history_data(
-        self, args: GetOrderHistoryArgs
+        self,
+        args: GetOrderHistoryArgs,
     ) -> tuple[ParsedJsonResponse | None, int, str | None]:
         """Fetch raw order history data from API using historicalOrders endpoint."""
         if not self._wallet_address:
@@ -614,7 +627,8 @@ class HyperliquidAccountService:
         return raw_data, status_code, raw_response_content
 
     def _process_order_history_response(
-        self, raw_data: ParsedJsonResponse
+        self,
+        raw_data: ParsedJsonResponse,
     ) -> list[HyperliquidRawHistoricalOrder]:
         """Process the raw response and extract historical orders."""
         if self._wallet_address is None:
@@ -644,7 +658,8 @@ class HyperliquidAccountService:
         return combined_orders
 
     def _map_historical_orders_to_internal(
-        self, raw_orders: list[HyperliquidRawHistoricalOrder]
+        self,
+        raw_orders: list[HyperliquidRawHistoricalOrder],
     ) -> list[Order]:
         """Map raw historical orders to internal Order objects."""
         internal_orders: list[Order] = []
@@ -771,7 +786,7 @@ class HyperliquidAccountService:
 
         endpoint_path = "/info"
         payload_model = self._request_builder.build_user_fills_request_payload(
-            GetUserFillsArgs(wallet_address=self._wallet_address)
+            GetUserFillsArgs(wallet_address=self._wallet_address),
         )
         payload_dict = payload_model.model_dump()
 
@@ -804,7 +819,9 @@ class HyperliquidAccountService:
         return raw_response_list, status_code, raw_response_content
 
     def _process_trade_history_response(
-        self, raw_response_list: ParsedJsonResponse, status_code: int
+        self,
+        raw_response_list: ParsedJsonResponse,
+        status_code: int,
     ) -> HyperliquidRawUserFillsResponse:
         """Process the raw response and validate trade history data."""
         # Use centralized validation
@@ -824,7 +841,9 @@ class HyperliquidAccountService:
         )
 
     def _map_fills_to_internal_trades(
-        self, validated_fills_response: HyperliquidRawUserFillsResponse, symbol_filter: str | None
+        self,
+        validated_fills_response: HyperliquidRawUserFillsResponse,
+        symbol_filter: str | None,
     ) -> list[Trade]:
         """Map validated fills to internal Trade objects with optional symbol filtering."""
         internal_trades: list[Trade] = []
@@ -869,7 +888,7 @@ class HyperliquidAccountService:
         endpoint_path = "/info"  # Hyperliquid uses /info for many user-specific queries
         # Use the request builder to create the payload
         payload_model = self._request_builder.build_open_orders_payload(
-            GetOpenOrdersArgs(wallet_address=self._wallet_address)
+            GetOpenOrdersArgs(wallet_address=self._wallet_address),
         )
         payload_dict = payload_model.model_dump()
 
@@ -899,7 +918,9 @@ class HyperliquidAccountService:
         return raw_data, status_code, raw_response_content
 
     def _process_open_orders_response(
-        self, raw_data: ParsedJsonResponse, status_code: int
+        self,
+        raw_data: ParsedJsonResponse,
+        status_code: int,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Process the raw response and validate open orders data."""
         if self._wallet_address is None:
@@ -915,7 +936,8 @@ class HyperliquidAccountService:
         )
 
     def _map_open_orders_to_internal(
-        self, validated_response: HyperliquidRawOpenOrdersResponse
+        self,
+        validated_response: HyperliquidRawOpenOrdersResponse,
     ) -> list[Order]:
         """Map validated open orders to internal Order objects."""
         internal_orders: list[Order] = []
@@ -927,7 +949,7 @@ class HyperliquidAccountService:
         for raw_order in raw_orders_list:  # raw_order is HyperliquidRawSimpleOpenOrder
             # Use transform_raw_simple_order_to_internal for simple order format
             internal_order = self._trading_mapper.transform_raw_simple_open_order_to_internal(
-                raw_simple_order=raw_order
+                raw_simple_order=raw_order,
             )
             internal_orders.append(internal_order)
 
@@ -964,10 +986,12 @@ class HyperliquidAccountService:
                 )
 
             validated_fills_response = self._process_trade_history_response(
-                raw_response_list, status_code
+                raw_response_list,
+                status_code,
             )
             internal_trades = self._map_fills_to_internal_trades(
-                validated_fills_response, args.symbol
+                validated_fills_response,
+                args.symbol,
             )
             return self._apply_trade_limit(internal_trades, args.limit)
 
@@ -975,11 +999,17 @@ class HyperliquidAccountService:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
-                e_transform, "get_trade_history", status_code, raw_response_content
+                e_transform,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
         except ValidationError as e_val:
             self._handle_validation_error(
-                e_val, "get_trade_history", status_code, raw_response_content
+                e_val,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except (ValueError, TypeError) as e_service_logic:
@@ -987,7 +1017,10 @@ class HyperliquidAccountService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_unexpected_error(
-                e_unexpected, "get_trade_history", status_code, raw_response_content
+                e_unexpected,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
@@ -1184,11 +1217,17 @@ class HyperliquidAccountService:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
-                e_transform, "get_open_orders", status_code, raw_response_content
+                e_transform,
+                "get_open_orders",
+                status_code,
+                raw_response_content,
             )
         except ValidationError as e_val:
             self._handle_validation_error(
-                e_val, "get_open_orders", status_code, raw_response_content
+                e_val,
+                "get_open_orders",
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except (ValueError, TypeError) as e_service_logic:
@@ -1196,7 +1235,10 @@ class HyperliquidAccountService:
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
         except Exception as e_unexpected:
             self._handle_unexpected_error(
-                e_unexpected, "get_open_orders", status_code, raw_response_content
+                e_unexpected,
+                "get_open_orders",
+                status_code,
+                raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
 
@@ -1220,7 +1262,7 @@ class HyperliquidAccountService:
         current_method = frame.f_code.co_name if frame is not None else "update_account_settings"
 
         logger.debug(
-            f"[{self.__class__.__name__}::{current_method}] Starting account settings update"
+            f"[{self.__class__.__name__}::{current_method}] Starting account settings update",
         )
 
         # Validate leverage_limit is provided since it's the only setting we can update
@@ -1250,7 +1292,7 @@ class HyperliquidAccountService:
                 positions = await self.get_positions()
             except APIError as e:
                 logger.warning(
-                    f"[{self._exchange_name}] Could not fetch positions for leverage update: {e}"
+                    f"[{self._exchange_name}] Could not fetch positions for leverage update: {e}",
                 )
                 # Continue without positions - will return settings without updating
 
@@ -1270,7 +1312,7 @@ class HyperliquidAccountService:
                                 asset_index=asset_index,
                                 leverage=leverage_int,
                                 is_cross=True,  # Default to cross margin
-                            )
+                            ),
                         )
 
                         # Execute the leverage update via /exchange endpoint
@@ -1288,28 +1330,26 @@ class HyperliquidAccountService:
 
                         logger.info(
                             f"[{self._exchange_name}] Updated leverage for {position.symbol} "
-                            f"(asset index {asset_index}) to {leverage_int}x"
+                            f"(asset index {asset_index}) to {leverage_int}x",
                         )
 
                     except Exception as e:
                         logger.warning(
                             f"[{self._exchange_name}] Failed to update leverage for "
-                            f"{position.symbol}: {e}"
+                            f"{position.symbol}: {e}",
                         )
                         # Continue with other positions even if one fails
 
             logger.debug(
                 f"[{self.__class__.__name__}::{current_method}] "
-                f"Account settings updated successfully"
+                f"Account settings updated successfully",
             )
 
             # Transform to internal model using mapper
             return self._account_mapper.transform_account_settings_update_to_internal(
                 args=args,
                 exchange_name=self._exchange_name,
-                asset_leverage_settings=(
-                    asset_leverage_settings if asset_leverage_settings else None
-                ),
+                asset_leverage_settings=(asset_leverage_settings or None),
             )
 
         except APIError:
@@ -1317,7 +1357,7 @@ class HyperliquidAccountService:
         except Exception as e:
             logger.error(
                 f"[{self.__class__.__name__}::{current_method}] "
-                f"Failed to update account settings: {e}"
+                f"Failed to update account settings: {e}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,

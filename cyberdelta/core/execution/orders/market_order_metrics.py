@@ -58,22 +58,21 @@ class MarketOrderExecutionMetric:
     @property
     def fill_rate(self) -> Decimal:
         """Calculate fill rate as percentage."""
-        if self.requested_quantity == Decimal("0"):
-            return Decimal("0")
-        return (self.filled_quantity / self.requested_quantity) * Decimal("100")
+        if self.requested_quantity == Decimal(0):
+            return Decimal(0)
+        return (self.filled_quantity / self.requested_quantity) * Decimal(100)
 
     @property
     def actual_slippage(self) -> Decimal | None:
         """Calculate actual slippage if price available."""
-        if self.actual_price is None or self.expected_price == Decimal("0"):
+        if self.actual_price is None or self.expected_price == Decimal(0):
             return None
 
         if self.side == OrderSide.BUY:
             # For buys, positive slippage means we paid more
             return (self.actual_price - self.expected_price) / self.expected_price
-        else:
-            # For sells, positive slippage means we received less
-            return (self.expected_price - self.actual_price) / self.expected_price
+        # For sells, positive slippage means we received less
+        return (self.expected_price - self.actual_price) / self.expected_price
 
     @property
     def price_improvement(self) -> Decimal | None:

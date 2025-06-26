@@ -521,7 +521,6 @@ class TestBackpackRawOrder:
         This test serves as a placeholder until more comprehensive tests
         are implemented for complex BackpackRawOrder validation scenarios.
         """
-        pass
 
     def test_invalid_market_order_missing_side(self) -> None:
         """Test that a market order missing a side fails validation."""

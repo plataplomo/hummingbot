@@ -79,7 +79,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         mock_request_builder.build_get_market_data_params.return_value = (
             BackpackRawGetMarketDataParams(
-                symbol=symbol, interval=timeframe, limit=limit, startTime=None, endTime=None
+                symbol=symbol,
+                interval=timeframe,
+                limit=limit,
+                startTime=None,
+                endTime=None,
             )
         )
 
@@ -143,7 +147,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         mock_request_builder.build_get_market_data_params.return_value = (
             BackpackRawGetMarketDataParams(
-                symbol=symbol, interval=timeframe, limit=limit, startTime=None, endTime=None
+                symbol=symbol,
+                interval=timeframe,
+                limit=limit,
+                startTime=None,
+                endTime=None,
             )
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
@@ -190,7 +198,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         mock_request_builder.build_get_market_data_params.return_value = (
             BackpackRawGetMarketDataParams(
-                symbol=symbol, interval=timeframe, limit=100, startTime=None, endTime=None
+                symbol=symbol,
+                interval=timeframe,
+                limit=100,
+                startTime=None,
+                endTime=None,
             )
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
@@ -223,7 +235,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         mock_request_builder.build_get_market_data_params.return_value = (
             BackpackRawGetMarketDataParams(
-                symbol=symbol, interval=timeframe, limit=100, startTime=None, endTime=None
+                symbol=symbol,
+                interval=timeframe,
+                limit=100,
+                startTime=None,
+                endTime=None,
             )
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
@@ -363,7 +379,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Test behavior that uses the mapper to verify it was set correctly
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol="TEST"
+            symbol="TEST",
         )
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
@@ -394,7 +410,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Test behavior that uses the mapper to verify it's working
         mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol="TEST"
+            symbol="TEST",
         )
         mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
         mock_response_handler.handle_get_ticker_response.return_value = MagicMock()

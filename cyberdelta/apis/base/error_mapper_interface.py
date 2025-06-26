@@ -25,7 +25,6 @@ class IErrorMapper(ABC):
         Implementations should handle specifics of their exchange's error reporting.
         This can also be used to map errors derived from other exceptions.
         """
-        pass
 
     @abstractmethod
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
@@ -33,4 +32,3 @@ class IErrorMapper(ABC):
 
         Useful when the error is not from a typical HTTP error response but embedded in data.
         """
-        pass

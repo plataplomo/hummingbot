@@ -36,7 +36,7 @@ async def display_spot_balances(api: BackpackAPI) -> None:
         if balance.total_quantity > 0 or symbol in ["USDC", "SOL"]:
             logger.info(
                 f"   {symbol}: total={balance.total_quantity}, "
-                f"available={balance.available_quantity}"
+                f"available={balance.available_quantity}",
             )
 
 

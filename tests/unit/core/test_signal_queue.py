@@ -61,8 +61,8 @@ def sample_signal() -> TradeSignal:
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
+        price=Decimal(50000),
+        quantity=Decimal(1),
         source_strategy="test_strategy",
         metadata={"utility_score": 0.8},
         exchange="mock_exchange",  # String is valid
@@ -77,8 +77,8 @@ def sample_opportunity() -> ArbitrageOpportunity:
         symbol="ETH/USDT",
         long_exchange="exA",
         short_exchange="exB",
-        long_price=Decimal("2000"),
-        short_price=Decimal("1995"),
+        long_price=Decimal(2000),
+        short_price=Decimal(1995),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.0001"),
         net_funding_differential=Decimal("-0.0002"),
@@ -194,9 +194,9 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
     queue.max_queue_size = 3
 
     # Create signals using the helper
-    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal("10"))
-    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal("10"))  # Highest
-    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal("10"))
+    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal(10))
+    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal(10))  # Highest
+    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal(10))
 
     await queue.add_signal(signal1)
     await queue.add_signal(signal2)
@@ -208,7 +208,7 @@ async def test_add_signal_full_queue(signal_queue: PrioritySignalQueue) -> None:
     signal_extra = create_test_signal(
         symbol="EXTRA",
         score=0.05,
-        price=Decimal("10"),
+        price=Decimal(10),
     )  # Lowest score, should be trimmed if logic is correct
     result = await queue.add_signal(signal_extra)
     assert result is True  # Add should be successful, even if it triggers trimming
@@ -283,7 +283,7 @@ async def test_add_signal_with_circuit_breaker_closed(
         """Mock get_breaker to return closed breaker for symbol and pair."""
         if f"symbol_{sample_signal.symbol}_main" in breaker_name:
             return mock_symbol_breaker
-        elif f"pair_{target_exchange}_{sample_signal.symbol}_main" in breaker_name:
+        if f"pair_{target_exchange}_{sample_signal.symbol}_main" in breaker_name:
             return mock_pair_breaker
         return None
 
@@ -344,9 +344,9 @@ async def test_peek_next_signal(
 @pytest.mark.asyncio
 async def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
     """Test retrieving multiple signals, sorted by priority."""
-    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal("10"))
-    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal("10"))  # Highest
-    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal("10"))
+    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal(10))
+    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal(10))  # Highest
+    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal(10))
 
     await signal_queue.add_signal(signal1)
     await signal_queue.add_signal(signal2)
@@ -367,7 +367,7 @@ async def test_get_signals(signal_queue: PrioritySignalQueue) -> None:
     assert signals_limited[1].symbol == "S3"
 
     # Get signals by symbol
-    signal4 = create_test_signal(symbol="S2", score=0.8, price=Decimal("10"))  # Another S2
+    signal4 = create_test_signal(symbol="S2", score=0.8, price=Decimal(10))  # Another S2
     await signal_queue.add_signal(signal4)
     signals_s2 = await signal_queue.get_signals(symbol="S2")
     assert len(signals_s2) == 2
@@ -433,20 +433,32 @@ async def test_clean_expired_signals_direct_patch(
 
         # Create signals using the mocked base time
         signal_def_exp = create_test_signal(
-            "DEF_EXP", 0.5, Decimal("1"), expiration_offset=-10, base_time=real_start_time
+            "DEF_EXP",
+            0.5,
+            Decimal(1),
+            expiration_offset=-10,
+            base_time=real_start_time,
         )
         signal_def_val = create_test_signal(
-            "DEF_VAL", 0.6, Decimal("2"), expiration_offset=120, base_time=real_start_time
+            "DEF_VAL",
+            0.6,
+            Decimal(2),
+            expiration_offset=120,
+            base_time=real_start_time,
         )
         signal_exp_exp = create_test_signal(
             "EXP_EXP",
             0.7,
-            Decimal("3"),
+            Decimal(3),
             expiration_offset=0,  # Explicitly expired
             base_time=real_start_time,
         )
         signal_exp_val = create_test_signal(
-            "EXP_VAL", 0.8, Decimal("4"), expiration_offset=180, base_time=real_start_time
+            "EXP_VAL",
+            0.8,
+            Decimal(4),
+            expiration_offset=180,
+            base_time=real_start_time,
         )
 
         # Add signals asynchronously
@@ -487,10 +499,10 @@ async def test_trim_queue(mock_config: AppSettings, mock_circuit_breaker: MagicM
     queue.max_queue_size = 3
 
     # Create signals using the helper
-    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal("10"))
-    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal("10"))  # Highest
-    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal("10"))
-    signal4 = create_test_signal(symbol="S4", score=0.3, price=Decimal("10"))  # Lowest to be added
+    signal1 = create_test_signal(symbol="S1", score=0.1, price=Decimal(10))
+    signal2 = create_test_signal(symbol="S2", score=0.9, price=Decimal(10))  # Highest
+    signal3 = create_test_signal(symbol="S3", score=0.5, price=Decimal(10))
+    signal4 = create_test_signal(symbol="S4", score=0.3, price=Decimal(10))  # Lowest to be added
 
     await queue.add_signal(signal1)  # Score 0.1 - Await async call
     await queue.add_signal(signal2)  # Score 0.9 - Await async call
@@ -533,7 +545,7 @@ async def test_signal_expiration_logic(
         signal_to_expire = create_test_signal(
             symbol="BTC/USDT_EXP",
             score=0.7,
-            price=Decimal("50001"),
+            price=Decimal(50001),
             expiration_offset=1,  # Expires in 1 (mocked) second
             exchange_name="exchange1",
         )
@@ -544,7 +556,7 @@ async def test_signal_expiration_logic(
         signal_not_to_expire = create_test_signal(
             symbol="BTC/USDT_VALID",
             score=0.8,
-            price=Decimal("50002"),
+            price=Decimal(50002),
             expiration_offset=10,  # Expires in 10 (mocked) seconds
             exchange_name="exchange2",
         )
@@ -560,7 +572,7 @@ async def test_signal_expiration_logic(
         dummy_signal = create_test_signal(
             symbol="DUMMY",
             score=0.1,
-            price=Decimal("1"),
+            price=Decimal(1),
             base_time=real_current_time + timedelta(seconds=3),
         )
         await queue.add_signal(dummy_signal)
@@ -589,7 +601,7 @@ async def test_signal_expiration_logic(
         dummy_signal2 = create_test_signal(
             symbol="DUMMY2",
             score=0.1,
-            price=Decimal("1"),
+            price=Decimal(1),
             base_time=real_current_time + timedelta(seconds=15),
         )
         await queue.add_signal(dummy_signal2)
@@ -634,10 +646,10 @@ async def test_clean_expired_signals_with_helper(
     )
 
     # Create signals relative to the future time point
-    signal_valid = create_test_signal(symbol="VALID/USDT", score=0.8, price=Decimal("100"))
+    signal_valid = create_test_signal(symbol="VALID/USDT", score=0.8, price=Decimal(100))
     signal_valid.expiration = future_now_for_expirations + timedelta(seconds=120)
 
-    signal_expired = create_test_signal(symbol="EXPIRED/USDT", score=0.7, price=Decimal("200"))
+    signal_expired = create_test_signal(symbol="EXPIRED/USDT", score=0.7, price=Decimal(200))
     signal_expired.expiration = future_now_for_expirations - timedelta(seconds=30)
 
     # *** Set the mock time to the future point BEFORE adding signals ***
@@ -694,9 +706,9 @@ async def test_add_signal_different_priorities(
     mock_circuit_breaker: MagicMock,
 ) -> None:
     """Test adding signals with different priorities and retrieving them in order."""
-    signal_low = create_test_signal(symbol="LOW", score=0.1, price=Decimal("10"))
-    signal_high = create_test_signal(symbol="HIGH", score=0.9, price=Decimal("10"))
-    signal_mid = create_test_signal(symbol="MID", score=0.5, price=Decimal("10"))
+    signal_low = create_test_signal(symbol="LOW", score=0.1, price=Decimal(10))
+    signal_high = create_test_signal(symbol="HIGH", score=0.9, price=Decimal(10))
+    signal_mid = create_test_signal(symbol="MID", score=0.5, price=Decimal(10))
 
     await signal_queue.add_signal(signal_low)
     await signal_queue.add_signal(signal_high)

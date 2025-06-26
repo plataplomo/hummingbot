@@ -143,17 +143,16 @@ class BackpackTradingService:
             ):
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                raise self._create_place_order_api_error(
-                    e_service_logic,
-                    current_method,
-                    args.symbol,
-                    status_code,
-                    raw_response_content,
-                    "Service internal logic error.",
-                    APIErrorCode.UNKNOWN,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            raise self._create_place_order_api_error(
+                e_service_logic,
+                current_method,
+                args.symbol,
+                status_code,
+                raw_response_content,
+                "Service internal logic error.",
+                APIErrorCode.UNKNOWN,
+            ) from e_service_logic
         except Exception as e_unexpected:
             raise self._create_place_order_api_error(
                 e_unexpected,
@@ -209,7 +208,9 @@ class BackpackTradingService:
             )
 
     async def _execute_place_order_request(
-        self, args: PlaceOrderArgs, current_method: str
+        self,
+        args: PlaceOrderArgs,
+        current_method: str,
     ) -> Order:
         """Execute the place order API request and process the response."""
         endpoint = "/api/v1/order"
@@ -242,7 +243,10 @@ class BackpackTradingService:
         )
 
         return self._process_place_order_response(
-            raw_data, status_code, args.symbol, args.order_type
+            raw_data,
+            status_code,
+            args.symbol,
+            args.order_type,
         )
 
     def _process_place_order_response(
@@ -359,18 +363,17 @@ class BackpackTradingService:
             ):
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                raise self._create_cancel_order_api_error(
-                    e_service_logic,
-                    current_method,
-                    args.order_id,
-                    args.symbol,
-                    status_code,
-                    raw_response_content,
-                    "Service internal logic error.",
-                    APIErrorCode.UNKNOWN,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            raise self._create_cancel_order_api_error(
+                e_service_logic,
+                current_method,
+                args.order_id,
+                args.symbol,
+                status_code,
+                raw_response_content,
+                "Service internal logic error.",
+                APIErrorCode.UNKNOWN,
+            ) from e_service_logic
         except Exception as e_unexpected:
             raise self._create_cancel_order_api_error(
                 e_unexpected,
@@ -400,7 +403,9 @@ class BackpackTradingService:
             raise ValueError(f"[{current_method}] 'order_id' cannot be empty or whitespace only.")
 
     async def _execute_cancel_order_request(
-        self, args: CancelOrderArgs, current_method: str
+        self,
+        args: CancelOrderArgs,
+        current_method: str,
     ) -> CancelOrderResult:
         """Execute the cancel order API request and process the response."""
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
@@ -423,7 +428,10 @@ class BackpackTradingService:
         )
 
         return self._process_cancel_order_response(
-            raw_data, status_code, args.order_id, args.symbol
+            raw_data,
+            status_code,
+            args.order_id,
+            args.symbol,
         )
 
     def _process_cancel_order_response(
@@ -438,7 +446,9 @@ class BackpackTradingService:
         # The response handler needs to determine success.
         # Assuming handle_cancel_order_response returns bool based on successful cancellation.
         validated_data = ensure_dict_response(
-            raw_data, f"cancel order {order_id} ({symbol})", status_code
+            raw_data,
+            f"cancel order {order_id} ({symbol})",
+            status_code,
         )
 
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to response handler
@@ -510,12 +520,16 @@ class BackpackTradingService:
                 raw_response_content = str(raw_data)
 
             validated_data = ensure_list_response(
-                raw_data, f"get open orders for {symbol or 'all'}", status_code
+                raw_data,
+                f"get open orders for {symbol or 'all'}",
+                status_code,
             )
 
             raw_orders_list: list[BackpackRawOrder] = (
                 self._response_handler.handle_get_open_orders_response(
-                    validated_data, symbol, status_code
+                    validated_data,
+                    symbol,
+                    status_code,
                 )
             )
             internal_orders = [
@@ -560,20 +574,19 @@ class BackpackTradingService:
             if current_method in error_msg and "symbol" in error_msg:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for {symbol or 'all'}: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol or 'all'}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -627,7 +640,12 @@ class BackpackTradingService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             return self._handle_get_order_service_logic_error(
-                e_service_logic, current_method, identifier, args.symbol, 0, None
+                e_service_logic,
+                current_method,
+                identifier,
+                args.symbol,
+                0,
+                None,
             )
         except Exception as e_unexpected:
             raise self._create_get_order_api_error(
@@ -653,12 +671,14 @@ class BackpackTradingService:
         """Determine which identifier to use for the order lookup."""
         if not args.order_id and args.client_order_id:
             return args.client_order_id
-        elif not args.order_id and not args.client_order_id:
+        if not args.order_id and not args.client_order_id:
             raise ValueError("Either order_id or client_order_id must be provided.")
         return args.order_id
 
     async def _execute_get_order_request(
-        self, args: GetOrderArgs, current_method: str
+        self,
+        args: GetOrderArgs,
+        current_method: str,
     ) -> Order | None:
         """Execute the get order API request and process the response."""
         identifier = self._determine_order_identifier(args)
@@ -698,17 +718,24 @@ class BackpackTradingService:
             return None
 
         validated_data = ensure_dict_response(
-            raw_data, f"get order {identifier} ({symbol})", status_code
+            raw_data,
+            f"get order {identifier} ({symbol})",
+            status_code,
         )
 
         raw_order_model: BackpackRawOrder = self._response_handler.handle_get_order_status_response(
-            validated_data, identifier, status_code
+            validated_data,
+            identifier,
+            status_code,
         )
         internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
         return internal_order
 
     def _handle_get_order_api_error(
-        self, e: APIError, identifier: str, symbol: str | None
+        self,
+        e: APIError,
+        identifier: str,
+        symbol: str | None,
     ) -> Order | None:
         """Handle APIError exceptions for get_order method."""
         # Allow ORDER_NOT_FOUND from handler to propagate if it maps it
@@ -737,18 +764,17 @@ class BackpackTradingService:
         ):
             # This is likely from our input parameter validation - re-raise as is
             raise
-        else:
-            # This is from service internal logic - wrap as APIError
-            raise self._create_get_order_api_error(
-                e_service_logic,
-                current_method,
-                identifier,
-                symbol,
-                status_code,
-                raw_response_content,
-                "Service internal logic error.",
-                APIErrorCode.UNKNOWN,
-            ) from e_service_logic
+        # This is from service internal logic - wrap as APIError
+        raise self._create_get_order_api_error(
+            e_service_logic,
+            current_method,
+            identifier,
+            symbol,
+            status_code,
+            raw_response_content,
+            "Service internal logic error.",
+            APIErrorCode.UNKNOWN,
+        ) from e_service_logic
 
     def _create_get_order_api_error(
         self,
@@ -841,20 +867,19 @@ class BackpackTradingService:
             if current_method in error_msg and "symbol" in error_msg:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for order status: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for order status: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -933,7 +958,9 @@ class BackpackTradingService:
             raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
 
     async def _execute_cancel_all_orders_request(
-        self, symbol: str | None, current_method: str
+        self,
+        symbol: str | None,
+        current_method: str,
     ) -> list[CancelOrderResult]:
         """Execute the cancel all orders API request and process the response."""
         # DEFENSIVE CHECK: Ensure symbol is not None before proceeding
@@ -964,7 +991,9 @@ class BackpackTradingService:
         """Process the cancel all orders API response."""
         try:
             validated_data = ensure_list_response(
-                raw_data, f"cancel all orders for {symbol}", status_code
+                raw_data,
+                f"cancel all orders for {symbol}",
+                status_code,
             )
         except APIError:
             return self._handle_invalid_cancel_all_response(raw_data, status_code, symbol)
@@ -973,13 +1002,15 @@ class BackpackTradingService:
         try:
             raw_orders: list[BackpackRawOrder] = (
                 self._response_handler.handle_cancel_all_orders_response(
-                    validated_data, symbol, status_code
+                    validated_data,
+                    symbol,
+                    status_code,
                 )
             )
         except APIError:
             # If response handler fails, return empty list or re-raise depending on requirements
             logger.warning(
-                f"[{self._exchange_name}] Failed to parse cancel all orders response for {symbol}"
+                f"[{self._exchange_name}] Failed to parse cancel all orders response for {symbol}",
             )
             return []
 
@@ -995,7 +1026,7 @@ class BackpackTradingService:
                     success=True,  # If returned by cancel all, it was successfully cancelled
                     message="Successfully cancelled.",
                     status=CancelOrderResultStatus.SUCCESS,
-                )
+                ),
             )
 
         logger.info(
@@ -1124,20 +1155,19 @@ class BackpackTradingService:
             if current_method in error_msg and "symbol" in error_msg:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                    f"{e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
+                f"{e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure: "

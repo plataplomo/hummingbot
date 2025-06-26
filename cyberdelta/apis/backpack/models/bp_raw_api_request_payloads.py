@@ -56,10 +56,12 @@ class BackpackRawOrderExecuteRequest(BaseModel):
     )
     timeInForce: Literal["GTC", "IOC", "FOK"] | None = Field(default=None, alias="timeInForce")
     triggerPrice: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="triggerPrice"
+        default=None,
+        alias="triggerPrice",
     )
     triggerQuantity: RawBpParsableFiniteDecimalString | None = Field(
-        default=None, alias="triggerQuantity"
+        default=None,
+        alias="triggerQuantity",
     )
 
     # Spot margin specific fields

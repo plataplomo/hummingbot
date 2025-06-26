@@ -20,9 +20,9 @@ pytestmark = pytest.mark.timing
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
 VALID_SYMBOL: str = "BTC-PERP"
-DEC_ZERO: Decimal = Decimal("0")
-DEC_ONE: Decimal = Decimal("1")
-DEC_NEG_ONE: Decimal = Decimal("-1")
+DEC_ZERO: Decimal = Decimal(0)
+DEC_ONE: Decimal = Decimal(1)
+DEC_NEG_ONE: Decimal = Decimal(-1)
 DEC_NAN: Decimal = Decimal("NaN")
 DEC_INF: Decimal = Decimal("Infinity")
 DEC_NEG_INF: Decimal = Decimal("-Infinity")
@@ -69,14 +69,14 @@ class TestTicker:
             timestamp=expected_dt_from_ms,  # Use the already calculated datetime
             price=Decimal("50000.5"),  # Use Decimal
             bid=Decimal("50000.0"),  # Use Decimal
-            ask=Decimal("50001"),  # Use Decimal
+            ask=Decimal(50001),  # Use Decimal
             volume=Decimal("1234.56"),  # Use Decimal
         )
         # Compare timestamp to the value expected after ms conversion precision loss
         assert ticker.timestamp == expected_dt_from_ms
         assert ticker.price == Decimal("50000.5")
         assert ticker.bid == Decimal("50000.0")
-        assert ticker.ask == Decimal("50001")
+        assert ticker.ask == Decimal(50001)
         assert ticker.volume == Decimal("1234.56")
 
     # --- Validation Tests --- #

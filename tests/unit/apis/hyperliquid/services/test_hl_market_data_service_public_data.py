@@ -344,7 +344,7 @@ class TestHyperliquidMarketDataServicePublicData:
             price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
             ask=Decimal("50000.0"),
-            volume=Decimal("1000"),
+            volume=Decimal(1000),
             timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         )
 
@@ -479,7 +479,7 @@ class TestHyperliquidMarketDataServicePublicData:
         result_order_book = await hyperliquid_market_data_service.get_order_book(symbol_to_find)
 
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
-            GetL2BookArgs(symbol=symbol_to_find)
+            GetL2BookArgs(symbol=symbol_to_find),
         )
         # Ensure the mocked model's dump was called
         mock_l2_book_request_payload_model.model_dump.assert_called_once_with(
@@ -531,7 +531,7 @@ class TestHyperliquidMarketDataServicePublicData:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for l2Book" in exc_info.value.message
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
-            GetL2BookArgs(symbol=symbol)
+            GetL2BookArgs(symbol=symbol),
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -607,7 +607,7 @@ class TestHyperliquidMarketDataServicePublicData:
                 exchange="hyperliquid_test",  # Use the known exchange name from fixture
                 price=Decimal("3000.1"),
                 quantity=Decimal("0.5"),
-                fee=Decimal("0"),
+                fee=Decimal(0),
                 fee_asset=None,
                 is_maker=None,
             ),
@@ -620,7 +620,7 @@ class TestHyperliquidMarketDataServicePublicData:
                 exchange="hyperliquid_test",  # Use the known exchange name from fixture
                 price=Decimal("3000.0"),
                 quantity=Decimal("0.2"),
-                fee=Decimal("0"),
+                fee=Decimal(0),
                 fee_asset=None,
                 is_maker=None,
             ),
@@ -645,7 +645,7 @@ class TestHyperliquidMarketDataServicePublicData:
 
         # Assertions
         mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            GetRecentTradesArgs(symbol=symbol_to_find)
+            GetRecentTradesArgs(symbol=symbol_to_find),
         )
         mock_payload_model.model_dump.assert_called_once_with(by_alias=True, exclude_none=True)
         mock_http_client_requester.assert_called_once_with(
@@ -694,7 +694,7 @@ class TestHyperliquidMarketDataServicePublicData:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received from HTTP client for recentTrades" in exc_info.value.message
         mock_hl_request_builder.build_recent_trades_request_payload.assert_called_once_with(
-            GetRecentTradesArgs(symbol=symbol)
+            GetRecentTradesArgs(symbol=symbol),
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",

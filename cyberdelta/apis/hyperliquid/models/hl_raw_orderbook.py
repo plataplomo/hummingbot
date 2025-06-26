@@ -152,7 +152,7 @@ class HyperliquidRawL2Book(BaseModel):
 
         if not has_exact_length(list(v), 2):
             raise ValueError(
-                "levels: Must be a sequence of two sequences (bids, asks), length != 2."
+                "levels: Must be a sequence of two sequences (bids, asks), length != 2.",
             )
 
         # v is now known to be a sequence of length 2
@@ -167,7 +167,7 @@ class HyperliquidRawL2Book(BaseModel):
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].
         # This validator ensures the basic [list, list] structure.
         return cast(
-            list[list[object]],
+            "list[list[object]]",
             v,
         )  # Return the raw validated structure for Pydantic to process further
 

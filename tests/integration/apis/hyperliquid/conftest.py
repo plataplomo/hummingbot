@@ -236,7 +236,7 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
     if not test_secrets_zero_balance_file_path.exists():
         pytest.skip(
             f"Zero balance test secrets file not found at {test_secrets_zero_balance_file_path}, "
-            "skipping zero balance tests."
+            "skipping zero balance tests.",
         )
     try:
         manager = SecretsManager(str(test_secrets_zero_balance_file_path))
@@ -246,7 +246,7 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
     except Exception as e:
         pytest.fail(
             f"Failed to load zero balance test SecretsConfig from "
-            f"{test_secrets_zero_balance_file_path}: {e}"
+            f"{test_secrets_zero_balance_file_path}: {e}",
         )
 
 
@@ -256,7 +256,7 @@ def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path
     if not test_secrets_large_balance_file_path.exists():
         pytest.skip(
             f"Large balance test secrets file not found at {test_secrets_large_balance_file_path}, "
-            "skipping large balance tests."
+            "skipping large balance tests.",
         )
     try:
         manager = SecretsManager(str(test_secrets_large_balance_file_path))
@@ -266,7 +266,7 @@ def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path
     except Exception as e:
         pytest.fail(
             f"Failed to load large balance test SecretsConfig from "
-            f"{test_secrets_large_balance_file_path}: {e}"
+            f"{test_secrets_large_balance_file_path}: {e}",
         )
 
 
@@ -282,7 +282,7 @@ def hl_secrets_for_zero_balance(
     if not isinstance(secrets, PrivateKeyAuthSecrets):
         pytest.fail(
             "Hyperliquid secrets in test_secrets_zero_balance.yaml are not "
-            "PrivateKeyAuthSecrets type."
+            "PrivateKeyAuthSecrets type.",
         )
     return secrets
 
@@ -299,7 +299,7 @@ def hl_secrets_for_large_balance(
     if not isinstance(secrets, PrivateKeyAuthSecrets):
         pytest.fail(
             "Hyperliquid secrets in test_secrets_large_balance.yaml are not "
-            "PrivateKeyAuthSecrets type."
+            "PrivateKeyAuthSecrets type.",
         )
     return secrets
 

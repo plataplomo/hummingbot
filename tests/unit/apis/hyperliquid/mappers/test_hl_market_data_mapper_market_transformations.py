@@ -283,14 +283,14 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         assert extreme_market.hl_details.max_leverage == 1000
         assert extreme_market.hl_details.sz_decimals == 18
         assert extreme_market.tick_size == Decimal(
-            "1.0"
+            "1.0",
         )  # Business logic handles extreme decimals differently
         assert extreme_market.hl_details.funding_rate == Decimal("0.999999")
 
         assert minimal_market.hl_details is not None
         assert minimal_market.hl_details.max_leverage == 1
         assert minimal_market.hl_details.sz_decimals == 0
-        assert minimal_market.tick_size == Decimal("1")  # Business logic handles this differently
+        assert minimal_market.tick_size == Decimal(1)  # Business logic handles this differently
         assert minimal_market.hl_details.funding_rate == Decimal("-0.999999")
 
 
@@ -355,7 +355,8 @@ class TestCreateMarketFromAssetDefinition:
     ) -> None:
         """Test error handling for invalid sz_decimals."""
         asset_def = create_asset_definition(
-            "INVALID-PERP", sz_decimals=18
+            "INVALID-PERP",
+            sz_decimals=18,
         )  # Valid but will be mocked to fail
 
         # Mock parse_decimal_value to return None for invalid sz_decimals
@@ -378,14 +379,14 @@ class TestCreateMarketFromAssetDefinition:
         # Test minimum value
         min_asset_def = create_asset_definition("MIN-PERP", sz_decimals=0)
         min_market = mapper.transform_single_asset_to_market(min_asset_def)
-        assert min_market.tick_size == Decimal("1")  # Business logic calculates differently
-        assert min_market.step_size == Decimal("1")
+        assert min_market.tick_size == Decimal(1)  # Business logic calculates differently
+        assert min_market.step_size == Decimal(1)
 
         # Test maximum reasonable value
         max_asset_def = create_asset_definition("MAX-PERP", sz_decimals=18)
         max_market = mapper.transform_single_asset_to_market(max_asset_def)
         assert max_market.tick_size == Decimal(
-            "1.0"
+            "1.0",
         )  # Business logic handles extreme decimals differently
         assert max_market.step_size == Decimal("1e-18")
 
@@ -402,7 +403,9 @@ class TestCreateMarketFromAssetDefinition:
         ) as mock_parse:
             # Return valid value for step_size calculation, None for context parsing
             def mock_parse_side_effect(
-                value: str, *args: object, **kwargs: object
+                value: str,
+                *args: object,
+                **kwargs: object,
             ) -> Decimal | None:
                 if value.startswith("1e-"):  # Step size calculation
                     return Decimal(value)
@@ -471,7 +474,7 @@ class TestTransformSingleAssetToMarket:
 
         # Mock the internal method using the full path
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition"
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
         ) as mock_internal:
             # Create a minimal valid market for the mock
             mock_market = Market(
@@ -543,7 +546,7 @@ class TestMarketTransformationErrorHandling:
 
         # Create response with empty asset contexts using list format
         raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
-            [meta.model_dump(by_alias=True), []]  # Empty asset contexts list
+            [meta.model_dump(by_alias=True), []],  # Empty asset contexts list
         )
 
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
@@ -591,7 +594,8 @@ class TestMarketTransformationErrorHandling:
         large_asset_ctxs = [create_asset_ctx(f"LARGE-{i}-PERP") for i in range(1000)]
 
         raw_response = create_meta_and_asset_ctxs_response(
-            large_asset_definitions, large_asset_ctxs
+            large_asset_definitions,
+            large_asset_ctxs,
         )
 
         markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)

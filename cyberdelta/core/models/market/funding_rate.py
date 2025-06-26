@@ -50,7 +50,7 @@ class HyperliquidFundingDetails(BaseModel):
     @classmethod
     def parse_decimal_fields(
         cls,
-        raw_value: str | int | float | Decimal | None,
+        raw_value: str | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
@@ -115,7 +115,7 @@ class FundingRate(BaseModel):
     @classmethod
     def parse_decimal_fields(
         cls,
-        raw_value: str | int | float | Decimal | None,
+        raw_value: str | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
@@ -129,7 +129,7 @@ class FundingRate(BaseModel):
     @classmethod
     def validate_timestamp(
         cls,
-        raw_value: datetime | int | float | str | None,
+        raw_value: datetime | float | str | None,
         info: object,
     ) -> datetime:
         """Parse and validate timestamp to ensure it is a UTC-aware datetime object."""
@@ -142,7 +142,7 @@ class FundingRate(BaseModel):
     @classmethod
     def parse_next_funding_time(
         cls,
-        raw_value: datetime | int | float | str | None,
+        raw_value: datetime | float | str | None,
         info: object,
     ) -> datetime | None:
         """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object."""

@@ -94,8 +94,8 @@ def mock_opportunity() -> ArbitrageOpportunity:
         symbol="BTC/USDT",
         long_exchange="ExchangeA",
         short_exchange="ExchangeB",
-        long_price=Decimal("50000"),
-        short_price=Decimal("50100"),
+        long_price=Decimal(50000),
+        short_price=Decimal(50100),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.0001"),
         net_funding_differential=Decimal("0.0002"),
@@ -131,7 +131,7 @@ async def test_position_sizing_integration(
 
     # Ensure position returns False for rebalancing to avoid TypeError in logger
     mock_position_with_zero_size = MagicMock()
-    mock_position_with_zero_size.size = Decimal("0")
+    mock_position_with_zero_size.size = Decimal(0)
 
     # Use patch.object for proper mocking
     with (
@@ -143,7 +143,7 @@ async def test_position_sizing_integration(
         patch.object(
             setup_dependencies["data_handler"],
             "get_latest_ticker",
-            return_value=MagicMock(spec=Ticker, price=Decimal("30000")),
+            return_value=MagicMock(spec=Ticker, price=Decimal(30000)),
         ),
     ):
         # Setup risk manager to return a sized opportunity
@@ -221,7 +221,7 @@ async def test_risk_manager_rejection(
 
     # Ensure position returns False for rebalancing cleanly for this test
     mock_position_with_zero_size = MagicMock()
-    mock_position_with_zero_size.size = Decimal("0")
+    mock_position_with_zero_size.size = Decimal(0)
 
     with (
         patch.object(
@@ -232,7 +232,7 @@ async def test_risk_manager_rejection(
         patch.object(
             setup_dependencies["data_handler"],
             "get_latest_ticker",
-            return_value=MagicMock(spec=Ticker, price=Decimal("30000")),
+            return_value=MagicMock(spec=Ticker, price=Decimal(30000)),
         ),
     ):
         # Configure risk manager to reject the opportunity

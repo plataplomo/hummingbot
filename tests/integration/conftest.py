@@ -117,8 +117,8 @@ def basic_opportunity() -> ArbitrageOpportunity:
         symbol="BTC",
         long_exchange="backpack",  # Use real exchange name
         short_exchange="hyperliquid",  # Use real exchange name
-        long_price=Decimal("30001"),  # Already correct
-        short_price=Decimal("30010"),  # Already correct
+        long_price=Decimal(30001),  # Already correct
+        short_price=Decimal(30010),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
         short_funding_rate=Decimal("-0.00005"),  # Already correct
         net_funding_differential=Decimal("0.00015"),  # Already correct
@@ -332,8 +332,8 @@ def risk_manager(
 
     mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
     mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-    mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
-    mock_portfolio_tracker.get_current_drawdown.return_value = Decimal("0")
+    mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+    mock_portfolio_tracker.get_current_drawdown.return_value = Decimal(0)
     mock_spot_balance = SpotBalance(
         exchange="mock_generic",
         asset="USDC",
@@ -435,8 +435,8 @@ def mock_opportunity() -> ArbitrageOpportunity:
         symbol="BTC-PERP",
         long_exchange="mock_hl",
         short_exchange="mock_bp",
-        long_price=Decimal("30000"),  # Already correct
-        short_price=Decimal("30050"),  # Already correct
+        long_price=Decimal(30000),  # Already correct
+        short_price=Decimal(30050),  # Already correct
         long_funding_rate=Decimal("0.0001"),  # Already correct
         short_funding_rate=Decimal("-0.0001"),  # Already correct
         net_funding_differential=Decimal("0.0002"),  # Already correct

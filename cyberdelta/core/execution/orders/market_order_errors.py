@@ -9,8 +9,6 @@ from decimal import Decimal
 class MarketOrderError(Exception):
     """Base exception for market order execution errors."""
 
-    pass
-
 
 class InsufficientLiquidityError(MarketOrderError):
     """Raised when there's not enough liquidity in the order book.

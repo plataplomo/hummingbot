@@ -189,10 +189,10 @@ class Withdrawal(BaseModel):
 
 
 __all__ = [
-    "Transfer",
-    "HyperliquidTransferDetails",
     "BackpackTransferDetails",
-    "Withdrawal",
-    "HyperliquidWithdrawalDetails",
     "BackpackWithdrawalDetails",
+    "HyperliquidTransferDetails",
+    "HyperliquidWithdrawalDetails",
+    "Transfer",
+    "Withdrawal",
 ]

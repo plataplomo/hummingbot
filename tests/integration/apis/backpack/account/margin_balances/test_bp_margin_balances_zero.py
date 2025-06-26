@@ -47,8 +47,8 @@ class TestBackpackMarginBalancesZero:
         assert account_summary.exchange == "backpack"
 
         # Even with zero balance, these fields should be present
-        assert account_summary.total_equity >= Decimal("0")
-        assert account_summary.available_equity >= Decimal("0")
+        assert account_summary.total_equity >= Decimal(0)
+        assert account_summary.available_equity >= Decimal(0)
 
         # Check if this is truly a zero balance account
         is_zero_balance = account_summary.total_equity < DUST_THRESHOLD
@@ -57,20 +57,20 @@ class TestBackpackMarginBalancesZero:
             # With zero balance, margin requirements could still exist if there are open orders
             # The exchange maintains minimum margin requirements even for zero balance accounts
             if account_summary.total_initial_margin_required is not None:
-                assert account_summary.total_initial_margin_required >= Decimal("0"), (
+                assert account_summary.total_initial_margin_required >= Decimal(0), (
                     f"Initial margin requirement should be non-negative, got "
                     f"{account_summary.total_initial_margin_required}"
                 )
 
             if account_summary.total_maintenance_margin_required is not None:
-                assert account_summary.total_maintenance_margin_required >= Decimal("0"), (
+                assert account_summary.total_maintenance_margin_required >= Decimal(0), (
                     f"Maintenance margin requirement should be non-negative, got "
                     f"{account_summary.total_maintenance_margin_required}"
                 )
 
             # Position notional should be zero or small with no/minimal positions
             if account_summary.total_position_notional is not None:
-                assert account_summary.total_position_notional >= Decimal("0"), (
+                assert account_summary.total_position_notional >= Decimal(0), (
                     f"Position notional should be non-negative, got "
                     f"{account_summary.total_position_notional}"
                 )
@@ -86,7 +86,7 @@ class TestBackpackMarginBalancesZero:
             # Account has balance - just validate the fields exist and are valid
             pytest.skip(
                 f"Account has balance ({account_summary.total_equity}), "
-                "skipping zero balance validation"
+                "skipping zero balance validation",
             )
 
     @pytest.mark.asyncio
@@ -113,21 +113,21 @@ class TestBackpackMarginBalancesZero:
             # Account has balance - skip zero balance validation
             pytest.skip(
                 f"Account has balance ({account_summary.total_equity}), "
-                "skipping zero balance validation"
+                "skipping zero balance validation",
             )
 
         # Check zero handling for optional fields
         if bp_details.assets_value is not None:
-            assert bp_details.assets_value >= Decimal("0")
+            assert bp_details.assets_value >= Decimal(0)
 
         if bp_details.liabilities_value is not None:
-            assert bp_details.liabilities_value >= Decimal("0")
+            assert bp_details.liabilities_value >= Decimal(0)
 
         if bp_details.locked_equity is not None:
-            assert bp_details.locked_equity >= Decimal("0")
+            assert bp_details.locked_equity >= Decimal(0)
 
         if bp_details.borrow_liability is not None:
-            assert bp_details.borrow_liability >= Decimal("0")
+            assert bp_details.borrow_liability >= Decimal(0)
 
         # Margin fraction should be None or 0 with no positions
         # Note: Some zero balance accounts may have margin_fraction as None
@@ -160,17 +160,17 @@ class TestBackpackMarginBalancesZero:
         for _, balance in spot_balances.items():
             assert isinstance(balance, SpotBalance)
 
-            if balance.total_quantity == Decimal("0"):
+            if balance.total_quantity == Decimal(0):
                 # Zero balance validation
-                assert balance.available_quantity == Decimal("0")
+                assert balance.available_quantity == Decimal(0)
 
                 # Check bp_details for zero balances
                 if balance.bp_details:
                     if balance.bp_details.open_order_quantity is not None:
-                        assert balance.bp_details.open_order_quantity == Decimal("0")
+                        assert balance.bp_details.open_order_quantity == Decimal(0)
 
                     if balance.bp_details.lend_quantity is not None:
-                        assert balance.bp_details.lend_quantity == Decimal("0")
+                        assert balance.bp_details.lend_quantity == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_collateral_endpoint_zero_collateral(
@@ -187,9 +187,9 @@ class TestBackpackMarginBalancesZero:
         account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         # With zero collateral, equity should be zero
-        if account_summary.total_equity == Decimal("0"):
+        if account_summary.total_equity == Decimal(0):
             # Available equity should also be zero
-            assert account_summary.available_equity == Decimal("0")
+            assert account_summary.available_equity == Decimal(0)
 
             # Check bp_details for zero state
             if account_summary.bp_details:
@@ -198,10 +198,10 @@ class TestBackpackMarginBalancesZero:
                     for asset in account_summary.bp_details.collateral_assets:
                         # Zero collateral value
                         collateral_value = Decimal(asset.get("collateralValue", "0"))
-                        if collateral_value == Decimal("0"):
+                        if collateral_value == Decimal(0):
                             # Total quantity should also be zero
                             total_quantity = Decimal(asset.get("totalQuantity", "0"))
-                            assert total_quantity == Decimal("0")
+                            assert total_quantity == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_margin_calculations_no_positions(
@@ -224,22 +224,22 @@ class TestBackpackMarginBalancesZero:
             # 2. Exchange minimum margin requirements
             # 3. Pending settlements
             if account_summary.total_initial_margin_required is not None:
-                assert account_summary.total_initial_margin_required >= Decimal("0"), (
+                assert account_summary.total_initial_margin_required >= Decimal(0), (
                     f"Initial margin requirement should be non-negative, got "
                     f"{account_summary.total_initial_margin_required}"
                 )
 
             if account_summary.total_maintenance_margin_required is not None:
-                assert account_summary.total_maintenance_margin_required >= Decimal("0"), (
+                assert account_summary.total_maintenance_margin_required >= Decimal(0), (
                     f"Maintenance margin requirement should be non-negative, got "
                     f"{account_summary.total_maintenance_margin_required}"
                 )
 
             # Available equity should equal total equity (nothing locked)
             # unless there are open orders
-            if account_summary.total_equity > Decimal("0"):
+            if account_summary.total_equity > Decimal(0):
                 # Check if there's locked equity (from open orders)
-                locked_equity = Decimal("0")
+                locked_equity = Decimal(0)
                 if account_summary.bp_details and account_summary.bp_details.locked_equity:
                     locked_equity = account_summary.bp_details.locked_equity
 
@@ -257,7 +257,7 @@ class TestBackpackMarginBalancesZero:
                 account_summary.bp_details
                 and account_summary.bp_details.margin_fraction is not None
             ):
-                assert account_summary.bp_details.margin_fraction == Decimal("0")
+                assert account_summary.bp_details.margin_fraction == Decimal(0)
         else:
             # Has positions - skip this test
             pytest.skip(f"Account has {len(positions)} positions, skipping no-position validation")
@@ -279,11 +279,11 @@ class TestBackpackMarginBalancesZero:
 
         # Check for any dust balances
         for symbol, balance in spot_balances.items():
-            if Decimal("0") < balance.total_quantity < DUST_THRESHOLD:
+            if Decimal(0) < balance.total_quantity < DUST_THRESHOLD:
                 # Dust balance found - verify proper handling
                 assert isinstance(balance.total_quantity, Decimal)
-                assert balance.total_quantity > Decimal("0")
-                assert balance.available_quantity >= Decimal("0")
+                assert balance.total_quantity > Decimal(0)
+                assert balance.available_quantity >= Decimal(0)
 
                 # Dust should still appear in collateral if non-zero
                 if account_summary.bp_details and account_summary.bp_details.collateral_assets:
@@ -333,7 +333,7 @@ class TestBackpackMarginBalancesZero:
                 assert isinstance(value, Decimal)
                 # These fields have ge=0 constraint except unrealized_pnl
                 if field_name != "total_unrealized_pnl":
-                    assert value >= Decimal("0")
+                    assert value >= Decimal(0)
 
         # Check BackpackMarginDetails optional fields
         if account_summary.bp_details:
@@ -354,4 +354,4 @@ class TestBackpackMarginBalancesZero:
                         assert isinstance(value, Decimal)
                         # Most have ge=0 constraint
                         if field_name not in ["net_exposure_futures", "unsettled_equity"]:
-                            assert value >= Decimal("0")
+                            assert value >= Decimal(0)

@@ -69,7 +69,7 @@ class TestHyperliquidRequestBuilderTrading:
             symbol="ETH_USDC",
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
-            quantity=Decimal("10"),
+            quantity=Decimal(10),
             time_in_force=TimeInForce.IOC,
             reduce_only=True,
             post_only=False,
@@ -89,7 +89,7 @@ class TestHyperliquidRequestBuilderTrading:
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("2100"),
+            price=Decimal(2100),
             post_only=True,
             reduce_only=False,
         )
@@ -119,7 +119,7 @@ class TestHyperliquidRequestBuilderTrading:
             order_type=OrderType.STOP_MARKET,
             quantity=Decimal("0.5"),
             time_in_force=TimeInForce.GTC,
-            stop_price=Decimal("1900"),
+            stop_price=Decimal(1900),
             reduce_only=False,
             post_only=False,
         )
@@ -149,10 +149,10 @@ class TestHyperliquidRequestBuilderTrading:
             symbol="BTC_USDC",
             side=OrderSide.BUY,
             order_type=OrderType.STOP_LIMIT,
-            quantity=Decimal("2"),
+            quantity=Decimal(2),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("2200"),
-            stop_price=Decimal("2150"),
+            price=Decimal(2200),
+            stop_price=Decimal(2150),
             reduce_only=False,
             post_only=False,
         )
@@ -186,9 +186,9 @@ class TestHyperliquidRequestBuilderTrading:
             symbol="BTC_USDC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("2000"),
+            price=Decimal(2000),
             post_only=False,
             reduce_only=False,
         )
@@ -214,9 +214,9 @@ class TestHyperliquidRequestBuilderTrading:
             symbol="BTC_USDC",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("2000"),
+            price=Decimal(2000),
             post_only=True,  # This should trigger ALO
             reduce_only=False,
         )
@@ -269,7 +269,7 @@ class TestHyperliquidRequestBuilderTrading:
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.IOC,
-            price=Decimal("2000"),
+            price=Decimal(2000),
             reduce_only=False,
             post_only=False,
         )
@@ -289,7 +289,7 @@ class TestHyperliquidRequestBuilderTrading:
             order_type=OrderType.LIMIT,
             quantity=Decimal("2.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("2100"),
+            price=Decimal(2100),
             reduce_only=False,
             post_only=False,
         )
@@ -496,7 +496,8 @@ class TestHyperliquidRequestBuilderTrading:
         builder = HyperliquidRequestBuilder()
 
         with pytest.raises(
-            ValueError, match="Cannot create batch order payload with empty order list"
+            ValueError,
+            match="Cannot create batch order payload with empty order list",
         ):
             builder.build_batch_place_order_payload(
                 orders_with_indices=[],
@@ -584,7 +585,8 @@ class TestHyperliquidRequestBuilderTrading:
         builder = HyperliquidRequestBuilder()
 
         with pytest.raises(
-            ValueError, match="Cannot create batch cancel payload with empty cancel list"
+            ValueError,
+            match="Cannot create batch cancel payload with empty cancel list",
         ):
             builder.build_batch_cancel_order_payload([])
 

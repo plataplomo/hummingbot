@@ -57,7 +57,7 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
             [sys.executable, os.path.basename(example_script), "--create-example"],
             cwd=script_dir,
             capture_output=True,
-            text=True,
+            text=True, check=False,
         )
         exit_code = result.returncode
 
@@ -167,7 +167,7 @@ exchanges:
         cwd=script_dir,
         capture_output=True,
         text=True,
-        env=env,
+        env=env, check=False,
     )
     exit_code = result.returncode
     assert exit_code == 0, (
@@ -257,7 +257,7 @@ exchanges:
         cwd=script_dir,
         capture_output=True,
         text=True,
-        env=env,
+        env=env, check=False,
     )
     exit_code = result.returncode
     assert exit_code == 0, (

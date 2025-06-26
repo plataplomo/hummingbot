@@ -562,7 +562,10 @@ class HttpClient:
         endpoint_path: str,
         original_params: dict[str, Any] | None,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Execute the HTTP request with retry logic."""
         current_attempt = 0
@@ -627,7 +630,10 @@ class HttpClient:
         current_attempt: int,
         original_params: dict[str, Any] | None,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Execute a single HTTP request attempt."""
         session = await self._get_session()
@@ -649,7 +655,7 @@ class HttpClient:
         async with session.request(
             method,
             full_url,
-            params=request_params if request_params else None,
+            params=request_params or None,
             json=json_payload if method.upper() != "GET" and json_payload is not None else None,
             data=None,
             headers=request_headers,
@@ -658,9 +664,14 @@ class HttpClient:
             return await self._handle_response(response, full_url)
 
     async def _handle_response(
-        self, response: aiohttp.ClientResponse, full_url: str
+        self,
+        response: aiohttp.ClientResponse,
+        full_url: str,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Handle the HTTP response."""
         if 200 <= response.status < 300:
@@ -687,9 +698,14 @@ class HttpClient:
         return await self._handle_error_response(response, full_url)
 
     async def _handle_error_response(
-        self, response: aiohttp.ClientResponse, full_url: str
+        self,
+        response: aiohttp.ClientResponse,
+        full_url: str,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Handle error responses (non-2xx status codes)."""
         logger.warning(
@@ -777,9 +793,15 @@ class HttpClient:
         await asyncio.sleep(delay)
 
     def _handle_final_failure(
-        self, last_exception: Exception | None, full_url: str, endpoint_path: str
+        self,
+        last_exception: Exception | None,
+        full_url: str,
+        endpoint_path: str,
     ) -> tuple[
-        ParsedJsonResponse | str | None, int, ProcessedResponseHeaders, CIMultiDictProxy[str]
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
     ]:
         """Handle final failure after all retries exhausted."""
         logger.error(
@@ -812,16 +834,14 @@ class HttpClient:
                 response_body=str(last_exception),
                 api_error_code=APIErrorCode.TIMEOUT,
             ) from last_exception
-        else:
-            raise HttpRequestFailedError(
-                message=(
-                    f"Request failed after retries: "
-                    f"{type(last_exception).__name__} - {last_exception}"
-                ),
-                http_status_code=0,
-                response_body=str(last_exception),
-                api_error_code=APIErrorCode.NETWORK_ISSUE,
-            ) from last_exception
+        raise HttpRequestFailedError(
+            message=(
+                f"Request failed after retries: {type(last_exception).__name__} - {last_exception}"
+            ),
+            http_status_code=0,
+            response_body=str(last_exception),
+            api_error_code=APIErrorCode.NETWORK_ISSUE,
+        ) from last_exception
 
     async def __aenter__(self) -> HttpClient:
         """Enter the async context manager and ensure session is ready."""

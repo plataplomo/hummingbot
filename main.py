@@ -294,7 +294,8 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
 
 async def _initialize_api_clients(
-    config: AppSettings, app_state: dict[str, Any]
+    config: AppSettings,
+    app_state: dict[str, Any],
 ) -> dict[str, ExchangeAPI]:
     """Initialize and connect API clients."""
     api_clients: dict[str, ExchangeAPI] = {}
@@ -481,7 +482,8 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
     # Start signal queue processing
     main_tasks.append(
         asyncio.create_task(
-            app_state["signal_queue"].run(cancellation_token), name="SignalQueue_run"
+            app_state["signal_queue"].run(cancellation_token),
+            name="SignalQueue_run",
         ),
     )
 
@@ -530,7 +532,8 @@ async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
 
 
 async def _handle_shutdown_and_cleanup(
-    app_state: dict[str, Any], main_tasks: list[asyncio.Task[Any]]
+    app_state: dict[str, Any],
+    main_tasks: list[asyncio.Task[Any]],
 ) -> None:
     """Handle shutdown sequence and cleanup background tasks."""
     global cancellation_token

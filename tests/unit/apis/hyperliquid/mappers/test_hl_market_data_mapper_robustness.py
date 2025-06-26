@@ -264,7 +264,7 @@ class TestBoundaryValueConditions:
 
         # Ticker transformation should handle zero price
         ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(zero_values_asset_ctx)
-        assert ticker.price == Decimal("0")
+        assert ticker.price == Decimal(0)
 
         # Zero price trade should be filtered out
         zero_price_trade = HyperliquidRawPublicTrade(
@@ -472,10 +472,10 @@ class TestPerformanceAndMemory:
             if i == 0:  # "123456789.123456789012345678"
                 assert ticker.price == Decimal("123456789.12345679")
             elif i == 1:  # "0.000000000000000000000001"
-                assert ticker.price == Decimal("0")
+                assert ticker.price == Decimal(0)
             else:  # "999999999999.999999999999"
                 # Business logic rounds very large numbers differently
-                assert ticker.price == Decimal("1000000000000")
+                assert ticker.price == Decimal(1000000000000)
 
 
 # --- Tests for error recovery scenarios ---

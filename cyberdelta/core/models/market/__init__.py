@@ -21,12 +21,12 @@ from .trade import Trade
 
 
 __all__ = [
-    "Order",
-    "Trade",
-    "FundingRate",
-    "OrderBook",
-    "Ticker",
     "Candle",
+    "FundingRate",
     "Market",
     "MidPrices",
+    "Order",
+    "OrderBook",
+    "Ticker",
+    "Trade",
 ]

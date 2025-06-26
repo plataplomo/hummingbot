@@ -53,10 +53,10 @@ class Trade(BaseModel):
     side: OrderSide
     order_id: str
     exchange: str
-    price: Decimal = Field(gt=Decimal("0"))
-    quantity: Decimal = Field(gt=Decimal("0"))
+    price: Decimal = Field(gt=Decimal(0))
+    quantity: Decimal = Field(gt=Decimal(0))
     client_order_id: str | None = Field(default=None)
-    fee: Decimal = Field(default=Decimal("0"))
+    fee: Decimal = Field(default=Decimal(0))
     fee_asset: str | None = Field(default=None)
     is_maker: bool | None = Field(default=None)
     hl_details: HyperliquidTradeDetails | None = Field(default=None)
@@ -84,7 +84,7 @@ class Trade(BaseModel):
     @classmethod
     def parse_executed_at(
         cls,
-        raw_value: str | int | float | datetime | None,
+        raw_value: str | float | datetime | None,
         info: object,
     ) -> datetime:
         """Parse and validate the execution timestamp field.
@@ -112,7 +112,7 @@ class Trade(BaseModel):
     @classmethod
     def parse_decimal_fields(
         cls,
-        raw_value: str | int | float | Decimal | None,
+        raw_value: str | float | Decimal | None,
         info: object,
     ) -> Decimal:
         """Parse and validate decimal fields for financial precision.
@@ -175,7 +175,7 @@ class Trade(BaseModel):
             ValueError: If fee is non-zero but fee_asset is not provided
 
         """
-        if self.fee != Decimal("0") and not self.fee_asset:
+        if self.fee != Decimal(0) and not self.fee_asset:
             raise ValueError("fee_asset must be provided if fee is nonzero.")
         return self
 
@@ -266,7 +266,7 @@ class HyperliquidTradeDetails(BaseModel):
     @classmethod
     def validate_decimals(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
         """Validate and parse Hyperliquid decimal fields to ensure financial precision.

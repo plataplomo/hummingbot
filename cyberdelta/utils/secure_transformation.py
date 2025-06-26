@@ -7,13 +7,14 @@ SECURITY: This module is critical for preventing validation bypass attacks.
 All mapper transformations MUST use these functions instead of direct instantiation.
 """
 
+import time
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 import structlog
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
 
 
 # Configure security logger
@@ -22,10 +23,82 @@ security_logger = get_logger("cyberdelta.security")
 T = TypeVar("T", bound=BaseModel)
 
 
+# Aggregation for security validation logging to reduce spam
+class SecurityValidationAggregator:
+    """Aggregates security validation events to reduce log spam."""
+
+    def __init__(self, window_seconds: int = 60) -> None:
+        """Initialize aggregator with specified window size.
+
+        Args:
+            window_seconds: Time window in seconds for aggregation (default: 60)
+        """
+        self.window_seconds = window_seconds
+        self.last_summary_time = time.time()
+        self.attempts = 0
+        self.successes = 0
+        self.failures = 0
+        self.contexts: dict[str, int] = {}
+        self.models: dict[str, int] = {}
+        self.exchanges: dict[str, int] = {}
+
+    def record_attempt(self, context: str, model_class: str, source_exchange: str | None) -> None:
+        """Record a validation attempt."""
+        self.attempts += 1
+        self.contexts[context] = self.contexts.get(context, 0) + 1
+        self.models[model_class] = self.models.get(model_class, 0) + 1
+        if source_exchange:
+            self.exchanges[source_exchange] = self.exchanges.get(source_exchange, 0) + 1
+
+    def record_success(self) -> None:
+        """Record a successful validation."""
+        self.successes += 1
+
+    def record_failure(self) -> None:
+        """Record a failed validation."""
+        self.failures += 1
+
+    def maybe_log_summary(self) -> None:
+        """Log summary if window has elapsed."""
+        current_time = time.time()
+        if current_time - self.last_summary_time >= self.window_seconds and self.attempts > 0:
+            security_logger.info(
+                "security_validation_summary",
+                window_seconds=self.window_seconds,
+                total_attempts=self.attempts,
+                successful=self.successes,
+                failed=self.failures,
+                success_rate=round(self.successes / self.attempts * 100, 2)
+                if self.attempts > 0
+                else 0,
+                top_contexts=dict(
+                    sorted(self.contexts.items(), key=lambda x: x[1], reverse=True)[:5],
+                ),
+                top_models=dict(sorted(self.models.items(), key=lambda x: x[1], reverse=True)[:5]),
+                top_exchanges=dict(
+                    sorted(self.exchanges.items(), key=lambda x: x[1], reverse=True)[:3],
+                ),
+                message=(
+                    f"Security validations: {self.attempts} attempts, "
+                    f"{self.successes} successful, {self.failures} failed"
+                ),
+            )
+            # Reset counters
+            self.last_summary_time = current_time
+            self.attempts = 0
+            self.successes = 0
+            self.failures = 0
+            self.contexts.clear()
+            self.models.clear()
+            self.exchanges.clear()
+
+
+# Global aggregator instance
+_validation_aggregator = SecurityValidationAggregator()
+
+
 class TransformationError(Exception):
     """Raised when secure transformation fails, indicating potential security issue."""
-
-    pass
 
 
 def secure_transform[T: BaseModel](
@@ -59,39 +132,26 @@ def secure_transform[T: BaseModel](
         ... )
     """
     try:
-        # Security event logging
-        security_logger.debug(
-            "security_transformation_attempt",
-            context=context,
-            model_class=model_class.__name__,
-            source_exchange=source_exchange,
-            data_fields=list(data.keys()) if data else [],
-            action="validation_starting",
-            message=(
-                f"SECURITY: Transformation attempt - context={context}, "
-                f"model={model_class.__name__}, source={source_exchange}"
-            ),
-        )
+        # Record attempt for aggregation instead of logging each one
+        _validation_aggregator.record_attempt(context, model_class.__name__, source_exchange)
 
         # Enforce Pydantic validation - this is the critical security step
         result = model_class.model_validate(data)
 
-        # Success logging for security monitoring
-        security_logger.debug(
-            "security_validation_successful",
-            model_class=model_class.__name__,
-            context=context,
-            source_exchange=source_exchange,
-            action="validation_completed",
-            message=(
-                f"SECURITY: Successful validation - model={model_class.__name__}, context={context}"
-            ),
-        )
+        # Record success for aggregation
+        _validation_aggregator.record_success()
+
+        # Check if we should log a summary
+        _validation_aggregator.maybe_log_summary()
 
         return result
 
     except ValidationError as e:
-        # Critical security event - potential attack attempt
+        # Record failure for aggregation
+        _validation_aggregator.record_failure()
+        _validation_aggregator.maybe_log_summary()
+
+        # Critical security event - potential attack attempt (keep detailed error logging)
         security_logger.error(
             "security_validation_failed",
             context=context,
@@ -109,7 +169,7 @@ def secure_transform[T: BaseModel](
         # Raise transformation error with sanitized message
         raise TransformationError(
             f"Security validation failed for {model_class.__name__} in {context}: "
-            f"{len(e.errors())} validation errors"
+            f"{len(e.errors())} validation errors",
         ) from e
     except Exception as e:
         # Catch any other unexpected errors
@@ -123,12 +183,12 @@ def secure_transform[T: BaseModel](
             action="critical_security_event",
             message=(
                 f"SECURITY: Unexpected error in transformation - context={context}, "
-                f"error={type(e).__name__}: {str(e)}"
+                f"error={type(e).__name__}: {e!s}"
             ),
             exc_info=True,
         )
         raise TransformationError(
-            f"Unexpected error during secure transformation: {type(e).__name__}"
+            f"Unexpected error during secure transformation: {type(e).__name__}",
         ) from e
 
 
@@ -137,7 +197,7 @@ def secure_transform_with_audit[T: BaseModel](
     model_class: type[T],
     context: str = "unknown",
     source_exchange: str | None = None,
-    audit_logger: structlog.BoundLogger | None = None,
+    audit_logger: TraceLevelLogger | structlog.BoundLogger | None = None,
 ) -> T:
     """Secure transformation with enhanced audit logging for financial operations.
 
@@ -214,13 +274,13 @@ def secure_transform_with_audit[T: BaseModel](
             duration_ms=round(duration_ms, 2),
             error=str(e),
             action="transformation_failed",
-            message=f"AUDIT: Transformation failed - context={context}, error={str(e)}",
+            message=f"AUDIT: Transformation failed - context={context}, error={e!s}",
         )
         raise
 
 
 def validate_financial_constraints(
-    value: int | float | str,
+    value: float | str,
     field_name: str,
     allow_zero: bool = True,
     allow_negative: bool = False,

@@ -19,7 +19,7 @@ async def test_hyperliquid_account_settings() -> None:
     """Test the Hyperliquid account settings implementation."""
     # Test creating args
     args = UpdateAccountSettingsArgs(
-        leverage_limit=Decimal("20"),
+        leverage_limit=Decimal(20),
         auto_lend=True,  # Will be ignored by Hyperliquid
         auto_borrow_settlements=False,  # Will be ignored by Hyperliquid
     )
@@ -47,7 +47,7 @@ async def test_hyperliquid_account_settings() -> None:
     logger.info(f"  leverage_limit: {settings.leverage_limit}")
     logger.info(f"  auto_lend: {settings.auto_lend} (None - not supported)")
     logger.info(
-        f"  auto_borrow_settlements: {settings.auto_borrow_settlements} (None - not supported)"
+        f"  auto_borrow_settlements: {settings.auto_borrow_settlements} (None - not supported)",
     )
     logger.info(f"  Is mutable: {not settings.model_config.get('frozen', False)}")
 
@@ -59,7 +59,7 @@ async def test_hyperliquid_account_settings() -> None:
 
     # Test mutability
     old_limit = settings.leverage_limit
-    settings.update_leverage_limit(Decimal("30"))
+    settings.update_leverage_limit(Decimal(30))
     logger.info("Leverage limit updated:")
     logger.info(f"  Old limit: {old_limit}")
     logger.info(f"  New limit: {settings.leverage_limit}")

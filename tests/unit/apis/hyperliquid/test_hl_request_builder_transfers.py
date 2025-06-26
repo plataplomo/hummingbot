@@ -71,7 +71,7 @@ class TestHyperliquidRequestBuilderTransfers:
         # Test with integer amount
         args_int = TransferL2UsdArgs(
             destination_address=valid_wallet_address,
-            amount=Decimal("1000"),
+            amount=Decimal(1000),
         )
         request_int = HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_int)
         assert request_int.action.payload.amount == "1000.0"
@@ -87,7 +87,7 @@ class TestHyperliquidRequestBuilderTransfers:
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = TransferL2UsdArgs(
                 destination_address="",
-                amount=Decimal("100"),
+                amount=Decimal(100),
             )
             HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_empty)
 
@@ -98,7 +98,7 @@ class TestHyperliquidRequestBuilderTransfers:
         with pytest.raises(ValidationError, match="String cannot be empty"):
             args_whitespace = TransferL2UsdArgs(
                 destination_address="   ",
-                amount=Decimal("100"),
+                amount=Decimal(100),
             )
             HyperliquidRequestBuilder.build_l2_usd_transfer_payload(args_whitespace)
 
@@ -144,7 +144,7 @@ class TestHyperliquidRequestBuilderTransfers:
         """Test build_withdrawal_payload for generic token (USDC) withdrawals."""
         args = WithdrawL1Args(
             asset="USDC",
-            amount=Decimal("500"),
+            amount=Decimal(500),
             destination_address=valid_wallet_address,
         )
         request_model = HyperliquidRequestBuilder.build_withdrawal_payload(args)
@@ -191,7 +191,7 @@ class TestHyperliquidRequestBuilderTransfers:
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = WithdrawL1Args(
                 asset="USDC",
-                amount=Decimal("100"),
+                amount=Decimal(100),
                 destination_address="",
             )
             HyperliquidRequestBuilder.build_withdrawal_payload(args_empty)
@@ -203,7 +203,7 @@ class TestHyperliquidRequestBuilderTransfers:
         with pytest.raises(ValidationError, match="String cannot be empty"):
             args_whitespace = WithdrawL1Args(
                 asset="USDC",
-                amount=Decimal("100"),
+                amount=Decimal(100),
                 destination_address="   ",
             )
             HyperliquidRequestBuilder.build_withdrawal_payload(args_whitespace)

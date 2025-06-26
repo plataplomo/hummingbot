@@ -55,7 +55,7 @@ class AccountSettings(BaseModel):
     timestamp: datetime
 
     # --- Core Optional Fields ---
-    leverage_limit: Decimal | None = Field(default=None, ge=Decimal("1"))
+    leverage_limit: Decimal | None = Field(default=None, ge=Decimal(1))
     auto_borrow_settlements: bool | None = None
     auto_lend: bool | None = None
     auto_realize_pnl: bool | None = None
@@ -73,7 +73,7 @@ class AccountSettings(BaseModel):
         """Update leverage limit with validation."""
         if new_limit is not None:
             parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
-            if parsed is None or not parsed.is_finite() or parsed < Decimal("1"):
+            if parsed is None or not parsed.is_finite() or parsed < Decimal(1):
                 raise ValueError("Leverage limit must be finite and >= 1")
         self.leverage_limit = new_limit
         from datetime import UTC
@@ -94,12 +94,14 @@ class HyperliquidAccountSettingsDetails(BaseModel):
 
     # Per-asset leverage settings (asset index -> leverage value)
     asset_leverage_settings: dict[int, int] | None = Field(
-        default=None, description="Per-asset leverage settings mapped by asset index"
+        default=None,
+        description="Per-asset leverage settings mapped by asset index",
     )
 
     # Cross vs isolated margin preferences
     cross_margin_enabled: bool | None = Field(
-        default=None, description="Whether cross margin is enabled by default"
+        default=None,
+        description="Whether cross margin is enabled by default",
     )
 
     # Config: Immutable, ignore extra fields during creation
@@ -118,26 +120,34 @@ class BackpackAccountSettingsDetails(BaseModel):
 
     # Raw leverage limit value from API for debugging
     leverage_limit_raw: str | None = Field(
-        default=None, description="Raw leverage limit string from API response"
+        default=None,
+        description="Raw leverage limit string from API response",
     )
 
     # Subaccount information if applicable
     subaccount_id: int | None = Field(
-        default=None, ge=0, le=65535, description="Subaccount ID for these settings (uint16)"
+        default=None,
+        ge=0,
+        le=65535,
+        description="Subaccount ID for these settings (uint16)",
     )
 
     # Additional Backpack-specific auto-trading settings
     auto_liquidation_enabled: bool | None = Field(
-        default=None, description="Whether auto-liquidation is enabled"
+        default=None,
+        description="Whether auto-liquidation is enabled",
     )
 
     auto_margin_call_enabled: bool | None = Field(
-        default=None, description="Whether auto margin calls are enabled"
+        default=None,
+        description="Whether auto margin calls are enabled",
     )
 
     # Source endpoint metadata for debugging
     source_endpoint: str | None = Field(
-        default=None, exclude=True, description="Source endpoint for debugging"
+        default=None,
+        exclude=True,
+        description="Source endpoint for debugging",
     )
 
     model_config = ConfigDict(

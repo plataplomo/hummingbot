@@ -262,7 +262,7 @@ class TestBackpackTradingServiceAccountMisc:
         )
 
         mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = ({"id": order_id}, 200, {})
         mock_response_handler.handle_get_order_status_response.return_value = mock_raw_order

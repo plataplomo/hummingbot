@@ -22,6 +22,7 @@ All transformation methods follow the standard pattern:
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from itertools import starmap
 from typing import Any
 
 from pydantic import ValidationError
@@ -105,7 +106,7 @@ class BackpackAccountDataMapper:
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
             return OrderSide.BUY
-        elif side_lower in ("sell", "ask"):
+        if side_lower in ("sell", "ask"):
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
@@ -116,27 +117,26 @@ class BackpackAccountDataMapper:
         status_lower = bp_status.lower() if bp_status else ""
         if status_lower == "new":
             return OrderStatus.NEW
-        elif status_lower in ("open", "pending"):
+        if status_lower in ("open", "pending"):
             return OrderStatus.OPEN
-        elif status_lower in ("filled", "executed"):
+        if status_lower in ("filled", "executed"):
             return OrderStatus.FILLED
-        elif status_lower in ("cancelled", "canceled"):
+        if status_lower in ("cancelled", "canceled"):
             return OrderStatus.CANCELED
-        elif status_lower in ("partially_filled", "partiallyfilled", "partial"):
+        if status_lower in ("partially_filled", "partiallyfilled", "partial"):
             return OrderStatus.PARTIALLY_FILLED
-        elif status_lower in ("rejected", "failed"):
+        if status_lower in ("rejected", "failed"):
             return OrderStatus.REJECTED
-        elif status_lower == "expired":
+        if status_lower == "expired":
             return OrderStatus.EXPIRED
-        else:
-            logger.warning(
-                "bp_account_mapper_unknown_order_status",
-                action="map_status_to_internal",
-                message="Unknown Backpack order status encountered",
-                bp_status=bp_status,
-                mapped_to="UNKNOWN",
-            )
-            return OrderStatus.UNKNOWN
+        logger.warning(
+            "bp_account_mapper_unknown_order_status",
+            action="map_status_to_internal",
+            message="Unknown Backpack order status encountered",
+            bp_status=bp_status,
+            mapped_to="UNKNOWN",
+        )
+        return OrderStatus.UNKNOWN
 
     @staticmethod
     def _map_type_to_internal(bp_type: str) -> OrderType:
@@ -144,25 +144,24 @@ class BackpackAccountDataMapper:
         type_lower = bp_type.lower() if bp_type else ""
         if type_lower in ("limit", "limit_order"):
             return OrderType.LIMIT
-        elif type_lower in ("market", "market_order"):
+        if type_lower in ("market", "market_order"):
             return OrderType.MARKET
-        elif type_lower in ("stop", "stop_loss", "stoploss", "stop_market"):
+        if type_lower in ("stop", "stop_loss", "stoploss", "stop_market"):
             return OrderType.STOP_MARKET
-        elif type_lower in ("take_profit", "takeprofit", "take_profit_market"):
+        if type_lower in ("take_profit", "takeprofit", "take_profit_market"):
             return OrderType.TAKE_PROFIT_MARKET
-        elif type_lower in ("stop_limit", "stop_loss_limit"):
+        if type_lower in ("stop_limit", "stop_loss_limit"):
             return OrderType.STOP_LIMIT
-        elif type_lower in ("take_profit_limit", "takeprofit_limit"):
+        if type_lower in ("take_profit_limit", "takeprofit_limit"):
             return OrderType.TAKE_PROFIT_LIMIT
-        else:
-            logger.warning(
-                "bp_account_mapper_unknown_order_type",
-                action="map_type_to_internal",
-                message="Unknown Backpack order type encountered",
-                bp_type=bp_type,
-                mapped_to="LIMIT",
-            )
-            return OrderType.LIMIT  # Default to LIMIT instead of UNKNOWN
+        logger.warning(
+            "bp_account_mapper_unknown_order_type",
+            action="map_type_to_internal",
+            message="Unknown Backpack order type encountered",
+            bp_type=bp_type,
+            mapped_to="LIMIT",
+        )
+        return OrderType.LIMIT  # Default to LIMIT instead of UNKNOWN
 
     @staticmethod
     def _map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
@@ -172,19 +171,18 @@ class BackpackAccountDataMapper:
         tif_lower = bp_tif.lower()
         if tif_lower == "gtc":
             return TimeInForce.GTC
-        elif tif_lower == "ioc":
+        if tif_lower == "ioc":
             return TimeInForce.IOC
-        elif tif_lower == "fok":
+        if tif_lower == "fok":
             return TimeInForce.FOK
-        else:
-            logger.warning(
-                "bp_account_mapper_unknown_tif",
-                action="map_tif_to_internal",
-                message="Unknown Backpack time-in-force encountered",
-                bp_tif=bp_tif,
-                mapped_to="GTC",
-            )
-            return TimeInForce.GTC  # Default to GTC instead of UNKNOWN
+        logger.warning(
+            "bp_account_mapper_unknown_tif",
+            action="map_tif_to_internal",
+            message="Unknown Backpack time-in-force encountered",
+            bp_tif=bp_tif,
+            mapped_to="GTC",
+        )
+        return TimeInForce.GTC  # Default to GTC instead of UNKNOWN
 
     @staticmethod
     def _map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
@@ -194,19 +192,18 @@ class BackpackAccountDataMapper:
         trigger_lower = trigger_by.lower()
         if trigger_lower in ("mark", "mark_price"):
             return TriggerType.MARK_PRICE
-        elif trigger_lower in ("last", "last_price"):
+        if trigger_lower in ("last", "last_price"):
             return TriggerType.LAST_PRICE
-        elif trigger_lower in ("index", "index_price"):
+        if trigger_lower in ("index", "index_price"):
             return TriggerType.INDEX_PRICE
-        else:
-            logger.warning(
-                "bp_account_mapper_unknown_trigger_by",
-                action="map_trigger_by_to_internal",
-                message="Unknown Backpack trigger_by value encountered",
-                trigger_by=trigger_by,
-                returning="None",
-            )
-            return None
+        logger.warning(
+            "bp_account_mapper_unknown_trigger_by",
+            action="map_trigger_by_to_internal",
+            message="Unknown Backpack trigger_by value encountered",
+            trigger_by=trigger_by,
+            returning="None",
+        )
+        return None
 
     @staticmethod
     def _map_transfer_status_to_internal(raw_status: str | None) -> InternalTransferStatus:
@@ -216,21 +213,20 @@ class BackpackAccountDataMapper:
         status_lower = raw_status.lower()
         if status_lower in ("success", "completed", "processed"):
             return InternalTransferStatus.COMPLETED
-        elif status_lower in ("pending", "processing"):
+        if status_lower in ("pending", "processing"):
             return InternalTransferStatus.PENDING
-        elif status_lower in ("failed", "failure", "rejected"):
+        if status_lower in ("failed", "failure", "rejected"):
             return InternalTransferStatus.FAILED
-        elif status_lower in ("cancelled", "canceled"):
+        if status_lower in ("cancelled", "canceled"):
             return InternalTransferStatus.REJECTED  # Map canceled to REJECTED
-        else:
-            logger.warning(
-                "bp_account_mapper_unknown_transfer_status",
-                action="map_transfer_status_to_internal",
-                message="Unknown Backpack transfer status encountered",
-                raw_status=raw_status,
-                mapped_to="UNKNOWN",
-            )
-            return InternalTransferStatus.UNKNOWN
+        logger.warning(
+            "bp_account_mapper_unknown_transfer_status",
+            action="map_transfer_status_to_internal",
+            message="Unknown Backpack transfer status encountered",
+            raw_status=raw_status,
+            mapped_to="UNKNOWN",
+        )
+        return InternalTransferStatus.UNKNOWN
 
     @staticmethod
     def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
@@ -263,7 +259,7 @@ class BackpackAccountDataMapper:
                 raise TransformationError("Price and quantity are required for trade")
 
             # Check if price or quantity is zero - Trade model requires positive values
-            if price <= Decimal("0") or quantity <= Decimal("0"):
+            if price <= Decimal(0) or quantity <= Decimal(0):
                 logger.warning(
                     f"Skipping trade {raw_fill.trade_id} with zero price ({price}) "
                     f"or quantity ({quantity})",
@@ -277,7 +273,7 @@ class BackpackAccountDataMapper:
 
             # Parse fee
             fee = parse_decimal_value(raw_fill.fee, allow_none=True, field_name="fee") or Decimal(
-                "0",
+                0,
             )
 
             # Create BP-specific details
@@ -479,8 +475,8 @@ class BackpackAccountDataMapper:
             realized_pnl_dec = parse_decimal_value(raw.pnl_realized)
 
             # Determine side
-            side = OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL
-            if size_dec == Decimal("0"):
+            side = OrderSide.BUY if size_dec > Decimal(0) else OrderSide.SELL
+            if size_dec == Decimal(0):
                 entry_price_dec = None
 
             timestamp = datetime.now(UTC)
@@ -550,10 +546,7 @@ class BackpackAccountDataMapper:
 
         """
         try:
-            internal_spot_balances = [
-                BackpackAccountDataMapper.transform_raw_balance_to_internal(symbol, bal_raw)
-                for symbol, bal_raw in spot_balances_raw.items()
-            ]
+            internal_spot_balances = list(starmap(BackpackAccountDataMapper.transform_raw_balance_to_internal, spot_balances_raw.items()))
             internal_derivative_positions = [
                 BackpackAccountDataMapper.transform_raw_position_to_internal(pos_raw)
                 for pos_raw in derivative_positions_raw
@@ -602,12 +595,12 @@ class BackpackAccountDataMapper:
                 "total_position_notional": str(
                     calculated_total_position_notional
                     if internal_derivative_positions
-                    else Decimal("0.0")
+                    else Decimal("0.0"),
                 ),
                 "total_unrealized_pnl": str(
                     calculated_total_unrealized_pnl
                     if internal_derivative_positions
-                    else Decimal("0.0")
+                    else Decimal("0.0"),
                 ),
                 "bp_details": bp_details.model_dump() if bp_details else None,
                 "hl_details": None,
@@ -651,7 +644,9 @@ class BackpackAccountDataMapper:
         try:
             # Parse core equity fields from collateral response
             total_equity = parse_decimal_value(
-                raw_collateral.net_equity, allow_none=False, field_name="net_equity"
+                raw_collateral.net_equity,
+                allow_none=False,
+                field_name="net_equity",
             )
             if total_equity is None:
                 raise TransformationError("net_equity missing/invalid in collateral response")
@@ -663,20 +658,22 @@ class BackpackAccountDataMapper:
             )
             if available_equity is None:
                 raise TransformationError(
-                    "net_equity_available missing/invalid in collateral response"
+                    "net_equity_available missing/invalid in collateral response",
                 )
 
             # Parse detailed collateral fields
             assets_value = parse_decimal_value(raw_collateral.assets_value, allow_none=True)
             liabilities_value = parse_decimal_value(
-                raw_collateral.liabilities_value, allow_none=True
+                raw_collateral.liabilities_value,
+                allow_none=True,
             )
             locked_equity = parse_decimal_value(raw_collateral.net_equity_locked, allow_none=True)
             borrow_liability = parse_decimal_value(raw_collateral.borrow_liability, allow_none=True)
             unsettled_equity = parse_decimal_value(raw_collateral.unsettled_equity, allow_none=True)
             margin_fraction = parse_decimal_value(raw_collateral.margin_fraction, allow_none=True)
             net_exposure_futures = parse_decimal_value(
-                raw_collateral.net_exposure_futures, allow_none=True
+                raw_collateral.net_exposure_futures,
+                allow_none=True,
             )
 
             # Parse margin factors
@@ -685,7 +682,8 @@ class BackpackAccountDataMapper:
 
             # Parse unrealized PnL
             total_unrealized_pnl = parse_decimal_value(
-                raw_collateral.pnl_unrealized, allow_none=True
+                raw_collateral.pnl_unrealized,
+                allow_none=True,
             )
 
             # Transform derivative positions
@@ -1151,7 +1149,7 @@ class BackpackAccountDataMapper:
                 else None,
                 "trigger_by": trigger_by_value,
                 "time_in_force": BackpackAccountDataMapper._map_tif_to_internal(
-                    raw.timeInForce
+                    raw.timeInForce,
                 ).value,
                 "reduce_only": raw.reduceOnly or False,
                 "post_only": raw.postOnly or False,
@@ -1247,9 +1245,9 @@ class BackpackAccountDataMapper:
             # DEFENSIVE CHECK: Ensure size_dec is not None after parsing.
             # Mypy=[unreachable] Ruff=[unreachable]
             if size_dec is None:
-                size_dec = Decimal("0")
+                size_dec = Decimal(0)
         else:
-            size_dec = Decimal("0")
+            size_dec = Decimal(0)
         return size_dec
 
     @staticmethod
@@ -1345,9 +1343,9 @@ class BackpackAccountDataMapper:
             )
 
             # Determine side
-            side = OrderSide.BUY if size_dec > Decimal("0") else OrderSide.SELL
+            side = OrderSide.BUY if size_dec > Decimal(0) else OrderSide.SELL
             entry_price_dec = prices["entry_price"]
-            if size_dec == Decimal("0"):
+            if size_dec == Decimal(0):
                 entry_price_dec = None
 
             # SECURITY FIX: Use secure_transform instead of direct instantiation

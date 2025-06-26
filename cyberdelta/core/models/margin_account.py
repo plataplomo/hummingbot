@@ -52,12 +52,12 @@ class MarginAccountSummary(BaseModel):
     # --- Core Required Fields ---
     exchange: str
     timestamp: datetime
-    total_equity: Decimal = Field(ge=Decimal("0"))
-    available_equity: Decimal = Field(ge=Decimal("0"))
+    total_equity: Decimal = Field(ge=Decimal(0))
+    available_equity: Decimal = Field(ge=Decimal(0))
     # --- Core Optional Fields ---
-    total_initial_margin_required: Decimal | None = Field(default=None, ge=Decimal("0"))
-    total_maintenance_margin_required: Decimal | None = Field(default=None, ge=Decimal("0"))
-    total_position_notional: Decimal | None = Field(default=None, ge=Decimal("0"))
+    total_initial_margin_required: Decimal | None = Field(default=None, ge=Decimal(0))
+    total_maintenance_margin_required: Decimal | None = Field(default=None, ge=Decimal(0))
+    total_position_notional: Decimal | None = Field(default=None, ge=Decimal(0))
     total_unrealized_pnl: Decimal | None = None  # Can be negative
     # --- Extension Slots ---
     hl_details: HyperliquidMarginDetails | None = Field(default=None)
@@ -80,7 +80,7 @@ class MarginAccountSummary(BaseModel):
     @classmethod
     def parse_required_datetime_utc(
         cls,
-        v: str | int | float | datetime,
+        v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC."""
@@ -100,7 +100,7 @@ class MarginAccountSummary(BaseModel):
     @classmethod
     def parse_required_decimal_finite_non_negative(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative."""
@@ -127,7 +127,7 @@ class MarginAccountSummary(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimals, allowing None but ensuring finite if present."""
@@ -160,8 +160,8 @@ class MarginAccountSummary(BaseModel):
 class HyperliquidMarginDetails(BaseModel):
     """Immutable exchange-specific details for a Hyperliquid margin account summary."""
 
-    cross_maintenance_margin_used: Decimal = Field(ge=Decimal("0"))
-    isolated_maintenance_margin_used: Decimal = Field(ge=Decimal("0"))
+    cross_maintenance_margin_used: Decimal = Field(ge=Decimal(0))
+    isolated_maintenance_margin_used: Decimal = Field(ge=Decimal(0))
 
     # Config: Immutable, ignore extra fields during creation
     model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
@@ -174,7 +174,7 @@ class HyperliquidMarginDetails(BaseModel):
     @classmethod
     def parse_required_decimal_finite_non_negative(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative."""
@@ -206,53 +206,64 @@ class BackpackMarginDetails(BaseModel):
 
     # Enhanced equity breakdown (from OpenAPI MarginAccountSummary)
     assets_value: Decimal | None = Field(
-        default=None, ge=Decimal("0"), description="Total value of all assets (assetsValue)"
+        default=None,
+        ge=Decimal(0),
+        description="Total value of all assets (assetsValue)",
     )
     liabilities_value: Decimal | None = Field(
         default=None,
-        ge=Decimal("0"),
+        ge=Decimal(0),
         description="Total value of all liabilities (liabilitiesValue)",
     )
     locked_equity: Decimal | None = Field(
         default=None,
-        ge=Decimal("0"),
+        ge=Decimal(0),
         description="Equity locked in orders/positions (netEquityLocked)",
     )
     borrow_liability: Decimal | None = Field(
         default=None,
-        ge=Decimal("0"),
+        ge=Decimal(0),
         description="Total borrowed amount liability (borrowLiability)",
     )
     unsettled_equity: Decimal | None = Field(
-        default=None, description="Equity pending settlement (unsettledEquity)"
+        default=None,
+        description="Equity pending settlement (unsettledEquity)",
     )
 
     # Risk metrics (from OpenAPI MarginAccountSummary)
     margin_fraction: Decimal | None = Field(
         default=None,
-        ge=Decimal("0"),
+        ge=Decimal(0),
         description="Current margin utilization fraction (marginFraction, nullable)",
     )
     net_exposure_futures: Decimal | None = Field(
-        default=None, description="Net futures/perp exposure notional (netExposureFutures)"
+        default=None,
+        description="Net futures/perp exposure notional (netExposureFutures)",
     )
 
     # Raw margin factors for debugging (from OpenAPI)
     imf_raw: str | None = Field(
-        default=None, description="Raw Initial Margin Fraction string from API (imf)"
+        default=None,
+        description="Raw Initial Margin Fraction string from API (imf)",
     )
     mmf_raw: str | None = Field(
-        default=None, description="Raw Maintenance Margin Fraction string from API (mmf)"
+        default=None,
+        description="Raw Maintenance Margin Fraction string from API (mmf)",
     )
 
     # Account configuration
     leverage_limit: Decimal | None = Field(
-        default=None, gt=Decimal("0"), description="Account leverage limit (leverageLimit)"
+        default=None,
+        gt=Decimal(0),
+        description="Account leverage limit (leverageLimit)",
     )
 
     # Subaccount information (from OpenAPI support)
     subaccount_id: int | None = Field(
-        default=None, ge=0, le=65535, description="Subaccount ID used for this data (uint16)"
+        default=None,
+        ge=0,
+        le=65535,
+        description="Subaccount ID used for this data (uint16)",
     )
 
     # Per-asset collateral breakdown (from OpenAPI Collateral array)
@@ -289,7 +300,7 @@ class BackpackMarginDetails(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if present."""

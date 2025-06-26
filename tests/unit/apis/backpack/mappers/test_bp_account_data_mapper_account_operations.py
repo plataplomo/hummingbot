@@ -63,7 +63,7 @@ def create_raw_transfer_response(
     return cast("RawJsonResponse", response)
 
 
-def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> dict[str, Any]:
+def _create_base_withdrawal_data(**kwargs: str | float | bool | None) -> dict[str, Any]:
     """Create base withdrawal data dictionary."""
     defaults: dict[str, Any] = {
         "id": 123,
@@ -102,7 +102,8 @@ def _create_base_withdrawal_data(**kwargs: str | int | float | bool | None) -> d
 
 
 def _add_optional_withdrawal_fields(
-    data: dict[str, Any], **optional_fields: str | int | float | bool | None
+    data: dict[str, Any],
+    **optional_fields: str | float | bool | None,
 ) -> dict[str, Any]:
     """Add optional fields to withdrawal data if they are not None."""
     for key, value in optional_fields.items():
@@ -112,7 +113,7 @@ def _add_optional_withdrawal_fields(
 
 
 def create_raw_withdrawal_response(
-    **kwargs: str | int | float | bool | None,
+    **kwargs: str | float | bool | None,
 ) -> BackpackRawWithdrawalResponse:
     """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations."""
     # Create base data with defaults

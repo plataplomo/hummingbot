@@ -89,7 +89,7 @@ class HyperliquidRawReferrerData(BaseModel):
             raise ValueError("referral_states: Expected list")
         # Pydantic will validate each item in the list against HyperliquidRawReferralState.
         # The old check for `isinstance(item, dict)` is thus handled by Pydantic's parsing.
-        return cast(list[object], v)
+        return cast("list[object]", v)
 
 
 class HyperliquidRawReferrerState(BaseModel):
@@ -146,4 +146,4 @@ class HyperliquidRawReferralResponse(BaseModel):
         if not isinstance(v, list):
             raise ValueError("reward_history: Expected list")
         # Could add item validation if structure becomes known
-        return cast(list[object], v)
+        return cast("list[object]", v)

@@ -61,7 +61,7 @@ class APIErrorResponse(BaseModel):
 
     @field_validator("code", mode="before")
     @classmethod
-    def validate_code(cls, raw_code: str | int | float | None) -> int | str:
+    def validate_code(cls, raw_code: str | float | None) -> int | str:
         """Ensure 'code' is an int if possible, otherwise leave as str.
 
         Args:

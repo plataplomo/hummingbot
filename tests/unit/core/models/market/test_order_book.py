@@ -141,7 +141,7 @@ class TestOrderBook:
         now = datetime.now(UTC)
         valid_level_raw = ("10.0", "1.5")  # Use strings to test parsing
         valid_level_parsed = (Decimal("10.0"), Decimal("1.5"))
-        zero_qty_level = (Decimal("10"), Decimal("0"))  # Zero quantity is valid
+        zero_qty_level = (Decimal(10), Decimal(0))  # Zero quantity is valid
 
         # --- Test Top-Level Structure ---
         with pytest.raises(TypeError, match="bids must be a list"):
@@ -245,7 +245,7 @@ class TestOrderBook:
 
         # Valid list with mixed types
         mixed_bids_raw: Any = [("10.1", 1), (Decimal("9.9"), "0.5")]
-        mixed_bids_expected = [(Decimal("10.1"), Decimal("1")), (Decimal("9.9"), Decimal("0.5"))]
+        mixed_bids_expected = [(Decimal("10.1"), Decimal(1)), (Decimal("9.9"), Decimal("0.5"))]
         # Ignore arg-type because testing validator's mixed raw input handling
         # Mypy doesn't flag an error here (likely due to Any type hint on raw list)
         # No ignore needed: Mypy accepts Any here, Pyright infers correctly due to validator.
@@ -277,7 +277,7 @@ class TestOrderBook:
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ob.timestamp = now + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ob.bids = [(Decimal("1"), Decimal("1"))]
+            ob.bids = [(Decimal(1), Decimal(1))]
 
         # Setting NEW attributes on a frozen model also raises ValidationError
         with pytest.raises(ValidationError, match="Instance is frozen"):

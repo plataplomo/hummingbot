@@ -37,7 +37,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/orders/zero"],
+    indirect=True,
 )
 class TestHyperliquidPerpOrdersZeroDynamic:
     """Dynamic integration tests for zero balance accounts using test helpers.
@@ -60,7 +62,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Detect account state using dynamic helpers
         account_state = await HyperliquidTestHelpers.detect_account_state(
-            hl_api_for_zero_balance_test
+            hl_api_for_zero_balance_test,
         )
 
         # Validate account state detection for zero balance
@@ -71,7 +73,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # For zero balance account, these should be false/minimal
         assert account_state["has_balance"] is False or account_state["total_equity"] < Decimal(
-            "1"
+            1,
         ), "Zero balance account should have minimal equity"
         assert account_state["can_trade"] is False, (
             "Zero balance account should not be able to trade"
@@ -91,22 +93,26 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]  # First available symbol
 
         # Get minimal order size using zero balance helpers
         minimal_quantity = await get_minimal_test_quantity_for_zero_balance(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Should return exchange minimum since account can't afford more
         assert isinstance(minimal_quantity, Decimal), "Quantity should be Decimal"
-        assert minimal_quantity > Decimal("0"), "Minimal quantity should be positive"
+        assert minimal_quantity > Decimal(0), "Minimal quantity should be positive"
 
         # Get market constraints for comparison
         constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # For zero balance, should return market minimum
@@ -129,28 +135,33 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Get safe test price using dynamic helpers
         test_price = await get_safe_test_price(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05")
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.05"),
         )
 
         # Price calculation should work regardless of balance
         assert isinstance(test_price, Decimal), "Price should be Decimal"
-        assert test_price > Decimal("0"), "Price should be positive"
+        assert test_price > Decimal(0), "Price should be positive"
 
         # Get current market price for comparison
         market_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # For BUY order, test price should be below market (using 5% tolerance)
         # The actual price should be close to the expected 5% below market
         expected_price = market_price * Decimal("0.95")  # 5% below market
-        price_difference_percent = abs(test_price - expected_price) / market_price * Decimal("100")
+        price_difference_percent = abs(test_price - expected_price) / market_price * Decimal(100)
 
         # Allow some flexibility due to tick size rounding (within 6% tolerance)
         assert test_price < market_price, (
@@ -175,16 +186,22 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Get dynamic test parameters
         test_price = await get_safe_test_price(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05")
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.05"),
         )
         test_quantity = await get_minimal_test_quantity_for_zero_balance(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Create order args with dynamic parameters
@@ -214,7 +231,10 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # Check that our dynamic helpers created valid parameters
         is_valid = await HyperliquidTestHelpers.validate_order_constraints(
-            hl_api_for_zero_balance_test, test_symbol, test_quantity, test_price
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            test_quantity,
+            test_price,
         )
         assert is_valid, "Dynamic helpers should create valid order parameters"
 
@@ -232,7 +252,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get margin parameters using dynamic helpers
         margin_params = await HyperliquidTestHelpers.get_account_margin_parameters(
-            hl_api_for_zero_balance_test
+            hl_api_for_zero_balance_test,
         )
 
         # Validate margin parameter structure
@@ -240,7 +260,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         for key in expected_keys:
             assert key in margin_params, f"Margin params should include {key}"
             assert isinstance(margin_params[key], Decimal), f"{key} should be Decimal"
-            assert margin_params[key] >= Decimal("0"), f"{key} should be non-negative"
+            assert margin_params[key] >= Decimal(0), f"{key} should be non-negative"
 
         # Validate leverage relationships
         assert margin_params["leverage"] <= margin_params["max_leverage"], (
@@ -264,13 +284,15 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Calculate maximum position size
         max_position = await HyperliquidTestHelpers.calculate_maximum_position_size(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # Validate result structure
@@ -279,10 +301,10 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         assert "max_notional" in max_position, "Should include max_notional"
 
         # For zero balance, should be zero or minimal
-        assert max_position["max_quantity"] == Decimal("0"), (
+        assert max_position["max_quantity"] == Decimal(0), (
             f"Zero balance should have zero max position: {max_position['max_quantity']}"
         )
-        assert max_position["max_notional"] == Decimal("0"), (
+        assert max_position["max_notional"] == Decimal(0), (
             f"Zero balance should have zero max notional: {max_position['max_notional']}"
         )
 
@@ -300,13 +322,15 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Get market constraints
         constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # Market constraints should be available regardless of balance
@@ -314,7 +338,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         for key in expected_keys:
             assert key in constraints, f"Constraints should include {key}"
             assert isinstance(constraints[key], Decimal), f"{key} should be Decimal"
-            assert constraints[key] > Decimal("0"), f"{key} should be positive"
+            assert constraints[key] > Decimal(0), f"{key} should be positive"
 
         # Validate constraint relationships
         assert constraints["tick_size"] <= constraints["step_size"] or (
@@ -338,24 +362,29 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Get unreasonably large values
         large_price = await HyperliquidTestHelpers.get_unreasonably_large_price(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
         large_quantity = await HyperliquidTestHelpers.get_unreasonably_large_quantity(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # Validate unreasonable values
         market_price = await HyperliquidTestHelpers.get_current_market_price(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
         constraints = await HyperliquidTestHelpers.get_market_constraints(
-            hl_api_for_zero_balance_test, test_symbol
+            hl_api_for_zero_balance_test,
+            test_symbol,
         )
 
         # Large price should be significantly above market (at least 50% higher)
@@ -384,21 +413,30 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         """
         # Get available symbols dynamically from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_zero_balance_test, limit=1
+            hl_api_for_zero_balance_test,
+            limit=1,
         )
         test_symbol = available_symbols[0]
 
         # Get dynamic parameters
         valid_price = await get_safe_test_price(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY, tolerance=Decimal("0.05")
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
+            tolerance=Decimal("0.05"),
         )
         valid_quantity = await get_minimal_test_quantity_for_zero_balance(
-            hl_api_for_zero_balance_test, test_symbol, OrderSide.BUY
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            OrderSide.BUY,
         )
 
         # Test validation with valid parameters
         is_valid = await HyperliquidTestHelpers.validate_order_constraints(
-            hl_api_for_zero_balance_test, test_symbol, valid_quantity, valid_price
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            valid_quantity,
+            valid_price,
         )
         assert is_valid, "Dynamically generated parameters should be valid"
 
@@ -407,11 +445,17 @@ class TestHyperliquidPerpOrdersZeroDynamic:
         invalid_price = Decimal("0.0000001")  # Too small
 
         is_invalid_qty = await HyperliquidTestHelpers.validate_order_constraints(
-            hl_api_for_zero_balance_test, test_symbol, invalid_quantity, valid_price
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            invalid_quantity,
+            valid_price,
         )
         assert not is_invalid_qty, "Invalid quantity should fail validation"
 
         is_invalid_price = await HyperliquidTestHelpers.validate_order_constraints(
-            hl_api_for_zero_balance_test, test_symbol, valid_quantity, invalid_price
+            hl_api_for_zero_balance_test,
+            test_symbol,
+            valid_quantity,
+            invalid_price,
         )
         assert not is_invalid_price, "Invalid price should fail validation"

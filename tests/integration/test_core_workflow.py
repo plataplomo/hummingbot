@@ -75,9 +75,7 @@ def create_mock_funding_rate(
     # Convert rate to Decimal, ensuring string conversion for floats/others
     # Convert next_time to integer timestamp (milliseconds)
     # next_funding_timestamp = int(next_time.timestamp() * 1000) # FundingRate expects datetime
-    processed_rate = (
-        Decimal(str(rate)) if rate is not None else Decimal("0")
-    )  # Handle None for rate
+    processed_rate = Decimal(str(rate)) if rate is not None else Decimal(0)  # Handle None for rate
     return FundingRate(
         symbol=symbol,
         funding_rate=processed_rate,
@@ -96,9 +94,9 @@ def create_mock_ticker(
     timestamp: datetime,
 ) -> Ticker:
     """Create mock ticker for testing."""
-    processed_bid = Decimal(str(bid)) if bid is not None else Decimal("0")
-    processed_ask = Decimal(str(ask)) if ask is not None else Decimal("0")
-    processed_price = Decimal(str(price)) if price is not None else Decimal("0")
+    processed_bid = Decimal(str(bid)) if bid is not None else Decimal(0)
+    processed_ask = Decimal(str(ask)) if ask is not None else Decimal(0)
+    processed_price = Decimal(str(price)) if price is not None else Decimal(0)
     return Ticker(
         symbol=symbol,
         bid=processed_bid,
@@ -120,15 +118,15 @@ def create_mock_orderbook(
     """Create mock orderbook for testing."""
     processed_bids = [
         (
-            Decimal(str(p)) if p is not None else Decimal("0"),
-            Decimal(str(q)) if q is not None else Decimal("0"),
+            Decimal(str(p)) if p is not None else Decimal(0),
+            Decimal(str(q)) if q is not None else Decimal(0),
         )
         for p, q in bids
     ]
     processed_asks = [
         (
-            Decimal(str(p)) if p is not None else Decimal("0"),
-            Decimal(str(q)) if q is not None else Decimal("0"),
+            Decimal(str(p)) if p is not None else Decimal(0),
+            Decimal(str(q)) if q is not None else Decimal(0),
         )
         for p, q in asks
     ]
@@ -965,10 +963,9 @@ def _setup_bp_mock_behaviors(
 
         if call_counts["place"] == 1 and side == OrderSide.BUY:
             return orders["initial"]
-        elif call_counts["place"] == 2 and side == OrderSide.SELL:
+        if call_counts["place"] == 2 and side == OrderSide.SELL:
             return orders["compensation"]
-        else:
-            raise MockAPIError(f"Unexpected BP place_order call {call_counts['place']}")
+        raise MockAPIError(f"Unexpected BP place_order call {call_counts['place']}")
 
     async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -976,11 +973,10 @@ def _setup_bp_mock_behaviors(
 
         if order_id == order_ids["bp_long"]:
             return orders["initial"]
-        elif order_id == order_ids["bp_comp"]:
+        if order_id == order_ids["bp_comp"]:
             return orders["compensation"]
-        else:
-            logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
-            return None
+        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+        return None
 
     mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
     mocker.patch.object(mock_api, "get_order_status", side_effect=get_order_status_side_effect)
@@ -1049,8 +1045,7 @@ def _setup_hl_partial_fill_behaviors(
 
         if hl_call_counts["place"] == 1 and side == OrderSide.SELL:
             return hl_orders["initial"]
-        else:
-            raise MockAPIError(f"Unexpected HL place_order call {hl_call_counts['place']}")
+        raise MockAPIError(f"Unexpected HL place_order call {hl_call_counts['place']}")
 
     async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -1058,11 +1053,10 @@ def _setup_hl_partial_fill_behaviors(
 
         if order_id == order_ids["hl_short"]:
             return hl_orders["initial"]
-        elif order_id == order_ids["hl_comp"]:
+        if order_id == order_ids["hl_comp"]:
             return hl_orders["compensation"]
-        else:
-            logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
-            return None
+        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+        return None
 
     mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect)
     mocker.patch.object(mock_hl_api, "get_order_status", side_effect=get_order_status_side_effect)
@@ -1490,16 +1484,15 @@ def _setup_bp_compensation_mock_behaviors(
         if call_counts["place"] == 1 and side == OrderSide.BUY:
             logger.debug("MOCK BP place_order: Returning successful initial long order.")
             return initial_order
-        elif call_counts["place"] == 2 and side == OrderSide.SELL:
+        if call_counts["place"] == 2 and side == OrderSide.SELL:
             logger.debug("MOCK BP place_order: Returning successful compensation sell order.")
             return compensation_order
-        else:
-            logger.error(
-                f"MOCK BP place_order: Unexpected call {call_counts['place']} with side {side}",
-            )
-            raise MockAPIError(
-                f"Unexpected BP place_order call {call_counts['place']} with side {side}",
-            )
+        logger.error(
+            f"MOCK BP place_order: Unexpected call {call_counts['place']} with side {side}",
+        )
+        raise MockAPIError(
+            f"Unexpected BP place_order call {call_counts['place']} with side {side}",
+        )
 
     async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -1508,12 +1501,11 @@ def _setup_bp_compensation_mock_behaviors(
         if order_id == long_order_id:
             logger.debug("MOCK BP get_order_status: Returning status for initial long order.")
             return initial_order
-        elif order_id == comp_order_id:
+        if order_id == comp_order_id:
             logger.debug("MOCK BP get_order_status: Returning status for compensation order.")
             return compensation_order
-        else:
-            logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
-            return None
+        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+        return None
 
     if not hasattr(mock_api.place_order, "call_args_list"):
         mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
@@ -1589,13 +1581,12 @@ def _setup_hl_compensation_mock_behaviors(
         if call_counts["place"] == 1 and side == OrderSide.SELL:
             logger.debug("MOCK HL place_order: Raising simulated API error.")
             raise api_error
-        else:
-            logger.error(
-                f"MOCK HL place_order: Unexpected call {call_counts['place']} with side {side}",
-            )
-            raise MockAPIError(
-                f"Unexpected HL place_order call {call_counts['place']} with side {side}",
-            )
+        logger.error(
+            f"MOCK HL place_order: Unexpected call {call_counts['place']} with side {side}",
+        )
+        raise MockAPIError(
+            f"Unexpected HL place_order call {call_counts['place']} with side {side}",
+        )
 
     async def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
@@ -1604,14 +1595,13 @@ def _setup_hl_compensation_mock_behaviors(
         if order_id == order_ids["hl_short"]:
             logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
             return orders["initial"]
-        elif order_id == order_ids["hl_comp"]:
+        if order_id == order_ids["hl_comp"]:
             logger.debug(
                 f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}",
             )
             return orders["compensation"]
-        else:
-            logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
-            return None
+        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+        return None
 
     if not hasattr(mock_api.place_order, "call_args_list"):
         mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
@@ -1746,15 +1736,15 @@ async def test_execution_failure_compensation(
     # Configure initial balances
     initial_hl_balance = SpotBalance(
         asset="USD",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         exchange="hyperliquid",
         timestamp=now,
     )
     initial_bp_balance = SpotBalance(
         asset="USDC",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         exchange="backpack",
         timestamp=now,
     )
@@ -2004,15 +1994,15 @@ async def test_failed_execution(
     # Initial Balances
     initial_hl_balance = SpotBalance(
         asset="USD",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         exchange="hyperliquid",
         timestamp=now,
     )
     initial_bp_balance = SpotBalance(
         asset="USDC",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         exchange="backpack",
         timestamp=now,
     )

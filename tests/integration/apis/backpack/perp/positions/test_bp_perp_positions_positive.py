@@ -53,7 +53,8 @@ pytestmark = [
 
 
 async def create_test_perp_position(
-    api: BackpackAPI, symbol: str = "SOL_USDC_PERP"
+    api: BackpackAPI,
+    symbol: str = "SOL_USDC_PERP",
 ) -> tuple[str, Decimal]:
     """Create a small test position and return order ID and quantity."""
     try:
@@ -100,8 +101,7 @@ async def create_test_perp_position(
             )
 
             return order.exchange_order_id, min_quantity
-        else:
-            raise ValueError("Order placed but no order ID returned")
+        raise ValueError("Order placed but no order ID returned")
 
     except Exception as e:
         logger.error(f"Failed to create test position: {e}")
@@ -109,7 +109,9 @@ async def create_test_perp_position(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/perp/positions/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/perp/positions/positive"],
+    indirect=True,
 )
 class TestBackpackPerpPositionsPrivate:
     """Private positions integration tests for DerivativePosition model validation."""
@@ -140,14 +142,17 @@ class TestBackpackPerpPositionsPrivate:
         assert isinstance(position.realized_pnl, Decimal)
 
     async def _validate_position_prices(
-        self, position: DerivativePosition, api: BackpackAPI, index: int
+        self,
+        position: DerivativePosition,
+        api: BackpackAPI,
+        index: int,
     ) -> None:
         """Validate price fields and relationships of a DerivativePosition."""
-        if position.size != Decimal("0"):
+        if position.size != Decimal(0):
             if position.entry_price is not None:
-                assert position.entry_price > Decimal("0")
+                assert position.entry_price > Decimal(0)
             if position.mark_price is not None:
-                assert position.mark_price > Decimal("0")
+                assert position.mark_price > Decimal(0)
 
         size_precision = len(str(position.size).split(".")[-1]) if "." in str(position.size) else 0
         assert size_precision <= 18
@@ -167,11 +172,12 @@ class TestBackpackPerpPositionsPrivate:
 
             # Validate entry price is within reasonable bounds relative to tick size
             # (e.g., not wildly off due to parsing errors, but allow natural precision variance)
-            if tick_size > Decimal("0"):
+            if tick_size > Decimal(0):
                 # Entry price should be at least somewhat close to a valid tick increment
                 # Allow for averaging effects but catch major parsing/calculation errors
                 normalized_price = (position.entry_price / tick_size).quantize(
-                    Decimal("1"), rounding=ROUND_HALF_UP
+                    Decimal(1),
+                    rounding=ROUND_HALF_UP,
                 ) * tick_size
                 price_deviation = abs(position.entry_price - normalized_price)
                 max_deviation = tick_size  # Allow up to 1 tick size deviation
@@ -212,7 +218,7 @@ class TestBackpackPerpPositionsPrivate:
                 pytest.fail(
                     f"Failed to create test position: {e}. "
                     "Position tests require the ability to create positions. "
-                    "This may indicate insufficient margin or API issues that must be resolved."
+                    "This may indicate insufficient margin or API issues that must be resolved.",
                 )
 
         # Validate positions if we have any
@@ -228,11 +234,11 @@ class TestBackpackPerpPositionsPrivate:
                 bp_details = position.bp_details
                 if bp_details.imf_base is not None:
                     assert isinstance(bp_details.imf_base, Decimal)
-                    assert bp_details.imf_base >= Decimal("0")
+                    assert bp_details.imf_base >= Decimal(0)
 
                 if bp_details.mmf_base is not None:
                     assert isinstance(bp_details.mmf_base, Decimal)
-                    assert bp_details.mmf_base >= Decimal("0")
+                    assert bp_details.mmf_base >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -278,27 +284,28 @@ class TestBackpackPerpPositionsPrivate:
     def _validate_profitable_long_position(self, position: DerivativePosition) -> None:
         """Validate profitable long position PnL."""
         if (
-            position.size > Decimal("0")
+            position.size > Decimal(0)
             and position.mark_price is not None
             and position.entry_price is not None
             and position.mark_price > position.entry_price
             and position.unrealized_pnl is not None
         ):
-            assert position.unrealized_pnl >= Decimal("0")
+            assert position.unrealized_pnl >= Decimal(0)
 
     def _validate_profitable_short_position(self, position: DerivativePosition) -> None:
         """Validate profitable short position PnL."""
         if (
-            position.size < Decimal("0")
+            position.size < Decimal(0)
             and position.mark_price is not None
             and position.entry_price is not None
             and position.mark_price < position.entry_price
             and position.unrealized_pnl is not None
         ):
-            assert position.unrealized_pnl >= Decimal("0")
+            assert position.unrealized_pnl >= Decimal(0)
 
     async def _ensure_test_positions(
-        self, bp_api_for_test_env: BackpackAPI
+        self,
+        bp_api_for_test_env: BackpackAPI,
     ) -> list[DerivativePosition]:
         """Ensure we have positions for testing, creating if necessary."""
         positions = await bp_api_for_test_env.get_positions()
@@ -312,7 +319,7 @@ class TestBackpackPerpPositionsPrivate:
                 # PnL calculation is critical for trading
                 pytest.fail(
                     f"Failed to test PnL calculation: {e}. "
-                    "PnL calculation is a critical trading function that must work reliably."
+                    "PnL calculation is a critical trading function that must work reliably.",
                 )
 
         if not positions:
@@ -331,7 +338,7 @@ class TestBackpackPerpPositionsPrivate:
         positions = await self._ensure_test_positions(bp_api_for_test_env)
 
         for position in positions:
-            if position.size != Decimal("0"):
+            if position.size != Decimal(0):
                 self._validate_pnl_fields(position)
                 self._validate_profitable_long_position(position)
                 self._validate_profitable_short_position(position)
@@ -357,24 +364,24 @@ class TestBackpackPerpPositionsPrivate:
                 # Margin calculation is critical for trading
                 pytest.fail(
                     f"Failed to test margin calculation: {e}. "
-                    "Margin calculation is a critical trading function that must work reliably."
+                    "Margin calculation is a critical trading function that must work reliably.",
                 )
 
         if not positions:
             pytest.skip("No positions available for margin testing")
 
         for position in positions:
-            if position.bp_details and position.size != Decimal("0"):
+            if position.bp_details and position.size != Decimal(0):
                 bp_details = position.bp_details
 
                 if bp_details.imf_base is not None and bp_details.mmf_base is not None:
                     assert bp_details.imf_base >= bp_details.mmf_base
 
                 if bp_details.imf_factor is not None:
-                    assert bp_details.imf_factor >= Decimal("0")
+                    assert bp_details.imf_factor >= Decimal(0)
 
                 if bp_details.mmf_factor is not None:
-                    assert bp_details.mmf_factor >= Decimal("0")
+                    assert bp_details.mmf_factor >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -399,8 +406,7 @@ class TestBackpackPerpPositionsPrivate:
             if isinstance(result, Exception):
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, list)
                 successful_results.append(result)
@@ -413,7 +419,7 @@ class TestBackpackPerpPositionsPrivate:
                 assert len(first_result) == len(result)
 
                 for _, (first_pos, second_pos) in enumerate(
-                    zip(first_result, result, strict=False)
+                    zip(first_result, result, strict=False),
                 ):
                     assert first_pos.symbol == second_pos.symbol
                     size_diff = abs(first_pos.size - second_pos.size)

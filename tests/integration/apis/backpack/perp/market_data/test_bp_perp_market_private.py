@@ -22,7 +22,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp]
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/perp/market_data/private"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/perp/market_data/private"],
+    indirect=True,
 )
 class TestBackpackPerpMarketPrivate:
     """Integration tests for Perpetual Market model pipeline with authenticated context."""
@@ -47,14 +49,14 @@ class TestBackpackPerpMarketPrivate:
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
         )
-        assert market.tick_size > Decimal("0"), (
+        assert market.tick_size > Decimal(0), (
             f"tick_size should be positive, got {market.tick_size}"
         )
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal, got {type(market.step_size)}"
         )
-        assert market.step_size > Decimal("0"), (
+        assert market.step_size > Decimal(0), (
             f"step_size should be positive, got {market.step_size}"
         )
 
@@ -130,7 +132,8 @@ class TestBackpackPerpMarketPrivate:
                 )
 
                 assert market.bp_details is None or hasattr(
-                    market.bp_details, "order_book_state"
+                    market.bp_details,
+                    "order_book_state",
                 ), f"bp_details structure should be consistent for {symbol}"
 
             except APIError as e:

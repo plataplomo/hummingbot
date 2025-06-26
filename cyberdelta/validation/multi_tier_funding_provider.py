@@ -27,8 +27,6 @@ logger = get_logger(__name__)
 class FundingRateSourceError(Exception):
     """Exception raised when a funding rate source fails."""
 
-    pass
-
 
 class FundingRateValidatorProtocol(Protocol):
     """Protocol for funding rate validator."""
@@ -89,10 +87,10 @@ class MultiTierFundingProvider:
 
         # Ensure weights is a proper dict for validation methods
         if weights:
-            weights_casted = cast(dict[str, Any], weights)
+            weights_casted = cast("dict[str, Any]", weights)
             weights_typed = dict(weights_casted)
         else:
-            weights_typed = cast(dict[str, Any], {})
+            weights_typed = cast("dict[str, Any]", {})
 
         self.historical_accuracy_weight = self._validate_float_config(
             weights_typed,
@@ -129,7 +127,7 @@ class MultiTierFundingProvider:
             thresholds = {}
 
         # Cast to proper type for validation methods
-        thresholds_typed = cast(dict[str, Any], thresholds)
+        thresholds_typed = cast("dict[str, Any]", thresholds)
 
         self.min_confidence_score = self._validate_float_config(
             thresholds_typed,
@@ -234,26 +232,25 @@ class MultiTierFundingProvider:
                     message=f"Using fresh cached funding rate for {exchange}:{symbol}",
                 )
                 return cached_data.rate, cached_data.confidence_score
-            else:
-                # Adjust confidence for stale data
-                decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 2)))
-                adjusted_confidence = Decimal(str(cached_data.confidence_score)) * Decimal(
-                    str(decay_factor),
-                )
-                logger.info(
-                    "using_stale_cached_funding_rate",
-                    exchange=exchange,
-                    symbol=symbol,
-                    age=age,
-                    confidence=float(adjusted_confidence),
-                    action="stale_cache_hit",
-                    message=(
-                        f"Using stale cached funding rate for "
-                        f"{exchange}:{symbol} with age {age:.0f}s, confidence reduced to "
-                        f"{adjusted_confidence:.2f}"
-                    ),
-                )
-                return cached_data.rate, float(adjusted_confidence)
+            # Adjust confidence for stale data
+            decay_factor = max(0, 1 - (age / (self.max_acceptable_age * 2)))
+            adjusted_confidence = Decimal(str(cached_data.confidence_score)) * Decimal(
+                str(decay_factor),
+            )
+            logger.info(
+                "using_stale_cached_funding_rate",
+                exchange=exchange,
+                symbol=symbol,
+                age=age,
+                confidence=float(adjusted_confidence),
+                action="stale_cache_hit",
+                message=(
+                    f"Using stale cached funding rate for "
+                    f"{exchange}:{symbol} with age {age:.0f}s, confidence reduced to "
+                    f"{adjusted_confidence:.2f}"
+                ),
+            )
+            return cached_data.rate, float(adjusted_confidence)
 
         # Try primary source
         try:
@@ -653,14 +650,14 @@ class MultiTierFundingProvider:
         for source_type, source_data in sources_to_process:
             if source_data is not None:
                 available_sources_data[source_type] = source_data  # Store by type
-                base_weight = base_weights.get(source_type, Decimal("0"))
+                base_weight = base_weights.get(source_type, Decimal(0))
                 reliability_mult = reliability_multipliers.get(
                     source_data.source_reliability,
                     Decimal("0.1"),  # Default to low reliability if enum unknown
                 )
                 actual_weight = base_weight * reliability_mult
 
-                if actual_weight > Decimal("0"):  # Only include sources with positive weight
+                if actual_weight > Decimal(0):  # Only include sources with positive weight
                     actual_weights.append(actual_weight)
                     rates.append(Decimal(str(source_data.rate)))
                     # Ensure timestamp is aware
@@ -669,22 +666,22 @@ class MultiTierFundingProvider:
                         ts = ts.replace(tzinfo=UTC)
                     timestamps.append(ts)
 
-        if not available_sources_data or not actual_weights or sum(actual_weights) <= Decimal("0"):
+        if not available_sources_data or not actual_weights or sum(actual_weights) <= Decimal(0):
             raise FundingRateSourceError(
                 f"No valid, weighted funding rate data available for {exchange}:{symbol}",
             )
 
         # Calculate weighted average rate
-        total_actual_weight = sum(actual_weights, Decimal("0"))
+        total_actual_weight = sum(actual_weights, Decimal(0))
         weighted_rate_sum = sum(
             (rates[i] * actual_weights[i] for i in range(len(rates))),
-            Decimal("0"),
+            Decimal(0),
         )
         integrated_rate: Decimal = weighted_rate_sum / total_actual_weight
 
         # Calculate weighted average timestamp
         epoch = datetime(1970, 1, 1, tzinfo=UTC)
-        weighted_timestamp_sum_seconds = Decimal("0")
+        weighted_timestamp_sum_seconds = Decimal(0)
         for i in range(len(timestamps)):
             seconds = Decimal(str((timestamps[i] - epoch).total_seconds()))
             weighted_timestamp_sum_seconds += seconds * actual_weights[i]
@@ -698,7 +695,7 @@ class MultiTierFundingProvider:
             variance = (
                 sum(
                     (((rates[i] - mean_rate) ** 2) * actual_weights[i] for i in range(len(rates))),
-                    Decimal("0"),
+                    Decimal(0),
                 )
                 / total_actual_weight
             )  # Weighted variance
@@ -861,7 +858,7 @@ class MultiTierFundingProvider:
         value = config_dict.get(key, default)
         if isinstance(value, float):
             return value
-        elif isinstance(value, int) and value.is_integer():
+        if isinstance(value, int) and value.is_integer():
             logger.warning(
                 "config_type_conversion",
                 key=key,
@@ -872,18 +869,16 @@ class MultiTierFundingProvider:
                 message=f"Config value '{key}' is int ({value}), converting to float.",
             )
             return float(value)
-        else:
-            logger.warning(
-                "invalid_config_type",
-                key=key,
-                actual_type=type(value).__name__,
-                default_value=default,
-                action="config_validation",
-                message=(
-                    f"Invalid type for config value '{key}' ({type(value)}), "
-                    f"using default: {default}"
-                ),
-            )
+        logger.warning(
+            "invalid_config_type",
+            key=key,
+            actual_type=type(value).__name__,
+            default_value=default,
+            action="config_validation",
+            message=(
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+            ),
+        )
         return default
 
     def _validate_int_config(self, config_dict: dict[str, Any], key: str, default: int) -> int:
@@ -891,7 +886,7 @@ class MultiTierFundingProvider:
         value = config_dict.get(key, default)
         if isinstance(value, int):
             return value
-        elif isinstance(value, float) and value.is_integer():
+        if isinstance(value, float) and value.is_integer():
             logger.warning(
                 "config_type_conversion",
                 key=key,
@@ -902,18 +897,16 @@ class MultiTierFundingProvider:
                 message=f"Config value '{key}' is float ({value}), converting to int.",
             )
             return int(value)
-        else:
-            logger.warning(
-                "invalid_config_type",
-                key=key,
-                actual_type=type(value).__name__,
-                default_value=default,
-                action="config_validation",
-                message=(
-                    f"Invalid type for config value '{key}' ({type(value)}), "
-                    f"using default: {default}"
-                ),
-            )
+        logger.warning(
+            "invalid_config_type",
+            key=key,
+            actual_type=type(value).__name__,
+            default_value=default,
+            action="config_validation",
+            message=(
+                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}"
+            ),
+        )
         return default
 
     async def add_funding_rate(self, source_name: str, funding_rate_data: FundingData) -> None:

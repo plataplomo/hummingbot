@@ -15,7 +15,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/candle"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -58,15 +60,17 @@ async def test_hl_get_perp_market_data_btc_1h_success(
             assert candle.low <= candle.open and candle.low <= candle.close
             assert candle.high >= candle.low
 
-            assert candle.open > Decimal("0") and candle.high > Decimal("0")
-            assert candle.low > Decimal("0") and candle.close > Decimal("0")
-            assert candle.volume >= Decimal("0")
+            assert candle.open > Decimal(0) and candle.high > Decimal(0)
+            assert candle.low > Decimal(0) and candle.close > Decimal(0)
+            assert candle.volume >= Decimal(0)
 
             assert candle.symbol == "BTC", f"Wrong symbol: {candle.symbol}"
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/candle"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/candle"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -102,7 +106,8 @@ async def test_hl_get_perp_market_data_eth_1h_success(
             # Get current market price to validate historical candle is reasonable
             try:
                 current_price = await HyperliquidTestHelpers.get_current_market_price(
-                    hl_api_for_test_env, "ETH"
+                    hl_api_for_test_env,
+                    "ETH",
                 )
                 # Allow historical prices to be within 50% of current price (reasonable range)
                 min_reasonable = current_price * Decimal("0.5")
@@ -114,4 +119,4 @@ async def test_hl_get_perp_market_data_eth_1h_success(
                 )
             except Exception:
                 # If we can't get current price, just validate positive
-                assert candle.close > Decimal("0"), f"ETH price should be positive: {candle.close}"
+                assert candle.close > Decimal(0), f"ETH price should be positive: {candle.close}"

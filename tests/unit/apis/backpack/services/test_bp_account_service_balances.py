@@ -261,7 +261,7 @@ class TestBackpackAccountServiceBalances:
         mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
         mock_response_handler.handle_get_balances_response.side_effect = ValueError(
-            "Validation failed"
+            "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -303,7 +303,7 @@ class TestBackpackAccountServiceBalances:
         mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = ({"invalid": "data"}, 200, {})
         mock_response_handler.handle_get_balances_response.side_effect = ValueError(
-            "Validation failed"
+            "Validation failed",
         )
 
         with pytest.raises(APIError) as exc_info:

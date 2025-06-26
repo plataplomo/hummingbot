@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 
 
 def parse_datetime_utc(
-    value: datetime | int | float | str | None,
+    value: datetime | float | str | None,
     field_name: str = "",
 ) -> datetime | None:
     """Parse various inputs into a timezone-aware UTC datetime object.
@@ -42,14 +42,13 @@ def parse_datetime_utc(
 
     if value is None:
         return None
-    elif isinstance(value, datetime):
+    if isinstance(value, datetime):
         return _ensure_utc_timezone(value)
-    elif isinstance(value, int | float):
+    if isinstance(value, int | float):
         return _parse_numeric_timestamp(value, prefix)
-    elif isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+    if isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
         return _parse_string_datetime(value, prefix)
-    else:
-        raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
+    raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
 
 
 def _ensure_utc_timezone(dt: datetime) -> datetime:
@@ -57,7 +56,7 @@ def _ensure_utc_timezone(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
-def _parse_numeric_timestamp(value: int | float, prefix: str) -> datetime:
+def _parse_numeric_timestamp(value: float, prefix: str) -> datetime:
     """Parse numeric timestamp, auto-detecting scale (ns, us, ms, s)."""
     try:
         timestamp_s = _determine_timestamp_scale(value)
@@ -66,17 +65,17 @@ def _parse_numeric_timestamp(value: int | float, prefix: str) -> datetime:
         raise ValueError(f"{prefix}Invalid timestamp value '{value}': {e}") from e
 
 
-def _determine_timestamp_scale(value: int | float) -> float:
+def _determine_timestamp_scale(value: float) -> float:
     """Determine the scale of a timestamp and convert to seconds."""
     # Determine scale: ns, us, ms, or s
     if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
         return value / 1e9
-    elif value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
+    if value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
         return value / 1e6
-    elif value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
+    if value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
         return value / 1e3
-    else:  # Heuristic: likely seconds (e.g., current date ~1.7e9)
-        return float(value)
+    # Heuristic: likely seconds (e.g., current date ~1.7e9)
+    return float(value)
 
 
 def _parse_string_datetime(value: str, prefix: str) -> datetime:
@@ -110,7 +109,7 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
 
 
 def parse_decimal_value(
-    value: Decimal | str | int | float | None,
+    value: Decimal | str | float | None,
     allow_none: bool = True,
     field_name: str = "",
 ) -> Decimal | None:
@@ -139,8 +138,7 @@ def parse_decimal_value(
     if value is None:
         if allow_none:
             return None
-        else:
-            raise ValueError(f"{prefix}Value cannot be None")
+        raise ValueError(f"{prefix}Value cannot be None")
     if isinstance(value, Decimal):
         return value
     try:

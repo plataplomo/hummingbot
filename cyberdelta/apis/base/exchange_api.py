@@ -79,11 +79,11 @@ if TYPE_CHECKING:
 
 # Define what is explicitly exported by this module
 __all__ = [
-    "ExchangeAPI",
     "APIError",  # Export APIError
     "APIErrorCode",  # Export APIErrorCode (already likely used but good practice)
-    "MessageHandler",
+    "ExchangeAPI",
     "IErrorMapper",  # Export IErrorMapper
+    "MessageHandler",
 ]
 
 # Get logger instance for this module
@@ -143,7 +143,8 @@ class ExchangeAPI(ABC):
 
         # Setup rate limiting
         self.rate_limit_strategy = self._setup_rate_limiting(
-            rate_limit_strategy, exchange_config or config
+            rate_limit_strategy,
+            exchange_config or config,
         )
         self.exchange_config = exchange_config or config
 
@@ -152,7 +153,8 @@ class ExchangeAPI(ABC):
 
         # Setup WebSocket manager
         self.ws_endpoint, self._ws_manager = self._setup_websocket_manager(
-            ws_manager, exchange_config
+            ws_manager,
+            exchange_config,
         )
 
         logger.info(
@@ -161,7 +163,8 @@ class ExchangeAPI(ABC):
         )
 
     def _setup_event_loop(
-        self, loop: asyncio.AbstractEventLoop | None
+        self,
+        loop: asyncio.AbstractEventLoop | None,
     ) -> asyncio.AbstractEventLoop:
         """Setup the event loop for the exchange API."""
         if loop:
@@ -198,7 +201,8 @@ class ExchangeAPI(ABC):
         return None
 
     def _create_default_rate_limiter(
-        self, exchange_config: ExchangeSpecificConfig
+        self,
+        exchange_config: ExchangeSpecificConfig,
     ) -> RateLimitStrategy:
         """Create a default rate limiting strategy."""
         # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
@@ -352,7 +356,8 @@ class ExchangeAPI(ABC):
         return ws_config_data
 
     def _create_ws_rate_limiter(
-        self, exchange_config: ExchangeSpecificConfig | None
+        self,
+        exchange_config: ExchangeSpecificConfig | None,
     ) -> TokenBucketRateLimiterRuntime | None:
         """Create WebSocket rate limiter if needed."""
         if (
@@ -424,7 +429,11 @@ class ExchangeAPI(ABC):
         try:
             # Apply rate limiting
             await self._apply_rate_limiting(
-                method, endpoint, data_dict_for_http_client, request_weight, endpoint_group
+                method,
+                endpoint,
+                data_dict_for_http_client,
+                request_weight,
+                endpoint_group,
             )
 
             # Execute HTTP request
@@ -451,18 +460,18 @@ class ExchangeAPI(ABC):
             raise self._handle_unhandled_error(e_unhandled, method, request_url) from e_unhandled
 
     def _prepare_request_data(
-        self, data: BaseModel | dict[str, Any] | None, serialize_none_as_null: bool
+        self,
+        data: BaseModel | dict[str, Any] | None,
+        serialize_none_as_null: bool,
     ) -> dict[str, Any] | None:
         """Prepare data for HttpClient - handle Pydantic model serialization."""
         if isinstance(data, BaseModel):
             return self._serialization_strategy.serialize_model(data, serialize_none_as_null)
-        elif isinstance(data, dict) or data is None:
+        if isinstance(data, dict) or data is None:
             return data
-        else:
-            raise TypeError(
-                f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. "
-                f"Got {type(data)}",
-            )
+        raise TypeError(
+            f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. Got {type(data)}",
+        )
 
     async def _apply_rate_limiting(
         self,
@@ -513,7 +522,9 @@ class ExchangeAPI(ABC):
         return response_content, status_code, response_headers_dict
 
     def _handle_http_request_error(
-        self, e_http_failed: HttpRequestFailedError, request_url: str
+        self,
+        e_http_failed: HttpRequestFailedError,
+        request_url: str,
     ) -> APIError:
         """Handle HTTP request failed errors."""
         logger.warning(
@@ -556,7 +567,10 @@ class ExchangeAPI(ABC):
         )
 
     def _handle_unhandled_error(
-        self, e_unhandled: Exception, method: str, request_url: str
+        self,
+        e_unhandled: Exception,
+        method: str,
+        request_url: str,
     ) -> APIError:
         """Handle unexpected errors."""
         logger.exception(
@@ -964,7 +978,8 @@ class ExchangeAPI(ABC):
 
     @abstractmethod
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request for improved performance.
 

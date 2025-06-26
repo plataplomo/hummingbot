@@ -77,9 +77,8 @@ class BackpackDataCollector:
                     data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return data
-                else:
-                    logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
-                    return None
+                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                return None
         except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
@@ -93,9 +92,8 @@ class BackpackDataCollector:
                     data: str = await response.text()
                     logger.info(f"Successfully fetched text from {url}")
                     return data
-                else:
-                    logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
-                    return None
+                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                return None
         except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None

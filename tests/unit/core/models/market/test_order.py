@@ -89,7 +89,7 @@ def test_order_minimal_valid(base_order_data: dict[str, Any]) -> None:
     assert order.price == Decimal("50000.0")
     assert order.time_in_force == TimeInForce.GTC
     assert order.status == OrderStatus.NEW
-    assert order.quantity_filled == Decimal("0")
+    assert order.quantity_filled == Decimal(0)
     assert order.reduce_only is False
     assert order.post_only is False
     assert isinstance(order.created_at, datetime)
@@ -200,10 +200,10 @@ def test_order_required_fields_missing(base_order_data: dict[str, Any]) -> None:
         # Decimals (Optional, >0)
         (
             "quote_quantity_requested",
-            Decimal("0"),
+            Decimal(0),
             r"quote_quantity_requested.*Input should be greater than 0",
         ),
-        ("price", Decimal("-100"), r"price.*Input should be greater than 0"),
+        ("price", Decimal(-100), r"price.*Input should be greater than 0"),
         ("stop_price", Decimal("Infinity"), r"stop_price.*Value must be finite if provided"),
         ("average_fill_price", "abc", r"average_fill_price.*Cannot convert 'abc' to Decimal"),
         # Decimals (Required, >=0)
@@ -264,7 +264,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     # LIMIT with zero price
     data = base_order_data.copy()
     data["order_type"] = OrderType.LIMIT
-    data["price"] = Decimal("0")
+    data["price"] = Decimal(0)
     # Remove match - field validation catches this, just ensure ValidationError
     with pytest.raises(ValidationError):
         Order(**data)
@@ -282,8 +282,8 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     # STOP_LIMIT with negative stop_price
     data = base_order_data.copy()
     data["order_type"] = OrderType.STOP_LIMIT
-    data["price"] = Decimal("100")
-    data["stop_price"] = Decimal("-50")
+    data["price"] = Decimal(100)
+    data["stop_price"] = Decimal(-50)
     # Remove match - field validation catches this, just ensure ValidationError
     with pytest.raises(ValidationError):
         Order(**data)
@@ -291,7 +291,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     # Filled quantity > requested quantity
     data = base_order_data.copy()
     data["quantity_filled"] = data["quantity_requested"] + Decimal("0.01")
-    data["average_fill_price"] = Decimal("50000")
+    data["average_fill_price"] = Decimal(50000)
     with pytest.raises(
         ValidationError,
         match=r"Value error, quantity_filled .* cannot exceed quantity_requested",
@@ -301,7 +301,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     # Positive fill quantity without positive average fill price
     data = base_order_data.copy()
     data["quantity_filled"] = Decimal("0.1")
-    data["average_fill_price"] = Decimal("0")
+    data["average_fill_price"] = Decimal(0)
     # Remove match - field validation catches this, just ensure ValidationError
     with pytest.raises(ValidationError):
         Order(**data)
@@ -339,8 +339,8 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
     order = Order(**base_order_data)
     new_status = OrderStatus.FILLED
     new_qty_filled = order.quantity_requested
-    price_base = order.price if order.price is not None else Decimal("0")
-    new_avg_price = price_base + Decimal("1")
+    price_base = order.price if order.price is not None else Decimal(0)
+    new_avg_price = price_base + Decimal(1)
 
     order.status = new_status
     order.average_fill_price = new_avg_price
@@ -364,7 +364,7 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
     # Invalid assignment (violates field validator - negative price)
     # Remove match - just ensure ValidationError
     with pytest.raises(ValidationError):
-        order.price = Decimal("-100")
+        order.price = Decimal(-100)
     order.price = price_base
 
     # Invalid assignment (violates model validator - avg price with zero qty)
@@ -412,7 +412,7 @@ def test_hl_details_creation_and_immutability(
 @pytest.mark.parametrize(
     "field, value, error_match",
     [
-        ("remaining_sz", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("remaining_sz", Decimal(-1), "Input should be greater than or equal to 0"),
         ("remaining_sz", Decimal("NaN"), "Value must be finite if provided"),
         ("remaining_sz", "abc", "Cannot convert 'abc' to Decimal"),
     ],
@@ -453,7 +453,7 @@ def test_bp_details_creation_and_immutability(
 
     # Test immutability
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        details.executed_quote_quantity = Decimal("2000")  # Removed unused type: ignore
+        details.executed_quote_quantity = Decimal(2000)  # Removed unused type: ignore
 
     # Test creation with potentially invalid types for enums (should pass if None)
     # Corrected to use valid types (None or Enum) instead of Decimals
@@ -488,15 +488,15 @@ def test_bp_details_creation_and_immutability(
             r"executed_quote_quantity.*Cannot convert 'invalid' to Decimal",
         ),
         # Decimals (Optional, >0)
-        ("sl_trigger_price", Decimal("0"), r"sl_trigger_price.*Input should be greater than 0"),
-        ("sl_limit_price", Decimal("-1"), r"sl_limit_price.*Input should be greater than 0"),
+        ("sl_trigger_price", Decimal(0), r"sl_trigger_price.*Input should be greater than 0"),
+        ("sl_limit_price", Decimal(-1), r"sl_limit_price.*Input should be greater than 0"),
         ("tp_trigger_price", Decimal("NaN"), r"tp_trigger_price.*Value must be finite if provided"),
         (
             "tp_limit_price",
             Decimal("Infinity"),
             r"tp_limit_price.*Value must be finite if provided",
         ),
-        ("trigger_quantity", Decimal("-10"), r"trigger_quantity.*Input should be greater than 0"),
+        ("trigger_quantity", Decimal(-10), r"trigger_quantity.*Input should be greater than 0"),
         # Enums (Optional) - Use invalid string/int inputs
         (
             "self_trade_prevention",

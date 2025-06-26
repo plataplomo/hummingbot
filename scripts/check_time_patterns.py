@@ -36,7 +36,7 @@ def _check_datetime_patches(file_path: Path, content: str, lines: list[str]) -> 
                 if "frozen_time" not in content:
                     issues.append(
                         f"{file_path}:{i}: Use 'frozen_time' fixture instead of "
-                        f"patching datetime. See tests/fixtures/time_fixtures.py"
+                        f"patching datetime. See tests/fixtures/time_fixtures.py",
                     )
                     break
     return issues
@@ -57,7 +57,7 @@ def _check_time_patches(file_path: Path, content: str, lines: list[str]) -> list
                 if "mock_time_patch" not in content:
                     issues.append(
                         f"{file_path}:{i}: Use 'mock_time_patch' fixture instead of "
-                        f"patching time.time. See tests/fixtures/time_fixtures.py"
+                        f"patching time.time. See tests/fixtures/time_fixtures.py",
                     )
                     break
     return issues
@@ -79,7 +79,7 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
         issues.extend(_check_time_patches(file_path, content, lines))
 
     except Exception as e:
-        issues.append(f"{file_path}: Error reading file: {str(e)}")
+        issues.append(f"{file_path}: Error reading file: {e!s}")
 
     return len(issues) == 0, issues
 

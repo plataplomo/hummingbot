@@ -564,8 +564,8 @@ class TestTickerTransformation:
 
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
-        assert result.price == Decimal("0")
-        assert result.volume == Decimal("0")
+        assert result.price == Decimal(0)
+        assert result.volume == Decimal(0)
 
 
 class TestOrderBookTransformation:

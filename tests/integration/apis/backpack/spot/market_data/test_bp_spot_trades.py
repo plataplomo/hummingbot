@@ -30,7 +30,9 @@ class TestBackpackSpotTrades:
     """Backpack spot trade integration tests."""
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_recent_trades_success(
@@ -61,10 +63,10 @@ class TestBackpackSpotTrades:
                     f"Trade {i} quantity should be Decimal, got {type(trade.quantity)}"
                 )
 
-                assert trade.price > Decimal("0"), (
+                assert trade.price > Decimal(0), (
                     f"Trade {i} price should be positive, got {trade.price}"
                 )
-                assert trade.quantity > Decimal("0"), (
+                assert trade.quantity > Decimal(0), (
                     f"Trade {i} quantity should be positive, got {trade.quantity}"
                 )
 
@@ -79,7 +81,9 @@ class TestBackpackSpotTrades:
                 )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_recent_trades_success(
@@ -102,16 +106,16 @@ class TestBackpackSpotTrades:
                 )
 
                 # BTC prices should be in reasonable range
-                assert trade.price > Decimal("1000"), (
-                    f"BTC trade price seems too low: {trade.price}"
-                )
-                assert trade.price < Decimal("1000000"), (
+                assert trade.price > Decimal(1000), f"BTC trade price seems too low: {trade.price}"
+                assert trade.price < Decimal(1000000), (
                     f"BTC trade price seems too high: {trade.price}"
                 )
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_trade_chronological_ordering(
@@ -138,7 +142,9 @@ class TestBackpackSpotTrades:
                         )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_trade_side_validation(
@@ -170,7 +176,9 @@ class TestBackpackSpotTrades:
                 assert sell_trades > 0, "Should have some sell trades in active market"
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_trade_volume_analysis(
@@ -182,7 +190,7 @@ class TestBackpackSpotTrades:
         trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=30)
 
         if len(trades) > 0:
-            total_volume = Decimal("0")
+            total_volume = Decimal(0)
             trade_sizes: list[Decimal] = []
 
             for trade in trades:
@@ -190,17 +198,19 @@ class TestBackpackSpotTrades:
                 total_volume += volume
                 trade_sizes.append(trade.quantity)
 
-            assert total_volume > Decimal("0"), "Total volume should be positive"
+            assert total_volume > Decimal(0), "Total volume should be positive"
 
             # Check trade size distribution
             if len(trade_sizes) > 5:
                 min_size = min(trade_sizes)
                 max_size = max(trade_sizes)
-                assert min_size > Decimal("0"), "Minimum trade size should be positive"
+                assert min_size > Decimal(0), "Minimum trade size should be positive"
                 assert max_size >= min_size, "Maximum should be >= minimum"
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_recent_trades_invalid_spot_symbol_error(
@@ -219,7 +229,9 @@ class TestBackpackSpotTrades:
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_trade_precision_validation(
@@ -240,17 +252,19 @@ class TestBackpackSpotTrades:
                 assert isinstance(volume, Decimal), (
                     "Volume calculation should maintain Decimal type"
                 )
-                assert volume > Decimal("0"), "Volume should be positive"
+                assert volume > Decimal(0), "Volume should be positive"
 
                 # Test precision preservation
-                doubled_price = trade.price * Decimal("2")
+                doubled_price = trade.price * Decimal(2)
                 assert isinstance(doubled_price, Decimal), (
                     "Price arithmetic should maintain Decimal type"
                 )
 
     @pytest.mark.parametrize("limit", [1, 5, 10, 50])
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/trades"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/trades"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_trade_limit_parameter(

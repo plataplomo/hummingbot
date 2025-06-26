@@ -47,7 +47,7 @@ async def get_available_trading_symbols(api: BackpackAPI, limit: int = 3) -> lis
         if not spot_symbols:
             raise RuntimeError(
                 "No trading symbols available from exchange. "
-                "WebSocket integration tests require real market symbols."
+                "WebSocket integration tests require real market symbols.",
             )
 
         return spot_symbols[:limit]
@@ -55,7 +55,8 @@ async def get_available_trading_symbols(api: BackpackAPI, limit: int = 3) -> lis
     except Exception as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
-            "WebSocket integration tests require real market data and cannot use hardcoded symbols."
+            "WebSocket integration tests require real market data and "
+            "cannot use hardcoded symbols.",
         ) from e
 
 
@@ -79,7 +80,9 @@ async def create_websocket_topics(symbols: list[str]) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/integration"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/integration"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketIntegration:
     """Test WebSocket integration with real market data and connections."""
@@ -102,7 +105,8 @@ class TestBackpackAPIWebSocketIntegration:
         received_messages: list[dict[str, Any]] = []
 
         async def integration_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             """Handler for WebSocket integration messages."""
             received_messages.append(message)
@@ -123,7 +127,7 @@ class TestBackpackAPIWebSocketIntegration:
         except Exception as e:
             pytest.fail(
                 f"WebSocket integration failed for real symbol {test_symbol}: {e}. "
-                "WebSocket integration is critical for real-time trading data."
+                "WebSocket integration is critical for real-time trading data.",
             )
 
     @pytest.mark.vcr
@@ -141,7 +145,7 @@ class TestBackpackAPIWebSocketIntegration:
         if len(available_symbols) < 2:
             pytest.fail(
                 f"Need at least 2 symbols for integration testing, got {len(available_symbols)}. "
-                "Multi-subscription integration requires multiple real symbols."
+                "Multi-subscription integration requires multiple real symbols.",
             )
 
         topics = await create_websocket_topics(available_symbols)
@@ -164,13 +168,13 @@ class TestBackpackAPIWebSocketIntegration:
                 )
 
             logger.info(
-                f"✓ Multiple WebSocket subscriptions successful: {len(topics[:2])} subscriptions"
+                f"✓ Multiple WebSocket subscriptions successful: {len(topics[:2])} subscriptions",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Multiple WebSocket subscriptions failed: {e}. "
-                "Multi-subscription integration is critical for comprehensive trading data."
+                "Multi-subscription integration is critical for comprehensive trading data.",
             )
 
     @pytest.mark.vcr
@@ -209,18 +213,20 @@ class TestBackpackAPIWebSocketIntegration:
 
             logger.info(
                 f"✓ WebSocket lifecycle integration completed: "
-                f"sub={subscription_state}, conn={connection_state}"
+                f"sub={subscription_state}, conn={connection_state}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"WebSocket lifecycle integration failed: {e}. "
-                "Connection lifecycle is critical for trading system reliability."
+                "Connection lifecycle is critical for trading system reliability.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/advanced_integration"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/advanced_integration"],
+    indirect=True,
 )
 class TestBackpackAPIAdvancedWebSocketIntegration:
     """Test advanced WebSocket integration scenarios."""
@@ -240,7 +246,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         if len(available_symbols) < 3:
             pytest.fail(
                 f"Need at least 3 symbols for concurrent testing, got {len(available_symbols)}. "
-                "Concurrent integration requires multiple real symbols."
+                "Concurrent integration requires multiple real symbols.",
             )
 
         topics = await create_websocket_topics(available_symbols)
@@ -267,13 +273,13 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
 
             logger.info(
                 f"✓ Concurrent WebSocket integration successful: "
-                f"{len(subscription_tasks)} operations"
+                f"{len(subscription_tasks)} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Concurrent WebSocket integration failed: {e}. "
-                "Concurrent operations are critical for high-frequency trading systems."
+                "Concurrent operations are critical for high-frequency trading systems.",
             )
 
     @pytest.mark.vcr
@@ -290,7 +296,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         valid_symbol = available_symbols[0]
 
         async def error_integration_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             logger.info(f"Error integration handler: {message}")
 
@@ -327,7 +334,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                     # Valid scenarios must not fail
                     pytest.fail(
                         f"Valid WebSocket integration failed for {topic}: {e}. "
-                        "Valid subscriptions are critical and must succeed in integration testing."
+                        "Valid subscriptions are critical and must succeed in integration testing.",
                     )
                 else:
                     # Invalid scenarios may fail appropriately
@@ -338,12 +345,12 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         if successful_count == 0:
             pytest.fail(
                 "No successful subscriptions in integration testing. "
-                "At least one valid subscription must succeed for WebSocket functionality."
+                "At least one valid subscription must succeed for WebSocket functionality.",
             )
 
         logger.info(
             f"✓ Integration error handling completed: {successful_count} successful, "
-            f"{error_count} errors"
+            f"{error_count} errors",
         )
 
     @pytest.mark.vcr
@@ -394,13 +401,13 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 )
 
             logger.info(
-                f"✓ WebSocket state consistency maintained throughout integration: {state_history}"
+                f"✓ WebSocket state consistency maintained throughout integration: {state_history}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"WebSocket state consistency integration failed: {e}. "
-                "State consistency is critical for reliable trading operations."
+                "State consistency is critical for reliable trading operations.",
             )
 
     @pytest.mark.vcr
@@ -446,18 +453,21 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 )
 
             logger.info(
-                f"✓ Rapid WebSocket operations integration successful: {operation_count} operations"
+                f"✓ Rapid WebSocket operations integration successful: "
+                f"{operation_count} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Rapid WebSocket operations integration failed: {e}. "
-                "High-frequency operations are critical for trading system performance."
+                "High-frequency operations are critical for trading system performance.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/edge_cases"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/edge_cases"],
+    indirect=True,
 )
 class TestBackpackAPIWebSocketEdgeCases:
     """Test WebSocket edge cases with real integration."""
@@ -503,7 +513,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 if "connection" in str(e).lower() or "network" in str(e).lower():
                     pytest.fail(
                         f"Network error during edge case testing for '{topic}': {e}. "
-                        "Network issues should not occur during topic validation."
+                        "Network issues should not occur during topic validation.",
                     )
                 else:
                     handled_cases += 1
@@ -560,11 +570,11 @@ class TestBackpackAPIWebSocketEdgeCases:
             )
 
             logger.info(
-                f"✓ WebSocket integration resilience confirmed: {operation_count} operations"
+                f"✓ WebSocket integration resilience confirmed: {operation_count} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"WebSocket integration resilience failed after {operation_count} operations: {e}. "
-                "System resilience is critical for trading platform stability."
+                "System resilience is critical for trading platform stability.",
             )

@@ -193,7 +193,7 @@ class HyperliquidRawWsBookUpdate(BaseModel):
             raise ValueError("levels[0] (bids): Must be a list.")
         if not is_list(asks_raw):
             raise ValueError("levels[1] (asks): Must be a list.")
-        return cast(list[list[object]], v)
+        return cast("list[list[object]]", v)
 
 
 class HyperliquidRawWsTradeEvent(BaseModel):
@@ -247,7 +247,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
             raise ValueError("data: Must be a dictionary")
         if not v:  # Test expects empty dict to fail
             raise ValueError("data: Dictionary cannot be empty")
-        return cast(dict[str, object], v)
+        return cast("dict[str, object]", v)
 
 
 class HyperliquidRawWsPositionUpdateEvent(BaseModel):

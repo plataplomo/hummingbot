@@ -709,7 +709,8 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_market_api_error_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self,
+        bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that APIError from market service is propagated correctly."""
         # Create API instance from factory
@@ -787,7 +788,8 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_markets_api_error_propagation(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self,
+        bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that APIError from market service is propagated correctly."""
         # Create API instance from factory
@@ -795,7 +797,8 @@ class TestBackpackAPIPublicBehavior:
 
         # Mock service to raise APIError
         api_error = APIError(
-            message="Service unavailable", code=APIErrorCode.SERVICE_UNAVAILABLE.value
+            message="Service unavailable",
+            code=APIErrorCode.SERVICE_UNAVAILABLE.value,
         )
 
         with patch.object(
@@ -814,7 +817,8 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_market_delegates_to_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self,
+        bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that get_market properly delegates to market_data_service."""
         # Create API instance from factory
@@ -839,7 +843,8 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.mark.asyncio
     async def test_get_markets_delegates_to_service(
-        self, bp_api_with_di: Callable[..., BackpackAPI]
+        self,
+        bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test that get_markets properly delegates to market_data_service."""
         # Create API instance from factory
@@ -1023,7 +1028,9 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         with patch.object(
-            backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock
+            backpack_api.__class__.__bases__[0],
+            "connect_websocket",
+            new_callable=AsyncMock,
         ) as mock_super:
             await backpack_api.connect_websocket()
             mock_super.assert_called_once()
@@ -1038,7 +1045,9 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         with patch.object(
-            backpack_api.__class__.__bases__[0], "close", new_callable=AsyncMock
+            backpack_api.__class__.__bases__[0],
+            "close",
+            new_callable=AsyncMock,
         ) as mock_super:
             await backpack_api.close()
             mock_super.assert_called_once()
@@ -1056,7 +1065,9 @@ class TestBackpackAPIPublicBehavior:
 
         with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
             with patch.object(
-                backpack_api.__class__.__bases__[0], "subscribe", new_callable=AsyncMock
+                backpack_api.__class__.__bases__[0],
+                "subscribe",
+                new_callable=AsyncMock,
             ) as mock_super:
                 await backpack_api.subscribe("test_topic", mock_handler)
 
@@ -1077,7 +1088,9 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(backpack_api.__class__.__bases__[0], "_on_ws_connected"):
             with patch.object(backpack_api.__class__.__bases__[0], "_resubscribe"):
                 with patch.object(
-                    backpack_api.__class__.__bases__[0], "connect_websocket", new_callable=AsyncMock
+                    backpack_api.__class__.__bases__[0],
+                    "connect_websocket",
+                    new_callable=AsyncMock,
                 ) as mock_connect:
                     # Test WebSocket connection callbacks through public API behavior
                     # These would normally be called internally, but we test the logging

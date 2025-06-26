@@ -24,8 +24,6 @@ logger = get_logger(__name__)
 class StrategyCreationError(Exception):
     """Raised when strategy creation fails."""
 
-    pass
-
 
 class StrategyFactory:
     """Factory for creating trading strategies with validated configuration."""
@@ -140,11 +138,11 @@ class StrategyFactory:
                 portfolio_tracker=portfolio_tracker,
                 risk_manager=risk_manager,
             )
-        else:
-            raise StrategyCreationError(f"Unknown strategy type: {strategy_type}")
+        raise StrategyCreationError(f"Unknown strategy type: {strategy_type}")
 
     def _convert_strategy_params_to_dict(
-        self, params: StrategyParamsHLPerpBPSpot
+        self,
+        params: StrategyParamsHLPerpBPSpot,
     ) -> dict[str, Any]:
         """Convert Pydantic strategy parameters to dictionary.
 
@@ -189,8 +187,7 @@ class StrategyFactory:
                 # Configuration is already validated by Pydantic during config loading
                 config = self.config.strategies.hl_perp_bp_spot
                 return config.enabled
-            else:
-                return False
+            return False
         except Exception as e:
             logger.warning(
                 "strategy_config_validation_failed",

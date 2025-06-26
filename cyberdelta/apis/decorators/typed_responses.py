@@ -26,8 +26,6 @@ R = TypeVar("R")
 class TypedResponseError(Exception):
     """Typed response validation error."""
 
-    pass
-
 
 class TypedApiMethod[T: BaseModel]:
     """Enhanced version of typed_api_method that works with class-based approach.
@@ -56,7 +54,8 @@ class TypedApiMethod[T: BaseModel]:
         self.expected_status_codes = expected_status_codes or {200, 201}
 
     def __call__(
-        self, func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, dict[str, Any]]]]
+        self,
+        func: Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, dict[str, Any]]]],
     ) -> Callable[..., Awaitable[T | list[T] | None]]:
         """Transform HTTP method to return validated model."""
         sig = inspect.signature(func)
@@ -78,7 +77,7 @@ class TypedApiMethod[T: BaseModel]:
             if self.validate_status_code and status_code not in self.expected_status_codes:
                 logger.warning(
                     f"Unexpected status code {status_code} for {context}, "
-                    f"expected one of {self.expected_status_codes}"
+                    f"expected one of {self.expected_status_codes}",
                 )
 
             # Handle None responses
@@ -94,23 +93,27 @@ class TypedApiMethod[T: BaseModel]:
             # Validate and transform
             if self.list_of is not None:
                 return _validate_list_response(raw_data, self.list_of, context, status_code)
-            elif self.response_model is not None:
+            if self.response_model is not None:
                 return _validate_object_response(
-                    raw_data, self.response_model, context, status_code
+                    raw_data,
+                    self.response_model,
+                    context,
+                    status_code,
                 )
-            else:
-                # No type specified - log warning but return raw data for backwards compatibility
-                logger.warning(
-                    f"No type specified for {context}. Consider using response_model or list_of "
-                    "for type safety. Returning raw data."
-                )
-                return raw_data  # type: ignore[return-value]
+            # No type specified - log warning but return raw data for backwards compatibility
+            logger.warning(
+                f"No type specified for {context}. Consider using response_model or list_of "
+                "for type safety. Returning raw data.",
+            )
+            return raw_data  # type: ignore[return-value]
 
         return wrapper
 
 
 def _build_context(
-    func: Callable[..., object], param_names: list[str], args: tuple[object, ...]
+    func: Callable[..., object],
+    param_names: list[str],
+    args: tuple[object, ...],
 ) -> str:
     """Build error context from function name and parameters."""
     method_name = func.__name__.replace("_raw", "").replace("get_", "")
@@ -123,7 +126,10 @@ def _build_context(
 
 
 def _validate_list_response[T: BaseModel](
-    raw_data: ParsedJsonResponse, list_of: type[T], context: str, status_code: int
+    raw_data: ParsedJsonResponse,
+    list_of: type[T],
+    context: str,
+    status_code: int,
 ) -> list[T]:
     """Validate array response data."""
     if not isinstance(raw_data, list):
@@ -144,7 +150,10 @@ def _validate_list_response[T: BaseModel](
 
 
 def _validate_object_response[T: BaseModel](
-    raw_data: ParsedJsonResponse, response_model: type[T], context: str, status_code: int
+    raw_data: ParsedJsonResponse,
+    response_model: type[T],
+    context: str,
+    status_code: int,
 ) -> T:
     """Validate object response data."""
     if not isinstance(raw_data, dict):
@@ -229,7 +238,7 @@ def typed_api_method(
                 if status_code not in valid_codes:
                     logger.warning(
                         f"Unexpected status code {status_code} for {context}, "
-                        f"expected one of {valid_codes}"
+                        f"expected one of {valid_codes}",
                     )
 
             # Handle None responses
@@ -245,15 +254,14 @@ def typed_api_method(
             # Validate and transform based on expected type
             if list_of is not None:
                 return _validate_list_response(raw_data, list_of, context, status_code)
-            elif response_model is not None:
+            if response_model is not None:
                 return _validate_object_response(raw_data, response_model, context, status_code)
-            else:
-                # No type specified - log warning but return raw data for backwards compatibility
-                logger.warning(
-                    f"No type specified for {context}. Consider using response_model or list_of "
-                    "for type safety. Returning raw data."
-                )
-                return raw_data  # type: ignore[return-value]
+            # No type specified - log warning but return raw data for backwards compatibility
+            logger.warning(
+                f"No type specified for {context}. Consider using response_model or list_of "
+                "for type safety. Returning raw data.",
+            )
+            return raw_data  # type: ignore[return-value]
 
         return wrapper
 
@@ -262,26 +270,34 @@ def typed_api_method(
 
 # Convenience decorators for common patterns
 def dict_response[T: BaseModel](
-    model: type[T], allow_none: bool = False, expected_status_codes: set[int] | None = None
+    model: type[T],
+    allow_none: bool = False,
+    expected_status_codes: set[int] | None = None,
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
     Callable[..., Awaitable[T | list[T] | None]],
 ]:
     """Decorator for single object responses."""
     return typed_api_method(
-        response_model=model, allow_none=allow_none, expected_status_codes=expected_status_codes
+        response_model=model,
+        allow_none=allow_none,
+        expected_status_codes=expected_status_codes,
     )
 
 
 def list_response[T: BaseModel](
-    item_model: type[T], allow_none: bool = False, expected_status_codes: set[int] | None = None
+    item_model: type[T],
+    allow_none: bool = False,
+    expected_status_codes: set[int] | None = None,
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
     Callable[..., Awaitable[T | list[T] | None]],
 ]:
     """Decorator for array responses."""
     return typed_api_method(
-        list_of=item_model, allow_none=allow_none, expected_status_codes=expected_status_codes
+        list_of=item_model,
+        allow_none=allow_none,
+        expected_status_codes=expected_status_codes,
     )
 
 
@@ -363,7 +379,9 @@ def validation_pipeline(
 
 
 def mapped_response[T: BaseModel](
-    raw_model: type[T], mapper_method: str, allow_none: bool = True
+    raw_model: type[T],
+    mapper_method: str,
+    allow_none: bool = True,
 ) -> Callable[
     [Callable[..., Awaitable[tuple[ParsedJsonResponse | None, int, object]]]],
     Callable[..., Awaitable[object]],
@@ -405,12 +423,11 @@ def mapped_response[T: BaseModel](
 
                 if asyncio.iscoroutinefunction(mapper_func):
                     return await mapper_func(raw_result)
-                else:
-                    return mapper_func(raw_result)
+                return mapper_func(raw_result)
 
             raise AttributeError(
                 f"Mapper method '{mapper_method}' not found in any mapper "
-                f"(_market_data_mapper, _account_data_mapper, _trading_data_mapper)"
+                f"(_market_data_mapper, _account_data_mapper, _trading_data_mapper)",
             )
 
         return wrapper
@@ -455,9 +472,8 @@ def auto_typed(
                 # Optional[list[T]]
                 item_type = get_args(model_type)[0]
                 return typed_api_method(list_of=item_type, allow_none=True)(func)
-            else:
-                # Optional[T]
-                return typed_api_method(response_model=model_type, allow_none=True)(func)
+            # Optional[T]
+            return typed_api_method(response_model=model_type, allow_none=True)(func)
 
     elif origin is list:
         # list[T]

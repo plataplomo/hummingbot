@@ -22,7 +22,7 @@ async def simulate_hyperliquid_leverage_update() -> None:
 
     # Step 1: Create update args
     args = UpdateAccountSettingsArgs(
-        leverage_limit=Decimal("20"),
+        leverage_limit=Decimal(20),
         auto_lend=True,  # Will be ignored
         auto_borrow_settlements=False,  # Will be ignored
     )

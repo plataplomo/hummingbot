@@ -255,7 +255,8 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         return [MagicMock(spec=Order) for _ in orders]
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Mock implementation of cancel_batch_orders."""
         return [MagicMock(spec=CancelOrderResult) for _ in cancel_args]
@@ -265,7 +266,6 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     async def ping_websocket(self) -> None:
         """Send a ping message to the WebSocket connection."""
-        pass
 
 
 # --- Dependency Injection Test Fixtures ---
@@ -857,7 +857,7 @@ class TestExchangeAPIPublicInterface:
             symbol="BTC",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             time_in_force=TimeInForce.GTC,
         )
         await api.place_order(place_order_args)

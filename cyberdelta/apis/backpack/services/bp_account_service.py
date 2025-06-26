@@ -199,27 +199,30 @@ class BackpackAccountService:
             if is_dict_response(raw_data):
                 # raw_data is now typed as dict[str, Any]
                 return self._response_handler.handle_get_positions_response(
-                    raw_data, symbol, status_code
+                    raw_data,
+                    symbol,
+                    status_code,
                 )
-            elif is_list_response(raw_data):
+            if is_list_response(raw_data):
                 # raw_data is now typed as list[Any]
                 return self._response_handler.handle_get_positions_response(
-                    raw_data, symbol, status_code
+                    raw_data,
+                    symbol,
+                    status_code,
                 )
-            else:
-                # Handle unexpected response type
-                raise APIError(
-                    message=f"Unexpected response type for positions: {type(raw_data).__name__}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            # Handle unexpected response type
+            raise APIError(
+                message=f"Unexpected response type for positions: {type(raw_data).__name__}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
             # or account may have no positions, return empty list
             if e.http_status == 404:
                 logger.info(
                     f"[{self._exchange_name}] Positions endpoint returned 404, "
-                    f"returning empty positions list for symbol '{symbol or 'all'}'"
+                    f"returning empty positions list for symbol '{symbol or 'all'}'",
                 )
                 return []
             raise
@@ -278,7 +281,8 @@ class BackpackAccountService:
             # Use centralized validation
             validated_data = ensure_dict_response(raw_data, "account summary", status_code)
             return self._response_handler.handle_get_account_info_response(
-                validated_data, status_code
+                validated_data,
+                status_code,
             )
         except APIError:
             raise
@@ -357,13 +361,13 @@ class BackpackAccountService:
 
             # Check if auto-lending is potentially active (all spot balances are zero)
             all_spot_balances_zero = all(
-                balance.total_quantity == Decimal("0") for balance in internal_balances.values()
+                balance.total_quantity == Decimal(0) for balance in internal_balances.values()
             )
 
             if all_spot_balances_zero and len(internal_balances) > 0:
                 logger.info(
                     f"[{self._exchange_name}] All spot balances are zero, checking collateral "
-                    "endpoint for auto-lending scenario."
+                    "endpoint for auto-lending scenario.",
                 )
 
                 try:
@@ -378,13 +382,13 @@ class BackpackAccountService:
 
                     logger.debug(
                         f"[{self._exchange_name}] Enhanced balances with collateral data for "
-                        f"auto-lending scenario."
+                        f"auto-lending scenario.",
                     )
                 except APIError as e_collateral:
                     # If collateral endpoint fails, log but continue with spot balances
                     logger.warning(
                         f"[{self._exchange_name}] Failed to fetch collateral data for balance "
-                        f"enhancement: {e_collateral}. Continuing with spot balances only."
+                        f"enhancement: {e_collateral}. Continuing with spot balances only.",
                     )
 
             logger.debug(
@@ -490,9 +494,9 @@ class BackpackAccountService:
                     collateral_asset.open_order_quantity,
                     allow_none=True,
                     field_name=f"{asset_symbol}_open_order_quantity",
-                ) or Decimal("0")
+                ) or Decimal(0)
 
-                if total_quantity and total_quantity > Decimal("0"):
+                if total_quantity and total_quantity > Decimal(0):
                     # Create enhanced bp_details with lend_quantity
                     from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 
@@ -548,9 +552,9 @@ class BackpackAccountService:
                     collateral_asset.open_order_quantity,
                     allow_none=True,
                     field_name=f"{asset_symbol}_open_order_quantity",
-                ) or Decimal("0")
+                ) or Decimal(0)
 
-                if total_quantity and total_quantity > Decimal("0"):
+                if total_quantity and total_quantity > Decimal(0):
                     enhanced_bp_details = BackpackSpotBalanceDetails(
                         open_order_quantity=open_order_quantity,
                         lend_quantity=lend_quantity,
@@ -659,20 +663,19 @@ class BackpackAccountService:
             if current_method in error_msg and "symbol" in error_msg:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
-            else:
-                # This is from service internal logic - wrap as APIError
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for {symbol or 'all'}: {e_service_logic}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e_service_logic,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e_service_logic
+            # This is from service internal logic - wrap as APIError
+            logger.error(
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
+                f"for {symbol or 'all'}: {e_service_logic}",
+                exc_info=True,
+            )
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Service internal logic error.",
+                original_exception=e_service_logic,
+                http_status=status_code if status_code != 0 else None,
+                exchange_message=raw_response_content,
+            ) from e_service_logic
         except Exception as e_unexpected:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
@@ -718,7 +721,7 @@ class BackpackAccountService:
                 )
 
         logger.debug(
-            f"[{self._exchange_name}] Getting account summary for subaccount_id={subaccount_id}"
+            f"[{self._exchange_name}] Getting account summary for subaccount_id={subaccount_id}",
         )
 
         try:
@@ -727,14 +730,14 @@ class BackpackAccountService:
             if enhanced_summary is not None:
                 logger.debug(
                     f"[{self._exchange_name}] Enhanced account summary retrieved with "
-                    f"equity={enhanced_summary.total_equity}"
+                    f"equity={enhanced_summary.total_equity}",
                 )
                 return enhanced_summary
 
             # Fallback to basic implementation
             logger.info(
                 f"[{self._exchange_name}] Collateral endpoint unavailable, "
-                "using basic account summary implementation"
+                "using basic account summary implementation",
             )
             return await self._get_basic_account_info(subaccount_id)
 
@@ -764,7 +767,8 @@ class BackpackAccountService:
             ) from e_unexpected
 
     async def _get_enhanced_account_info(
-        self, subaccount_id: int | None = None
+        self,
+        subaccount_id: int | None = None,
     ) -> MarginAccountSummary | None:
         """Enhanced account info using collateral endpoint.
 
@@ -792,7 +796,10 @@ class BackpackAccountService:
             positions_task = self._get_raw_positions_list()
 
             raw_collateral, raw_settings, raw_positions_list = await asyncio.gather(
-                collateral_task, settings_task, positions_task, return_exceptions=False
+                collateral_task,
+                settings_task,
+                positions_task,
+                return_exceptions=False,
             )
 
             # Transform using enhanced mapper method
@@ -803,7 +810,7 @@ class BackpackAccountService:
             )
 
             logger.debug(
-                f"[{self._exchange_name}] Enhanced account summary created with collateral data."
+                f"[{self._exchange_name}] Enhanced account summary created with collateral data.",
             )
             return internal_summary
 
@@ -815,7 +822,7 @@ class BackpackAccountService:
             ):
                 logger.debug(
                     f"[{self._exchange_name}] Collateral endpoint not available or invalid data "
-                    f"(status: {e.http_status}, code: {e.code}), subaccount_id={subaccount_id}"
+                    f"(status: {e.http_status}, code: {e.code}), subaccount_id={subaccount_id}",
                 )
                 return None
             # Re-raise other API errors
@@ -848,7 +855,8 @@ class BackpackAccountService:
             ) from e_unexpected
 
     async def _get_basic_account_info(
-        self, subaccount_id: int | None = None
+        self,
+        subaccount_id: int | None = None,
     ) -> MarginAccountSummary:
         """Basic account info using legacy endpoints.
 
@@ -865,12 +873,12 @@ class BackpackAccountService:
             if subaccount_id is not None:
                 logger.warning(
                     f"[{self._exchange_name}] Subaccount filtering not supported in basic "
-                    f"implementation, ignoring subaccount_id={subaccount_id}"
+                    f"implementation, ignoring subaccount_id={subaccount_id}",
                 )
 
             logger.debug(
                 f"[{self._exchange_name}] Fetching basic account info "
-                f"(settings, balances, positions)."
+                f"(settings, balances, positions).",
             )
 
             # Original implementation: fetch components sequentially
@@ -949,7 +957,8 @@ class BackpackAccountService:
             ) from e_unexpected
 
     async def _get_raw_collateral_response(
-        self, subaccount_id: int | None = None
+        self,
+        subaccount_id: int | None = None,
     ) -> BackpackRawCollateralResponse:
         """Fetch raw collateral data from /api/v1/capital/collateral endpoint.
 
@@ -1055,7 +1064,9 @@ class BackpackAccountService:
 
             # Parse and return Decimal value
             max_quantity = parse_decimal_value(
-                raw_response.max_borrow_quantity, field_name="max_borrow_quantity", allow_none=False
+                raw_response.max_borrow_quantity,
+                field_name="max_borrow_quantity",
+                allow_none=False,
             )
             if max_quantity is None:
                 raise APIError(
@@ -1125,7 +1136,9 @@ class BackpackAccountService:
 
             # Parse and return Decimal value
             max_quantity = parse_decimal_value(
-                raw_response.max_order_quantity, field_name="max_order_quantity", allow_none=False
+                raw_response.max_order_quantity,
+                field_name="max_order_quantity",
+                allow_none=False,
             )
             if max_quantity is None:
                 raise APIError(
@@ -1144,7 +1157,8 @@ class BackpackAccountService:
             raise
 
     async def _get_exchange_max_withdrawal_quantity(
-        self, args: GetMaxWithdrawalQuantityArgs
+        self,
+        args: GetMaxWithdrawalQuantityArgs,
     ) -> Decimal:
         """PRIVATE: Fetches max withdrawal quantity from the exchange for validation.
 
@@ -1316,7 +1330,7 @@ class BackpackAccountService:
         """Handle various transfer-related exceptions."""
         if isinstance(e, APIError):
             raise
-        elif isinstance(e, TransformationError):
+        if isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for transfer: {e}",
@@ -1329,7 +1343,7 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValidationError):
+        if isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for transfer: {e}",
@@ -1342,38 +1356,36 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValueError | TypeError):
+        if isinstance(e, ValueError | TypeError):
             error_msg = str(e)
             if current_method in error_msg and any(
                 param in error_msg for param in ["from_account_type", "to_account_type"]
             ):
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for transfer: {e}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e
-        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for transfer: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Service internal logic error.",
                 original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+            f"for transfer: {e}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def transfer(self, args: TransferArgs) -> Transfer:
         """Performs an internal transfer of funds between account types."""
@@ -1506,7 +1518,7 @@ class BackpackAccountService:
         """Handle various withdrawal-related exceptions."""
         if isinstance(e, APIError):
             raise
-        elif isinstance(e, TransformationError):
+        if isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for withdrawal: {e}",
@@ -1519,7 +1531,7 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValidationError):
+        if isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for withdrawal: {e}",
@@ -1532,36 +1544,34 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValueError | TypeError):
+        if isinstance(e, ValueError | TypeError):
             error_msg = str(e)
             if current_method in error_msg and "network" in error_msg:
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for withdrawal: {e}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e
-        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for withdrawal: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Service internal logic error.",
                 original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+            f"for withdrawal: {e}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Initiates a withdrawal of funds to an external address."""
@@ -1639,7 +1649,9 @@ class BackpackAccountService:
 
             raw_orders_list: list[BackpackRawOrder] = (
                 self._response_handler.handle_get_order_history_response(
-                    raw_data, args.symbol, status_code
+                    raw_data,
+                    args.symbol,
+                    status_code,
                 )
             )
 
@@ -1771,7 +1783,9 @@ class BackpackAccountService:
         """
         # Use fills handler since we're calling /wapi/v1/history/fills
         raw_fills_list = self._response_handler.handle_get_fills_response(
-            raw_data, args.symbol, status_code
+            raw_data,
+            args.symbol,
+            status_code,
         )
 
         internal_trades: list[Trade] = []
@@ -1803,7 +1817,7 @@ class BackpackAccountService:
         """Handle various trade history-related exceptions."""
         if isinstance(e, APIError):
             raise
-        elif isinstance(e, TransformationError):
+        if isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for trade history: {e}",
@@ -1816,7 +1830,7 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValidationError):
+        if isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for trade history: {e}",
@@ -1829,36 +1843,34 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValueError | TypeError):
+        if isinstance(e, ValueError | TypeError):
             error_msg = str(e)
             if current_method in error_msg and "limit" in error_msg:
                 raise
-            else:
-                logger.error(
-                    f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                    f"for trade history: {e}",
-                    exc_info=True,
-                )
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Service internal logic error.",
-                    original_exception=e,
-                    http_status=status_code if status_code != 0 else None,
-                    exchange_message=raw_response_content,
-                ) from e
-        else:
             logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+                f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for trade history: {e}",
                 exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
+                message="Service internal logic error.",
                 original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
+            f"for trade history: {e}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieves historical trade data (fills).
@@ -1909,7 +1921,7 @@ class BackpackAccountService:
         current_method = frame.f_code.co_name if frame is not None else "update_account_settings"
 
         logger.debug(
-            f"[{self.__class__.__name__}::{current_method}] Starting account settings update"
+            f"[{self.__class__.__name__}::{current_method}] Starting account settings update",
         )
 
         try:
@@ -1938,24 +1950,24 @@ class BackpackAccountService:
 
             logger.debug(
                 f"[{self.__class__.__name__}::{current_method}] "
-                f"Account settings updated successfully (status: {status_code})"
+                f"Account settings updated successfully (status: {status_code})",
             )
 
             # Transform updated settings to internal model
             return self._mapper.transform_account_settings_update_to_internal(
-                args, self._exchange_name
+                args,
+                self._exchange_name,
             )
 
         except Exception as e:
             logger.error(
                 f"[{self.__class__.__name__}::{current_method}] "
-                f"Failed to update account settings: {e}"
+                f"Failed to update account settings: {e}",
             )
             if isinstance(e, APIError):
                 raise
-            else:
-                raise APIError(
-                    code=APIErrorCode.UNKNOWN.value,
-                    message="Unexpected error in update_account_settings",
-                    original_exception=e,
-                ) from e
+            raise APIError(
+                code=APIErrorCode.UNKNOWN.value,
+                message="Unexpected error in update_account_settings",
+                original_exception=e,
+            ) from e

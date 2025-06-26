@@ -82,7 +82,7 @@ class MarketOrder:
 
         logger.info(
             f"Executing market order: {side.value} {quantity} {symbol} "
-            f"(max_slippage: {max_slippage})"
+            f"(max_slippage: {max_slippage})",
         )
 
         try:
@@ -99,7 +99,7 @@ class MarketOrder:
 
             logger.info(
                 f"Calculated aggressive price for {symbol}: {aggressive_price} "
-                f"(side: {side.value}, quantity: {quantity} -> {rounded_quantity})"
+                f"(side: {side.value}, quantity: {quantity} -> {rounded_quantity})",
             )
 
             # 4. Prepare IoC limit order
@@ -133,7 +133,7 @@ class MarketOrder:
                 message=f"Market order timed out after {self._config.order_timeout_seconds}s",
             )
             raise MarketOrderError(
-                f"Market order timed out after {self._config.order_timeout_seconds}s"
+                f"Market order timed out after {self._config.order_timeout_seconds}s",
             ) from e
         except Exception as e:
             logger.error(
@@ -152,24 +152,24 @@ class MarketOrder:
             order: Executed order
         """
         if order.status == OrderStatus.FILLED:
-            fill_price = order.price if order.price else "unknown"
+            fill_price = order.price or "unknown"
             logger.info(
                 f"Market order FILLED: {order.symbol} {order.side.value} "
-                f"{order.quantity_requested} @ {fill_price}"
+                f"{order.quantity_requested} @ {fill_price}",
             )
         elif order.status == OrderStatus.PARTIALLY_FILLED:
-            filled = order.quantity_filled or Decimal("0")
+            filled = order.quantity_filled or Decimal(0)
             fill_rate = (
                 (filled / order.quantity_requested * 100) if order.quantity_requested > 0 else 0
             )
             logger.warning(
                 f"Market order PARTIALLY FILLED: {order.symbol} {order.side.value} "
-                f"{filled}/{order.quantity_requested} ({fill_rate:.1f}%)"
+                f"{filled}/{order.quantity_requested} ({fill_rate:.1f}%)",
             )
         else:
             logger.warning(
                 f"Market order NOT FILLED: {order.symbol} {order.side.value} "
-                f"{order.quantity_requested} - status: {order.status.value}"
+                f"{order.quantity_requested} - status: {order.status.value}",
             )
 
     async def execute_market_order_with_retry(
@@ -198,16 +198,16 @@ class MarketOrder:
             Same as execute_market_order
         """
         remaining_quantity = quantity
-        total_filled = Decimal("0")
+        total_filled = Decimal(0)
         orders: list[Order] = []
 
         for attempt in range(max_retries + 1):
-            if remaining_quantity <= Decimal("0"):
+            if remaining_quantity <= Decimal(0):
                 break
 
             logger.info(
                 f"Market order attempt {attempt + 1}/{max_retries + 1}: "
-                f"remaining quantity {remaining_quantity}"
+                f"remaining quantity {remaining_quantity}",
             )
 
             order = await self.execute_market_order(
@@ -231,7 +231,7 @@ class MarketOrder:
         if orders:
             final_order = orders[-1]
             # Update the quantity_filled to reflect total across all attempts
-            if total_filled > Decimal("0"):
+            if total_filled > Decimal(0):
                 final_order.quantity_filled = total_filled
             return final_order
 
@@ -251,7 +251,7 @@ class MarketOrder:
         if not symbol:
             raise ValueError("Symbol must be a non-empty string")
 
-        if quantity <= Decimal("0"):
+        if quantity <= Decimal(0):
             raise ValueError("Quantity must be a positive Decimal")
 
         if not quantity.is_finite():

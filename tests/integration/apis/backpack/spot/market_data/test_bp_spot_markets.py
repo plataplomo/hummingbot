@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.vcr]
 class TestBackpackSpotMarkets:
     """Backpack spot market integration tests."""
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_sol_usdc_success(
         self,
@@ -68,14 +68,14 @@ class TestBackpackSpotMarkets:
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
         )
-        assert market.tick_size > Decimal("0"), (
+        assert market.tick_size > Decimal(0), (
             f"tick_size should be positive, got {market.tick_size}"
         )
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal, got {type(market.step_size)}"
         )
-        assert market.step_size > Decimal("0"), (
+        assert market.step_size > Decimal(0), (
             f"step_size should be positive, got {market.step_size}"
         )
 
@@ -84,7 +84,7 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.min_price, Decimal), (
                 f"min_price should be Decimal, got {type(market.min_price)}"
             )
-            assert market.min_price >= Decimal("0"), (
+            assert market.min_price >= Decimal(0), (
                 f"min_price should be non-negative, got {market.min_price}"
             )
 
@@ -92,7 +92,7 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.max_price, Decimal), (
                 f"max_price should be Decimal, got {type(market.max_price)}"
             )
-            assert market.max_price >= Decimal("0"), (
+            assert market.max_price >= Decimal(0), (
                 f"max_price should be non-negative, got {market.max_price}"
             )
             if market.min_price is not None:
@@ -105,7 +105,7 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.min_quantity, Decimal), (
                 f"min_quantity should be Decimal, got {type(market.min_quantity)}"
             )
-            assert market.min_quantity >= Decimal("0"), (
+            assert market.min_quantity >= Decimal(0), (
                 f"min_quantity should be non-negative, got {market.min_quantity}"
             )
 
@@ -113,7 +113,7 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.max_quantity, Decimal), (
                 f"max_quantity should be Decimal, got {type(market.max_quantity)}"
             )
-            assert market.max_quantity >= Decimal("0"), (
+            assert market.max_quantity >= Decimal(0), (
                 f"max_quantity should be non-negative, got {market.max_quantity}"
             )
             if market.min_quantity is not None:
@@ -145,7 +145,7 @@ class TestBackpackSpotMarkets:
         # Validate that hl_details is None for Backpack markets
         assert market.hl_details is None, "hl_details should be None for Backpack markets"
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_btc_usdc_success(
         self,
@@ -169,14 +169,14 @@ class TestBackpackSpotMarkets:
         )
 
         # BTC should have reasonable tick and step sizes for spot trading
-        assert market.tick_size <= Decimal("100"), (
+        assert market.tick_size <= Decimal(100), (
             f"BTC spot tick_size seems too large: {market.tick_size}"
         )
-        assert market.step_size <= Decimal("1"), (
+        assert market.step_size <= Decimal(1), (
             f"BTC spot step_size seems too large: {market.step_size}"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_eth_usdc_success(
         self,
@@ -204,7 +204,7 @@ class TestBackpackSpotMarkets:
             f"Expected spot market type for ETH_USDC, got '{market.market_type}'"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_invalid_spot_symbol_error(
         self,
@@ -226,7 +226,7 @@ class TestBackpackSpotMarkets:
             or "not found" in str(error).lower()
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_nonexistent_spot_symbol_error(
         self,
@@ -248,7 +248,7 @@ class TestBackpackSpotMarkets:
             or "market" in str(error).lower()
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_spot_markets_success(
         self,
@@ -302,14 +302,14 @@ class TestBackpackSpotMarkets:
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for {market.symbol}"
             )
-            assert market.tick_size > Decimal("0"), (
+            assert market.tick_size > Decimal(0), (
                 f"tick_size should be positive for {market.symbol}"
             )
 
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for {market.symbol}"
             )
-            assert market.step_size > Decimal("0"), (
+            assert market.step_size > Decimal(0), (
                 f"step_size should be positive for {market.symbol}"
             )
 
@@ -331,7 +331,7 @@ class TestBackpackSpotMarkets:
             f"got symbols: {sorted(market_symbols)}"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_spot_markets_data_consistency(
         self,
@@ -367,7 +367,7 @@ class TestBackpackSpotMarkets:
                     f"Spot market {market.symbol} has None value for required attribute: {attr}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_spot_markets_precision_validation(
         self,
@@ -401,7 +401,7 @@ class TestBackpackSpotMarkets:
             )
 
             # Verify arithmetic operations work correctly with the Decimals
-            doubled_tick = market.tick_size * Decimal("2")
+            doubled_tick = market.tick_size * Decimal(2)
             assert isinstance(doubled_tick, Decimal), (
                 f"Arithmetic with tick_size should maintain Decimal type for spot {market.symbol}"
             )
@@ -426,7 +426,7 @@ class TestBackpackSpotMarkets:
                     f"max_price should be finite for spot {market.symbol}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_vs_get_markets_consistency_spot(
         self,
@@ -470,7 +470,7 @@ class TestBackpackSpotMarkets:
         assert individual_market.min_quantity == matching_market.min_quantity
         assert individual_market.max_quantity == matching_market.max_quantity
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_spot_market_business_logic_validation(
         self,
@@ -510,7 +510,7 @@ class TestBackpackSpotMarkets:
         # Validate tick_size is reasonable relative to potential prices for spot
         if market.quote_symbol == "USDC":
             # Tick size should be reasonable for USD-denominated spot trading
-            assert market.tick_size <= Decimal("1000"), (
+            assert market.tick_size <= Decimal(1000), (
                 f"tick_size seems too large for USDC spot pair: {market.tick_size}"
             )
             assert market.tick_size >= Decimal("0.000001"), (
@@ -518,7 +518,7 @@ class TestBackpackSpotMarkets:
             )
 
         # Step size should be reasonable for spot asset trading
-        assert market.step_size <= Decimal("1000"), (
+        assert market.step_size <= Decimal(1000), (
             f"step_size seems too large for spot: {market.step_size}"
         )
         assert market.step_size >= Decimal("0.000001"), (

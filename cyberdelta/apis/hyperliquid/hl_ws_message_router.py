@@ -185,13 +185,13 @@ class HyperliquidWsMessageRouter:
             return
 
         if channel in ["pong", "subscriptionResponse"]:
-            self.logger.debug(
+            # Control messages are routine - use trace level to reduce spam
+            self.logger.trace(
                 "control_message_received",
                 action="handle_control_message",
                 exchange=self._exchange_name,
                 channel=channel,
-                control_message=message,
-                message=f"[{self._exchange_name}] Control message on '{channel}': {message}",
+                message=f"[{self._exchange_name}] Control message on '{channel}'",
             )
             return
 
@@ -228,7 +228,10 @@ class HyperliquidWsMessageRouter:
             )
 
     def _determine_topic_key(
-        self, channel: str, raw_data_any: object, message: dict[str, Any]
+        self,
+        channel: str,
+        raw_data_any: object,
+        message: dict[str, Any],
     ) -> str:
         """Determine the topic key for handler lookup based on channel and data."""
         topic_key_for_handler = channel
@@ -243,11 +246,14 @@ class HyperliquidWsMessageRouter:
         return topic_key_for_handler
 
     def _get_l2book_topic_key(
-        self, channel: str, raw_data_any: object, message: dict[str, Any]
+        self,
+        channel: str,
+        raw_data_any: object,
+        message: dict[str, Any],
     ) -> str:
         """Get topic key for l2Book channel."""
         if isinstance(raw_data_any, dict):
-            raw_data_dict = cast(dict[str, Any], raw_data_any)
+            raw_data_dict = cast("dict[str, Any]", raw_data_any)
             coin_from_data_any: Any = raw_data_dict.get("coin")
             if isinstance(coin_from_data_any, str):
                 return f"{channel}:{coin_from_data_any}"
@@ -267,15 +273,15 @@ class HyperliquidWsMessageRouter:
             # After isinstance check, we know it's a list
             # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
             # Mypy=[redundant-cast]
-            raw_list: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+            raw_list: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
             for item in raw_list:
                 if isinstance(item, dict):
-                    checked_list_for_topic_derivation.append(cast(dict[str, Any], item))
+                    checked_list_for_topic_derivation.append(cast("dict[str, Any]", item))
 
             if checked_list_for_topic_derivation:
                 first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
                 if isinstance(first_item_for_topic_any, dict):
-                    first_item_dict = cast(dict[str, Any], first_item_for_topic_any)
+                    first_item_dict = cast("dict[str, Any]", first_item_for_topic_any)
                     coin_from_item_any: Any = first_item_dict.get("coin")
                     if isinstance(coin_from_item_any, str):
                         coin_for_topic_str = coin_from_item_any
@@ -340,7 +346,7 @@ class HyperliquidWsMessageRouter:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         validated_book_model = self._raw_ws_handler.handle_l2book_payload(
-            cast(dict[str, Any], raw_data_any),
+            cast("dict[str, Any]", raw_data_any),
         )
 
         try:
@@ -376,10 +382,10 @@ class HyperliquidWsMessageRouter:
         # After isinstance check, we know it's a list
         # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
         # Mypy=[redundant-cast]
-        raw_list_trades: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+        raw_list_trades: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
         for item in raw_list_trades:
             if isinstance(item, dict):
-                item_dict = cast(dict[str, Any], item)
+                item_dict = cast("dict[str, Any]", item)
                 checked_list_of_trades.append(item_dict)
                 trade_payloads.append(item_dict)
 
@@ -418,10 +424,10 @@ class HyperliquidWsMessageRouter:
         # After isinstance check, we know it's a list
         # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
         # Mypy=[redundant-cast]
-        raw_list_events: list[Any] = cast(list[Any], raw_data_any)  # type: ignore[redundant-cast]
+        raw_list_events: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
         for event_loop_var_any in raw_list_events:
             if isinstance(event_loop_var_any, dict):
-                checked_list_of_any_events.append(cast(dict[str, Any], event_loop_var_any))
+                checked_list_of_any_events.append(cast("dict[str, Any]", event_loop_var_any))
 
         for event_item_dict in checked_list_of_any_events:
             await self._process_single_user_event(event_item_dict, app_handler, message)
@@ -554,7 +560,7 @@ class HyperliquidWsMessageRouter:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
-        raw_data_dict_all_mids = cast(dict[str, Any], raw_data_any)
+        raw_data_dict_all_mids = cast("dict[str, Any]", raw_data_any)
 
         validated_all_mids = self._raw_ws_handler.handle_all_mids_payload(
             raw_data_dict_all_mids,
@@ -574,7 +580,7 @@ class HyperliquidWsMessageRouter:
             f"[{self._exchange_name}] Control message on '{channel}': {message}",
         )
         payload_for_handler = (
-            cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
+            cast("dict[str, Any]", raw_data_any) if isinstance(raw_data_any, dict) else {}
         )
         await app_handler(payload_for_handler, message)
 
@@ -591,6 +597,6 @@ class HyperliquidWsMessageRouter:
             f"validation, passing raw data if dict. Msg: {message}",
         )
         payload_for_handler = (
-            cast(dict[str, Any], raw_data_any) if isinstance(raw_data_any, dict) else {}
+            cast("dict[str, Any]", raw_data_any) if isinstance(raw_data_any, dict) else {}
         )
         await app_handler(payload_for_handler, message)

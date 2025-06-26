@@ -37,7 +37,6 @@ async def dummy_message_handler(message: dict[str, Any]) -> None:
 
 async def dummy_on_connected_callback() -> None:
     """Handle WebSocket connection events for testing purposes."""
-    pass
 
 
 class MockMessage(BaseModel):
@@ -100,7 +99,9 @@ async def mock_aiohttp_client_session() -> AsyncMock:
 
 
 def _create_mock_receive_behavior(
-    mock_conn: AsyncMock, receive_sequence: Iterable[Any] | None, block_indefinitely: bool
+    mock_conn: AsyncMock,
+    receive_sequence: Iterable[Any] | None,
+    block_indefinitely: bool,
 ) -> Callable[[], Awaitable[WSMessage]]:
     """Create the mock receive behavior for a WebSocket connection."""
     seq_iterator = iter(receive_sequence) if receive_sequence else None
@@ -159,7 +160,9 @@ def mock_ws_connection_factory() -> Callable[..., AsyncMock]:
 
         # Setup receive behavior
         mock_receive_func = _create_mock_receive_behavior(
-            mock_conn, receive_sequence, block_indefinitely
+            mock_conn,
+            receive_sequence,
+            block_indefinitely,
         )
         mock_conn.receive = AsyncMock(side_effect=mock_receive_func)
         mock_conn.__aiter__ = MagicMock(return_value=mock_conn)
@@ -391,8 +394,9 @@ def _setup_test_close_environment(
 
     capturing_task_factory = MagicMock(
         side_effect=_create_task_capture_side_effect(
-            original_asyncio_create_task, created_tasks_map
-        )
+            original_asyncio_create_task,
+            created_tasks_map,
+        ),
     )
 
     local_exchange_name = "test_close_local_manager_ws"
@@ -536,12 +540,15 @@ class TestWebSocketManagerTaskManagement:
         try:
             # Establish connection and verify
             connection_establishment_task = await _establish_connection_and_verify(
-                local_ws_manager, mock_aiohttp_session_ws_connect_method
+                local_ws_manager,
+                mock_aiohttp_session_ws_connect_method,
             )
 
             # Verify tasks were created
             listener_task_for_close, ping_task_for_close = _verify_tasks_created(
-                created_tasks_map, local_exchange_name, default_ws_manager_config
+                created_tasks_map,
+                local_exchange_name,
+                default_ws_manager_config,
             )
 
             # Assert that connection happened once during setup
@@ -642,7 +649,9 @@ class TestWebSocketManagerTaskManagement:
             mock_user_message_handler,
             created_tasks_map_listen_test,
         ) = _setup_listen_test_manager(
-            default_ws_manager_config, test_case_logger, mock_create_task
+            default_ws_manager_config,
+            test_case_logger,
+            mock_create_task,
         )
 
         listener_task_name_listen_test = "listen_reconnect_test_ws_listen"
@@ -674,7 +683,7 @@ class TestWebSocketManagerTaskManagement:
                 _verify_sleep_calls(
                     mock_sleep,
                     default_ws_manager_config.model_copy(
-                        update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01}
+                        update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01},
                     ),
                 )
 
@@ -683,7 +692,9 @@ class TestWebSocketManagerTaskManagement:
 
                 # Handle restarted listen task
                 await _handle_restarted_listen_task(
-                    created_tasks_map_listen_test, listener_task_name_listen_test, test_case_logger
+                    created_tasks_map_listen_test,
+                    listener_task_name_listen_test,
+                    test_case_logger,
                 )
 
                 assert manager.is_connected is False

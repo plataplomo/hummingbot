@@ -77,7 +77,7 @@ class HyperliquidTestHelpers:
             if not available_symbols:
                 raise RuntimeError(
                     "No perpetual symbols available from exchange. "
-                    "Hyperliquid tests require real trading symbols."
+                    "Hyperliquid tests require real trading symbols.",
                 )
 
             return available_symbols
@@ -85,7 +85,7 @@ class HyperliquidTestHelpers:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to fetch perpetual symbols from exchange: {e}. "
-                "Hyperliquid tests require real market data and cannot use hardcoded symbols."
+                "Hyperliquid tests require real market data and cannot use hardcoded symbols.",
             ) from e
 
     # Market Data Utilities
@@ -106,32 +106,32 @@ class HyperliquidTestHelpers:
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
-                    "Trading tests require real market data and cannot use fallback values."
+                    "Trading tests require real market data and cannot use fallback values.",
                 )
 
             # Verify all required fields are present
             if not market.tick_size or not market.step_size:
                 raise RuntimeError(
                     f"Incomplete market data for {symbol}: missing tick_size or step_size. "
-                    "Cannot proceed with trading tests without complete market constraints."
+                    "Cannot proceed with trading tests without complete market constraints.",
                 )
 
             if not market.min_quantity:
                 raise RuntimeError(
                     f"Missing min_quantity for {symbol}. "
-                    "Cannot determine minimum order size for trading tests."
+                    "Cannot determine minimum order size for trading tests.",
                 )
 
             return {
                 "tick_size": market.tick_size,
                 "step_size": market.step_size,
                 "min_quantity": market.min_quantity,
-                "max_quantity": market.max_quantity or market.min_quantity * Decimal("1000000"),
+                "max_quantity": market.max_quantity or market.min_quantity * Decimal(1000000),
             }
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get market constraints for {symbol}: {e}. "
-                "Trading tests must have access to real market data to ensure safety."
+                "Trading tests must have access to real market data to ensure safety.",
             ) from e
 
     # REMOVED _get_fallback_constraints - SECURITY VIOLATION
@@ -162,13 +162,13 @@ class HyperliquidTestHelpers:
             # No fallback prices - fail fast instead
             raise RuntimeError(
                 f"Failed to get market price for {symbol}. No ticker or market data available. "
-                "Trading tests require real market data and cannot use hardcoded fallback values."
+                "Trading tests require real market data and cannot use hardcoded fallback values.",
             )
 
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get market price for {symbol}: {e}. "
-                "Trading tests require real market data and cannot use fallback values."
+                "Trading tests require real market data and cannot use fallback values.",
             ) from e
 
     # REMOVED _get_fallback_price - SECURITY VIOLATION
@@ -196,7 +196,7 @@ class HyperliquidTestHelpers:
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
-                    "Funding rate tests require real market data and cannot use hardcoded bounds."
+                    "Funding rate tests require real market data and cannot use hardcoded bounds.",
                 )
 
             # Hyperliquid typically uses ±0.75% daily max (±0.0075 per 8hr period)
@@ -251,13 +251,13 @@ class HyperliquidTestHelpers:
             raise RuntimeError(
                 f"Failed to determine funding rate bounds for {symbol} from exchange data. "
                 "Cannot get historical funding rates to establish realistic bounds. "
-                "Funding rate tests require real exchange data and cannot use hardcoded bounds."
+                "Funding rate tests require real exchange data and cannot use hardcoded bounds.",
             )
 
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get funding rate bounds for {symbol}: {e}. "
-                "Funding rate tests require real exchange constraints."
+                "Funding rate tests require real exchange constraints.",
             ) from e
 
     # Dynamic Pricing Utilities
@@ -289,18 +289,18 @@ class HyperliquidTestHelpers:
             raise RuntimeError(
                 f"No price tolerance provided for {symbol}. "
                 "Tests must specify explicit tolerance based on exchange requirements, "
-                "not use hardcoded default values."
+                "not use hardcoded default values.",
             )
 
         # Calculate offset price
-        offset_multiplier = tolerance_percent / Decimal("100")
+        offset_multiplier = tolerance_percent / Decimal(100)
 
         if side == OrderSide.BUY:
             # Buy orders: price below market
-            test_price = market_price * (Decimal("1") - offset_multiplier)
+            test_price = market_price * (Decimal(1) - offset_multiplier)
         else:
             # Sell orders: price above market
-            test_price = market_price * (Decimal("1") + offset_multiplier)
+            test_price = market_price * (Decimal(1) + offset_multiplier)
 
         # Round to tick size (properly)
         tick_size = constraints["tick_size"]
@@ -322,7 +322,7 @@ class HyperliquidTestHelpers:
 
         # Calculate how many ticks this test price represents
         ticks_decimal = test_price / tick_size
-        rounded_ticks = ticks_decimal.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        rounded_ticks = ticks_decimal.quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
         # Calculate the final price by multiplying back
         final_price = rounded_ticks * tick_size
@@ -334,34 +334,35 @@ class HyperliquidTestHelpers:
         # Log calculation information for debugging
         logger.info(
             f"Price calculation for {symbol}: market={market_price}, "
-            f"tolerance={tolerance_percent}%, side={side.value}"
+            f"tolerance={tolerance_percent}%, side={side.value}",
         )
         operator = "-" if side == OrderSide.BUY else "+"
         logger.info(
             f"Step 1 - test_price calculation: {market_price} * "
-            f"(1 {operator} {tolerance_percent / 100}) = {test_price}"
+            f"(1 {operator} {tolerance_percent / 100}) = {test_price}",
         )
         logger.info(
             f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
-            f"ticks_decimal={ticks_decimal}, rounded_ticks={rounded_ticks}"
+            f"ticks_decimal={ticks_decimal}, rounded_ticks={rounded_ticks}",
         )
         logger.info(
             f"Step 3 - final calculation: {rounded_ticks} * {tick_size} = {final_price}, "
-            f"quantized to {tick_decimal_places} places = {quantized_price}"
+            f"quantized to {tick_decimal_places} places = {quantized_price}",
         )
 
         # Verify the final price is correctly aligned to tick size
         remainder = quantized_price % tick_size
-        if remainder != Decimal("0"):
+        if remainder != Decimal(0):
             # Force alignment by recalculating
             corrected_ticks = (quantized_price / tick_size).quantize(
-                Decimal("1"), rounding=ROUND_HALF_UP
+                Decimal(1),
+                rounding=ROUND_HALF_UP,
             )
             quantized_price = corrected_ticks * tick_size
             quantized_price = quantized_price.quantize(price_precision, rounding=ROUND_HALF_UP)
 
             logger.warning(
-                f"Price alignment corrected for {symbol}: was {final_price}, now {quantized_price}"
+                f"Price alignment corrected for {symbol}: was {final_price}, now {quantized_price}",
             )
 
         return quantized_price
@@ -372,7 +373,7 @@ class HyperliquidTestHelpers:
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
         # Use exchange maximum price limits instead of arbitrary multiplier
         await HyperliquidTestHelpers.get_market_constraints(api, symbol)
-        max_reasonable_multiplier = Decimal("2")  # 2x as maximum for negative testing
+        max_reasonable_multiplier = Decimal(2)  # 2x as maximum for negative testing
         return market_price * max_reasonable_multiplier
 
     @staticmethod
@@ -381,12 +382,11 @@ class HyperliquidTestHelpers:
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
         # Use exchange maximum or account limits instead of arbitrary multiplier
         max_account_size = await HyperliquidTestHelpers.calculate_maximum_position_size(api, symbol)
-        if max_account_size["max_quantity"] > Decimal("0"):
+        if max_account_size["max_quantity"] > Decimal(0):
             # 100,000x account max - absurdly large
-            return max_account_size["max_quantity"] * Decimal("100000")
-        else:
-            # 100x exchange max if no account limit
-            return constraints["max_quantity"] * Decimal("100")
+            return max_account_size["max_quantity"] * Decimal(100000)
+        # 100x exchange max if no account limit
+        return constraints["max_quantity"] * Decimal(100)
 
     # Dynamic Sizing Utilities
 
@@ -421,10 +421,10 @@ class HyperliquidTestHelpers:
         try:
             # Get account information to determine real minimum requirements
             account_summary = await api.get_account_summary()
-            if not account_summary or account_summary.total_equity <= Decimal("0"):
+            if not account_summary or account_summary.total_equity <= Decimal(0):
                 raise RuntimeError(
                     f"No account equity available for {symbol}. "
-                    "Trading tests require funded account to determine real order minimums."
+                    "Trading tests require funded account to determine real order minimums.",
                 )
 
             # Hyperliquid testnet has a $10 minimum notional value requirement
@@ -439,7 +439,8 @@ class HyperliquidTestHelpers:
             from decimal import ROUND_UP
 
             rounded_steps = (required_min_quantity / step_size).quantize(
-                Decimal("1"), rounding=ROUND_UP
+                Decimal(1),
+                rounding=ROUND_UP,
             )
             final_quantity = rounded_steps * step_size
 
@@ -447,7 +448,7 @@ class HyperliquidTestHelpers:
             if final_quantity < min_quantity:
                 raise RuntimeError(
                     f"Calculated quantity {final_quantity} below exchange minimum "
-                    f"{min_quantity} for {symbol}"
+                    f"{min_quantity} for {symbol}",
                 )
 
             # Verify we meet minimum notional value
@@ -458,7 +459,7 @@ class HyperliquidTestHelpers:
                 # Add small buffer to account for rounding
                 buffered_qty = min_qty_for_notional * Decimal("1.01")  # 1% buffer
 
-                rounded_steps = (buffered_qty / step_size).quantize(Decimal("1"), rounding=ROUND_UP)
+                rounded_steps = (buffered_qty / step_size).quantize(Decimal(1), rounding=ROUND_UP)
                 final_quantity = rounded_steps * step_size
                 final_notional = final_quantity * price
 
@@ -468,12 +469,12 @@ class HyperliquidTestHelpers:
                 raise RuntimeError(
                     f"Required notional value {final_notional} exceeds 20% of account equity "
                     f"({max_affordable_notional}). Cannot safely test with minimum $10 order "
-                    f"on this account."
+                    f"on this account.",
                 )
 
             logger.info(
                 f"Calculated minimal order size for {symbol}: qty={final_quantity}, "
-                f"price={price}, notional=${final_notional}, min_required=${MIN_NOTIONAL_USD}"
+                f"price={price}, notional=${final_notional}, min_required=${MIN_NOTIONAL_USD}",
             )
 
             return final_quantity
@@ -481,7 +482,7 @@ class HyperliquidTestHelpers:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to calculate minimal order size for {symbol} at price {price}: {e}. "
-                "Cannot determine safe order size without valid exchange constraints."
+                "Cannot determine safe order size without valid exchange constraints.",
             ) from e
 
     @staticmethod
@@ -517,16 +518,15 @@ class HyperliquidTestHelpers:
             # Round to next valid step size if needed
             from decimal import ROUND_UP
 
-            rounded_steps = (min_quantity / step_size).quantize(Decimal("1"), rounding=ROUND_UP)
+            rounded_steps = (min_quantity / step_size).quantize(Decimal(1), rounding=ROUND_UP)
             final_quantity = rounded_steps * step_size
 
             # Ensure we meet exchange minimum
-            if final_quantity < min_quantity:
-                final_quantity = min_quantity
+            final_quantity = max(final_quantity, min_quantity)
 
             logger.info(
                 f"Calculated minimal order size for zero balance test {symbol}: "
-                f"qty={final_quantity} (exchange minimum)"
+                f"qty={final_quantity} (exchange minimum)",
             )
 
             return final_quantity
@@ -534,7 +534,7 @@ class HyperliquidTestHelpers:
         except Exception as e:
             raise RuntimeError(
                 f"Failed to calculate minimal order size for zero balance test {symbol}: {e}. "
-                "Cannot determine exchange minimum constraints."
+                "Cannot determine exchange minimum constraints.",
             ) from e
 
     @staticmethod
@@ -572,12 +572,12 @@ class HyperliquidTestHelpers:
 
             # Check step size alignment
             step_size = constraints["step_size"]
-            if (quantity % step_size) != Decimal("0"):
+            if (quantity % step_size) != Decimal(0):
                 return False
 
             # Check tick size alignment
             tick_size = constraints["tick_size"]
-            if (price % tick_size) != Decimal("0"):
+            if (price % tick_size) != Decimal(0):
                 return False
 
             return True
@@ -602,27 +602,29 @@ class HyperliquidTestHelpers:
             if not account_summary:
                 return {"has_balance": False, "can_trade": False}
 
-            has_balance = account_summary.total_equity > Decimal("0")
-            can_trade = account_summary.total_equity > Decimal("0")
+            has_balance = account_summary.total_equity > Decimal(0)
+            can_trade = account_summary.total_equity > Decimal(0)
 
             return {
                 "has_balance": has_balance,
                 "can_trade": can_trade,
                 "total_equity": account_summary.total_equity,
-                "available_balance": getattr(account_summary, "available_balance", Decimal("0")),
-                "margin_used": getattr(account_summary, "margin_used", Decimal("0")),
+                "available_balance": getattr(account_summary, "available_balance", Decimal(0)),
+                "margin_used": getattr(account_summary, "margin_used", Decimal(0)),
             }
 
         except Exception as e:
             # Don't hide account access failures
             raise RuntimeError(
                 f"Failed to detect account state: {e}. "
-                "Trading tests require access to account information."
+                "Trading tests require access to account information.",
             ) from e
 
     @staticmethod
     async def wait_for_order_cancellation(
-        api: HyperliquidAPI, symbol: str | None = None, timeout: int = 30
+        api: HyperliquidAPI,
+        symbol: str | None = None,
+        timeout: int = 30,
     ) -> None:
         """Wait for order cancellation to complete with proper verification and adaptive polling."""
         import time
@@ -637,9 +639,8 @@ class HyperliquidTestHelpers:
                     symbol_orders = [order for order in open_orders if order.symbol == symbol]
                     if not symbol_orders:
                         return  # All orders for symbol cancelled
-                else:
-                    if not open_orders:
-                        return  # All orders cancelled
+                elif not open_orders:
+                    return  # All orders cancelled
 
                 # Adaptive polling interval: shorter intervals initially, longer as time passes
                 attempt += 1
@@ -658,7 +659,9 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def wait_for_order_placement(
-        api: HyperliquidAPI, order_id: str, timeout: int = 30
+        api: HyperliquidAPI,
+        order_id: str,
+        timeout: int = 30,
     ) -> None:
         """Wait for order to appear in open orders with proper verification."""
         import time
@@ -741,10 +744,10 @@ class HyperliquidTestHelpers:
                 return HyperliquidTestHelpers._get_fallback_margin_params()
 
             return {
-                "maintenance_margin": getattr(account_summary, "maintenance_margin", Decimal("0")),
-                "initial_margin": getattr(account_summary, "initial_margin", Decimal("0")),
-                "leverage": getattr(account_summary, "leverage", Decimal("1")),
-                "max_leverage": getattr(account_summary, "max_leverage", Decimal("20")),
+                "maintenance_margin": getattr(account_summary, "maintenance_margin", Decimal(0)),
+                "initial_margin": getattr(account_summary, "initial_margin", Decimal(0)),
+                "leverage": getattr(account_summary, "leverage", Decimal(1)),
+                "max_leverage": getattr(account_summary, "max_leverage", Decimal(20)),
             }
 
         except Exception:
@@ -756,8 +759,8 @@ class HyperliquidTestHelpers:
         return {
             "maintenance_margin": Decimal("0.05"),  # 5%
             "initial_margin": Decimal("0.1"),  # 10%
-            "leverage": Decimal("1"),  # No leverage
-            "max_leverage": Decimal("20"),  # Hyperliquid typical max
+            "leverage": Decimal(1),  # No leverage
+            "max_leverage": Decimal(20),  # Hyperliquid typical max
         }
 
     # Position Limit Calculations
@@ -782,10 +785,10 @@ class HyperliquidTestHelpers:
             market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
 
             if not account_state["can_trade"]:
-                return {"max_quantity": Decimal("0"), "max_notional": Decimal("0")}
+                return {"max_quantity": Decimal(0), "max_notional": Decimal(0)}
 
             # Calculate based on available balance and leverage
-            available_balance = account_state.get("available_balance", Decimal("0"))
+            available_balance = account_state.get("available_balance", Decimal(0))
             max_leverage = margin_params["max_leverage"]
 
             # Conservative approach: use only a fraction of available balance
@@ -804,7 +807,7 @@ class HyperliquidTestHelpers:
             }
 
         except Exception:
-            return {"max_quantity": Decimal("0"), "max_notional": Decimal("0")}
+            return {"max_quantity": Decimal(0), "max_notional": Decimal(0)}
 
     # Test Cleanup Utilities
 
@@ -827,7 +830,7 @@ class HyperliquidTestHelpers:
             # Order cleanup failures are critical in trading tests
             raise RuntimeError(
                 f"Failed to cleanup test orders for {symbol}: {e}. "
-                "Order cleanup is critical for test isolation and financial safety."
+                "Order cleanup is critical for test isolation and financial safety.",
             ) from e
 
     @staticmethod
@@ -848,7 +851,7 @@ class HyperliquidTestHelpers:
                     continue
 
                 # Close position if it has size
-                if abs(position.size) > Decimal("0"):
+                if abs(position.size) > Decimal(0):
                     # This would need to be implemented based on your position closing logic
                     # For now, just document that manual cleanup may be needed
                     pass
@@ -857,7 +860,7 @@ class HyperliquidTestHelpers:
             # Position cleanup failures are critical in trading tests
             raise RuntimeError(
                 f"Failed to cleanup test positions for {symbol}: {e}. "
-                "Position cleanup is critical for test isolation and financial safety."
+                "Position cleanup is critical for test isolation and financial safety.",
             ) from e
 
 

@@ -52,7 +52,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/positions"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/positions"],
+    indirect=True,
 )
 class TestBackpackPerpPositionsZero:
     """Comprehensive positions integration tests for zero balance scenarios."""
@@ -83,7 +85,7 @@ class TestBackpackPerpPositionsZero:
                 assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
 
                 # For zero balance accounts, positions should be dust amounts
-                assert abs(position.size) <= Decimal("1"), (
+                assert abs(position.size) <= Decimal(1), (
                     f"Position {i} size too large for zero balance account: {position.size}"
                 )
                 assert position.timestamp is not None, f"Position {i} timestamp cannot be None"
@@ -118,7 +120,7 @@ class TestBackpackPerpPositionsZero:
                         assert position.symbol == symbol, (
                             f"Position symbol mismatch: expected {symbol}, got {position.symbol}"
                         )
-                        assert abs(position.size) <= Decimal("1"), (
+                        assert abs(position.size) <= Decimal(1), (
                             f"Position size too large for zero balance: {position.size}"
                         )
                         self._validate_position_structure(position, 0)
@@ -149,9 +151,7 @@ class TestBackpackPerpPositionsZero:
             logger.info("✓ Authentication validation passed")
         except APIError as e:
             # If authentication fails, it should be a specific auth error
-            assert e.code in [
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-            ], f"Unexpected authentication error: {e.code}"
+            assert e.code == APIErrorCode.AUTHENTICATION_FAILED.value, f"Unexpected authentication error: {e.code}"
             pytest.fail(f"Authentication should not fail with valid credentials: {e}")
 
     @pytest.mark.vcr
@@ -201,7 +201,7 @@ class TestBackpackPerpPositionsZero:
             except Exception as e:
                 pytest.fail(
                     f"Unexpected exception type for invalid symbol {symbol}: "
-                    f"{type(e).__name__}: {e}"
+                    f"{type(e).__name__}: {e}",
                 )
 
     @pytest.mark.vcr
@@ -244,7 +244,7 @@ class TestBackpackPerpPositionsZero:
             # If positions exist, verify they're consistent
             if all_positions[0]:
                 for j, (pos1, pos2) in enumerate(
-                    zip(all_positions[0], all_positions[i], strict=False)
+                    zip(all_positions[0], all_positions[i], strict=False),
                 ):
                     assert pos1.symbol == pos2.symbol, f"Position {j} symbol changed between calls"
                     # Size might change slightly due to funding, but shouldn't be
@@ -299,7 +299,7 @@ class TestBackpackPerpPositionsZero:
                     )
 
             logger.info(
-                f"✓ {len(successful_results)}/{concurrent_count} concurrent requests succeeded"
+                f"✓ {len(successful_results)}/{concurrent_count} concurrent requests succeeded",
             )
 
         except Exception as e:
@@ -385,7 +385,7 @@ class TestBackpackPerpPositionsZero:
         # Size validation
         assert isinstance(position.size, Decimal), f"Position {index} size must be Decimal"
         # For zero balance, size should be very small
-        assert abs(position.size) <= Decimal("10"), (
+        assert abs(position.size) <= Decimal(10), (
             f"Position {index} size too large for zero balance: {position.size}"
         )
 
@@ -393,10 +393,10 @@ class TestBackpackPerpPositionsZero:
         assert isinstance(position.entry_price, Decimal), (
             f"Position {index} entry_price must be Decimal"
         )
-        assert position.entry_price > Decimal("0"), (
+        assert position.entry_price > Decimal(0), (
             f"Position {index} entry_price must be positive: {position.entry_price}"
         )
-        assert position.entry_price <= Decimal("1000000"), (
+        assert position.entry_price <= Decimal(1000000), (
             f"Position {index} entry_price too high: {position.entry_price}"
         )
 
@@ -404,7 +404,7 @@ class TestBackpackPerpPositionsZero:
         assert isinstance(position.mark_price, Decimal), (
             f"Position {index} mark_price must be Decimal"
         )
-        assert position.mark_price > Decimal("0"), (
+        assert position.mark_price > Decimal(0), (
             f"Position {index} mark_price must be positive: {position.mark_price}"
         )
 
@@ -417,10 +417,10 @@ class TestBackpackPerpPositionsZero:
         )
 
         # For zero balance, PnL should be small
-        assert abs(position.unrealized_pnl) <= Decimal("100"), (
+        assert abs(position.unrealized_pnl) <= Decimal(100), (
             f"Position {index} unrealized_pnl too large: {position.unrealized_pnl}"
         )
-        assert abs(position.realized_pnl) <= Decimal("1000"), (
+        assert abs(position.realized_pnl) <= Decimal(1000), (
             f"Position {index} realized_pnl too large: {position.realized_pnl}"
         )
 
@@ -435,7 +435,7 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(position.liquidation_price, Decimal), (
                 f"Position {index} liquidation_price must be Decimal or None"
             )
-            assert position.liquidation_price >= Decimal("0"), (
+            assert position.liquidation_price >= Decimal(0), (
                 f"Position {index} liquidation_price cannot be negative"
             )
 
@@ -453,7 +453,9 @@ class TestBackpackPerpPositionsZero:
         logger.debug(f"✓ Position {index} structure validation passed: {position.symbol}")
 
     def _validate_backpack_position_details(
-        self, bp_details: BackpackPositionDetails, index: int
+        self,
+        bp_details: BackpackPositionDetails,
+        index: int,
     ) -> None:
         """Validate Backpack-specific position details."""
         # Import here to avoid circular imports
@@ -468,10 +470,10 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(bp_details.imf_base, Decimal), (
                 f"Position {index} imf_base must be Decimal"
             )
-            assert bp_details.imf_base >= Decimal("0"), (
+            assert bp_details.imf_base >= Decimal(0), (
                 f"Position {index} imf_base cannot be negative"
             )
-            assert bp_details.imf_base <= Decimal("1"), (
+            assert bp_details.imf_base <= Decimal(1), (
                 f"Position {index} imf_base too high: {bp_details.imf_base}"
             )
 
@@ -479,7 +481,7 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(bp_details.imf_factor, Decimal), (
                 f"Position {index} imf_factor must be Decimal"
             )
-            assert bp_details.imf_factor >= Decimal("0"), (
+            assert bp_details.imf_factor >= Decimal(0), (
                 f"Position {index} imf_factor cannot be negative"
             )
 
@@ -487,10 +489,10 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(bp_details.mmf_base, Decimal), (
                 f"Position {index} mmf_base must be Decimal"
             )
-            assert bp_details.mmf_base >= Decimal("0"), (
+            assert bp_details.mmf_base >= Decimal(0), (
                 f"Position {index} mmf_base cannot be negative"
             )
-            assert bp_details.mmf_base <= Decimal("1"), (
+            assert bp_details.mmf_base <= Decimal(1), (
                 f"Position {index} mmf_base too high: {bp_details.mmf_base}"
             )
 
@@ -498,7 +500,7 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(bp_details.mmf_factor, Decimal), (
                 f"Position {index} mmf_factor must be Decimal"
             )
-            assert bp_details.mmf_factor >= Decimal("0"), (
+            assert bp_details.mmf_factor >= Decimal(0), (
                 f"Position {index} mmf_factor cannot be negative"
             )
 

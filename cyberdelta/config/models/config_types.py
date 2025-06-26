@@ -16,11 +16,11 @@ from cyberdelta.utils.parsing import (
 
 
 def _parse_yaml_input_to_required_decimal(
-    v: str | int | float | Decimal,
+    v: str | float | Decimal,
     info: ValidationInfo,
 ) -> Decimal:
     """Pydantic 'before' validator to parse input to a required, finite Decimal."""
-    field_name = info.field_name if info.field_name else "decimal_field"
+    field_name = info.field_name or "decimal_field"
     # allow_none=False because this is for fields that are expected to be Decimal.
     # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
     parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
@@ -31,7 +31,7 @@ def _parse_yaml_input_to_required_decimal(
     return parsed
 
 
-def _validate_string_for_literal_check(v: str | int | float | bool, info: ValidationInfo) -> str:
+def _validate_string_for_literal_check(v: str | float | bool, info: ValidationInfo) -> str:
     """Pydantic 'before' validator to ensure v is a string before Literal check."""
     return validate_str_field(
         v,
@@ -40,7 +40,7 @@ def _validate_string_for_literal_check(v: str | int | float | bool, info: Valida
     )
 
 
-def _validate_non_empty_string(v: str | int | float | bool, info: ValidationInfo) -> str:
+def _validate_non_empty_string(v: str | float | bool, info: ValidationInfo) -> str:
     """Pydantic 'before' validator for non-empty string fields."""
     return validate_str_field(v, field_name=info.field_name or "string_field", allow_empty=False)
 

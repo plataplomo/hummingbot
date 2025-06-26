@@ -30,7 +30,7 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
         if not all_markets:
             raise RuntimeError(
                 f"Failed to get {market_type} markets from exchange. "
-                "Tests require access to real market data."
+                "Tests require access to real market data.",
             )
 
         # Filter by market type if needed
@@ -44,7 +44,7 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
         if not symbols:
             raise RuntimeError(
                 f"No {market_type} symbols available from exchange. "
-                "Cannot run integration tests without available markets."
+                "Cannot run integration tests without available markets.",
             )
 
         return symbols
@@ -52,7 +52,7 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
     except Exception as e:
         raise RuntimeError(
             f"Failed to get available {market_type} symbols from exchange: {e}. "
-            "Integration tests must have access to real exchange data."
+            "Integration tests must have access to real exchange data.",
         ) from e
 
 
@@ -75,7 +75,7 @@ async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index:
     if index >= len(symbols):
         raise RuntimeError(
             f"Symbol index {index} out of range. "
-            f"Only {len(symbols)} {market_type} symbols available: {symbols}"
+            f"Only {len(symbols)} {market_type} symbols available: {symbols}",
         )
 
     return symbols[index]
@@ -103,7 +103,7 @@ async def get_major_crypto_symbol(api: HyperliquidAPI, crypto: str = "BTC") -> s
         raise RuntimeError(
             f"Cryptocurrency {crypto} not available on exchange. "
             f"Available symbols: {symbols[:10]}... "
-            "Tests cannot use hardcoded symbols that don't exist on exchange."
+            "Tests cannot use hardcoded symbols that don't exist on exchange.",
         )
 
     # Return the first match (usually the main perpetual)
@@ -163,5 +163,5 @@ async def get_exchange_symbol_mapping(api: HyperliquidAPI) -> dict[str, Any]:
     except Exception as e:
         raise RuntimeError(
             f"Failed to get exchange symbol mapping: {e}. "
-            "Tests require access to exchange symbol information."
+            "Tests require access to exchange symbol information.",
         ) from e

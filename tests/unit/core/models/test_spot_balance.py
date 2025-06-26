@@ -145,7 +145,7 @@ def test_spot_balance_creation_with_strings(
         ("total_quantity", None, r"Value error, total_quantity: Value cannot be None"),
         ("total_quantity", "abc", "Cannot convert 'abc' to Decimal"),
         ("total_quantity", Decimal("NaN"), "Value must be finite"),
-        ("total_quantity", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("total_quantity", Decimal(-1), "Input should be greater than or equal to 0"),
         ("available_quantity", None, r"Value error, available_quantity: Value cannot be None"),
         ("available_quantity", Decimal("Infinity"), "Value must be finite"),
         ("available_quantity", Decimal("-0.01"), "Input should be greater than or equal to 0"),
@@ -244,7 +244,7 @@ def test_bp_details_creation_and_immutability(
 @pytest.mark.parametrize(
     "field, value, error_match",
     [
-        ("open_order_quantity", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("open_order_quantity", Decimal(-1), "Input should be greater than or equal to 0"),
         ("open_order_quantity", Decimal("NaN"), "Value must be finite if provided"),
         ("lend_quantity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
         ("lend_quantity", "invalid", "Cannot convert 'invalid' to Decimal"),

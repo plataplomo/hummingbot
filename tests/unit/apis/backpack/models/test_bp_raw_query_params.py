@@ -230,7 +230,9 @@ class TestBackpackRawGetHistoricalFundingRatesParams:
     def test_negative_timestamps_allowed(self) -> None:
         """Test that negative timestamps are allowed (historical data)."""
         params = BackpackRawGetHistoricalFundingRatesParams(
-            symbol="BTC_USDC", startTime=-1, endTime=-1
+            symbol="BTC_USDC",
+            startTime=-1,
+            endTime=-1,
         )
         assert params.startTime == -1
         assert params.endTime == -1

@@ -89,8 +89,8 @@ async def test_circuit_breaker_global_halts_execution(
         SpotBalance(
             exchange="mock_bp",
             asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -98,8 +98,8 @@ async def test_circuit_breaker_global_halts_execution(
         SpotBalance(
             exchange="mock_bp",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -107,8 +107,8 @@ async def test_circuit_breaker_global_halts_execution(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -138,10 +138,10 @@ async def test_circuit_breaker_global_halts_execution(
     # Wrap basic_opportunity in a SizedOpportunity
     sized_opportunity_for_test = SizedOpportunity(
         opportunity=basic_opportunity,
-        long_size=Decimal("100"),  # Placeholder size
-        short_size=Decimal("100"),  # Placeholder size
+        long_size=Decimal(100),  # Placeholder size
+        short_size=Decimal(100),  # Placeholder size
         allocation_percentage=Decimal("0.1"),  # Placeholder float (10%)
-        expected_profit=Decimal("1"),  # Placeholder profit
+        expected_profit=Decimal(1),  # Placeholder profit
         expected_return=Decimal("0.01"),  # Placeholder float (1%)
         risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
@@ -199,8 +199,8 @@ async def test_circuit_breaker_exchange_halts_execution(
         SpotBalance(
             exchange="mock_bp",
             asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -208,8 +208,8 @@ async def test_circuit_breaker_exchange_halts_execution(
         SpotBalance(
             exchange="mock_bp",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -217,8 +217,8 @@ async def test_circuit_breaker_exchange_halts_execution(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -259,10 +259,10 @@ async def test_circuit_breaker_exchange_halts_execution(
     # Wrap basic_opportunity in a SizedOpportunity
     sized_opportunity_for_test = SizedOpportunity(
         opportunity=basic_opportunity,
-        long_size=Decimal("100"),  # Placeholder size
-        short_size=Decimal("100"),  # Placeholder size
+        long_size=Decimal(100),  # Placeholder size
+        short_size=Decimal(100),  # Placeholder size
         allocation_percentage=Decimal("0.1"),  # Placeholder float (10%)
-        expected_profit=Decimal("1"),  # Placeholder profit
+        expected_profit=Decimal(1),  # Placeholder profit
         expected_return=Decimal("0.01"),  # Placeholder float (1%)
         risk_adjusted_return=Decimal("0.01"),  # Placeholder float
     )
@@ -317,8 +317,8 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=now,
         ),
     )
@@ -326,8 +326,8 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         SpotBalance(
             exchange="mock_bp",
             asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=now,
         ),
     )
@@ -337,15 +337,15 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     real_portfolio_tracker.balances["mock_hl"]["USD"] = SpotBalance(
         exchange="mock_hl",
         asset="USD",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         timestamp=now,
     )
     real_portfolio_tracker.balances["mock_bp"]["USDC"] = SpotBalance(
         exchange="mock_bp",
         asset="USDC",
-        total_quantity=Decimal("10000"),
-        available_quantity=Decimal("10000"),
+        total_quantity=Decimal(10000),
+        available_quantity=Decimal(10000),
         timestamp=now,
     )
 
@@ -355,8 +355,8 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -369,8 +369,8 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     # Temporarily disable validator influence for baseline and configure safe sizing
     risk_manager.funding_rate_validator = None
     # Override limits to allow the calculated size
-    risk_manager.max_position_size = Decimal("15000")  # Increase limit to allow test to pass
-    risk_manager.max_total_exposure_usd = Decimal("15000")  # Also increase total exposure limit
+    risk_manager.max_position_size = Decimal(15000)  # Increase limit to allow test to pass
+    risk_manager.max_total_exposure_usd = Decimal(15000)  # Also increase total exposure limit
 
     sized_opps = await risk_manager.validate_opportunities([opp])
     risk_manager.funding_rate_validator = funding_rate_validator
@@ -400,8 +400,8 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=now,
         ),
     )
@@ -409,8 +409,8 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         SpotBalance(
             exchange="mock_bp",
             asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=now,
         ),
     )
@@ -421,8 +421,8 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -447,8 +447,8 @@ def _setup_test_position(exchange_id: str, symbol: str) -> DerivativePosition:
         symbol=symbol,
         side=OrderSide.BUY,
         size=Decimal("0.1"),
-        entry_price=Decimal("30000"),
-        mark_price=Decimal("30100"),
+        entry_price=Decimal(30000),
+        mark_price=Decimal(30100),
         timestamp=datetime.now(UTC),
     )
 
@@ -567,7 +567,7 @@ async def test_position_reconciler_detects_discrepancy(
             disc.detail.symbol == symbol
             and disc.detail.discrepancy_type == "size"
             and disc.detail.exchange_value is not None
-            and Decimal(disc.detail.exchange_value) == Decimal("0")
+            and Decimal(disc.detail.exchange_value) == Decimal(0)
             and disc.detail.local_value is not None
             and Decimal(disc.detail.local_value) == mock_position.size
         ):
@@ -617,8 +617,8 @@ async def test_kelly_size_exactly_at_max_position_size(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -651,8 +651,8 @@ async def test_kelly_size_just_below_max_position_size(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -685,8 +685,8 @@ async def test_kelly_size_just_above_max_position_size(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -719,8 +719,8 @@ async def test_kelly_size_near_zero(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -754,8 +754,8 @@ async def test_kelly_negative_expected_return(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("-0.00015"),
@@ -788,8 +788,8 @@ async def test_kelly_zero_or_negative_volatility(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -807,8 +807,8 @@ async def test_kelly_zero_or_negative_volatility(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -840,8 +840,8 @@ async def test_kelly_insufficient_balance(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -856,8 +856,8 @@ async def test_kelly_insufficient_balance(
         SpotBalance(
             exchange="mock_bp",
             asset="USD",
-            total_quantity=Decimal("500"),
-            available_quantity=Decimal("500"),
+            total_quantity=Decimal(500),
+            available_quantity=Decimal(500),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -865,8 +865,8 @@ async def test_kelly_insufficient_balance(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("500"),
-            available_quantity=Decimal("500"),
+            total_quantity=Decimal(500),
+            available_quantity=Decimal(500),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -897,8 +897,8 @@ async def test_kelly_zero_total_capital(
         SpotBalance(
             exchange="mock_bp",
             asset="USD",
-            total_quantity=Decimal("0"),
-            available_quantity=Decimal("0"),
+            total_quantity=Decimal(0),
+            available_quantity=Decimal(0),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -906,8 +906,8 @@ async def test_kelly_zero_total_capital(
         SpotBalance(
             exchange="mock_hl",
             asset="USD",
-            total_quantity=Decimal("0"),
-            available_quantity=Decimal("0"),
+            total_quantity=Decimal(0),
+            available_quantity=Decimal(0),
             timestamp=datetime.now(UTC),
         ),
     )
@@ -918,8 +918,8 @@ async def test_kelly_zero_total_capital(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -950,13 +950,13 @@ async def test_kelly_max_position_size_zero(
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Override max_position_size to zero
-    risk_manager.max_position_size = Decimal("0")
+    risk_manager.max_position_size = Decimal(0)
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -985,13 +985,13 @@ async def test_kelly_max_position_size_very_large(
     risk_manager.kelly_enabled = True
     risk_manager.use_simple_sizing_path = False
     # Override max_position_size to a very large value
-    risk_manager.max_position_size = Decimal("1000000")
+    risk_manager.max_position_size = Decimal(1000000)
     opp = ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="backpack",
         short_exchange="hyperliquid",
-        long_price=Decimal("30001"),
-        short_price=Decimal("30010"),
+        long_price=Decimal(30001),
+        short_price=Decimal(30010),
         long_funding_rate=Decimal("0.0001"),
         short_funding_rate=Decimal("-0.00005"),
         net_funding_differential=Decimal("0.00015"),
@@ -1018,7 +1018,6 @@ async def test_max_drawdown_halts_execution(
 ) -> None:
     """Test that max drawdown limit halts execution when exceeded."""
     # Implementation of test_max_drawdown_halts_execution
-    pass
 
 
 @pytest.mark.asyncio
@@ -1032,24 +1031,24 @@ async def test_max_total_exposure_constraint_prevents_trade(
     caplog.set_level(logging.DEBUG, logger="cyberdelta.core.risk_manager.RiskManager")
     """Test that max_total_exposure constraint prevents sizing if capital is low."""
     # Configure RiskManager for this specific test
-    risk_manager.max_total_exposure_usd = Decimal("100")
-    risk_manager.min_trade_size_usd = Decimal("1")
-    risk_manager.max_position_size = Decimal("20000")
+    risk_manager.max_total_exposure_usd = Decimal(100)
+    risk_manager.min_trade_size_usd = Decimal(1)
+    risk_manager.max_position_size = Decimal(20000)
     risk_manager.max_single_position_exposure_ratio = Decimal("1.0")
     risk_manager.max_drawdown_limit_ratio = Decimal("0.2")  # Default, ensure it passes
 
     # Configure mock portfolio tracker
     assert hasattr(risk_manager.portfolio_tracker, "get_total_capital")
     assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal("10000")
+    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(10000)
 
     assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
     assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
+    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
 
     assert hasattr(risk_manager.portfolio_tracker, "get_current_drawdown")
     assert isinstance(risk_manager.portfolio_tracker.get_current_drawdown, AsyncMock)
-    risk_manager.portfolio_tracker.get_current_drawdown.return_value = Decimal("0")
+    risk_manager.portfolio_tracker.get_current_drawdown.return_value = Decimal(0)
 
     # Effective max_total_exposure_usd for the check will be 10000 * 0.01 = 100 USD
 
@@ -1095,8 +1094,8 @@ async def test_min_trade_size_constraint_prevents_trade(
 ) -> None:
     """Test that min_trade_size_usd constraint rejects an opportunity smaller than it."""
     risk_manager.max_total_exposure_usd = Decimal("5000.0")
-    risk_manager.min_trade_size_usd = Decimal("1000")
-    risk_manager.max_position_size = Decimal("20000")
+    risk_manager.min_trade_size_usd = Decimal(1000)
+    risk_manager.max_position_size = Decimal(20000)
     risk_manager.max_single_position_exposure_ratio = Decimal("1.0")
 
     # Configure the portfolio_tracker *that risk_manager is using*
@@ -1113,13 +1112,13 @@ async def test_min_trade_size_constraint_prevents_trade(
     )
 
     risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(
-        "1000",
+        1000,
     )  # Capital is 1000
 
     # ADDED: Ensure get_total_exposure_usd is also mocked
     assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
     assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0")
+    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
 
     # Max exposure allowed is 0.1 * 1000 = 100 USD
     # Based on sample_opportunity_scaled from integration/conftest.py:

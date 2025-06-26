@@ -78,7 +78,7 @@ class TestPlaceOrderArgs:
             symbol="SOL-USD",
             side=OrderSide.BUY,
             order_type=OrderType.STOP_LIMIT,
-            quantity=Decimal("100"),
+            quantity=Decimal(100),
             time_in_force=TimeInForce.GTC,
             price=Decimal("150.00"),
             stop_price=Decimal("145.00"),
@@ -120,12 +120,12 @@ class TestPlaceOrderArgs:
             symbol="BTC-USD",
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("2"),
-            price=Decimal("50000"),
+            quantity=Decimal(2),
+            price=Decimal(50000),
             time_in_force=TimeInForce.GTC,
         )
-        assert args2.quantity == Decimal("2")
-        assert args2.price == Decimal("50000")
+        assert args2.quantity == Decimal(2)
+        assert args2.price == Decimal(50000)
 
         # From float
         args3 = PlaceOrderArgs(
@@ -294,7 +294,7 @@ class TestPlaceOrderArgs:
                 symbol="BTC-USD",
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
-                quantity=Decimal("0"),
+                quantity=Decimal(0),
                 time_in_force=TimeInForce.IOC,
             )
 
@@ -573,11 +573,11 @@ class TestTransferArgs:
         # From int
         args2 = TransferArgs(
             asset="BTC",
-            amount=Decimal("2"),
+            amount=Decimal(2),
             from_account_type="spot",
             to_account_type="futures",
         )
-        assert args2.amount == Decimal("2")
+        assert args2.amount == Decimal(2)
 
         # From float
         args3 = TransferArgs(
@@ -717,7 +717,7 @@ class TestTransferArgs:
         with pytest.raises(ValidationError) as exc_info:
             TransferArgs(
                 asset="BTC",
-                amount=Decimal("0"),
+                amount=Decimal(0),
                 from_account_type="spot",
                 to_account_type="futures",
             )
@@ -890,10 +890,10 @@ class TestWithdrawArgs:
         # From int
         args2 = WithdrawArgs(
             asset="ETH",
-            amount=Decimal("1"),
+            amount=Decimal(1),
             address="0x742d35Cc6765C0532C3A6C25C8FbC7b1b7d1D3E9",
         )
-        assert args2.amount == Decimal("1")
+        assert args2.amount == Decimal(1)
 
         # From float
         args3 = WithdrawArgs(
@@ -1049,7 +1049,7 @@ class TestWithdrawArgs:
         with pytest.raises(ValidationError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
-                amount=Decimal("0"),
+                amount=Decimal(0),
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 

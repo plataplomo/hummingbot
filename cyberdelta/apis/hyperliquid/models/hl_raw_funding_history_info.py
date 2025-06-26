@@ -113,7 +113,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
         if not is_list_any(v):
             raise ValueError(
                 f"Unexpected historical_funding_rates response format: expected list, "
-                f"got {type(v).__name__}"
+                f"got {type(v).__name__}",
             )
 
         validated_items: list[dict[str, Any]] = []
@@ -121,7 +121,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
             if not is_dict_str_any(item):
                 raise ValueError(
                     f"Expected dict for historical funding rate item, "
-                    f"got {type(item).__name__} at index {i}"
+                    f"got {type(item).__name__} at index {i}",
                 )
 
             # item is now properly typed as dict[str, Any] due to TypeGuard

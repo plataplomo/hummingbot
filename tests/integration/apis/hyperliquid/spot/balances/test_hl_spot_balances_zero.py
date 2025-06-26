@@ -32,7 +32,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/balances/zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/spot/balances/zero"],
+    indirect=True,
 )
 @pytest.mark.spot
 @pytest.mark.zero_balance
@@ -56,10 +58,10 @@ class TestHyperliquidSpotBalancesZero:
                 f"Even zero balance should be SpotBalance for {asset_symbol}"
             )
 
-            assert balance.total_quantity >= Decimal("0"), (
+            assert balance.total_quantity >= Decimal(0), (
                 "Zero balances should still be non-negative"
             )
-            assert balance.available_quantity >= Decimal("0"), (
+            assert balance.available_quantity >= Decimal(0), (
                 "Zero available should still be non-negative"
             )
             assert balance.total_quantity >= balance.available_quantity, (
@@ -146,8 +148,7 @@ class TestHyperliquidSpotBalancesZero:
             if isinstance(result, Exception):
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, dict), f"Result {i} should be dict"
                 successful_results.append(result)

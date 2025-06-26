@@ -60,7 +60,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         # Setup mocks
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (
             mock_raw_market_data,
@@ -94,7 +94,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
                 mock_headers_from_client,
             )
             mock_mapper.transform_raw_market_to_internal.assert_called_once_with(
-                mock_validated_market_raw
+                mock_validated_market_raw,
             )
             assert result == mock_internal_market
 
@@ -132,7 +132,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         symbol = "BTC_USDC"
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
@@ -158,7 +158,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         symbol = "BTC_USDC"
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         # Return a list instead of a dict
         mock_http_client_requester.return_value = (["invalid", "response"], 200, MagicMock())
@@ -188,7 +188,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_raw_response = {"invalid": "market_data"}
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
@@ -219,7 +219,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_validated_market_raw = MagicMock(spec=BackpackRawMarket)
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_market_response.return_value = mock_validated_market_raw
@@ -228,7 +228,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             from cyberdelta.apis.models.api_error import TransformationError
 
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
-                "Failed to transform market data"
+                "Failed to transform market data",
             )
 
             with pytest.raises(APIError) as exc_info:
@@ -251,7 +251,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_raw_response = {"symbol": "BTC_USDC"}
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_market_response.side_effect = Exception("Unexpected error")
@@ -346,7 +346,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
                 200,
             )
             assert mock_mapper.transform_raw_market_to_internal.call_count == len(
-                mock_validated_markets_raw
+                mock_validated_markets_raw,
             )
             assert result == mock_internal_markets
 
@@ -463,7 +463,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
             from cyberdelta.apis.models.api_error import TransformationError
 
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
-                "Failed to transform markets data"
+                "Failed to transform markets data",
             )
 
             # In get_markets, individual transformation errors are caught and logged,
@@ -488,7 +488,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_request_builder.build_get_markets_params.return_value = BackpackRawGetMarketsParams()
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_markets_response.side_effect = Exception(
-            "Unexpected error"
+            "Unexpected error",
         )
 
         with pytest.raises(APIError) as exc_info:
@@ -535,7 +535,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         symbol = "BTC_USDC"
 
         mock_request_builder.build_get_market_params.return_value = BackpackRawGetMarketParams(
-            symbol=symbol
+            symbol=symbol,
         )
 
         # Create an APIError that would come from the HTTP client

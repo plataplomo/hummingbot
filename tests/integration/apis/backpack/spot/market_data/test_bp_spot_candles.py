@@ -30,7 +30,9 @@ class TestBackpackSpotCandles:
     """Backpack spot market candle integration tests."""
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/candles"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_1h_candles_success(
@@ -93,19 +95,19 @@ class TestBackpackSpotCandles:
                     f"Candle {i} volume should be Decimal, got {type(candle.volume)}"
                 )
 
-                assert candle.open > Decimal("0"), (
+                assert candle.open > Decimal(0), (
                     f"Candle {i} open should be positive, got {candle.open}"
                 )
-                assert candle.high > Decimal("0"), (
+                assert candle.high > Decimal(0), (
                     f"Candle {i} high should be positive, got {candle.high}"
                 )
-                assert candle.low > Decimal("0"), (
+                assert candle.low > Decimal(0), (
                     f"Candle {i} low should be positive, got {candle.low}"
                 )
-                assert candle.close > Decimal("0"), (
+                assert candle.close > Decimal(0), (
                     f"Candle {i} close should be positive, got {candle.close}"
                 )
-                assert candle.volume >= Decimal("0"), (
+                assert candle.volume >= Decimal(0), (
                     f"Candle {i} volume should be non-negative, got {candle.volume}"
                 )
 
@@ -127,7 +129,9 @@ class TestBackpackSpotCandles:
                 )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/candles"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_1h_candles_success(
@@ -170,14 +174,10 @@ class TestBackpackSpotCandles:
                 )
 
                 # Validate OHLC relationships instead of hardcoded price bounds
-                assert candle.open > Decimal("0"), (
-                    f"BTC open price should be positive: {candle.open}"
-                )
-                assert candle.high > Decimal("0"), (
-                    f"BTC high price should be positive: {candle.high}"
-                )
-                assert candle.low > Decimal("0"), f"BTC low price should be positive: {candle.low}"
-                assert candle.close > Decimal("0"), (
+                assert candle.open > Decimal(0), f"BTC open price should be positive: {candle.open}"
+                assert candle.high > Decimal(0), f"BTC high price should be positive: {candle.high}"
+                assert candle.low > Decimal(0), f"BTC low price should be positive: {candle.low}"
+                assert candle.close > Decimal(0), (
                     f"BTC close price should be positive: {candle.close}"
                 )
 
@@ -197,7 +197,9 @@ class TestBackpackSpotCandles:
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/spot/candles"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/spot/candles"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_spot_candle_multiple_symbols_consistency(

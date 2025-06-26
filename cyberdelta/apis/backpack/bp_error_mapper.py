@@ -125,7 +125,8 @@ class BackpackErrorMapper(IErrorMapper):
             # Use the existing string mapping logic by calling map_string_error
             # and extracting just the error code from the result
             string_error_result = BackpackErrorMapper().map_string_error(
-                error_body, http_status=status_code
+                error_body,
+                http_status=status_code,
             )
             mapped_code = APIErrorCode(string_error_result.code)
 
@@ -256,10 +257,9 @@ class BackpackErrorMapper(IErrorMapper):
                 f"{api_error_code_enum.name.replace('_', ' ').title()}: "
                 f"{effective_exchange_message}"
             )
-        elif has_error_data:
+        if has_error_data:
             return effective_exchange_message
-        else:
-            return f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
+        return f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
 
     def _parse_retry_after(
         self,
@@ -324,12 +324,11 @@ class BackpackErrorMapper(IErrorMapper):
 
         if status_code == 401 or status_code == 403:
             return APIErrorCode.AUTHENTICATION_FAILED
-        elif status_code == 404:
+        if status_code == 404:
             return APIErrorCode.ORDER_NOT_FOUND
-        elif status_code == 429:
+        if status_code == 429:
             return APIErrorCode.RATE_LIMITED
-        else:
-            return api_error_code_enum
+        return api_error_code_enum
 
     def map_exchange_error(
         self,

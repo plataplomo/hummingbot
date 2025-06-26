@@ -58,14 +58,14 @@ class TradeSignal(BaseModel):
     symbol: str
     signal_type: SignalType
     side: OrderSide
-    price: Decimal = Field(..., gt=Decimal("0"))  # Required, Positive
-    quantity: Decimal | None = Field(default=None, gt=Decimal("0"))  # Optional, Positive if set
+    price: Decimal = Field(..., gt=Decimal(0))  # Required, Positive
+    quantity: Decimal | None = Field(default=None, gt=Decimal(0))  # Optional, Positive if set
     exchange: str | list[str]  # Required
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     confidence: float | None = None  # Optional, Float
     source_strategy: str | None = None  # Optional
-    stop_loss: Decimal | None = Field(default=None, gt=Decimal("0"))  # Optional, Positive if set
-    take_profit: Decimal | None = Field(default=None, gt=Decimal("0"))  # Optional, Positive if set
+    stop_loss: Decimal | None = Field(default=None, gt=Decimal(0))  # Optional, Positive if set
+    take_profit: Decimal | None = Field(default=None, gt=Decimal(0))  # Optional, Positive if set
     expiration: datetime | None = None  # Optional
     metadata: dict[str, Any] | None = None  # Optional
 
@@ -101,7 +101,7 @@ class TradeSignal(BaseModel):
         # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
         if isinstance(v, str):
             return validate_str_field(v, field_name=field_name, max_length=64)
-        elif _is_list_of_any(v):
+        if _is_list_of_any(v):
             if not v:
                 raise ValueError(f"{field_name} list cannot be empty.")
             validated_list: list[str] = []
@@ -117,14 +117,13 @@ class TradeSignal(BaseModel):
                 )
                 validated_list.append(validated_item)
             return validated_list
-        else:
-            raise TypeError(f"{field_name} must be a string or a list of strings.")
+        raise TypeError(f"{field_name} must be a string or a list of strings.")
 
     @field_validator("price", mode="before")
     @classmethod
     def parse_required_decimal_finite(
         cls,
-        v: str | int | float | Decimal,
+        v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite. Positive check via Field."""
@@ -142,7 +141,7 @@ class TradeSignal(BaseModel):
     @classmethod
     def parse_optional_decimal_finite(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, ensuring finite if not None. Positive check via Field."""
@@ -162,7 +161,7 @@ class TradeSignal(BaseModel):
     @classmethod
     def validate_optional_float(
         cls,
-        v: str | int | float | None,
+        v: str | float | None,
         info: ValidationInfo,
     ) -> float | None:
         """Validate optional float value."""
@@ -182,7 +181,7 @@ class TradeSignal(BaseModel):
     @classmethod
     def parse_optional_datetime_utc(
         cls,
-        v: str | int | float | datetime | None,
+        v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime, ensuring UTC if present."""

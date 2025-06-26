@@ -846,7 +846,7 @@ class BackpackResponseHandler:
             )
             try:
                 validated_rates.append(
-                    BackpackRawFundingIntervalRate.model_validate(validated_item)
+                    BackpackRawFundingIntervalRate.model_validate(validated_item),
                 )
             except ValidationError as e:
                 raise BackpackResponseHandler._handle_validation_error(

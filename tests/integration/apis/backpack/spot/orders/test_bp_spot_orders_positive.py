@@ -53,7 +53,9 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/spot/orders/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/spot/orders/positive"],
+    indirect=True,
 )
 class TestBackpackSpotOrdersPositiveBalance:
     """Comprehensive private orders integration tests with positive balance for operations."""
@@ -137,7 +139,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         logger.info(
             f"✓ Market order executed: {placed_order.exchange_order_id}, "
-            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}"
+            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}",
         )
 
     @pytest.mark.vcr
@@ -205,7 +207,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel stop order {placed_order.exchange_order_id}: {e}. "
-                    "If we can place an order, we should be able to cancel it."
+                    "If we can place an order, we should be able to cancel it.",
                 )
 
     @pytest.mark.vcr
@@ -230,10 +232,10 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         # Calculate trigger and limit prices and quantize to proper tick size
         trigger_price = (current_price * Decimal("0.95")).quantize(
-            tick_size
+            tick_size,
         )  # 5% below for stop loss
         limit_price = (trigger_price * Decimal("0.99")).quantize(
-            tick_size
+            tick_size,
         )  # Slightly below trigger
 
         minimal_quantity = await get_minimal_order_size(
@@ -279,7 +281,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel stop limit order {placed_order.exchange_order_id}: {e}. "
-                    "If we can place an order, we should be able to cancel it."
+                    "If we can place an order, we should be able to cancel it.",
                 )
 
     @pytest.mark.vcr
@@ -304,7 +306,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         # Calculate trigger price and quantize to proper tick size
         trigger_price = (current_price * Decimal("1.05")).quantize(
-            tick_size
+            tick_size,
         )  # 5% above current price
 
         minimal_quantity = await get_minimal_order_size(
@@ -346,13 +348,13 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
                 logger.info(
-                    f"✓ Take profit market order cleaned up: {placed_order.exchange_order_id}"
+                    f"✓ Take profit market order cleaned up: {placed_order.exchange_order_id}",
                 )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel take profit order {placed_order.exchange_order_id}: {e}. "
-                    "If we can place an order, we should be able to cancel it."
+                    "If we can place an order, we should be able to cancel it.",
                 )
 
     @pytest.mark.vcr
@@ -377,10 +379,10 @@ class TestBackpackSpotOrdersPositiveBalance:
 
         # Calculate trigger and limit prices and quantize to proper tick size
         trigger_price = (current_price * Decimal("1.05")).quantize(
-            tick_size
+            tick_size,
         )  # 5% above for take profit
         limit_price = (trigger_price * Decimal("1.01")).quantize(
-            tick_size
+            tick_size,
         )  # Slightly above trigger
 
         minimal_quantity = await get_minimal_order_size(
@@ -424,14 +426,14 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
                 logger.info(
-                    f"✓ Take profit limit order cleaned up: {placed_order.exchange_order_id}"
+                    f"✓ Take profit limit order cleaned up: {placed_order.exchange_order_id}",
                 )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel take profit limit order "
                     f"{placed_order.exchange_order_id}: {e}. "
-                    "If we can place an order, we should be able to cancel it."
+                    "If we can place an order, we should be able to cancel it.",
                 )
 
     @pytest.mark.vcr
@@ -518,7 +520,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         # Stop loss cancellation should work if the order was placed
                         pytest.fail(
                             f"Failed to cancel stop loss order: {e}. "
-                            "If we can place an order, we should be able to cancel it."
+                            "If we can place an order, we should be able to cancel it.",
                         )
 
             except Exception as e:
@@ -528,7 +530,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 else:
                     pytest.fail(
                         f"Stop loss placement failed with unexpected error: {e}. "
-                        "Expected position-related error but got something else."
+                        "Expected position-related error but got something else.",
                     )
 
         logger.info("✓ Market order + stop loss workflow test completed")
@@ -633,14 +635,14 @@ class TestBackpackSpotOrdersPositiveBalance:
 
                 logger.info(
                     f"✓ {test_case['order_type'].value} order validation passed: "
-                    f"{placed_order.exchange_order_id}"
+                    f"{placed_order.exchange_order_id}",
                 )
 
             except Exception as e:
                 # Order type tests should work with adequate balance
                 pytest.fail(
                     f"Order type {test_case['order_type'].value} test failed: {e}. "
-                    "All order types should be placeable with adequate balance."
+                    "All order types should be placeable with adequate balance.",
                 )
 
         # Clean up all placed orders
@@ -659,7 +661,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel order {order.exchange_order_id}: {e}. "
-                        "Order cancellation is a critical operation that must work."
+                        "Order cancellation is a critical operation that must work.",
                     )
 
         logger.info(f"✓ Parameter validation completed for {len(placed_orders)} order types")
@@ -704,7 +706,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             },
             {
                 "name": "price_minimum_tick",
-                "quantity": min_quantity * Decimal("2"),
+                "quantity": min_quantity * Decimal(2),
                 "price": (current_price * Decimal("0.95")).quantize(tick_size),
             },
             {
@@ -740,14 +742,14 @@ class TestBackpackSpotOrdersPositiveBalance:
 
                 logger.info(
                     f"✓ Precision test '{test_case['name']}' passed: "
-                    f"qty={placed_order.quantity_requested}, price={placed_order.price}"
+                    f"qty={placed_order.quantity_requested}, price={placed_order.price}",
                 )
 
             except Exception as e:
                 # Precision tests should work with valid market constraints
                 pytest.fail(
                     f"Precision test '{test_case['name']}' failed: {e}. "
-                    "Precision handling is critical for trading operations."
+                    "Precision handling is critical for trading operations.",
                 )
 
         # Clean up
@@ -763,7 +765,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel precision test order: {e}. "
-                        "Order cancellation is a critical operation that must work."
+                        "Order cancellation is a critical operation that must work.",
                     )
 
         logger.info(f"✓ Extreme precision tests completed: {len(placed_orders)} orders tested")
@@ -796,7 +798,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             try:
                 large_quantity = min_quantity * Decimal(str(multiplier))
                 test_price = (current_price * Decimal("0.9")).quantize(
-                    tick_size
+                    tick_size,
                 )  # Well below market
 
                 place_args = PlaceOrderArgs(
@@ -821,7 +823,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
                 logger.info(
                     f"✓ Large order {multiplier}x minimum accepted: "
-                    f"qty={large_quantity}, id={placed_order.exchange_order_id}"
+                    f"qty={large_quantity}, id={placed_order.exchange_order_id}",
                 )
 
             except Exception as e:
@@ -833,11 +835,10 @@ class TestBackpackSpotOrdersPositiveBalance:
                 ):
                     logger.info(f"Large order {multiplier}x correctly rejected due to limits: {e}")
                     break  # Expected - stop testing larger orders
-                else:
-                    pytest.fail(
-                        f"Large order {multiplier}x failed with unexpected error: {e}. "
-                        "Expected balance/limit error but got something else."
-                    )
+                pytest.fail(
+                    f"Large order {multiplier}x failed with unexpected error: {e}. "
+                    "Expected balance/limit error but got something else.",
+                )
 
         # Clean up
         for order in placed_orders:
@@ -852,7 +853,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel large order: {e}. "
-                        "Order cancellation is a critical operation that must work."
+                        "Order cancellation is a critical operation that must work.",
                     )
 
         logger.info(f"✓ Large order edge case tests completed: {len(placed_orders)} orders tested")
@@ -891,7 +892,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
 
                 test_price = (current_price * Decimal("0.95")).quantize(
-                    tick_size
+                    tick_size,
                 )  # 5% below market
 
                 place_args = PlaceOrderArgs(
@@ -916,7 +917,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 # Multi-symbol order placement should work
                 pytest.fail(
                     f"Failed to place order for {symbol}: {e}. "
-                    "Multi-symbol trading is a core requirement."
+                    "Multi-symbol trading is a core requirement.",
                 )
 
         # Validate we can query orders across symbols
@@ -936,7 +937,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 # Open orders query should work
                 pytest.fail(
                     f"Failed to validate open orders: {e}. "
-                    "Querying open orders is a critical operation."
+                    "Querying open orders is a critical operation.",
                 )
 
         # Clean up all orders
@@ -952,9 +953,9 @@ class TestBackpackSpotOrdersPositiveBalance:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel order for {order.symbol}: {e}. "
-                        "Order cancellation is a critical operation that must work."
+                        "Order cancellation is a critical operation that must work.",
                     )
 
         logger.info(
-            f"✓ Multi-symbol order management completed: {len(test_symbols)} symbols tested"
+            f"✓ Multi-symbol order management completed: {len(test_symbols)} symbols tested",
         )

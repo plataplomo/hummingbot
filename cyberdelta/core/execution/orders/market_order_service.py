@@ -72,7 +72,7 @@ class MarketOrderService:
         order_book = await self._exchange.get_order_book(symbol)
         if not order_book or not order_book.bids or not order_book.asks:
             raise MarketOrderError(
-                f"Cannot calculate market order price: no order book for {symbol}"
+                f"Cannot calculate market order price: no order book for {symbol}",
             )
 
         # 2. Check liquidity sufficiency
@@ -103,9 +103,9 @@ class MarketOrderService:
 
         # 6. Calculate aggressive price
         if side == OrderSide.BUY:
-            aggressive_price = reference_price * (Decimal("1") + final_slippage)
+            aggressive_price = reference_price * (Decimal(1) + final_slippage)
         else:
-            aggressive_price = reference_price * (Decimal("1") - final_slippage)
+            aggressive_price = reference_price * (Decimal(1) - final_slippage)
 
         # 7. Apply safety validation
         self._validate_price_bounds(aggressive_price, symbol, reference_price)
@@ -114,7 +114,10 @@ class MarketOrderService:
         return await self.round_to_tick_size(aggressive_price, symbol)
 
     def _calculate_available_liquidity(
-        self, order_book: OrderBook, side: OrderSide, quantity: Decimal
+        self,
+        order_book: OrderBook,
+        side: OrderSide,
+        quantity: Decimal,
     ) -> Decimal:
         """Calculate available liquidity for the order.
 
@@ -126,7 +129,7 @@ class MarketOrderService:
         Returns:
             Decimal: Total available liquidity across all price levels
         """
-        available = Decimal("0")
+        available = Decimal(0)
         levels = order_book.asks if side == OrderSide.BUY else order_book.bids
 
         for _price, size in levels:
@@ -157,14 +160,17 @@ class MarketOrderService:
             except Exception as e:
                 logger.warning(
                     f"Failed to estimate slippage using SignalGenerator: {e}, "
-                    f"falling back to config default"
+                    f"falling back to config default",
                 )
 
         # Fallback to configured default
         return self._config.get_slippage_for_symbol(symbol)
 
     def _validate_price_bounds(
-        self, aggressive_price: Decimal, symbol: str, reference_price: Decimal
+        self,
+        aggressive_price: Decimal,
+        symbol: str,
+        reference_price: Decimal,
     ) -> None:
         """Validate price is within acceptable bounds.
 
@@ -191,7 +197,7 @@ class MarketOrderService:
             )
 
         # Ensure price is positive and finite
-        if not aggressive_price.is_finite() or aggressive_price <= Decimal("0"):
+        if not aggressive_price.is_finite() or aggressive_price <= Decimal(0):
             raise MarketOrderError(f"Invalid aggressive price: {aggressive_price}")
 
     async def round_to_tick_size(self, price: Decimal, symbol: str) -> Decimal:
@@ -212,27 +218,27 @@ class MarketOrderService:
                 # Round to nearest tick_size multiple
                 tick_size = market.tick_size
                 rounded = (price / tick_size).quantize(
-                    Decimal("1"), rounding=ROUND_DOWN
+                    Decimal(1),
+                    rounding=ROUND_DOWN,
                 ) * tick_size
                 logger.debug(
-                    f"Rounded price for {symbol} using tick_size {tick_size}: {price} -> {rounded}"
+                    f"Rounded price for {symbol} using tick_size {tick_size}: {price} -> {rounded}",
                 )
                 return rounded
-            else:
-                logger.warning(
-                    "no_tick_size_found",
-                    action="round_price",
-                    symbol=symbol,
-                    price=float(price),
-                    message=f"No tick size found for {symbol}, returning original price",
-                )
-                return price
+            logger.warning(
+                "no_tick_size_found",
+                action="round_price",
+                symbol=symbol,
+                price=float(price),
+                message=f"No tick size found for {symbol}, returning original price",
+            )
+            return price
 
         except MarketOrderError:
             raise
         except Exception as e:
             logger.error(
-                f"Failed to get market metadata for {symbol}: {e}, returning original price"
+                f"Failed to get market metadata for {symbol}: {e}, returning original price",
             )
             return price
 
@@ -254,28 +260,28 @@ class MarketOrderService:
                 # Round to nearest step_size multiple
                 step_size = market.step_size
                 rounded = (quantity / step_size).quantize(
-                    Decimal("1"), rounding=ROUND_DOWN
+                    Decimal(1),
+                    rounding=ROUND_DOWN,
                 ) * step_size
                 logger.debug(
                     f"Rounded quantity for {symbol} using step_size {step_size}: "
-                    f"{quantity} -> {rounded}"
+                    f"{quantity} -> {rounded}",
                 )
                 return rounded
-            else:
-                logger.warning(
-                    "no_step_size_found",
-                    action="round_quantity",
-                    symbol=symbol,
-                    quantity=float(quantity),
-                    message=f"No step size found for {symbol}, returning original quantity",
-                )
-                return quantity
+            logger.warning(
+                "no_step_size_found",
+                action="round_quantity",
+                symbol=symbol,
+                quantity=float(quantity),
+                message=f"No step size found for {symbol}, returning original quantity",
+            )
+            return quantity
 
         except MarketOrderError:
             raise
         except Exception as e:
             logger.error(
-                f"Failed to get market metadata for {symbol}: {e}, returning original quantity"
+                f"Failed to get market metadata for {symbol}: {e}, returning original quantity",
             )
             return quantity
 
@@ -297,7 +303,7 @@ class MarketOrderService:
                 get_all_mids_method = getattr(self._exchange, "get_all_mids", None)
                 if get_all_mids_method and callable(get_all_mids_method):
                     # Type assertion for dynamic method
-                    typed_method = cast(Callable[[], Awaitable[MidPrices]], get_all_mids_method)
+                    typed_method = cast("Callable[[], Awaitable[MidPrices]]", get_all_mids_method)
                     all_mids = await typed_method()
                     return all_mids.get(symbol)
         except MarketOrderError:
@@ -313,7 +319,10 @@ class MarketOrderService:
         return None
 
     def calculate_liquidity_ratio(
-        self, order_book: OrderBook, side: OrderSide, quantity: Decimal
+        self,
+        order_book: OrderBook,
+        side: OrderSide,
+        quantity: Decimal,
     ) -> Decimal:
         """Calculate the liquidity ratio for the order.
 
@@ -326,7 +335,7 @@ class MarketOrderService:
             Decimal: Ratio of available liquidity to requested quantity
         """
         available = self._calculate_available_liquidity(order_book, side, quantity)
-        return available / quantity if quantity > Decimal("0") else Decimal("0")
+        return available / quantity if quantity > Decimal(0) else Decimal(0)
 
     def validate_config(self) -> None:
         """Validate market order configuration.
@@ -337,8 +346,8 @@ class MarketOrderService:
         if not self._config.enabled:
             raise ValueError("Market orders are disabled in configuration")
 
-        if self._config.max_slippage_pct <= Decimal("0"):
+        if self._config.max_slippage_pct <= Decimal(0):
             raise ValueError("Maximum slippage must be positive")
 
-        if self._config.max_price_deviation_pct <= Decimal("0"):
+        if self._config.max_price_deviation_pct <= Decimal(0):
             raise ValueError("Maximum price deviation must be positive")

@@ -38,7 +38,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/orders/zero"],
+    indirect=True,
 )
 class TestHyperliquidPerpOrdersZero:
     """Comprehensive perpetual order info integration tests for Order model validation.

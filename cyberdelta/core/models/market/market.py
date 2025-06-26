@@ -60,12 +60,12 @@ class Market(BaseModel):
     base_symbol: str
     quote_symbol: str
     market_type: str
-    tick_size: Decimal = Field(gt=Decimal("0"))
-    step_size: Decimal = Field(gt=Decimal("0"))
-    min_price: Decimal | None = Field(default=None, ge=Decimal("0"))
-    max_price: Decimal | None = Field(default=None, ge=Decimal("0"))
-    min_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
-    max_quantity: Decimal | None = Field(default=None, ge=Decimal("0"))
+    tick_size: Decimal = Field(gt=Decimal(0))
+    step_size: Decimal = Field(gt=Decimal(0))
+    min_price: Decimal | None = Field(default=None, ge=Decimal(0))
+    max_price: Decimal | None = Field(default=None, ge=Decimal(0))
+    min_quantity: Decimal | None = Field(default=None, ge=Decimal(0))
+    max_quantity: Decimal | None = Field(default=None, ge=Decimal(0))
     status: str
     created_at: datetime | None = Field(default=None)
     bp_details: BackpackMarketDetails | None = Field(default=None)
@@ -74,7 +74,12 @@ class Market(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
     @field_validator(
-        "symbol", "base_symbol", "quote_symbol", "market_type", "status", mode="before"
+        "symbol",
+        "base_symbol",
+        "quote_symbol",
+        "market_type",
+        "status",
+        mode="before",
     )
     @classmethod
     def validate_string_fields(cls, v: object, info: ValidationInfo) -> str:
@@ -84,7 +89,7 @@ class Market(BaseModel):
 
     @field_validator("created_at", mode="before")
     @classmethod
-    def validate_created_at(cls, v: datetime | int | float | str | None) -> datetime | None:
+    def validate_created_at(cls, v: datetime | float | str | None) -> datetime | None:
         """Validate and parse the 'created_at' field to an optional UTC datetime object."""
         if v is None:
             return None
@@ -103,7 +108,7 @@ class Market(BaseModel):
     @classmethod
     def validate_and_parse_decimal_fields(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
         """Validate, parse, and check finiteness for Decimal fields.
@@ -166,7 +171,7 @@ class HyperliquidMarketDetails(BaseModel):
     max_leverage: int = Field(ge=1, le=1000)
     only_isolated: bool | None = Field(default=None)
     sz_decimals: int = Field(ge=0, le=18)
-    mark_price: Decimal | None = Field(default=None, ge=Decimal("0"))
+    mark_price: Decimal | None = Field(default=None, ge=Decimal(0))
     funding_rate: Decimal | None = Field(default=None)
 
     model_config = ConfigDict(extra="ignore", frozen=True)

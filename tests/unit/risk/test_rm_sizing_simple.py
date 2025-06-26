@@ -149,8 +149,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("50000"),
-            available_quantity=Decimal("50000"),
+            total_quantity=Decimal(50000),
+            available_quantity=Decimal(50000),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -190,8 +190,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("50000"),
-            available_quantity=Decimal("50000"),
+            total_quantity=Decimal(50000),
+            available_quantity=Decimal(50000),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -231,8 +231,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("50000"),
-            available_quantity=Decimal("50000"),
+            total_quantity=Decimal(50000),
+            available_quantity=Decimal(50000),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -274,8 +274,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("50000"),
-            available_quantity=Decimal("50000"),
+            total_quantity=Decimal(50000),
+            available_quantity=Decimal(50000),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -333,8 +333,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("5000"),
-            available_quantity=Decimal("5000"),
+            total_quantity=Decimal(5000),
+            available_quantity=Decimal(5000),
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
@@ -394,8 +394,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("1000"),
-            available_quantity=Decimal("1000"),
+            total_quantity=Decimal(1000),
+            available_quantity=Decimal(1000),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -456,8 +456,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("100"),
-            available_quantity=Decimal("100"),
+            total_quantity=Decimal(100),
+            available_quantity=Decimal(100),
         )
         mock_funding_validator.get_symbol_metrics = MagicMock(
             return_value={"rmse": 0.0, "bias": 0.0},
@@ -510,8 +510,8 @@ class TestRiskManagerSizingSimple:
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
         )
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
 
@@ -554,7 +554,6 @@ class TestRiskManagerSizingSimple:
     ) -> None:
         """Test sizing with validation factor = 1.0 (happy path)."""
         # This test method has AppSettings validation issues - skip it for now
-        pass
 
     @pytest.mark.asyncio
     async def test_size_opportunity_validation_factor_safety_path(
@@ -567,7 +566,6 @@ class TestRiskManagerSizingSimple:
     ) -> None:
         """Test sizing with validation factor = 0.2 (safety path)."""
         # This test method has AppSettings validation issues - skip it for now
-        pass
 
     @pytest.mark.asyncio
     async def test_sizing_with_args_kwargs(self, *args: Decimal, **kwargs: Decimal) -> None:
@@ -575,12 +573,9 @@ class TestRiskManagerSizingSimple:
         # This method is not provided in the original file or the new code block
         # It's assumed to exist as it's called in the
         #               test_size_opportunity_config_change_enforcement method
-        pass
 
     async def some_method(self, exchange: str, symbol: str) -> None:
         """Perform some operation with exchange and symbol for testing."""
-        pass
 
     async def another_method(self, exchange: str, symbol: str) -> None:
         """Perform another operation with exchange and symbol for testing."""
-        pass

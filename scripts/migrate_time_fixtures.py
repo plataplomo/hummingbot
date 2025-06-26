@@ -163,7 +163,7 @@ def migrate_file(file_path: Path, dry_run: bool = False) -> tuple[bool, str]:
         return True, f"✅ {file_path} - migrated {len(migrator.patches_found)} patches"
 
     except Exception as e:
-        return False, f"❌ {file_path} - error: {str(e)}"
+        return False, f"❌ {file_path} - error: {e!s}"
 
 
 def find_migration_candidates(directory: Path) -> list[Path]:
@@ -233,7 +233,7 @@ For complex patterns that can't be automatically migrated:
 def main() -> int:
     """Main script execution."""
     parser = argparse.ArgumentParser(
-        description="Migrate unittest.mock datetime patches to pytest-freezer fixtures"
+        description="Migrate unittest.mock datetime patches to pytest-freezer fixtures",
     )
     parser.add_argument(
         "--target-dir",
@@ -242,7 +242,9 @@ def main() -> int:
         help="Directory to search for files to migrate",
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be changed without modifying files"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be changed without modifying files",
     )
     parser.add_argument("--file", type=Path, help="Migrate a specific file")
 

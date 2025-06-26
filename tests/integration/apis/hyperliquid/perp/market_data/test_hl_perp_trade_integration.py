@@ -13,7 +13,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/trade"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -33,12 +35,14 @@ async def test_hl_get_perp_recent_trades_btc_success(
             assert (
                 hasattr(trade, "symbol") and hasattr(trade, "price") and hasattr(trade, "quantity")
             )
-            assert isinstance(trade.price, Decimal) and trade.price > Decimal("0")
-            assert isinstance(trade.quantity, Decimal) and trade.quantity > Decimal("0")
+            assert isinstance(trade.price, Decimal) and trade.price > Decimal(0)
+            assert isinstance(trade.quantity, Decimal) and trade.quantity > Decimal(0)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/trade"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/trade"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio

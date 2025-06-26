@@ -50,7 +50,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/orders/create_cancel"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/orders/create_cancel"],
+    indirect=True,
 )
 class TestHyperliquidPerpOrderCreateAndCancel:
     """Integration tests for simple order create and cancel operations.
@@ -77,13 +79,14 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         """
         # Get available symbols from exchange using dynamic discovery
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=5
+            hl_api_for_test_env,
+            limit=5,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No perpetual symbols available from the exchange. "
-                "This test requires at least one available perpetual symbol."
+                "This test requires at least one available perpetual symbol.",
             )
 
         # Select a random symbol (first available for deterministic VCR)
@@ -93,21 +96,27 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         try:
             # Get dynamic test parameters for safe order placement
             market_price = await HyperliquidTestHelpers.get_current_market_price(
-                hl_api_for_test_env, symbol
+                hl_api_for_test_env,
+                symbol,
             )
 
             # Use 10% below market for buy order to avoid accidental fills
             test_price = await get_safe_test_price(
-                hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("10")
+                hl_api_for_test_env,
+                symbol,
+                OrderSide.BUY,
+                Decimal(10),
             )
 
             test_quantity = await get_minimal_test_quantity(
-                hl_api_for_test_env, symbol, OrderSide.BUY
+                hl_api_for_test_env,
+                symbol,
+                OrderSide.BUY,
             )
 
             logger.info(
                 f"Order parameters - Symbol: {symbol}, Price: {test_price}, "
-                f"Quantity: {test_quantity}, Market Price: {market_price}"
+                f"Quantity: {test_quantity}, Market Price: {market_price}",
             )
 
             # Define order parameters using dynamic values
@@ -191,13 +200,14 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 logger.info("No open orders found, creating one to test cancellation")
 
                 available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-                    hl_api_for_test_env, limit=5
+                    hl_api_for_test_env,
+                    limit=5,
                 )
 
                 if not available_symbols:
                     pytest.skip(
                         "No perpetual symbols available from the exchange. "
-                        "This test requires at least one available perpetual symbol."
+                        "This test requires at least one available perpetual symbol.",
                     )
 
                 symbol = available_symbols[0]
@@ -206,11 +216,16 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, symbol)
 
                 test_price = await get_safe_test_price(
-                    hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("10")
+                    hl_api_for_test_env,
+                    symbol,
+                    OrderSide.BUY,
+                    Decimal(10),
                 )
 
                 test_quantity = await get_minimal_test_quantity(
-                    hl_api_for_test_env, symbol, OrderSide.BUY
+                    hl_api_for_test_env,
+                    symbol,
+                    OrderSide.BUY,
                 )
 
                 place_args = PlaceOrderArgs(
@@ -230,14 +245,16 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 # Sort by created_at (most recent first) if available, otherwise use last in list
                 if hasattr(open_orders[0], "created_at") and open_orders[0].created_at:
                     order_to_cancel = sorted(
-                        open_orders, key=lambda x: x.created_at if x.created_at else 0, reverse=True
+                        open_orders,
+                        key=lambda x: x.created_at or 0,
+                        reverse=True,
                     )[0]
                 else:
                     order_to_cancel = open_orders[-1]  # Last order in list
 
                 logger.info(
                     f"Using existing order {order_to_cancel.exchange_order_id} "
-                    f"for symbol {order_to_cancel.symbol} to test cancellation"
+                    f"for symbol {order_to_cancel.symbol} to test cancellation",
                 )
 
         except Exception as e:
@@ -261,7 +278,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             if not order_exists:
                 pytest.skip(
                     f"Order {order_id} not found in open orders. "
-                    "Order may have been filled or already cancelled."
+                    "Order may have been filled or already cancelled.",
                 )
 
             # Cancel the order

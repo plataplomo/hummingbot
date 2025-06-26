@@ -21,28 +21,20 @@ Security Notes:
 from __future__ import annotations
 
 import asyncio
+import string
 import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Protocol
-
-import structlog
-from pydantic import BaseModel
-
-from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.utils.typing import is_dict_str_any
-
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Protocol
 
 import msgpack
+import structlog
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from eth_account.signers.local import LocalAccount
 from eth_utils.conversions import to_hex
 from eth_utils.crypto import keccak
 from mnemonic import Mnemonic
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
@@ -55,6 +47,8 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.utils.typing import is_dict_str_any
 
 
 logger = get_logger(__name__)
@@ -89,7 +83,7 @@ def address_to_bytes(address: str) -> bytes:
         Address as bytes
 
     """
-    return bytes.fromhex(address[2:] if address.startswith("0x") else address)
+    return bytes.fromhex(address.removeprefix("0x"))
 
 
 class HyperliquidEip712Authenticator(IAuthenticator):
@@ -121,7 +115,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         self._validate_auth_parameters(wallet_private_key_secret, account_object)
         self._account = self._setup_account(
-            wallet_private_key_secret, account_object, passphrase_secret
+            wallet_private_key_secret,
+            account_object,
+            passphrase_secret,
         )
         self._setup_wallet_properties()
         self._setup_nonce_management()
@@ -169,18 +165,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             if passphrase_secret:
                 self._validate_passphrase(passphrase_secret)
             return account
-        elif account_object:
+        if account_object:
             return account_object
-        else:
-            # This case should be impossible due to the initial checks
-            impos_msg = "Internal error: Account could not be assigned despite checks."
-            self.logger.critical(
-                "account_assignment_impossible",
-                action="setup_account",
-                error_type="internal_error",
-                message=f"HyperliquidEip712Authenticator: {impos_msg}",
-            )
-            raise RuntimeError(impos_msg)
+        # This case should be impossible due to the initial checks
+        impos_msg = "Internal error: Account could not be assigned despite checks."
+        self.logger.critical(
+            "account_assignment_impossible",
+            action="setup_account",
+            error_type="internal_error",
+            message=f"HyperliquidEip712Authenticator: {impos_msg}",
+        )
+        raise RuntimeError(impos_msg)
 
     def _create_account_from_private_key(
         self,
@@ -210,13 +205,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _process_private_key_string(self, private_key_str: str) -> str:
         """Process private key string by removing 0x prefix if present."""
-        return private_key_str[2:] if private_key_str.startswith("0x") else private_key_str
+        return private_key_str.removeprefix("0x")
 
     def _validate_private_key_format(self, processed_pk_str: str) -> None:
         """Validate that private key is a 64-character hex string."""
         if not (
             len(processed_pk_str) == 64
-            and all(c in "0123456789abcdefABCDEF" for c in processed_pk_str)
+            and all(c in string.hexdigits for c in processed_pk_str)
         ):
             raise ValueError(
                 "Hyperliquid private_key must be a 64-character hex string "
@@ -364,15 +359,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """
         if path.endswith("/exchange"):
             return await self._prepare_exchange_request(method, path, params, data, headers)
-        else:
-            self.logger.error(
-                f"HyperliquidEip712Authenticator: Signing for path {path} is not implemented. "
-                f"Only /exchange endpoint is currently supported.",
-            )
-            raise NotImplementedError(
-                f"Signing for path {path} is not implemented. "
-                f"Only /exchange endpoint is supported.",
-            )
+        self.logger.error(
+            f"HyperliquidEip712Authenticator: Signing for path {path} is not implemented. "
+            f"Only /exchange endpoint is currently supported.",
+        )
+        raise NotImplementedError(
+            f"Signing for path {path} is not implemented. Only /exchange endpoint is supported.",
+        )
 
     def _validate_exchange_request_data(self, data: dict[str, Any] | None) -> None:
         """Validate exchange request data format."""
@@ -420,7 +413,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self.logger.debug(
             "processing_dict_data",
             action="prepare_action_payload",
-            data_keys=list(data.keys()) if isinstance(data, dict) else None,
+            data_keys=list(data.keys()),
             message=f"[HL_AUTH] Processing dict data: {data}",
         )
         self._process_dict_orders(data)
@@ -449,7 +442,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         )
 
         # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
-        if "orders" in result and result["orders"]:
+        if result.get("orders"):
             self._process_order_items(result["orders"])
 
         return result
@@ -460,11 +453,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             # Force serialize the order item to ensure proper structure
             if isinstance(order_item, BaseModel):
                 order_item_dict = order_item.model_dump(
-                    by_alias=False, exclude_none=True, mode="python"
+                    by_alias=False,
+                    exclude_none=True,
+                    mode="python",
                 )
                 orders[i] = order_item_dict
                 self.logger.debug(
-                    f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}"
+                    f"[HL_AUTH] Serialized order {i} with fields: {list(order_item_dict.keys())}",
                 )
             elif is_dict_str_any(order_item):
                 # order_item is now properly typed as dict[str, Any] due to TypeGuard
@@ -490,14 +485,16 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _process_dict_orders(self, data: dict[str, Any]) -> None:
         """Process orders in dict data to remove None 'c' fields."""
-        if "orders" in data and data["orders"]:
+        if data.get("orders"):
             for i, order_item in enumerate(data["orders"]):
                 if is_dict_str_any(order_item):
                     # order_item is now properly typed as dict[str, Any] due to TypeGuard
                     self._remove_none_c_field(order_item, i)
 
     def _compute_action_hash(
-        self, action_payload_dict: dict[str, Any], current_nonce_ms: int
+        self,
+        action_payload_dict: dict[str, Any],
+        current_nonce_ms: int,
     ) -> bytes:
         """Compute action hash using msgpack and keccak."""
         try:
@@ -508,7 +505,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 payload_keys=list(action_payload_dict.keys()),
                 message=f"[HL_AUTH] Action payload keys: {list(action_payload_dict.keys())}",
             )
-            if "orders" in action_payload_dict and action_payload_dict["orders"]:
+            if action_payload_dict.get("orders"):
                 order = action_payload_dict["orders"][0]
                 self.logger.debug(
                     "first_order_structure_logged",
@@ -519,7 +516,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 # Check if 'c' field is present and its value
                 if "c" in order:
                     self.logger.debug(
-                        f"[HL_AUTH] Field 'c' value: {order['c']} (type: {type(order['c'])})"
+                        f"[HL_AUTH] Field 'c' value: {order['c']} (type: {type(order['c'])})",
                     )
                 else:
                     self.logger.debug("[HL_AUTH] Field 'c' is missing from order!")
@@ -706,7 +703,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # Construct final request components
         final_http_body = self._construct_http_body(
-            action_payload_dict, current_nonce_ms, signature_dict
+            action_payload_dict,
+            current_nonce_ms,
+            signature_dict,
         )
         final_headers = self._prepare_request_headers(headers)
 
@@ -793,7 +792,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             signed_msg = self._account.sign_message(signable_message)
             # Verify recovery
             recovered = Account.recover_message(
-                signable_message, vrs=[signed_msg.v, signed_msg.r, signed_msg.s]
+                signable_message,
+                vrs=[signed_msg.v, signed_msg.r, signed_msg.s],
             )
             self.logger.debug(
                 "signing_account_info",

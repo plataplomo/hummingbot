@@ -32,7 +32,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/positions_zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/positions_zero"],
+    indirect=True,
 )
 class TestBackpackPositionsZero:
     """Test position functionality when account has no open positions."""
@@ -64,7 +66,7 @@ class TestBackpackPositionsZero:
 
         try:
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_BTC_PERP
+                symbol=TEST_SYMBOL_BTC_PERP,
             )
             # Should return empty list for non-existent positions
             assert isinstance(positions, list)
@@ -99,11 +101,11 @@ class TestBackpackPositionsZero:
 
         # Position notional should be 0 or None when no positions
         if account_summary.total_position_notional is not None:
-            assert account_summary.total_position_notional == Decimal("0")
+            assert account_summary.total_position_notional == Decimal(0)
 
         # Unrealized PnL should be 0 or None when no positions
         if account_summary.total_unrealized_pnl is not None:
-            assert account_summary.total_unrealized_pnl == Decimal("0")
+            assert account_summary.total_unrealized_pnl == Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -123,7 +125,7 @@ class TestBackpackPositionsZero:
             # Try to get position for spot symbol
             # SOL-USDC
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=COMMON_SPOT_SYMBOLS[0]
+                symbol=COMMON_SPOT_SYMBOLS[0],
             )
 
             # Should return empty list as spot pairs don't have positions
@@ -156,7 +158,7 @@ class TestBackpackPositionsZero:
         # Try specific symbols
         try:
             btc_positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_BTC_PERP
+                symbol=TEST_SYMBOL_BTC_PERP,
             )
             assert isinstance(btc_positions, list)
             assert len(btc_positions) == 0
@@ -169,7 +171,7 @@ class TestBackpackPositionsZero:
 
         try:
             eth_positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_ETH_PERP
+                symbol=TEST_SYMBOL_ETH_PERP,
             )
             assert isinstance(eth_positions, list)
             assert len(eth_positions) == 0
@@ -196,18 +198,18 @@ class TestBackpackPositionsZero:
 
         # Account metrics should reflect zero position exposure
         if account_summary.total_position_notional is not None:
-            assert account_summary.total_position_notional == Decimal("0")
+            assert account_summary.total_position_notional == Decimal(0)
 
         if account_summary.total_unrealized_pnl is not None:
-            assert account_summary.total_unrealized_pnl == Decimal("0")
+            assert account_summary.total_unrealized_pnl == Decimal(0)
 
         # Margin requirements could be non-zero due to open orders
         # So we just validate they're non-negative
         if account_summary.total_initial_margin_required is not None:
-            assert account_summary.total_initial_margin_required >= Decimal("0")
+            assert account_summary.total_initial_margin_required >= Decimal(0)
 
         if account_summary.total_maintenance_margin_required is not None:
-            assert account_summary.total_maintenance_margin_required >= Decimal("0")
+            assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -243,7 +245,7 @@ class TestBackpackPositionsZero:
             # Try an invalid/delisted symbol
             # Use a less common perp symbol that might not exist
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=DELISTED_PERP_SYMBOL
+                symbol=DELISTED_PERP_SYMBOL,
             )
 
             # Should return empty list for invalid symbols
@@ -278,7 +280,7 @@ class TestBackpackPositionsZero:
 
         # After liquidation, should have no positions
         if account_summary.total_position_notional is not None:
-            assert account_summary.total_position_notional == Decimal("0")
+            assert account_summary.total_position_notional == Decimal(0)
 
         # Check if account shows liquidating state
         if account_summary.bp_details and hasattr(account_summary.bp_details, "liquidating"):
@@ -302,7 +304,7 @@ class TestBackpackPositionsZero:
 
         # Filter for any dust positions
         dust_positions = [
-            p for p in positions if abs(p.size) < DUST_THRESHOLD and p.size != Decimal("0")
+            p for p in positions if abs(p.size) < DUST_THRESHOLD and p.size != Decimal(0)
         ]
 
         # Dust positions might exist but should be negligible

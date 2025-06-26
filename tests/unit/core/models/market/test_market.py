@@ -28,11 +28,11 @@ BASE_SYMBOL: str = "BTC"
 QUOTE_SYMBOL: str = "USDC"
 MARKET_TYPE: str = "Perpetual"
 STATUS: str = "Trading"
-DEC_ZERO: Decimal = Decimal("0")
-DEC_ONE: Decimal = Decimal("1")
+DEC_ZERO: Decimal = Decimal(0)
+DEC_ONE: Decimal = Decimal(1)
 DEC_SMALL: Decimal = Decimal("0.0001")
-DEC_LARGE: Decimal = Decimal("1000000")
-DEC_NEG_ONE: Decimal = Decimal("-1")
+DEC_LARGE: Decimal = Decimal(1000000)
+DEC_NEG_ONE: Decimal = Decimal(-1)
 DEC_NAN: Decimal = Decimal("NaN")
 DEC_INF: Decimal = Decimal("Infinity")
 DEC_NEG_INF: Decimal = Decimal("-Infinity")
@@ -88,10 +88,10 @@ class TestMarket:
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
-            min_price=Decimal("10"),
-            max_price=Decimal("100000"),
+            min_price=Decimal(10),
+            max_price=Decimal(100000),
             min_quantity=Decimal("0.001"),
-            max_quantity=Decimal("1000"),
+            max_quantity=Decimal(1000),
             status=STATUS,
             created_at=NOW,
             bp_details=bp_details,
@@ -104,10 +104,10 @@ class TestMarket:
         assert market.market_type == MARKET_TYPE
         assert market.tick_size == DEC_SMALL
         assert market.step_size == DEC_SMALL
-        assert market.min_price == Decimal("10")
-        assert market.max_price == Decimal("100000")
+        assert market.min_price == Decimal(10)
+        assert market.max_price == Decimal(100000)
         assert market.min_quantity == Decimal("0.001")
-        assert market.max_quantity == Decimal("1000")
+        assert market.max_quantity == Decimal(1000)
         assert market.status == STATUS
         assert market.created_at == NOW
         assert market.bp_details == bp_details
@@ -125,10 +125,10 @@ class TestMarket:
             market_type=MARKET_TYPE,
             tick_size=Decimal("0.0001"),  # Validator parses from string
             step_size=Decimal("0.001"),  # Validator parses from float
-            min_price=Decimal("10"),  # Validator parses from int
+            min_price=Decimal(10),  # Validator parses from int
             max_price=Decimal("100000.5"),  # Validator parses from string
             min_quantity=Decimal("0.001"),  # Validator parses from float
-            max_quantity=Decimal("1000"),  # Validator parses from string
+            max_quantity=Decimal(1000),  # Validator parses from string
             status=STATUS,
             # Validator parses from ms
             created_at=datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC),
@@ -136,10 +136,10 @@ class TestMarket:
 
         assert market.tick_size == Decimal("0.0001")
         assert market.step_size == Decimal("0.001")
-        assert market.min_price == Decimal("10")
+        assert market.min_price == Decimal(10)
         assert market.max_price == Decimal("100000.5")
         assert market.min_quantity == Decimal("0.001")
-        assert market.max_quantity == Decimal("1000")
+        assert market.max_quantity == Decimal(1000)
         # Check timestamp was parsed correctly
         expected_dt = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
         assert market.created_at == expected_dt

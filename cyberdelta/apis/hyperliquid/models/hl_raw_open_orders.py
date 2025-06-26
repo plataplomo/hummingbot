@@ -222,7 +222,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
         # CAST 1: For type checker, v is already confirmed list by runtime check above
-        list_of_objects = cast(list[object], v)
+        list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -234,7 +234,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check above
-            item_dict = cast(dict[str, object], item_obj)
+            item_dict = cast("dict[str, object]", item_obj)
 
             validated_items.append(item_dict)
         return validated_items
@@ -299,7 +299,7 @@ class HyperliquidRawOrderSpec(BaseModel):
         if not value:
             raise ValueError("trigger details dictionary cannot be empty if provided.")
 
-        return cast(dict[str, object], value)
+        return cast("dict[str, object]", value)
 
 
 class HyperliquidRawModifyOrderRequest(BaseModel):

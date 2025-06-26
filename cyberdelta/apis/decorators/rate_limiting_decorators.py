@@ -37,7 +37,8 @@ class RateLimited:
         self.calls_per_minute = calls_per_minute
         self.burst_size = burst_size or calls_per_minute
         self._rate_limiter = TokenBucketRateLimiterRuntime(
-            rate=calls_per_minute / 60.0, bucket_size=self.burst_size
+            rate=calls_per_minute / 60.0,
+            bucket_size=self.burst_size,
         )
 
     def __call__(self, func: Callable[P, T]) -> Callable[P, T]:
@@ -48,12 +49,11 @@ class RateLimited:
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 # Always wait for rate limit
                 await self._rate_limiter.acquire()
-                async_func = cast(Callable[P, Awaitable[T]], func)
+                async_func = cast("Callable[P, Awaitable[T]]", func)
                 return await async_func(*args, **kwargs)
 
-            return cast(Callable[P, T], async_wrapper)
-        else:
-            raise TypeError("RateLimited decorator can only be applied to async functions")
+            return cast("Callable[P, T]", async_wrapper)
+        raise TypeError("RateLimited decorator can only be applied to async functions")
 
 
 class RetryOnFailure:
@@ -85,7 +85,7 @@ class RetryOnFailure:
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 last_exception: Exception | None = None
                 delay = self.initial_delay
-                async_func = cast(Callable[P, Awaitable[T]], func)
+                async_func = cast("Callable[P, Awaitable[T]]", func)
 
                 for attempt in range(self.max_attempts):
                     try:
@@ -95,22 +95,21 @@ class RetryOnFailure:
                         if attempt < self.max_attempts - 1:
                             logger.warning(
                                 f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
-                                f"Retrying in {delay}s..."
+                                f"Retrying in {delay}s...",
                             )
                             await asyncio.sleep(delay)
                             delay = min(delay * self.exponential_base, self.max_delay)
                         else:
                             logger.error(
-                                f"All {self.max_attempts} attempts failed for {func.__name__}"
+                                f"All {self.max_attempts} attempts failed for {func.__name__}",
                             )
 
                 if last_exception is not None:
                     raise last_exception
                 raise RuntimeError("No exception captured")
 
-            return cast(Callable[P, T], async_wrapper)
-        else:
-            raise TypeError("RetryOnFailure decorator can only be applied to async functions")
+            return cast("Callable[P, T]", async_wrapper)
+        raise TypeError("RetryOnFailure decorator can only be applied to async functions")
 
 
 class CircuitBreaker:
@@ -156,7 +155,7 @@ class CircuitBreaker:
                         )
 
                 try:
-                    async_func = cast(Callable[P, Awaitable[T]], func)
+                    async_func = cast("Callable[P, Awaitable[T]]", func)
                     result = await async_func(*args, **kwargs)
 
                     # Success - reset failure count if in half-open state
@@ -176,14 +175,13 @@ class CircuitBreaker:
                             self._state = "open"
                             logger.error(
                                 f"Circuit breaker opened for {func.__name__} after "
-                                f"{self._failure_count} failures"
+                                f"{self._failure_count} failures",
                             )
 
                         raise
 
-            return cast(Callable[P, T], async_wrapper)
-        else:
-            raise TypeError("CircuitBreaker decorator can only be applied to async functions")
+            return cast("Callable[P, T]", async_wrapper)
+        raise TypeError("CircuitBreaker decorator can only be applied to async functions")
 
 
 class Timeout:
@@ -203,7 +201,7 @@ class Timeout:
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
                 try:
-                    async_func = cast(Callable[P, Awaitable[T]], func)
+                    async_func = cast("Callable[P, Awaitable[T]]", func)
                     return await asyncio.wait_for(async_func(*args, **kwargs), timeout=self.seconds)
                 except TimeoutError as e:
                     raise APIError(
@@ -211,9 +209,8 @@ class Timeout:
                         code=APIErrorCode.TIMEOUT.value,
                     ) from e
 
-            return cast(Callable[P, T], async_wrapper)
-        else:
-            raise TypeError("Timeout decorator can only be applied to async functions")
+            return cast("Callable[P, T]", async_wrapper)
+        raise TypeError("Timeout decorator can only be applied to async functions")
 
 
 # Legacy function interfaces for backward compatibility

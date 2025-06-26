@@ -307,23 +307,34 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         # Handle critical HTTP status codes
         critical_status_error = self._handle_critical_status_codes(
-            status_code, error_body, original_exception
+            status_code,
+            error_body,
+            original_exception,
         )
         if critical_status_error:
             return critical_status_error
 
         # Extract and categorize error message
         extracted_message, category = self._extract_and_categorize_error(
-            error_body, error_data, status_code
+            error_body,
+            error_data,
+            status_code,
         )
 
         # Build the final API error
         return self._build_api_error(
-            extracted_message, category, status_code, original_exception, request_path
+            extracted_message,
+            category,
+            status_code,
+            original_exception,
+            request_path,
         )
 
     def _check_ip_ban_pattern(
-        self, status_code: int, error_body: str | None, original_exception: Exception | None
+        self,
+        status_code: int,
+        error_body: str | None,
+        original_exception: Exception | None,
     ) -> APIError | None:
         """Check for Hyperliquid IP ban pattern (403 + rate limit message)."""
         if status_code == 403:
@@ -344,7 +355,10 @@ class HyperliquidErrorMapper(IErrorMapper):
         return None
 
     def _handle_critical_status_codes(
-        self, status_code: int, error_body: str | None, original_exception: Exception | None
+        self,
+        status_code: int,
+        error_body: str | None,
+        original_exception: Exception | None,
     ) -> APIError | None:
         """Handle critical HTTP status codes with direct mapping."""
         if status_code == 503:
@@ -370,7 +384,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         if status_code == 403:
             # Non-rate-limit 403, treat as authentication failure
-            message = error_body if error_body else "Forbidden"
+            message = error_body or "Forbidden"
             return APIError(
                 message=message,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -382,7 +396,10 @@ class HyperliquidErrorMapper(IErrorMapper):
         return None
 
     def _handle_authentication_error(
-        self, status_code: int, error_body: str | None, original_exception: Exception | None
+        self,
+        status_code: int,
+        error_body: str | None,
+        original_exception: Exception | None,
     ) -> APIError:
         """Handle 401 authentication errors with refined string mapping."""
         specific_error_from_string = self.map_string_error(
@@ -393,7 +410,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         if specific_error_from_string.code != APIErrorCode.EXCHANGE_SPECIFIC.value and error_body:
             return specific_error_from_string
 
-        message = error_body if error_body else "Authentication failed"
+        message = error_body or "Authentication failed"
         return APIError(
             message=message,
             code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -403,7 +420,10 @@ class HyperliquidErrorMapper(IErrorMapper):
         )
 
     def _extract_and_categorize_error(
-        self, error_body: str | None, error_data: dict[str, Any] | None, status_code: int
+        self,
+        error_body: str | None,
+        error_data: dict[str, Any] | None,
+        status_code: int,
     ) -> tuple[str, HyperliquidAPIErrorCategory]:
         """Extract error message and categorize it."""
         extracted_message = error_body or "Unknown Hyperliquid error"
@@ -484,7 +504,9 @@ class HyperliquidErrorMapper(IErrorMapper):
         return None
 
     def _calculate_retry_after(
-        self, category: HyperliquidAPIErrorCategory, extracted_message: str
+        self,
+        category: HyperliquidAPIErrorCategory,
+        extracted_message: str,
     ) -> float | None:
         """Calculate retry_after for rate limit errors."""
         if category != HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
@@ -493,7 +515,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         msg_lower = extracted_message.lower()
         if "one request every 10 seconds" in msg_lower:
             return 10.5  # Add small buffer
-        elif "one request every" in msg_lower:
+        if "one request every" in msg_lower:
             match = re.search(r"one request every (\d+) seconds", msg_lower)
             if match:
                 seconds = int(match.group(1))

@@ -393,12 +393,12 @@ class TestPortfolioTracker:
         mock_hl_summary = MarginAccountSummary(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
-            total_equity=Decimal("10000"),
-            available_equity=Decimal("9500"),
-            total_initial_margin_required=Decimal("1000"),
-            total_maintenance_margin_required=Decimal("500"),
-            total_position_notional=Decimal("5000"),
-            total_unrealized_pnl=Decimal("100"),
+            total_equity=Decimal(10000),
+            available_equity=Decimal(9500),
+            total_initial_margin_required=Decimal(1000),
+            total_maintenance_margin_required=Decimal(500),
+            total_position_notional=Decimal(5000),
+            total_unrealized_pnl=Decimal(100),
         )
         api_clients["hyperliquid"].get_account_summary.return_value = mock_hl_summary
         api_clients[
@@ -537,8 +537,8 @@ class TestPortfolioTracker:
             SpotBalance(
                 exchange="hyperliquid",
                 asset="USDC",
-                total_quantity=Decimal("12000"),  # Corrected: "12k" -> "12000"
-                available_quantity=Decimal("11000"),  # Corrected: "11k" -> "11000"
+                total_quantity=Decimal(12000),  # Corrected: "12k" -> "12000"
+                available_quantity=Decimal(11000),  # Corrected: "11k" -> "11000"
                 timestamp=datetime.now(UTC),
             ),
         ]
@@ -589,8 +589,8 @@ class TestPortfolioTracker:
         mock_hl_usdc_balance_rec = SpotBalance(
             exchange="hyperliquid",
             asset="USDC",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("9000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(9000),
             timestamp=now_reconcile,
         )
         mock_hl_positions_rec = [
@@ -599,7 +599,7 @@ class TestPortfolioTracker:
                 symbol="BTC",
                 side=OrderSide.BUY,
                 size=Decimal("1.5"),
-                entry_price=Decimal("50500"),  # Required as size is non-zero
+                entry_price=Decimal(50500),  # Required as size is non-zero
                 timestamp=now_reconcile,
             ),
         ]
@@ -609,7 +609,7 @@ class TestPortfolioTracker:
                 client_order_id="hl-rec-1",
                 symbol="BTC",
                 side=OrderSide.BUY,
-                price=Decimal("50000"),  # Required for LIMIT order
+                price=Decimal(50000),  # Required for LIMIT order
                 quantity_requested=Decimal("0.5"),
                 status=OrderStatus.OPEN,
                 created_at=now_reconcile,
@@ -618,7 +618,7 @@ class TestPortfolioTracker:
                 exchange_order_id=None,
                 related_order_id=None,
                 quote_quantity_requested=None,
-                quantity_filled=Decimal("0"),
+                quantity_filled=Decimal(0),
                 stop_price=None,
                 average_fill_price=None,
                 trigger_by=None,
@@ -636,12 +636,12 @@ class TestPortfolioTracker:
         mock_hl_summary_rec = MarginAccountSummary(
             exchange="hyperliquid",
             timestamp=now_reconcile,
-            total_equity=Decimal("10000"),
-            available_equity=Decimal("9250"),
-            total_initial_margin_required=Decimal("1000"),
-            total_maintenance_margin_required=Decimal("750"),
-            total_position_notional=Decimal("75750"),
-            total_unrealized_pnl=Decimal("0"),
+            total_equity=Decimal(10000),
+            available_equity=Decimal(9250),
+            total_initial_margin_required=Decimal(1000),
+            total_maintenance_margin_required=Decimal(750),
+            total_position_notional=Decimal(75750),
+            total_unrealized_pnl=Decimal(0),
         )
 
         # Ensure get_balances returns a dict
@@ -665,7 +665,7 @@ class TestPortfolioTracker:
         assert api_clients["hyperliquid"].get_account_summary.call_count == 2
 
         # Verify internal state reflects reconciled data for HyperLiquid
-        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal("10000")
+        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(10000)
         assert portfolio_tracker.positions["hyperliquid"]["BTC"].size == Decimal("1.5")
         assert "hl-rec-1" in portfolio_tracker.orders["hyperliquid"]
         assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > old_time
@@ -711,8 +711,8 @@ class TestPortfolioTracker:
                 exchange="hyperliquid",
                 symbol="BTC",
                 side=OrderSide.BUY,
-                size=Decimal("1"),
-                entry_price=Decimal("50000"),  # Required for non-zero size
+                size=Decimal(1),
+                entry_price=Decimal(50000),  # Required for non-zero size
                 timestamp=now_api_error,
                 # Explicitly provide None for optional fields for clarity in test mock
                 mark_price=None,
@@ -732,7 +732,7 @@ class TestPortfolioTracker:
                 order_type=OrderType.LIMIT,
                 symbol="BTC",
                 side=OrderSide.SELL,
-                price=Decimal("52000"),  # Required for LIMIT
+                price=Decimal(52000),  # Required for LIMIT
                 quantity_requested=Decimal("0.5"),
                 status=OrderStatus.OPEN,
                 created_at=now_api_error,
@@ -741,7 +741,7 @@ class TestPortfolioTracker:
                 exchange_order_id=None,
                 related_order_id=None,
                 quote_quantity_requested=None,
-                quantity_filled=Decimal("0"),  # Default but explicit
+                quantity_filled=Decimal(0),  # Default but explicit
                 stop_price=None,
                 average_fill_price=None,
                 trigger_by=None,
@@ -759,12 +759,12 @@ class TestPortfolioTracker:
         mock_hl_summary_err = MarginAccountSummary(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
-            total_equity=Decimal("10000"),
-            available_equity=Decimal("9500"),
-            total_initial_margin_required=Decimal("1000"),
-            total_maintenance_margin_required=Decimal("500"),
-            total_position_notional=Decimal("5000"),
-            total_unrealized_pnl=Decimal("100"),
+            total_equity=Decimal(10000),
+            available_equity=Decimal(9500),
+            total_initial_margin_required=Decimal(1000),
+            total_maintenance_margin_required=Decimal(500),
+            total_position_notional=Decimal(5000),
+            total_unrealized_pnl=Decimal(100),
         )
 
         api_clients["hyperliquid"].get_positions.return_value = mock_hl_positions_err
@@ -969,7 +969,7 @@ class TestPortfolioTracker:
 
         # Mock get_pnl to simplify this test and focus on balance valuation
         # get_pnl is an async method on PortfolioTracker
-        portfolio_tracker.get_pnl = AsyncMock(return_value=(Decimal("0"), Decimal("0")))  # type: ignore
+        portfolio_tracker.get_pnl = AsyncMock(return_value=(Decimal(0), Decimal(0)))  # type: ignore
 
         # Ensure api_clients are registered if not done by portfolio_tracker fixture
         # This is typically handled by the portfolio_tracker fixture itself
@@ -1029,8 +1029,8 @@ class TestPortfolioTracker:
         portfolio_tracker.balances["hyperliquid"]["UNPRICED"] = SpotBalance(
             exchange="hyperliquid",
             asset="UNPRICED",
-            total_quantity=Decimal("100"),
-            available_quantity=Decimal("100"),
+            total_quantity=Decimal(100),
+            available_quantity=Decimal(100),
             timestamp=datetime.now(UTC),
         )
         # Ensure _get_asset_price_in_base returns None for "UNPRICED"

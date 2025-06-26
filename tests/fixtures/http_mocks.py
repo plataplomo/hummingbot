@@ -79,7 +79,6 @@ class MockResponse:
         exc_tb: TracebackType | None,
     ) -> None:
         """Exit async context manager."""
-        pass
 
 
 class MockClientSession:
@@ -110,7 +109,6 @@ class MockClientSession:
         exc_tb: TracebackType | None,
     ) -> None:
         """Exit async context manager."""
-        pass
 
     async def close(self) -> None:
         """Close the session."""
@@ -221,7 +219,7 @@ async def mock_request(
 ) -> MockResponse:
     """Create mock HTTP request for testing."""
     text_data = str(json) if json else ""
-    actual_headers = headers if headers else {}
+    actual_headers = headers or {}
     mock_resp = MockResponse(
         json,
         status_code,

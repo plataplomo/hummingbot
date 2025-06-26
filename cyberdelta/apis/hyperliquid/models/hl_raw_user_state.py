@@ -140,7 +140,8 @@ class HyperliquidRawClearinghouseState(BaseModel):
         alias="isolatedMaintenanceMarginUsed",
     )
     isolated_margin_summary: HyperliquidRawMarginSummary | None = Field(
-        None, alias="isolatedMarginSummary"
+        None,
+        alias="isolatedMarginSummary",
     )
     withdrawable: RawNonNegativeFiniteDecimalStr = Field(..., alias="withdrawable")
     time: RawNonNegativeInt | None = Field(None, alias="time")

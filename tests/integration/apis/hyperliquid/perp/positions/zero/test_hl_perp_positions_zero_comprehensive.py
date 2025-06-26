@@ -104,32 +104,32 @@ class TestHyperliquidPositionsZeroComprehensive:
             )
 
             # Validate position size (can be positive, negative, but not zero for active positions)
-            if position.size != Decimal("0"):
+            if position.size != Decimal(0):
                 # Non-zero positions should have valid entry and mark prices
-                assert position.entry_price > Decimal("0"), (
+                assert position.entry_price > Decimal(0), (
                     f"Position {i} with non-zero size should have positive entry_price, got "
                     f"{position.entry_price}"
                 )
-                assert position.mark_price > Decimal("0"), (
+                assert position.mark_price > Decimal(0), (
                     f"Position {i} with non-zero size should have positive mark_price, got "
                     f"{position.mark_price}"
                 )
 
             # Validate price relationships and reasonableness
-            if position.entry_price > Decimal("0") and position.mark_price > Decimal("0"):
+            if position.entry_price > Decimal(0) and position.mark_price > Decimal(0):
                 # Prices should be in reasonable range (not negative, not astronomically high)
-                assert position.entry_price < Decimal("1000000"), (
+                assert position.entry_price < Decimal(1000000), (
                     f"Position {i} entry_price seems unreasonably high: {position.entry_price}"
                 )
-                assert position.mark_price < Decimal("1000000"), (
+                assert position.mark_price < Decimal(1000000), (
                     f"Position {i} mark_price seems unreasonably high: {position.mark_price}"
                 )
 
             # Validate PnL calculations make sense
             if (
-                position.size != Decimal("0")
-                and position.entry_price > Decimal("0")
-                and position.mark_price > Decimal("0")
+                position.size != Decimal(0)
+                and position.entry_price > Decimal(0)
+                and position.mark_price > Decimal(0)
             ):
                 # Calculate expected unrealized PnL and validate it's reasonable
                 expected_pnl_direction = (
@@ -139,8 +139,8 @@ class TestHyperliquidPositionsZeroComprehensive:
                 # PnL direction should match calculation (allowing for fees and other factors)
                 if abs(expected_pnl_direction) > Decimal("0.01"):  # Only check if significant
                     pnl_direction_matches = (
-                        expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal("0")
-                    ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal("0"))
+                        expected_pnl_direction > 0 and position.unrealized_pnl >= Decimal(0)
+                    ) or (expected_pnl_direction < 0 and position.unrealized_pnl <= Decimal(0))
                     assert pnl_direction_matches, (
                         f"Position {i} PnL direction mismatch: expected "
                         f"{expected_pnl_direction > 0}, got "
@@ -206,8 +206,7 @@ class TestHyperliquidPositionsZeroComprehensive:
                 # If some fail due to rate limiting, that's acceptable
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, list), f"Result {i} should be list"
                 successful_results.append(result)

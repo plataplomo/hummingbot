@@ -51,24 +51,22 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         if isinstance(v, dict):
             # Cast v_dict to have values that are Union[int, str] to match return type.
             # This assumes that the raw inputs for timestamp and value string are int or str.
-            v_dict = cast(dict[int, int | str], v)
+            v_dict = cast("dict[int, int | str]", v)
 
             if 0 in v_dict and 1 in v_dict:
                 if len(v_dict) == 2:  # Ensure only keys 0 and 1 are present
                     return [v_dict[0], v_dict[1]]
-                else:
-                    # Handles cases like {0: val0, 1: val1, 2: val2}
-                    raise ValueError(
-                        f"Field '{field_name}': Dictionary input must contain "
-                        f"exactly keys 0 and 1, got keys {sorted(v_dict.keys())}.",
-                    )
-            else:
+                # Handles cases like {0: val0, 1: val1, 2: val2}
                 raise ValueError(
-                    f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
-                    f"got keys {sorted(v_dict.keys())}.",
+                    f"Field '{field_name}': Dictionary input must contain "
+                    f"exactly keys 0 and 1, got keys {sorted(v_dict.keys())}.",
                 )
-        elif isinstance(v, list | tuple):
-            v_sequence = cast(list[object] | tuple[object, ...], v)
+            raise ValueError(
+                f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
+                f"got keys {sorted(v_dict.keys())}.",
+            )
+        if isinstance(v, list | tuple):
+            v_sequence = cast("list[object] | tuple[object, ...]", v)
             if len(v_sequence) != 2:
                 raise ValueError(
                     f"Field '{field_name}': Expected 2-element list/tuple, "
@@ -81,15 +79,14 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
             # object from the input sequence; Pydantic will validate them further.
             # Runtime checks for actual types (int/str) are deferred to Pydantic.
             # #[CAST-REVIEW-REQUIRED]
-            elem0 = cast(int | str, v_sequence[0])
+            elem0 = cast("int | str", v_sequence[0])
             # #[CAST-REVIEW-REQUIRED]
-            elem1 = cast(int | str, v_sequence[1])
+            elem1 = cast("int | str", v_sequence[1])
             return [elem0, elem1]
-        else:
-            raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
-                f"got {type(v).__name__}.",
-            )
+        raise ValueError(
+            f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
+            f"got {type(v).__name__}.",
+        )
 
 
 class HyperliquidRawPortfolioTimeframeData(BaseModel):
@@ -129,7 +126,7 @@ class HyperliquidRawPortfolioTupleItem(
                 f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}.",
             )
 
-        v_casted = cast(list[object] | tuple[object, ...], v)
+        v_casted = cast("list[object] | tuple[object, ...]", v)
 
         if len(v_casted) != 2:
             raise ValueError(
@@ -146,7 +143,7 @@ class HyperliquidRawPortfolioTupleItem(
                 f"got {actual_type_name}.",
             )
 
-        element_1_dict = cast(dict[str, object], element_1_value)
+        element_1_dict = cast("dict[str, object]", element_1_value)
 
         if isinstance(v_casted, tuple):
             return (element_0_value, element_1_dict)
@@ -172,4 +169,4 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
-        return cast(list[object], v)
+        return cast("list[object]", v)

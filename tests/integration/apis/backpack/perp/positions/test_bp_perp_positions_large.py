@@ -55,7 +55,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/perp/positions/large"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/perp/positions/large"],
+    indirect=True,
 )
 class TestBackpackPerpLargePositions:
     """Test maximum position limits based on actual available margin."""
@@ -85,10 +87,11 @@ class TestBackpackPerpLargePositions:
                             # Position is closed when it has zero size,
                             # not when it's removed from the list
                             symbol_position = next(
-                                (p for p in current_positions if p.symbol == symbol), None
+                                (p for p in current_positions if p.symbol == symbol),
+                                None,
                             )
                             return symbol_position is None or abs(symbol_position.size) <= Decimal(
-                                "0.001"
+                                "0.001",
                             )
 
                         await wait_for_condition(
@@ -106,7 +109,10 @@ class TestBackpackPerpLargePositions:
             return
 
     async def _get_exchange_max_order_quantity(
-        self, api: BackpackAPI, symbol: str, side: OrderSide
+        self,
+        api: BackpackAPI,
+        symbol: str,
+        side: OrderSide,
     ) -> Decimal:
         """Get the maximum order quantity from the exchange."""
         # Get current market price for the query
@@ -146,7 +152,9 @@ class TestBackpackPerpLargePositions:
         }
 
     async def _find_maximum_position_using_exchange_limits(
-        self, api: BackpackAPI, symbol: str
+        self,
+        api: BackpackAPI,
+        symbol: str,
     ) -> MaxPositionParams:
         """Find the absolute maximum position using exchange's max order endpoint."""
         # Close all positions first
@@ -180,8 +188,8 @@ class TestBackpackPerpLargePositions:
         max_quantity = await self._get_exchange_max_order_quantity(api, symbol, OrderSide.BUY)
 
         # Quantize to step size
-        if max_quantity > Decimal("0"):
-            steps = (max_quantity / step_size).quantize(Decimal("1"), rounding=ROUND_DOWN)
+        if max_quantity > Decimal(0):
+            steps = (max_quantity / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
             max_quantity = steps * step_size
 
         return {
@@ -207,11 +215,12 @@ class TestBackpackPerpLargePositions:
         """Test creating position at absolute maximum of available margin."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         symbol = available_symbols[0]  # Use first available perp symbol
@@ -219,11 +228,12 @@ class TestBackpackPerpLargePositions:
         try:
             # Find maximum using exchange limits
             max_params = await self._find_maximum_position_using_exchange_limits(
-                bp_api_for_large_balance_test, symbol
+                bp_api_for_large_balance_test,
+                symbol,
             )
 
             # Create position at maximum
-            if max_params["max_position_size"] > Decimal("0"):
+            if max_params["max_position_size"] > Decimal(0):
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=OrderSide.BUY,
@@ -246,7 +256,7 @@ class TestBackpackPerpLargePositions:
                 # that minus 10 steps
                 # (accounting for fees and slippage)
                 min_acceptable_size = max_params["max_position_size"] - (
-                    Decimal("10") * max_params["step_size"]
+                    Decimal(10) * max_params["step_size"]
                 )
                 assert actual_position.size >= min_acceptable_size, (
                     f"Position size {actual_position.size} should be at least "
@@ -268,11 +278,12 @@ class TestBackpackPerpLargePositions:
         """Test that adding one step beyond maximum fails."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         symbol = available_symbols[0]  # Use first available perp symbol
@@ -280,10 +291,11 @@ class TestBackpackPerpLargePositions:
         try:
             # Find and create maximum position
             max_params = await self._find_maximum_position_using_exchange_limits(
-                bp_api_for_large_balance_test, symbol
+                bp_api_for_large_balance_test,
+                symbol,
             )
 
-            if max_params["max_position_size"] > Decimal("0"):
+            if max_params["max_position_size"] > Decimal(0):
                 # Create max position
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -325,11 +337,12 @@ class TestBackpackPerpLargePositions:
         """Test position at max minus two steps - edge case that should succeed."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         symbol = available_symbols[0]  # Use first available perp symbol
@@ -337,13 +350,14 @@ class TestBackpackPerpLargePositions:
         try:
             # Find maximum
             max_params = await self._find_maximum_position_using_exchange_limits(
-                bp_api_for_large_balance_test, symbol
+                bp_api_for_large_balance_test,
+                symbol,
             )
 
-            if max_params["max_position_size"] > max_params["step_size"] * Decimal("2"):
+            if max_params["max_position_size"] > max_params["step_size"] * Decimal(2):
                 # Create position at max minus two steps - this MUST succeed
                 position_size = max_params["max_position_size"] - (
-                    max_params["step_size"] * Decimal("2")
+                    max_params["step_size"] * Decimal(2)
                 )
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -362,7 +376,7 @@ class TestBackpackPerpLargePositions:
                 assert actual_position is not None
 
                 # Must be at least the requested size minus 2 steps for fees
-                min_size = position_size - (max_params["step_size"] * Decimal("2"))
+                min_size = position_size - (max_params["step_size"] * Decimal(2))
                 assert actual_position.size >= min_size, (
                     f"Position {actual_position.size} should be at least {min_size}"
                 )
@@ -380,11 +394,12 @@ class TestBackpackPerpLargePositions:
         """Test that position at max plus two steps fails - negative edge case."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         symbol = available_symbols[0]  # Use first available perp symbol
@@ -392,13 +407,14 @@ class TestBackpackPerpLargePositions:
         try:
             # Find maximum
             max_params = await self._find_maximum_position_using_exchange_limits(
-                bp_api_for_large_balance_test, symbol
+                bp_api_for_large_balance_test,
+                symbol,
             )
 
-            if max_params["max_position_size"] > Decimal("0"):
+            if max_params["max_position_size"] > Decimal(0):
                 # Try to create position at max plus two steps - this MUST fail
                 oversized_position = max_params["max_position_size"] + (
-                    max_params["step_size"] * Decimal("2")
+                    max_params["step_size"] * Decimal(2)
                 )
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -430,11 +446,12 @@ class TestBackpackPerpLargePositions:
         """Test exhausting all margin across multiple symbols."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         # Use first 3 available symbols (or all if less than 3)
@@ -451,17 +468,21 @@ class TestBackpackPerpLargePositions:
                 # Get max order quantity for this symbol with current state
                 try:
                     max_quantity = await self._get_exchange_max_order_quantity(
-                        bp_api_for_large_balance_test, symbol, OrderSide.BUY
+                        bp_api_for_large_balance_test,
+                        symbol,
+                        OrderSide.BUY,
                     )
 
-                    if max_quantity > Decimal("0"):
+                    if max_quantity > Decimal(0):
                         # Quantize to step size
                         constraints = await get_market_constraints(
-                            bp_api_for_large_balance_test, symbol
+                            bp_api_for_large_balance_test,
+                            symbol,
                         )
                         step_size = constraints["step_size"]
                         steps = (max_quantity / step_size).quantize(
-                            Decimal("1"), rounding=ROUND_DOWN
+                            Decimal(1),
+                            rounding=ROUND_DOWN,
                         )
                         max_quantity = steps * step_size
 
@@ -485,15 +506,18 @@ class TestBackpackPerpLargePositions:
             # Verify no more significant positions possible on any symbol
             for symbol in symbols:
                 max_quantity = await self._get_exchange_max_order_quantity(
-                    bp_api_for_large_balance_test, symbol, OrderSide.BUY
+                    bp_api_for_large_balance_test,
+                    symbol,
+                    OrderSide.BUY,
                 )
                 constraints = await get_market_constraints(bp_api_for_large_balance_test, symbol)
 
                 # The exchange should report very limited or no capacity left (less than 10 steps)
                 max_steps = (max_quantity / constraints["step_size"]).quantize(
-                    Decimal("1"), rounding=ROUND_DOWN
+                    Decimal(1),
+                    rounding=ROUND_DOWN,
                 )
-                assert max_steps < Decimal("10"), (
+                assert max_steps < Decimal(10), (
                     f"Should have less than 10 steps of capacity left for {symbol}, "
                     f"but have {max_steps} steps"
                 )
@@ -511,11 +535,12 @@ class TestBackpackPerpLargePositions:
         """Test that reducing positions works even at max margin."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         symbol = available_symbols[0]  # Use first available perp symbol
@@ -523,10 +548,11 @@ class TestBackpackPerpLargePositions:
         try:
             # Create maximum position
             max_params = await self._find_maximum_position_using_exchange_limits(
-                bp_api_for_large_balance_test, symbol
+                bp_api_for_large_balance_test,
+                symbol,
             )
 
-            if max_params["max_position_size"] > Decimal("0"):
+            if max_params["max_position_size"] > Decimal(0):
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=OrderSide.BUY,
@@ -561,11 +587,12 @@ class TestBackpackPerpLargePositions:
         """Test that different symbols have different max positions due to IMF."""
         # Get available perp symbols from exchange (fail-fast approach)
         available_symbols = await get_available_symbols(
-            bp_api_for_large_balance_test, market_type="perp"
+            bp_api_for_large_balance_test,
+            market_type="perp",
         )
         if not available_symbols:
             pytest.fail(
-                "No perpetual symbols available from exchange. Cannot test position operations."
+                "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
         # Use first 2 available symbols (or all if less than 2)
@@ -576,7 +603,9 @@ class TestBackpackPerpLargePositions:
             for symbol in symbols:
                 # Get max quantity from exchange for this symbol
                 max_quantity = await self._get_exchange_max_order_quantity(
-                    bp_api_for_large_balance_test, symbol, OrderSide.BUY
+                    bp_api_for_large_balance_test,
+                    symbol,
+                    OrderSide.BUY,
                 )
 
                 # Get market price
@@ -594,10 +623,10 @@ class TestBackpackPerpLargePositions:
                 for symbol, data in max_sizes.items():
                     quantity = data["quantity"]
                     notional = data["notional"]
-                    assert quantity > Decimal("0"), (
+                    assert quantity > Decimal(0), (
                         f"{symbol} should have positive max quantity from exchange"
                     )
-                    assert notional > Decimal("0"), f"{symbol} should have positive max notional"
+                    assert notional > Decimal(0), f"{symbol} should have positive max notional"
 
         finally:
             await self._close_all_positions(bp_api_for_large_balance_test)

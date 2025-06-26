@@ -38,7 +38,7 @@ def log_trading_event(
         exclude_sensitive: Whether to exclude sensitive fields
         **extra_context: Additional context to include in the log
     """
-    exclude_fields = set()
+    exclude_fields: set[str] = set()
     if exclude_sensitive:
         exclude_fields = SENSITIVE_FIELDS.get(type(model), set())
 

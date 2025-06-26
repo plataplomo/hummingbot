@@ -587,7 +587,7 @@ class TestTransformRawFillToInternal:
         assert trade.fee == Decimal("1.55555556")
         assert trade.hl_details is not None
         assert trade.hl_details.start_position == Decimal("5.11111111")
-        assert trade.hl_details.liquidation_mark_px == Decimal("951")
+        assert trade.hl_details.liquidation_mark_px == Decimal(951)
 
     def test_fill_with_zero_fee(self) -> None:
         """Test fill transformation with zero fee (maker trades)."""

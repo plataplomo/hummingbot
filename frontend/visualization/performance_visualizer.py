@@ -468,7 +468,9 @@ class PerformanceVisualizer:
         return fig
 
     def _create_dashboard_subplots(
-        self, trade_data: pd.DataFrame | None, funding_data: pd.DataFrame | None
+        self,
+        trade_data: pd.DataFrame | None,
+        funding_data: pd.DataFrame | None,
     ) -> go.Figure:
         """Create the subplot structure for the dashboard."""
         return make_subplots(
@@ -531,7 +533,10 @@ class PerformanceVisualizer:
             )
 
     def _add_drawdown_chart(
-        self, fig: go.Figure, returns_data: pd.DataFrame, names: list[str]
+        self,
+        fig: go.Figure,
+        returns_data: pd.DataFrame,
+        names: list[str],
     ) -> None:
         """Add drawdown chart to the dashboard."""
         # NOTE: Type checker limitation: pandas stubs are incomplete for cumprod/cummax

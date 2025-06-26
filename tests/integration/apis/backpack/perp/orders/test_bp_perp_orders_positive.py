@@ -56,7 +56,9 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/perp/orders/positive"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/perp/orders/positive"],
+    indirect=True,
 )
 class TestBackpackPerpOrdersPositiveBalance:
     """Comprehensive perp orders integration tests with positive margin for operations."""
@@ -122,7 +124,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Perp market order executed: {placed_order.exchange_order_id}, "
-            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}"
+            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}",
         )
 
     @pytest.mark.vcr
@@ -148,7 +150,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Test 1: STOP LOSS (SELL below current price)
         # Use tick-based offset instead of hardcoded percentage
-        price_offset = tick_size * Decimal("50")  # 50 ticks below current price
+        price_offset = tick_size * Decimal(50)  # 50 ticks below current price
         stop_loss_price = (current_price - price_offset).quantize(tick_size)
         stop_loss_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -176,7 +178,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, "
-            f"status: {stop_loss_order.status}"
+            f"status: {stop_loss_order.status}",
         )
 
         # Test 2: STOP BUY (BUY above current price)
@@ -208,7 +210,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, "
-            f"status: {stop_buy_order.status}"
+            f"status: {stop_buy_order.status}",
         )
 
         # Clean up both orders
@@ -228,7 +230,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
-                        "Order cancellation is critical and must work reliably."
+                        "Order cancellation is critical and must work reliably.",
                     )
 
     @pytest.mark.vcr
@@ -254,10 +256,10 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Test 1: STOP LOSS LIMIT (SELL below current price)
         # Use tick-based offsets instead of hardcoded percentages
-        price_offset = tick_size * Decimal("50")  # 50 ticks offset
+        price_offset = tick_size * Decimal(50)  # 50 ticks offset
         stop_loss_trigger = (current_price - price_offset).quantize(tick_size)
         stop_loss_limit = (stop_loss_trigger - tick_size).quantize(
-            tick_size
+            tick_size,
         )  # One tick below trigger
         stop_loss_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -286,14 +288,14 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, "
-            f"status: {stop_loss_order.status}"
+            f"status: {stop_loss_order.status}",
         )
 
         # Test 2: STOP BUY LIMIT (BUY above current price)
         # Use tick-based offsets instead of hardcoded percentages
         stop_buy_trigger = (current_price + price_offset).quantize(tick_size)
         stop_buy_limit = (stop_buy_trigger + tick_size).quantize(
-            tick_size
+            tick_size,
         )  # One tick above trigger
         stop_buy_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -322,7 +324,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, "
-            f"status: {stop_buy_order.status}"
+            f"status: {stop_buy_order.status}",
         )
 
         # Clean up both orders
@@ -345,7 +347,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
-                        "Order cancellation is critical and must work reliably."
+                        "Order cancellation is critical and must work reliably.",
                     )
 
     @pytest.mark.vcr
@@ -371,7 +373,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Test 1: TAKE PROFIT SELL (for long position - sell above current price)
         # Use tick-based offset instead of hardcoded percentage
-        price_offset = tick_size * Decimal("30")  # 30 ticks above current price
+        price_offset = tick_size * Decimal(30)  # 30 ticks above current price
         tp_sell_trigger = (current_price + price_offset).quantize(tick_size)
         tp_sell_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
@@ -402,7 +404,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, "
-            f"status: {tp_sell_order.status}"
+            f"status: {tp_sell_order.status}",
         )
 
         # Test 2: TAKE PROFIT BUY (for short position - buy below current price)
@@ -437,7 +439,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, "
-            f"status: {tp_buy_order.status}"
+            f"status: {tp_buy_order.status}",
         )
 
         # Clean up both orders
@@ -460,7 +462,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
-                        "Order cancellation is critical and must work reliably."
+                        "Order cancellation is critical and must work reliably.",
                     )
 
     @pytest.mark.vcr
@@ -487,7 +489,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         # Test 1: TAKE PROFIT LIMIT SELL (for long position - sell above current price)
         # Use tick-based offsets instead of hardcoded percentages
-        price_offset = tick_size * Decimal("30")  # 30 ticks above current price
+        price_offset = tick_size * Decimal(30)  # 30 ticks above current price
         tp_sell_trigger = (current_price + price_offset).quantize(tick_size)
         tp_sell_limit = (tp_sell_trigger + tick_size).quantize(tick_size)  # One tick above trigger
         tp_sell_quantity = await get_minimal_order_size(
@@ -520,7 +522,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, "
-            f"status: {tp_sell_order.status}"
+            f"status: {tp_sell_order.status}",
         )
 
         # Test 2: TAKE PROFIT LIMIT BUY (for short position - buy below current price)
@@ -557,7 +559,7 @@ class TestBackpackPerpOrdersPositiveBalance:
 
         logger.info(
             f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, "
-            f"status: {tp_buy_order.status}"
+            f"status: {tp_buy_order.status}",
         )
 
         # Clean up both orders
@@ -580,7 +582,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
-                        "Order cancellation is critical and must work reliably."
+                        "Order cancellation is critical and must work reliably.",
                     )
 
     @pytest.mark.vcr
@@ -633,7 +635,7 @@ class TestBackpackPerpOrdersPositiveBalance:
             market_constraints = await get_market_constraints(bp_api_for_test_env, symbol)
             tick_size = market_constraints["tick_size"]
             # Set stop loss using tick-based offset (more conservative for leveraged perp)
-            price_offset = tick_size * Decimal("30")  # 30 ticks below entry price
+            price_offset = tick_size * Decimal(30)  # 30 ticks below entry price
             stop_price = (current_price - price_offset).quantize(tick_size)
 
             stop_args = PlaceOrderArgs(
@@ -653,7 +655,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                 # Exchange behavior (immediate trigger vs pending) is exchange's responsibility
                 logger.info(
                     f"✓ Stop loss order placed successfully: {stop_order.exchange_order_id}, "
-                    f"type: {stop_order.order_type}, status: {stop_order.status}"
+                    f"type: {stop_order.order_type}, status: {stop_order.status}",
                 )
 
                 # Verify order has required fields
@@ -676,7 +678,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                         pytest.fail(
                             f"Failed to cancel stop loss order "
                             f"{stop_order.exchange_order_id}: {e}. "
-                            "Order cancellation is critical and must work reliably."
+                            "Order cancellation is critical and must work reliably.",
                         )
 
             except Exception as e:
@@ -692,7 +694,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     # Unexpected system error
                     pytest.fail(
                         f"Stop loss placement failed with unexpected system error: {e}. "
-                        "Expected position/balance-related error but got system error."
+                        "Expected position/balance-related error but got system error.",
                     )
 
         logger.info("✓ Perp market order + stop loss workflow test completed")
@@ -830,7 +832,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         for order_name, order_type, side, limit_price, stop_price, tif in orders_to_test:
             try:
                 # Get quantity for this specific order
-                test_price = limit_price if limit_price else stop_price
+                test_price = limit_price or stop_price
                 quantity = await get_minimal_order_size(
                     api=bp_api_for_test_env,
                     symbol=symbol,
@@ -845,8 +847,8 @@ class TestBackpackPerpOrdersPositiveBalance:
                     order_type=order_type,
                     quantity=quantity,
                     time_in_force=tif,
-                    price=limit_price if limit_price else None,
-                    stop_price=stop_price if stop_price else None,
+                    price=limit_price or None,
+                    stop_price=stop_price or None,
                 )
 
                 # Place the order
@@ -889,14 +891,15 @@ class TestBackpackPerpOrdersPositiveBalance:
 
                 logger.info(
                     f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, "
-                    f"status: {placed_order.status}"
+                    f"status: {placed_order.status}",
                 )
 
             except Exception as e:
                 # FAIL FAST - Any order placement failure is a real problem
                 pytest.fail(
                     f"Failed to place {order_name} conditional order: {e}. "
-                    "Conditional order placement is critical functionality that must work reliably."
+                    "Conditional order placement is critical functionality "
+                    "that must work reliably.",
                 )
 
         # All orders should have been placed successfully
@@ -925,13 +928,15 @@ class TestBackpackPerpOrdersPositiveBalance:
                     pytest.fail(
                         f"Failed to cancel {order_name} order "
                         f"{placed_order.exchange_order_id}: {e}. "
-                        "Order cancellation is critical and must work reliably."
+                        "Order cancellation is critical and must work reliably.",
                     )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_order_precision_edge_cases(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order precision handling with edge case values."""
         symbol = "SOL_USDC_PERP"
@@ -965,26 +970,28 @@ class TestBackpackPerpOrdersPositiveBalance:
             # If this fails, there's a real problem with our test setup or market constraints
             pytest.fail(
                 f"Failed to place minimum size perp order for {symbol}: {e}. "
-                "This suggests a problem with market constraints or test configuration."
+                "This suggests a problem with market constraints or test configuration.",
             )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_leverage_order_calculations(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order calculations with leverage considerations."""
         symbol = "SOL_USDC_PERP"
 
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
-        max_leverage = constraints.get("max_leverage", Decimal("20"))
+        max_leverage = constraints.get("max_leverage", Decimal(20))
 
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         # Get test quantity based on market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints.get("min_quantity", constraints["step_size"])
         # Use reasonable multiplier based on step size for test calculation
-        multiplier = min(Decimal("100"), max_leverage)  # Cap at 100x or max leverage
+        multiplier = min(Decimal(100), max_leverage)  # Cap at 100x or max leverage
         test_quantity = min_quantity * multiplier
 
         # Calculate notional value and margin requirement
@@ -992,21 +999,23 @@ class TestBackpackPerpOrdersPositiveBalance:
         margin_requirement = notional_value / max_leverage
 
         logger.info(
-            f"Perp order calculations - Notional: {notional_value}, Margin: {margin_requirement}"
+            f"Perp order calculations - Notional: {notional_value}, Margin: {margin_requirement}",
         )
 
         # Test precision of leverage calculations
         assert isinstance(notional_value, Decimal), "Notional value should be Decimal"
         assert isinstance(margin_requirement, Decimal), "Margin requirement should be Decimal"
-        assert margin_requirement > Decimal("0"), "Margin requirement should be positive"
+        assert margin_requirement > Decimal(0), "Margin requirement should be positive"
         assert margin_requirement < notional_value, (
             "Margin should be less than notional (leverage effect)"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_get_perp_order_history_success(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving perp order history with positive balance."""
         symbol = "SOL_USDC_PERP"
@@ -1034,10 +1043,12 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Note: leverage is not stored in the Order model
             # Leverage is typically applied at the account/position level
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_market_order_execution(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market order execution with margin available."""
         symbol = "SOL_USDC_PERP"
@@ -1073,13 +1084,15 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Market orders should work if we have margin - this is a real failure
             pytest.fail(
                 f"Failed to place perp market order for {symbol}: {e}. "
-                "Market orders should execute successfully with adequate margin."
+                "Market orders should execute successfully with adequate margin.",
             )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_order_concurrent_operations(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent perp order operations."""
         symbol = "SOL_USDC_PERP"
@@ -1093,14 +1106,14 @@ class TestBackpackPerpOrdersPositiveBalance:
             symbol=symbol,
             side=OrderSide.BUY,
             price=buy_price,
-        ) * Decimal("10")  # 10x minimum for concurrent test
+        ) * Decimal(10)  # 10x minimum for concurrent test
 
         sell_quantity = await get_minimal_order_size(
             api=bp_api_for_test_env,
             symbol=symbol,
             side=OrderSide.SELL,
             price=sell_price,
-        ) * Decimal("10")  # 10x minimum for concurrent test
+        ) * Decimal(10)  # 10x minimum for concurrent test
 
         # Place two orders concurrently (buy and sell)
         buy_args = PlaceOrderArgs(
@@ -1135,24 +1148,26 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Cancel both orders
             if buy_order.exchange_order_id:
                 await bp_api_for_test_env.cancel_order(
-                    CancelOrderArgs(symbol=symbol, order_id=buy_order.exchange_order_id)
+                    CancelOrderArgs(symbol=symbol, order_id=buy_order.exchange_order_id),
                 )
             if sell_order.exchange_order_id:
                 await bp_api_for_test_env.cancel_order(
-                    CancelOrderArgs(symbol=symbol, order_id=sell_order.exchange_order_id)
+                    CancelOrderArgs(symbol=symbol, order_id=sell_order.exchange_order_id),
                 )
 
         except Exception as e:
             # Concurrent order placement failures indicate real system problems
             pytest.fail(
                 f"Concurrent order placement failed: {e}. "
-                "Concurrent order operations are critical functionality."
+                "Concurrent order operations are critical functionality.",
             )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_order_funding_rate_awareness(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order operations with funding rate considerations."""
         symbol = "SOL_USDC_PERP"
@@ -1169,7 +1184,9 @@ class TestBackpackPerpOrdersPositiveBalance:
                 # Negative funding rate: shorts pay longs
 
                 test_price = await get_dynamic_test_price(
-                    bp_api_for_test_env, symbol, OrderSide.BUY
+                    bp_api_for_test_env,
+                    symbol,
+                    OrderSide.BUY,
                 )
 
                 # Get moderate quantity for funding rate test
@@ -1178,7 +1195,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     symbol=symbol,
                     side=OrderSide.BUY,
                     price=test_price,
-                ) * Decimal("10")  # 10x minimum for funding rate test
+                ) * Decimal(10)  # 10x minimum for funding rate test
 
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
@@ -1196,13 +1213,15 @@ class TestBackpackPerpOrdersPositiveBalance:
             # Funding rate order placement failures indicate real system problems
             pytest.fail(
                 f"Order placement with funding rate awareness failed: {e}. "
-                "Order placement must work regardless of funding rate conditions."
+                "Order placement must work regardless of funding rate conditions.",
             )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_perp_order_margin_requirements(
-        self, bp_api_for_test_env: BackpackAPI, custom_vcr_config: dict[str, Any]
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order margin requirements validation.
 
@@ -1216,11 +1235,11 @@ class TestBackpackPerpOrdersPositiveBalance:
         # Get market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         min_quantity = constraints.get("min_quantity", constraints["step_size"])
-        max_leverage = constraints.get("max_leverage", Decimal("20"))
+        max_leverage = constraints.get("max_leverage", Decimal(20))
 
         # Use a reasonable multiplier for margin testing
         # Not too small (to test margin logic) but not excessive (to avoid guaranteed failures)
-        reasonable_multiplier = min(Decimal("50"), max_leverage)
+        reasonable_multiplier = min(Decimal(50), max_leverage)
         test_quantity = min_quantity * reasonable_multiplier
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
 
@@ -1231,7 +1250,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         logger.info(
             f"Testing margin requirements - Quantity: {test_quantity}, "
             f"Price: {test_price}, Notional: {notional_value}, "
-            f"Expected margin: {expected_margin}"
+            f"Expected margin: {expected_margin}",
         )
 
         place_args = PlaceOrderArgs(
@@ -1259,7 +1278,7 @@ class TestBackpackPerpOrdersPositiveBalance:
             )
             logger.info(
                 f"✓ Order placed successfully with notional: {actual_notional}, "
-                f"margin requirement: {actual_notional / max_leverage}"
+                f"margin requirement: {actual_notional / max_leverage}",
             )
 
         except Exception as e:
@@ -1271,10 +1290,9 @@ class TestBackpackPerpOrdersPositiveBalance:
             ):
                 logger.info(f"Order correctly rejected due to margin requirements: {e}")
                 # This is expected behavior - the system correctly enforced margin requirements
-                pass
             else:
                 # Unexpected system error - this is a real problem
                 pytest.fail(
                     f"Order placement failed with unexpected error: {e}. "
-                    "Expected either successful placement or margin-related rejection."
+                    "Expected either successful placement or margin-related rejection.",
                 )

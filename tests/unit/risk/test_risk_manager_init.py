@@ -42,4 +42,3 @@ class TestRiskManagerInit:
         """Test config error missing values."""
         # This test case is not provided in the original file or the code block
         # It's assumed to exist as it's called in the test_init method
-        pass

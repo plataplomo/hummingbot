@@ -8,7 +8,7 @@ request builders, response handlers, domain data mappers, and service classes.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import SecretStr
 
@@ -30,9 +30,6 @@ from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthS
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 

@@ -366,8 +366,8 @@ class TestHyperliquidTradingServiceOrders:
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal("1"),
-                price=Decimal("100"),
+                quantity=Decimal(1),
+                price=Decimal(100),
                 time_in_force=TimeInForce.GTC,
             )
             await hl_trading_service.place_order(args)
@@ -390,7 +390,7 @@ class TestHyperliquidTradingServiceOrders:
         symbol = "BTC"
         wallet_address = "0xSuccessWallet"
         quantity = Decimal("0.5")
-        price = Decimal("50000")
+        price = Decimal(50000)
         asset_index = 1
 
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
@@ -613,7 +613,7 @@ class TestHyperliquidTradingServiceOrders:
         from typing import cast
 
         mock_historical_order = HyperliquidRawHistoricalOrder.model_validate({
-            **cast(dict[str, Any], mock_response_content["order"]),
+            **cast("dict[str, Any]", mock_response_content["order"]),
             "status": mock_response_content["status"],
             "statusTimestamp": mock_response_content["statusTimestamp"],
         })
@@ -792,7 +792,7 @@ class TestHyperliquidTradingServiceOrders:
 
         # Mock response handler to return raw Pydantic model
         mock_raw_response = HyperliquidRawOpenOrdersResponse.model_validate(
-            simple_mock_response_content
+            simple_mock_response_content,
         )
         mock_hl_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 

@@ -72,7 +72,7 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
         if not isinstance(v, list):
             raise ValueError("Expected a list of delegations")
 
-        list_of_objects = cast(list[object], v)
+        list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -81,7 +81,7 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
                     f"Item {item_idx}: Expected dict delegation, got {type(item_obj).__name__}",
                 )
 
-            item_dict = cast(dict[str, object], item_obj)
+            item_dict = cast("dict[str, object]", item_obj)
             validated_items.append(item_dict)
         return validated_items
 
@@ -157,7 +157,7 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
         if not isinstance(v, list):
             raise ValueError("Expected a list of history items")
 
-        list_of_objects = cast(list[object], v)
+        list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -166,7 +166,7 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
                     f"Item {item_idx}: Expected dict history item, got {type(item_obj).__name__}",
                 )
 
-            item_dict = cast(dict[str, object], item_obj)
+            item_dict = cast("dict[str, object]", item_obj)
             validated_items.append(item_dict)
         return validated_items
 
@@ -211,7 +211,7 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
         if not isinstance(v, list):
             raise ValueError("Expected a list of reward items")
 
-        list_of_objects = cast(list[object], v)
+        list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
@@ -220,6 +220,6 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
                     f"Item {item_idx}: Expected dict reward item, got {type(item_obj).__name__}",
                 )
 
-            item_dict = cast(dict[str, object], item_obj)
+            item_dict = cast("dict[str, object]", item_obj)
             validated_items.append(item_dict)
         return validated_items

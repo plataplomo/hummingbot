@@ -62,7 +62,7 @@ async def test_bp_get_funding_rate_sol_perp_success(
 
     # Funding rates can be positive or negative, but should be reasonable
     # Typical funding rates are small percentages, usually between -1% and +1%
-    assert abs(funding_rate.funding_rate) < Decimal("1"), (
+    assert abs(funding_rate.funding_rate) < Decimal(1), (
         f"Funding rate seems unreasonable: {funding_rate.funding_rate}"
     )
 
@@ -111,7 +111,7 @@ async def test_bp_get_funding_rate_btc_perp_success(
     assert isinstance(funding_rate.funding_rate, Decimal), (
         f"Rate should be Decimal, got {type(funding_rate.funding_rate)}"
     )
-    assert abs(funding_rate.funding_rate) < Decimal("1"), (
+    assert abs(funding_rate.funding_rate) < Decimal(1), (
         f"Funding rate seems unreasonable: {funding_rate.funding_rate}"
     )
 
@@ -140,7 +140,7 @@ async def test_bp_get_funding_rate_eth_perp_success(
     assert isinstance(funding_rate.funding_rate, Decimal), (
         f"Rate should be Decimal, got {type(funding_rate.funding_rate)}"
     )
-    assert abs(funding_rate.funding_rate) < Decimal("1"), (
+    assert abs(funding_rate.funding_rate) < Decimal(1), (
         f"Funding rate seems unreasonable: {funding_rate.funding_rate}"
     )
 
@@ -201,7 +201,7 @@ async def test_bp_get_funding_rates_sol_perp_success(
             )
 
             # Validate rate is reasonable
-            assert abs(funding_rate.funding_rate) < Decimal("1"), (
+            assert abs(funding_rate.funding_rate) < Decimal(1), (
                 f"Funding rate {i} seems unreasonable: {funding_rate.funding_rate}"
             )
 
@@ -323,7 +323,7 @@ async def test_bp_get_funding_rates_precision_validation(
             )
 
             # Test arithmetic operations work correctly
-            rate_doubled = funding_rate.funding_rate * Decimal("2")
+            rate_doubled = funding_rate.funding_rate * Decimal(2)
             assert isinstance(rate_doubled, Decimal), (
                 f"Funding rate {i} arithmetic should maintain Decimal type"
             )
@@ -337,9 +337,9 @@ async def test_bp_get_funding_rates_precision_validation(
                 )
 
             # Test funding rate calculations
-            if funding_rate.funding_rate != Decimal("0"):
+            if funding_rate.funding_rate != Decimal(0):
                 # Calculate percentage
-                rate_percentage = funding_rate.funding_rate * Decimal("100")
+                rate_percentage = funding_rate.funding_rate * Decimal(100)
                 assert isinstance(rate_percentage, Decimal), (
                     "Percentage calculation should maintain Decimal type"
                 )

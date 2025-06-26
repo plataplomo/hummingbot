@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 class TestBackpackPerpMarkets:
     """Backpack perp market integration tests."""
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_sol_usdc_perp_success(
         self,
@@ -72,14 +72,14 @@ class TestBackpackPerpMarkets:
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
         )
-        assert market.tick_size > Decimal("0"), (
+        assert market.tick_size > Decimal(0), (
             f"tick_size should be positive, got {market.tick_size}"
         )
 
         assert isinstance(market.step_size, Decimal), (
             f"step_size should be Decimal, got {type(market.step_size)}"
         )
-        assert market.step_size > Decimal("0"), (
+        assert market.step_size > Decimal(0), (
             f"step_size should be positive, got {market.step_size}"
         )
 
@@ -88,7 +88,7 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.min_price, Decimal), (
                 f"min_price should be Decimal, got {type(market.min_price)}"
             )
-            assert market.min_price >= Decimal("0"), (
+            assert market.min_price >= Decimal(0), (
                 f"min_price should be non-negative, got {market.min_price}"
             )
 
@@ -96,7 +96,7 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.max_price, Decimal), (
                 f"max_price should be Decimal, got {type(market.max_price)}"
             )
-            assert market.max_price >= Decimal("0"), (
+            assert market.max_price >= Decimal(0), (
                 f"max_price should be non-negative, got {market.max_price}"
             )
             if market.min_price is not None:
@@ -109,7 +109,7 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.min_quantity, Decimal), (
                 f"min_quantity should be Decimal, got {type(market.min_quantity)}"
             )
-            assert market.min_quantity >= Decimal("0"), (
+            assert market.min_quantity >= Decimal(0), (
                 f"min_quantity should be non-negative, got {market.min_quantity}"
             )
 
@@ -117,7 +117,7 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.max_quantity, Decimal), (
                 f"max_quantity should be Decimal, got {type(market.max_quantity)}"
             )
-            assert market.max_quantity >= Decimal("0"), (
+            assert market.max_quantity >= Decimal(0), (
                 f"max_quantity should be non-negative, got {market.max_quantity}"
             )
             if market.min_quantity is not None:
@@ -149,7 +149,7 @@ class TestBackpackPerpMarkets:
         # Validate that hl_details is None for Backpack markets
         assert market.hl_details is None, "hl_details should be None for Backpack markets"
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_btc_usdc_perp_success(
         self,
@@ -175,10 +175,10 @@ class TestBackpackPerpMarkets:
         )
 
         # BTC perp should have positive tick and step sizes
-        assert market.tick_size > Decimal("0"), (
+        assert market.tick_size > Decimal(0), (
             f"BTC perp tick_size must be positive: {market.tick_size}"
         )
-        assert market.step_size > Decimal("0"), (
+        assert market.step_size > Decimal(0), (
             f"BTC perp step_size must be positive: {market.step_size}"
         )
 
@@ -188,7 +188,7 @@ class TestBackpackPerpMarkets:
             "Future",
         ], f"Expected perpetual market type for BTC_USDC_PERP, got '{market.market_type}'"
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_eth_usdc_perp_success(
         self,
@@ -219,7 +219,7 @@ class TestBackpackPerpMarkets:
             "Future",
         ], f"Expected perpetual market type for ETH_USDC_PERP, got '{market.market_type}'"
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_invalid_perp_symbol_error(
         self,
@@ -241,7 +241,7 @@ class TestBackpackPerpMarkets:
             or "not found" in str(error).lower()
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_nonexistent_perp_symbol_error(
         self,
@@ -263,7 +263,7 @@ class TestBackpackPerpMarkets:
             or "market" in str(error).lower()
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_perp_markets_success(
         self,
@@ -317,14 +317,14 @@ class TestBackpackPerpMarkets:
             assert isinstance(market.tick_size, Decimal), (
                 f"tick_size should be Decimal for {market.symbol}"
             )
-            assert market.tick_size > Decimal("0"), (
+            assert market.tick_size > Decimal(0), (
                 f"tick_size should be positive for {market.symbol}"
             )
 
             assert isinstance(market.step_size, Decimal), (
                 f"step_size should be Decimal for {market.symbol}"
             )
-            assert market.step_size > Decimal("0"), (
+            assert market.step_size > Decimal(0), (
                 f"step_size should be positive for {market.symbol}"
             )
 
@@ -346,7 +346,7 @@ class TestBackpackPerpMarkets:
             f"got symbols: {sorted(market_symbols)}"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_perp_markets_data_consistency(
         self,
@@ -382,7 +382,7 @@ class TestBackpackPerpMarkets:
                     f"Perp market {market.symbol} has None value for required attribute: {attr}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_perp_markets_precision_validation(
         self,
@@ -417,7 +417,7 @@ class TestBackpackPerpMarkets:
 
             # Verify arithmetic operations work correctly with the Decimals for
             # leverage calculations
-            doubled_tick = market.tick_size * Decimal("2")
+            doubled_tick = market.tick_size * Decimal(2)
             assert isinstance(doubled_tick, Decimal), (
                 f"Arithmetic with tick_size should maintain Decimal type for perp {market.symbol}"
             )
@@ -426,7 +426,7 @@ class TestBackpackPerpMarkets:
             )
 
             # Test leverage-related calculations
-            leverage_factor = Decimal("10")  # 10x leverage
+            leverage_factor = Decimal(10)  # 10x leverage
             leveraged_size = market.step_size * leverage_factor
             assert isinstance(leveraged_size, Decimal), (
                 f"Leverage calculations should maintain Decimal type for perp {market.symbol}"
@@ -449,7 +449,7 @@ class TestBackpackPerpMarkets:
                     f"max_price should be finite for perp {market.symbol}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_vs_get_markets_consistency_perp(
         self,
@@ -493,7 +493,7 @@ class TestBackpackPerpMarkets:
         assert individual_market.min_quantity == matching_market.min_quantity
         assert individual_market.max_quantity == matching_market.max_quantity
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_perp_market_business_logic_validation(
         self,
@@ -542,20 +542,18 @@ class TestBackpackPerpMarkets:
             current_price = await get_current_market_price(bp_api_for_test_env, market.symbol)
             # Tick size should be much smaller than current price (reasonable precision)
             price_to_tick_ratio = current_price / market.tick_size
-            assert price_to_tick_ratio > Decimal("0"), (
+            assert price_to_tick_ratio > Decimal(0), (
                 f"tick_size {market.tick_size} must create positive ratio with "
                 f"current price {current_price}. Ratio: {price_to_tick_ratio}"
             )
-            assert market.tick_size > Decimal("0"), (
-                f"tick_size must be positive: {market.tick_size}"
-            )
+            assert market.tick_size > Decimal(0), f"tick_size must be positive: {market.tick_size}"
 
         # Step size should be positive for valid trading
-        assert market.step_size > Decimal("0"), (
+        assert market.step_size > Decimal(0), (
             f"step_size must be positive for perp trading: {market.step_size}"
         )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_perp_market_leverage_characteristics(
         self,
@@ -568,13 +566,13 @@ class TestBackpackPerpMarkets:
 
         # Test precision requirements for leverage calculations
         # Use the market's actual maximum leverage instead of hardcoded values
-        max_leverage = getattr(market, "max_leverage", Decimal("100"))  # Default if not specified
+        max_leverage = getattr(market, "max_leverage", Decimal(100))  # Default if not specified
 
         # Test with a range of leverage values up to the market maximum
         test_leverages = [
-            Decimal("2"),
-            max_leverage / Decimal("4"),  # 25% of max
-            max_leverage / Decimal("2"),  # 50% of max
+            Decimal(2),
+            max_leverage / Decimal(4),  # 25% of max
+            max_leverage / Decimal(2),  # 50% of max
             max_leverage,  # Maximum available
         ]
 
@@ -595,14 +593,14 @@ class TestBackpackPerpMarkets:
 
             assert isinstance(notional, Decimal), "Notional should be Decimal"
             assert isinstance(margin_requirement, Decimal), "Margin requirement should be Decimal"
-            assert margin_requirement > Decimal("0"), "Margin requirement should be positive"
+            assert margin_requirement > Decimal(0), "Margin requirement should be positive"
             assert margin_requirement < notional, (
                 "Margin should be less than notional (leverage effect)"
             )
 
         # Test tick size precision for leverage scenarios
         leverage_adjusted_tick = market.tick_size / Decimal(
-            "10"
+            10,
         )  # High precision for leveraged positions
         assert isinstance(leverage_adjusted_tick, Decimal), (
             "Leverage-adjusted calculations should maintain Decimal"
@@ -611,11 +609,11 @@ class TestBackpackPerpMarkets:
         # Test that market constraints are valid for leverage trading
         if market.min_quantity is not None:
             # Minimum quantity should be positive for valid trading
-            assert market.min_quantity > Decimal("0"), (
+            assert market.min_quantity > Decimal(0), (
                 "Min quantity must be positive for valid leveraged positions"
             )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_perp_market_funding_awareness(
         self,
@@ -634,7 +632,7 @@ class TestBackpackPerpMarkets:
         from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 
         funding_rates = await bp_api_for_test_env.get_funding_rates(
-            GetFundingRatesArgs(symbols=["SOL_USDC_PERP"])
+            GetFundingRatesArgs(symbols=["SOL_USDC_PERP"]),
         )
         assert len(funding_rates) > 0, "Should get funding rate data for SOL_USDC_PERP"
         funding_data = funding_rates[0]
@@ -651,14 +649,14 @@ class TestBackpackPerpMarkets:
 
         # The funding payment should be a valid tradeable amount based on tick size
         # This validates the tick size can represent funding-adjusted prices properly
-        if funding_payment > Decimal("0"):
+        if funding_payment > Decimal(0):
             # Check that the funding payment can be represented with the market's precision
             # The funding payment should be expressible as a multiple of tick_size
             # when applied to price
             price_with_funding = actual_price + funding_payment
             # Ensure the price with funding can be properly quantized to tick size
             quantized_price = price_with_funding.quantize(market.tick_size)
-            assert quantized_price > Decimal("0"), (
+            assert quantized_price > Decimal(0), (
                 f"Price with funding ({price_with_funding}) quantized to tick size "
                 f"{market.tick_size} results in invalid price: {quantized_price}"
             )

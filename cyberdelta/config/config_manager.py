@@ -19,8 +19,6 @@ logger = get_logger(__name__)
 class ConfigurationError(Exception):
     """Raised when configuration loading or validation fails."""
 
-    pass
-
 
 class ConfigManager:
     """Manages loading and validation of configuration.
@@ -102,7 +100,7 @@ class ConfigManager:
         try:
             self.settings = AppSettings.model_validate(config_data_dict)
             self.loaded = True
-            config_data_typed = cast(dict[str, Any], config_data_dict)
+            config_data_typed = cast("dict[str, Any]", config_data_dict)
             logger.info(
                 "config_loaded_successfully",
                 config_path=str(self.config_path),

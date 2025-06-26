@@ -245,7 +245,8 @@ class TestHyperliquidSignL1Action:
         """Test handling of empty action payload."""
         # Business logic prevents empty action payloads
         with pytest.raises(
-            APIError, match="Failed to construct request body: Action payload cannot be empty"
+            APIError,
+            match="Failed to construct request body: Action payload cannot be empty",
         ):
             await authenticator.prepare_request(
                 method="POST",

@@ -30,7 +30,9 @@ class TestBackpackPerpOrderBooks:
     """Backpack perp order book integration tests."""
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_sol_usdc_perp_order_book_success(
@@ -61,8 +63,8 @@ class TestBackpackPerpOrderBooks:
         bid_price, bid_size = first_bid
         assert isinstance(bid_price, Decimal), f"Bid price should be Decimal, got {type(bid_price)}"
         assert isinstance(bid_size, Decimal), f"Bid size should be Decimal, got {type(bid_size)}"
-        assert bid_price > Decimal("0"), f"Bid price should be positive, got {bid_price}"
-        assert bid_size > Decimal("0"), f"Bid size should be positive, got {bid_size}"
+        assert bid_price > Decimal(0), f"Bid price should be positive, got {bid_price}"
+        assert bid_size > Decimal(0), f"Bid size should be positive, got {bid_size}"
 
         assert isinstance(order_book.asks, list), (
             f"Asks should be list, got {type(order_book.asks)}"
@@ -78,15 +80,17 @@ class TestBackpackPerpOrderBooks:
         ask_price, ask_size = first_ask
         assert isinstance(ask_price, Decimal), f"Ask price should be Decimal, got {type(ask_price)}"
         assert isinstance(ask_size, Decimal), f"Ask size should be Decimal, got {type(ask_size)}"
-        assert ask_price > Decimal("0"), f"Ask price should be positive, got {ask_price}"
-        assert ask_size > Decimal("0"), f"Ask size should be positive, got {ask_size}"
+        assert ask_price > Decimal(0), f"Ask price should be positive, got {ask_price}"
+        assert ask_size > Decimal(0), f"Ask size should be positive, got {ask_size}"
 
         assert ask_price > bid_price, (
             f"Ask price {ask_price} should be higher than bid price {bid_price}"
         )
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_btc_usdc_perp_order_book_success(
@@ -105,15 +109,17 @@ class TestBackpackPerpOrderBooks:
         # BTC perp should have positive price levels
         if len(order_book.bids) > 0:
             bid_price, _ = order_book.bids[0]
-            assert bid_price > Decimal("0"), f"BTC perp bid price must be positive: {bid_price}"
+            assert bid_price > Decimal(0), f"BTC perp bid price must be positive: {bid_price}"
 
         if len(order_book.asks) > 0:
             ask_price, _ = order_book.asks[0]
-            assert ask_price > Decimal("0"), f"BTC perp ask price must be positive: {ask_price}"
+            assert ask_price > Decimal(0), f"BTC perp ask price must be positive: {ask_price}"
 
     @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_perp_order_book_structure_validation(
@@ -143,7 +149,9 @@ class TestBackpackPerpOrderBooks:
                 assert current_price <= next_price, f"Asks not sorted correctly in {symbol}"
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_perp_order_book_depth_and_liquidity(
@@ -162,22 +170,24 @@ class TestBackpackPerpOrderBooks:
         total_bid_volume = sum(size for _, size in order_book.bids)
         total_ask_volume = sum(size for _, size in order_book.asks)
 
-        assert total_bid_volume > Decimal("0"), "Total bid volume should be positive"
-        assert total_ask_volume > Decimal("0"), "Total ask volume should be positive"
+        assert total_bid_volume > Decimal(0), "Total bid volume should be positive"
+        assert total_ask_volume > Decimal(0), "Total ask volume should be positive"
 
         # Perp markets often have tighter spreads than spot
         if len(order_book.bids) > 0 and len(order_book.asks) > 0:
             best_bid = order_book.bids[0][0]
             best_ask = order_book.asks[0][0]
             spread = best_ask - best_bid
-            spread_bps = (spread / best_bid) * Decimal("10000")
+            spread_bps = (spread / best_bid) * Decimal(10000)
 
             # Spread should be positive and finite
-            assert spread_bps >= Decimal("0"), f"Spread cannot be negative: {spread_bps} bps"
+            assert spread_bps >= Decimal(0), f"Spread cannot be negative: {spread_bps} bps"
             assert spread_bps.is_finite(), f"Spread must be finite: {spread_bps} bps"
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_perp_order_book_leverage_impact(
@@ -191,14 +201,16 @@ class TestBackpackPerpOrderBooks:
         # Perp markets should have positive size levels for leverage trading
         if len(order_book.bids) > 0:
             total_bid_size = sum(size for _, size in order_book.bids[:10])  # Top 10 levels
-            assert total_bid_size > Decimal("0"), "Should have positive liquidity in top levels"
+            assert total_bid_size > Decimal(0), "Should have positive liquidity in top levels"
 
         if len(order_book.asks) > 0:
             total_ask_size = sum(size for _, size in order_book.asks[:10])  # Top 10 levels
-            assert total_ask_size > Decimal("0"), "Should have positive liquidity in top levels"
+            assert total_ask_size > Decimal(0), "Should have positive liquidity in top levels"
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_get_order_book_invalid_perp_symbol_error(
@@ -214,7 +226,9 @@ class TestBackpackPerpOrderBooks:
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
 
     @pytest.mark.parametrize(
-        "custom_vcr_cassette_dir", ["apis/backpack/perp/order_books"], indirect=True
+        "custom_vcr_cassette_dir",
+        ["apis/backpack/perp/order_books"],
+        indirect=True,
     )
     @pytest.mark.asyncio
     async def test_perp_order_book_precision_validation(
@@ -231,7 +245,7 @@ class TestBackpackPerpOrderBooks:
             assert isinstance(bid_size, Decimal), "Bid size should be Decimal"
 
             # Test arithmetic operations for leverage calculations
-            leveraged_size = bid_size * Decimal("10")  # 10x leverage
+            leveraged_size = bid_size * Decimal(10)  # 10x leverage
             assert isinstance(leveraged_size, Decimal), (
                 "Leverage calculations should maintain Decimal type"
             )
@@ -242,7 +256,7 @@ class TestBackpackPerpOrderBooks:
             assert isinstance(ask_size, Decimal), "Ask size should be Decimal"
 
             # Test arithmetic operations for margin calculations
-            margin_requirement = ask_price * ask_size / Decimal("10")  # 10x leverage
+            margin_requirement = ask_price * ask_size / Decimal(10)  # 10x leverage
             assert isinstance(margin_requirement, Decimal), (
                 "Margin calculations should maintain Decimal type"
             )

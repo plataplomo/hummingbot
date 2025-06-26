@@ -115,7 +115,7 @@ def generate_metrics(test_dir: Path = Path("tests")) -> dict[str, Any]:
 
     # Group by directory for detailed breakdown
     by_directory: dict[str, dict[str, int]] = defaultdict(
-        lambda: {"total": 0, "migrated": 0, "needs_migration": 0}
+        lambda: {"total": 0, "migrated": 0, "needs_migration": 0},
     )
     for result in results:
         dir_path = Path(result["path"]).parent
@@ -196,13 +196,13 @@ def format_github_output(metrics: dict[str, Any]) -> str:
     if summary["files_needing_migration"] > 0:
         lines.append(
             f"::warning::{summary['files_needing_migration']} files still need "
-            f"migration to new time fixtures"
+            f"migration to new time fixtures",
         )
 
     if summary["files_needing_timing_marker"] > 0:
         lines.append(
             f"::warning::{summary['files_needing_timing_marker']} files need "
-            f"@pytest.mark.timing marker"
+            f"@pytest.mark.timing marker",
         )
 
     # Set output variables for badge generation
@@ -219,11 +219,17 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Generate metrics for time fixture adoption")
     parser.add_argument(
-        "--format", choices=["console", "json", "github"], default="console", help="Output format"
+        "--format",
+        choices=["console", "json", "github"],
+        default="console",
+        help="Output format",
     )
     parser.add_argument("--output", type=Path, help="Output file (default: stdout)")
     parser.add_argument(
-        "--test-dir", type=Path, default=Path("tests"), help="Test directory to analyze"
+        "--test-dir",
+        type=Path,
+        default=Path("tests"),
+        help="Test directory to analyze",
     )
 
     args = parser.parse_args()

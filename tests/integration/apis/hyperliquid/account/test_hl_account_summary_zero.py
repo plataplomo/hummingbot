@@ -33,7 +33,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/account/zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/account/zero"],
+    indirect=True,
 )
 class TestHyperliquidAccountSummaryZero:
     """Comprehensive account summary integration tests for MarginAccountSummary model.
@@ -85,10 +87,10 @@ class TestHyperliquidAccountSummaryZero:
         )
 
         # Validate business logic constraints
-        assert account_summary.total_equity >= Decimal("0"), (
+        assert account_summary.total_equity >= Decimal(0), (
             f"total_equity must be non-negative, got {account_summary.total_equity}"
         )
-        assert account_summary.available_equity >= Decimal("0"), (
+        assert account_summary.available_equity >= Decimal(0), (
             f"available_equity must be non-negative, got {account_summary.available_equity}"
         )
 
@@ -103,7 +105,7 @@ class TestHyperliquidAccountSummaryZero:
             assert isinstance(account_summary.total_initial_margin_required, Decimal), (
                 "total_initial_margin_required must be Decimal if present"
             )
-            assert account_summary.total_initial_margin_required >= Decimal("0"), (
+            assert account_summary.total_initial_margin_required >= Decimal(0), (
                 f"total_initial_margin_required must be non-negative, got "
                 f"{account_summary.total_initial_margin_required}"
             )
@@ -112,7 +114,7 @@ class TestHyperliquidAccountSummaryZero:
             assert isinstance(account_summary.total_maintenance_margin_required, Decimal), (
                 "total_maintenance_margin_required must be Decimal if present"
             )
-            assert account_summary.total_maintenance_margin_required >= Decimal("0"), (
+            assert account_summary.total_maintenance_margin_required >= Decimal(0), (
                 f"total_maintenance_margin_required must be non-negative, got "
                 f"{account_summary.total_maintenance_margin_required}"
             )
@@ -130,11 +132,11 @@ class TestHyperliquidAccountSummaryZero:
             )
 
             # Validate non-negative constraints
-            assert hl_details.cross_maintenance_margin_used >= Decimal("0"), (
+            assert hl_details.cross_maintenance_margin_used >= Decimal(0), (
                 f"cross_maintenance_margin_used must be non-negative, got "
                 f"{hl_details.cross_maintenance_margin_used}"
             )
-            assert hl_details.isolated_maintenance_margin_used >= Decimal("0"), (
+            assert hl_details.isolated_maintenance_margin_used >= Decimal(0), (
                 f"isolated_maintenance_margin_used must be non-negative, got "
                 f"{hl_details.isolated_maintenance_margin_used}"
             )
@@ -171,10 +173,10 @@ class TestHyperliquidAccountSummaryZero:
         )
 
         # Even empty accounts should have valid structure
-        assert account_summary.total_equity >= Decimal("0"), (
+        assert account_summary.total_equity >= Decimal(0), (
             "Empty account should still have non-negative total_equity"
         )
-        assert account_summary.available_equity >= Decimal("0"), (
+        assert account_summary.available_equity >= Decimal(0), (
             "Empty account should still have non-negative available_equity"
         )
         assert account_summary.total_equity >= account_summary.available_equity, (
@@ -218,15 +220,15 @@ class TestHyperliquidAccountSummaryZero:
         )
 
         # Total maintenance margin used should be sum of cross + isolated
-        cross_margin = hl_details.cross_maintenance_margin_used or Decimal("0")
-        isolated_margin = hl_details.isolated_maintenance_margin_used or Decimal("0")
+        cross_margin = hl_details.cross_maintenance_margin_used or Decimal(0)
+        isolated_margin = hl_details.isolated_maintenance_margin_used or Decimal(0)
         total_maintenance_used = cross_margin + isolated_margin
 
         # If total_maintenance_margin_required is provided, it should be consistent
         if account_summary.total_maintenance_margin_required is not None:
             # Allow for small rounding differences
             margin_diff = abs(
-                total_maintenance_used - account_summary.total_maintenance_margin_required
+                total_maintenance_used - account_summary.total_maintenance_margin_required,
             )
             assert margin_diff <= Decimal("0.01"), (
                 f"Margin calculation inconsistency: cross+isolated={total_maintenance_used}, "
@@ -236,7 +238,7 @@ class TestHyperliquidAccountSummaryZero:
 
         # Available equity should be total equity minus used margin (approximately)
         # Note: This is a simplified check - real calculation may include other factors
-        if account_summary.total_equity > Decimal("0") and total_maintenance_used > Decimal("0"):
+        if account_summary.total_equity > Decimal(0) and total_maintenance_used > Decimal(0):
             # Available should be less than total if margin is being used
             if total_maintenance_used > Decimal("0.01"):  # Only check if significant margin usage
                 assert account_summary.available_equity <= account_summary.total_equity, (
@@ -260,8 +262,8 @@ class TestHyperliquidAccountSummaryZero:
         assert account_summary is not None, "Account summary should not be None"
 
         # Test very small equity handling
-        if account_summary.total_equity > Decimal("0") and account_summary.total_equity < Decimal(
-            "1.0"
+        if account_summary.total_equity > Decimal(0) and account_summary.total_equity < Decimal(
+            "1.0",
         ):
             # Very small equity should maintain precision
             assert account_summary.total_equity.is_finite(), (
@@ -278,7 +280,7 @@ class TestHyperliquidAccountSummaryZero:
         # Test small margin amounts
         if account_summary.total_initial_margin_required is not None:
             if account_summary.total_initial_margin_required > Decimal(
-                "0"
+                0,
             ) and account_summary.total_initial_margin_required < Decimal("0.01"):
                 # Small margin should be properly represented
                 assert account_summary.total_initial_margin_required.is_finite(), (
@@ -327,7 +329,7 @@ class TestHyperliquidAccountSummaryZero:
         hl_details = account_summary.hl_details
 
         # Test cross margin scenario
-        if hl_details.cross_maintenance_margin_used > Decimal("0"):
+        if hl_details.cross_maintenance_margin_used > Decimal(0):
             # Cross margin usage should be reasonable relative to total equity
             cross_ratio = hl_details.cross_maintenance_margin_used / account_summary.total_equity
             assert cross_ratio <= Decimal("1.0"), (
@@ -340,7 +342,7 @@ class TestHyperliquidAccountSummaryZero:
             )
 
         # Test isolated margin scenario
-        if hl_details.isolated_maintenance_margin_used > Decimal("0"):
+        if hl_details.isolated_maintenance_margin_used > Decimal(0):
             # Isolated margin usage should be reasonable
             isolated_ratio = (
                 hl_details.isolated_maintenance_margin_used / account_summary.total_equity
@@ -354,11 +356,11 @@ class TestHyperliquidAccountSummaryZero:
             hl_details.cross_maintenance_margin_used + hl_details.isolated_maintenance_margin_used
         )
 
-        if total_margin_used > Decimal("0"):
+        if total_margin_used > Decimal(0):
             # Total margin usage should not exceed total equity
             total_margin_ratio = total_margin_used / account_summary.total_equity
             assert total_margin_ratio <= Decimal(
-                "1.2"
+                "1.2",
             ), (  # Allow slight buffer for calculation differences
                 f"Total margin ratio should be reasonable: {total_margin_ratio:.4f}"
             )
@@ -402,8 +404,7 @@ class TestHyperliquidAccountSummaryZero:
                 # If some fail due to rate limiting, that's acceptable
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, MarginAccountSummary), (
                     f"Result {i} should be MarginAccountSummary"

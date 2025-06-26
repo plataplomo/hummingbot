@@ -251,7 +251,7 @@ class TestHyperliquidMarketDataService:
                 price=Decimal("50000.0"),
                 bid=Decimal("50000.0"),
                 ask=Decimal("50000.0"),
-                volume=Decimal("1000"),
+                volume=Decimal(1000),
                 timestamp=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
             )
 
@@ -560,7 +560,7 @@ class TestHyperliquidMarketDataService:
                 exchange="hyperliquid_test",  # Use the known exchange name from fixture
                 price=Decimal("3000.1"),
                 quantity=Decimal("0.5"),
-                fee=Decimal("0"),
+                fee=Decimal(0),
                 fee_asset=None,
                 is_maker=None,
             ),
@@ -573,7 +573,7 @@ class TestHyperliquidMarketDataService:
                 exchange="hyperliquid_test",  # Use the known exchange name from fixture
                 price=Decimal("3000.0"),
                 quantity=Decimal("0.2"),
-                fee=Decimal("0"),
+                fee=Decimal(0),
                 fee_asset=None,
                 is_maker=None,
             ),
@@ -702,21 +702,21 @@ class TestHyperliquidMarketDataService:
         expected_candles = [
             Candle(  # Use open_time for internal Candle model
                 open_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
-                open=Decimal("3000"),
-                high=Decimal("3005"),
-                low=Decimal("2995"),
-                close=Decimal("3002"),
-                volume=Decimal("100"),
+                open=Decimal(3000),
+                high=Decimal(3005),
+                low=Decimal(2995),
+                close=Decimal(3002),
+                volume=Decimal(100),
                 symbol=symbol,
                 interval=interval,
             ),
             Candle(
                 open_time=datetime.fromtimestamp((start_time_ms + 60000) / 1000, tz=UTC),
-                open=Decimal("3002"),
-                high=Decimal("3010"),
-                low=Decimal("3000"),
-                close=Decimal("3008"),
-                volume=Decimal("120"),
+                open=Decimal(3002),
+                high=Decimal(3010),
+                low=Decimal(3000),
+                close=Decimal(3008),
+                volume=Decimal(120),
                 symbol=symbol,
                 interval=interval,
             ),
@@ -1979,7 +1979,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                         "onlyIsolated": False,
                         "marginTableId": None,
                         "isDelisted": None,
-                    }
+                    },
                 ],
             },
             [
@@ -1990,7 +1990,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                     prev_day_px="50000",
                     day_ntl_vlm="1000000",
                     impact_px="50098",
-                ).model_dump(by_alias=True)
+                ).model_dump(by_alias=True),
             ],
         ])
 
@@ -2003,12 +2003,14 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                 tick_size=Decimal("0.01"),
                 step_size=Decimal("0.001"),
                 status="Trading",
-            )
+            ),
         ]
 
         # Setup mocks
         with patch.object(
-            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response
             mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
@@ -2021,7 +2023,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
             assert result == mock_markets
             mock_get_contexts.assert_called_once()
             mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_called_once_with(
-                mock_raw_response
+                mock_raw_response,
             )
 
     @pytest.mark.asyncio
@@ -2033,11 +2035,14 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         """Test that APIErrors from get_all_asset_contexts_raw are propagated."""
         # Setup mock to raise APIError
         api_error = APIError(
-            message="Failed to get asset contexts", code=APIErrorCode.RATE_LIMITED.value
+            message="Failed to get asset contexts",
+            code=APIErrorCode.RATE_LIMITED.value,
         )
 
         with patch.object(
-            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.side_effect = api_error
 
@@ -2070,7 +2075,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                         "onlyIsolated": False,
                         "marginTableId": None,
                         "isDelisted": None,
-                    }
+                    },
                 ],
             },
             [
@@ -2081,13 +2086,15 @@ class TestHyperliquidMarketDataServiceGetMarkets:
                     prev_day_px="50000",
                     day_ntl_vlm="1000000",
                     impact_px="50098",
-                ).model_dump(by_alias=True)
+                ).model_dump(by_alias=True),
             ],
         ])
 
         # Setup mocks - raw response succeeds, transformation fails
         with patch.object(
-            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response
 
@@ -2126,7 +2133,9 @@ class TestHyperliquidMarketDataServiceGetMarkets:
 
         # Setup mocks
         with patch.object(
-            hyperliquid_market_data_service, "get_all_asset_contexts_raw", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_all_asset_contexts_raw",
+            new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response
             mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
@@ -2178,7 +2187,9 @@ class TestHyperliquidMarketDataServiceGetMarket:
 
         # Mock get_markets to return our test data
         with patch.object(
-            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
         ) as mock_get_markets:
             mock_get_markets.return_value = mock_markets
 
@@ -2224,7 +2235,9 @@ class TestHyperliquidMarketDataServiceGetMarket:
 
         # Mock get_markets to return markets without the requested symbol
         with patch.object(
-            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
         ) as mock_get_markets:
             mock_get_markets.return_value = mock_markets
 
@@ -2250,7 +2263,9 @@ class TestHyperliquidMarketDataServiceGetMarket:
         api_error = APIError(message="Failed to get markets", code=APIErrorCode.RATE_LIMITED.value)
 
         with patch.object(
-            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
         ) as mock_get_markets:
             mock_get_markets.side_effect = api_error
 
@@ -2286,7 +2301,9 @@ class TestHyperliquidMarketDataServiceGetMarket:
 
         # Mock get_markets to return uppercase symbols
         with patch.object(
-            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
         ) as mock_get_markets:
             mock_get_markets.return_value = mock_markets
 
@@ -2312,7 +2329,9 @@ class TestHyperliquidMarketDataServiceGetMarket:
 
         # Mock get_markets to return empty list
         with patch.object(
-            hyperliquid_market_data_service, "get_markets", new_callable=AsyncMock
+            hyperliquid_market_data_service,
+            "get_markets",
+            new_callable=AsyncMock,
         ) as mock_get_markets:
             mock_get_markets.return_value = mock_markets
 

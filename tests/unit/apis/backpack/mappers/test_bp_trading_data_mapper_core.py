@@ -596,7 +596,7 @@ class TestTransformOrderDataToInternal:
         assert result.order_type == OrderType.MARKET
         assert result.status == OrderStatus.FILLED
         assert result.quantity_requested == Decimal("2.0")
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.price is None
         assert result.time_in_force == TimeInForce.IOC
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -626,7 +626,7 @@ class TestTransformOrderDataToInternal:
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
         assert result.quantity_requested == Decimal("1.0")
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.price == Decimal("3000.00")
         assert result.time_in_force == TimeInForce.GTC
         assert result.client_order_id is not None and len(result.client_order_id) > 0
@@ -744,7 +744,7 @@ class TestTransformOrderDataToInternal:
         assert result.price == Decimal("0.10")
         assert result.client_order_id == "custom_client_id"
         assert result.time_in_force == TimeInForce.FOK
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.average_fill_price is None
         assert result.reduce_only is False
         assert result.post_only is False

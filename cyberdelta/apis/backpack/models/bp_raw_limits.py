@@ -30,7 +30,9 @@ class BackpackRawMaxBorrowQuantity(BaseModel):
         description="Maximum quantity that can be borrowed for this symbol",
     )
     symbol: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="symbol", description="Asset symbol for the borrow limit"
+        ...,
+        alias="symbol",
+        description="Asset symbol for the borrow limit",
     )
 
     model_config = ConfigDict(
@@ -45,13 +47,19 @@ class BackpackRawMaxOrderQuantity(BaseModel):
     """Raw response from /api/v1/account/limits/order endpoint."""
 
     auto_borrow: RawBpOptionalStrictBool = Field(
-        None, alias="autoBorrow", description="Whether auto-borrow is enabled"
+        None,
+        alias="autoBorrow",
+        description="Whether auto-borrow is enabled",
     )
     auto_borrow_repay: RawBpOptionalStrictBool = Field(
-        None, alias="autoBorrowRepay", description="Whether auto-borrow repay is enabled"
+        None,
+        alias="autoBorrowRepay",
+        description="Whether auto-borrow repay is enabled",
     )
     auto_lend_redeem: RawBpOptionalStrictBool = Field(
-        None, alias="autoLendRedeem", description="Whether auto-lend redeem is enabled"
+        None,
+        alias="autoLendRedeem",
+        description="Whether auto-lend redeem is enabled",
     )
     max_order_quantity: RawBpStringToFiniteDecimal = Field(
         ...,
@@ -59,14 +67,20 @@ class BackpackRawMaxOrderQuantity(BaseModel):
         description="Maximum order quantity for the specified parameters",
     )
     price: str | None = Field(
-        None, alias="price", description="Price used for the calculation (if provided)"
+        None,
+        alias="price",
+        description="Price used for the calculation (if provided)",
     )
     reduce_only: RawBpOptionalStrictBool = Field(
-        None, alias="reduceOnly", description="Whether this is a reduce-only order"
+        None,
+        alias="reduceOnly",
+        description="Whether this is a reduce-only order",
     )
     side: RawBpNonEmptyStringMax64 = Field(..., alias="side", description="Order side (Bid/Ask)")
     symbol: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="symbol", description="Trading symbol for the order limit"
+        ...,
+        alias="symbol",
+        description="Trading symbol for the order limit",
     )
 
     model_config = ConfigDict(
@@ -81,7 +95,9 @@ class BackpackRawMaxWithdrawalQuantity(BaseModel):
     """Raw response from /api/v1/account/limits/withdrawal endpoint."""
 
     auto_borrow: RawBpOptionalStrictBool = Field(
-        None, alias="autoBorrow", description="Whether auto-borrow is enabled for withdrawal"
+        None,
+        alias="autoBorrow",
+        description="Whether auto-borrow is enabled for withdrawal",
     )
     auto_lend_redeem: RawBpOptionalStrictBool = Field(
         None,
@@ -89,10 +105,14 @@ class BackpackRawMaxWithdrawalQuantity(BaseModel):
         description="Whether auto-lend redeem is enabled for withdrawal",
     )
     max_withdrawal_quantity: RawBpStringToFiniteDecimal = Field(
-        ..., alias="maxWithdrawalQuantity", description="Maximum quantity that can be withdrawn"
+        ...,
+        alias="maxWithdrawalQuantity",
+        description="Maximum quantity that can be withdrawn",
     )
     symbol: RawBpNonEmptyStringMax64 = Field(
-        ..., alias="symbol", description="Asset symbol for the withdrawal limit"
+        ...,
+        alias="symbol",
+        description="Asset symbol for the withdrawal limit",
     )
 
     model_config = ConfigDict(

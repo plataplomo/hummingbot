@@ -444,7 +444,7 @@ class TestConfigManager:
             assert manager.settings.strategies.hl_perp_bp_spot.params.funding_threshold == Decimal(
                 "0.01",
             )
-            assert manager.settings.risk.global_risk.max_position_usd == Decimal("1000")
+            assert manager.settings.risk.global_risk.max_position_usd == Decimal(1000)
             assert manager.settings.execution.max_slippage_pct == Decimal("0.01")
 
     @patch("cyberdelta.config.config_manager.logger")

@@ -249,8 +249,8 @@ class TestBoundaryValueConditions:
         # function which limits precision to 8 decimal places + 5 significant figures maximum.
         # This behavior is REQUIRED for payload signing compatibility - changing it would break
         # signature verification. The SDK intentionally uses IEEE 754 float precision.
-        assert position.size == Decimal("1000000000000000000")
-        assert position.entry_price == Decimal("1000000000000000000")
+        assert position.size == Decimal(1000000000000000000)
+        assert position.entry_price == Decimal(1000000000000000000)
 
     def test_extremely_small_numeric_values(self) -> None:
         """Test handling of extremely small numeric values."""
@@ -313,7 +313,7 @@ class TestBoundaryValueConditions:
         # positions with zero size rather than filtering them out entirely.
         assert len(positions) == 1
         position = positions["SMALL-PERP"]
-        assert position.size == Decimal("0")
+        assert position.size == Decimal(0)
         assert position.entry_price is None  # Zero entry price becomes None
 
     def test_zero_and_negative_boundary_values(self) -> None:

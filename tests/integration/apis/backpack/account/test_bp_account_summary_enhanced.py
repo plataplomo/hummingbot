@@ -27,7 +27,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/account_summary_enhanced"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/account_summary_enhanced"],
+    indirect=True,
 )
 class TestBackpackAccountSummaryEnhanced:
     """Enhanced account summary integration tests with collateral endpoint support."""
@@ -59,14 +61,14 @@ class TestBackpackAccountSummaryEnhanced:
         if hasattr(bp_details, "assets_value") and bp_details.assets_value is not None:
             # We have enhanced data from collateral endpoint
             assert isinstance(bp_details.assets_value, Decimal)
-            assert bp_details.assets_value >= Decimal("0")
+            assert bp_details.assets_value >= Decimal(0)
 
             if (
                 hasattr(bp_details, "liabilities_value")
                 and bp_details.liabilities_value is not None
             ):
                 assert isinstance(bp_details.liabilities_value, Decimal)
-                assert bp_details.liabilities_value >= Decimal("0")
+                assert bp_details.liabilities_value >= Decimal(0)
 
             # Check if we have both assets_value and liabilities_value
             # net_equity = assets_value - liabilities_value
@@ -79,9 +81,9 @@ class TestBackpackAccountSummaryEnhanced:
                 assert abs(net_equity - account_summary.total_equity) < Decimal("0.01")
 
             # Available equity might be in the main account summary
-            if account_summary.available_equity > Decimal("0"):
+            if account_summary.available_equity > Decimal(0):
                 assert isinstance(account_summary.available_equity, Decimal)
-                assert account_summary.available_equity >= Decimal("0")
+                assert account_summary.available_equity >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -104,7 +106,7 @@ class TestBackpackAccountSummaryEnhanced:
 
         # Basic implementation should still provide core fields
         assert isinstance(account_summary.total_equity, Decimal)
-        assert account_summary.total_equity >= Decimal("0")
+        assert account_summary.total_equity >= Decimal(0)
 
         assert isinstance(account_summary.timestamp, datetime)
 
@@ -130,7 +132,7 @@ class TestBackpackAccountSummaryEnhanced:
 
         # Should return data with proper equity values
         assert isinstance(account_summary.total_equity, Decimal)
-        assert account_summary.total_equity >= Decimal("0")
+        assert account_summary.total_equity >= Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -151,11 +153,11 @@ class TestBackpackAccountSummaryEnhanced:
         # These fields are optional and may be None
         if account_summary.total_initial_margin_required is not None:
             assert isinstance(account_summary.total_initial_margin_required, Decimal)
-            assert account_summary.total_initial_margin_required >= Decimal("0")
+            assert account_summary.total_initial_margin_required >= Decimal(0)
 
         if account_summary.total_maintenance_margin_required is not None:
             assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
-            assert account_summary.total_maintenance_margin_required >= Decimal("0")
+            assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
         # available_equity is a required field, always present
         assert isinstance(account_summary.available_equity, Decimal)
@@ -183,11 +185,11 @@ class TestBackpackAccountSummaryEnhanced:
         # Enhanced implementation should provide accurate margin data
         if account_summary.total_initial_margin_required is not None:
             assert isinstance(account_summary.total_initial_margin_required, Decimal)
-            assert account_summary.total_initial_margin_required >= Decimal("0")
+            assert account_summary.total_initial_margin_required >= Decimal(0)
 
         if account_summary.total_maintenance_margin_required is not None:
             assert isinstance(account_summary.total_maintenance_margin_required, Decimal)
-            assert account_summary.total_maintenance_margin_required >= Decimal("0")
+            assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
             # Initial margin should be >= maintenance margin
             if account_summary.total_initial_margin_required is not None:
@@ -203,11 +205,11 @@ class TestBackpackAccountSummaryEnhanced:
 
             if imf is not None:
                 assert isinstance(imf, Decimal)
-                assert Decimal("0") <= imf <= Decimal("1")
+                assert Decimal(0) <= imf <= Decimal(1)
 
             if mmf is not None:
                 assert isinstance(mmf, Decimal)
-                assert Decimal("0") <= mmf <= Decimal("1")
+                assert Decimal(0) <= mmf <= Decimal(1)
 
             # IMF should be >= MMF
             if imf is not None and mmf is not None:

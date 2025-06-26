@@ -82,7 +82,7 @@ class BackpackMarketDataMapper:
         side_lower = bp_side.lower() if bp_side else ""
         if side_lower in ("buy", "bid"):
             return OrderSide.BUY
-        elif side_lower in ("sell", "ask"):
+        if side_lower in ("sell", "ask"):
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
@@ -111,26 +111,38 @@ class BackpackMarketDataMapper:
 
             # Parse core ticker fields using new model structure
             last_price = parse_decimal_value(
-                raw_ticker.last_price, allow_none=False, field_name="lastPrice"
+                raw_ticker.last_price,
+                allow_none=False,
+                field_name="lastPrice",
             )
             volume_24h = parse_decimal_value(
-                raw_ticker.volume, allow_none=False, field_name="volume"
+                raw_ticker.volume,
+                allow_none=False,
+                field_name="volume",
             )
 
             # Parse extension fields for BackpackTickerDetails
             first_price = parse_decimal_value(
-                raw_ticker.first_price, allow_none=False, field_name="firstPrice"
+                raw_ticker.first_price,
+                allow_none=False,
+                field_name="firstPrice",
             )
             high_price = parse_decimal_value(raw_ticker.high, allow_none=False, field_name="high")
             low_price = parse_decimal_value(raw_ticker.low, allow_none=False, field_name="low")
             price_change = parse_decimal_value(
-                raw_ticker.price_change, allow_none=False, field_name="priceChange"
+                raw_ticker.price_change,
+                allow_none=False,
+                field_name="priceChange",
             )
             price_change_percent = parse_decimal_value(
-                raw_ticker.price_change_percent, allow_none=False, field_name="priceChangePercent"
+                raw_ticker.price_change_percent,
+                allow_none=False,
+                field_name="priceChangePercent",
             )
             quote_volume = parse_decimal_value(
-                raw_ticker.quote_volume, allow_none=False, field_name="quoteVolume"
+                raw_ticker.quote_volume,
+                allow_none=False,
+                field_name="quoteVolume",
             )
 
             # Parse trade count
@@ -140,7 +152,7 @@ class BackpackMarketDataMapper:
                     trades_count = int(raw_ticker.trades)
                 except (ValueError, TypeError):
                     logger.warning(
-                        f"Failed to parse trades count '{raw_ticker.trades}' for {symbol}"
+                        f"Failed to parse trades count '{raw_ticker.trades}' for {symbol}",
                     )
 
             # Generate timestamp since API doesn't provide it
@@ -198,32 +210,44 @@ class BackpackMarketDataMapper:
         try:
             # Parse core market fields (required, won't be None since allow_none=False)
             tick_size = cast(
-                Decimal,
+                "Decimal",
                 parse_decimal_value(
-                    raw_market.filters.price.tick_size, allow_none=False, field_name="tickSize"
+                    raw_market.filters.price.tick_size,
+                    allow_none=False,
+                    field_name="tickSize",
                 ),
             )
             step_size = cast(
-                Decimal,
+                "Decimal",
                 parse_decimal_value(
-                    raw_market.filters.quantity.step_size, allow_none=False, field_name="stepSize"
+                    raw_market.filters.quantity.step_size,
+                    allow_none=False,
+                    field_name="stepSize",
                 ),
             )
 
             # Parse optional price limits
             min_price = parse_decimal_value(
-                raw_market.filters.price.min_price, allow_none=True, field_name="minPrice"
+                raw_market.filters.price.min_price,
+                allow_none=True,
+                field_name="minPrice",
             )
             max_price = parse_decimal_value(
-                raw_market.filters.price.max_price, allow_none=True, field_name="maxPrice"
+                raw_market.filters.price.max_price,
+                allow_none=True,
+                field_name="maxPrice",
             )
 
             # Parse optional quantity limits
             min_quantity = parse_decimal_value(
-                raw_market.filters.quantity.min_quantity, allow_none=True, field_name="minQuantity"
+                raw_market.filters.quantity.min_quantity,
+                allow_none=True,
+                field_name="minQuantity",
             )
             max_quantity = parse_decimal_value(
-                raw_market.filters.quantity.max_quantity, allow_none=True, field_name="maxQuantity"
+                raw_market.filters.quantity.max_quantity,
+                allow_none=True,
+                field_name="maxQuantity",
             )
 
             # Parse created_at timestamp
@@ -394,12 +418,13 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawPublicTrade to Trade: {e}"
+                f"Failed to transform BackpackRawPublicTrade to Trade: {e}",
             ) from e
 
     @staticmethod
     def transform_raw_recent_trade_to_internal(
-        raw_trade: BackpackRawRecentPublicTrade, symbol: str
+        raw_trade: BackpackRawRecentPublicTrade,
+        symbol: str,
     ) -> Trade:
         """Transform a BackpackRawRecentPublicTrade to an Internal Trade model.
 
@@ -464,7 +489,7 @@ class BackpackMarketDataMapper:
 
         except Exception as e:
             raise TransformationError(
-                f"Failed to transform BackpackRawRecentPublicTrade to Trade: {e}"
+                f"Failed to transform BackpackRawRecentPublicTrade to Trade: {e}",
             ) from e
 
     @staticmethod

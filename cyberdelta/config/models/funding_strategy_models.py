@@ -17,13 +17,13 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    funding_threshold: ConfigDecimal = Field(..., gt=Decimal("0"))
-    max_price_spread_pct: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
-    min_profit_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
-    min_funding_differential: ConfigDecimal = Field(..., gt=Decimal("0"))
+    funding_threshold: ConfigDecimal = Field(..., gt=Decimal(0))
+    max_price_spread_pct: ConfigDecimal = Field(..., gt=Decimal(0), lt=Decimal(1))
+    min_profit_usd: ConfigDecimal = Field(..., gt=Decimal(0))
+    min_funding_differential: ConfigDecimal = Field(..., gt=Decimal(0))
     check_interval: int = Field(..., gt=0)
-    risk_aversion: ConfigDecimal = Field(..., gt=Decimal("0"))
-    rebalance_threshold: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
+    risk_aversion: ConfigDecimal = Field(..., gt=Decimal(0))
+    rebalance_threshold: ConfigDecimal = Field(..., gt=Decimal(0), lt=Decimal(1))
     perp_exchange: NonEmptyConfigString
     spot_exchange: NonEmptyConfigString
 
@@ -75,13 +75,13 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
         if self.perp_exchange != expected_perp:
             raise ValueError(
                 f"For HL Perp BP Spot strategy, perp_exchange must be '{expected_perp}', "
-                f"got '{self.perp_exchange}'"
+                f"got '{self.perp_exchange}'",
             )
 
         if self.spot_exchange != expected_spot:
             raise ValueError(
                 f"For HL Perp BP Spot strategy, spot_exchange must be '{expected_spot}', "
-                f"got '{self.spot_exchange}'"
+                f"got '{self.spot_exchange}'",
             )
 
         return self

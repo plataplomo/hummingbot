@@ -153,7 +153,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         # Try exact match first
         if (method_upper, lookup_path) in self.INSTRUCTION_MAP:
-            return self.INSTRUCTION_MAP[(method_upper, lookup_path)]
+            return self.INSTRUCTION_MAP[method_upper, lookup_path]
 
         # Try to match path templates with variables
         for (map_method, map_path), instruction in self.INSTRUCTION_MAP.items():
@@ -162,7 +162,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 # For now, simple prefix matching for common patterns
                 if map_path.endswith("/{orderId}") and lookup_path.startswith(map_path[:-10]):
                     return instruction
-                elif map_path.endswith("/{id}") and lookup_path.startswith(map_path[:-5]):
+                if map_path.endswith("/{id}") and lookup_path.startswith(map_path[:-5]):
                     return instruction
 
         # If no match found, raise error
@@ -172,7 +172,10 @@ class BackpackEd25519Authenticator(IAuthenticator):
         )
 
     def _build_content_part(
-        self, method: str, params: dict[str, Any] | None, data: dict[str, Any] | None
+        self,
+        method: str,
+        params: dict[str, Any] | None,
+        data: dict[str, Any] | None,
     ) -> str:
         """Build content part for signing based on method and data."""
         if method.upper() == "GET" and params:
@@ -207,7 +210,11 @@ class BackpackEd25519Authenticator(IAuthenticator):
         return ""
 
     def _build_string_to_sign(
-        self, instruction_str: str, content_part_str: str, timestamp_ms: int, window_ms: int
+        self,
+        instruction_str: str,
+        content_part_str: str,
+        timestamp_ms: int,
+        window_ms: int,
     ) -> str:
         """Build the string to sign for authentication."""
         sign_payload_parts = [f"instruction={instruction_str}"]
@@ -219,7 +226,10 @@ class BackpackEd25519Authenticator(IAuthenticator):
         return string_to_sign
 
     def _create_auth_headers(
-        self, timestamp_ms: int, window_ms: int, signature_b64: str
+        self,
+        timestamp_ms: int,
+        window_ms: int,
+        signature_b64: str,
     ) -> dict[str, str]:
         """Create authentication headers."""
         return {
@@ -243,7 +253,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         final_headers.update(auth_headers)
 
         if method.upper() in ["POST", "PUT", "DELETE"] and data:
-            has_content_type = any(key.lower() == "content-type" for key in final_headers.keys())
+            has_content_type = any(key.lower() == "content-type" for key in final_headers)
             if not has_content_type:
                 final_headers["Content-Type"] = "application/json; charset=utf-8"
 
@@ -280,7 +290,10 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
             content_part_str = self._build_content_part(method, params, data)
             string_to_sign = self._build_string_to_sign(
-                instruction_str, content_part_str, timestamp_ms, window_ms
+                instruction_str,
+                content_part_str,
+                timestamp_ms,
+                window_ms,
             )
 
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))

@@ -30,7 +30,6 @@ class MarketOrderStrategy(Strategy):
     def _initialize_market_orders(self) -> None:
         """Initialize market order executors for each exchange."""
         # This would be called after exchanges are set up
-        pass
 
     def add_exchange_market_order(self, exchange_name: str, exchange_api: ExchangeAPI) -> None:
         """Add a market order executor for an exchange.
@@ -46,7 +45,9 @@ class MarketOrderStrategy(Strategy):
         service = MarketOrderService(exchange_api=exchange_api, config=config)
 
         self.market_orders[exchange_name] = MarketOrder(
-            exchange_api=exchange_api, market_order_service=service, config=config
+            exchange_api=exchange_api,
+            market_order_service=service,
+            config=config,
         )
 
     async def generate_signals(self) -> list[TradeSignal]:
@@ -63,7 +64,7 @@ class MarketOrderStrategy(Strategy):
                 symbol="BTC",
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
-                price=Decimal("50000"),  # Required field - would get from market data
+                price=Decimal(50000),  # Required field - would get from market data
                 quantity=Decimal("0.1"),
                 exchange="hyperliquid",
                 confidence=0.8,
@@ -244,16 +245,15 @@ class MarketOrderEngine:
                 side=side,
                 quantity=quantity,
             )
-        else:
-            # Use regular order placement
-            from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+        # Use regular order placement
+        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 
-            args = PlaceOrderArgs(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                price=price,
-                time_in_force=TimeInForce.IOC,
-            )
-            return await exchange_api.place_order(args)
+        args = PlaceOrderArgs(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            price=price,
+            time_in_force=TimeInForce.IOC,
+        )
+        return await exchange_api.place_order(args)

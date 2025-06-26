@@ -58,12 +58,12 @@ class Candle(BaseModel):
     interval: str
     open_time: datetime
     # Prices must be strictly positive
-    open: Decimal = Field(gt=Decimal("0"))
-    high: Decimal = Field(gt=Decimal("0"))
-    low: Decimal = Field(gt=Decimal("0"))
-    close: Decimal = Field(gt=Decimal("0"))
+    open: Decimal = Field(gt=Decimal(0))
+    high: Decimal = Field(gt=Decimal(0))
+    low: Decimal = Field(gt=Decimal(0))
+    close: Decimal = Field(gt=Decimal(0))
     # Volume can be zero
-    volume: Decimal = Field(ge=Decimal("0"))
+    volume: Decimal = Field(ge=Decimal(0))
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
@@ -82,7 +82,7 @@ class Candle(BaseModel):
 
     @field_validator("open_time", mode="before")
     @classmethod
-    def validate_open_time(cls, v: datetime | int | float | str | None) -> datetime:
+    def validate_open_time(cls, v: datetime | float | str | None) -> datetime:
         """Validate and parse the 'open_time' field to a required UTC datetime object."""
         dt = parse_datetime_utc(v, field_name="open_time")
         if dt is None:
@@ -93,7 +93,7 @@ class Candle(BaseModel):
     @classmethod
     def validate_and_parse_decimal_required(
         cls,
-        v: str | int | float | Decimal | None,
+        v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal:
         """Validate, parse, and check finiteness for required Decimal fields (OHLCV).

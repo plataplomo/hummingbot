@@ -115,13 +115,13 @@ class TestSignalGenerator:
                 "BTC": FundingRate(
                     symbol="BTC",
                     funding_rate=Decimal("-0.001"),
-                    mark_price=Decimal("30000"),
+                    mark_price=Decimal(30000),
                     timestamp=now,
                 ),
                 "ETH": FundingRate(
                     symbol="ETH",
                     funding_rate=Decimal("0.005"),
-                    mark_price=Decimal("2000"),
+                    mark_price=Decimal(2000),
                     timestamp=now,
                 ),
             },
@@ -129,13 +129,13 @@ class TestSignalGenerator:
                 "BTC-USDC": FundingRate(
                     symbol="BTC-USDC",
                     funding_rate=Decimal("0.002"),
-                    mark_price=Decimal("30010"),
+                    mark_price=Decimal(30010),
                     timestamp=now,
                 ),
                 "ETH-USDC": FundingRate(
                     symbol="ETH-USDC",
                     funding_rate=Decimal("-0.01"),
-                    mark_price=Decimal("2005"),
+                    mark_price=Decimal(2005),
                     timestamp=now,
                 ),
             },
@@ -144,30 +144,30 @@ class TestSignalGenerator:
         # Mock Ticker data for data_handler.tickers
         mock_hl_btc_ticker = Ticker(
             symbol="BTC",
-            price=Decimal("30000"),
-            bid=Decimal("29999"),
-            ask=Decimal("30001"),
+            price=Decimal(30000),
+            bid=Decimal(29999),
+            ask=Decimal(30001),
             timestamp=now,
         )
         mock_bp_btc_ticker = Ticker(
             symbol="BTC-USDC",
-            price=Decimal("30010"),
-            bid=Decimal("30009"),
-            ask=Decimal("30011"),
+            price=Decimal(30010),
+            bid=Decimal(30009),
+            ask=Decimal(30011),
             timestamp=now,
         )
         mock_hl_eth_ticker = Ticker(
             symbol="ETH",
-            price=Decimal("2000"),
-            bid=Decimal("1999"),
-            ask=Decimal("2001"),
+            price=Decimal(2000),
+            bid=Decimal(1999),
+            ask=Decimal(2001),
             timestamp=now,
         )
         mock_bp_eth_ticker = Ticker(
             symbol="ETH-USDC",
-            price=Decimal("2005"),
-            bid=Decimal("2004"),
-            ask=Decimal("2006"),
+            price=Decimal(2005),
+            bid=Decimal(2004),
+            ask=Decimal(2006),
             timestamp=now,
         )
 
@@ -183,8 +183,8 @@ class TestSignalGenerator:
         }
 
         mock_orderbook = MagicMock(spec=OrderBook)
-        mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
-        mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
+        mock_orderbook.bids = [(Decimal(29999), Decimal("2.5"))]
+        mock_orderbook.asks = [(Decimal(30001), Decimal("1.5"))]
         # This orderbooks mock might not be strictly necessary if get_orderbook is not called
         # by the tested logic or if estimate_slippage is mocked directly if it uses
         # get_orderbook. For now, keeping it as it was.
@@ -273,7 +273,7 @@ class TestSignalGenerator:
 
         # Check the basis value (ignoring timestamp)
         _, basis = signal_generator.historical_basis["BTC"][0]
-        btc_basis = Decimal("30000") - Decimal("30010")
+        btc_basis = Decimal(30000) - Decimal(30010)
         assert basis == btc_basis
 
         data_handler.reset_mock()
@@ -299,7 +299,7 @@ class TestSignalGenerator:
             price_chg: Decimal = Decimal(0),
         ) -> Ticker | None:
             """Get ticker iter for testing."""
-            base_price = Decimal("30000") if exchange == "hyperliquid" else Decimal("30010")
+            base_price = Decimal(30000) if exchange == "hyperliquid" else Decimal(30010)
             return Ticker(symbol=symbol, price=base_price + price_chg, timestamp=datetime.now(UTC))
 
         for i in range(sample_count + 5):
@@ -308,7 +308,9 @@ class TestSignalGenerator:
 
             # Update side effects to return slightly different data each time
             def _funding_side_effect(
-                ex: str, sym: str, r: Decimal = rate_change
+                ex: str,
+                sym: str,
+                r: Decimal = rate_change,
             ) -> FundingRate | None:
                 return get_funding_iter(ex, sym, r)
 
@@ -405,8 +407,8 @@ class TestSignalGenerator:
     ) -> None:
         """Test estimating slippage (currently hardcoded)."""
         mock_orderbook = MagicMock(spec=OrderBook)
-        mock_orderbook.bids = [(Decimal("29999"), Decimal("2.5"))]
-        mock_orderbook.asks = [(Decimal("30001"), Decimal("1.5"))]
+        mock_orderbook.bids = [(Decimal(29999), Decimal("2.5"))]
+        mock_orderbook.asks = [(Decimal(30001), Decimal("1.5"))]
         data_handler.get_latest_order_book.return_value = mock_orderbook
         # Use an exchange defined in the mock config for the test
         exchange_id_for_test = "hyperliquid"
@@ -470,7 +472,7 @@ class TestSignalGenerator:
         # net = 60.02 - (-30.0) = 90.02
         # Expected rate diff: rate_b (0.002) - rate_a (-0.001) = 0.003
         assert opp.net_funding_differential.compare(Decimal("0.003")) == Decimal(
-            "0",
+            0,
         )  # Compare against the rate differential
 
     @pytest.mark.asyncio
@@ -498,7 +500,7 @@ class TestSignalGenerator:
                     hl_sym: FundingRate(
                         symbol=hl_sym,
                         funding_rate=Decimal("0.00001"),
-                        mark_price=Decimal("30000"),
+                        mark_price=Decimal(30000),
                         timestamp=now,
                     ),
                 },
@@ -506,7 +508,7 @@ class TestSignalGenerator:
                     bp_sym: FundingRate(
                         symbol=bp_sym,
                         funding_rate=Decimal("0.00002"),
-                        mark_price=Decimal("30010"),
+                        mark_price=Decimal(30010),
                         timestamp=now,
                     ),
                 },
@@ -614,16 +616,16 @@ class TestSignalGenerator:
         _ticker_data: dict[str, Ticker] = {
             "hyperliquid": Ticker(
                 symbol="BTC",
-                price=Decimal("41000"),
-                bid=Decimal("40999"),
-                ask=Decimal("41001"),
+                price=Decimal(41000),
+                bid=Decimal(40999),
+                ask=Decimal(41001),
                 timestamp=now,
             ),
             "backpack": Ticker(
                 symbol="BTC-USDC",
-                price=Decimal("41100"),
-                bid=Decimal("41099"),
-                ask=Decimal("41101"),
+                price=Decimal(41100),
+                bid=Decimal(41099),
+                ask=Decimal(41101),
                 timestamp=now,
             ),
         }
@@ -643,7 +645,7 @@ class TestSignalGenerator:
             "BTC": {
                 "hyperliquid": _funding_data["hyperliquid"],
                 "backpack": _funding_data["backpack"],
-            }
+            },
         }
 
         # Need to mock the ticker data in the data handler

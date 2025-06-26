@@ -65,14 +65,14 @@ class TestMarketOrderService:
         return OrderBook(
             symbol="BTC",
             bids=[
-                (Decimal("50000"), Decimal("10")),
-                (Decimal("49995"), Decimal("20")),
-                (Decimal("49990"), Decimal("30")),
+                (Decimal(50000), Decimal(10)),
+                (Decimal(49995), Decimal(20)),
+                (Decimal(49990), Decimal(30)),
             ],
             asks=[
-                (Decimal("50010"), Decimal("10")),
-                (Decimal("50015"), Decimal("20")),
-                (Decimal("50020"), Decimal("30")),
+                (Decimal(50010), Decimal(10)),
+                (Decimal(50015), Decimal(20)),
+                (Decimal(50020), Decimal(30)),
             ],
             timestamp=datetime.now(UTC),
         )
@@ -84,8 +84,8 @@ class TestMarketOrderService:
 
         return OrderBook(
             symbol="ILLIQUID",
-            bids=[(Decimal("100"), Decimal("0.1"))],
-            asks=[(Decimal("101"), Decimal("0.1"))],
+            bids=[(Decimal(100), Decimal("0.1"))],
+            asks=[(Decimal(101), Decimal("0.1"))],
             timestamp=datetime.now(UTC),
         )
 
@@ -104,12 +104,12 @@ class TestMarketOrderService:
         price = await service.calculate_aggressive_price(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("5"),
+            quantity=Decimal(5),
         )
 
         # Best ask is 50010, signal generator returns 0.2% slippage
-        expected = Decimal("50010") * Decimal("1.002")
-        assert abs(price - expected) < Decimal("1")  # Allow small rounding difference
+        expected = Decimal(50010) * Decimal("1.002")
+        assert abs(price - expected) < Decimal(1)  # Allow small rounding difference
 
     @pytest.mark.asyncio
     async def test_calculate_aggressive_price_sell(
@@ -126,12 +126,12 @@ class TestMarketOrderService:
         price = await service.calculate_aggressive_price(
             symbol="BTC",
             side=OrderSide.SELL,
-            quantity=Decimal("5"),
+            quantity=Decimal(5),
         )
 
         # Best bid is 50000, signal generator returns 0.2% slippage
-        expected = Decimal("50000") * Decimal("0.998")
-        assert abs(price - expected) < Decimal("1")
+        expected = Decimal(50000) * Decimal("0.998")
+        assert abs(price - expected) < Decimal(1)
 
     @pytest.mark.asyncio
     async def test_insufficient_liquidity_error(
@@ -147,17 +147,19 @@ class TestMarketOrderService:
             await service.calculate_aggressive_price(
                 symbol="ILLIQUID",
                 side=OrderSide.BUY,
-                quantity=Decimal("10"),  # Requesting 10, only 0.1 available
+                quantity=Decimal(10),  # Requesting 10, only 0.1 available
             )
 
         error = exc_info.value
         assert error.symbol == "ILLIQUID"
-        assert error.requested_quantity == Decimal("10")
+        assert error.requested_quantity == Decimal(10)
         assert error.available_quantity == Decimal("0.1")
 
     @pytest.mark.asyncio
     async def test_no_order_book_error(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test error when order book is unavailable."""
         mock_exchange_api.get_order_book.return_value = None
@@ -166,7 +168,7 @@ class TestMarketOrderService:
             await service.calculate_aggressive_price(
                 symbol="BTC",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
         assert "no order book for BTC" in str(exc_info.value)
@@ -189,17 +191,19 @@ class TestMarketOrderService:
         price = await service.calculate_aggressive_price(
             symbol="BTC",
             side=OrderSide.BUY,
-            quantity=Decimal("5"),
+            quantity=Decimal(5),
             max_slippage=Decimal("0.005"),
         )
 
         # Should use 0.5% instead of 1%
-        expected = Decimal("50010") * Decimal("1.005")
-        assert abs(price - expected) < Decimal("1")
+        expected = Decimal(50010) * Decimal("1.005")
+        assert abs(price - expected) < Decimal(1)
 
     @pytest.mark.asyncio
     async def test_price_deviation_error(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test error when price deviation exceeds limits."""
         # Create order book with extreme spread
@@ -207,8 +211,8 @@ class TestMarketOrderService:
 
         extreme_book = OrderBook(
             symbol="EXTREME",
-            bids=[(Decimal("100"), Decimal("10"))],
-            asks=[(Decimal("200"), Decimal("10"))],  # 100% spread
+            bids=[(Decimal(100), Decimal(10))],
+            asks=[(Decimal(200), Decimal(10))],  # 100% spread
             timestamp=datetime.now(UTC),
         )
         mock_exchange_api.get_order_book.return_value = extreme_book
@@ -225,14 +229,14 @@ class TestMarketOrderService:
 
         # Mock signal generator to return high slippage
         if service._signal_generator:
-            mock_estimate = cast(MagicMock, service._signal_generator.estimate_slippage)
+            mock_estimate = cast("MagicMock", service._signal_generator.estimate_slippage)
             mock_estimate.return_value = Decimal("0.2")  # 20%
 
         with pytest.raises(PriceDeviationError) as exc_info:
             await service.calculate_aggressive_price(
                 symbol="EXTREME",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
         error = exc_info.value
@@ -245,32 +249,34 @@ class TestMarketOrderService:
 
         order_book = OrderBook(
             symbol="TEST",
-            bids=[(Decimal("100"), Decimal("5"))],
-            asks=[(Decimal("101"), Decimal("10"))],
+            bids=[(Decimal(100), Decimal(5))],
+            asks=[(Decimal(101), Decimal(10))],
             timestamp=datetime.now(UTC),
         )
 
         # Buy side - 10 available, requesting 5
-        ratio = service.calculate_liquidity_ratio(order_book, OrderSide.BUY, Decimal("5"))
-        assert ratio == Decimal("2")  # 10/5 = 2
+        ratio = service.calculate_liquidity_ratio(order_book, OrderSide.BUY, Decimal(5))
+        assert ratio == Decimal(2)  # 10/5 = 2
 
         # Sell side - 5 available, requesting 10
-        ratio = service.calculate_liquidity_ratio(order_book, OrderSide.SELL, Decimal("10"))
+        ratio = service.calculate_liquidity_ratio(order_book, OrderSide.SELL, Decimal(10))
         assert ratio == Decimal("0.5")  # 5/10 = 0.5
 
     def test_estimate_slippage_fallback(self, service: MarketOrderService) -> None:
         """Test slippage estimation fallback when signal generator fails."""
         # Make signal generator raise exception
         if service._signal_generator:
-            mock_estimate = cast(MagicMock, service._signal_generator.estimate_slippage)
+            mock_estimate = cast("MagicMock", service._signal_generator.estimate_slippage)
             mock_estimate.side_effect = Exception("Test error")
 
         # Should fall back to config default for BTC
-        slippage = service._estimate_slippage("BTC", Decimal("10"))
+        slippage = service._estimate_slippage("BTC", Decimal(10))
         assert slippage == Decimal("0.005")  # BTC default from config
 
     def test_estimate_slippage_no_generator(
-        self, mock_exchange_api: AsyncMock, default_config: MarketOrderConfig
+        self,
+        mock_exchange_api: AsyncMock,
+        default_config: MarketOrderConfig,
     ) -> None:
         """Test slippage estimation without signal generator."""
         service = MarketOrderService(
@@ -280,12 +286,14 @@ class TestMarketOrderService:
         )
 
         # Should use config default
-        slippage = service._estimate_slippage("SOL", Decimal("100"))
+        slippage = service._estimate_slippage("SOL", Decimal(100))
         assert slippage == Decimal("0.01")  # SOL default from config
 
     @pytest.mark.asyncio
     async def test_get_reference_price_all_mids(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test getting reference price from AllMids."""
         # Enable AllMids in config
@@ -294,12 +302,13 @@ class TestMarketOrderService:
         # Mock get_all_mids method to return MidPrices instance
         mock_exchange_api.get_all_mids = AsyncMock(
             return_value=MidPrices(
-                prices={"BTC": Decimal("50000"), "ETH": Decimal("3000")}, exchange="test_exchange"
-            )
+                prices={"BTC": Decimal(50000), "ETH": Decimal(3000)},
+                exchange="test_exchange",
+            ),
         )
 
         price = await service.get_reference_price_all_mids("BTC")
-        assert price == Decimal("50000")
+        assert price == Decimal(50000)
 
         price = await service.get_reference_price_all_mids("UNKNOWN")
         assert price is None
@@ -312,7 +321,9 @@ class TestMarketOrderService:
 
     @pytest.mark.asyncio
     async def test_get_reference_price_all_mids_error(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test AllMids reference with error handling."""
         service._config = MarketOrderConfig(use_all_mids_for_reference=True)
@@ -334,13 +345,15 @@ class TestMarketOrderService:
         # Invalid slippage should raise
         service._config = MagicMock()
         service._config.enabled = True
-        service._config.max_slippage_pct = Decimal("0")
+        service._config.max_slippage_pct = Decimal(0)
         with pytest.raises(ValueError, match="Maximum slippage must be positive"):
             service.validate_config()
 
     @pytest.mark.asyncio
     async def test_round_to_tick_size(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test price rounding to tick size."""
         # Mock get_market to return None so it returns the original price
@@ -351,7 +364,9 @@ class TestMarketOrderService:
 
     @pytest.mark.asyncio
     async def test_empty_order_book_levels(
-        self, service: MarketOrderService, mock_exchange_api: AsyncMock
+        self,
+        service: MarketOrderService,
+        mock_exchange_api: AsyncMock,
     ) -> None:
         """Test handling of order book with empty bid/ask levels."""
         from datetime import UTC, datetime
@@ -368,7 +383,7 @@ class TestMarketOrderService:
             await service.calculate_aggressive_price(
                 symbol="EMPTY",
                 side=OrderSide.BUY,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
             )
 
         assert "no order book for EMPTY" in str(exc_info.value)

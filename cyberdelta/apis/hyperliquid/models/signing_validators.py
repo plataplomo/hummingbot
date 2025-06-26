@@ -6,16 +6,12 @@ formatting, address normalization, and field ordering required by the signing pr
 """
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_serializer
 from pydantic_core.core_schema import SerializationInfo
 
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
-
-
-if TYPE_CHECKING:
-    pass
 
 
 def normalize_ethereum_address(address: str) -> str:
@@ -36,7 +32,12 @@ class EthereumAddressNormalizer:
     """Mixin class that provides Ethereum address normalization validators."""
 
     @field_validator(
-        "destination", "address", "from_address", "to_address", mode="before", check_fields=False
+        "destination",
+        "address",
+        "from_address",
+        "to_address",
+        mode="before",
+        check_fields=False,
     )
     @classmethod
     def normalize_address_fields(cls, v: str | Any) -> str | Any:  # noqa: ANN401
@@ -92,12 +93,11 @@ class SigningPayloadSerializer:
         if is_dict_str_any(value):
             # value is now properly typed as dict[str, Any] due to TypeGuard
             cleaned_dict = self._clean_dict_recursive(value)
-            return cleaned_dict if cleaned_dict else None
-        elif is_list_any(value):
+            return cleaned_dict or None
+        if is_list_any(value):
             # value is now properly typed as list[Any] due to TypeGuard
             return self._clean_list(value)
-        else:
-            return value
+        return value
 
     def _clean_list(self, lst: list[Any]) -> list[Any] | None:
         """Clean a list for signing."""
@@ -110,7 +110,7 @@ class SigningPayloadSerializer:
                     cleaned_list.append(cleaned_item)
             elif item is not None:
                 cleaned_list.append(item)
-        return cleaned_list if cleaned_list else None
+        return cleaned_list or None
 
 
 class OrderTypeCleanerMixin:
@@ -127,7 +127,7 @@ class OrderTypeCleanerMixin:
             # v is now properly typed as dict[str, Any] due to TypeGuard
             if v["limit"] is None and v["market"] is not None:
                 return {"market": v["market"]}
-            elif v["market"] is None and v["limit"] is not None:
+            if v["market"] is None and v["limit"] is not None:
                 return {"limit": v["limit"]}
         return v
 

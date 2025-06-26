@@ -65,7 +65,7 @@ def _log_dict(d: dict[str, object], indent: int = 0) -> None:
         prefix = "  " * indent + f"{key}:"
         if isinstance(value, dict):
             logger.info(prefix)
-            _log_dict(cast(dict[str, object], value), indent + 1)
+            _log_dict(cast("dict[str, object]", value), indent + 1)
         else:
             logger.info(f"{prefix} {value}")
 
@@ -230,11 +230,11 @@ def _display_risk_info(app_settings: AppSettings) -> None:
     if circuit_breakers:
         logger.info(f"  Enabled: {circuit_breakers.enabled}")
         logger.info(
-            f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}"
+            f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}",
         )
         logger.info(f"  Global Reset Timeout: {circuit_breakers.global_reset_timeout_sec}s")
         logger.info(
-            f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}"
+            f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}",
         )
         logger.info(f"  Exchange Reset Timeout: {circuit_breakers.exchange_reset_timeout_sec}s")
     else:
@@ -261,13 +261,14 @@ def _display_exchange_credential_status(exchange_name: str, exchange_secrets: ob
             logger.info("    API Secret: Set")
         else:
             logger.info("    API Secret: Not Set")
-    else:  # PrivateKeyAuthSecrets
-        if hasattr(exchange_secrets, "private_key") and getattr(
-            exchange_secrets, "private_key", None
-        ):
-            logger.info("    Private Key: Set")
-        else:
-            logger.info("    Private Key: Not Set")
+    elif hasattr(exchange_secrets, "private_key") and getattr(
+        exchange_secrets,
+        "private_key",
+        None,
+    ):
+        logger.info("    Private Key: Set")
+    else:
+        logger.info("    Private Key: Not Set")
 
 
 def _display_credentials_status(app_settings: AppSettings, secrets_config: SecretsConfig) -> None:
@@ -291,7 +292,9 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
     if "hyperliquid" in secrets_config.exchanges:
         hyperliquid_secrets = secrets_config.exchanges["hyperliquid"]
         if hasattr(hyperliquid_secrets, "api_key") and getattr(
-            hyperliquid_secrets, "api_key", None
+            hyperliquid_secrets,
+            "api_key",
+            None,
         ):
             logger.info("Hyperliquid API Key: Loaded successfully")
         else:

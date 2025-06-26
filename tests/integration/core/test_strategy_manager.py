@@ -264,8 +264,8 @@ async def test_process_market_data(
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
+        price=Decimal(50000),
+        quantity=Decimal(1),
         metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
         exchange="mock_exchange",
     )
@@ -276,11 +276,11 @@ async def test_process_market_data(
         symbol="BTC/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("49990"),
-        high=Decimal("50001"),
-        low=Decimal("49980"),
-        close=Decimal("49999"),
-        volume=Decimal("10"),
+        open=Decimal(49990),
+        high=Decimal(50001),
+        low=Decimal(49980),
+        close=Decimal(49999),
+        volume=Decimal(10),
     )
 
     with patch.object(
@@ -324,11 +324,11 @@ async def test_process_market_data_no_enabled_strategies(
         symbol="BTC/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("49990"),
-        high=Decimal("50001"),
-        low=Decimal("49980"),
-        close=Decimal("49999"),
-        volume=Decimal("10"),
+        open=Decimal(49990),
+        high=Decimal(50001),
+        low=Decimal(49980),
+        close=Decimal(49999),
+        volume=Decimal(10),
     )
 
     with patch.object(
@@ -368,11 +368,11 @@ async def test_process_market_data_exception(
         symbol="BTC/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("49990"),
-        high=Decimal("50001"),
-        low=Decimal("49980"),
-        close=Decimal("49999"),
-        volume=Decimal("10"),
+        open=Decimal(49990),
+        high=Decimal(50001),
+        low=Decimal(49980),
+        close=Decimal(49999),
+        volume=Decimal(10),
     )
 
     with patch.object(
@@ -410,8 +410,8 @@ async def test_process_market_data_signal_handler_raises(
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
+        price=Decimal(50000),
+        quantity=Decimal(1),
         metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
         exchange="mock_exchange",
     )
@@ -424,11 +424,11 @@ async def test_process_market_data_signal_handler_raises(
         symbol="BTC/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("49990"),
-        high=Decimal("50001"),
-        low=Decimal("49980"),
-        close=Decimal("49999"),
-        volume=Decimal("10"),
+        open=Decimal(49990),
+        high=Decimal(50001),
+        low=Decimal(49980),
+        close=Decimal(49999),
+        volume=Decimal(10),
     )
 
     with patch.object(
@@ -476,8 +476,8 @@ async def test_process_market_data_duplicate_signals(
         symbol="BTC/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("50000"),
-        quantity=Decimal("1"),
+        price=Decimal(50000),
+        quantity=Decimal(1),
         metadata={"utility_score": 0.8, "origin_strategy": mock_strategy_instance.name},
         exchange="mock_exchange",
     )
@@ -488,11 +488,11 @@ async def test_process_market_data_duplicate_signals(
         symbol="BTC/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("49990"),
-        high=Decimal("50001"),
-        low=Decimal("49980"),
-        close=Decimal("49999"),
-        volume=Decimal("10"),
+        open=Decimal(49990),
+        high=Decimal(50001),
+        low=Decimal(49980),
+        close=Decimal(49999),
+        volume=Decimal(10),
     )
 
     with patch.object(
@@ -530,8 +530,8 @@ async def test_process_market_data_mixed_valid_invalid(
         symbol="ETH/USDT",
         signal_type=SignalType.ENTER_SHORT,
         side=OrderSide.SELL,
-        price=Decimal("3000"),
-        quantity=Decimal("5"),
+        price=Decimal(3000),
+        quantity=Decimal(5),
         metadata={"utility_score": 0.9, "origin_strategy": mock_strategy_instance.name},
         exchange="another_exchange",
     )
@@ -544,11 +544,11 @@ async def test_process_market_data_mixed_valid_invalid(
         symbol="ETH/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("2990"),
-        high=Decimal("3001"),
-        low=Decimal("2980"),
-        close=Decimal("2999"),
-        volume=Decimal("12"),
+        open=Decimal(2990),
+        high=Decimal(3001),
+        low=Decimal(2980),
+        close=Decimal(2999),
+        volume=Decimal(12),
     )
 
     with (
@@ -609,8 +609,8 @@ async def test_signal_handler_risk_manager_exception(
         symbol="SYM/USDT",
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
-        price=Decimal("100"),
-        quantity=Decimal("1"),
+        price=Decimal(100),
+        quantity=Decimal(1),
         exchange="test_exchange",
     )
     strategy_manager.register_strategy(mock_strategy_instance)
@@ -623,11 +623,11 @@ async def test_signal_handler_risk_manager_exception(
         symbol="SYM/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("99"),
-        high=Decimal("101"),
-        low=Decimal("98"),
-        close=Decimal("100"),
-        volume=Decimal("100"),
+        open=Decimal(99),
+        high=Decimal(101),
+        low=Decimal(98),
+        close=Decimal(100),
+        volume=Decimal(100),
     )
 
     with (
@@ -678,11 +678,11 @@ async def test_signal_handler_update_historical_data_exception(
         symbol="SYM/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("99"),
-        high=Decimal("101"),
-        low=Decimal("98"),
-        close=Decimal("100"),
-        volume=Decimal("100"),
+        open=Decimal(99),
+        high=Decimal(101),
+        low=Decimal(98),
+        close=Decimal(100),
+        volume=Decimal(100),
     )
 
     with (
@@ -731,7 +731,7 @@ async def test_process_market_data_malformed_signal(
         "symbol": "SYM/USDT",
         "signal_type": SignalType.ENTER_LONG,
         "side": OrderSide.BUY,
-        "quantity": Decimal("1"),
+        "quantity": Decimal(1),
         "exchange": "test",
         "metadata": {},
     }
@@ -743,11 +743,11 @@ async def test_process_market_data_malformed_signal(
         symbol="SYM/USDT",
         interval="1m",
         open_time=datetime.now(UTC),
-        open=Decimal("99"),
-        high=Decimal("101"),
-        low=Decimal("98"),
-        close=Decimal("100"),
-        volume=Decimal("100"),
+        open=Decimal(99),
+        high=Decimal(101),
+        low=Decimal(98),
+        close=Decimal(100),
+        volume=Decimal(100),
     )
 
     with (

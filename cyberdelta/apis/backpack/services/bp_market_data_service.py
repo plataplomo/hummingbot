@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Literal, TypeGuard
+from typing import Literal, TypeGuard
 
 from pydantic import ValidationError
 
@@ -69,9 +69,6 @@ from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.utils.typing import ParsedJsonResponse  # Import ParsedJsonResponse
 
 
-if TYPE_CHECKING:
-    pass
-
 logger = get_logger(__name__)
 
 # Type alias for the HTTP client requester callable that the service will use.
@@ -83,7 +80,20 @@ HttpClientRequesterSig = Callable[
 
 # Type alias for supported timeframes
 BackpackTimeframe = Literal[
-    "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"
+    "1m",
+    "3m",
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "2h",
+    "4h",
+    "6h",
+    "8h",
+    "12h",
+    "1d",
+    "3d",
+    "1w",
 ]
 
 
@@ -500,7 +510,9 @@ class BackpackMarketDataService:
         )
 
         validated_data = ensure_list_response(
-            raw_data_list, f"recent trades ({symbol})", status_code
+            raw_data_list,
+            f"recent trades ({symbol})",
+            status_code,
         )
 
         return validated_data, status_code, dict(headers)
@@ -560,7 +572,7 @@ class BackpackMarketDataService:
         """Handle various recent trades-related exceptions."""
         if isinstance(e, APIError):
             raise
-        elif isinstance(e, TransformationError):
+        if isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for {symbol}: {e}",
@@ -573,7 +585,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValidationError):
+        if isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e}",
@@ -586,7 +598,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValueError | TypeError):
+        if isinstance(e, ValueError | TypeError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for {symbol}: {e}",
@@ -599,18 +611,17 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        else:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected error for {symbol}: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected error occurred.",
-                original_exception=e,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected error for {symbol}: {e}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected error occurred.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 100) -> list[Trade]:
         """Retrieves recent trades for a specific symbol."""
@@ -699,7 +710,9 @@ class BackpackMarketDataService:
         )
 
     def _process_funding_rate_response(
-        self, raw_funding_interval_rates: list[BackpackRawFundingIntervalRate], symbol: str
+        self,
+        raw_funding_interval_rates: list[BackpackRawFundingIntervalRate],
+        symbol: str,
     ) -> FundingRate:
         """Process funding rate response and return internal model."""
         if not raw_funding_interval_rates:
@@ -737,16 +750,15 @@ class BackpackMarketDataService:
                 message=f"Failed to process funding rate data: {error_type}",
                 original_exception=error,
             ) from error
-        else:
-            logger.error(
-                f"[{self._exchange_name}] get_funding_rate: Unexpected error for {symbol}: {error}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=error,
-            ) from error
+        logger.error(
+            f"[{self._exchange_name}] get_funding_rate: Unexpected error for {symbol}: {error}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=error,
+        ) from error
 
     def _validate_funding_rates_symbols(self, symbols: list[str], current_method: str) -> None:
         """Validate symbols for get_funding_rates."""
@@ -789,7 +801,7 @@ class BackpackMarketDataService:
         """Handle exceptions for get_funding_rates."""
         if isinstance(e, APIError):
             raise
-        elif isinstance(e, TransformationError):
+        if isinstance(e, TransformationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange data: {e}",
                 exc_info=True,
@@ -801,7 +813,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValidationError):
+        if isinstance(e, ValidationError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation failed: {e}",
                 exc_info=True,
@@ -813,7 +825,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        elif isinstance(e, ValueError | TypeError):
+        if isinstance(e, ValueError | TypeError):
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error: {e}",
                 exc_info=True,
@@ -825,18 +837,17 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        else:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: {e}",
-                exc_info=True,
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e
+        logger.error(
+            f"[{self._exchange_name}] {current_method}: Unexpected service failure: {e}",
+            exc_info=True,
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Retrieves current funding rates for one or more symbols.
@@ -901,7 +912,10 @@ class BackpackMarketDataService:
 
         try:
             return await self._execute_funding_rates_request(
-                args, start_time_ms, end_time_ms, current_method
+                args,
+                start_time_ms,
+                end_time_ms,
+                current_method,
             )
         except APIError:
             raise
@@ -947,7 +961,9 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     def _process_funding_rate_time_params(
-        self, args: GetHistoricalFundingRatesArgs, current_method: str
+        self,
+        args: GetHistoricalFundingRatesArgs,
+        current_method: str,
     ) -> tuple[int | None, int | None]:
         """Process and validate time parameters for funding rate requests."""
         start_time_ms: int | None = None
@@ -1006,7 +1022,10 @@ class BackpackMarketDataService:
         raw_data, status_code, headers = response_tuple
 
         return await self._process_funding_rates_response(
-            raw_data, status_code, headers, args.symbol
+            raw_data,
+            status_code,
+            headers,
+            args.symbol,
         )
 
     async def _process_funding_rates_response(
@@ -1026,7 +1045,9 @@ class BackpackMarketDataService:
         )
 
         validated_data = ensure_list_response(
-            raw_data, f"historical funding rates ({symbol})", status_code
+            raw_data,
+            f"historical funding rates ({symbol})",
+            status_code,
         )
 
         raw_funding_interval_rates: list[BackpackRawFundingIntervalRate] = (
@@ -1149,7 +1170,9 @@ class BackpackMarketDataService:
             ) from e_unexpected
 
     def _validate_and_prepare_timeframe(
-        self, timeframe: str, current_method: str
+        self,
+        timeframe: str,
+        current_method: str,
     ) -> BackpackTimeframe:
         """Validate timeframe is supported by Backpack and return typed literal."""
         if not is_valid_backpack_timeframe(timeframe):
@@ -1207,7 +1230,11 @@ class BackpackMarketDataService:
         raw_data_list, status_code, headers = response_tuple
 
         return await self._process_market_data_response(
-            raw_data_list, status_code, headers, args.symbol, args.timeframe
+            raw_data_list,
+            status_code,
+            headers,
+            args.symbol,
+            args.timeframe,
         )
 
     async def _process_market_data_response(
@@ -1228,7 +1255,9 @@ class BackpackMarketDataService:
         )
 
         validated_data = ensure_list_response(
-            raw_data_list, f"klines ({symbol}@{timeframe})", status_code
+            raw_data_list,
+            f"klines ({symbol}@{timeframe})",
+            status_code,
         )
 
         raw_kline_models: list[BackpackRawKline] = (
@@ -1262,7 +1291,7 @@ class BackpackMarketDataService:
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
                     f"Skipping kline map error for {symbol}@{timeframe}: "
-                    f"{e_map_item}. Item: {repr(raw_kline_model)}",
+                    f"{e_map_item}. Item: {raw_kline_model!r}",
                 )
         logger.debug(
             f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for "
@@ -1320,7 +1349,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw market response for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             validated_data = ensure_dict_response(raw_data, f"market ({symbol})", status_code)
@@ -1441,7 +1470,7 @@ class BackpackMarketDataService:
 
             logger.debug(
                 f"[{self._exchange_name}] Raw markets response: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})"
+                f"(Status: {status_code}, Headers: {headers})",
             )
 
             validated_data = ensure_list_response(raw_data, "markets data", status_code)
@@ -1456,19 +1485,19 @@ class BackpackMarketDataService:
             for raw_market_model in raw_markets_list:
                 try:
                     internal_market = self._mapper.transform_raw_market_to_internal(
-                        raw_market_model
+                        raw_market_model,
                     )
                     markets_list.append(internal_market)
                 except Exception as e:
                     logger.warning(
                         f"[{self._exchange_name}] Failed to transform market "
-                        f"{raw_market_model.symbol}: {e}"
+                        f"{raw_market_model.symbol}: {e}",
                     )
                     continue
 
             logger.debug(
                 f"[{self._exchange_name}] Transformed {len(markets_list)} markets "
-                f"to internal models"
+                f"to internal models",
             )
             return markets_list
 

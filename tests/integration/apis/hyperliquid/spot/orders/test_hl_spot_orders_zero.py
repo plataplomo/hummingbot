@@ -35,7 +35,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/orders/zero"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/spot/orders/zero"],
+    indirect=True,
 )
 class TestHyperliquidSpotOrdersZero:
     """Comprehensive spot order info integration tests for Order model validation.

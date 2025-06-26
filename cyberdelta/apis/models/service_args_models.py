@@ -26,10 +26,10 @@ class PlaceOrderArgs(BaseModel):
     symbol: str
     side: OrderSide
     order_type: OrderType
-    quantity: Decimal = Field(gt=Decimal("0"))
+    quantity: Decimal = Field(gt=Decimal(0))
     time_in_force: TimeInForce
-    price: Decimal | None = Field(default=None, gt=Decimal("0"))
-    stop_price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    price: Decimal | None = Field(default=None, gt=Decimal(0))
+    stop_price: Decimal | None = Field(default=None, gt=Decimal(0))
     client_order_id: str | None = Field(default=None)
     reduce_only: bool = Field(default=False)
     post_only: bool = Field(default=False)
@@ -74,7 +74,7 @@ class PlaceOrderArgs(BaseModel):
         if v is not None and not is_potential_decimal_input(v):
             raise ValueError(
                 f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}"
+                f"got {type(v).__name__}",
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=not is_required)
@@ -116,7 +116,7 @@ class TransferArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     asset: str
-    amount: Decimal = Field(gt=Decimal("0"))
+    amount: Decimal = Field(gt=Decimal(0))
     from_account_type: str  # Specific validation might depend on exchange
     to_account_type: str  # Specific validation might depend on exchange
     client_transfer_id: str | None = Field(default=None)
@@ -155,7 +155,7 @@ class TransferArgs(BaseModel):
         if not is_potential_decimal_input(v):
             raise ValueError(
                 f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}"
+                f"got {type(v).__name__}",
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
@@ -186,7 +186,7 @@ class WithdrawArgs(BaseModel):
     model_config = ConfigDict(extra="allow", validate_assignment=True)  # extra="allow" for **kwargs
 
     asset: str
-    amount: Decimal = Field(gt=Decimal("0"))
+    amount: Decimal = Field(gt=Decimal(0))
     address: str
     network: str | None = Field(default=None)  # Optional for some exchanges
     tag: str | None = Field(default=None)  # e.g., memo for XRP, destination tag for others
@@ -228,7 +228,7 @@ class WithdrawArgs(BaseModel):
         if not is_potential_decimal_input(v):
             raise ValueError(
                 f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}"
+                f"got {type(v).__name__}",
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
@@ -264,7 +264,7 @@ class GetOrderHistoryArgs(BaseModel):
     @classmethod
     def validate_optional_strings(
         cls,
-        v: str | int | float | None,
+        v: str | float | None,
         info: ValidationInfo,
     ) -> str | None:
         """Validate optional string fields are non-empty with reasonable max length."""
@@ -282,7 +282,7 @@ class GetOrderHistoryArgs(BaseModel):
     @classmethod
     def parse_optional_datetime_utc(
         cls,
-        v: str | int | float | datetime | None,
+        v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
@@ -466,7 +466,7 @@ class GetFundingRatesArgs(BaseModel):
             # Ensure item is a non-empty string
             item_str = validate_str_field(
                 str(item),
-                field_name=f"{str(info.field_name)}[{i}]",
+                field_name=f"{info.field_name!s}[{i}]",
                 max_length=64,
                 allow_empty=False,
             )
@@ -631,7 +631,7 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     @classmethod
     def parse_optional_datetime_utc(
         cls,
-        v: datetime | int | float | str | None,
+        v: datetime | float | str | None,
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC."""
@@ -646,12 +646,12 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         if v is None:
             return None
         if not isinstance(v, int | str | float):
-            raise ValueError(f"Field '{str(info.field_name)}' must be an integer or convertible.")
+            raise ValueError(f"Field '{info.field_name!s}' must be an integer or convertible.")
         try:
             int_val = int(v)
             return int_val
         except ValueError as e:
-            msg = f"Field '{str(info.field_name)}' could not be converted to int: {v}"
+            msg = f"Field '{info.field_name!s}' could not be converted to int: {v}"
             raise ValueError(msg) from e
 
     @model_validator(mode="after")
@@ -716,7 +716,7 @@ class GetMaxOrderQuantityArgs(BaseModel):
 
     symbol: str = Field(..., min_length=1, max_length=64)
     side: OrderSide
-    price: Decimal | None = Field(default=None, gt=Decimal("0"))
+    price: Decimal | None = Field(default=None, gt=Decimal(0))
     reduce_only: bool | None = Field(default=None)
     auto_borrow: bool | None = Field(default=None)
     auto_borrow_repay: bool | None = Field(default=None)
@@ -742,7 +742,7 @@ class UpdateAccountSettingsArgs(BaseModel):
     auto_lend: bool | None = Field(default=None)
     auto_realize_pnl: bool | None = Field(default=None)
     auto_repay_borrows: bool | None = Field(default=None)
-    leverage_limit: Decimal | None = Field(default=None, gt=Decimal("0"))
+    leverage_limit: Decimal | None = Field(default=None, gt=Decimal(0))
 
 
 # --- Additional Args Models for RequestBuilder Architecture Compliance ---
@@ -770,7 +770,7 @@ class TransferL2UsdArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     destination_address: str = Field(..., min_length=1, max_length=128)
-    amount: Decimal = Field(..., gt=Decimal("0"))
+    amount: Decimal = Field(..., gt=Decimal(0))
 
 
 class GetUserStateArgs(BaseModel):
@@ -813,7 +813,7 @@ class WithdrawL1Args(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     asset: str = Field(..., min_length=1, max_length=64)
-    amount: Decimal = Field(..., gt=Decimal("0"))
+    amount: Decimal = Field(..., gt=Decimal(0))
     destination_address: str = Field(..., min_length=1, max_length=128)
 
 

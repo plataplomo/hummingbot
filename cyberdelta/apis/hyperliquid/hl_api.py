@@ -427,7 +427,6 @@ class HyperliquidAPI(ExchangeAPI):
                 f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
             ),
         )
-        pass
 
     def _construct_subscription_payload(self, topic: str) -> HyperliquidRawWsSubscribeRequest:
         """Construct subscription payload for the given topic.
@@ -571,7 +570,8 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.trading_service.place_batch_orders(orders)
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request for improved performance.
 
@@ -734,16 +734,7 @@ class HyperliquidAPI(ExchangeAPI):
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
-        logger.info(
-            "hyperliquid_websocket_subscribing",
-            exchange=self.exchange_name,
-            topic=topic,
-            action="delegating_to_base_api",
-            message=(
-                f"[{self.exchange_name}] Subscribing to topic: {topic}. Delegating to base "
-                f"ExchangeAPI."
-            ),
-        )
+        # Removed redundant subscription log - base class already logs
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:

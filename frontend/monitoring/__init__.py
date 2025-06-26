@@ -15,7 +15,7 @@ from frontend.monitoring.real_time_dashboard import (
 
 __all__ = [
     "DashboardIntegration",
-    "get_dashboard_integration",
     "RealTimeDashboard",
+    "get_dashboard_integration",
     "launch_dashboard",
 ]

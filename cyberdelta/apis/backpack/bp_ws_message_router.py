@@ -13,6 +13,7 @@ providing a cleaner separation of concerns and better testability.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Literal
 
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
@@ -62,6 +63,11 @@ class BackpackWsMessageRouter:
         self._raw_ws_handler = raw_ws_handler
         self._exchange_name = exchange_name
         self.logger = get_logger(__name__)
+
+        # Error suppression for repeated unroutable messages
+        self._suppressed_errors: dict[str, float] = {}
+        self._error_counts: dict[str, int] = {}
+        self._suppression_duration = 300  # 5 minutes
 
     def construct_subscription_payload(
         self,
@@ -231,10 +237,30 @@ class BackpackWsMessageRouter:
         topic_str, data_payload = self._extract_topic_and_data(message)
 
         if not topic_str:
-            self.logger.debug(
-                f"[{self._exchange_name}] Unroutable message - no clear string topic "
-                f"and not a known event type: {message}",
-            )
+            # Create error key for suppression
+            error_key = str(message.get("error", {}).get("code", "unknown"))
+            current_time = time.time()
+
+            # Track error count
+            self._error_counts[error_key] = self._error_counts.get(error_key, 0) + 1
+
+            # Check if we should suppress this error
+            if error_key not in self._suppressed_errors:
+                # First occurrence - log and suppress future
+                self.logger.warning(
+                    f"[{self._exchange_name}] Unroutable message (suppressing future) - "
+                    f"no clear string topic: {message}",
+                )
+                self._suppressed_errors[error_key] = current_time
+            elif current_time - self._suppressed_errors[error_key] > self._suppression_duration:
+                # Re-log after suppression duration
+                self.logger.warning(
+                    f"[{self._exchange_name}] Repeated unroutable message - "
+                    f"no clear string topic: {message} (count: {self._error_counts[error_key]})",
+                )
+                self._suppressed_errors[error_key] = current_time
+                self._error_counts[error_key] = 0  # Reset count
+            # Else: suppress the log
             return
 
         if data_payload is None:

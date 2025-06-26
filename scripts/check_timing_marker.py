@@ -52,11 +52,11 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
         # If file has timing operations but no marker
         if has_timing_operations(content) and not has_timing_marker(content):
             issues.append(
-                f"{file_path}: Test uses timing operations but missing @pytest.mark.timing marker"
+                f"{file_path}: Test uses timing operations but missing @pytest.mark.timing marker",
             )
 
     except Exception as e:
-        issues.append(f"{file_path}: Error reading file: {str(e)}")
+        issues.append(f"{file_path}: Error reading file: {e!s}")
 
     return len(issues) == 0, issues
 

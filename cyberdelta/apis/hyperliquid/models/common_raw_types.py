@@ -9,6 +9,7 @@ for raw models, ensuring consistency and adhering to project rules.
 
 from __future__ import annotations
 
+import string
 from collections.abc import (
     Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
 )
@@ -167,7 +168,7 @@ def _wrap_validate_tx_hash_str(
 
     # Step 4: Check if the part after "0x" is valid hexadecimal
     hex_part = s[2:]
-    if not all(c in "0123456789abcdefABCDEF" for c in hex_part):
+    if not all(c in string.hexdigits for c in hex_part):
         raise ValueError(
             f"{field_name}: Contains non-hexadecimal characters after '0x'. Value: '{s}'",
         )
@@ -206,9 +207,8 @@ def _wrap_validate_raw_int(
         )
         if is_timestamp_field:
             raise ValueError(f"{field_name}: Timestamp {val_int} must be non-negative.")
-        else:
-            # Default message for other non-negative ints (matches user_fills test expectation)
-            raise ValueError(f"{field_name}: Value {val_int} cannot be negative.")
+        # Default message for other non-negative ints (matches user_fills test expectation)
+        raise ValueError(f"{field_name}: Value {val_int} cannot be negative.")
     return handler(val_int)
 
 
@@ -678,7 +678,7 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
     # Check exact length: 0x + 32 hex chars = 34 total
     if len(v) != 34:
         raise ValueError(
-            f"{field_name}: Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}"
+            f"{field_name}: Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}",
         )
 
     # Check if the part after 0x is valid hex
@@ -855,7 +855,7 @@ RawStatusStringHL = Annotated[
 """A raw string representing a known exchange status (e.g., canceled, modified)."""
 
 
-def _validate_timestamp_ms(value: int | str | float) -> int:
+def _validate_timestamp_ms(value: str | float) -> int:
     """Validate if the value is an integer and a plausible millisecond timestamp."""
     if not isinstance(value, int):
         raise ValueError(f"Timestamp must be an integer, got {type(value).__name__}")

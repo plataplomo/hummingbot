@@ -42,15 +42,15 @@ def mock_exchange_api() -> AsyncMock:
         "USDC": SpotBalance(
             asset="USDC",
             exchange="hyperliquid",
-            total_quantity=Decimal("10000"),
-            available_quantity=Decimal("10000"),
+            total_quantity=Decimal(10000),
+            available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
         "BTC": SpotBalance(
             asset="BTC",
             exchange="hyperliquid",
-            total_quantity=Decimal("1"),
-            available_quantity=Decimal("1"),
+            total_quantity=Decimal(1),
+            available_quantity=Decimal(1),
             timestamp=datetime.now(UTC),
         ),
     }
@@ -61,20 +61,20 @@ def mock_exchange_api() -> AsyncMock:
             timestamp=datetime.now(UTC),
             symbol="BTC",
             size=Decimal("0.5"),
-            entry_price=Decimal("60000"),
-            mark_price=Decimal("61000"),
+            entry_price=Decimal(60000),
+            mark_price=Decimal(61000),
             side=OrderSide.BUY,
-            unrealized_pnl=Decimal("500"),
+            unrealized_pnl=Decimal(500),
         ),
         "ETH": DerivativePosition(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             symbol="ETH",
-            size=Decimal("-10"),
-            entry_price=Decimal("3000"),
-            mark_price=Decimal("2950"),
+            size=Decimal(-10),
+            entry_price=Decimal(3000),
+            mark_price=Decimal(2950),
             side=OrderSide.SELL,
-            unrealized_pnl=Decimal("500"),
+            unrealized_pnl=Decimal(500),
         ),
     }
 
@@ -175,8 +175,8 @@ def mock_arbitrage_opportunity() -> MagicMock:
     opportunity.expected_profit = 10.0
     opportunity.confidence = 0.8
     opportunity.timestamp = datetime.now(UTC)
-    opportunity.long_price = Decimal("30000")
-    opportunity.short_price = Decimal("29999")
+    opportunity.long_price = Decimal(30000)
+    opportunity.short_price = Decimal(29999)
     opportunity.long_size = Decimal("0.1")
     opportunity.short_size = Decimal("0.1")
 

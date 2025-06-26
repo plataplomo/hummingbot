@@ -58,7 +58,9 @@ logger = get_logger(__name__)
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/orders/zero_balance"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/orders/zero_balance"],
+    indirect=True,
 )
 class TestBackpackOrdersZeroBalance:
     """Integration tests for Backpack orders with $0 balance (insufficient funds scenarios)."""
@@ -95,7 +97,9 @@ class TestBackpackOrdersZeroBalance:
         """
         symbol = "SOL_USDC"
         current_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         # Test cases with extreme parameters
@@ -123,7 +127,7 @@ class TestBackpackOrdersZeroBalance:
                     symbol=symbol,
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
-                    quantity=Decimal("1000000"),  # Extremely large
+                    quantity=Decimal(1000000),  # Extremely large
                     price=current_price,
                     time_in_force=TimeInForce.GTC,
                 ),
@@ -156,7 +160,7 @@ class TestBackpackOrdersZeroBalance:
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=Decimal("0.1"),
-                    price=current_price * Decimal("1000"),  # 1000x current price
+                    price=current_price * Decimal(1000),  # 1000x current price
                     time_in_force=TimeInForce.GTC,
                 ),
                 "expected_errors": [
@@ -180,7 +184,7 @@ class TestBackpackOrdersZeroBalance:
             )
 
             logger.info(
-                f"✓ Extreme edge case '{test_case['name']}' properly rejected: {api_error.code}"
+                f"✓ Extreme edge case '{test_case['name']}' properly rejected: {api_error.code}",
             )
 
     @pytest.mark.vcr
@@ -195,7 +199,9 @@ class TestBackpackOrdersZeroBalance:
         Tests how the API handles malformed symbols, invalid enum values, and edge cases.
         """
         current_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, "SOL_USDC", OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            "SOL_USDC",
+            OrderSide.BUY,
         )
 
         # Test malformed symbols
@@ -235,13 +241,13 @@ class TestBackpackOrdersZeroBalance:
                 )
 
                 logger.info(
-                    f"✓ Malformed symbol '{malformed_symbol}' properly rejected: {api_error.code}"
+                    f"✓ Malformed symbol '{malformed_symbol}' properly rejected: {api_error.code}",
                 )
 
             except Exception as e:
                 # Some malformed symbols might fail at Pydantic validation level
                 logger.info(
-                    f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}"
+                    f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}",
                 )
 
     @pytest.mark.vcr
@@ -257,7 +263,9 @@ class TestBackpackOrdersZeroBalance:
         """
         symbol = "SOL_USDC"
         base_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         precision_test_cases: list[dict[str, Any]] = [
@@ -330,7 +338,9 @@ class TestBackpackOrdersZeroBalance:
 
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         # Create multiple order requests
@@ -348,7 +358,8 @@ class TestBackpackOrdersZeroBalance:
 
         # Execute all requests concurrently
         results: list[Order | BaseException] = await asyncio.gather(
-            *order_tasks, return_exceptions=True
+            *order_tasks,
+            return_exceptions=True,
         )
 
         # All should be APIError instances (insufficient funds)
@@ -378,7 +389,7 @@ class TestBackpackOrdersZeroBalance:
 
         logger.info(
             f"✓ Concurrent operations handled: {insufficient_funds_count} insufficient funds, "
-            f"{rate_limit_count} rate limited"
+            f"{rate_limit_count} rate limited",
         )
 
     @pytest.mark.vcr
@@ -395,7 +406,9 @@ class TestBackpackOrdersZeroBalance:
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         # Step 1: Try to place order (should fail with insufficient funds)
@@ -435,7 +448,7 @@ class TestBackpackOrdersZeroBalance:
             APIErrorCode.EXCHANGE_SPECIFIC.value,
         ]
         logger.info(
-            f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}"
+            f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}",
         )
 
         # Step 3: Query order history (should work but return empty/minimal results)
@@ -460,7 +473,7 @@ class TestBackpackOrdersZeroBalance:
             # These don't require immediate funds and can exist with zero balance
             logger.info(
                 f"✓ Step 4: Open orders query succeeded, found {len(open_orders)} orders "
-                f"(may include conditional orders)"
+                f"(may include conditional orders)",
             )
 
         except APIError as open_exc:
@@ -560,7 +573,7 @@ class TestBackpackOrdersZeroBalance:
             assert order.exchange_order_id is not None
             assert order.order_type == OrderType.STOP_MARKET
             logger.info(
-                f"✓ Stop market order accepted as conditional order: {order.exchange_order_id}"
+                f"✓ Stop market order accepted as conditional order: {order.exchange_order_id}",
             )
 
             # Clean up the order if it was created
@@ -683,7 +696,7 @@ class TestBackpackOrdersZeroBalance:
             assert order.order_type == OrderType.TAKE_PROFIT_MARKET
             logger.info(
                 f"✓ Take profit market order accepted as conditional order: "
-                f"{order.exchange_order_id}"
+                f"{order.exchange_order_id}",
             )
 
             # Clean up the order if it was created
@@ -763,7 +776,7 @@ class TestBackpackOrdersZeroBalance:
         )
 
         logger.info(
-            f"✓ Take profit limit order correctly failed: {api_error.code} - {api_error.message}"
+            f"✓ Take profit limit order correctly failed: {api_error.code} - {api_error.message}",
         )
 
     @pytest.mark.vcr
@@ -905,13 +918,13 @@ class TestBackpackOrdersZeroBalance:
                     )
                     logger.info(
                         f"✓ {test_case['name']} conditional order placed successfully: "
-                        f"{order.status.value}"
+                        f"{order.status.value}",
                     )
                 else:
                     # Non-conditional orders should not succeed with zero balance
                     pytest.fail(
                         f"Order type {test_case['name']} unexpectedly succeeded with zero balance. "
-                        f"Order ID: {order.exchange_order_id}, Status: {order.status.value}"
+                        f"Order ID: {order.exchange_order_id}, Status: {order.status.value}",
                     )
             except APIError as api_error:
                 # Order failed as expected
@@ -921,7 +934,7 @@ class TestBackpackOrdersZeroBalance:
                 )
                 logger.info(
                     f"✓ {test_case['name']} correctly failed: {api_error.code} - "
-                    f"{api_error.message}"
+                    f"{api_error.message}",
                 )
 
         logger.info(f"✓ All {len(order_type_tests)} order types tested with zero balance")
@@ -1004,7 +1017,7 @@ class TestBackpackOrdersZeroBalance:
 
             logger.info(
                 f"✓ Extreme case '{test_case['name']}' correctly rejected: "
-                f"{api_error.code} - {api_error.message}"
+                f"{api_error.code} - {api_error.message}",
             )
 
         logger.info(f"✓ All {len(extreme_test_cases)} extreme edge cases tested")
@@ -1089,7 +1102,7 @@ class TestBackpackOrdersZeroBalance:
             )
 
             logger.info(
-                f"✓ Invalid combination '{test_case['name']}' correctly rejected: {api_error.code}"
+                f"✓ Invalid combination '{test_case['name']}' correctly rejected: {api_error.code}",
             )
 
         logger.info(f"✓ All {len(invalid_combinations)} invalid trigger combinations tested")
@@ -1163,18 +1176,18 @@ class TestBackpackOrdersZeroBalance:
                     )
 
                     logger.info(
-                        f"✓ {symbol} {order_test['type']} order correctly failed: {api_error.code}"
+                        f"✓ {symbol} {order_test['type']} order correctly failed: {api_error.code}",
                     )
 
             except Exception as e:
                 # Multi-symbol tests should work even with zero balance
                 pytest.fail(
                     f"Failed to test zero balance behavior for symbol {symbol}: {e}. "
-                    "Error handling should be consistent across all symbols."
+                    "Error handling should be consistent across all symbols.",
                 )
 
         logger.info(
-            f"✓ Multi-symbol zero balance testing completed for {len(test_symbols)} symbols"
+            f"✓ Multi-symbol zero balance testing completed for {len(test_symbols)} symbols",
         )
 
     @pytest.mark.vcr
@@ -1212,7 +1225,7 @@ class TestBackpackOrdersZeroBalance:
                     "symbol": symbol,
                     "side": OrderSide.BUY,
                     "order_type": OrderType.LIMIT,
-                    "quantity": Decimal("0"),  # Zero quantity - violates Pydantic gt=0
+                    "quantity": Decimal(0),  # Zero quantity - violates Pydantic gt=0
                     "price": current_price,
                     "time_in_force": TimeInForce.GTC,
                 },
@@ -1237,7 +1250,7 @@ class TestBackpackOrdersZeroBalance:
                     "side": OrderSide.BUY,
                     "order_type": OrderType.LIMIT,
                     "quantity": min_quantity,
-                    "price": Decimal("0"),  # Zero price - violates Pydantic gt=0
+                    "price": Decimal(0),  # Zero price - violates Pydantic gt=0
                     "time_in_force": TimeInForce.GTC,
                 },
                 "expected_validation": "greater than 0",
@@ -1263,7 +1276,7 @@ class TestBackpackOrdersZeroBalance:
                 # If we get here, Pydantic validation failed to catch invalid params
                 pytest.fail(
                     f"Edge case '{test_case['name']}' should have failed Pydantic validation "
-                    f"but passed. This is a critical validation gap."
+                    f"but passed. This is a critical validation gap.",
                 )
             except ValidationError as ve:
                 # Verify the error message contains expected validation
@@ -1273,7 +1286,7 @@ class TestBackpackOrdersZeroBalance:
                     f"unexpected error: {error_str}"
                 )
                 logger.info(
-                    f"✓ Edge case '{test_case['name']}' correctly rejected by Pydantic validation"
+                    f"✓ Edge case '{test_case['name']}' correctly rejected by Pydantic validation",
                 )
 
         # Test cases that pass Pydantic but should fail at API level
@@ -1338,7 +1351,7 @@ class TestBackpackOrdersZeroBalance:
                 if exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value:
                     logger.info(
                         f"✓ Edge case '{test_case['name']}' rejected due to zero balance "
-                        "(would validate params with funded account)"
+                        "(would validate params with funded account)",
                     )
                 else:
                     # Check if it's one of the expected validation errors
@@ -1348,13 +1361,13 @@ class TestBackpackOrdersZeroBalance:
                     )
                     logger.info(
                         f"✓ Edge case '{test_case['name']}' correctly rejected by API: "
-                        f"{exc_info.value.code}"
+                        f"{exc_info.value.code}",
                     )
 
             except Exception as e:
                 pytest.fail(
                     f"Edge case '{test_case['name']}' failed unexpectedly: {e}. "
-                    "API validation testing is critical for trading safety."
+                    "API validation testing is critical for trading safety.",
                 )
 
         logger.info("✓ All parameter edge cases tested at both validation levels")
@@ -1372,7 +1385,9 @@ class TestBackpackOrdersZeroBalance:
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         place_args = PlaceOrderArgs(
@@ -1429,7 +1444,9 @@ class TestBackpackOrdersZeroBalance:
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(
-            bp_api_for_zero_balance_test, symbol, OrderSide.BUY
+            bp_api_for_zero_balance_test,
+            symbol,
+            OrderSide.BUY,
         )
 
         place_args = PlaceOrderArgs(

@@ -25,7 +25,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -42,17 +44,18 @@ async def test_hl_get_perp_ticker_btc_success(
 
     assert ticker.symbol == "BTC", f"Expected symbol 'BTC', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
-    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+    assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-        hl_api_for_test_env, "BTC"
+        hl_api_for_test_env,
+        "BTC",
     )
 
     # Use exchange-specific minimum price if available, otherwise use tick_size as minimum
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
-        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+        ticker.price * Decimal(100)  # Allow 100x current price as upper bound
     )
 
     assert ticker.price >= min_reasonable_price, (
@@ -66,11 +69,13 @@ async def test_hl_get_perp_ticker_btc_success(
         assert isinstance(ticker.volume, Decimal), (
             f"Volume should be Decimal, got {type(ticker.volume)}"
         )
-        assert ticker.volume >= Decimal("0"), f"Volume should be non-negative, got {ticker.volume}"
+        assert ticker.volume >= Decimal(0), f"Volume should be non-negative, got {ticker.volume}"
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -87,17 +92,18 @@ async def test_hl_get_perp_ticker_eth_success(
 
     assert ticker.symbol == "ETH", f"Expected symbol 'ETH', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
-    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+    assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-        hl_api_for_test_env, "ETH"
+        hl_api_for_test_env,
+        "ETH",
     )
 
     # Use exchange-specific bounds or calculate reasonable bounds from current price
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
-        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+        ticker.price * Decimal(100)  # Allow 100x current price as upper bound
     )
 
     assert ticker.price >= min_reasonable_price, (
@@ -109,7 +115,9 @@ async def test_hl_get_perp_ticker_eth_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -126,17 +134,18 @@ async def test_hl_get_perp_ticker_sol_success(
 
     assert ticker.symbol == "SOL", f"Expected symbol 'SOL', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
-    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+    assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
-        hl_api_for_test_env, "SOL"
+        hl_api_for_test_env,
+        "SOL",
     )
 
     # Use exchange-specific bounds or calculate reasonable bounds from current price
     min_reasonable_price = market_constraints.get("min_price") or market_constraints["tick_size"]
     max_reasonable_price = market_constraints.get("max_price") or (
-        ticker.price * Decimal("100")  # Allow 100x current price as upper bound
+        ticker.price * Decimal(100)  # Allow 100x current price as upper bound
     )
 
     assert ticker.price >= min_reasonable_price, (
@@ -148,7 +157,9 @@ async def test_hl_get_perp_ticker_sol_success(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -168,23 +179,23 @@ async def test_hl_get_perp_ticker_avax_success(
             assert isinstance(ticker.price, Decimal), (
                 f"Price should be Decimal, got {type(ticker.price)}"
             )
-            assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+            assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
-            assert ticker.price > Decimal("1"), f"AVAX price seems too low: {ticker.price}"
-            assert ticker.price < Decimal("1000"), f"AVAX price seems too high: {ticker.price}"
-        else:
-            pass
+            assert ticker.price > Decimal(1), f"AVAX price seems too low: {ticker.price}"
+            assert ticker.price < Decimal(1000), f"AVAX price seems too high: {ticker.price}"
 
     except APIError as e:
         # Market data failures are system errors - don't hide them
         pytest.fail(
             f"Failed to get ticker data: {e}. "
-            "Market data access is critical for trading operations."
+            "Market data access is critical for trading operations.",
         )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -200,7 +211,9 @@ async def test_hl_get_perp_ticker_nonexistent_symbol_returns_none(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -216,7 +229,9 @@ async def test_hl_get_perp_ticker_invalid_symbol_returns_none(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -232,7 +247,9 @@ async def test_hl_get_perp_ticker_empty_symbol_handling(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -270,12 +287,11 @@ async def test_hl_get_perp_ticker_case_sensitivity(
     elif ticker_lower is None and ticker_upper is None:
         pass
 
-    else:
-        pass
-
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -299,17 +315,19 @@ async def test_hl_get_perp_ticker_precision_validation(
             f"Price precision seems too high: {decimal_places} decimal places"
         )
 
-    doubled_price = ticker.price * Decimal("2")
+    doubled_price = ticker.price * Decimal(2)
     assert isinstance(doubled_price, Decimal), "Arithmetic with price should maintain Decimal type"
     assert doubled_price == ticker.price + ticker.price, "Decimal arithmetic should be consistent"
 
-    half_price = ticker.price / Decimal("2")
+    half_price = ticker.price / Decimal(2)
     assert isinstance(half_price, Decimal), "Division should maintain Decimal type"
     assert half_price < ticker.price, "Half price should be less than original price"
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -351,7 +369,9 @@ async def test_hl_get_perp_ticker_multiple_symbols_consistency(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -384,7 +404,9 @@ async def test_hl_get_perp_ticker_symbol_normalization(
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio
@@ -400,7 +422,7 @@ async def test_hl_get_perp_ticker_price_sanity_checks(
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
-    assert ticker.price > Decimal("0"), f"Price should be positive, got {ticker.price}"
+    assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
     assert ticker.price >= Decimal("0.01"), f"Price seems too small for BTC: {ticker.price}"
 
@@ -416,19 +438,21 @@ async def test_hl_get_perp_ticker_price_sanity_checks(
         )
 
     try:
-        large_calc = ticker.price * Decimal("1000000")
+        large_calc = ticker.price * Decimal(1000000)
         assert large_calc.is_finite(), "Large calculation should remain finite"
 
-        small_calc = ticker.price / Decimal("1000000")
+        small_calc = ticker.price / Decimal(1000000)
         assert small_calc.is_finite(), "Small calculation should remain finite"
-        assert small_calc > Decimal("0"), "Small calculation should remain positive"
+        assert small_calc > Decimal(0), "Small calculation should remain positive"
 
     except (OverflowError, ZeroDivisionError):
         pytest.fail("Price arithmetic should not cause overflow or division errors")
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/perp/market_data/ticker"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/perp/market_data/ticker"],
+    indirect=True,
 )
 @pytest.mark.perp
 @pytest.mark.asyncio

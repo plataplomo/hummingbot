@@ -148,15 +148,15 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
         ("total_equity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
         ("total_equity", Decimal("NaN"), "Value must be finite"),
         ("available_equity", "invalid", "Cannot convert 'invalid' to Decimal"),
-        ("available_equity", Decimal("-100"), "Input should be greater than or equal to 0"),
+        ("available_equity", Decimal(-100), "Input should be greater than or equal to 0"),
         # Optional Decimals (>= 0 where applicable)
         (
             "total_initial_margin_required",
-            Decimal("-1"),
+            Decimal(-1),
             "Input should be greater than or equal to 0",
         ),
         ("total_maintenance_margin_required", Decimal("NaN"), "Value must be finite if provided"),
-        ("total_position_notional", Decimal("-1000"), "Input should be greater than or equal to 0"),
+        ("total_position_notional", Decimal(-1000), "Input should be greater than or equal to 0"),
         ("total_unrealized_pnl", Decimal("Infinity"), "Value must be finite if provided"),
     ],
 )
@@ -235,7 +235,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
     assert details.model_config.get("frozen") is True
 
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        details.cross_maintenance_margin_used = Decimal("1000")
+        details.cross_maintenance_margin_used = Decimal(1000)
 
 
 @pytest.mark.parametrize(
@@ -243,7 +243,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
     [
         (
             "cross_maintenance_margin_used",
-            Decimal("-1"),
+            Decimal(-1),
             "Input should be greater than or equal to 0",
         ),
         ("cross_maintenance_margin_used", Decimal("NaN"), "Value must be finite"),
@@ -291,16 +291,16 @@ def test_backpack_margin_details_creation_and_immutability(
     assert details.model_config.get("frozen") is True
 
     with pytest.raises(ValidationError, match="Instance is frozen"):
-        details.assets_value = Decimal("16000")
+        details.assets_value = Decimal(16000)
 
 
 @pytest.mark.parametrize(
     "field, value, error_match",
     [
-        ("assets_value", Decimal("-1"), "Input should be greater than or equal to 0"),
+        ("assets_value", Decimal(-1), "Input should be greater than or equal to 0"),
         ("borrow_liability", Decimal("NaN"), "Value must be finite if provided"),
         ("liabilities_value", "bad-decimal", "Cannot convert 'bad-decimal' to Decimal"),
-        ("locked_equity", Decimal("-100"), "Input should be greater than or equal to 0"),
+        ("locked_equity", Decimal(-100), "Input should be greater than or equal to 0"),
         ("margin_fraction", Decimal("-0.1"), "Input should be greater than or equal to 0"),
         ("imf_raw", 123, "Value error, imf_raw: Expected string, got int"),
         ("mmf_raw", "s" * 257, "String value too long"),

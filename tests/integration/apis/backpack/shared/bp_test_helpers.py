@@ -147,7 +147,7 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
         if not all_markets:
             raise RuntimeError(
                 f"Failed to get {market_type} markets from exchange. "
-                "Tests require access to real market data."
+                "Tests require access to real market data.",
             )
 
         # Filter by market type
@@ -169,7 +169,7 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
         if not symbols:
             raise RuntimeError(
                 f"No {market_type} symbols available from exchange. "
-                "Cannot run integration tests without available markets."
+                "Cannot run integration tests without available markets.",
             )
 
         return symbols
@@ -177,7 +177,7 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
     except Exception as e:
         raise RuntimeError(
             f"Failed to get available {market_type} symbols from exchange: {e}. "
-            "Integration tests must have access to real exchange data."
+            "Integration tests must have access to real exchange data.",
         ) from e
 
 
@@ -206,14 +206,16 @@ async def get_test_symbol(api: BackpackAPI, market_type: str = "spot", index: in
     if index >= len(symbols):
         raise RuntimeError(
             f"Symbol index {index} out of range. "
-            f"Only {len(symbols)} {market_type} symbols available: {symbols}"
+            f"Only {len(symbols)} {market_type} symbols available: {symbols}",
         )
 
     return symbols[index]
 
 
 async def get_major_crypto_symbol(
-    api: BackpackAPI, crypto: str = "BTC", market_type: str = "spot"
+    api: BackpackAPI,
+    crypto: str = "BTC",
+    market_type: str = "spot",
 ) -> str:
     """Get symbol for a major cryptocurrency if available.
 
@@ -243,7 +245,7 @@ async def get_major_crypto_symbol(
         raise RuntimeError(
             f"Cryptocurrency {crypto} not available on exchange for {market_type} markets. "
             f"Available symbols: {symbols[:10]}... "
-            "Tests cannot use hardcoded symbols that don't exist on exchange."
+            "Tests cannot use hardcoded symbols that don't exist on exchange.",
         )
 
     # Return the first match (usually the main trading pair)
@@ -282,7 +284,7 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
 
         if not markets:
             raise RuntimeError(
-                "Failed to get markets from exchange. Tests require access to real market data."
+                "Failed to get markets from exchange. Tests require access to real market data.",
             )
 
         mapping = {
@@ -319,7 +321,7 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
     except Exception as e:
         raise RuntimeError(
             f"Failed to get exchange symbol mapping: {e}. "
-            "Tests require access to exchange symbol information."
+            "Tests require access to exchange symbol information.",
         ) from e
 
 
@@ -357,10 +359,9 @@ def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool
             # Remove _PERP and check the base format
             base_symbol = symbol[:-5]  # Remove "_PERP"
             return "_" in base_symbol and len(base_symbol.split("_")) >= 2
-        else:
-            # Spot symbols should have exactly one underscore (base_quote)
-            parts = symbol.split("_")
-            return len(parts) == 2 and all(len(part) > 0 for part in parts)
+        # Spot symbols should have exactly one underscore (base_quote)
+        parts = symbol.split("_")
+        return len(parts) == 2 and all(len(part) > 0 for part in parts)
 
     return True  # Default to permissive for unknown exchanges
 
@@ -391,14 +392,14 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Symbol {symbol} not found in markets. "
-            "This test requires real market data and cannot use default values."
+            "This test requires real market data and cannot use default values.",
         )
 
     except Exception as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get tick size for {symbol}: {e}. "
-            "This test requires real market data and cannot use default values."
+            "This test requires real market data and cannot use default values.",
         ) from e
 
 
@@ -424,14 +425,14 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Symbol {symbol} not found in markets. "
-            "This test requires real market data and cannot use default values."
+            "This test requires real market data and cannot use default values.",
         )
 
     except Exception as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get step size for {symbol}: {e}. "
-            "This test requires real market data and cannot use default values."
+            "This test requires real market data and cannot use default values.",
         ) from e
 
 
@@ -476,7 +477,7 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get market constraints for {symbol}: {e}. "
-            "This test requires real market data and cannot use default values."
+            "This test requires real market data and cannot use default values.",
         ) from e
 
 
@@ -502,20 +503,22 @@ async def get_current_market_price(api: BackpackAPI, symbol: str) -> Decimal:
 
     if ticker.price is not None:
         return ticker.price
-    elif ticker.mid_price is not None:
+    if ticker.mid_price is not None:
         return ticker.mid_price
-    elif ticker.bid is not None and ticker.ask is not None:
-        return (ticker.bid + ticker.ask) / Decimal("2")
-    elif ticker.bid is not None:
+    if ticker.bid is not None and ticker.ask is not None:
+        return (ticker.bid + ticker.ask) / Decimal(2)
+    if ticker.bid is not None:
         return ticker.bid
-    elif ticker.ask is not None:
+    if ticker.ask is not None:
         return ticker.ask
-    else:
-        raise ValueError(f"Unable to determine market price for {symbol}")
+    raise ValueError(f"Unable to determine market price for {symbol}")
 
 
 async def get_dynamic_test_price(
-    api: BackpackAPI, symbol: str, side: OrderSide, tolerance_percent: Decimal = Decimal("5")
+    api: BackpackAPI,
+    symbol: str,
+    side: OrderSide,
+    tolerance_percent: Decimal = Decimal(5),
 ) -> Decimal:
     """Get a dynamic test price based on current market conditions.
 
@@ -552,12 +555,12 @@ async def get_dynamic_test_price(
         else:
             raise ValueError(f"Unable to determine market price for {symbol}")
 
-        tolerance_factor = tolerance_percent / Decimal("100")
+        tolerance_factor = tolerance_percent / Decimal(100)
 
         if side == OrderSide.BUY:
-            test_price = market_price * (Decimal("1") - tolerance_factor)
+            test_price = market_price * (Decimal(1) - tolerance_factor)
         else:
-            test_price = market_price * (Decimal("1") + tolerance_factor)
+            test_price = market_price * (Decimal(1) + tolerance_factor)
 
         tick_size = await get_symbol_tick_size(api, symbol)
         quantized_price = test_price.quantize(tick_size)
@@ -568,7 +571,7 @@ async def get_dynamic_test_price(
         # If we can't get real market data, the test should fail
         raise RuntimeError(
             f"Failed to get dynamic test price for {symbol} {side.value}: {e}. "
-            "This test requires real market data and cannot use hardcoded fallback prices."
+            "This test requires real market data and cannot use hardcoded fallback prices.",
         ) from e
 
 
@@ -583,7 +586,10 @@ async def get_dynamic_test_price(
 
 
 async def get_minimal_order_size_for_zero_balance_test(
-    api: BackpackAPI, symbol: str, side: OrderSide, price: Decimal
+    api: BackpackAPI,
+    symbol: str,
+    side: OrderSide,
+    price: Decimal,
 ) -> Decimal:
     """Calculate the minimal order size for zero balance tests that will fail.
 
@@ -617,26 +623,28 @@ async def get_minimal_order_size_for_zero_balance_test(
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to calculate minimal order size for zero balance test {symbol}: {e}. "
-            "This test requires real market constraints."
+            "This test requires real market constraints.",
         ) from e
 
 
 async def _get_quote_currency_balance(
-    balances: dict[str, SpotBalance], quote_currency: str
+    balances: dict[str, SpotBalance],
+    quote_currency: str,
 ) -> tuple[SpotBalance | None, str]:
     """Get balance object for quote currency, handling alternative names."""
     if quote_currency in balances:
         return balances[quote_currency], quote_currency
-    elif quote_currency == "USDC" and "USD" in balances:
+    if quote_currency == "USDC" and "USD" in balances:
         return balances["USD"], "USD"
-    elif quote_currency == "USD" and "USDC" in balances:
+    if quote_currency == "USD" and "USDC" in balances:
         return balances["USDC"], "USDC"
-    else:
-        return None, quote_currency
+    return None, quote_currency
 
 
 def _log_balance_details(
-    found_currency: str, balance_obj: SpotBalance, available_balance: Decimal
+    found_currency: str,
+    balance_obj: SpotBalance,
+    available_balance: Decimal,
 ) -> None:
     """Log balance details for debugging."""
     total_balance = balance_obj.total_quantity
@@ -647,18 +655,21 @@ def _log_balance_details(
             f"{found_currency} balance - total: {total_balance}, "
             f"spot_available: {available_quantity}, "
             f"lent: {balance_obj.bp_details.lend_quantity}, "
-            f"using_total_for_trading: {available_balance} (auto-lending active)"
+            f"using_total_for_trading: {available_balance} (auto-lending active)",
         )
     else:
         logger.info(
             f"{found_currency} balance - total: {total_balance}, "
             f"available: {available_quantity}, "
-            f"using_for_trading: {available_balance}"
+            f"using_for_trading: {available_balance}",
         )
 
 
 async def _check_buy_order_balance(
-    api: BackpackAPI, symbol: str, min_quantity: Decimal, price: Decimal
+    api: BackpackAPI,
+    symbol: str,
+    min_quantity: Decimal,
+    price: Decimal,
 ) -> None:
     """Check if there's sufficient balance for a buy order."""
     # Extract quote currency from symbol using existing helper
@@ -681,13 +692,13 @@ async def _check_buy_order_balance(
         _log_balance_details(found_currency, balance_obj, available_balance)
     else:
         # No balance for quote currency
-        total_balance = Decimal("0")
-        available_balance = Decimal("0")
+        total_balance = Decimal(0)
+        available_balance = Decimal(0)
 
-    if total_balance == Decimal("0"):
+    if total_balance == Decimal(0):
         raise RuntimeError(
             f"No {quote_currency} balance available for {symbol} buy order. "
-            "Test requires funded account with appropriate assets."
+            "Test requires funded account with appropriate assets.",
         )
 
     # Calculate maximum affordable quantity (with minimal buffer for fees)
@@ -703,12 +714,15 @@ async def _check_buy_order_balance(
             f"Available: {available_balance} {quote_currency}, "
             f"Total: {total_balance} {quote_currency}, "
             f"Max affordable: {max_affordable_quantity} (with 2% fee buffer). "
-            "User confirmed sufficient balance - proceeding with minimum order size."
+            "User confirmed sufficient balance - proceeding with minimum order size.",
         )
 
 
 async def get_minimal_order_size(
-    api: BackpackAPI, symbol: str, side: OrderSide, price: Decimal
+    api: BackpackAPI,
+    symbol: str,
+    side: OrderSide,
+    price: Decimal,
 ) -> Decimal:
     """Calculate the minimal order size that respects both market constraints and available balance.
 
@@ -754,23 +768,26 @@ async def get_minimal_order_size(
             raise RuntimeError(
                 f"Failed to calculate minimal order size for {symbol}: "
                 f"Invalid symbol format: {symbol}. "
-                "This test requires real market constraints and sufficient balance."
+                "This test requires real market constraints and sufficient balance.",
             ) from e
-        elif "symbol not found" in error_msg or "market not found" in error_msg:
+        if "symbol not found" in error_msg or "market not found" in error_msg:
             raise RuntimeError(
                 f"Failed to calculate minimal order size for {symbol}: "
                 f"Symbol not found in available markets. "
-                "This test requires real market constraints and sufficient balance."
+                "This test requires real market constraints and sufficient balance.",
             ) from e
-        else:
-            raise RuntimeError(
-                f"Failed to calculate minimal order size for {symbol}: {e}. "
-                "This test requires real market constraints and sufficient balance."
-            ) from e
+        raise RuntimeError(
+            f"Failed to calculate minimal order size for {symbol}: {e}. "
+            "This test requires real market constraints and sufficient balance.",
+        ) from e
 
 
 async def validate_order_constraints(
-    api: BackpackAPI, symbol: str, side: OrderSide, quantity: Decimal, price: Decimal
+    api: BackpackAPI,
+    symbol: str,
+    side: OrderSide,
+    quantity: Decimal,
+    price: Decimal,
 ) -> dict[str, bool]:
     """Validate order parameters against market constraints.
 
@@ -823,7 +840,7 @@ async def validate_order_constraints(
     except Exception as e:
         raise RuntimeError(
             f"Failed to validate order constraints for {symbol}: {e}. "
-            "Order constraint validation is critical for trading tests."
+            "Order constraint validation is critical for trading tests.",
         ) from e
 
 
@@ -883,7 +900,7 @@ def get_base_quote_assets(symbol: str) -> tuple[str, str]:
     if "_" in symbol:
         parts = symbol.split("_")
         return parts[0], parts[1]
-    elif "-" in symbol:
+    if "-" in symbol:
         # Legacy support for dash format
         parts = symbol.split("-")
         return parts[0], parts[1]
@@ -1015,7 +1032,7 @@ COLLATERAL_VALUE_TOLERANCE = Decimal("0.01")  # $0.01 for collateral value calcu
 # is appropriate and matches exchange reporting precision.
 
 # Auto-lending specific
-AUTO_LENDING_DETECTION_THRESHOLD = Decimal("0")
+AUTO_LENDING_DETECTION_THRESHOLD = Decimal(0)
 # Justification: When auto-lending is active, spot balances show exactly 0
 # while funds are lent out. No tolerance needed for this binary state.
 
@@ -1035,8 +1052,8 @@ RATIO_UPPER_BOUND = Decimal("1.01")  # 1% upper bound for ratio comparisons
 # accounts for timing differences and calculation method variations.
 
 # Margin fraction bounds
-MARGIN_FRACTION_MIN = Decimal("0")  # Minimum valid margin fraction
-MARGIN_FRACTION_MAX = Decimal("1")  # Maximum valid margin fraction
+MARGIN_FRACTION_MIN = Decimal(0)  # Minimum valid margin fraction
+MARGIN_FRACTION_MAX = Decimal(1)  # Maximum valid margin fraction
 # Justification: Margin fraction is a ratio that must be between 0 (no margin
 # used) and 1 (maximum margin used). Values outside this range indicate errors.
 
@@ -1060,12 +1077,12 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
         spot_balances = await api.get_balances()
 
         # If all spot balances are exactly 0, auto-lending might be active
-        all_zero = all(balance.total_quantity == Decimal("0") for balance in spot_balances.values())
+        all_zero = all(balance.total_quantity == Decimal(0) for balance in spot_balances.values())
 
         if all_zero and len(spot_balances) > 0:
             # Double check with account summary
             account_summary = await api.get_account_summary()
-            if account_summary and account_summary.total_equity > Decimal("0"):
+            if account_summary and account_summary.total_equity > Decimal(0):
                 # Account has value but spot shows 0 = auto-lending
                 return True
 
@@ -1073,7 +1090,7 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
         has_lending = any(
             balance.bp_details
             and balance.bp_details.lend_quantity
-            and balance.bp_details.lend_quantity > Decimal("0")
+            and balance.bp_details.lend_quantity > Decimal(0)
             for balance in spot_balances.values()
         )
 
@@ -1082,7 +1099,7 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
     except Exception as e:
         raise RuntimeError(
             f"Failed to detect auto-lending status: {e}. "
-            "Auto-lending detection is required for accurate balance calculations."
+            "Auto-lending detection is required for accurate balance calculations.",
         ) from e
 
 
@@ -1110,7 +1127,7 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
                 "spot_total": balance.total_quantity,
                 "spot_available": balance.available_quantity,
                 "spot_locked": balance.total_quantity - balance.available_quantity,
-                "lend_quantity": Decimal("0"),
+                "lend_quantity": Decimal(0),
                 "true_total": balance.total_quantity,
             }
 
@@ -1130,9 +1147,9 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
                     total_qty = Decimal(asset_info.get("totalQuantity", "0"))
                     lend_qty = Decimal(asset_info.get("lendQuantity", "0"))
                     result[symbol] = {
-                        "spot_total": Decimal("0"),
-                        "spot_available": Decimal("0"),
-                        "spot_locked": Decimal("0"),
+                        "spot_total": Decimal(0),
+                        "spot_available": Decimal(0),
+                        "spot_locked": Decimal(0),
                         "lend_quantity": lend_qty,
                         "true_total": total_qty,
                     }
@@ -1142,7 +1159,7 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
     except Exception as e:
         raise RuntimeError(
             f"Failed to get balances with lending: {e}. "
-            "Balance retrieval is a critical operation for trading tests."
+            "Balance retrieval is a critical operation for trading tests.",
         ) from e
 
 
@@ -1188,19 +1205,19 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
                     raise ValueError(
                         f"Failed to parse initial margin factor "
                         f"'{account_summary.bp_details.imf_raw}': {e}. "
-                        "Margin factors must be valid decimal values."
+                        "Margin factors must be valid decimal values.",
                     ) from e
 
             if account_summary.bp_details.mmf_raw:
                 try:
                     params["maintenance_margin_factor"] = Decimal(
-                        account_summary.bp_details.mmf_raw
+                        account_summary.bp_details.mmf_raw,
                     )
                 except (ValueError, TypeError, AttributeError) as e:
                     raise ValueError(
                         f"Failed to parse maintenance margin factor "
                         f"'{account_summary.bp_details.mmf_raw}': {e}. "
-                        "Margin factors must be valid decimal values."
+                        "Margin factors must be valid decimal values.",
                     ) from e
 
         # Check for positions
@@ -1234,20 +1251,21 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
             result["maintenance_margin_factor"] = None
 
         # Convert booleans to Decimal for consistency with return type
-        result["has_positions"] = Decimal("1") if params.get("has_positions") else Decimal("0")
-        result["has_open_orders"] = Decimal("1") if params.get("has_open_orders") else Decimal("0")
+        result["has_positions"] = Decimal(1) if params.get("has_positions") else Decimal(0)
+        result["has_open_orders"] = Decimal(1) if params.get("has_open_orders") else Decimal(0)
 
         return result
 
     except Exception as e:
         raise RuntimeError(
             f"Failed to get margin parameters: {e}. "
-            "Margin parameter retrieval is critical for risk management tests."
+            "Margin parameter retrieval is critical for risk management tests.",
         ) from e
 
 
 async def validate_margin_consistency(
-    api: BackpackAPI, account_summary: MarginAccountSummary
+    api: BackpackAPI,
+    account_summary: MarginAccountSummary,
 ) -> dict[str, bool]:
     """Validate margin calculations are internally consistent.
 
@@ -1266,7 +1284,7 @@ async def validate_margin_consistency(
     }
 
     # Equity should be non-negative
-    validations["equity_positive"] = account_summary.total_equity >= Decimal("0")
+    validations["equity_positive"] = account_summary.total_equity >= Decimal(0)
 
     # Available equity should be <= total equity
     validations["available_within_bounds"] = (
@@ -1286,7 +1304,7 @@ async def validate_margin_consistency(
     # Margin fraction should be between 0 and 1
     if account_summary.bp_details and account_summary.bp_details.margin_fraction is not None:
         mf = account_summary.bp_details.margin_fraction
-        validations["margin_fraction_valid"] = Decimal("0") <= mf <= Decimal("1")
+        validations["margin_fraction_valid"] = Decimal(0) <= mf <= Decimal(1)
 
     return validations
 
@@ -1302,11 +1320,10 @@ def get_balance_tolerance(balance_value: Decimal) -> Decimal:
     """
     if balance_value < DUST_THRESHOLD:
         return DUST_THRESHOLD
-    elif balance_value < Decimal("1"):
+    if balance_value < Decimal(1):
         return BALANCE_PRECISION_TOLERANCE
-    else:
-        # For larger values, use percentage-based tolerance
-        return balance_value * QUANTITY_TOLERANCE_PERCENT / Decimal("100")
+    # For larger values, use percentage-based tolerance
+    return balance_value * QUANTITY_TOLERANCE_PERCENT / Decimal(100)
 
 
 def get_price_tolerance(price_value: Decimal) -> Decimal:
@@ -1318,10 +1335,9 @@ def get_price_tolerance(price_value: Decimal) -> Decimal:
     Returns:
         Appropriate tolerance for comparison
     """
-    if price_value < Decimal("1"):
+    if price_value < Decimal(1):
         return Decimal("0.0001")  # Fixed small tolerance for low prices
-    else:
-        return price_value * PRICE_TOLERANCE_PERCENT / Decimal("100")
+    return price_value * PRICE_TOLERANCE_PERCENT / Decimal(100)
 
 
 def is_within_tolerance(
@@ -1343,14 +1359,13 @@ def is_within_tolerance(
     """
     if tolerance is not None:
         return abs(actual - expected) <= tolerance
-    elif tolerance_percent is not None:
-        if expected == Decimal("0"):
-            return actual == Decimal("0")
-        percent_diff = abs((actual - expected) / expected) * Decimal("100")
+    if tolerance_percent is not None:
+        if expected == Decimal(0):
+            return actual == Decimal(0)
+        percent_diff = abs((actual - expected) / expected) * Decimal(100)
         return percent_diff <= tolerance_percent
-    else:
-        # Default to exact match
-        return actual == expected
+    # Default to exact match
+    return actual == expected
 
 
 # =============================================================================
@@ -1369,7 +1384,9 @@ def generate_invalid_order_id() -> str:
 
 
 async def get_unreasonably_large_price(
-    api: BackpackAPI, symbol: str, multiplier: Decimal = Decimal("1000")
+    api: BackpackAPI,
+    symbol: str,
+    multiplier: Decimal = Decimal(1000),
 ) -> Decimal:
     """Get an unreasonably high price for insufficient balance tests.
 
@@ -1390,12 +1407,14 @@ async def get_unreasonably_large_price(
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get unreasonably large price for {symbol}: {e}. "
-            "This test requires real market data and cannot use hardcoded prices."
+            "This test requires real market data and cannot use hardcoded prices.",
         ) from e
 
 
 async def get_unreasonably_large_quantity(
-    api: BackpackAPI, symbol: str, multiplier: Decimal = Decimal("1000")
+    api: BackpackAPI,
+    symbol: str,
+    multiplier: Decimal = Decimal(1000),
 ) -> Decimal:
     """Get an unreasonably large quantity for insufficient balance tests.
 
@@ -1410,14 +1429,14 @@ async def get_unreasonably_large_quantity(
     try:
         constraints = await get_market_constraints(api, symbol)
         min_quantity = constraints.get("min_quantity", Decimal("0.01"))
-        large_quantity = max(min_quantity * multiplier, Decimal("1000"))
+        large_quantity = max(min_quantity * multiplier, Decimal(1000))
         step_size = constraints["step_size"]
         return large_quantity.quantize(step_size).normalize()
     except Exception as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get unreasonably large quantity for {symbol}: {e}. "
-            "This test requires real market data and cannot use hardcoded quantities."
+            "This test requires real market data and cannot use hardcoded quantities.",
         ) from e
 
 
@@ -1434,7 +1453,10 @@ def is_stablecoin(asset: str) -> bool:
 
 
 def validate_pnl_direction(
-    pnl: Decimal, side: OrderSide, entry_price: Decimal, current_price: Decimal
+    pnl: Decimal,
+    side: OrderSide,
+    entry_price: Decimal,
+    current_price: Decimal,
 ) -> bool:
     """Validate that PnL direction matches the expected direction based on position.
 
@@ -1455,9 +1477,8 @@ def validate_pnl_direction(
         expected_positive = current_price < entry_price
 
     if expected_positive:
-        return pnl >= Decimal("0")
-    else:
-        return pnl <= Decimal("0")
+        return pnl >= Decimal(0)
+    return pnl <= Decimal(0)
 
 
 def is_within_ratio_bounds(actual: Decimal, expected: Decimal) -> bool:
@@ -1470,8 +1491,8 @@ def is_within_ratio_bounds(actual: Decimal, expected: Decimal) -> bool:
     Returns:
         True if within ratio bounds
     """
-    if expected == Decimal("0"):
-        return actual == Decimal("0")
+    if expected == Decimal(0):
+        return actual == Decimal(0)
 
     ratio = actual / expected
     return RATIO_LOWER_BOUND <= ratio <= RATIO_UPPER_BOUND

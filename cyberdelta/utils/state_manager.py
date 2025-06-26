@@ -119,7 +119,7 @@ class StateManager:
                 state_file=self.state_file,
                 error=str(e),
                 action="attempting_backup_recovery",
-                message=f"Error loading state from {self.state_file}: {str(e)}",
+                message=f"Error loading state from {self.state_file}: {e!s}",
                 exc_info=True,
             )
             return self._recover_from_backup()
@@ -177,7 +177,7 @@ class StateManager:
                 state_file=self.state_file,
                 error=str(e),
                 action="save_failed",
-                message=f"Error saving state to {self.state_file}: {str(e)}",
+                message=f"Error saving state to {self.state_file}: {e!s}",
                 exc_info=True,
             )
             return False
@@ -228,7 +228,7 @@ class StateManager:
                 state_file=self.state_file,
                 error=str(e),
                 action="backup_failed",
-                message=f"Error creating state backup: {str(e)}",
+                message=f"Error creating state backup: {e!s}",
                 exc_info=True,
             )
             return False
@@ -264,7 +264,7 @@ class StateManager:
                 backup_count=self.backup_count,
                 error=str(e),
                 action="rotation_failed",
-                message=f"Error rotating backups: {str(e)}",
+                message=f"Error rotating backups: {e!s}",
                 exc_info=True,
             )
 
@@ -326,7 +326,7 @@ class StateManager:
                         backup_path=backup_path,
                         error=str(e),
                         action="trying_next_backup",
-                        message=f"Error loading backup {backup_path}: {str(e)}",
+                        message=f"Error loading backup {backup_path}: {e!s}",
                     )
                     continue
 
@@ -346,7 +346,7 @@ class StateManager:
                 backup_dir=self.backup_dir,
                 error=str(e),
                 action="recovery_failed",
-                message=f"Error during recovery process: {str(e)}",
+                message=f"Error during recovery process: {e!s}",
                 exc_info=True,
             )
             return False
@@ -373,7 +373,7 @@ class StateManager:
             return False
 
         # Type is now known to be dict, cast it explicitly
-        metadata = cast(dict[str, Any], metadata_raw)
+        metadata = cast("dict[str, Any]", metadata_raw)
 
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False

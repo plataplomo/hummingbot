@@ -21,10 +21,10 @@ pytestmark = pytest.mark.timing
 NOW: datetime = datetime.now(UTC)
 VALID_SYMBOL: str = "BTC-PERP"
 VALID_INTERVAL: str = "1m"
-DEC_ZERO: Decimal = Decimal("0")
-DEC_ONE: Decimal = Decimal("1")
-DEC_TEN: Decimal = Decimal("10")
-DEC_NEG_ONE: Decimal = Decimal("-1")
+DEC_ZERO: Decimal = Decimal(0)
+DEC_ONE: Decimal = Decimal(1)
+DEC_TEN: Decimal = Decimal(10)
+DEC_NEG_ONE: Decimal = Decimal(-1)
 DEC_NAN: Decimal = Decimal("NaN")
 DEC_INF: Decimal = Decimal("Infinity")
 
@@ -81,9 +81,9 @@ class TestCandle:
         assert candle.open_time == expected_dt_from_ms
         assert candle.open == Decimal("100.0")
         assert candle.high == Decimal("105.0")
-        assert candle.low == Decimal("95")
+        assert candle.low == Decimal(95)
         assert candle.close == Decimal("102.0")
-        assert candle.volume == Decimal("1000")
+        assert candle.volume == Decimal(1000)
 
     # --- Field Validation Tests --- #
 
@@ -169,19 +169,19 @@ class TestCandle:
         """Test the model-level OHLC consistency validation."""
         # high < low
         with pytest.raises(ValueError, match="high .* must be >= low"):
-            Candle(**create_valid_candle_data(high=Decimal("90"), low=Decimal("95")))
+            Candle(**create_valid_candle_data(high=Decimal(90), low=Decimal(95)))
         # high < open
         with pytest.raises(ValueError, match="high .* must be >= open"):
-            Candle(**create_valid_candle_data(high=Decimal("99"), open=Decimal("100")))
+            Candle(**create_valid_candle_data(high=Decimal(99), open=Decimal(100)))
         # high < close
         with pytest.raises(ValueError, match="high .* must be >= close"):
-            Candle(**create_valid_candle_data(high=Decimal("101"), close=Decimal("102")))
+            Candle(**create_valid_candle_data(high=Decimal(101), close=Decimal(102)))
         # low > open
         with pytest.raises(ValueError, match="low .* must be <= open"):
-            Candle(**create_valid_candle_data(low=Decimal("101"), open=Decimal("100")))
+            Candle(**create_valid_candle_data(low=Decimal(101), open=Decimal(100)))
         # low > close - This case also violates low > open, which is checked first.
         with pytest.raises(ValueError, match="low .* must be <= open"):
-            Candle(**create_valid_candle_data(low=Decimal("103"), close=Decimal("102")))
+            Candle(**create_valid_candle_data(low=Decimal(103), close=Decimal(102)))
 
         # Valid case (already tested in test_valid_creation, but good to be explicit)
         Candle(**create_valid_candle_data())

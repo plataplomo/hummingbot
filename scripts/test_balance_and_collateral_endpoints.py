@@ -32,7 +32,7 @@ async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
     if "USDC" in spot_balances:
         usdc = spot_balances["USDC"]
         logger.info(
-            f"   USDC Spot: available=${usdc.available_quantity}, total=${usdc.total_quantity}"
+            f"   USDC Spot: available=${usdc.available_quantity}, total=${usdc.total_quantity}",
         )
     else:
         logger.info("   USDC: NOT FOUND in spot")

@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.vcr]
 class TestBackpackPerpCandles:
     """Backpack perp candle integration tests."""
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_sol_usdc_perp_1h_success(
         self,
@@ -102,19 +102,19 @@ class TestBackpackPerpCandles:
                 )
 
                 # Validate positive values
-                assert candle.open > Decimal("0"), (
+                assert candle.open > Decimal(0), (
                     f"Candle {i} open should be positive, got {candle.open}"
                 )
-                assert candle.high > Decimal("0"), (
+                assert candle.high > Decimal(0), (
                     f"Candle {i} high should be positive, got {candle.high}"
                 )
-                assert candle.low > Decimal("0"), (
+                assert candle.low > Decimal(0), (
                     f"Candle {i} low should be positive, got {candle.low}"
                 )
-                assert candle.close > Decimal("0"), (
+                assert candle.close > Decimal(0), (
                     f"Candle {i} close should be positive, got {candle.close}"
                 )
-                assert candle.volume >= Decimal("0"), (
+                assert candle.volume >= Decimal(0), (
                     f"Candle {i} volume should be non-negative, got {candle.volume}"
                 )
 
@@ -137,7 +137,7 @@ class TestBackpackPerpCandles:
                     f"Candle {i} symbol should be 'SOL_USDC_PERP', got '{candle.symbol}'"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_btc_usdc_perp_1h_success(
         self,
@@ -183,20 +183,18 @@ class TestBackpackPerpCandles:
                 )
 
                 # BTC perp prices should be positive and reasonable
-                assert candle.open > Decimal("0"), (
+                assert candle.open > Decimal(0), (
                     f"BTC perp open price must be positive: {candle.open}"
                 )
-                assert candle.high > Decimal("0"), (
+                assert candle.high > Decimal(0), (
                     f"BTC perp high price must be positive: {candle.high}"
                 )
-                assert candle.low > Decimal("0"), (
-                    f"BTC perp low price must be positive: {candle.low}"
-                )
-                assert candle.close > Decimal("0"), (
+                assert candle.low > Decimal(0), f"BTC perp low price must be positive: {candle.low}"
+                assert candle.close > Decimal(0), (
                     f"BTC perp close price must be positive: {candle.close}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_eth_usdc_perp_1h_success(
         self,
@@ -242,20 +240,18 @@ class TestBackpackPerpCandles:
                 )
 
                 # ETH perp prices should be positive and reasonable
-                assert candle.open > Decimal("0"), (
+                assert candle.open > Decimal(0), (
                     f"ETH perp open price must be positive: {candle.open}"
                 )
-                assert candle.high > Decimal("0"), (
+                assert candle.high > Decimal(0), (
                     f"ETH perp high price must be positive: {candle.high}"
                 )
-                assert candle.low > Decimal("0"), (
-                    f"ETH perp low price must be positive: {candle.low}"
-                )
-                assert candle.close > Decimal("0"), (
+                assert candle.low > Decimal(0), f"ETH perp low price must be positive: {candle.low}"
+                assert candle.close > Decimal(0), (
                     f"ETH perp close price must be positive: {candle.close}"
                 )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_different_intervals_perp(
         self,
@@ -314,7 +310,7 @@ class TestBackpackPerpCandles:
                 # Some intervals might not be supported, which is acceptable
                 pass
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_chronological_ordering_perp(
         self,
@@ -366,14 +362,14 @@ class TestBackpackPerpCandles:
 
                     # For 1h interval, timestamps should be 1 hour apart
                     time_diff = abs(
-                        (next_candle.open_time - current_candle.open_time).total_seconds()
+                        (next_candle.open_time - current_candle.open_time).total_seconds(),
                     )
                     # Allow some flexibility in ordering, but times should be reasonable
                     assert time_diff >= 3600, (
                         f"1h perp candles should be at least 1 hour apart: {time_diff} seconds"
                     )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_precision_validation_perp(
         self,
@@ -416,13 +412,13 @@ class TestBackpackPerpCandles:
                     )
 
                     # Test arithmetic operations work correctly for leverage calculations
-                    doubled_value = field_value * Decimal("2")
+                    doubled_value = field_value * Decimal(2)
                     assert isinstance(doubled_value, Decimal), (
                         f"Perp candle {i} {field_name} arithmetic should maintain Decimal type"
                     )
 
-                    if field_value > Decimal("0"):  # Don't test with zero values
-                        halved_value = field_value / Decimal("2")
+                    if field_value > Decimal(0):  # Don't test with zero values
+                        halved_value = field_value / Decimal(2)
                         assert isinstance(halved_value, Decimal), (
                             f"Perp candle {i} {field_name} division should maintain Decimal type"
                         )
@@ -431,7 +427,7 @@ class TestBackpackPerpCandles:
                         )
 
                 # Test leverage-related calculations
-                leverage_factor = Decimal("10")  # 10x leverage
+                leverage_factor = Decimal(10)  # 10x leverage
                 leveraged_volume = candle.volume * leverage_factor
                 assert isinstance(leveraged_volume, Decimal), (
                     "Leverage calculations should maintain Decimal type"
@@ -442,13 +438,13 @@ class TestBackpackPerpCandles:
                 assert isinstance(price_range, Decimal), (
                     "Price range calculation should maintain Decimal type"
                 )
-                assert price_range >= Decimal("0"), (
+                assert price_range >= Decimal(0), (
                     f"Perp candle {i} price range should be non-negative: {price_range}"
                 )
 
                 # Test notional volume calculations for margin requirements
-                if candle.volume > Decimal("0"):
-                    avg_price = (candle.high + candle.low) / Decimal("2")
+                if candle.volume > Decimal(0):
+                    avg_price = (candle.high + candle.low) / Decimal(2)
                     notional_volume = candle.volume * avg_price
                     margin_requirement = notional_volume / leverage_factor
 
@@ -458,14 +454,14 @@ class TestBackpackPerpCandles:
                     assert isinstance(margin_requirement, Decimal), (
                         "Margin requirement calculation should maintain Decimal type"
                     )
-                    assert notional_volume > Decimal("0"), (
+                    assert notional_volume > Decimal(0), (
                         f"Perp candle {i} notional volume should be positive"
                     )
                     assert margin_requirement < notional_volume, (
                         f"Perp candle {i} margin should be less than notional (leverage effect)"
                     )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_ohlc_relationships_validation_perp(
         self,
@@ -534,18 +530,18 @@ class TestBackpackPerpCandles:
 
                 # Price range validation for perp markets (can be more volatile due to leverage)
                 price_range = candle.high - candle.low
-                avg_price = (candle.high + candle.low) / Decimal("2")
+                avg_price = (candle.high + candle.low) / Decimal(2)
 
-                if avg_price > Decimal("0"):
-                    range_percentage = (price_range / avg_price) * Decimal("100")
+                if avg_price > Decimal(0):
+                    range_percentage = (price_range / avg_price) * Decimal(100)
                     # For 1h perp candles, validate range is not zero or negative
                     # Market volatility is natural and should not be artificially constrained
-                    assert range_percentage >= Decimal("0"), (
+                    assert range_percentage >= Decimal(0), (
                         f"Perp candle {i}: price range percentage cannot be negative: "
                         f"{range_percentage}%"
                     )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_invalid_perp_symbol_error(
         self,
@@ -579,7 +575,7 @@ class TestBackpackPerpCandles:
         error = exc_info.value
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_multiple_perp_symbols_consistency(
         self,
@@ -638,7 +634,7 @@ class TestBackpackPerpCandles:
                     # Validate it's actually a perp symbol
                     assert symbol.endswith("_PERP"), f"Should be perp symbol, got: {symbol}"
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_perp_funding_impact_awareness(
         self,
@@ -689,13 +685,13 @@ class TestBackpackPerpCandles:
                 )
 
                 # Validate calculations maintain proper Decimal precision
-                if candle.close > Decimal("0"):
-                    funding_percentage = (funding_payment / candle.close) * Decimal("100")
+                if candle.close > Decimal(0):
+                    funding_percentage = (funding_payment / candle.close) * Decimal(100)
                     assert isinstance(funding_percentage, Decimal), (
                         "Funding percentage calculation should maintain Decimal type"
                     )
 
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_bp_get_market_data_perp_leverage_volatility_characteristics(
         self,
@@ -734,7 +730,7 @@ class TestBackpackPerpCandles:
                 next_candle = candles[i + 1]
 
                 # Calculate price change between candles
-                if current.close > Decimal("0"):
+                if current.close > Decimal(0):
                     price_change = abs(next_candle.open - current.close) / current.close
                     price_changes.append(price_change)
 
@@ -746,14 +742,14 @@ class TestBackpackPerpCandles:
                 avg_change = sum(price_changes) / len(price_changes)
 
                 # Validate price changes are not negative (basic sanity check)
-                assert max_change >= Decimal("0"), (
+                assert max_change >= Decimal(0), (
                     f"Maximum price change cannot be negative: {max_change}"
                 )
-                assert avg_change >= Decimal("0"), (
+                assert avg_change >= Decimal(0), (
                     f"Average price change cannot be negative: {avg_change}"
                 )
 
             if volumes:
                 # Volume should be consistent across candles
                 total_volume = sum(volumes)
-                assert total_volume >= Decimal("0"), "Total volume should be non-negative"
+                assert total_volume >= Decimal(0), "Total volume should be non-negative"

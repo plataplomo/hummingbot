@@ -215,7 +215,10 @@ class SignalGenerator:
                 self._update_single_funding_rate(exchange_id, internal_symbol, now)
 
     def _update_single_funding_rate(
-        self, exchange_id: str, internal_symbol: str, now: datetime
+        self,
+        exchange_id: str,
+        internal_symbol: str,
+        now: datetime,
     ) -> None:
         """Update funding rate for a single exchange/symbol combination."""
         # Get the corresponding exchange symbol using the mapper
@@ -272,29 +275,41 @@ class SignalGenerator:
             )
 
     def _update_basis_history(
-        self, all_internal_symbols: list[str], enabled_exchanges: list[str], now: datetime
+        self,
+        all_internal_symbols: list[str],
+        enabled_exchanges: list[str],
+        now: datetime,
     ) -> None:
         """Update basis history for all symbols."""
         for internal_symbol in all_internal_symbols:
             self._update_single_basis(internal_symbol, enabled_exchanges, now)
 
     def _update_single_basis(
-        self, internal_symbol: str, enabled_exchanges: list[str], now: datetime
+        self,
+        internal_symbol: str,
+        enabled_exchanges: list[str],
+        now: datetime,
     ) -> None:
         """Update basis for a single symbol."""
         # Find exchanges that map this internal symbol and get valid tickers
         valid_exchanges_for_symbol, exchange_tickers = self._get_valid_tickers_for_symbol(
-            internal_symbol, enabled_exchanges
+            internal_symbol,
+            enabled_exchanges,
         )
 
         # Compute basis if enough valid tickers were found
         if len(valid_exchanges_for_symbol) >= 2:
             self._compute_and_store_basis(
-                internal_symbol, valid_exchanges_for_symbol, exchange_tickers, now
+                internal_symbol,
+                valid_exchanges_for_symbol,
+                exchange_tickers,
+                now,
             )
 
     def _get_valid_tickers_for_symbol(
-        self, internal_symbol: str, enabled_exchanges: list[str]
+        self,
+        internal_symbol: str,
+        enabled_exchanges: list[str],
     ) -> tuple[list[str], dict[str, Ticker]]:
         """Get valid tickers for a symbol across exchanges."""
         valid_exchanges_for_symbol: list[str] = []
@@ -707,7 +722,11 @@ class SignalGenerator:
                 exchange_b = exchanges[j]
 
                 opportunity = self._check_exchange_pair_opportunity(
-                    symbol, exchange_a, exchange_b, exchanges_with_data, tickers
+                    symbol,
+                    exchange_a,
+                    exchange_b,
+                    exchanges_with_data,
+                    tickers,
                 )
                 if opportunity:
                     opportunities.append(opportunity)
@@ -763,7 +782,13 @@ class SignalGenerator:
 
         # Calculate expected profit
         expected_profit = self._calculate_expected_profit(
-            symbol, exchange_a, exchange_b, rate_a, rate_b, ticker_a, ticker_b
+            symbol,
+            exchange_a,
+            exchange_b,
+            rate_a,
+            rate_b,
+            ticker_a,
+            ticker_b,
         )
         if expected_profit is None:
             return None
@@ -782,7 +807,11 @@ class SignalGenerator:
         )
 
     def _validate_ticker_data(
-        self, symbol: str, exchange_a: str, exchange_b: str, tickers: dict[str, Ticker | None]
+        self,
+        symbol: str,
+        exchange_a: str,
+        exchange_b: str,
+        tickers: dict[str, Ticker | None],
     ) -> tuple[Ticker, Ticker] | None:
         """Validate ticker data for both exchanges."""
         ticker_a = tickers.get(exchange_a)
@@ -875,14 +904,28 @@ class SignalGenerator:
         expected_profit: Decimal,
     ) -> ArbitrageOpportunity:
         """Create arbitrage opportunity based on funding differential direction."""
-        if funding_differential > Decimal("0"):  # rate_b > rate_a: Long B, Short A
+        if funding_differential > Decimal(0):  # rate_b > rate_a: Long B, Short A
             return self._create_long_b_short_a_opportunity(
-                symbol, exchange_a, exchange_b, rate_a, rate_b, ticker_a, ticker_b, expected_profit
+                symbol,
+                exchange_a,
+                exchange_b,
+                rate_a,
+                rate_b,
+                ticker_a,
+                ticker_b,
+                expected_profit,
             )
-        else:  # rate_a > rate_b: Long A, Short B
-            return self._create_long_a_short_b_opportunity(
-                symbol, exchange_a, exchange_b, rate_a, rate_b, ticker_a, ticker_b, expected_profit
-            )
+        # rate_a > rate_b: Long A, Short B
+        return self._create_long_a_short_b_opportunity(
+            symbol,
+            exchange_a,
+            exchange_b,
+            rate_a,
+            rate_b,
+            ticker_a,
+            ticker_b,
+            expected_profit,
+        )
 
     def _create_long_b_short_a_opportunity(
         self,

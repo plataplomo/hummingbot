@@ -3,6 +3,7 @@
 Tests parsing functions for various data types including decimals, datetimes, and validation.
 """
 
+import math
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -29,8 +30,8 @@ class TestParseDecimalValue:
 
     def test_int_and_float(self) -> None:
         """Should parse int and float to Decimal."""
-        assert parse_decimal_value(42) == Decimal("42")
-        assert parse_decimal_value(3.14) == Decimal("3.14")
+        assert parse_decimal_value(42) == Decimal(42)
+        assert parse_decimal_value(math.pi) == Decimal("3.14")
 
     def test_none_allowed(self) -> None:
         """Should return None if value is None and allow_none is True."""

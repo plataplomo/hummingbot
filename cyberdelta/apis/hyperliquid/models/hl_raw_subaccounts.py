@@ -36,4 +36,4 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrH
         if not isinstance(v, list):
             raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
-        return cast(list[object], v)
+        return cast("list[object]", v)

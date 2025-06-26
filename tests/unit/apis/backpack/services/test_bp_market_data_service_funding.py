@@ -47,7 +47,7 @@ class TestBackpackMarketDataServiceFunding:
                 "symbol": symbol,
                 "fundingRate": "0.0001",
                 "intervalEndTimestamp": raw_time_str,
-            }
+            },
         ]
         mock_status_code = 200
         mock_headers_from_client = MagicMock()
@@ -71,7 +71,7 @@ class TestBackpackMarketDataServiceFunding:
             mock_headers_from_client,
         )
         mock_response_handler.handle_get_historical_funding_rates_response.return_value = [
-            mock_raw_funding_interval_rate
+            mock_raw_funding_interval_rate,
         ]
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
@@ -456,7 +456,7 @@ class TestBackpackMarketDataServiceFunding:
         )
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         mock_response_handler.handle_get_historical_funding_rates_response.return_value = [
-            mock_raw_funding_interval_rate
+            mock_raw_funding_interval_rate,
         ]
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:

@@ -176,8 +176,8 @@ class TestEdgeCasesAndBoundaryValues:
         # Should handle boundary values without error
         assert result1.exchange_order_id == "999999999999999999"
         assert result2.exchange_order_id == "1"
-        assert result1.price is not None and result1.price > Decimal("0")
-        assert result2.price is not None and result2.price > Decimal("0")
+        assert result1.price is not None and result1.price > Decimal(0)
+        assert result2.price is not None and result2.price > Decimal(0)
 
     def test_complex_trigger_scenarios(
         self,

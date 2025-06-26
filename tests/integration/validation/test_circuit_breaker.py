@@ -38,7 +38,6 @@ class TestCircuitBreakerBase:
 
         def check(self, *args: object, **kwargs: object) -> None:
             """Perform circuit breaker check logic (no-op for testing)."""
-            pass
 
     def test_init(self) -> None:
         """Test initializing the circuit breaker."""
@@ -581,7 +580,9 @@ class TestCircuitBreakerSystem:
         # Business logic doesn't create exchange breakers by default without exchanges configured
         # So let's manually register one for testing
         test_exchange_breaker = APIErrorBreaker(
-            "test_exchange/api_error", error_threshold=5, window_seconds=60
+            "test_exchange/api_error",
+            error_threshold=5,
+            window_seconds=60,
         )
         system.register_breaker(test_exchange_breaker)
         system.exchange_breakers["test_exchange"] = {"api_errors": test_exchange_breaker}

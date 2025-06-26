@@ -483,7 +483,8 @@ class TestHyperliquidAPIMarketDataMethods:
 
         # Configure mock service to raise an error
         api_error = APIError(
-            message="Failed to fetch markets", code=APIErrorCode.RATE_LIMITED.value
+            message="Failed to fetch markets",
+            code=APIErrorCode.RATE_LIMITED.value,
         )
         mock_hl_market_data_service.get_markets.side_effect = api_error
 
@@ -604,7 +605,8 @@ class TestHyperliquidAPIMarketDataMethods:
         # Configure mock service to raise an error
         symbol = "BTC-USD"
         api_error = APIError(
-            message=f"Market {symbol} not found", code=APIErrorCode.SYMBOL_NOT_FOUND.value
+            message=f"Market {symbol} not found",
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
         )
         mock_hl_market_data_service.get_market.side_effect = api_error
 
@@ -659,4 +661,4 @@ class TestHyperliquidAPIMarketDataMethods:
 
         # Test that extra fields are forbidden
         with pytest.raises(ValidationError):
-            GetMarketsArgs(**{"extra_field": "not_allowed"})
+            GetMarketsArgs(extra_field="not_allowed")

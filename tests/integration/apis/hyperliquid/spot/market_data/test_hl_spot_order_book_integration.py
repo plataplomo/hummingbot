@@ -16,7 +16,9 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/hyperliquid/spot/market_data/order_book"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/hyperliquid/spot/market_data/order_book"],
+    indirect=True,
 )
 @pytest.mark.spot
 @pytest.mark.asyncio

@@ -94,8 +94,8 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
         Pydantic handles key/value type validation using RawAssetString64HL and RawFiniteDecimalStr.
         """
         if not isinstance(v, dict):
-            field_name = info.field_name if info.field_name else "all_mids_response"
+            field_name = info.field_name or "all_mids_response"
             raise ValueError(
                 f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}.",
             )
-        return cast(dict[str, object], v)
+        return cast("dict[str, object]", v)

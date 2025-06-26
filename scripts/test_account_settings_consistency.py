@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Test creating args
 args = UpdateAccountSettingsArgs(
-    leverage_limit=Decimal("20"),
+    leverage_limit=Decimal(20),
     auto_lend=True,
     auto_borrow_settlements=False,
     auto_realize_pnl=None,
@@ -50,7 +50,7 @@ logger.info("")
 
 # Test mutability
 old_limit = settings.leverage_limit
-settings.update_leverage_limit(Decimal("30"))
+settings.update_leverage_limit(Decimal(30))
 logger.info("Leverage limit updated successfully:")
 logger.info(f"  Old limit: {old_limit}")
 logger.info(f"  New limit: {settings.leverage_limit}")

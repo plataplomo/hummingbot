@@ -97,7 +97,7 @@ class TestHyperliquidWebSocketIntegration:
             assert isinstance(ticker.price, Decimal), (
                 "WebSocket ticker price must be Decimal for financial precision"
             )
-            assert ticker.price > Decimal("0"), f"Ticker price must be positive: {ticker.price}"
+            assert ticker.price > Decimal(0), f"Ticker price must be positive: {ticker.price}"
 
             # Validate data freshness
             assert ticker.timestamp.tzinfo is not None, (
@@ -108,7 +108,7 @@ class TestHyperliquidWebSocketIntegration:
             if data_age > timedelta(seconds=30):
                 pytest.fail(
                     f"WebSocket ticker data is {data_age} old. "
-                    "Real-time data must be fresh for trading decisions."
+                    "Real-time data must be fresh for trading decisions.",
                 )
 
             received_tickers.append(ticker)
@@ -129,7 +129,7 @@ class TestHyperliquidWebSocketIntegration:
                 symbol=test_symbol,
                 price=rest_ticker.price,
                 timestamp=datetime.now(UTC),
-                volume=getattr(rest_ticker, "volume", Decimal("0")),
+                volume=getattr(rest_ticker, "volume", Decimal(0)),
             )
 
             # Process through ticker handler
@@ -222,10 +222,16 @@ class TestHyperliquidWebSocketIntegration:
         try:
             # Step 1: Place an order to generate WebSocket events
             safe_price = await HyperliquidTestHelpers.get_dynamic_test_price(
-                hl_api_for_test_env, test_symbol, OrderSide.BUY, Decimal("10.0")
+                hl_api_for_test_env,
+                test_symbol,
+                OrderSide.BUY,
+                Decimal("10.0"),
             )
             safe_quantity = await HyperliquidTestHelpers.get_minimal_order_size(
-                hl_api_for_test_env, test_symbol, OrderSide.BUY, safe_price
+                hl_api_for_test_env,
+                test_symbol,
+                OrderSide.BUY,
+                safe_price,
             )
 
             order_args = PlaceOrderArgs(
@@ -318,16 +324,16 @@ class TestHyperliquidWebSocketIntegration:
 
             # Validate that order data matches between REST and WebSocket
             rest_vs_ws_quantity_diff = abs(
-                placed_order.quantity_requested - ws_order_placed.quantity_requested
+                placed_order.quantity_requested - ws_order_placed.quantity_requested,
             )
-            assert rest_vs_ws_quantity_diff == Decimal("0"), (
+            assert rest_vs_ws_quantity_diff == Decimal(0), (
                 "WebSocket order quantity must exactly match REST API order"
             )
 
             assert placed_order.price is not None, "REST order price must not be None"
             assert ws_order_placed.price is not None, "WebSocket order price must not be None"
             rest_vs_ws_price_diff = abs(placed_order.price - ws_order_placed.price)
-            assert rest_vs_ws_price_diff == Decimal("0"), (
+            assert rest_vs_ws_price_diff == Decimal(0), (
                 "WebSocket order price must exactly match REST API order"
             )
 
@@ -378,7 +384,7 @@ class TestHyperliquidWebSocketIntegration:
             # This should trigger a warning or rejection in real trading
             logger.warning(
                 f"Detected stale WebSocket data: {stale_data_age} old. "
-                "This would be rejected in real trading scenarios."
+                "This would be rejected in real trading scenarios.",
             )
 
         # Test timezone consistency
@@ -397,7 +403,7 @@ class TestHyperliquidWebSocketIntegration:
             if invalid_ticker.timestamp.tzinfo is None:
                 pytest.fail(
                     "WebSocket data with timezone-naive timestamps must be rejected. "
-                    "All financial timestamps must be timezone-aware."
+                    "All financial timestamps must be timezone-aware.",
                 )
 
         except Exception as e:
@@ -418,7 +424,7 @@ class TestHyperliquidWebSocketIntegration:
                     # Simulate connection attempt
                     if attempt < 2:  # Fail first 2 attempts
                         raise ConnectionError(
-                            f"WebSocket connection failed (attempt {attempt + 1})"
+                            f"WebSocket connection failed (attempt {attempt + 1})",
                         )
 
                     # Success on 3rd attempt
@@ -429,7 +435,7 @@ class TestHyperliquidWebSocketIntegration:
                         # Final attempt failed - this is critical
                         pytest.fail(
                             f"WebSocket connection failed after {max_attempts} attempts: {e}. "
-                            "WebSocket connection is critical for real-time trading data."
+                            "WebSocket connection is critical for real-time trading data.",
                         )
 
                     # Wait before retry (exponential backoff)
@@ -490,8 +496,7 @@ class TestHyperliquidWebSocketIntegration:
             if "INVALID_SYMBOL" in str(e.code):
                 logger.info(f"Correctly handled subscription failure: {e}")
                 return True
-            else:
-                pytest.fail(f"Unexpected subscription error: {e}")
+            pytest.fail(f"Unexpected subscription error: {e}")
 
         except Exception as e:
             pytest.fail(f"Subscription failure handling failed: {e}")

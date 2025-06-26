@@ -192,14 +192,22 @@ class OrderVerifier:
 
         # Get and verify local order
         local_order, verification_success, verification_error = self._verify_local_order(
-            exchange, order_id, expected_details, verification_success, verification_error
+            exchange,
+            order_id,
+            expected_details,
+            verification_success,
+            verification_error,
         )
         verification_details["local_order"] = local_order.model_dump() if local_order else None
 
         # Get and verify API order if local verification passed
         if verification_success:
             api_order, verification_success, verification_error = await self._verify_api_order(
-                exchange, order_id, expected_details, verification_success, verification_error
+                exchange,
+                order_id,
+                expected_details,
+                verification_success,
+                verification_error,
             )
             verification_details["api_order"] = (
                 (api_order.model_dump() if hasattr(api_order, "model_dump") else api_order)
@@ -347,7 +355,10 @@ class OrderVerifier:
 
         # Verify essential properties match on API side
         verification_success, verification_error = self._verify_api_order_properties(
-            api_order, expected_details, verification_success, verification_error
+            api_order,
+            expected_details,
+            verification_success,
+            verification_error,
         )
 
         return api_order, verification_success, verification_error
@@ -421,14 +432,21 @@ class OrderVerifier:
 
         # 1. Get order from portfolio tracker (local state)
         local_order, verification_success, verification_error = self._verify_local_order_execution(
-            exchange, order_id, verification_details, verification_success, verification_error
+            exchange,
+            order_id,
+            verification_details,
+            verification_success,
+            verification_error,
         )
 
         # 2. Get API client and early return if not found
         api_client = self.portfolio_tracker.api_clients.get(exchange)
         if not api_client:
             return self._handle_missing_api_client(
-                exchange, verification_success, verification_error, verification_details
+                exchange,
+                verification_success,
+                verification_error,
+                verification_details,
             )
 
         # 3. Get order from exchange API
@@ -444,12 +462,21 @@ class OrderVerifier:
 
         # 4. Perform Status Checks
         verification_success, verification_error = self._verify_order_statuses(
-            local_order, api_order, order_id, exchange, verification_success, verification_error
+            local_order,
+            api_order,
+            order_id,
+            exchange,
+            verification_success,
+            verification_error,
         )
 
         # 5. Get recent fills
         await self._fetch_recent_fills(
-            api_client, local_order, order_id, exchange, verification_details
+            api_client,
+            local_order,
+            order_id,
+            exchange,
+            verification_details,
         )
 
         verification_details["final_error_summary_before_return"] = verification_error
@@ -537,7 +564,10 @@ class OrderVerifier:
                 )
 
             api_order = await self._call_api_order_method(
-                api_client, exchange, order_id, symbol_for_api_call
+                api_client,
+                exchange,
+                order_id,
+                symbol_for_api_call,
             )
 
             if api_order:
@@ -580,7 +610,11 @@ class OrderVerifier:
         return api_order, verification_success, verification_error
 
     async def _call_api_order_method(
-        self, api_client: ExchangeAPI, exchange: str, order_id: str, symbol_for_api_call: str | None
+        self,
+        api_client: ExchangeAPI,
+        exchange: str,
+        order_id: str,
+        symbol_for_api_call: str | None,
     ) -> Order | None:
         """Call the appropriate API method to fetch order."""
         if hasattr(api_client, "get_order_status"):
@@ -590,7 +624,7 @@ class OrderVerifier:
                     symbol=symbol_for_api_call,
                 ),
             )
-        elif hasattr(api_client, "get_order"):
+        if hasattr(api_client, "get_order"):
             logger.warning(
                 "api_method_fallback",
                 action="call_api_order_method",
@@ -605,16 +639,15 @@ class OrderVerifier:
                     symbol=symbol_for_api_call,
                 ),
             )
-        else:
-            logger.error(
-                "api_methods_missing",
-                action="call_api_order_method",
-                message="API client missing both get_order_status and get_order methods",
-                exchange=exchange,
-            )
-            raise AttributeError(
-                f"API client for {exchange} missing get_order_status and get_order methods.",
-            )
+        logger.error(
+            "api_methods_missing",
+            action="call_api_order_method",
+            message="API client missing both get_order_status and get_order methods",
+            exchange=exchange,
+        )
+        raise AttributeError(
+            f"API client for {exchange} missing get_order_status and get_order methods.",
+        )
 
     def _verify_order_statuses(
         self,
@@ -1117,19 +1150,31 @@ class SynchronizedOrderSubmissionService:
 
         # Circuit breaker checks
         all_success, error_msg = await self._verify_circuit_breakers(
-            execution_context, opportunity, results, all_success, error_msg
+            execution_context,
+            opportunity,
+            results,
+            all_success,
+            error_msg,
         )
 
         # Market conditions check
         if all_success:
             all_success, error_msg = await self._verify_market_conditions_check(
-                execution_context, opportunity, results, all_success, error_msg
+                execution_context,
+                opportunity,
+                results,
+                all_success,
+                error_msg,
             )
 
         # Balance checks
         if all_success:
             all_success, error_msg = await self._verify_balances_check(
-                execution_context, opportunity, results, all_success, error_msg
+                execution_context,
+                opportunity,
+                results,
+                all_success,
+                error_msg,
             )
 
         if self.execution_coordinator:
@@ -1351,7 +1396,10 @@ class SynchronizedOrderSubmissionService:
 
         # Place and verify first order
         result = await self._place_and_verify_first_order(
-            first_order, first_exchange, execution_context, result
+            first_order,
+            first_exchange,
+            execution_context,
+            result,
         )
         if result.status == ExecutionStatus.FAILED:
             return result
@@ -1439,7 +1487,7 @@ class SynchronizedOrderSubmissionService:
         fill_result = {"filled": True}  # Placeholder for actual fill monitoring
 
         # Check fill verification
-        if not fill_result.get("filled", False):
+        if not fill_result.get("filled"):
             result.status = ExecutionStatus.FAILED
             result.error = "First order did not fill within timeout"
             return result
@@ -1480,12 +1528,16 @@ class SynchronizedOrderSubmissionService:
 
         # Place and verify second order
         result = await self._place_and_verify_second_order(
-            second_order, second_exchange, execution_context, result
+            second_order,
+            second_exchange,
+            execution_context,
+            result,
         )
 
         # Wait for second fill if needed and order was successful
         if result.status == ExecutionStatus.COMPLETED and self.config.get(
-            "execution.wait_for_second_fill", True
+            "execution.wait_for_second_fill",
+            True,
         ):
             result = await self._wait_for_second_fill(execution_context, result)
 
@@ -1581,7 +1633,7 @@ class SynchronizedOrderSubmissionService:
             "filled": True,
         }  # Placeholder for actual fill monitoring
 
-        if not second_fill_result.get("filled", False):
+        if not second_fill_result.get("filled"):
             result.status = ExecutionStatus.PARTIALLY_COMPLETED
             result.error = "Second order did not fill within timeout"
         else:
@@ -1703,19 +1755,31 @@ class SynchronizedOrderSubmissionService:
 
         # Position Verification
         overall_success = await self._verify_positions_step(
-            execution_context, opportunity, execution_result, all_details, overall_success
+            execution_context,
+            opportunity,
+            execution_result,
+            all_details,
+            overall_success,
         )
 
         # Fill Verification (only if positions OK or not applicable)
         if overall_success:
             overall_success = await self._verify_fills_step(
-                execution_context, opportunity, execution_result, all_details, overall_success
+                execution_context,
+                opportunity,
+                execution_result,
+                all_details,
+                overall_success,
             )
 
         # Order Verification (similarly, only if previous steps OK)
         if overall_success:
             overall_success = await self._verify_orders_step(
-                execution_context, opportunity, execution_result, all_details, overall_success
+                execution_context,
+                opportunity,
+                execution_result,
+                all_details,
+                overall_success,
             )
 
         # Log final result and add checkpoint

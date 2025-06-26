@@ -28,7 +28,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/balances"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/balances"],
+    indirect=True,
 )
 class TestBackpackSpotBalancesPrivate:
     """Private balances integration tests for SpotBalance model validation."""
@@ -138,7 +140,7 @@ class TestBackpackSpotBalancesPrivate:
             pytest.skip("No balances for precision testing")
 
         for _, balance in balances.items():
-            if balance.total_quantity > Decimal("0"):
+            if balance.total_quantity > Decimal(0):
                 assert balance.total_quantity.is_finite()
 
                 if balance.total_quantity < Decimal("0.000001"):
@@ -169,10 +171,10 @@ class TestBackpackSpotBalancesPrivate:
 
                 if bp_details.open_order_quantity is not None:
                     assert isinstance(bp_details.open_order_quantity, Decimal)
-                    assert bp_details.open_order_quantity >= Decimal("0")
+                    assert bp_details.open_order_quantity >= Decimal(0)
                     assert bp_details.open_order_quantity <= balance.total_quantity
 
-                    if bp_details.open_order_quantity > Decimal("0"):
+                    if bp_details.open_order_quantity > Decimal(0):
                         assert balance.available_quantity <= balance.total_quantity
 
     @pytest.mark.vcr
@@ -198,8 +200,7 @@ class TestBackpackSpotBalancesPrivate:
             if isinstance(result, Exception):
                 if isinstance(result, APIError) and result.code == APIErrorCode.RATE_LIMITED.value:
                     continue
-                else:
-                    pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
+                pytest.fail(f"Unexpected error in concurrent call {i}: {result}")
             else:
                 assert isinstance(result, dict)
                 successful_results.append(result)
@@ -211,7 +212,7 @@ class TestBackpackSpotBalancesPrivate:
             for _i, result in enumerate(successful_results[1:], 1):
                 assert set(first_result.keys()) == set(result.keys())
 
-                for asset in first_result.keys():
+                for asset in first_result:
                     if asset in result:
                         first_balance = first_result[asset].total_quantity
                         second_balance = result[asset].total_quantity
@@ -254,12 +255,12 @@ class TestBackpackSpotBalancesPrivate:
             pytest.skip("No balances for large balance testing")
 
         for asset_symbol, balance in balances.items():
-            if balance.total_quantity > Decimal("1000000"):
+            if balance.total_quantity > Decimal(1000000):
                 assert balance.total_quantity.is_finite()
                 assert balance.available_quantity.is_finite()
                 assert balance.total_quantity >= balance.available_quantity
 
-            if asset_symbol.upper() in ["BTC", "WBTC"] and balance.total_quantity > Decimal("0"):
+            if asset_symbol.upper() in ["BTC", "WBTC"] and balance.total_quantity > Decimal(0):
                 total_str = str(balance.total_quantity)
                 if "." in total_str:
                     decimal_places = len(total_str.split(".")[1])

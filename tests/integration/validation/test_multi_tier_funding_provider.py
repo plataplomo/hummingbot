@@ -286,7 +286,7 @@ class TestMultiTierFundingProvider:
     def test_clear_cache(self) -> None:
         """Test clearing the funding rate cache."""
         # Add some data to cache
-        self.provider.funding_cache[("hyperliquid", "BTC-PERP")] = IntegratedFundingData(
+        self.provider.funding_cache["hyperliquid", "BTC-PERP"] = IntegratedFundingData(
             exchange="hyperliquid",
             symbol="BTC-PERP",
             rate=0.0015,
@@ -338,8 +338,8 @@ class TestMultiTierFundingProvider:
             confidence_score=0.7,
         )
 
-        self.provider.funding_cache[("hyperliquid", "BTC-PERP")] = fresh_entry
-        self.provider.funding_cache[("hyperliquid", "ETH-PERP")] = stale_entry
+        self.provider.funding_cache["hyperliquid", "BTC-PERP"] = fresh_entry
+        self.provider.funding_cache["hyperliquid", "ETH-PERP"] = stale_entry
 
         # Verify cache has data
         assert len(self.provider.funding_cache) == 2

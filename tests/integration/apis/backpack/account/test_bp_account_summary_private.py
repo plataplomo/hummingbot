@@ -27,7 +27,9 @@ pytestmark = [
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/private/account_summary"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/private/account_summary"],
+    indirect=True,
 )
 class TestBackpackAccountSummaryPrivate:
     """Private account summary integration tests for MarginAccountSummary."""
@@ -51,40 +53,42 @@ class TestBackpackAccountSummaryPrivate:
 
         # Validate margin requirements - they may be None for zero balance accounts
         assert account_summary.total_initial_margin_required is None or isinstance(
-            account_summary.total_initial_margin_required, Decimal
+            account_summary.total_initial_margin_required,
+            Decimal,
         )
         assert account_summary.total_maintenance_margin_required is None or isinstance(
-            account_summary.total_maintenance_margin_required, Decimal
+            account_summary.total_maintenance_margin_required,
+            Decimal,
         )
         if account_summary.total_initial_margin_required is not None:
-            assert account_summary.total_initial_margin_required >= Decimal("0")
+            assert account_summary.total_initial_margin_required >= Decimal(0)
         if account_summary.total_maintenance_margin_required is not None:
-            assert account_summary.total_maintenance_margin_required >= Decimal("0")
+            assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
         # Validate equity is present - may be zero for zero balance accounts
         assert isinstance(account_summary.total_equity, Decimal)
-        assert account_summary.total_equity >= Decimal("0")
+        assert account_summary.total_equity >= Decimal(0)
 
         # Validate backpack-specific details
         assert account_summary.bp_details is not None
         assert isinstance(account_summary.bp_details, BackpackMarginDetails)
 
         # Validate string representations for non-zero values
-        if account_summary.total_equity > Decimal("0"):
+        if account_summary.total_equity > Decimal(0):
             assert len(str(account_summary.total_equity)) > 0
             assert "." in str(account_summary.total_equity) or account_summary.total_equity == int(
-                account_summary.total_equity
+                account_summary.total_equity,
             )
 
         if (
             account_summary.total_initial_margin_required is not None
-            and account_summary.total_initial_margin_required > Decimal("0")
+            and account_summary.total_initial_margin_required > Decimal(0)
         ):
             assert len(str(account_summary.total_initial_margin_required)) > 0
 
         if (
             account_summary.total_maintenance_margin_required is not None
-            and account_summary.total_maintenance_margin_required > Decimal("0")
+            and account_summary.total_maintenance_margin_required > Decimal(0)
         ):
             assert len(str(account_summary.total_maintenance_margin_required)) > 0
 
@@ -137,24 +141,24 @@ class TestBackpackAccountSummaryPrivate:
         initial_margin = account_summary.total_initial_margin_required
         maintenance_margin = account_summary.total_maintenance_margin_required
 
-        if equity > Decimal("0"):
+        if equity > Decimal(0):
             initial_ratio = (
                 initial_margin / equity
-                if initial_margin and initial_margin > Decimal("0")
-                else Decimal("0")
+                if initial_margin and initial_margin > Decimal(0)
+                else Decimal(0)
             )
             maintenance_ratio = (
                 maintenance_margin / equity
-                if maintenance_margin and maintenance_margin > Decimal("0")
-                else Decimal("0")
+                if maintenance_margin and maintenance_margin > Decimal(0)
+                else Decimal(0)
             )
 
-            assert initial_ratio <= Decimal("1")
-            assert maintenance_ratio <= Decimal("1")
+            assert initial_ratio <= Decimal(1)
+            assert maintenance_ratio <= Decimal(1)
             assert maintenance_ratio <= initial_ratio
 
-        available_margin = equity - (initial_margin or Decimal("0"))
-        if available_margin > Decimal("0"):
+        available_margin = equity - (initial_margin or Decimal(0))
+        if available_margin > Decimal(0):
             assert account_summary.bp_details is not None
             if account_summary.bp_details and account_summary.bp_details.assets_value:
                 # Assets value might be slightly higher than equity due to timing differences

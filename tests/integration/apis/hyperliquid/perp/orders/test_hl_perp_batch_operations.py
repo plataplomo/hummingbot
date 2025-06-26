@@ -44,7 +44,8 @@ class TestHyperliquidBatchOperations:
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_place_batch_orders_success_six_orders(
-        self, hl_api_for_test_env: HyperliquidAPI
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
     ) -> None:
         """Test successful batch placement of 6 orders - the key performance improvement case.
 
@@ -59,13 +60,14 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=5
+            hl_api_for_test_env,
+            limit=5,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No perpetual symbols available from the exchange. "
-                "This test requires at least one available perpetual symbol."
+                "This test requires at least one available perpetual symbol.",
             )
 
         # Select first available symbol for deterministic VCR playback
@@ -109,7 +111,7 @@ class TestHyperliquidBatchOperations:
                     post_only=True,  # Ensure we don't accidentally market make
                     reduce_only=False,
                     client_order_id=None,  # Optional - let exchange assign ID
-                )
+                ),
             )
 
         # Measure batch order placement time
@@ -164,13 +166,14 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=5
+            hl_api_for_test_env,
+            limit=5,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No perpetual symbols available from the exchange. "
-                "This test requires at least one available perpetual symbol."
+                "This test requires at least one available perpetual symbol.",
             )
 
         # Select first available symbol for deterministic VCR playback
@@ -202,7 +205,7 @@ class TestHyperliquidBatchOperations:
                     post_only=True,
                     reduce_only=False,
                     client_order_id=None,  # Optional - let exchange assign ID
-                )
+                ),
             )
 
         # Place orders
@@ -219,7 +222,7 @@ class TestHyperliquidBatchOperations:
                     CancelOrderArgs(
                         order_id=order.exchange_order_id,
                         symbol=order.symbol,
-                    )
+                    ),
                 )
 
         # Test batch cancellation
@@ -250,7 +253,8 @@ class TestHyperliquidBatchOperations:
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_batch_order_validation_empty_list(
-        self, hl_api_for_test_env: HyperliquidAPI
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
     ) -> None:
         """Test batch operations with empty order lists."""
         # Test empty batch placement
@@ -273,19 +277,23 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No perpetual symbols available from the exchange. "
-                "This test requires at least one available perpetual symbol."
+                "This test requires at least one available perpetual symbol.",
             )
 
         symbol = available_symbols[0]
         test_quantity = await get_minimal_test_quantity(hl_api_for_test_env, symbol, OrderSide.BUY)
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("0.10")
+            hl_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            Decimal("0.10"),
         )
 
         orders = [
@@ -323,13 +331,14 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=5
+            hl_api_for_test_env,
+            limit=5,
         )
 
         if len(available_symbols) < 2:
             pytest.skip(
                 "This test requires at least 2 different perpetual symbols. "
-                f"Only {len(available_symbols)} available."
+                f"Only {len(available_symbols)} available.",
             )
 
         # Use first two available symbols
@@ -339,18 +348,28 @@ class TestHyperliquidBatchOperations:
 
         # Get test parameters for each symbol using proper helpers
         test_price1 = await get_safe_test_price(
-            hl_api_for_test_env, symbol1, OrderSide.BUY, Decimal("0.15")
+            hl_api_for_test_env,
+            symbol1,
+            OrderSide.BUY,
+            Decimal("0.15"),
         )
         test_price2 = await get_safe_test_price(
-            hl_api_for_test_env, symbol2, OrderSide.BUY, Decimal("0.15")
+            hl_api_for_test_env,
+            symbol2,
+            OrderSide.BUY,
+            Decimal("0.15"),
         )
 
         # Use the test helpers that handle all exchange constraints including notional value
         test_quantity1 = await get_minimal_test_quantity(
-            hl_api_for_test_env, symbol1, OrderSide.BUY
+            hl_api_for_test_env,
+            symbol1,
+            OrderSide.BUY,
         )
         test_quantity2 = await get_minimal_test_quantity(
-            hl_api_for_test_env, symbol2, OrderSide.BUY
+            hl_api_for_test_env,
+            symbol2,
+            OrderSide.BUY,
         )
 
         orders = [
@@ -409,7 +428,8 @@ class TestHyperliquidBatchOperations:
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_place_batch_orders_partial_failure_scenarios(
-        self, hl_api_for_test_env: HyperliquidAPI
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
     ) -> None:
         """Test batch operations with mixed success/failure scenarios."""
         # Get available symbols from exchange using dynamic discovery
@@ -420,13 +440,14 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No perpetual symbols available from the exchange. "
-                "This test requires at least one available perpetual symbol."
+                "This test requires at least one available perpetual symbol.",
             )
 
         symbol = available_symbols[0]
@@ -435,7 +456,10 @@ class TestHyperliquidBatchOperations:
         # Get test parameters
         test_quantity = await get_minimal_test_quantity(hl_api_for_test_env, symbol, OrderSide.BUY)
         test_price = await get_safe_test_price(
-            hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("0.10")
+            hl_api_for_test_env,
+            symbol,
+            OrderSide.BUY,
+            Decimal("0.10"),
         )
 
         # Mix of orders that should succeed and potentially fail
@@ -458,7 +482,10 @@ class TestHyperliquidBatchOperations:
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
                 price=await get_safe_test_price(
-                    hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("0.11")
+                    hl_api_for_test_env,
+                    symbol,
+                    OrderSide.BUY,
+                    Decimal("0.11"),
                 ),
                 time_in_force=TimeInForce.GTC,
                 post_only=True,
@@ -472,7 +499,10 @@ class TestHyperliquidBatchOperations:
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,  # Use proper test quantity
                 price=await get_safe_test_price(
-                    hl_api_for_test_env, symbol, OrderSide.BUY, Decimal("0.12")
+                    hl_api_for_test_env,
+                    symbol,
+                    OrderSide.BUY,
+                    Decimal("0.12"),
                 ),
                 time_in_force=TimeInForce.GTC,
                 post_only=True,
@@ -520,7 +550,8 @@ class TestHyperliquidBatchOperations:
     @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_batch_operations_error_handling(
-        self, hl_api_for_test_env: HyperliquidAPI
+        self,
+        hl_api_for_test_env: HyperliquidAPI,
     ) -> None:
         """Test comprehensive error handling for batch operations."""
         # Test 1: Empty batch validation
@@ -539,23 +570,29 @@ class TestHyperliquidBatchOperations:
         )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
-            hl_api_for_test_env, limit=1
+            hl_api_for_test_env,
+            limit=1,
         )
 
         if not available_symbols:
             pytest.skip(
                 "No symbols available from exchange. "
-                "Cannot test invalid symbol error handling without valid reference data."
+                "Cannot test invalid symbol error handling without valid reference data.",
             )
 
         # Use a valid symbol to get proper test parameters
         valid_symbol = available_symbols[0]
         test_quantity = await get_minimal_test_quantity(
-            hl_api_for_test_env, valid_symbol, OrderSide.BUY
+            hl_api_for_test_env,
+            valid_symbol,
+            OrderSide.BUY,
         )
         # Get a real price to use as reference (even for invalid symbol test)
         reference_price = await get_safe_test_price(
-            hl_api_for_test_env, valid_symbol, OrderSide.BUY, Decimal("0.10")
+            hl_api_for_test_env,
+            valid_symbol,
+            OrderSide.BUY,
+            Decimal("0.10"),
         )
 
         invalid_orders = [
@@ -567,7 +604,7 @@ class TestHyperliquidBatchOperations:
                 price=reference_price,  # Use real price data, not arbitrary values
                 time_in_force=TimeInForce.GTC,
                 client_order_id=None,  # Optional - let exchange assign ID
-            )
+            ),
         ]
 
         try:
@@ -590,7 +627,7 @@ class TestHyperliquidBatchOperations:
             CancelOrderArgs(
                 order_id="99999999999",  # Non-existent order ID
                 symbol=cancel_test_symbol,
-            )
+            ),
         ]
 
         try:

@@ -267,7 +267,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 symbol=symbol,
                 start_time=start_time,
                 end_time=end_time,
-            )
+            ),
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -335,7 +335,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 symbol=symbol,
                 start_time=start_time,
                 end_time=end_time,
-            )
+            ),
         )
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -667,7 +667,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
                 symbol=symbol,
                 start_time=start_time,
                 end_time=end_time,
-            )
+            ),
         )
 
     @pytest.mark.asyncio

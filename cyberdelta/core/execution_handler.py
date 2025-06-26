@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.apis.models.service_args_models import GetOrderArgs, PlaceOrderArgs
@@ -38,8 +38,6 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 # Keep imports for type checking only if they cause circular dependencies otherwise
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -238,7 +236,9 @@ class ExecutionHandler:
         return self._finalize_execution(execution)
 
     def _check_circuit_breakers(
-        self, execution: TradeExecution, opportunity: SizedOpportunity
+        self,
+        execution: TradeExecution,
+        opportunity: SizedOpportunity,
     ) -> None:
         """Check circuit breakers for both exchanges."""
         if not self.circuit_breaker_system:
@@ -263,7 +263,9 @@ class ExecutionHandler:
             )
 
     async def _setup_execution_prerequisites(
-        self, execution: TradeExecution, opportunity: SizedOpportunity
+        self,
+        execution: TradeExecution,
+        opportunity: SizedOpportunity,
     ) -> tuple[ExchangeAPI, ExchangeAPI, str, str]:
         """Setup and validate API clients and symbols for execution."""
         # Get API clients
@@ -307,7 +309,9 @@ class ExecutionHandler:
         return long_client, short_client, long_symbol, short_symbol
 
     def _handle_circuit_breaker_rejection(
-        self, execution: TradeExecution, e: CircuitBreakerTrippedError
+        self,
+        execution: TradeExecution,
+        e: CircuitBreakerTrippedError,
     ) -> TradeExecution:
         """Handle circuit breaker rejection."""
         op_error_msg = f"Execution {execution.id} rejected by circuit breaker: {e}"
@@ -325,7 +329,10 @@ class ExecutionHandler:
         return execution
 
     def _handle_api_error_during_execution(
-        self, execution: TradeExecution, opportunity: SizedOpportunity, e: APIError
+        self,
+        execution: TradeExecution,
+        opportunity: SizedOpportunity,
+        e: APIError,
     ) -> TradeExecution:
         """Handle API errors during execution."""
         op_error_msg = (
@@ -351,7 +358,10 @@ class ExecutionHandler:
         return execution
 
     def _handle_unexpected_error_during_execution(
-        self, execution: TradeExecution, opportunity: SizedOpportunity, e: Exception
+        self,
+        execution: TradeExecution,
+        opportunity: SizedOpportunity,
+        e: Exception,
     ) -> TradeExecution:
         """Handle unexpected errors during execution."""
         op_error_msg = (
@@ -366,7 +376,10 @@ class ExecutionHandler:
         return execution
 
     def _record_api_error_for_circuit_breaker(
-        self, execution: TradeExecution, opportunity: SizedOpportunity, e: APIError
+        self,
+        execution: TradeExecution,
+        opportunity: SizedOpportunity,
+        e: APIError,
     ) -> None:
         """Record API error for circuit breaker system."""
         # Determine which exchange caused the error
@@ -450,7 +463,11 @@ class ExecutionHandler:
 
         # Place long order
         long_order_result = await self._place_long_order(
-            execution, opportunity, long_symbol, base_asset_quantity_long, default_tif
+            execution,
+            opportunity,
+            long_symbol,
+            base_asset_quantity_long,
+            default_tif,
         )
         if long_order_result is None:
             return  # Error already set in execution
@@ -475,7 +492,7 @@ class ExecutionHandler:
         """Calculate base asset quantities for both legs."""
         # --- Calculate Base Asset Quantities ---
         base_asset_quantity_long: Decimal | None = None
-        if opportunity.long_price and opportunity.long_price > Decimal("0"):
+        if opportunity.long_price and opportunity.long_price > Decimal(0):
             base_asset_quantity_long = sized_opp.long_size / opportunity.long_price
         else:
             err_msg = (
@@ -495,7 +512,7 @@ class ExecutionHandler:
             return None
 
         base_asset_quantity_short: Decimal | None = None
-        if opportunity.short_price and opportunity.short_price > Decimal("0"):
+        if opportunity.short_price and opportunity.short_price > Decimal(0):
             base_asset_quantity_short = sized_opp.short_size / opportunity.short_price
         else:
             err_msg = (
@@ -624,7 +641,11 @@ class ExecutionHandler:
 
         if short_order_result is None or short_order_result.status != OrderStatus.FILLED:
             await self._handle_short_order_failure(
-                execution, opportunity, short_order_result, long_symbol, base_asset_quantity_long
+                execution,
+                opportunity,
+                short_order_result,
+                long_symbol,
+                base_asset_quantity_long,
             )
         else:
             # Short order successful
@@ -798,7 +819,11 @@ class ExecutionHandler:
 
         # Check for slippage
         self._check_slippage(
-            execution, order, is_long_leg, expected_long_price, expected_short_price
+            execution,
+            order,
+            is_long_leg,
+            expected_long_price,
+            expected_short_price,
         )
 
         # Process trades
@@ -1059,20 +1084,22 @@ class ExecutionHandler:
                         f"{order_status.status}",
                     )
                     return order_status
-                else:
-                    # Handle case where get_order_status returns None without exception
-                    logger.warning(
-                        f"Execution {execution.id}: _get_order_status returned None for "
-                        f"{order_id}.",
-                    )
-                    # Decide if retryable or assume failed/cancelled
-                    if attempt == self.max_retries - 1:
-                        return None
+                # Handle case where get_order_status returns None without exception
+                logger.warning(
+                    f"Execution {execution.id}: _get_order_status returned None for {order_id}.",
+                )
+                # Decide if retryable or assume failed/cancelled
+                if attempt == self.max_retries - 1:
+                    return None
 
             except APIError as e:
                 # Handle API error with circuit breaker and specific error handling
                 should_continue = await self._handle_order_status_api_error(
-                    execution, exchange_id, order_id, e, attempt
+                    execution,
+                    exchange_id,
+                    order_id,
+                    e,
+                    attempt,
                 )
                 if not should_continue:
                     return None
@@ -1083,7 +1110,7 @@ class ExecutionHandler:
             except Exception as e:
                 # Catch unexpected errors
                 logger.exception(
-                    f"Execution {execution.id}: Unexpected error during {context}: {str(e)}",
+                    f"Execution {execution.id}: Unexpected error during {context}: {e!s}",
                 )
                 # Decide if unexpected errors are retryable (maybe not)
                 return None
@@ -1125,21 +1152,24 @@ class ExecutionHandler:
         """Handle specific API error codes during order status check."""
         if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
             return self._handle_order_not_found_error(order_id, exchange_id, attempt, e)
-        elif e.code == APIErrorCode.RATE_LIMITED.value:
+        if e.code == APIErrorCode.RATE_LIMITED.value:
             return self._handle_rate_limited_error(order_id, exchange_id, e)
-        elif e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
+        if e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
             return self._handle_authentication_failed_error(order_id, exchange_id, e)
-        elif e.code == APIErrorCode.INVALID_REQUEST.value:
+        if e.code == APIErrorCode.INVALID_REQUEST.value:
             return self._handle_invalid_request_error(order_id, e)
-        elif e.code == APIErrorCode.SERVER_ERROR.value:
+        if e.code == APIErrorCode.SERVER_ERROR.value:
             return self._handle_server_error(order_id, exchange_id, e)
-        elif not e.is_retryable:
+        if not e.is_retryable:
             return self._handle_non_retryable_error(order_id, e)
-        else:
-            return self._handle_other_retryable_error(order_id, e)
+        return self._handle_other_retryable_error(order_id, e)
 
     def _handle_order_not_found_error(
-        self, order_id: str, exchange_id: str, attempt: int, e: APIError
+        self,
+        order_id: str,
+        exchange_id: str,
+        attempt: int,
+        e: APIError,
     ) -> bool:
         """Handle ORDER_NOT_FOUND error."""
         # DEFENSIVE CHECK: Mypy=[comparison-overlap] Ruff=[none]
@@ -1163,7 +1193,10 @@ class ExecutionHandler:
         return True
 
     def _handle_authentication_failed_error(
-        self, order_id: str, exchange_id: str, e: APIError
+        self,
+        order_id: str,
+        exchange_id: str,
+        e: APIError,
     ) -> bool:
         """Handle AUTHENTICATION_FAILED error."""
         # DEFENSIVE CHECK: Mypy=[comparison-overlap] Ruff=[none]
@@ -1348,15 +1381,14 @@ class ExecutionHandler:
             )
             # For now, optimistically return True if placed, but log warning
             return True
-        else:
-            logger.error(
-                "execution_compensation_placement_failed",
-                execution_id=execution.id,
-                action="place_compensation_order",
-                status="failed",
-                message=f"Execution {execution.id}: Failed to place compensation order.",
-            )
-            return False
+        logger.error(
+            "execution_compensation_placement_failed",
+            execution_id=execution.id,
+            action="place_compensation_order",
+            status="failed",
+            message=f"Execution {execution.id}: Failed to place compensation order.",
+        )
+        return False
 
     def get_active_executions(self) -> list[TradeExecution]:
         """Get a list of currently active trade executions."""
@@ -1432,7 +1464,7 @@ class ExecutionHandler:
                     f"Filled: {order.quantity_filled}, Requested: {order.quantity_requested}",
                 )
                 return False
-            elif expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
+            if expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
                 # For CANCELED/REJECTED, just check the status
                 if order.status == expected_status:
                     return True
@@ -1441,32 +1473,30 @@ class ExecutionHandler:
                     f"Got {order.status.name}",
                 )
                 return False
-            else:
-                # For other statuses (e.g., NEW, PARTIALLY_FILLED), just check status matches
-                if order.status == expected_status:
-                    return True
-                logger.warning(
-                    f"Order {order_id} state mismatch: Expected {expected_status.name}, "
-                    f"Got {order.status.name}",
-                )
-                return False
-        else:
-            # Failed to get order status - verification fails
-            logger.warning(
-                "order_status_verification_failed",
-                order_id=order_id,
-                action="verify_order_status",
-                issue="failed_to_get_status",
-                message=f"Failed to get status for order {order_id} during verification.",
-            )
-            # If we expected CANCELLED/REJECTED and couldn't find it, maybe treat as success?
-            if expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
-                logger.info(
-                    f"Treating failed status fetch for {order_id} as verification success "
-                    f"since expected state was {expected_status.name}.",
-                )
+            # For other statuses (e.g., NEW, PARTIALLY_FILLED), just check status matches
+            if order.status == expected_status:
                 return True
+            logger.warning(
+                f"Order {order_id} state mismatch: Expected {expected_status.name}, "
+                f"Got {order.status.name}",
+            )
             return False
+        # Failed to get order status - verification fails
+        logger.warning(
+            "order_status_verification_failed",
+            order_id=order_id,
+            action="verify_order_status",
+            issue="failed_to_get_status",
+            message=f"Failed to get status for order {order_id} during verification.",
+        )
+        # If we expected CANCELLED/REJECTED and couldn't find it, maybe treat as success?
+        if expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
+            logger.info(
+                f"Treating failed status fetch for {order_id} as verification success "
+                f"since expected state was {expected_status.name}.",
+            )
+            return True
+        return False
 
     async def _update_pnl(self, execution: TradeExecution) -> None:
         """Calculate and update the realized PnL for a completed execution.
@@ -1590,14 +1620,13 @@ class ExecutionHandler:
                     )
                     return order.status
                 # Handle PARTIALLY_FILLED if needed - might require partial compensation logic
-                elif order.status == OrderStatus.PARTIALLY_FILLED:
+                if order.status == OrderStatus.PARTIALLY_FILLED:
                     logger.info(
                         f"Execution {execution.id}: Order {order_id} is PARTIALLY_FILLED. "
                         f"Filled: {order.quantity_filled}/{order.quantity_requested}",
                     )
                     # TODO: Implement logic for partial fills if required by strategy
                     # For now, continue monitoring
-                    pass
             else:
                 # _get_order_status failed after retries
                 logger.error(
@@ -1779,7 +1808,7 @@ class ExecutionHandler:
             except Exception as e:
                 # Catch unexpected errors
                 execution.error_message = (
-                    f"Unexpected error during {context} on {exchange_id}: {str(e)}"
+                    f"Unexpected error during {context} on {exchange_id}: {e!s}"
                 )
                 logger.exception(f"Execution {execution.id}: {execution.error_message}")
                 # Decide if unexpected errors are retryable (maybe not)
@@ -1804,23 +1833,22 @@ class ExecutionHandler:
                 f"{last_api_error_for_reraise}",
             )
             raise last_api_error_for_reraise
-        else:
-            # This path should ideally not be hit if an APIError occurred and was stored.
-            # If it's another exception, it would have been raised or returned None from the loop.
-            # If it's just max_retries without a specific APIError stored
-            # (e.g. unexpected error returned None),
-            # set a generic message if not already set.
-            if not execution.error_message:
-                execution.error_message = (
-                    f"Failed to place order on {exchange_id} after "
-                    f"{self.max_retries} retries (unknown reason)."
-                )
-            logger.error(
-                "execution_error",
-                execution_id=execution.id,
-                error_message=execution.error_message,
-                action="handle_execution_error",
-                message=f"Execution {execution.id}: {execution.error_message}",
+        # This path should ideally not be hit if an APIError occurred and was stored.
+        # If it's another exception, it would have been raised or returned None from the loop.
+        # If it's just max_retries without a specific APIError stored
+        # (e.g. unexpected error returned None),
+        # set a generic message if not already set.
+        if not execution.error_message:
+            execution.error_message = (
+                f"Failed to place order on {exchange_id} after "
+                f"{self.max_retries} retries (unknown reason)."
             )
+        logger.error(
+            "execution_error",
+            execution_id=execution.id,
+            error_message=execution.error_message,
+            action="handle_execution_error",
+            message=f"Execution {execution.id}: {execution.error_message}",
+        )
 
         return None  # Fallback, though raising last_api_error_for_reraise is preferred if it exists

@@ -47,7 +47,7 @@ async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
         if not spot_symbols:
             raise RuntimeError(
                 "No spot symbols available from exchange. "
-                "WebSocket subscription tests require real trading symbols."
+                "WebSocket subscription tests require real trading symbols.",
             )
 
         return {
@@ -59,7 +59,7 @@ async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket subscription tests require real market data and "
-            "cannot use hardcoded symbols."
+            "cannot use hardcoded symbols.",
         ) from e
 
 
@@ -86,7 +86,9 @@ async def validate_subscription_topic(topic: str, available_symbols: list[str]) 
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/real_subscriptions"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/real_subscriptions"],
+    indirect=True,
 )
 class TestBackpackAPIRealWebSocketSubscriptions:
     """Test WebSocket subscription methods with real market data."""
@@ -107,7 +109,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         if not symbols["spot"]:
             pytest.fail(
                 "No spot symbols available from exchange. "
-                "WebSocket subscription requires real trading symbols."
+                "WebSocket subscription requires real trading symbols.",
             )
 
         test_symbol = symbols["spot"][0]
@@ -116,7 +118,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         received_messages: list[dict[str, Any]] = []
 
         async def real_symbol_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             """Handler for real symbol subscription messages."""
             received_messages.append(message)
@@ -137,7 +140,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         except Exception as e:
             pytest.fail(
                 f"Real symbol subscription failed for {test_symbol}: {e}. "
-                "WebSocket subscriptions with real symbols are critical for trading data."
+                "WebSocket subscriptions with real symbols are critical for trading data.",
             )
 
     @pytest.mark.vcr
@@ -155,7 +158,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         if len(symbols["spot"]) < 2:
             pytest.fail(
                 f"Need at least 2 spot symbols, got {len(symbols['spot'])}. "
-                "Multi-stream testing requires multiple real symbols."
+                "Multi-stream testing requires multiple real symbols.",
             )
 
         symbol1, symbol2 = symbols["spot"][0], symbols["spot"][1]
@@ -192,7 +195,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                     if not await validate_subscription_topic(topic, all_symbols):
                         pytest.fail(
                             f"Invalid topic using non-real symbol: {topic}. "
-                            "All subscriptions must use real exchange symbols."
+                            "All subscriptions must use real exchange symbols.",
                         )
 
             # Validate connection state
@@ -203,13 +206,13 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Multiple real stream types successful: {len(stream_subscriptions)} streams"
+                f"✓ Multiple real stream types successful: {len(stream_subscriptions)} streams",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Multiple real stream type subscriptions failed: {e}. "
-                "Multi-stream functionality is critical for comprehensive trading data."
+                "Multi-stream functionality is critical for comprehensive trading data.",
             )
 
     @pytest.mark.vcr
@@ -226,7 +229,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
 
         async def consistency_handler(
-            message: dict[str, Any], full_message: dict[str, Any]
+            message: dict[str, Any],
+            full_message: dict[str, Any],
         ) -> None:
             logger.info(f"Consistency handler: {message}")
 
@@ -259,7 +263,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         except Exception as e:
             pytest.fail(
                 f"Real subscription state consistency failed: {e}. "
-                "State consistency is critical for reliable WebSocket operations with real data."
+                "State consistency is critical for reliable WebSocket operations with real data.",
             )
 
     @pytest.mark.vcr
@@ -277,7 +281,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         if len(symbols["spot"]) < 3:
             pytest.fail(
                 f"Need at least 3 symbols for helper method testing, got {len(symbols['spot'])}. "
-                "Helper method tests require multiple real symbols."
+                "Helper method tests require multiple real symbols.",
             )
 
         symbol1, symbol2, symbol3 = symbols["spot"][:3]
@@ -297,13 +301,13 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
             logger.info(
                 f"✓ All helper subscription methods successful with real symbols: "
-                f"{[symbol1, symbol2, symbol3]}"
+                f"{[symbol1, symbol2, symbol3]}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Helper subscription methods failed with real symbols: {e}. "
-                "Helper methods are critical for simplified WebSocket integration."
+                "Helper methods are critical for simplified WebSocket integration.",
             )
 
     @pytest.mark.vcr
@@ -326,7 +330,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         try:
             # Test subscription before connection
             await bp_api_for_test_env.subscribe(topic, lifecycle_handler)
-            subscription_state = bp_api_for_test_env.is_connected  # noqa: F841
+            subscription_state = bp_api_for_test_env.is_connected
 
             # Test connection establishment
             await bp_api_for_test_env.connect_websocket()
@@ -342,18 +346,21 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
             logger.info(
                 f"✓ Real WebSocket lifecycle completed: "
-                f"sub={subscription_state}, conn={connection_state}"
+                f"sub={subscription_state}, conn={connection_state}",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Real WebSocket connection lifecycle failed: {e}. "
-                "Connection lifecycle with real symbols is critical for trading system reliability."
+                "Connection lifecycle with real symbols is critical for "
+                "trading system reliability.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/concurrent_real"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/concurrent_real"],
+    indirect=True,
 )
 class TestBackpackAPIConcurrentRealSubscriptions:
     """Test concurrent WebSocket subscriptions with real data."""
@@ -374,7 +381,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             pytest.fail(
                 f"Need at least 3 symbols for concurrent testing, "
                 f"got {len(symbols['spot'])}. "
-                "Concurrent subscription tests require multiple real symbols."
+                "Concurrent subscription tests require multiple real symbols.",
             )
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
@@ -403,13 +410,13 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             )
 
             logger.info(
-                f"✓ Concurrent real subscriptions successful: {len(subscription_tasks)} operations"
+                f"✓ Concurrent real subscriptions successful: {len(subscription_tasks)} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Concurrent real subscriptions failed: {e}. "
-                "Concurrent operations with real data are critical for high-frequency trading."
+                "Concurrent operations with real data are critical for high-frequency trading.",
             )
 
     @pytest.mark.vcr
@@ -444,7 +451,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             if subscription_count == 0:
                 pytest.fail(
                     "No real market subscriptions created. "
-                    "Mixed market testing requires real spot and perp symbols."
+                    "Mixed market testing requires real spot and perp symbols.",
                 )
 
             connection_state = bp_api_for_test_env.is_connected
@@ -454,18 +461,20 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             )
 
             logger.info(
-                f"✓ Mixed market real subscriptions successful: {subscription_count} subscriptions"
+                f"✓ Mixed market real subscriptions successful: {subscription_count} subscriptions",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Mixed market real subscriptions failed: {e}. "
-                "Multi-market functionality with real data is critical for comprehensive trading."
+                "Multi-market functionality with real data is critical for comprehensive trading.",
             )
 
 
 @pytest.mark.parametrize(
-    "custom_vcr_cassette_dir", ["apis/backpack/websockets/error_handling_real"], indirect=True
+    "custom_vcr_cassette_dir",
+    ["apis/backpack/websockets/error_handling_real"],
+    indirect=True,
 )
 class TestBackpackAPIRealSubscriptionErrorHandling:
     """Test subscription error handling with real scenarios."""
@@ -523,7 +532,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                     # Valid real scenarios must not fail
                     pytest.fail(
                         f"Valid real subscription failed for {topic}: {e}. "
-                        "Valid subscriptions with real symbols are critical and must succeed."
+                        "Valid subscriptions with real symbols are critical and must succeed.",
                     )
                 else:
                     # Invalid scenarios may fail appropriately
@@ -534,12 +543,12 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
         if successful_count == 0:
             pytest.fail(
                 "No successful real subscriptions occurred. "
-                "At least one valid real subscription must succeed for WebSocket functionality."
+                "At least one valid real subscription must succeed for WebSocket functionality.",
             )
 
         logger.info(
             f"✓ Real subscription error handling completed: "
-            f"{successful_count} successful, {error_count} errors"
+            f"{successful_count} successful, {error_count} errors",
         )
 
     @pytest.mark.vcr
@@ -587,11 +596,11 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                 )
 
             logger.info(
-                f"✓ Subscription resilience with real data confirmed: {operation_count} operations"
+                f"✓ Subscription resilience with real data confirmed: {operation_count} operations",
             )
 
         except Exception as e:
             pytest.fail(
                 f"Subscription resilience failed after {operation_count} operations: {e}. "
-                "System resilience with real data is critical for trading platform stability."
+                "System resilience with real data is critical for trading platform stability.",
             )

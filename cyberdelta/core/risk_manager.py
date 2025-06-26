@@ -36,8 +36,8 @@ logger = get_logger(__name__)
 getcontext().prec = 28  # Default precision, adjust if needed
 
 # Define ZERO and ONE constants for clarity
-ZERO = Decimal("0")
-ONE = Decimal("1")
+ZERO = Decimal(0)
+ONE = Decimal(1)
 
 
 # Define SimpleSizingMethod Enum and VALID_SIMPLE_SIZING_METHODS at the module level
@@ -105,7 +105,7 @@ class SizedOpportunity:
             f"Short: {self.opportunity.short_exchange} ${self.short_size:.2f}, "
             f"Alloc: {self.allocation_percentage:.2f}%, "
             f"ExpProfit: ${self.expected_profit:.2f}, "
-            f"ExpReturn: {(self.expected_return * Decimal('100')):.2f}%, "
+            f"ExpReturn: {(self.expected_return * Decimal(100)):.2f}%, "
             f"RiskAdjReturn: {self.risk_adjusted_return:.4f}"
         )
 
@@ -143,25 +143,17 @@ class SizedOpportunity:
 class RiskManagerError(Exception):
     """Base exception for all RiskManager errors."""
 
-    pass
-
 
 class ConfigError(RiskManagerError):
     """Raised when configuration is missing or invalid."""
-
-    pass
 
 
 class ValidationError(RiskManagerError):
     """Raised when an opportunity or action fails validation checks."""
 
-    pass
-
 
 class ConstraintViolationError(RiskManagerError):
     """Raised when a portfolio constraint is violated."""
-
-    pass
 
 
 # --- Data Structures for Protocols ---
@@ -368,7 +360,7 @@ class RiskManager:
             self.min_volatility = Decimal("0.001")  # Default 0.1%
             self.kelly_fraction_config = Decimal("0.1")  # Default 10%
             self.kelly_max_leverage_cap = Decimal("3.0")  # Default 3x
-            self.min_edge_bps_kelly = Decimal("5")  # Default 5 bps
+            self.min_edge_bps_kelly = Decimal(5)  # Default 5 bps
 
             # Initialize min trade size attributes
             self._global_min_trade_size_usd = self.min_trade_size_usd
@@ -1508,7 +1500,10 @@ class RiskManager:
 
         # Calculate sized opportunity based on method
         sized_opportunity = await self._calculate_sized_opportunity(
-            opportunity, total_capital, long_validation_factor, short_validation_factor
+            opportunity,
+            total_capital,
+            long_validation_factor,
+            short_validation_factor,
         )
         if sized_opportunity is None:
             return None
@@ -1519,7 +1514,8 @@ class RiskManager:
         return self._log_and_return_result(opportunity, final_sized_opportunity)
 
     async def _validate_and_get_factors(
-        self, opportunity: ArbitrageOpportunity
+        self,
+        opportunity: ArbitrageOpportunity,
     ) -> tuple[Decimal, Decimal] | None:
         """Validate opportunity and get validation factors."""
         try:
@@ -1612,11 +1608,13 @@ class RiskManager:
                 long_validation_factor,
                 short_validation_factor,
             )
-        else:
-            # Use Kelly criterion for standard path
-            return await self._calculate_kelly_sized_opportunity(
-                opportunity, total_capital, long_validation_factor, short_validation_factor
-            )
+        # Use Kelly criterion for standard path
+        return await self._calculate_kelly_sized_opportunity(
+            opportunity,
+            total_capital,
+            long_validation_factor,
+            short_validation_factor,
+        )
 
     async def _calculate_kelly_sized_opportunity(
         self,
@@ -1646,7 +1644,9 @@ class RiskManager:
         # Apply validation factor
         validation_factor = min(long_validation_factor, short_validation_factor)
         calculated_size_usd_validated = self._apply_validation_factor(
-            calculated_size_usd, validation_factor, opportunity.symbol
+            calculated_size_usd,
+            validation_factor,
+            opportunity.symbol,
         )
         if calculated_size_usd_validated is None:
             return None
@@ -1669,7 +1669,10 @@ class RiskManager:
         return self._construct_sized_opportunity(opportunity, calculated_size_usd, total_capital)
 
     def _apply_validation_factor(
-        self, calculated_size_usd: Decimal, validation_factor: Decimal, symbol: str
+        self,
+        calculated_size_usd: Decimal,
+        validation_factor: Decimal,
+        symbol: str,
     ) -> Decimal | None:
         """Apply validation factor to calculated size."""
         if validation_factor < ONE:  # Apply reduction only if factor < 1
@@ -1694,7 +1697,10 @@ class RiskManager:
         return calculated_size_usd
 
     def _construct_sized_opportunity(
-        self, opportunity: ArbitrageOpportunity, final_size: Decimal, total_capital: Decimal
+        self,
+        opportunity: ArbitrageOpportunity,
+        final_size: Decimal,
+        total_capital: Decimal,
     ) -> SizedOpportunity:
         """Construct SizedOpportunity from calculated size."""
         allocation_percentage = (final_size / total_capital) if total_capital > ZERO else ZERO
@@ -1715,7 +1721,9 @@ class RiskManager:
         )
 
     def _log_and_return_result(
-        self, opportunity: ArbitrageOpportunity, final_sized_opportunity: SizedOpportunity | None
+        self,
+        opportunity: ArbitrageOpportunity,
+        final_sized_opportunity: SizedOpportunity | None,
     ) -> SizedOpportunity | None:
         """Log the final result and return it."""
         logger.debug(
@@ -1735,18 +1743,17 @@ class RiskManager:
                 message=f"Successfully sized opportunity: {final_sized_opportunity}",
             )
             return final_sized_opportunity
-        else:
-            self.logger.info(
-                "opportunity_rejected_portfolio_controls",
-                symbol=opportunity.symbol,
-                reason="portfolio_level_controls",
-                result="None",
-                message=(
-                    f"Opportunity {opportunity.symbol} rejected by portfolio level controls "
-                    f"(final_sized_opportunity is None)."
-                ),
-            )
-            return None
+        self.logger.info(
+            "opportunity_rejected_portfolio_controls",
+            symbol=opportunity.symbol,
+            reason="portfolio_level_controls",
+            result="None",
+            message=(
+                f"Opportunity {opportunity.symbol} rejected by portfolio level controls "
+                f"(final_sized_opportunity is None)."
+            ),
+        )
+        return None
 
     async def validate_opportunities(
         self,
@@ -2114,7 +2121,6 @@ class RiskManager:
                 f"RiskManager updated with drawdown metrics: {data['drawdown_metrics']}",
             )
         # Potentially update volatility estimates, correlations, etc.
-        pass
 
     # --- Exposure Checks (Portfolio Level) ---
 

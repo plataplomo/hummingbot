@@ -81,7 +81,7 @@ class HyperliquidAccountDataMapper:
         try:
             if hl_side == "B":
                 return OrderSide.BUY
-            elif hl_side == "A":
+            if hl_side == "A":
                 return OrderSide.SELL
 
             raise TransformationError(
@@ -131,7 +131,7 @@ class HyperliquidAccountDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
-                f"spot balances: {e}"
+                f"spot balances: {e}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
@@ -159,13 +159,13 @@ class HyperliquidAccountDataMapper:
             field_name="withdrawable",
         )
 
-        if total_usdc is not None and total_usdc >= Decimal("0"):
+        if total_usdc is not None and total_usdc >= Decimal(0):
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
             # Use withdrawable as available, or total if withdrawable is None/invalid
-            if available_usdc is None or available_usdc < Decimal("0"):
-                available_usdc = Decimal("0")
+            if available_usdc is None or available_usdc < Decimal(0):
+                available_usdc = Decimal(0)
             elif available_usdc > total_usdc:
                 available_usdc = total_usdc
 
@@ -207,7 +207,9 @@ class HyperliquidAccountDataMapper:
                 continue
 
             HyperliquidAccountDataMapper._process_single_spot_asset(
-                asset_pos, asset_name, spot_balances
+                asset_pos,
+                asset_name,
+                spot_balances,
             )
 
     @staticmethod
@@ -229,7 +231,7 @@ class HyperliquidAccountDataMapper:
             field_name=f"asset_positions.{asset_name}.szi",
         )
 
-        if size is not None and size >= Decimal("0"):
+        if size is not None and size >= Decimal(0):
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
@@ -276,7 +278,8 @@ class HyperliquidAccountDataMapper:
             if hasattr(raw_state, "asset_positions") and raw_state.asset_positions:
                 for position_data in raw_state.asset_positions:
                     HyperliquidAccountDataMapper._process_single_derivative_position(
-                        position_data, positions
+                        position_data,
+                        positions,
                     )
 
             return positions
@@ -287,7 +290,7 @@ class HyperliquidAccountDataMapper:
         except Exception as e:
             logger.error(
                 f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
-                f"derivative positions: {e}"
+                f"derivative positions: {e}",
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
@@ -316,7 +319,7 @@ class HyperliquidAccountDataMapper:
             return  # Skip positions with no size data
 
         # For non-zero positions, entry price must be valid and positive
-        if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
+        if size != Decimal(0) and (entry_price is None or entry_price <= Decimal(0)):
             raise TransformationError(
                 f"Invalid or zero entry price for non-zero position {symbol}: "
                 f"{getattr(pos, 'entry_px', None)}",
@@ -325,18 +328,22 @@ class HyperliquidAccountDataMapper:
             )
 
         # For zero positions, entry price must be None per domain model rules
-        if size == Decimal("0"):
+        if size == Decimal(0):
             entry_price = None
 
         # Create the derivative position
         position = HyperliquidAccountDataMapper._create_derivative_position(
-            pos, symbol, size, entry_price
+            pos,
+            symbol,
+            size,
+            entry_price,
         )
         positions[symbol] = position
 
     @staticmethod
     def _parse_position_core_data(
-        pos: HyperliquidRawPositionInfo, symbol: str
+        pos: HyperliquidRawPositionInfo,
+        symbol: str,
     ) -> tuple[Decimal | None, Decimal | None]:
         """Parse core position data (size and entry price)."""
         # Parse position size
@@ -392,9 +399,9 @@ class HyperliquidAccountDataMapper:
         # Determine side based on position size
         from cyberdelta.core.models.enums import OrderSide
 
-        if size > Decimal("0"):
+        if size > Decimal(0):
             side = OrderSide.BUY
-        elif size < Decimal("0"):
+        elif size < Decimal(0):
             side = OrderSide.SELL
         else:  # size == 0, use a default (either is valid for zero positions)
             side = OrderSide.BUY
@@ -513,7 +520,7 @@ class HyperliquidAccountDataMapper:
             # Calculate total maintenance margin
             # If isolated margin is not provided, use only cross margin
             total_maintenance_margin = cross_mmr + (
-                isolated_mmr if isolated_mmr is not None else Decimal("0")
+                isolated_mmr if isolated_mmr is not None else Decimal(0)
             )
 
             # Calculate available margin (withdrawable from raw state)
@@ -531,7 +538,7 @@ class HyperliquidAccountDataMapper:
             derivative_positions = mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
-            total_unrealized_pnl = Decimal("0")
+            total_unrealized_pnl = Decimal(0)
             for position in derivative_positions.values():
                 if position.unrealized_pnl is not None and position.unrealized_pnl.is_finite():
                     total_unrealized_pnl += position.unrealized_pnl
@@ -541,7 +548,7 @@ class HyperliquidAccountDataMapper:
                 cross_maintenance_margin_used=cross_mmr,
                 isolated_maintenance_margin_used=isolated_mmr
                 if isolated_mmr is not None
-                else Decimal("0"),
+                else Decimal(0),
             )
 
             # SECURITY FIX: Use secure_transform instead of direct instantiation
@@ -608,7 +615,7 @@ class HyperliquidAccountDataMapper:
                 getattr(raw_fill, "fee", "0"),
                 allow_none=True,
                 field_name="fee",
-            ) or Decimal("0")
+            ) or Decimal(0)
 
             # Create HL-specific details
             trade_hash = getattr(raw_fill, "hash", None)
@@ -695,7 +702,7 @@ class HyperliquidAccountDataMapper:
                 getattr(raw_fill, "fee", "0"),
                 allow_none=True,
                 field_name="fee",
-            ) or Decimal("0")
+            ) or Decimal(0)
 
             # Create HL-specific details
             details = HyperliquidTradeDetails(
@@ -721,7 +728,7 @@ class HyperliquidAccountDataMapper:
                 "side": side.value,
                 "order_id": str(raw_fill.oid),
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "client_order_id": raw_fill.cloid if raw_fill.cloid else None,
+                "client_order_id": raw_fill.cloid or None,
                 "price": str(price),
                 "quantity": str(quantity),
                 "fee": str(fee),
@@ -853,14 +860,14 @@ class HyperliquidAccountDataMapper:
                     )
 
             # For non-zero positions, entry price must be valid and positive
-            if size != Decimal("0") and (entry_price is None or entry_price <= Decimal("0")):
+            if size != Decimal(0) and (entry_price is None or entry_price <= Decimal(0)):
                 raise TransformationError(
                     f"Invalid or zero entry price for non-zero position {symbol}: "
                     f"{entry_price_str}",
                 )
 
             # For zero positions, entry price must be None per domain model rules
-            if size == Decimal("0"):
+            if size == Decimal(0):
                 entry_price = None
 
             # Parse unrealized PnL
@@ -903,9 +910,9 @@ class HyperliquidAccountDataMapper:
             # Determine side based on position size
             from cyberdelta.core.models.enums import OrderSide
 
-            if size > Decimal("0"):
+            if size > Decimal(0):
                 side = OrderSide.BUY
-            elif size < Decimal("0"):
+            elif size < Decimal(0):
                 side = OrderSide.SELL
             else:  # size == 0, use a default (either is valid for zero positions)
                 side = OrderSide.BUY

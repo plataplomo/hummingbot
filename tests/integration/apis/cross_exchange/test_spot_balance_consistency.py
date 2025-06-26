@@ -65,13 +65,15 @@ class TestCrossExchangeSpotBalanceConsistency:
         [
             pytest.param(Decimal("0.00000001"), id="dust"),
             pytest.param(Decimal("0.1"), id="small"),
-            pytest.param(Decimal("100"), id="normal"),
+            pytest.param(Decimal(100), id="normal"),
             pytest.param(Decimal("999999.99"), id="large"),
         ],
     )
     @pytest.mark.asyncio
     async def test_balance_amount_handling(
-        self, exchange_client: BackpackAPI | HyperliquidAPI, test_amount: Decimal
+        self,
+        exchange_client: BackpackAPI | HyperliquidAPI,
+        test_amount: Decimal,
     ) -> None:
         """Test balance amount handling across different scales."""
         try:
@@ -86,7 +88,7 @@ class TestCrossExchangeSpotBalanceConsistency:
                 assert test_total >= balance.total_quantity
 
                 # Test precision preservation
-                if balance.total_quantity > Decimal("0"):
+                if balance.total_quantity > Decimal(0):
                     ratio = test_amount / balance.total_quantity
                     assert ratio.is_finite()
 
