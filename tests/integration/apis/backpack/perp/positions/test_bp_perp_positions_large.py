@@ -6,7 +6,6 @@ No hardcoded values - everything calculated dynamically from account state.
 
 from __future__ import annotations
 
-import logging
 from decimal import ROUND_DOWN, Decimal
 from typing import Any, TypedDict
 
@@ -17,6 +16,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetMaxOrderQuantityArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_available_symbols,
@@ -24,6 +24,9 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_market_constraints,
     wait_for_condition,
 )
+
+
+logger = get_logger(__name__)
 
 
 class MaxPositionParams(TypedDict):
@@ -96,7 +99,7 @@ class TestBackpackPerpLargePositions:
                         )
                     except Exception as e:
                         # Log and ignore errors when closing positions in cleanup
-                        logging.warning(f"Failed to close position {position.symbol}: {e}")
+                        logger.warning(f"Failed to close position {position.symbol}: {e}")
                         continue
         except Exception:
             # Ignore errors in position cleanup

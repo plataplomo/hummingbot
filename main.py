@@ -16,14 +16,12 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-import structlog
-
 # Corrected imports for API clients
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings, get_secrets_config
-from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.config.structlog_config import get_logger as get_structlog, setup_structlog
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
@@ -35,12 +33,12 @@ from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+from cyberdelta.strategies.factory import StrategyCreationError, StrategyFactory
 from cyberdelta.utils.async_state_manager import AsyncStateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
-logger = structlog.get_logger(__name__)
+logger = get_structlog(__name__)
 
 # Global cancellation token
 cancellation_token = asyncio.Event()
@@ -357,45 +355,54 @@ async def _initialize_api_clients(
 
 
 def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> list[Strategy]:
-    """Initialize trading strategies."""
+    """Initialize trading strategies using the factory pattern."""
     strategies: list[Strategy] = []
 
     try:
-        logger.info("Initializing strategies...")
-        # For now, we're using the HyperLiquid Perp vs Backpack Spot strategy
-        # from the config model
+        logger.info("Initializing strategies via factory...")
+
+        # Create strategy factory with validated configuration
+        strategy_factory = StrategyFactory(config)
+
+        # Initialize HyperLiquid Perp vs Backpack Spot strategy
         strategy_config = config.strategies.hl_perp_bp_spot
         if strategy_config.enabled:
-            # Create the funding rate arbitrage strategy
-            # The strategy expects specific symbols from each exchange
-            strategy_params: dict[str, Any] = {
-                "type": "FundingRateArbitrage",
-                "name": "HL-BP-FundingArbitrage",
-                "symbol": strategy_config.symbol_long,  # Primary symbol
-                "enabled": True,
-                "long_exchange": strategy_config.long_exchange,
-                "short_exchange": strategy_config.short_exchange,
-                "symbol_long": strategy_config.symbol_long,
-                "symbol_short": strategy_config.symbol_short,
-                "funding_threshold": float(strategy_config.params.funding_threshold),
-                "max_price_spread_pct": float(strategy_config.params.max_price_spread_pct),
-                "min_profit_usd": float(strategy_config.params.min_profit_usd),
-            }
-
-            strategy: Strategy = FundingRateArbitrageStrategy(
-                name=strategy_params["name"],
-                symbol=strategy_params["symbol"],
-                data_handler=app_state["data_handler"],
-                portfolio_tracker=app_state["portfolio_tracker"],
-                risk_manager=app_state["risk_manager"],
-                params=strategy_params,
-            )
-            strategies.append(strategy)
-            logger.info("Initialized strategy", name=strategy.name)
+            try:
+                strategy = strategy_factory.create_hl_perp_bp_spot_strategy(
+                    name="HL-BP-FundingArbitrage",
+                    symbol=strategy_config.symbol_long,  # Primary symbol for strategy
+                    data_handler=app_state["data_handler"],
+                    portfolio_tracker=app_state["portfolio_tracker"],
+                    risk_manager=app_state["risk_manager"],
+                )
+                strategies.append(strategy)
+                logger.info(
+                    "strategy_created_successfully",
+                    strategy_name=strategy.name,
+                    strategy_type="hl_perp_bp_spot",
+                    symbol=strategy.symbol,
+                    action="strategy_initialization_complete",
+                    message=f"Successfully created {strategy.name} via factory",
+                )
+            except StrategyCreationError as e:
+                logger.error(
+                    "strategy_creation_failed",
+                    strategy_type="hl_perp_bp_spot",
+                    error=str(e),
+                    action="strategy_initialization_error",
+                    message=f"Failed to create HL Perp BP Spot strategy: {e}",
+                )
+                raise
         else:
             logger.info("HyperLiquid-Backpack funding arbitrage strategy is disabled")
 
-        logger.info("Strategies initialized", count=len(strategies))
+        logger.info(
+            "strategies_initialization_complete",
+            count=len(strategies),
+            enabled_strategies=[s.name for s in strategies],
+            action="all_strategies_initialized",
+            message=f"Successfully initialized {len(strategies)} strategies via factory",
+        )
         return strategies
 
     except Exception as e:
@@ -501,8 +508,11 @@ async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
         logger.info(f"Waiting for {len(main_tasks)} main component tasks to complete...")
         _, pending = await asyncio.wait(main_tasks, timeout=15.0)
         if pending:
-            logger.warning(
-                f"{len(pending)} main tasks did not finish gracefully, cancelling...",
+            logger.info(
+                f"Cancelling {len(pending)} main tasks that did not finish within timeout...",
+                action="task_cleanup",
+                pending_count=len(pending),
+                timeout_seconds=15.0,
             )
             for task in pending:
                 task.cancel()
@@ -567,7 +577,7 @@ async def main() -> None:
     app_state["config"] = config
 
     # Setup logging (must be after config is loaded)
-    setup_logging(config)
+    setup_structlog(config)
 
     # Initialize core components
     app_state.update(_initialize_core_components(config))

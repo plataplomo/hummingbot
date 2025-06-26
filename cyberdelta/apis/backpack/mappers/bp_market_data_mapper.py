@@ -20,7 +20,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -43,6 +42,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, Market
@@ -55,7 +55,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackMarketDataMapper:

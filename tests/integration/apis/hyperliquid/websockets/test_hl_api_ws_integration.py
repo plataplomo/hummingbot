@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import asyncio
 import decimal
-import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -36,6 +35,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.models.market.ticker import Ticker
@@ -45,7 +45,7 @@ from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 pytestmark = [
     pytest.mark.integration,

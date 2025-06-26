@@ -5,11 +5,12 @@ provider, which integrates data from multiple sources and provides
 confidence-scored funding rate data.
 """
 
-import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
+
+from cyberdelta.config.structlog_config import get_logger
 
 from .funding_data import (
     ConfidenceFactors,
@@ -20,7 +21,7 @@ from .funding_data import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FundingRateSourceError(Exception):
@@ -73,15 +74,25 @@ class MultiTierFundingProvider:
         self.max_acceptable_bias = config.get("max_acceptable_bias", 0.0005)
         self.max_acceptable_age = config.get("max_acceptable_age", 300.0)  # 5 minutes
         self.default_accuracy_score = config.get("default_accuracy_score", 0.5)
+        self.cache_ttl_seconds = config.get("cache_ttl_seconds", 300.0)  # 5 minutes default
 
         # Weight configuration for confidence scoring
         weights = config.get("funding_data.weights", {})
         if not isinstance(weights, dict):
-            logger.warning("Invalid 'funding_data.weights' format in config, using defaults.")
+            logger.warning(
+                "invalid_funding_weights_config",
+                config_value=weights,
+                action="using_defaults",
+                message="Invalid 'funding_data.weights' format in config, using defaults",
+            )
             weights = {}
 
         # Ensure weights is a proper dict for validation methods
-        weights_typed: dict[str, Any] = dict(weights) if weights else {}
+        if weights:
+            weights_casted = cast(dict[str, Any], weights)
+            weights_typed = dict(weights_casted)
+        else:
+            weights_typed = cast(dict[str, Any], {})
 
         self.historical_accuracy_weight = self._validate_float_config(
             weights_typed,
@@ -109,11 +120,16 @@ class MultiTierFundingProvider:
         # --- Threshold Configuration with Type Validation ---
         thresholds = config.get("funding_data.thresholds", {})
         if not isinstance(thresholds, dict):
-            logger.warning("Invalid 'funding_data.thresholds' format in config, using defaults.")
+            logger.warning(
+                "invalid_funding_thresholds_config",
+                config_value=thresholds,
+                action="using_defaults",
+                message="Invalid 'funding_data.thresholds' format in config, using defaults",
+            )
             thresholds = {}
 
         # Cast to proper type for validation methods
-        thresholds_typed: dict[str, Any] = thresholds
+        thresholds_typed = cast(dict[str, Any], thresholds)
 
         self.min_confidence_score = self._validate_float_config(
             thresholds_typed,
@@ -139,7 +155,16 @@ class MultiTierFundingProvider:
             default=2,
         )
 
-        logger.info("Initialized multi-tier funding rate provider")
+        logger.info(
+            "multi_tier_funding_provider_initialized",
+            primary_sources=len(self.primary_sources),
+            secondary_sources=len(self.secondary_sources),
+            tertiary_sources=len(self.tertiary_sources),
+            fallback_sources=len(self.fallback_sources),
+            cache_ttl_seconds=self.cache_ttl_seconds,
+            action="provider_initialized",
+            message="Initialized multi-tier funding rate provider",
+        )
 
     def register_source(
         self,
@@ -169,8 +194,15 @@ class MultiTierFundingProvider:
             self.fallback_sources[exchange] = source_func
 
         logger.info(
-            f"Registered {source_type.value} source for {exchange} "
-            f"with {reliability.value} reliability",
+            "funding_source_registered",
+            source_type=source_type.value,
+            exchange=exchange,
+            reliability=reliability.value,
+            action="source_registration",
+            message=(
+                f"Registered {source_type.value} source for "
+                f"{exchange} with {reliability.value} reliability"
+            ),
         )
 
     async def get_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
@@ -193,7 +225,14 @@ class MultiTierFundingProvider:
             cached_data = self.funding_cache[cache_key]
             age = (datetime.now(UTC) - cached_data.timestamp).total_seconds()
             if age <= self.max_acceptable_age:
-                logger.debug(f"Using fresh cached funding rate for {exchange}:{symbol}")
+                logger.debug(
+                    "using_cached_funding_rate",
+                    exchange=exchange,
+                    symbol=symbol,
+                    age=age,
+                    action="cache_hit",
+                    message=f"Using fresh cached funding rate for {exchange}:{symbol}",
+                )
                 return cached_data.rate, cached_data.confidence_score
             else:
                 # Adjust confidence for stale data
@@ -202,8 +241,17 @@ class MultiTierFundingProvider:
                     str(decay_factor),
                 )
                 logger.info(
-                    f"Using stale cached funding rate for {exchange}:{symbol} "
-                    f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}",
+                    "using_stale_cached_funding_rate",
+                    exchange=exchange,
+                    symbol=symbol,
+                    age=age,
+                    confidence=float(adjusted_confidence),
+                    action="stale_cache_hit",
+                    message=(
+                        f"Using stale cached funding rate for "
+                        f"{exchange}:{symbol} with age {age:.0f}s, confidence reduced to "
+                        f"{adjusted_confidence:.2f}"
+                    ),
                 )
                 return cached_data.rate, float(adjusted_confidence)
 
@@ -244,13 +292,26 @@ class MultiTierFundingProvider:
             self.funding_cache[cache_key] = integrated_data
 
             logger.debug(
-                f"Got funding rate {integrated_data.rate:.6f} for {exchange}:{symbol} "
-                f"with confidence {confidence_score:.2f}",
+                "funding_rate_calculated",
+                exchange=exchange,
+                symbol=symbol,
+                rate=integrated_data.rate,
+                confidence=confidence_score,
+                action="rate_calculation",
+                message=(
+                    f"Got funding rate {integrated_data.rate:.6f} for "
+                    f"{exchange}:{symbol} with confidence {confidence_score:.2f}"
+                ),
             )
             return integrated_data.rate, confidence_score
 
         except Exception as e:
-            logger.warning(f"Error getting funding rate: {e}")
+            logger.warning(
+                "funding_rate_error",
+                error=str(e),
+                action="rate_retrieval_error",
+                message=f"Error getting funding rate: {e}",
+            )
             # Fall back to alternative sources
             try:
                 (
@@ -258,12 +319,27 @@ class MultiTierFundingProvider:
                     fallback_confidence,
                 ) = await self._get_fallback_funding_rate(exchange, symbol)
                 logger.debug(
-                    f"Using fallback funding rate {fallback_rate:.6f} for {exchange}:{symbol}",
+                    "using_fallback_funding_rate",
+                    exchange=exchange,
+                    symbol=symbol,
+                    fallback_rate=fallback_rate,
+                    fallback_confidence=fallback_confidence,
+                    action="fallback_used",
+                    message=(
+                        f"Using fallback funding rate {fallback_rate:.6f} for {exchange}:{symbol}"
+                    ),
                 )
                 return fallback_rate, fallback_confidence
             except Exception as fallback_error:
                 logger.error(
-                    f"All funding rate sources failed for {exchange}:{symbol}: {fallback_error}",
+                    "all_funding_sources_failed",
+                    exchange=exchange,
+                    symbol=symbol,
+                    error=str(fallback_error),
+                    action="complete_failure",
+                    message=(
+                        f"All funding rate sources failed for {exchange}:{symbol}: {fallback_error}"
+                    ),
                 )
                 # Re-raise with proper chaining
                 raise FundingRateSourceError(
@@ -282,7 +358,12 @@ class MultiTierFundingProvider:
 
         """
         if exchange not in self.primary_sources:
-            logger.debug(f"No primary source registered for {exchange}")
+            logger.debug(
+                "no_primary_source",
+                exchange=exchange,
+                action="source_check",
+                message=f"No primary source registered for {exchange}",
+            )
             return None
 
         try:
@@ -314,7 +395,14 @@ class MultiTierFundingProvider:
             return funding_data
 
         except Exception as e:
-            logger.warning(f"Primary source for {exchange}:{symbol} failed: {e}")
+            logger.warning(
+                "primary_source_failed",
+                exchange=exchange,
+                symbol=symbol,
+                error=str(e),
+                action="source_failure",
+                message=f"Primary source for {exchange}:{symbol} failed: {e}",
+            )
             return None
 
     async def _get_secondary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
@@ -329,7 +417,12 @@ class MultiTierFundingProvider:
 
         """
         if exchange not in self.secondary_sources:
-            logger.debug(f"No secondary source registered for {exchange}")
+            logger.debug(
+                "no_secondary_source",
+                exchange=exchange,
+                action="source_check",
+                message=f"No secondary source registered for {exchange}",
+            )
             return None
 
         try:
@@ -360,7 +453,14 @@ class MultiTierFundingProvider:
             return funding_data
 
         except Exception as e:
-            logger.warning(f"Secondary source for {exchange}:{symbol} failed: {e}")
+            logger.warning(
+                "secondary_source_failed",
+                exchange=exchange,
+                symbol=symbol,
+                error=str(e),
+                action="source_failure",
+                message=f"Secondary source for {exchange}:{symbol} failed: {e}",
+            )
             return None
 
     async def _get_tertiary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
@@ -375,7 +475,12 @@ class MultiTierFundingProvider:
 
         """
         if exchange not in self.tertiary_sources:
-            logger.debug(f"No tertiary source registered for {exchange}")
+            logger.debug(
+                "no_tertiary_source",
+                exchange=exchange,
+                action="source_check",
+                message=f"No tertiary source registered for {exchange}",
+            )
             return None
 
         try:
@@ -406,7 +511,14 @@ class MultiTierFundingProvider:
             return funding_data
 
         except Exception as e:
-            logger.warning(f"Tertiary source for {exchange}:{symbol} failed: {e}")
+            logger.warning(
+                "tertiary_source_failed",
+                exchange=exchange,
+                symbol=symbol,
+                error=str(e),
+                action="source_failure",
+                message=f"Tertiary source for {exchange}:{symbol} failed: {e}",
+            )
             return None
 
     async def _get_fallback_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
@@ -465,14 +577,31 @@ class MultiTierFundingProvider:
             adjusted_rate = float(fallback_data.rate)
 
             logger.debug(
-                f"Using fallback funding rate {adjusted_rate:.6f} for {exchange}:{symbol} "
-                f"with age {age:.0f}s, confidence reduced to {adjusted_confidence:.2f}",
+                "fallback_rate_adjusted",
+                exchange=exchange,
+                symbol=symbol,
+                adjusted_rate=adjusted_rate,
+                age=age,
+                adjusted_confidence=float(adjusted_confidence),
+                action="fallback_adjustment",
+                message=(
+                    f"Using fallback funding rate {adjusted_rate:.6f} for "
+                    f"{exchange}:{symbol} with age {age:.0f}s, confidence reduced to "
+                    f"{adjusted_confidence:.2f}"
+                ),
             )
 
             return adjusted_rate, float(adjusted_confidence)
 
         except Exception as e:
-            logger.error(f"Fallback source for {exchange}:{symbol} failed: {e}")
+            logger.error(
+                "fallback_source_failed",
+                exchange=exchange,
+                symbol=symbol,
+                error=str(e),
+                action="fallback_failure",
+                message=f"Fallback source for {exchange}:{symbol} failed: {e}",
+            )
             raise FundingRateSourceError(f"All sources failed for {exchange}:{symbol}") from e
 
     def _integrate_funding_data(
@@ -675,7 +804,14 @@ class MultiTierFundingProvider:
             return float(accuracy_score)
 
         except Exception as e:
-            logger.warning(f"Error calculating historical accuracy for {exchange}:{symbol}: {e}")
+            logger.warning(
+                "historical_accuracy_error",
+                exchange=exchange,
+                symbol=symbol,
+                error=str(e),
+                action="accuracy_calculation_error",
+                message=f"Error calculating historical accuracy for {exchange}:{symbol}: {e}",
+            )
             return float(self.default_accuracy_score)
 
     def clear_cache(self) -> None:
@@ -706,7 +842,12 @@ class MultiTierFundingProvider:
             del self.funding_cache[key]
 
         if stale_keys:
-            logger.debug(f"Cleared {len(stale_keys)} stale cache entries")
+            logger.debug(
+                "cache_entries_cleared",
+                cleared_count=len(stale_keys),
+                action="cache_cleanup",
+                message=f"Cleared {len(stale_keys)} stale cache entries",
+            )
 
         return len(stale_keys)
 
@@ -721,11 +862,27 @@ class MultiTierFundingProvider:
         if isinstance(value, float):
             return value
         elif isinstance(value, int) and value.is_integer():
-            logger.warning(f"Config value '{key}' is int ({value}), converting to float.")
+            logger.warning(
+                "config_type_conversion",
+                key=key,
+                original_type="int",
+                original_value=value,
+                target_type="float",
+                action="type_conversion",
+                message=f"Config value '{key}' is int ({value}), converting to float.",
+            )
             return float(value)
         else:
             logger.warning(
-                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}",
+                "invalid_config_type",
+                key=key,
+                actual_type=type(value).__name__,
+                default_value=default,
+                action="config_validation",
+                message=(
+                    f"Invalid type for config value '{key}' ({type(value)}), "
+                    f"using default: {default}"
+                ),
             )
         return default
 
@@ -735,11 +892,27 @@ class MultiTierFundingProvider:
         if isinstance(value, int):
             return value
         elif isinstance(value, float) and value.is_integer():
-            logger.warning(f"Config value '{key}' is float ({value}), converting to int.")
+            logger.warning(
+                "config_type_conversion",
+                key=key,
+                original_type="float",
+                original_value=value,
+                target_type="int",
+                action="type_conversion",
+                message=f"Config value '{key}' is float ({value}), converting to int.",
+            )
             return int(value)
         else:
             logger.warning(
-                f"Invalid type for config value '{key}' ({type(value)}), using default: {default}",
+                "invalid_config_type",
+                key=key,
+                actual_type=type(value).__name__,
+                default_value=default,
+                action="config_validation",
+                message=(
+                    f"Invalid type for config value '{key}' ({type(value)}), "
+                    f"using default: {default}"
+                ),
             )
         return default
 

@@ -19,7 +19,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -41,6 +40,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     BackpackAccountSettingsDetails,
@@ -78,7 +78,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackAccountDataMapper:
@@ -129,7 +129,13 @@ class BackpackAccountDataMapper:
         elif status_lower == "expired":
             return OrderStatus.EXPIRED
         else:
-            logger.warning(f"Unknown Backpack order status: '{bp_status}', mapping to UNKNOWN")
+            logger.warning(
+                "bp_account_mapper_unknown_order_status",
+                action="map_status_to_internal",
+                message="Unknown Backpack order status encountered",
+                bp_status=bp_status,
+                mapped_to="UNKNOWN",
+            )
             return OrderStatus.UNKNOWN
 
     @staticmethod
@@ -149,7 +155,13 @@ class BackpackAccountDataMapper:
         elif type_lower in ("take_profit_limit", "takeprofit_limit"):
             return OrderType.TAKE_PROFIT_LIMIT
         else:
-            logger.warning(f"Unknown Backpack order type: '{bp_type}', mapping to LIMIT")
+            logger.warning(
+                "bp_account_mapper_unknown_order_type",
+                action="map_type_to_internal",
+                message="Unknown Backpack order type encountered",
+                bp_type=bp_type,
+                mapped_to="LIMIT",
+            )
             return OrderType.LIMIT  # Default to LIMIT instead of UNKNOWN
 
     @staticmethod
@@ -165,7 +177,13 @@ class BackpackAccountDataMapper:
         elif tif_lower == "fok":
             return TimeInForce.FOK
         else:
-            logger.warning(f"Unknown Backpack TIF: '{bp_tif}', mapping to GTC")
+            logger.warning(
+                "bp_account_mapper_unknown_tif",
+                action="map_tif_to_internal",
+                message="Unknown Backpack time-in-force encountered",
+                bp_tif=bp_tif,
+                mapped_to="GTC",
+            )
             return TimeInForce.GTC  # Default to GTC instead of UNKNOWN
 
     @staticmethod
@@ -181,7 +199,13 @@ class BackpackAccountDataMapper:
         elif trigger_lower in ("index", "index_price"):
             return TriggerType.INDEX_PRICE
         else:
-            logger.warning(f"Unknown Backpack trigger_by: '{trigger_by}', returning None")
+            logger.warning(
+                "bp_account_mapper_unknown_trigger_by",
+                action="map_trigger_by_to_internal",
+                message="Unknown Backpack trigger_by value encountered",
+                trigger_by=trigger_by,
+                returning="None",
+            )
             return None
 
     @staticmethod
@@ -199,7 +223,13 @@ class BackpackAccountDataMapper:
         elif status_lower in ("cancelled", "canceled"):
             return InternalTransferStatus.REJECTED  # Map canceled to REJECTED
         else:
-            logger.warning(f"Unknown Backpack transfer status: '{raw_status}', mapping to UNKNOWN")
+            logger.warning(
+                "bp_account_mapper_unknown_transfer_status",
+                action="map_transfer_status_to_internal",
+                message="Unknown Backpack transfer status encountered",
+                raw_status=raw_status,
+                mapped_to="UNKNOWN",
+            )
             return InternalTransferStatus.UNKNOWN
 
     @staticmethod
@@ -792,7 +822,12 @@ class BackpackAccountDataMapper:
             elif isinstance(raw_status_val, str):
                 raw_status_str = raw_status_val
             else:
-                logger.warning(f"Unexpected type for raw transfer status: {type(raw_status_val)}")
+                logger.warning(
+                    "bp_account_mapper_unexpected_status_type",
+                    action="transform_raw_transfer_to_internal",
+                    message="Unexpected type for raw transfer status",
+                    status_type=str(type(raw_status_val)),
+                )
                 raw_status_str = None
 
             internal_status = BackpackAccountDataMapper._map_transfer_status_to_internal(
@@ -888,7 +923,12 @@ class BackpackAccountDataMapper:
                 elif status_upper == "CANCELLED":
                     internal_status = InternalWithdrawalStatus.CANCELED
                 else:
-                    logger.warning(f"Unknown Backpack withdrawal status: {raw_status}")
+                    logger.warning(
+                        "bp_account_mapper_unknown_withdrawal_status",
+                        action="transform_raw_withdrawal_response_to_internal",
+                        message="Unknown Backpack withdrawal status encountered",
+                        raw_status=raw_status,
+                    )
 
             timestamp_value: datetime
             if timestamp_str:
@@ -899,7 +939,12 @@ class BackpackAccountDataMapper:
                     else:
                         timestamp_value = parsed_dt
                 except ValueError:
-                    logger.warning(f"Could not parse withdrawal timestamp: {timestamp_str}")
+                    logger.warning(
+                        "bp_account_mapper_timestamp_parse_failed",
+                        action="transform_raw_withdrawal_response_to_internal",
+                        message="Failed to parse withdrawal timestamp",
+                        timestamp_str=timestamp_str,
+                    )
                     timestamp_value = datetime.now(UTC)
             else:
                 timestamp_value = datetime.now(UTC)

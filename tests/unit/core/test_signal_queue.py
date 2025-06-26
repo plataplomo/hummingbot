@@ -7,7 +7,7 @@ from uuid import UUID
 
 import pytest
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 
 # import pytest_asyncio # Remove if not needed elsewhere in the file
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal

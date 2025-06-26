@@ -15,8 +15,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from cyberdelta.config.config_models import AppSettings
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 
 
 logger = get_logger(__name__)
@@ -62,7 +62,12 @@ class AsyncStateManager:
         try:
             if not os.path.exists(self.state_file):
                 logger.info(
-                    f"State file {self.state_file} does not exist, starting with empty state"
+                    "state_file_not_found",
+                    action="loading_state",
+                    message=(
+                        f"State file {self.state_file} does not exist, starting with empty state"
+                    ),
+                    state_file=self.state_file,
                 )
                 return False
 
@@ -70,14 +75,24 @@ class AsyncStateManager:
             state_data = await self._async_read_json(self.state_file)
 
             if state_data is None:
-                logger.error(f"Failed to read state file {self.state_file}")
+                logger.error(
+                    "state_file_read_failed",
+                    action="loading_state",
+                    message=f"Failed to read state file {self.state_file}",
+                    state_file=self.state_file,
+                )
                 return await self._recover_from_backup()
 
             # Verify state integrity
             if not await self._verify_state_integrity(state_data):
                 logger.warning(
-                    f"State file {self.state_file} failed integrity check, "
-                    f"attempting to recover from backup"
+                    "state_integrity_check_failed",
+                    action="loading_state",
+                    message=(
+                        f"State file {self.state_file} failed integrity check, attempting to "
+                        f"recover from backup"
+                    ),
+                    state_file=self.state_file,
                 )
                 return await self._recover_from_backup()
 
@@ -85,11 +100,23 @@ class AsyncStateManager:
             async with self._lock:
                 self.current_state = state_data["state"]
 
-            logger.info(f"Successfully loaded state from {self.state_file}")
+            logger.info(
+                "state_loaded_successfully",
+                action="loading_state",
+                message=f"Successfully loaded state from {self.state_file}",
+                state_file=self.state_file,
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Error loading state from {self.state_file}: {e}", exc_info=True)
+            logger.error(
+                "state_load_error",
+                action="loading_state",
+                message=f"Error loading state from {self.state_file}: {e}",
+                state_file=self.state_file,
+                error=str(e),
+                exc_info=True,
+            )
             return await self._recover_from_backup()
 
     async def save_state(self, state: dict[str, Any]) -> bool:
@@ -124,14 +151,31 @@ class AsyncStateManager:
             if success:
                 # Update last save time
                 self.last_save_time = datetime.now(UTC)
-                logger.info(f"Successfully saved state to {self.state_file}")
+                logger.info(
+                    "state_saved_successfully",
+                    action="saving_state",
+                    message=f"Successfully saved state to {self.state_file}",
+                    state_file=self.state_file,
+                )
                 return True
             else:
-                logger.error(f"Failed to write state to {self.state_file}")
+                logger.error(
+                    "state_write_failed",
+                    action="saving_state",
+                    message=f"Failed to write state to {self.state_file}",
+                    state_file=self.state_file,
+                )
                 return False
 
         except Exception as e:
-            logger.error(f"Error saving state to {self.state_file}: {e}", exc_info=True)
+            logger.error(
+                "state_save_error",
+                action="saving_state",
+                message=f"Error saving state to {self.state_file}: {e}",
+                state_file=self.state_file,
+                error=str(e),
+                exc_info=True,
+            )
             return False
 
     async def get_current_state(self) -> dict[str, Any]:
@@ -163,11 +207,23 @@ class AsyncStateManager:
             # Rotate backups (keep only the most recent ones)
             await self._rotate_backups()
 
-            logger.debug(f"Created state backup at {backup_path}")
+            logger.debug(
+                "state_backup_created",
+                action="creating_backup",
+                message=f"Created state backup at {backup_path}",
+                backup_path=backup_path,
+                timestamp=timestamp,
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Error creating state backup: {e}", exc_info=True)
+            logger.error(
+                "state_backup_error",
+                action="creating_backup",
+                message=f"Error creating state backup: {e}",
+                error=str(e),
+                exc_info=True,
+            )
             return False
 
     async def _rotate_backups(self) -> None:
@@ -178,10 +234,21 @@ class AsyncStateManager:
             # Remove excess backups
             for backup_path in files[self.backup_count :]:
                 await self._async_remove_file(backup_path)
-                logger.debug(f"Removed old state backup {backup_path}")
+                logger.debug(
+                    "old_backup_removed",
+                    action="rotating_backups",
+                    message=f"Removed old state backup {backup_path}",
+                    backup_path=backup_path,
+                )
 
         except Exception as e:
-            logger.error(f"Error rotating backups: {e}", exc_info=True)
+            logger.error(
+                "backup_rotation_error",
+                action="rotating_backups",
+                message=f"Error rotating backups: {e}",
+                error=str(e),
+                exc_info=True,
+            )
 
     async def _get_sorted_backup_files(self) -> list[str]:
         """Get sorted list of backup files asynchronously."""
@@ -223,7 +290,12 @@ class AsyncStateManager:
                     state_data = await self._async_read_json(backup_path)
 
                     if state_data is None:
-                        logger.warning(f"Failed to read backup {backup_path}")
+                        logger.warning(
+                            "backup_read_failed",
+                            action="recovering_from_backup",
+                            message=f"Failed to read backup {backup_path}",
+                            backup_path=backup_path,
+                        )
                         continue
 
                     # Verify state integrity
@@ -235,11 +307,22 @@ class AsyncStateManager:
                         # Copy backup to state file
                         await self._async_copy_file(backup_path, self.state_file)
 
-                        logger.info(f"Successfully recovered state from backup {backup_path}")
+                        logger.info(
+                            "state_recovered_from_backup",
+                            action="recovering_from_backup",
+                            message=f"Successfully recovered state from backup {backup_path}",
+                            backup_path=backup_path,
+                        )
                         return True
 
                 except Exception as e:
-                    logger.warning(f"Error loading backup {backup_path}: {e}")
+                    logger.warning(
+                        "backup_load_error",
+                        action="recovering_from_backup",
+                        message=f"Error loading backup {backup_path}: {e}",
+                        backup_path=backup_path,
+                        error=str(e),
+                    )
                     continue
 
             # All backups failed
@@ -247,7 +330,13 @@ class AsyncStateManager:
             return False
 
         except Exception as e:
-            logger.error(f"Error during recovery process: {e}", exc_info=True)
+            logger.error(
+                "recovery_process_error",
+                action="recovering_from_backup",
+                message=f"Error during recovery process: {e}",
+                error=str(e),
+                exc_info=True,
+            )
             return False
 
     async def _verify_state_integrity(self, state_data: dict[str, Any]) -> bool:
@@ -278,7 +367,13 @@ class AsyncStateManager:
             type_name = (
                 type(expected_checksum).__name__ if expected_checksum is not None else "None"
             )
-            logger.error(f"Expected checksum must be a string, got {type_name}")
+            logger.error(
+                "invalid_checksum_type",
+                action="verifying_state_integrity",
+                message=f"Expected checksum must be a string, got {type_name}",
+                actual_type=type_name,
+                expected_type="string",
+            )
             return False
 
         actual_checksum = await self._calculate_checksum(state_data["state"])
@@ -316,7 +411,13 @@ class AsyncStateManager:
 
             return await loop.run_in_executor(None, _read_sync)
         except Exception as e:
-            logger.error(f"Error reading JSON from {file_path}: {e}")
+            logger.error(
+                "json_read_error",
+                action="reading_json_file",
+                message=f"Error reading JSON from {file_path}: {e}",
+                file_path=file_path,
+                error=str(e),
+            )
             return None
 
     async def _async_write_json(self, file_path: str, data: dict[str, Any]) -> bool:
@@ -335,7 +436,13 @@ class AsyncStateManager:
             await loop.run_in_executor(None, _write_sync)
             return True
         except Exception as e:
-            logger.error(f"Error writing JSON to {file_path}: {e}")
+            logger.error(
+                "json_write_error",
+                action="writing_json_file",
+                message=f"Error writing JSON to {file_path}: {e}",
+                file_path=file_path,
+                error=str(e),
+            )
             return False
 
     async def _async_copy_file(self, src: str, dst: str) -> None:

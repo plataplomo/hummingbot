@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
 )
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 
 class HyperliquidWsMessageRouter:
@@ -185,7 +185,14 @@ class HyperliquidWsMessageRouter:
             return
 
         if channel in ["pong", "subscriptionResponse"]:
-            self.logger.debug(f"[{self._exchange_name}] Control message on '{channel}': {message}")
+            self.logger.debug(
+                "control_message_received",
+                action="handle_control_message",
+                exchange=self._exchange_name,
+                channel=channel,
+                control_message=message,
+                message=f"[{self._exchange_name}] Control message on '{channel}': {message}",
+            )
             return
 
         # Determine topic key for handler lookup

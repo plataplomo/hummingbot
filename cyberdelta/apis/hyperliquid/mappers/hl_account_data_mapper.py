@@ -19,7 +19,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -37,6 +36,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -54,7 +54,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidAccountDataMapper:

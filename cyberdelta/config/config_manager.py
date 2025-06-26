@@ -2,17 +2,18 @@
 
 """Configuration Manager for loading and validating application configuration."""
 
-import logging
 import os
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 from pydantic import ValidationError
 
-from .config_models import AppSettings
+from .models.config_models import AppSettings
+from .structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConfigurationError(Exception):
@@ -57,7 +58,12 @@ class ConfigManager:
         """
         # Check if config file exists
         if not self.config_path.exists():
-            logger.critical(f"Config file not found: {self.config_path}")
+            logger.critical(
+                "config_file_not_found",
+                config_path=str(self.config_path),
+                action="raising_configuration_error",
+                message=f"Config file not found: {self.config_path}",
+            )
             raise ConfigurationError(f"Config file not found: {self.config_path}")
 
         try:
@@ -67,24 +73,52 @@ class ConfigManager:
 
             # Ensure loaded data is valid
             if config_data_dict is None or not isinstance(config_data_dict, dict):
-                logger.critical(f"Invalid or empty content in config file: {self.config_path}")
+                logger.critical(
+                    "config_file_invalid_content",
+                    config_path=str(self.config_path),
+                    data_type=type(config_data_dict).__name__
+                    if config_data_dict is not None
+                    else "None",
+                    action="raising_configuration_error",
+                    message=f"Invalid or empty content in config file: {self.config_path}",
+                )
                 raise ConfigurationError(
                     f"Invalid or empty content in config file: {self.config_path}",
                 )
 
         except (yaml.YAMLError, OSError) as e:
-            logger.critical(f"Error reading config file {self.config_path}: {e}", exc_info=True)
+            logger.critical(
+                "config_file_reading_error",
+                config_path=str(self.config_path),
+                error_type=type(e).__name__,
+                error=str(e),
+                action="raising_configuration_error",
+                message=f"Error reading config file {self.config_path}: {e}",
+                exc_info=True,
+            )
             raise ConfigurationError(f"Error reading config file {self.config_path}: {e}") from e
 
         # Validate configuration against Pydantic model
         try:
             self.settings = AppSettings.model_validate(config_data_dict)
             self.loaded = True
-            logger.info(f"AppSettings loaded and validated successfully from {self.config_path}")
+            config_data_typed = cast(dict[str, Any], config_data_dict)
+            logger.info(
+                "config_loaded_successfully",
+                config_path=str(self.config_path),
+                config_sections=list(config_data_typed.keys()),
+                action="configuration_validated",
+                message=f"AppSettings loaded and validated successfully from {self.config_path}",
+            )
 
         except ValidationError as e:
             logger.critical(
-                f"Application configuration validation failed for {self.config_path}: {e}",
+                "config_validation_failed",
+                config_path=str(self.config_path),
+                validation_errors=e.errors(),
+                error_count=len(e.errors()),
+                action="raising_configuration_error",
+                message=f"Application configuration validation failed for {self.config_path}: {e}",
                 exc_info=True,
             )
             self.settings = None

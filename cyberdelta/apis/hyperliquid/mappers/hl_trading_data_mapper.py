@@ -18,7 +18,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, TypedDict, TypeGuard
@@ -32,6 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -45,7 +45,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OrderComponents(TypedDict):
@@ -146,7 +146,13 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(f"Failed to map order status '{hl_status}': {e}")
+            logger.error(
+                "hl_trading_mapper_map_status_failed",
+                action="map_status_to_internal",
+                message="Failed to map order status",
+                hl_status=hl_status,
+                error=str(e),
+            )
             raise TransformationError(
                 f"Failed to map order status: {e}",
                 field_name="status",
@@ -214,7 +220,12 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(f"Failed to map order type: {e}")
+            logger.error(
+                "hl_trading_mapper_map_type_failed",
+                action="map_type_to_internal",
+                message="Failed to map order type",
+                error=str(e),
+            )
             raise TransformationError(
                 f"Failed to map order type: {e}",
                 field_name="order_type",
@@ -258,7 +269,12 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(f"Failed to map time in force: {e}")
+            logger.error(
+                "hl_trading_mapper_map_tif_failed",
+                action="map_time_in_force",
+                message="Failed to map time in force",
+                error=str(e),
+            )
             # Default to GTC on error rather than raising per business logic
             return TimeInForce.GTC
 
@@ -321,7 +337,12 @@ class HyperliquidTradingDataMapper:
         except TransformationError:
             raise
         except Exception as e:
-            logger.error(f"Failed to parse order quantities and price: {e}")
+            logger.error(
+                "hl_trading_mapper_parse_quantities_failed",
+                action="parse_order_quantities_and_price",
+                message="Failed to parse order quantities and price",
+                error=str(e),
+            )
             raise TransformationError(
                 f"Failed to parse order quantities and price: {e}",
                 source_data={"sz": raw_order.sz, "remaining_sz": raw_order.remaining_sz},
@@ -537,7 +558,12 @@ class HyperliquidTradingDataMapper:
         except TransformationError:
             raise
         except Exception as e:
-            logger.error(f"Failed to parse order timestamps: {e}")
+            logger.error(
+                "hl_trading_mapper_parse_timestamps_failed",
+                action="parse_order_timestamps",
+                message="Failed to parse order timestamps",
+                error=str(e),
+            )
             raise TransformationError(
                 f"Failed to parse order timestamps: {e}",
                 source_data={

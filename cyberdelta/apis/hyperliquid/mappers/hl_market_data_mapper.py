@@ -20,7 +20,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -41,6 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market import Candle, Market
@@ -53,7 +53,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidMarketDataMapper:
@@ -579,7 +579,12 @@ class HyperliquidMarketDataMapper:
                 volume = parse_decimal_value(raw_snapshot.v[i], allow_none=False, field_name="v")
 
                 if None in (open_price, high_price, low_price, close_price, volume):
-                    logger.warning(f"Skipping candle at index {i} with invalid OHLCV data")
+                    logger.warning(
+                        "invalid_candle_data",
+                        action="parse_candle",
+                        index=i,
+                        message=f"Skipping candle at index {i} with invalid OHLCV data",
+                    )
                     continue
 
                 # Parse timestamp (convert from milliseconds)
@@ -835,7 +840,12 @@ class HyperliquidMarketDataMapper:
             return markets
 
         except Exception as e:
-            logger.error(f"Failed to transform meta and asset contexts to markets: {e}")
+            logger.error(
+                "market_transformation_failed",
+                action="transform_markets",
+                error=str(e),
+                message=f"Failed to transform meta and asset contexts to markets: {e}",
+            )
             raise TransformationError(f"Failed to transform meta and asset contexts: {e}") from e
 
     @staticmethod

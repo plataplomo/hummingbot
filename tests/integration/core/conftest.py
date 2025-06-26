@@ -13,7 +13,7 @@ import pytest_asyncio
 
 from cyberdelta.apis.backpack import BackpackAPI
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets
 from cyberdelta.core.execution.orders import (
     MarketOrder,

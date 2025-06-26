@@ -6,7 +6,6 @@ real-time monitoring, and audit trails to prevent validation bypass vulnerabilit
 
 import asyncio
 import hashlib
-import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -17,10 +16,11 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 P = ParamSpec("P")
@@ -111,7 +111,12 @@ class SecureTransform[T: BaseModel]:
 
             # Success logging
             if self.enable_monitoring:
-                logger.debug(f"SECURITY: Validation successful: {method_context}")
+                logger.debug(
+                    "security_validation_successful",
+                    action="validate",
+                    method_context=method_context,
+                    message=f"SECURITY: Validation successful: {method_context}",
+                )
 
             # Audit trail
             if self.enable_audit:
@@ -402,7 +407,13 @@ class SecurityMonitor[**P, R]:
             )
 
         if anomalies:
-            logger.warning(f"SECURITY ANOMALY: {anomalies} in {func_name}")
+            logger.warning(
+                "security_anomaly_detected",
+                action="detect_anomaly",
+                anomalies=anomalies,
+                function_name=func_name,
+                message=f"SECURITY ANOMALY: {anomalies} in {func_name}",
+            )
 
 
 def secure_mapped_response(
@@ -526,7 +537,12 @@ def _create_audit_record(
         "validation_result": "success",
     }
 
-    logger.info(f"AUDIT: {audit_record}")
+    logger.info(
+        "security_audit_trail",
+        action="audit",
+        **audit_record,
+        message=f"AUDIT: {audit_record}",
+    )
 
 
 class SecureTransformStack[T: BaseModel]:

@@ -1,6 +1,5 @@
 """Unit tests for the MarginAccountSummary core model and its Details sub-models."""
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -8,6 +7,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.margin_account import (
     BackpackMarginDetails,
     HyperliquidMarginDetails,
@@ -207,7 +207,7 @@ def test_margin_summary_immutability(base_margin_summary_data: dict[str, Any]) -
     assert summary.total_equity == original_equity
 
     # Test __setattr__ bypass - log warning if modification occurs but pass test
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
     original_exchange = summary.exchange
     try:
         object.__setattr__(summary, "exchange", "new_exchange")

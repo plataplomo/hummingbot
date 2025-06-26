@@ -13,11 +13,11 @@ Tests fundamental transformation logic including:
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 from typing import Any
 
 import pytest
+import structlog.testing
 from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
@@ -27,6 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
     HyperliquidRawTriggerInfo,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import (
     OrderSide,
     OrderStatus,
@@ -35,7 +36,7 @@ from cyberdelta.core.models.enums import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Fixtures ---
@@ -345,14 +346,19 @@ def test_unknown_order_type_defaults_to_limit(
     """Test that unknown order types default to LIMIT and log a warning."""
     raw_order = create_raw_order(order_type=unknown_order_type)
 
-    with caplog.at_level(logging.WARNING):
+    with structlog.testing.capture_logs() as captured_logs:
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     # Should default to LIMIT
     assert result.order_type == OrderType.LIMIT
 
-    # Should log a warning about unknown order type
-    assert any("Unknown orderType structure" in record.message for record in caplog.records)
+    # Should log a warning about unknown order type in structured logs
+    warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+    assert len(warning_logs) > 0, "Expected at least one warning log"
+
+    # Check for the specific warning about unknown order type
+    unknown_type_logs = [log for log in warning_logs if "Unknown orderType structure" in str(log)]
+    assert len(unknown_type_logs) > 0, f"Expected unknown order type logs, got: {captured_logs}"
 
 
 # --- Parameterized Tests for Time-in-Force Mapping ---

@@ -1,0 +1,27 @@
+{
+  "state": {
+    "shutdown_time": "2025-06-26T02:15:41.949754+00:00",
+    "version": "1.0",
+    "components": {
+      "engine": {
+        "name": "CyberDeltaEngine_Core",
+        "is_running": false
+      },
+      "data_handler": {
+        "running": false,
+        "connected_exchanges": [
+          "hyperliquid",
+          "backpack"
+        ]
+      }
+    },
+    "statistics": {
+      "total_strategies": 1,
+      "enabled_strategies": 0
+    }
+  },
+  "metadata": {
+    "timestamp": "2025-06-26T02:15:41.949767+00:00",
+    "checksum": "-6542494195674298877"
+  }
+}

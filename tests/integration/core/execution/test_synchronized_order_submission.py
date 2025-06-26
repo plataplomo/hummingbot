@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.synchronized_order_submission import (
     ExecutionContext,
     ExecutionCoordinator,
@@ -30,7 +30,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 pytestmark = pytest.mark.timing
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MockOpportunity(NamedTuple):

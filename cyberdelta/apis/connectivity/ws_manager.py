@@ -12,7 +12,6 @@ implementations.
 
 import asyncio
 import json
-import logging
 import secrets
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
@@ -21,6 +20,8 @@ import aiohttp
 from aiohttp import ClientTimeout, ClientWebSocketResponse
 from aiohttp.helpers import sentinel
 from pydantic import BaseModel
+
+from cyberdelta.config.structlog_config import get_logger
 
 # Import the config model
 from .connectivity_models import WebSocketManagerConfig
@@ -94,15 +95,25 @@ class WebSocketManager:
         self._outgoing_message_limiter = outgoing_message_limiter
 
         self._reconnect_lock = asyncio.Lock()
-        self._logger = logging.getLogger(f"WebSocketManager.{self._exchange_name}")
-        self._logger.info(f"Initialized for {self._ws_url}")
+        self._logger = get_logger(f"WebSocketManager.{self._exchange_name}")
+        self._logger.info(
+            "websocket_manager_initialized",
+            exchange=self._exchange_name,
+            ws_url=self._ws_url,
+            message=f"Initialized WebSocketManager for {self._exchange_name} at {self._ws_url}",
+        )
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create an aiohttp ClientSession."""
         if self._session is None or self._session.closed:
             self._logger.info(
-                "Creating new aiohttp.ClientSession with connect timeout: %s",
-                self._connection_timeout,
+                "creating_new_aiohttp_session",
+                action="get_session",
+                connect_timeout=self._connection_timeout,
+                message=(
+                    f"Creating new aiohttp.ClientSession with "
+                    f"connect timeout: {self._connection_timeout}"
+                ),
             )
             # Use self._connection_timeout for the 'connect' part of ClientTimeout
             session_timeout = ClientTimeout(connect=self._connection_timeout)
@@ -132,11 +143,22 @@ class WebSocketManager:
         self._should_reconnect = True
         if self._connection_task and not self._connection_task.done():
             self._logger.debug(
-                f"Connection attempt for {self._ws_url} already in progress. Using existing task.",
+                "connection_attempt_already_in_progress",
+                action="connect",
+                ws_url=self._ws_url,
+                message=(
+                    f"Connection attempt for {self._ws_url} already in progress. "
+                    f"Using existing task."
+                ),
             )
             return self._connection_task
 
-        self._logger.info(f"Connection requested for {self._ws_url}. Creating new task.")
+        self._logger.info(
+            "connection_requested",
+            action="connect",
+            ws_url=self._ws_url,
+            message=f"Connection requested for {self._ws_url}. Creating new task.",
+        )
         connection_coroutine = None
         try:
             connection_coroutine = self._establish_connection()
@@ -148,7 +170,12 @@ class WebSocketManager:
         except RuntimeError as e:
             if "no running event loop" in str(e):
                 self._logger.debug(
-                    "Cannot create connection task: no running event loop (likely test cleanup)",
+                    "connection_task_creation_no_event_loop",
+                    action="connect",
+                    reason="no_running_event_loop",
+                    message=(
+                        "Cannot create connection task: no running event loop (likely test cleanup)"
+                    ),
                 )
                 # Close the coroutine to prevent the warning
                 if connection_coroutine:
@@ -157,7 +184,12 @@ class WebSocketManager:
             else:
                 raise
         except Exception as e:
-            self._logger.error(f"Failed to create connection task: {e}")
+            self._logger.error(
+                "connection_task_creation_failed",
+                action="connect",
+                error_details=str(e),
+                message=f"Failed to create connection task: {e}",
+            )
             # Close the coroutine to prevent the warning
             if connection_coroutine:
                 connection_coroutine.close()
@@ -169,8 +201,15 @@ class WebSocketManager:
         Includes retry logic with exponential backoff.
         """
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] Entered method. "
-            f"Should_reconnect: {self._should_reconnect}, Is_connected: {self.is_connected}",
+            "establish_connection_entered",
+            action="establish_connection",
+            exchange=self._exchange_name,
+            should_reconnect=self._should_reconnect,
+            is_connected=self.is_connected,
+            message=(
+                f"[{self._exchange_name} _establish_connection] Entered method. Should_reconnect: "
+                f"{self._should_reconnect}, Is_connected: {self.is_connected}"
+            ),
         )
         async with self._reconnect_lock:
             if not await self._should_proceed_with_connection():
@@ -181,17 +220,30 @@ class WebSocketManager:
     async def _should_proceed_with_connection(self) -> bool:
         """Check if connection should proceed after acquiring lock."""
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] Acquired reconnect_lock. "
-            f"Should_reconnect: {self._should_reconnect}",
+            "reconnect_lock_acquired",
+            action="should_proceed_with_connection",
+            exchange=self._exchange_name,
+            should_reconnect=self._should_reconnect,
+            message=(
+                f"[{self._exchange_name} _establish_connection] Acquired reconnect_lock. "
+                f"Should_reconnect: "
+                f"{self._should_reconnect}"
+            ),
         )
         if not self._should_reconnect:
             self._logger.info(
-                "Reconnection disabled after lock, _establish_connection not proceeding.",
+                "reconnection_disabled_after_lock",
+                action="should_proceed_with_connection",
+                message="Reconnection disabled after lock, _establish_connection not proceeding.",
             )
             return False
 
         if self.is_connected:
-            self._logger.info("Already connected, _establish_connection not proceeding.")
+            self._logger.info(
+                "already_connected_not_proceeding",
+                action="should_proceed_with_connection",
+                message="Already connected, _establish_connection not proceeding.",
+            )
             return False
 
         return True
@@ -200,14 +252,28 @@ class WebSocketManager:
         """Main retry loop for connection attempts."""
         current_attempt = 0
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] Starting connection attempts loop. "
-            f"Max attempts: {self._max_reconnect_attempts}",
+            "connection_attempts_loop_started",
+            action="connection_retry_loop",
+            exchange=self._exchange_name,
+            max_attempts=self._max_reconnect_attempts,
+            message=(
+                f"[{self._exchange_name} _establish_connection] Starting connection attempts loop. "
+                f"Max attempts: "
+                f"{self._max_reconnect_attempts}"
+            ),
         )
 
         while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
             self._logger.info(
-                f"[{self._exchange_name} _establish_connection] Loop Iteration. "
-                f"Current attempt: {current_attempt + 1}",
+                "connection_loop_iteration",
+                action="connection_retry_loop",
+                exchange=self._exchange_name,
+                current_attempt=current_attempt + 1,
+                message=(
+                    f"[{self._exchange_name} _establish_connection] Loop Iteration. "
+                    f"Current attempt: "
+                    f"{current_attempt + 1}"
+                ),
             )
 
             if current_attempt > 0:
@@ -227,8 +293,15 @@ class WebSocketManager:
         jitter = backoff_base * 0.2 * (secrets.SystemRandom().random() - 0.5)
         actual_delay = max(1.0, backoff_base + jitter)
         self._logger.info(
-            f"Reconnection attempt {attempt + 1}/"
-            f"{self._max_reconnect_attempts} in {actual_delay:.2f}s...",
+            "reconnection_delay_applied",
+            action="apply_reconnect_delay",
+            attempt=attempt + 1,
+            max_attempts=self._max_reconnect_attempts,
+            delay_seconds=actual_delay,
+            message=(
+                f"Reconnection attempt {attempt + 1}/{self._max_reconnect_attempts} "
+                f"in {actual_delay:.2f}s..."
+            ),
         )
         await asyncio.sleep(actual_delay)
 
@@ -240,7 +313,11 @@ class WebSocketManager:
         """
         try:
             self._logger.info(
-                f"Attempting to connect to {self._ws_url} (Attempt {attempt + 1})",
+                "connection_attempt_started",
+                action="attempt_single_connection",
+                ws_url=self._ws_url,
+                attempt=attempt + 1,
+                message=f"Attempting to connect to {self._ws_url} (Attempt {attempt + 1})",
             )
 
             await self._establish_websocket_connection()
@@ -250,22 +327,38 @@ class WebSocketManager:
             return True
 
         except asyncio.CancelledError:
-            self._logger.error("Connection attempt cancelled.")
+            self._logger.error(
+                "connection_attempt_cancelled",
+                action="attempt_single_connection",
+                message="Connection attempt cancelled.",
+            )
             self._should_reconnect = False
             return False
         except (TimeoutError, aiohttp.ClientError) as e:
             self._logger.warning(
-                f"[{self._exchange_name} _establish_connection] "
-                f"Connection attempt {attempt + 1} "
-                f"failed: {e}",
+                "connection_attempt_failed",
+                action="attempt_single_connection",
+                exchange=self._exchange_name,
+                attempt=attempt + 1,
+                error_details=str(e),
+                message=(
+                    f"[{self._exchange_name} _establish_connection] Connection attempt "
+                    f"{attempt + 1} failed: {e}"
+                ),
             )
             self._reset_connection_state()
             return False
         except Exception as e:
             self._logger.exception(
-                f"[{self._exchange_name} _establish_connection] "
-                f"Unexpected error during connection "
-                f"attempt {attempt + 1}: {e}",
+                "connection_attempt_unexpected_error",
+                action="attempt_single_connection",
+                exchange=self._exchange_name,
+                attempt=attempt + 1,
+                error_details=str(e),
+                message=(
+                    f"[{self._exchange_name} _establish_connection] Unexpected error during "
+                    f"connection attempt {attempt + 1}: {e}"
+                ),
             )
             self._reset_connection_state()
             return False
@@ -274,8 +367,15 @@ class WebSocketManager:
         """Establish the actual WebSocket connection."""
         session = await self._get_session()
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] "
-            f"About to call session.ws_connect for {self._ws_url}",
+            "websocket_connect_about_to_call",
+            action="establish_websocket_connection",
+            exchange=self._exchange_name,
+            ws_url=self._ws_url,
+            message=(
+                f"[{self._exchange_name} _establish_connection] About to call "
+                f"session.ws_connect for "
+                f"{self._ws_url}"
+            ),
         )
 
         server_expected_ping_interval = (
@@ -283,9 +383,15 @@ class WebSocketManager:
         )
 
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] "
-            f"Attempting to connect to {self._ws_url} "
-            f"via session {id(session) if session else 'None'}",
+            "websocket_session_connection_attempt",
+            action="establish_websocket_connection",
+            exchange=self._exchange_name,
+            ws_url=self._ws_url,
+            session_id=id(session) if session else None,
+            message=(
+                f"[{self._exchange_name} _establish_connection] Attempting to "
+                f"connect to {self._ws_url} via session {id(session) if session else 'None'}"
+            ),
         )
 
         self._ws_connection = await session.ws_connect(
@@ -295,9 +401,15 @@ class WebSocketManager:
         )
 
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] "
-            f"session.ws_connect call completed. "
-            f"self._ws_connection is now: {type(self._ws_connection)}",
+            "websocket_connect_completed",
+            action="establish_websocket_connection",
+            exchange=self._exchange_name,
+            connection_type=str(type(self._ws_connection)),
+            message=(
+                f"[{self._exchange_name} _establish_connection] session.ws_connect call completed. "
+                f"self._ws_connection is now: "
+                f"{type(self._ws_connection)}"
+            ),
         )
 
         self._is_connected = True
@@ -305,9 +417,14 @@ class WebSocketManager:
     async def _setup_connection_tasks(self) -> None:
         """Setup listener and ping tasks after successful connection."""
         self._logger.info(
-            f"[{self._exchange_name} _establish_connection] "
-            f"Successfully connected to {self._ws_url}. "
-            f"Starting listener/ping tasks.",
+            "connection_successful_tasks_starting",
+            action="setup_connection_tasks",
+            exchange=self._exchange_name,
+            ws_url=self._ws_url,
+            message=(
+                f"[{self._exchange_name} _establish_connection] Successfully connected to "
+                f"{self._ws_url}. Starting listener/ping tasks."
+            ),
         )
 
         await self._cancel_existing_tasks()
@@ -317,17 +434,28 @@ class WebSocketManager:
         """Cancel any existing listener and ping tasks."""
         if self._listener_task and not self._listener_task.done():
             self._logger.info(
-                f"[{self._exchange_name} _establish_connection] "
-                f"Cancelling existing listener task: "
-                f"{self._listener_task.get_name()}",
+                "existing_listener_task_cancelled",
+                action="cancel_existing_tasks",
+                exchange=self._exchange_name,
+                task_name=self._listener_task.get_name(),
+                message=(
+                    f"[{self._exchange_name} _establish_connection] Cancelling existing "
+                    f"listener task: "
+                    f"{self._listener_task.get_name()}"
+                ),
             )
             self._listener_task.cancel()
 
         if self._ping_task and not self._ping_task.done():
             self._logger.info(
-                f"[{self._exchange_name} _establish_connection] "
-                f"Cancelling existing ping task: "
-                f"{self._ping_task.get_name()}",
+                "existing_ping_task_cancelled",
+                action="cancel_existing_tasks",
+                exchange=self._exchange_name,
+                task_name=self._ping_task.get_name(),
+                message=(
+                    f"[{self._exchange_name} _establish_connection] Cancelling existing ping task: "
+                    f"{self._ping_task.get_name()}"
+                ),
             )
             self._ping_task.cancel()
 
@@ -348,12 +476,23 @@ class WebSocketManager:
         """Execute the on_connected callback if provided."""
         if self._on_connected_callback:
             try:
-                self._logger.info("Executing on_connected_callback...")
+                self._logger.info(
+                    "executing_connection_callback",
+                    action="execute_connection_callback",
+                    message="Executing on_connected_callback...",
+                )
                 await self._on_connected_callback()
-                self._logger.info("on_connected_callback executed successfully.")
+                self._logger.info(
+                    "connection_callback_executed_successfully",
+                    action="execute_connection_callback",
+                    message="on_connected_callback executed successfully.",
+                )
             except Exception as cb_exc:
                 self._logger.error(
-                    f"Error during on_connected_callback: {cb_exc}",
+                    "connection_callback_error",
+                    action="execute_connection_callback",
+                    error_details=str(cb_exc),
+                    message=f"Error during on_connected_callback: {cb_exc}",
                     exc_info=True,
                 )
 
@@ -366,19 +505,35 @@ class WebSocketManager:
         """Handle the case where all connection attempts failed."""
         if self._should_reconnect and current_attempt >= self._max_reconnect_attempts:
             self._logger.critical(
-                f"Failed to connect to {self._ws_url} after "
-                f"{self._max_reconnect_attempts} attempts. Giving up.",
+                "connection_attempts_exhausted",
+                action="handle_connection_failure",
+                ws_url=self._ws_url,
+                max_attempts=self._max_reconnect_attempts,
+                message=(
+                    f"Failed to connect to {self._ws_url} after "
+                    f"{self._max_reconnect_attempts} attempts. Giving up."
+                ),
             )
             self._should_reconnect = False
         elif not self._should_reconnect:
             self._logger.info(
-                f"Connection process for {self._ws_url} stopped "
-                f"because reconnections are disabled.",
+                "connection_process_stopped_reconnect_disabled",
+                action="handle_connection_failure",
+                ws_url=self._ws_url,
+                message=(
+                    f"Connection process for {self._ws_url} stopped because "
+                    f"reconnections are disabled."
+                ),
             )
 
     async def _listen(self) -> None:
         """Listens for messages on the WebSocket and handles them."""
-        self._logger.info(f"[{self._exchange_name} _listen] Task started.")
+        self._logger.info(
+            "listener_task_started",
+            action="listen",
+            exchange=self._exchange_name,
+            message=f"[{self._exchange_name} _listen] Task started.",
+        )
 
         if not self._ws_connection:
             self._logger.error(
@@ -391,7 +546,12 @@ class WebSocketManager:
 
     async def _listen_loop(self) -> None:
         """Main listening loop for WebSocket messages."""
-        self._logger.info(f"[{self._exchange_name} _listen] Entering main loop.")
+        self._logger.info(
+            "listener_main_loop_entered",
+            action="listen_loop",
+            exchange=self._exchange_name,
+            message=f"[{self._exchange_name} _listen] Entering main loop.",
+        )
         original_connection = self._ws_connection
         was_cancelled_flag = False
         loop_iteration_count = 0
@@ -440,8 +600,12 @@ class WebSocketManager:
             self._ws_connection is not None and self._ws_connection.closed
         ):
             self._logger.warning(
-                "WebSocket connection changed or closed during iteration. "
-                "Stopping listener for old connection.",
+                "websocket_connection_changed_or_closed",
+                action="should_continue_listening",
+                message=(
+                    "WebSocket connection changed or closed during iteration. "
+                    "Stopping listener for old connection."
+                ),
             )
             return False
 
@@ -476,10 +640,18 @@ class WebSocketManager:
             await self._message_handler(data)
         except json.JSONDecodeError:
             self._logger.warning(
-                f"Received non-JSON WebSocket message: {msg.data[:200]}...",
+                "received_non_json_websocket_message",
+                action="handle_text_message",
+                message_data_preview=str(msg.data[:200]),
+                message=f"Received non-JSON WebSocket message: {msg.data[:200]}...",
             )
         except Exception as e:
-            self._logger.exception(f"Error processing WebSocket message: {e}")
+            self._logger.exception(
+                "websocket_message_processing_error",
+                action="handle_text_message",
+                error_details=str(e),
+                message=f"Error processing WebSocket message: {e}",
+            )
 
     def _handle_binary_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle BINARY type WebSocket messages."""
@@ -511,17 +683,34 @@ class WebSocketManager:
         task_name_cancelled = (
             current_task_cancelled.get_name() if current_task_cancelled else "UnknownTask"
         )
-        self._logger.error(
-            f"[{self._exchange_name} _listen::{task_name_cancelled}] "
-            f"Listener task explicitly CANCELLED "
-            f"(caught in except block). Re-raising CancelledError.",
-        )
+        # Check if this is a graceful shutdown (should_reconnect=False) or unexpected cancellation
+        if not self._should_reconnect:
+            self._logger.info(
+                f"[{self._exchange_name} _listen::{task_name_cancelled}] "
+                f"Listener task cancelled during graceful shutdown.",
+                action="graceful_shutdown",
+                exchange=self._exchange_name,
+                task_name=task_name_cancelled,
+            )
+        else:
+            self._logger.error(
+                f"[{self._exchange_name} _listen::{task_name_cancelled}] "
+                f"Listener task unexpectedly CANCELLED. Re-raising CancelledError.",
+                action="unexpected_cancellation",
+                exchange=self._exchange_name,
+                task_name=task_name_cancelled,
+            )
 
     async def _handle_listener_exception(
         self, error: Exception, original_connection: ClientWebSocketResponse | None
     ) -> None:
         """Handle unexpected exceptions in the listener."""
-        self._logger.exception(f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {error}")
+        self._logger.exception(
+            "websocket_listener_unexpected_error",
+            action="handle_listener_exception",
+            error_details=str(error),
+            message=f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {error}",
+        )
         if self._ws_connection is original_connection:
             self._is_connected = False
             self._ws_connection = None
@@ -562,12 +751,19 @@ class WebSocketManager:
         """Schedule reconnection if needed and conditions are met."""
         if self._should_reconnect and not final_is_cancelled_state:
             if self._connection_task is None or self._connection_task.done():
-                self._logger.info("Scheduling reconnection from listener task termination.")
+                self._logger.info(
+                    "scheduling_reconnection_from_listener",
+                    action="schedule_reconnection_if_needed",
+                    message="Scheduling reconnection from listener task termination.",
+                )
                 try:
                     reconnect_task = self.connect()
                     if reconnect_task:
                         self._logger.debug(
-                            f"Reconnection task created: {reconnect_task.get_name()}",
+                            "reconnection_task_created_from_listener",
+                            action="schedule_reconnection_if_needed",
+                            task_name=reconnect_task.get_name(),
+                            message=f"Reconnection task created: {reconnect_task.get_name()}",
                         )
                     else:
                         self._logger.debug(
@@ -576,15 +772,25 @@ class WebSocketManager:
                 except RuntimeError as e:
                     if "no running event loop" in str(e):
                         self._logger.debug(
-                            "Cannot schedule reconnection: no running event loop "
-                            "(likely test cleanup)",
+                            "reconnection_scheduling_no_event_loop",
+                            action="schedule_reconnection_if_needed",
+                            reason="no_running_event_loop",
+                            message=(
+                                "Cannot schedule reconnection: no running event loop "
+                                "(likely test cleanup)"
+                            ),
                         )
                     else:
                         raise
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""
-        self._logger.info(f"[{self._exchange_name} _keep_alive] Task started.")
+        self._logger.info(
+            "keep_alive_task_started",
+            action="keep_alive",
+            exchange=self._exchange_name,
+            message=f"[{self._exchange_name} _keep_alive] Task started.",
+        )
 
         if not self._ping_interval or self._ping_interval <= 0:
             self._logger.info(
@@ -594,7 +800,12 @@ class WebSocketManager:
             return
 
         try:
-            self._logger.info(f"[{self._exchange_name} _keep_alive] Entering main loop.")
+            self._logger.info(
+                "keep_alive_main_loop_entered",
+                action="keep_alive",
+                exchange=self._exchange_name,
+                message=f"[{self._exchange_name} _keep_alive] Entering main loop.",
+            )
             while self.is_connected and self._should_reconnect:
                 if not self._ws_connection or self._ws_connection.closed:
                     self._logger.warning(
@@ -603,50 +814,101 @@ class WebSocketManager:
                     break
 
                 try:
-                    self._logger.debug(f"Sending ping frame for {self._exchange_name}")
+                    self._logger.debug(
+                        "ping_frame_sent",
+                        action="keep_alive",
+                        exchange=self._exchange_name,
+                        message=f"Sending ping frame for {self._exchange_name}",
+                    )
                     await self._ws_connection.ping()
                 except ConnectionResetError:
                     self._logger.warning(
-                        "Keep-alive: Connection reset during ping. Attempting to reconnect.",
+                        "keep_alive_connection_reset_during_ping",
+                        action="keep_alive",
+                        message=(
+                            "Keep-alive: Connection reset during ping. Attempting to reconnect."
+                        ),
                     )
                     self._is_connected = False
                     reconnect_task = self.connect()
                     if reconnect_task:
                         self._logger.debug(
-                            f"Reconnection task created: {reconnect_task.get_name()}",
+                            "reconnection_task_created_from_keep_alive",
+                            action="keep_alive",
+                            task_name=reconnect_task.get_name(),
+                            message=f"Reconnection task created: {reconnect_task.get_name()}",
                         )
                     else:
-                        self._logger.debug("Reconnection task was not created (already connecting)")
+                        self._logger.debug(
+                            "reconnection_task_not_created_already_connecting",
+                            action="schedule_reconnection_if_needed",
+                            message="Reconnection task was not created (already connecting)",
+                        )
                     break
 
-                self._logger.debug(f"Keep-alive: sleeping for {self._ping_interval}s after ping.")
+                self._logger.debug(
+                    "keep_alive_sleep_after_ping",
+                    action="keep_alive",
+                    sleep_duration=self._ping_interval,
+                    message=f"Keep-alive: sleeping for {self._ping_interval}s after ping.",
+                )
                 await asyncio.sleep(self._ping_interval)
 
         except asyncio.CancelledError:
-            self._logger.info(f"[{self._exchange_name} _keep_alive] Task cancelled.")
+            self._logger.info(
+                "keep_alive_task_cancelled",
+                action="keep_alive",
+                exchange=self._exchange_name,
+                message=f"[{self._exchange_name} _keep_alive] Task cancelled.",
+            )
         except Exception as e:
             self._logger.error(
-                f"[{self._exchange_name} _keep_alive] Unexpected error in loop: {e}",
+                "keep_alive_unexpected_error",
+                action="keep_alive",
+                exchange=self._exchange_name,
+                error_details=str(e),
+                message=f"[{self._exchange_name} _keep_alive] Unexpected error in loop: {e}",
                 exc_info=True,
             )
             self._is_connected = False
             if self._should_reconnect:
                 self._logger.info(
-                    f"[{self._exchange_name} _keep_alive] Attempting reconnect due to error.",
+                    "keep_alive_attempting_reconnect_due_to_error",
+                    action="keep_alive",
+                    exchange=self._exchange_name,
+                    message=(
+                        f"[{self._exchange_name} _keep_alive] Attempting reconnect due to error."
+                    ),
                 )
                 new_connection_attempt_task = self.connect()
                 if new_connection_attempt_task:
                     self._logger.debug(
-                        f"[{self._exchange_name} _keep_alive] "
-                        f"Reconnect task created: {new_connection_attempt_task.get_name()}",
+                        "keep_alive_reconnect_task_created",
+                        action="keep_alive",
+                        exchange=self._exchange_name,
+                        task_name=new_connection_attempt_task.get_name(),
+                        message=(
+                            f"[{self._exchange_name} _keep_alive] Reconnect task created: "
+                            f"{new_connection_attempt_task.get_name()}"
+                        ),
                     )
                 else:
                     self._logger.debug(
-                        f"[{self._exchange_name} _keep_alive] "
-                        f"Reconnect from error did not start new task (already connecting).",
+                        "keep_alive_reconnect_not_started_already_connecting",
+                        action="keep_alive",
+                        exchange=self._exchange_name,
+                        message=(
+                            f"[{self._exchange_name} _keep_alive] Reconnect from "
+                            f"error did not start new task (already connecting)."
+                        ),
                     )
         finally:
-            self._logger.info(f"[{self._exchange_name} _keep_alive] Task ending.")
+            self._logger.info(
+                "keep_alive_task_ending",
+                action="keep_alive",
+                exchange=self._exchange_name,
+                message=f"[{self._exchange_name} _keep_alive] Task ending.",
+            )
 
     async def send_json(self, data: BaseModel) -> bool:
         """Sends a JSON payload over the WebSocket connection.
@@ -659,7 +921,12 @@ class WebSocketManager:
 
         """
         if not self.is_connected or not self._ws_connection:
-            self._logger.error(f"Cannot send JSON, WebSocket not connected to {self._ws_url}.")
+            self._logger.error(
+                "send_json_websocket_not_connected",
+                action="send_json",
+                ws_url=self._ws_url,
+                message=f"Cannot send JSON, WebSocket not connected to {self._ws_url}.",
+            )
             return False
         try:
             # Apply rate limiting if configured
@@ -668,30 +935,54 @@ class WebSocketManager:
 
             # Serialize the Pydantic model
             payload_to_send = data.model_dump(by_alias=True, exclude_none=True)
-            self._logger.debug(f"[{self._exchange_name}] Sending WS JSON: {payload_to_send}")
+            self._logger.debug(
+                "websocket_json_sent",
+                action="send_json",
+                exchange=self._exchange_name,
+                payload=payload_to_send,
+                message=f"[{self._exchange_name}] Sending WS JSON: {payload_to_send}",
+            )
             await self._ws_connection.send_json(payload_to_send)
             return True
         except asyncio.CancelledError:
-            self._logger.warning("Send JSON operation cancelled.")
+            self._logger.warning(
+                "send_json_operation_cancelled",
+                action="send_json",
+                message="Send JSON operation cancelled.",
+            )
             return False
         except ConnectionResetError:
             self._logger.error(
-                f"Connection reset while trying to send JSON to {self._ws_url}. "
-                "Marking as disconnected.",
+                "connection_reset_during_send_json",
+                action="send_json",
+                ws_url=self._ws_url,
+                message=(
+                    f"Connection reset while trying to "
+                    f"send JSON to {self._ws_url}. Marking as disconnected."
+                ),
             )
             self._is_connected = False
             self._ws_connection = None
             return False
         except Exception as e:
             self._logger.error(
-                f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
+                "send_json_serialize_send_error",
+                action="send_json",
+                exchange=self._exchange_name,
+                error_details=str(e),
+                message=f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
                 exc_info=True,
             )
             return False
 
     async def close(self) -> None:
         """Gracefully closes the WebSocket connection and cleans up resources."""
-        self._logger.info(f"Close requested for WebSocket connection to {self._ws_url}.")
+        self._logger.info(
+            "websocket_close_requested",
+            action="close",
+            ws_url=self._ws_url,
+            message=f"Close requested for WebSocket connection to {self._ws_url}.",
+        )
         self._should_reconnect = False
 
         ws_conn_at_close_start = self._ws_connection
@@ -702,24 +993,47 @@ class WebSocketManager:
         await self._close_websocket_connection(ws_conn_at_close_start)
         await self._close_session()
 
-        self._logger.info(f"WebSocketManager for {self._ws_url} is fully closed.")
+        self._logger.info(
+            "websocket_manager_fully_closed",
+            action="close",
+            ws_url=self._ws_url,
+            message=f"WebSocketManager for {self._ws_url} is fully closed.",
+        )
 
     async def _cancel_connection_task(self) -> None:
         """Cancel the connection task if it's running."""
         if self._connection_task and not self._connection_task.done():
-            self._logger.debug("Cancelling in-progress connection task.")
+            self._logger.debug(
+                "cancelling_connection_task",
+                action="cancel_connection_task",
+                message="Cancelling in-progress connection task.",
+            )
             self._connection_task.cancel()
             try:
                 await self._connection_task
             except asyncio.CancelledError:
-                self._logger.debug("Connection task successfully cancelled during close.")
+                self._logger.debug(
+                    "connection_task_cancelled_successfully",
+                    action="cancel_connection_task",
+                    message="Connection task successfully cancelled during close.",
+                )
             except Exception as e:
-                self._logger.warning(f"Error awaiting cancelled connection task: {e}")
+                self._logger.warning(
+                    "connection_task_cancellation_error",
+                    action="cancel_connection_task",
+                    error_details=str(e),
+                    message=f"Error awaiting cancelled connection task: {e}",
+                )
 
     async def _cancel_listener_task(self) -> None:
         """Cancel the listener task if it's running."""
         if self._listener_task and not self._listener_task.done():
-            self._logger.debug(f"Cancelling listener task: {self._listener_task.get_name()}")
+            self._logger.debug(
+                "listener_task_cancelling",
+                action="cancel_listener_task",
+                task_name=self._listener_task.get_name(),
+                message=f"Cancelling listener task: {self._listener_task.get_name()}",
+            )
             self._listener_task.cancel()
             await self._await_task_cancellation(
                 self._listener_task, "listener", self._listener_task.get_name()
@@ -728,7 +1042,12 @@ class WebSocketManager:
     async def _cancel_ping_task(self) -> None:
         """Cancel the ping task if it's running."""
         if self._ping_task and not self._ping_task.done():
-            self._logger.debug(f"Cancelling ping task: {self._ping_task.get_name()}")
+            self._logger.debug(
+                "ping_task_cancelling",
+                action="cancel_ping_task",
+                task_name=self._ping_task.get_name(),
+                message=f"Cancelling ping task: {self._ping_task.get_name()}",
+            )
             self._ping_task.cancel()
             await self._await_task_cancellation(self._ping_task, "ping", self._ping_task.get_name())
 
@@ -784,29 +1103,50 @@ class WebSocketManager:
             return await self._close_active_websocket(ws_conn)
         elif ws_conn and ws_conn.closed:
             self._logger.debug(
-                f"WS connection {id(ws_conn)} for {self._ws_url} was already closed.",
+                "websocket_connection_already_closed",
+                action="attempt_websocket_close",
+                connection_id=id(ws_conn),
+                ws_url=self._ws_url,
+                message=f"WS connection {id(ws_conn)} for {self._ws_url} was already closed.",
             )
             return True
         else:
             self._logger.debug(
-                f"No active WS connection object to close explicitly for {self._ws_url}.",
+                "no_active_websocket_connection_to_close",
+                action="attempt_websocket_close",
+                ws_url=self._ws_url,
+                message=f"No active WS connection object to close explicitly for {self._ws_url}.",
             )
             return True
 
     async def _close_active_websocket(self, ws_conn: ClientWebSocketResponse) -> bool:
         """Close an active WebSocket connection."""
         self._logger.debug(
-            f"Closing WebSocket connection object {id(ws_conn)} for {self._ws_url}.",
+            "closing_websocket_connection_object",
+            action="close_active_websocket",
+            connection_id=id(ws_conn),
+            ws_url=self._ws_url,
+            message=f"Closing WebSocket connection object {id(ws_conn)} for {self._ws_url}.",
         )
         try:
             await ws_conn.close()
             self._logger.info(
-                f"WS connection to {self._ws_url} (id: {id(ws_conn)}) closed by explicit call.",
+                "websocket_connection_closed_explicitly",
+                action="close_active_websocket",
+                ws_url=self._ws_url,
+                connection_id=id(ws_conn),
+                message=(
+                    f"WS connection to {self._ws_url} (id: {id(ws_conn)}) closed by explicit call."
+                ),
             )
             return True
         except Exception as e:
             self._logger.error(
-                f"Error during explicit close of WS connection {id(ws_conn)}: {e}",
+                "websocket_connection_close_error",
+                action="close_active_websocket",
+                connection_id=id(ws_conn),
+                error_details=str(e),
+                message=f"Error during explicit close of WS connection {id(ws_conn)}: {e}",
                 exc_info=True,
             )
             return False
@@ -814,7 +1154,15 @@ class WebSocketManager:
     async def _close_session(self) -> None:
         """Close the aiohttp session if it was created internally."""
         if self._session and not self._external_session and not self._session.closed:
-            self._logger.info("Closing internally created aiohttp.ClientSession.")
+            self._logger.info(
+                "closing_internal_session",
+                action="close_session",
+                message="Closing internally created aiohttp.ClientSession.",
+            )
             await self._session.close()
-            self._logger.info("Internally created ClientSession closed.")
+            self._logger.info(
+                "internal_session_closed",
+                action="close_session",
+                message="Internally created ClientSession closed.",
+            )
         self._session = None

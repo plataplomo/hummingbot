@@ -10,16 +10,15 @@ This strategy manages dual rate limiters:
 
 from __future__ import annotations
 
-import logging
-
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidRateLimitStrategy(RateLimitStrategy):
@@ -121,12 +120,22 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         # Acquire IP weight tokens if needed
         if ip_cost > 0:
             await self._ip_weight_limiter.acquire(tokens_to_consume=ip_cost)
-            logger.debug(f"Acquired {ip_cost} IP weight tokens")
+            logger.debug(
+                "acquired_ip_weight_tokens",
+                action="acquire_tokens",
+                ip_cost=ip_cost,
+                message=f"Acquired {ip_cost} IP weight tokens",
+            )
 
         # Acquire address action tokens if needed (only for /exchange)
         if address_action_cost > 0:
             await self._address_action_limiter.acquire(tokens_to_consume=address_action_cost)
-            logger.debug(f"Acquired {address_action_cost} address action tokens")
+            logger.debug(
+                "acquired_address_action_tokens",
+                action="acquire_tokens",
+                address_action_cost=address_action_cost,
+                message=f"Acquired {address_action_cost} address action tokens",
+            )
 
         # Hyperliquid doesn't modify the payload for rate limiting
         return None

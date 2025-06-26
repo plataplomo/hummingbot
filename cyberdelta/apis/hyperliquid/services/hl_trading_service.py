@@ -62,7 +62,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
@@ -257,10 +257,22 @@ class HyperliquidTradingService:
         try:
             return await self._execute_exchange_action(request_payload_model)
         except APIError as e:
-            logger.error(f"[{self._exchange_name}] API error placing order raw: {e.message}")
+            logger.error(
+                "hl_trading_service_place_order_api_error",
+                action="place_order_raw",
+                message="API error occurred while placing order",
+                exchange_name=self._exchange_name,
+                error_message=e.message,
+            )
             raise
         except Exception as e:
-            logger.exception(f"[{self._exchange_name}] Unexpected error placing order raw: {e}")
+            logger.exception(
+                "hl_trading_service_place_order_unexpected_error",
+                action="place_order_raw",
+                message="Unexpected error occurred while placing order",
+                exchange_name=self._exchange_name,
+                error=str(e),
+            )
             _error_msg_unexpected = f"Unexpected error placing order raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
@@ -278,10 +290,22 @@ class HyperliquidTradingService:
         try:
             return await self._execute_exchange_action(cancel_request_payload)
         except APIError as e:
-            logger.error(f"[{self._exchange_name}] API error cancelling order raw: {e.message}")
+            logger.error(
+                "hl_trading_service_cancel_order_api_error",
+                action="cancel_order_raw",
+                message="API error occurred while cancelling order",
+                exchange_name=self._exchange_name,
+                error_message=e.message,
+            )
             raise
         except Exception as e:
-            logger.exception(f"[{self._exchange_name}] Unexpected error cancelling order raw: {e}")
+            logger.exception(
+                "hl_trading_service_cancel_order_unexpected_error",
+                action="cancel_order_raw",
+                message="Unexpected error occurred while cancelling order",
+                exchange_name=self._exchange_name,
+                error=str(e),
+            )
             _error_msg_unexpected = f"Unexpected error cancelling order raw: {e}"
             raise APIError(_error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
 
@@ -323,7 +347,13 @@ class HyperliquidTradingService:
             )
             return validated_response.items
         except APIError as e:
-            logger.error(f"[{self._exchange_name}] API error fetching open orders raw: {e.message}")
+            logger.error(
+                "hl_trading_service_get_open_orders_api_error",
+                action="get_open_orders_raw",
+                message="API error occurred while fetching open orders",
+                exchange_name=self._exchange_name,
+                error_message=e.message,
+            )
             raise
         except Exception as e:
             logger.exception(
@@ -1120,7 +1150,13 @@ class HyperliquidTradingService:
         # Process available statuses
         for i, status in enumerate(response_data.statuses):
             if i >= len(original_orders):
-                logger.error(f"[{self._exchange_name}] Unexpected extra status at index {i}")
+                logger.error(
+                    "hl_trading_service_batch_unexpected_status",
+                    action="process_batch_order_statuses",
+                    message="Unexpected extra status in batch response",
+                    exchange_name=self._exchange_name,
+                    status_index=i,
+                )
                 break
 
             args = original_orders[i]
@@ -1703,7 +1739,12 @@ class HyperliquidTradingService:
                 )
 
             # If we reach here, something unexpected happened
-            logger.error(f"[{self._exchange_name}] Unexpected response structure for cancel order")
+            logger.error(
+                "hl_trading_service_cancel_unexpected_response",
+                action="process_cancel_order_response",
+                message="Unexpected response structure for cancel order",
+                exchange_name=self._exchange_name,
+            )
             return CancelOrderResult(
                 symbol=symbol,
                 order_id=str(order_id_int),

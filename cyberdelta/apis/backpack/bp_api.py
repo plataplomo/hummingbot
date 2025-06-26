@@ -58,9 +58,9 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawArgs,
 )
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -396,25 +396,52 @@ class BackpackAPI(ExchangeAPI):
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
         topic = f"depth.{symbol}"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        logger.debug(
+            "backpack_orderbook_subscription_prepared",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            topic=topic,
+            subscription_type="depth",
+            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+        )
 
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Subscribe to ticker updates for a symbol."""
         topic = f"ticker.{symbol}"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        logger.debug(
+            "backpack_ticker_subscription_prepared",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            topic=topic,
+            subscription_type="ticker",
+            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+        )
 
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Subscribe to public trade updates for a symbol."""
         topic = f"trades.{symbol}"
-        logger.debug(f"[{self.exchange_name}] Preparing subscription for topic: {topic}")
+        logger.debug(
+            "backpack_trades_subscription_prepared",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            topic=topic,
+            subscription_type="trades",
+            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+        )
 
     async def subscribe_to_account_updates(self) -> None:
         """Subscribe to private account updates (balances, positions, orders)."""
         fill_topic = "fills"
         order_topic = "orders"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for account topics: "
-            f"{fill_topic}, {order_topic}",
+            "backpack_account_updates_subscription_prepared",
+            exchange=self.exchange_name,
+            topics=[fill_topic, order_topic],
+            subscription_type="account_updates",
+            message=(
+                f"[{self.exchange_name}] Preparing subscription for account topics: "
+                f"{fill_topic}, {order_topic}"
+            ),
         )
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
@@ -469,12 +496,16 @@ class BackpackAPI(ExchangeAPI):
         # Backpack does not seem to provide standard rate limit headers.
         # If specific headers are discovered, they could be parsed here.
         logger.debug(
-            "[%s] No actionable rate limit headers found for dynamic adjustment. "
-            "Headers: %s, Method: %s, Path: %s",
-            self.exchange_name,
-            headers,
-            method,
-            path,
+            "backpack_rate_limit_headers_noop",
+            exchange=self.exchange_name,
+            method=method,
+            path=path,
+            headers_count=len(headers) if headers else 0,
+            action="no_dynamic_adjustment",
+            message=(
+                f"[{self.exchange_name}] No actionable rate limit headers found "
+                f"for dynamic adjustment. Headers: {headers}, Method: {method}, Path: {path}"
+            ),
         )
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
@@ -489,25 +520,35 @@ class BackpackAPI(ExchangeAPI):
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
         logger.info(
-            "[%s] Subscribe called for topic: %s. Delegating to base.",
-            self.exchange_name,
-            topic,
+            "backpack_websocket_subscribing",
+            exchange=self.exchange_name,
+            topic=topic,
+            action="delegating_to_base",
+            message=(
+                f"[{self.exchange_name}] Subscribe called for topic: {topic}. Delegating to base."
+            ),
         )
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
         """Handle actions upon WebSocket connection, typically resubscribing to topics."""
         logger.info(
-            "[%s] WebSocket connected. Triggering resubscription via base.",
-            self.exchange_name,
+            "backpack_websocket_connected",
+            exchange=self.exchange_name,
+            action="triggering_resubscription",
+            message=(
+                f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base."
+            ),
         )
         await super()._on_ws_connected()
 
     async def _resubscribe(self) -> None:
         """Resubscribe to topics upon WebSocket (re)connection."""
         logger.info(
-            "[%s] Resubscribe called. Delegating to base.",
-            self.exchange_name,
+            "backpack_websocket_resubscribing",
+            exchange=self.exchange_name,
+            action="delegating_to_base",
+            message=f"[{self.exchange_name}] Resubscribe called. Delegating to base.",
         )
         await super()._resubscribe()
 

@@ -2,22 +2,22 @@
 
 # General settings
 general:
-  log_level: INFO
+  log_level: DEBUG
   log_file: "logs/cyberdelta.log"
   module_log_levels:
-    "cyberdelta.engine": "INFO"
-    "cyberdelta.exchange": "INFO"
-    "cyberdelta.strategy": "INFO"
-    "cyberdelta.risk": "INFO"
-    "cyberdelta.execution": "INFO"
-    "cyberdelta.safety_systems": "INFO"
-    "cyberdelta.apis.connectivity": "WARNING"  # Reduce WebSocket verbosity
-    "cyberdelta.security": "WARNING"  # Reduce transformation logs
-    "WebSocketManager": "WARNING"  # Reduce WebSocket manager logs
+    "cyberdelta.engine": "DEBUG"
+    "cyberdelta.exchange": "DEBUG"
+    "cyberdelta.strategy": "DEBUG"
+    "cyberdelta.risk": "DEBUG"
+    "cyberdelta.execution": "DEBUG"
+    "cyberdelta.safety_systems": "DEBUG"
+    "cyberdelta.apis.connectivity": "DEBUG"  # Reduce WebSocket verbosity
+    "cyberdelta.security": "DEBUG"  # Reduce transformation logs
+    "WebSocketManager": "DEBUG"  # Reduce WebSocket manager logs
   safe_mode: true  # Start in safe mode (read-only)
   state_file: "data/state.json"
   state_backup_directory: "data/state_backups"
-  state_save_interval: 300  # seconds
+  state_save_interval: 60  # seconds
   state_backup_count: 5     # Number of previous state files to keep
 
 # Exchange configuration
@@ -100,8 +100,7 @@ exchanges:
 
 # Strategy configuration (Simplified for Prototype 0.0.1)
 strategies:
-  # Focus: HyperLiquid Perpetual vs. Backpack Spot
-  hl_perp_bp_spot:
+  hl_perp_bp_spot: # Hyperliquid Perpetual vs Backpack Spot Arbitrage
     enabled: true
     # Define symbols using the internal names (mapped above)
     long_exchange: "backpack" # Where we go long (buy spot)
@@ -112,7 +111,13 @@ strategies:
     params:
       funding_threshold: 0.0001  # Minimum positive funding rate on long leg (HL)
       max_price_spread_pct: 0.002 # Maximum allowed percentage difference between perp and spot price (0.2%)
-      min_profit_usd: 1.0      # Minimum estimated profit in USD to consider the trade
+      min_profit_usd: 0.1      # Minimum estimated profit in USD to consider the trade
+      min_funding_differential: 0.0001  # Minimum funding rate differential (0.01%)
+      check_interval: 10       # Opportunity check interval in seconds
+      risk_aversion: 1.0       # Risk aversion factor
+      rebalance_threshold: 0.05 # Position rebalance threshold (5%)
+      perp_exchange: "hyperliquid"  # Exchange for perpetual contracts
+      spot_exchange: "backpack"    # Exchange for spot trading
 
 # Risk management (Simplified for Prototype 0.0.1)
 risk:

@@ -1,7 +1,5 @@
 """Tests for the SignalGenerator class."""
 
-import logging
-
 # Removed unused asyncio
 from collections import deque
 from datetime import UTC, datetime, timedelta
@@ -12,7 +10,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import (
     FundingRate,
@@ -25,7 +24,7 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 pytestmark = pytest.mark.timing
 

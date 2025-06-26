@@ -6,8 +6,9 @@ and exchange-specific symbol formats across different trading platforms.
 
 from __future__ import annotations
 
-import logging  # Use standard logging
 from typing import Any, cast  # Add Any and cast imports
+
+from cyberdelta.config.structlog_config import get_logger
 
 
 # Assuming a config structure like:
@@ -27,7 +28,7 @@ from typing import Any, cast  # Add Any and cast imports
 #     }
 # }
 
-logger = logging.getLogger(__name__)  # Use standard logging logger
+logger = get_logger(__name__)  # Use standard logging logger
 
 
 class SymbolMappingError(Exception):

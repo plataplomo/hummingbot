@@ -7,12 +7,12 @@ balances and margin positions.
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -23,7 +23,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @pytest.mark.integration

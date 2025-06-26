@@ -3,10 +3,10 @@
 Tests symbol mapping functionality between different exchanges and internal representations.
 """
 
-import logging
 from typing import Any, cast  # Added Dict, Any and cast
 
 import pytest
+import structlog.testing
 from _pytest.logging import LogCaptureFixture
 
 from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
@@ -92,7 +92,9 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
             "invalid_value_type": {"symbols": {"ETH": 456}},  # Non-string value
         },
     }
-    with caplog.at_level(logging.WARNING):  # Use logging.WARNING constant
+
+    # Use structlog.testing.capture_logs for structured logging
+    with structlog.testing.capture_logs() as captured_logs:
         mapper = SymbolMapper(config_with_invalid["exchanges"])
 
     assert mapper is not None
@@ -105,17 +107,30 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
     # Invalid value type should not create reverse mapping
     assert mapper.get_internal_symbol("456", "invalid_value_type") is None
 
-    # Check for specific warning logs
-    assert "Skipping exchange 'missing_symbols': Missing 'symbols' configuration." in caplog.text
-    assert (
-        "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in caplog.text
+    # Check for specific warning logs in structured logs
+    # The logger uses f-strings, so we need to check the exact message format
+    warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+
+    # Extract warning messages
+    warning_messages = [log.get("event", "") for log in warning_logs]
+
+    # Check for expected warnings
+    assert any(
+        "Skipping exchange 'missing_symbols': Missing 'symbols' configuration." in msg
+        for msg in warning_messages
+    )
+    assert any(
+        "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in msg
+        for msg in warning_messages
     )
     # The business logic doesn't validate symbol map keys, so no warning
     # is generated for invalid_entry_type
     # The integer key 123 is processed as-is without validation
-    assert (
+    assert any(
         "Invalid symbol map value for ex 'invalid_value_type': Skip (ETH: 456). Value must be str."
-    ) in caplog.text
+        in msg
+        for msg in warning_messages
+    )
 
 
 # --- Test Mapping Methods ---

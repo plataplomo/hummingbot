@@ -13,12 +13,12 @@ and error handling. Tests various scenarios including:
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
+import structlog.testing
 from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
@@ -526,7 +526,7 @@ class TestErrorRecoveryScenarios:
             ),
         ]
 
-        with caplog.at_level(logging.WARNING):
+        with structlog.testing.capture_logs() as captured_logs:
             trades = market_data_mapper.transform_raw_trades(mixed_trades)
 
         # Should return only valid trades
@@ -534,8 +534,13 @@ class TestErrorRecoveryScenarios:
         assert trades[0].symbol == "VALID-PERP"
         assert trades[1].symbol == "ANOTHER-VALID-PERP"
 
-        # Should log warning for skipped trade
-        assert any("Skipping trade transformation" in record.message for record in caplog.records)
+        # Should log warning for skipped trade in structured logs
+        warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+        assert len(warning_logs) > 0, "Expected at least one warning log"
+
+        # Check for the specific warning about skipped trade
+        skip_logs = [log for log in warning_logs if "Skipping trade transformation" in str(log)]
+        assert len(skip_logs) > 0, f"Expected trade skipping logs, got: {captured_logs}"
 
     def test_empty_data_handling(
         self,

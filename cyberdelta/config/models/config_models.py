@@ -9,12 +9,11 @@ leveraging utility functions from cyberdelta.utils.parsing for robust parsing an
 """
 
 from decimal import Decimal
-from typing import Annotated, Any, Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
     BaseModel,
-    BeforeValidator,
     ConfigDict,
     Field,
     HttpUrl,
@@ -23,48 +22,19 @@ from pydantic import (
     model_validator,
 )
 
+# Import shared types and strategy models
+from cyberdelta.config.models.config_types import (
+    ConfigDecimal,
+    NonEmptyConfigString,
+)
+
+# Import strategy models from separate module
+from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import (
-    parse_decimal_value,
     validate_enum_field,
     validate_str_field,
 )
-
-
-def _parse_yaml_input_to_required_decimal(
-    v: str | int | float | Decimal,
-    info: ValidationInfo,
-) -> Decimal:
-    """Pydantic 'before' validator to parse input to a required, finite Decimal."""
-    field_name = info.field_name if info.field_name else "decimal_field"
-    # allow_none=False because this is for fields that are expected to be Decimal.
-    # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
-    parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-    if parsed is None:  # Defensive, should be caught by parse_decimal_value
-        raise ValueError(f"Field '{field_name}': Required Decimal value is missing or invalid.")
-    if not parsed.is_finite():
-        raise ValueError(f"Field '{field_name}': Decimal value must be finite, got '{v}'.")
-    return parsed
-
-
-def _validate_string_for_literal_check(v: str | int | float | bool, info: ValidationInfo) -> str:
-    """Pydantic 'before' validator to ensure v is a string before Literal check."""
-    return validate_str_field(
-        v,
-        field_name=info.field_name or "literal_str_field",
-        allow_empty=False,
-    )
-
-
-def _validate_non_empty_string(v: str | int | float | bool, info: ValidationInfo) -> str:
-    """Pydantic 'before' validator for non-empty string fields."""
-    return validate_str_field(v, field_name=info.field_name or "string_field", allow_empty=False)
-
-
-# Annotated types for common validation patterns
-ConfigDecimal = Annotated[Decimal, BeforeValidator(_parse_yaml_input_to_required_decimal)]
-StringForLiteral = Annotated[str, BeforeValidator(_validate_string_for_literal_check)]
-NonEmptyConfigString = Annotated[str, BeforeValidator(_validate_non_empty_string)]
 
 
 class AddressActionSafetyNetConfig(BaseModel):
@@ -388,29 +358,6 @@ class ExchangeSpecificConfig(BaseModel):
         return self.ws_url_testnet
 
 
-class StrategyParamsHLPerpBPSpot(BaseModel):
-    """Parameters for HyperLiquid Perpetual vs Backpack Spot strategy."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    funding_threshold: ConfigDecimal = Field(..., gt=Decimal("0"))
-    max_price_spread_pct: ConfigDecimal = Field(..., gt=Decimal("0"), lt=Decimal("1"))
-    min_profit_usd: ConfigDecimal = Field(..., gt=Decimal("0"))
-
-
-class StrategyConfigHLPerpBPSpot(BaseModel):
-    """Configuration for HyperLiquid Perpetual vs Backpack Spot strategy."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    enabled: bool = True
-    long_exchange: NonEmptyConfigString
-    short_exchange: NonEmptyConfigString
-    symbol_long: NonEmptyConfigString
-    symbol_short: NonEmptyConfigString
-    params: StrategyParamsHLPerpBPSpot
-
-
 class GlobalRiskSettings(BaseModel):
     """Global risk management settings."""
 
@@ -588,14 +535,6 @@ class MonitoringSettings(BaseModel):
             validated_methods.append(validated_method)
 
         return validated_methods
-
-
-class StrategiesSettings(BaseModel):
-    """Strategies configuration."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    hl_perp_bp_spot: StrategyConfigHLPerpBPSpot
 
 
 # Default timeout for how long balance/position data is considered fresh

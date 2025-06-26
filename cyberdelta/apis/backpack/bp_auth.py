@@ -20,7 +20,7 @@ from cyberdelta.apis.base.authenticator_interface import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 
 logger = get_logger(__name__)
@@ -53,7 +53,12 @@ class BackpackEd25519Authenticator(IAuthenticator):
             private_key_bytes = base64.b64decode(private_key_b64)
             self._ed25519_private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
         except Exception as e:
-            logger.error(f"Failed to load ED25519 private key from Base64 string: {e}")
+            logger.error(
+                "ed25519_key_load_failed",
+                action="load_key",
+                error=str(e),
+                message=f"Failed to load ED25519 private key from Base64 string: {e}",
+            )
             raise ValueError(f"Invalid Base64 ED25519 private key: {e}") from e
 
         # Initialize instruction mapping for Backpack REST API endpoints
@@ -291,7 +296,14 @@ class BackpackEd25519Authenticator(IAuthenticator):
             )
 
         except Exception as e:
-            logger.error(f"ED25519 authentication failed for {method} {path}: {e}")
+            logger.error(
+                "ed25519_auth_failed",
+                action="authenticate",
+                method=method,
+                path=path,
+                error=str(e),
+                message=f"ED25519 authentication failed for {method} {path}: {e}",
+            )
             if isinstance(e, APIError):
                 raise
             raise APIError(
@@ -339,7 +351,12 @@ class BackpackEd25519Authenticator(IAuthenticator):
             )
 
         except Exception as e:
-            logger.error(f"WebSocket signature generation failed: {e}")
+            logger.error(
+                "websocket_signature_failed",
+                action="generate_signature",
+                error=str(e),
+                message=f"WebSocket signature generation failed: {e}",
+            )
             raise APIError(
                 f"WebSocket signature generation failed: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,

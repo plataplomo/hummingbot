@@ -1,13 +1,14 @@
 """Module for calculating various financial performance metrics."""
 
-import logging
 from decimal import Decimal
 
 import numpy as np
 import pandas as pd
 
+from cyberdelta.config.structlog_config import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 class PerformanceMetricsCalculator:
@@ -241,7 +242,13 @@ class PerformanceMetricsCalculator:
                 metrics["profit_factor"] = Decimal("0.0")
 
         except Exception as e:
-            logger.error(f"Error calculating performance metrics: {e}", exc_info=True)
+            logger.error(
+                "performance_metrics_calculation_error",
+                action="calculate_metrics",
+                error=str(e),
+                message=f"Error calculating performance metrics: {e}",
+                exc_info=True,
+            )
             # Optionally return partial metrics or re-raise
 
         # Add basic return metrics

@@ -6,7 +6,6 @@ interactions, and error conditions for comprehensive testing.
 """
 
 import asyncio
-import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Mapping
@@ -41,8 +40,9 @@ from cyberdelta.apis.models.service_args_models import (
 # Correct the import to use the new typing module
 # REMOVED INCORRECT IMPORT: from cyberdelta.core.symbol_mapper import Symbol
 from cyberdelta.config import AppSettings
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -65,7 +65,7 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Type alias for WebSocket message handlers from base.py
 # MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]

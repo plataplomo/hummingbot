@@ -228,6 +228,8 @@ def test_ws_trade_event_happy_path() -> None:
         "side": "A",
         "time": 1234567890,
         "hash": "abc123",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
     model = HyperliquidRawWsTradeEvent.model_validate(obj)
     assert model.coin == "ETH"
@@ -250,6 +252,8 @@ def test_ws_trade_event_type_errors() -> None:
         "side": 1,
         "time": "now",
         "hash": 123,
+        "tid": "invalid",
+        "users": "not_a_list",
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj)
@@ -264,6 +268,8 @@ def test_ws_trade_event_constraint_errors() -> None:
         "side": "X",
         "time": -1,
         "hash": "h" * 65,
+        "tid": -1,
+        "users": [],
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj)
@@ -278,6 +284,8 @@ def test_ws_trade_event_extra_field() -> None:
         "side": "B",
         "time": 1234567890,
         "hash": "abc123",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef1234567890abcdef12345678"],
         "foo": 1,
     }
     with pytest.raises(ValidationError):
@@ -294,6 +302,8 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "side": "b",
         "time": 1234567890,
         "hash": "abc123",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj)
@@ -304,6 +314,8 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "side": "X",
         "time": 1234567890,
         "hash": "abc123",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj2)
@@ -314,6 +326,8 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "side": " ",
         "time": 1234567890,
         "hash": "abc123",
+        "tid": 12345,
+        "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsTradeEvent.model_validate(obj3)

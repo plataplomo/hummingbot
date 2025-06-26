@@ -81,11 +81,17 @@ class TestSecurityValidationScenarios:
             # Verify the string is returned (not truncated)
             assert result == large_string
 
-            # Verify security warning was logged
+            # Verify security warning was logged with structured logging format
             mock_logger.warning.assert_called_once()
-            warning_call = mock_logger.warning.call_args[0][0]
-            assert "SECURITY: Large string response" in warning_call
-            assert "1000001 chars" in warning_call
+            call_args = mock_logger.warning.call_args
+            # Check event name (first positional arg)
+            assert call_args[0][0] == "response_validation_large_string"
+            # Check keyword arguments
+            assert call_args[1]["action"] == "validate_string_response"
+            assert call_args[1]["message"] == "Large string response detected - potential DoS risk"
+            assert call_args[1]["context"] == "large_response"
+            assert call_args[1]["string_length"] == 1_000_001
+            assert call_args[1]["security_alert"] is True
 
     def test_validate_required_fields_injection_attack(self) -> None:
         """Test required fields validation against injection attacks."""
@@ -161,16 +167,21 @@ class TestSecurityValidationScenarios:
     @patch("cyberdelta.apis.utils.response_validation.logger")
     def test_security_logging_consistency(self, mock_logger: MagicMock) -> None:
         """Test that security events are consistently logged."""
-        # Test null response logging
+        # Test null response logging with structured format
         with pytest.raises(APIError):
             ensure_dict_response(None, "test_null", 400)
 
         mock_logger.error.assert_called()
-        error_call = mock_logger.error.call_args[0][0]
-        assert "SECURITY: Null response" in error_call
-        assert "test_null" in error_call
+        call_args = mock_logger.error.call_args
+        # Check event name (first positional arg)
+        assert call_args[0][0] == "response_validation_null_response"
+        # Check keyword arguments
+        assert call_args[1]["action"] == "validate_dict_response"
+        assert call_args[1]["message"] == "Null response received - security violation"
+        assert call_args[1]["context"] == "test_null"
+        assert call_args[1]["security_alert"] is True
 
-        # Test type mismatch logging
+        # Test type mismatch logging (old string format)
         mock_logger.reset_mock()
         with pytest.raises(APIError):
             ensure_dict_response("wrong_type", "test_type", 500)

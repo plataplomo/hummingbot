@@ -6,7 +6,7 @@ as well as error conditions and edge cases.
 """
 
 import asyncio
-import logging  # Import logging
+import logging
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -23,7 +23,7 @@ from cyberdelta.apis.models.api_error_codes import (  # Corrected import
     APIErrorCode,
 )
 from cyberdelta.config import AppSettings  # Updated import
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 # from cyberdelta.apis.base import APIErrorCode, ExchangeAPI # Removed unused import
 # Core Components

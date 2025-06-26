@@ -6,7 +6,6 @@ Covers both successful and failure scenarios for trade execution.
 """
 
 import asyncio
-import logging
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -17,6 +16,7 @@ import pytest
 
 from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
 from cyberdelta.config import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import (
     ExecutionHandler,
     ExecutionStatus,
@@ -41,7 +41,7 @@ from tests.test_utils.testable_classes import TestableExecutionHandler
 
 pytestmark = pytest.mark.timing
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @pytest.fixture

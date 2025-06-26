@@ -24,7 +24,6 @@ These models act as a strict shield between external API data and internal busin
 robustness and security at the data ingestion boundary.
 """
 
-import logging
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,9 +35,10 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
     RawBpParsableFiniteDecimalString,
     RawBpStrictBool,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger("cyberdelta.models.raw")
+logger = get_logger("cyberdelta.models.raw")
 
 
 class BackpackRawPublicTrade(BaseModel):

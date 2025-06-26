@@ -60,9 +60,9 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -135,7 +135,14 @@ class HyperliquidAPI(ExchangeAPI):
                 str(exchange_config.ws_url_mainnet) if exchange_config.ws_url_mainnet else None
             )
             logger.info(
-                f"[{exchange_config.exchange_name.value}] Initializing for MAINNET environment.",
+                "hyperliquid_api_initializing_mainnet",
+                exchange=exchange_config.exchange_name.value,
+                environment="mainnet",
+                api_base_url=self.active_api_base_url,
+                ws_url=self.active_ws_url,
+                message=(
+                    f"[{exchange_config.exchange_name.value}] Initializing for MAINNET environment."
+                ),
             )
         elif exchange_config.api_base_url_testnet:  # Check if testnet URL is actually configured
             self.active_api_base_url = str(exchange_config.api_base_url_testnet)
@@ -143,14 +150,28 @@ class HyperliquidAPI(ExchangeAPI):
                 str(exchange_config.ws_url_testnet) if exchange_config.ws_url_testnet else None
             )
             logger.info(
-                f"[{exchange_config.exchange_name.value}] Initializing for TESTNET environment.",
+                "hyperliquid_api_initializing_testnet",
+                exchange=exchange_config.exchange_name.value,
+                environment="testnet",
+                api_base_url=self.active_api_base_url,
+                ws_url=self.active_ws_url,
+                message=(
+                    f"[{exchange_config.exchange_name.value}] Initializing for TESTNET environment."
+                ),
             )
         else:
             # Fallback or error if is_mainnet_environment is False but no testnet URLs
             logger.error(
-                f"[{exchange_config.exchange_name.value}] Configuration error: "
-                f"is_mainnet_environment is False, but no testnet URLs "
-                f"(api_base_url_testnet) are provided. Falling back to mainnet URLs.",
+                "hyperliquid_api_config_error_fallback_mainnet",
+                exchange=exchange_config.exchange_name.value,
+                is_mainnet_environment=exchange_config.is_mainnet_environment,
+                has_testnet_url=bool(exchange_config.api_base_url_testnet),
+                action="falling_back_to_mainnet",
+                message=(
+                    f"[{exchange_config.exchange_name.value}] Configuration error: "
+                    f"is_mainnet_environment is False, but no testnet URLs "
+                    f"(api_base_url_testnet) are provided. Falling back to mainnet URLs."
+                ),
             )
             self.active_api_base_url = str(exchange_config.api_base_url_mainnet)
             self.active_ws_url = (
@@ -321,8 +342,15 @@ class HyperliquidAPI(ExchangeAPI):
         """Use the HyperliquidEip712Authenticator to prepare request components."""
         if not self._hl_authenticator:
             logger.error(
-                f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
-                "without configured HL authenticator.",
+                "hyperliquid_authentication_missing",
+                exchange=self.exchange_name,
+                method=method,
+                path=path,
+                action="authentication_failed",
+                message=(
+                    f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
+                    "without configured HL authenticator."
+                ),
             )
             raise APIError(
                 "HL authenticator not initialized (e.g., missing/invalid private key).",
@@ -347,8 +375,18 @@ class HyperliquidAPI(ExchangeAPI):
         except Exception as e:
             # Wrap other exceptions as authentication failures
             logger.error(
-                f"[{self.exchange_name}] Unexpected error during authentication preparation "
-                f"for {method} {path}: {e}",
+                "hyperliquid_authentication_preparation_error",
+                exchange=self.exchange_name,
+                method=method,
+                path=path,
+                error_type=type(e).__name__,
+                error=str(e),
+                action="authentication_failed",
+                message=(
+                    f"[{self.exchange_name}] Unexpected error during authentication preparation "
+                    f"for {method} {path}: {e}"
+                ),
+                exc_info=True,
             )
             raise APIError(
                 f"Authentication preparation failed: {e}",
@@ -378,8 +416,16 @@ class HyperliquidAPI(ExchangeAPI):
         This is a placeholder implementation.
         """
         logger.debug(
-            f"[{self.exchange_name}] _update_rate_limit_from_headers called "
-            f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}",
+            "hyperliquid_rate_limit_update_noop",
+            exchange=self.exchange_name,
+            method=method,
+            path=path,
+            headers_count=len(headers) if headers else 0,
+            action="rate_limit_noop",
+            message=(
+                f"[{self.exchange_name}] _update_rate_limit_from_headers called "
+                f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
+            ),
         )
         pass
 
@@ -611,7 +657,15 @@ class HyperliquidAPI(ExchangeAPI):
         # Hyperliquid topic format: "l2Book:SYMBOL"
         topic = f"l2Book:{symbol}"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for order book (l2Book) topic: {topic}",
+            "hyperliquid_orderbook_subscription_prepared",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            topic=topic,
+            subscription_type="l2Book",
+            message=(
+                f"[{self.exchange_name}] Preparing subscription for order book (l2Book) topic: "
+                f"{topic}"
+            ),
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
@@ -625,9 +679,16 @@ class HyperliquidAPI(ExchangeAPI):
         # Hyperliquid uses "allMids" for a combined stream.
         # Individual ticker streams like "ticker:SYMBOL" are not standard for HL.
         logger.warning(
-            f"[{self.exchange_name}] Hyperliquid does not have a direct 'ticker:{symbol}' stream. "
-            f"Consider subscribing to 'allMids' for all mid prices, or 'l2Book:{symbol}' "
-            f"and derive ticker data.",
+            "hyperliquid_ticker_stream_not_available",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            alternative_streams=["allMids", f"l2Book:{symbol}"],
+            recommendation="use_allmids_or_orderbook",
+            message=(
+                f"[{self.exchange_name}] Hyperliquid does not have a direct 'ticker:{symbol}' "
+                f"stream. Consider subscribing to 'allMids' for all mid prices, or "
+                f"'l2Book:{symbol}' and derive ticker data."
+            ),
         )
         # No direct topic construction for a non-existent stream type.
 
@@ -639,7 +700,14 @@ class HyperliquidAPI(ExchangeAPI):
         # Hyperliquid topic format: "trades:SYMBOL"
         topic = f"trades:{symbol}"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for public trades topic: {topic}",
+            "hyperliquid_trades_subscription_prepared",
+            exchange=self.exchange_name,
+            symbol=symbol,
+            topic=topic,
+            subscription_type="trades",
+            message=(
+                f"[{self.exchange_name}] Preparing subscription for public trades topic: {topic}"
+            ),
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
@@ -653,31 +721,53 @@ class HyperliquidAPI(ExchangeAPI):
         # This requires wallet_address to be known by _construct_subscription_payload
         topic = "userEvents"
         logger.debug(
-            f"[{self.exchange_name}] Preparing subscription for user account updates "
-            f"(userEvents) topic: {topic}",
+            "hyperliquid_account_updates_subscription_prepared",
+            exchange=self.exchange_name,
+            topic=topic,
+            subscription_type="userEvents",
+            message=(
+                f"[{self.exchange_name}] Preparing subscription for user account updates "
+                f"(userEvents) topic: {topic}"
+            ),
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
         logger.info(
-            f"[{self.exchange_name}] Subscribing to topic: {topic}. "
-            f"Delegating to base ExchangeAPI.",
+            "hyperliquid_websocket_subscribing",
+            exchange=self.exchange_name,
+            topic=topic,
+            action="delegating_to_base_api",
+            message=(
+                f"[{self.exchange_name}] Subscribing to topic: {topic}. Delegating to base "
+                f"ExchangeAPI."
+            ),
         )
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
         """Handle WebSocket connection, typically to resubscribe to topics."""
         logger.info(
-            f"[{self.exchange_name}] WebSocket connected. "
-            f"Triggering resubscription via base ExchangeAPI.",
+            "hyperliquid_websocket_connected",
+            exchange=self.exchange_name,
+            action="triggering_resubscription",
+            message=(
+                f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base "
+                f"ExchangeAPI."
+            ),
         )
         await super()._on_ws_connected()
 
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics upon WebSocket (re)connection."""
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics. Delegating to base ExchangeAPI.",
+            "hyperliquid_websocket_resubscribing",
+            exchange=self.exchange_name,
+            action="delegating_to_base_api",
+            message=(
+                f"[{self.exchange_name}] Resubscribing to topics. Delegating to base ExchangeAPI."
+            ),
         )
         await super()._resubscribe()
 

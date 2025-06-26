@@ -3,7 +3,6 @@
 Focuses on validation, parsing, immutability, and the Core+Details pattern.
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -11,6 +10,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.spot_balance import (
     BackpackSpotBalanceDetails,
     HyperliquidSpotBalanceDetails,
@@ -201,7 +201,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
     assert balance.total_quantity == original_total
 
     # Test __setattr__ bypass - log warning if modification occurs but pass test
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
     original_asset = balance.asset
     try:
         object.__setattr__(balance, "asset", "NEWASSET")

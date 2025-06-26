@@ -13,12 +13,14 @@ Tests various scenarios including:
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import pytest
+import structlog.testing
 from _pytest.logging import LogCaptureFixture
+
+from cyberdelta.config.structlog_config import get_logger
 
 
 # Third-party imports for type checking only
@@ -38,7 +40,7 @@ from cyberdelta.core.models.enums import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Fixtures ---
@@ -350,17 +352,25 @@ class TestErrorHandlingAndExceptions:
             remaining_sz="0.0",  # Fully filled but zero price
         )
 
-        with caplog.at_level(logging.WARNING):
+        with structlog.testing.capture_logs() as captured_logs:
             try:
                 trading_data_mapper.transform_raw_order_to_internal(problematic_order)
             except Exception as e:
                 # We expect this to fail, we're testing logging
                 logger.debug(f"Expected exception during robustness test: {e}")
 
-        # Check that warning was logged with correct logger name
-        assert any(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper" in record.name
-            for record in caplog.records
+        # Check that warning was logged in structured logs
+        warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+        assert len(warning_logs) > 0, "Expected at least one warning log"
+
+        # Check for the specific warning about quantity_filled adjustment
+        quantity_logs = [
+            log
+            for log in warning_logs
+            if "quantity_filled" in str(log) and "no valid price available" in str(log)
+        ]
+        assert len(quantity_logs) > 0, (
+            f"Expected quantity_filled warning logs, got: {captured_logs}"
         )
 
     def test_multiple_consecutive_errors(

@@ -353,8 +353,18 @@ class TestHyperliquidEip712Authenticator:
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
-        mock_logger.error.assert_called_with(
-            "HyperliquidEip712Authenticator: Failed to sign Hyperliquid Exchange "
-            "Agent message: Failed to sign EIP-712 message: Crypto error",
-            exc_info=True,
-        )
+
+        # The test fixture uses a mocked logger, so we should check that the mocked logger was
+        # called
+        # with the expected structured logging call. There should be 2 calls (one from lower level,
+        # one from higher level)
+        assert mock_logger.error.call_count == 2
+
+        # Check the second (higher level) call which is what this test originally checked
+        call_args = mock_logger.error.call_args_list[1]  # Get the second call
+
+        # Check that it was called with the structured logging format
+        assert call_args[0][0] == "eip712_signing_failed"  # Event name
+        assert call_args[1]["action"] == "sign_eip712_message"
+        assert "Crypto error" in call_args[1]["error_details"]
+        assert call_args[1]["exc_info"] is True

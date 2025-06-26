@@ -21,9 +21,10 @@ This document outlines the comprehensive workflow for migrating CyberDeltaEngine
 ## Migration Strategy
 
 ### Phase 1: Setup Structlog Configuration
+**Status: Completed ✓**
 
 #### 1.1 Create New Structlog Configuration Module
-Create `cyberdelta/config/structlog_config.py`:
+Created `cyberdelta/config/structlog_config.py`:
 
 ```python
 """Structured logging configuration for CyberDeltaEngine."""
@@ -31,6 +32,7 @@ Create `cyberdelta/config/structlog_config.py`:
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -64,6 +66,23 @@ def censor_sensitive_data(_, __, event_dict: EventDict) -> EventDict:
     return event_dict
 
 
+def strip_ansi_codes(_, __, event_dict: EventDict) -> EventDict:
+    """Strip ANSI color codes from all string values in event dict."""
+    ansi_pattern = re.compile(r'\x1b\[[0-9;]*m')
+
+    def strip_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return ansi_pattern.sub('', value)
+        elif isinstance(value, dict):
+            return {k: strip_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [strip_value(v) for v in value]
+        else:
+            return value
+
+    return {key: strip_value(value) for key, value in event_dict.items()}
+
+
 def setup_structlog(app_settings: AppSettings) -> None:
     """Configure structlog for the application.
 
@@ -73,54 +92,61 @@ def setup_structlog(app_settings: AppSettings) -> None:
     # Determine log level
     log_level = getattr(logging, app_settings.general.log_level.upper(), logging.INFO)
 
-    # Configure timestamping
-    structlog.configure_once(
-        processors=[
-            # Add log level
-            structlog.stdlib.add_log_level,
-            # Add logger name
-            structlog.stdlib.add_logger_name,
-            # Add thread and process info
-            structlog.processors.add_log_level,
-            # Add timestamp
-            add_timestamp,
-            # Merge context variables
-            merge_contextvars,
-            # Add callsite parameters
-            CallsiteParameterAdder(
-                parameters=[
-                    CallsiteParameter.FILENAME,
-                    CallsiteParameter.LINENO,
-                    CallsiteParameter.FUNC_NAME,
-                ],
-                additional_ignores=["structlog", "logging"],
-            ),
-            # Censor sensitive data
-            censor_sensitive_data,
-            # Format for development
-            structlog.dev.ConsoleRenderer(colors=True)
-            if app_settings.general.environment == "development"
-            else structlog.processors.JSONRenderer(),
-        ],
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-    # Configure standard logging to work with structlog
+    # Configure standard logging first
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=log_level,
+        force=True,  # Force reconfiguration
     )
 
     # Setup file logging if configured
     if app_settings.general.log_file:
         setup_file_logging(app_settings.general.log_file, log_level)
 
+    # Base processors
+    base_processors = [
+        # Add timestamp
+        add_timestamp,
+        # Merge context variables
+        merge_contextvars,
+        # Add callsite parameters
+        CallsiteParameterAdder(
+            parameters=[
+                CallsiteParameter.FILENAME,
+                CallsiteParameter.LINENO,
+                CallsiteParameter.FUNC_NAME,
+            ],
+            additional_ignores=["structlog", "logging"],
+        ),
+        # Censor sensitive data
+        censor_sensitive_data,
+        # Process positional arguments
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        # Process stack info
+        structlog.processors.StackInfoRenderer(),
+        # Process exceptions
+        structlog.processors.format_exc_info,
+        # Add log level and logger name
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+    ]
+
+    # Configure structlog for console output only
+    # File output is handled by stdlib logging handlers with ProcessorFormatter
+    structlog.configure(
+        processors=base_processors + [
+            # Render as colored console output
+            structlog.dev.ConsoleRenderer(colors=True),
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
 
 def setup_file_logging(log_file: str, level: int) -> None:
-    """Setup file logging handler.
+    """Setup file logging handler with JSON output.
 
     Args:
         log_file: Path to log file
@@ -129,18 +155,41 @@ def setup_file_logging(log_file: str, level: int) -> None:
     log_path = Path(log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Remove any existing file handlers
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            root_logger.removeHandler(handler)
+
     # Create file handler
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(level)
 
-    # Use JSON formatter for file output
+    # Create processor formatter for clean JSON output
+    # Use separate processors that strip ANSI codes before JSON rendering
     formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.processors.JSONRenderer(),
+        processors=[
+            # Extract from structlog's context and remove meta
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            # Strip ANSI codes before JSON rendering
+            strip_ansi_codes,
+            # Render as clean JSON
+            structlog.processors.JSONRenderer(),
+        ],
+        foreign_pre_chain=[
+            # For non-structlog logs (shouldn't happen but just in case)
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            add_timestamp,
+            censor_sensitive_data,
+            strip_ansi_codes,
+        ],
     )
+
     file_handler.setFormatter(formatter)
 
-    # Add handler to root logger
-    logging.getLogger().addHandler(file_handler)
+    # Add to root logger
+    root_logger.addHandler(file_handler)
 
 
 def get_logger(name: str | None = None, **context: Any) -> structlog.BoundLogger:
@@ -160,7 +209,7 @@ def get_logger(name: str | None = None, **context: Any) -> structlog.BoundLogger
 ```
 
 #### 1.2 Update Main Application Entry Point
-Modify `main.py` to use new configuration:
+Updated `main.py` to use new configuration:
 
 ```python
 # Replace existing logging setup
@@ -171,7 +220,20 @@ setup_structlog(app_settings)
 logger = get_logger(__name__)
 ```
 
+#### 1.3 Create Logging Helpers
+Created `cyberdelta/logging/logging_helpers.py` with shared helpers for structured logging of financial events using existing Pydantic models.
+
+#### 1.4 Key Features Implemented
+- ✅ Dual output: Colored console + Clean JSON file logging
+- ✅ ANSI color stripping for file output
+- ✅ Sensitive data redaction
+- ✅ Context propagation with contextvars
+- ✅ Callsite information (filename, line number, function)
+- ✅ Timestamp in ISO format
+- ✅ Integration with existing Pydantic models
+
 ### Phase 2: Module Migration Plan
+**Status: Ready to Begin**
 
 #### 2.1 Priority Order
 Migrate modules in this order to minimize disruption:
@@ -205,18 +267,36 @@ from cyberdelta.config.structlog_config import get_logger
 logger = get_logger(__name__)
 ```
 
-**Step 2: Enhance Logging with Structure**
-```python
-# OLD
-logger.info(f"Order {order_id} filled at {price}")
+**Step 2: Enhance Logging with Structure - CRITICAL PRINCIPLES**
 
-# NEW
+⚠️ **IMPORTANT: Message Quality Must Be Maintained or Improved!**
+
+When converting f-string logs to structured logs:
+1. The event name should be descriptive and actionable
+2. Include ALL information from the original message as structured fields
+3. Consider adding a `message` field for complex human-readable context
+4. Never lose information during migration
+
+```python
+# OLD - Good, informative message
 logger.info(
-    "order_filled",
+    f"Order {order_id} on {exchange_id} is {order.status}. "
+    f"Triggering trade processing (placeholder)."
+)
+
+# BAD MIGRATION - Lost critical context! ❌
+log_order_lifecycle(logger, order, "filled")
+
+# GOOD MIGRATION - Preserves all information ✅
+logger.info(
+    "order_fill_triggering_trade_processing",
     order_id=order_id,
-    price=price,
-    exchange=exchange,
-    symbol=symbol,
+    exchange_id=exchange_id,
+    status=order.status.value,
+    action="triggering_trade_processing",
+    placeholder=True,
+    # Optional: Include original message for backwards compatibility
+    message=f"Order {order_id} on {exchange_id} is {order.status}. Triggering trade processing (placeholder)."
 )
 ```
 
@@ -228,6 +308,54 @@ logger = logger.bind(request_id=request_id, user=user_address)
 # For strategy operations
 logger = logger.bind(strategy=strategy_name, symbol=symbol)
 ```
+
+**Step 4: Validation After Migration**
+- Compare old vs new log output side-by-side
+- Ensure no information is lost
+- Verify that someone reading logs can understand what happened
+- Test that log queries/filtering still work effectively
+
+### Phase 2.5: Message Quality Guidelines
+
+#### Maintaining Informativeness
+
+The goal of structured logging is to make logs more queryable AND maintain readability. When migrating:
+
+1. **Event Names Should Tell a Story**
+   ```python
+   # Bad: Too generic
+   "order_update"
+
+   # Good: Specific and actionable
+   "order_fill_detected_triggering_trade_processing"
+   "order_rejected_insufficient_balance"
+   "order_placement_failed_rate_limit"
+   ```
+
+2. **Include Human-Readable Context When Needed**
+   ```python
+   # For complex workflows, include a message field
+   logger.info(
+       "complex_arbitrage_decision",
+       opportunity_id=opp.id,
+       funding_rate_delta=float(opp.funding_delta),
+       decision="rejected",
+       reason="insufficient_liquidity",
+       message=f"Arbitrage opportunity {opp.id} rejected: "
+               f"Funding delta {opp.funding_delta:.4f} meets threshold but "
+               f"liquidity {opp.liquidity:.2f} below minimum {min_liquidity:.2f}"
+   )
+   ```
+
+3. **Preserve Original Intent**
+   - If the original log explained WHY something happened, include that
+   - If it showed a sequence of events, maintain that narrative
+   - If it included calculations or comparisons, keep those
+
+4. **Test Readability**
+   - After migration, read the logs in both console and JSON format
+   - Ensure a new team member could understand what happened
+   - Verify that debugging remains effective
 
 ### Phase 3: Enhanced Logging Features
 
@@ -258,41 +386,127 @@ logger.info(
 ```
 
 #### 3.3 Structured Financial Events
+
+Create shared logging helpers in `cyberdelta/logging/logging_helpers.py`:
+
 ```python
-# Define structured event types using Pydantic
-from pydantic import BaseModel, Field
-from decimal import Decimal
-from datetime import datetime
+"""Shared helpers for structured logging of financial events."""
 
-class OrderEvent(BaseModel):
-    """Structured order event for logging."""
-    event_type: str = Field(..., description="Type of order event")
-    order_id: str = Field(..., description="Unique order identifier")
-    symbol: str = Field(..., description="Trading symbol")
-    exchange: str = Field(..., description="Exchange name")
-    side: str = Field(..., description="Order side (BUY/SELL)")
-    quantity: Decimal = Field(..., description="Order quantity")
-    price: Decimal = Field(..., description="Order price")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+from __future__ import annotations
 
-    class Config:
-        """Pydantic config for serialization."""
-        json_encoders = {
-            Decimal: str,
-            datetime: lambda v: v.isoformat(),
-        }
+from typing import Any, Type
 
-# Log structured events
-order_event = OrderEvent(
-    event_type="order_placed",
-    order_id="12345",
-    symbol="BTC-PERP",
-    exchange="hyperliquid",
-    side="BUY",
-    quantity=Decimal("0.1"),
-    price=Decimal("45000.50"),
-)
-logger.info("order_event", **order_event.model_dump())
+import structlog
+from pydantic import BaseModel
+
+from cyberdelta.core.models.derivative_position import DerivativePosition
+from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.core.models.trade_signal import TradeSignal
+
+# Define sensitive fields to exclude per model type
+SENSITIVE_FIELDS: dict[Type[BaseModel], set[str]] = {
+    Order: {"trades", "hl_details", "bp_details"},
+    Trade: {"hl_details", "bp_details"},
+    TradeSignal: {"metadata"},  # May contain strategy-specific sensitive data
+    DerivativePosition: {"hl_details", "bp_details"},
+    MarginAccountSummary: {"total_equity", "available_equity", "hl_details", "bp_details"},
+}
+
+
+def log_trading_event(
+    logger: structlog.BoundLogger,
+    event_type: str,
+    model: BaseModel,
+    exclude_sensitive: bool = True,
+    **extra_context: Any,
+) -> None:
+    """Log a trading event using existing models.
+
+    Args:
+        logger: Structlog logger instance
+        event_type: Type of event (e.g., "order_placed", "position_opened")
+        model: Pydantic model instance to log
+        exclude_sensitive: Whether to exclude sensitive fields
+        **extra_context: Additional context to include in the log
+    """
+    exclude_fields = set()
+    if exclude_sensitive:
+        exclude_fields = SENSITIVE_FIELDS.get(type(model), set())
+
+    logger.info(
+        event_type,
+        **model.model_dump(mode="json", exclude=exclude_fields),
+        **extra_context,
+    )
+
+
+def log_order_lifecycle(
+    logger: structlog.BoundLogger,
+    order: Order,
+    event: str,
+    **context: Any,
+) -> None:
+    """Log order lifecycle events with consistent structure.
+
+    Args:
+        logger: Structlog logger instance
+        order: Order instance
+        event: Lifecycle event (placed, filled, cancelled, etc.)
+        **context: Additional context
+    """
+    log_trading_event(
+        logger,
+        f"order_{event}",
+        order,
+        order_lifecycle_event=event,
+        **context,
+    )
+
+
+def log_position_update(
+    logger: structlog.BoundLogger,
+    position: DerivativePosition,
+    action: str,
+    **context: Any,
+) -> None:
+    """Log position updates with consistent structure.
+
+    Args:
+        logger: Structlog logger instance
+        position: Position instance
+        action: Position action (opened, closed, updated, liquidated)
+        **context: Additional context
+    """
+    log_trading_event(
+        logger,
+        f"position_{action}",
+        position,
+        position_action=action,
+        **context,
+    )
+```
+
+Usage in modules:
+
+```python
+# In any module using structured logging
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.logging.logging_helpers import log_trading_event, log_order_lifecycle
+
+logger = get_logger(__name__)
+
+# Direct usage with any model
+order = Order(...)  # Existing order instance
+log_trading_event(logger, "order_placed", order, strategy="funding_arb")
+
+# Or use specialized helpers
+log_order_lifecycle(logger, order, "filled", fill_price=actual_price)
+
+# For performance-sensitive paths, log less frequently
+if should_log:  # e.g., every Nth event or on significant changes
+    log_trading_event(logger, "tick_processed", ticker)
 ```
 
 ### Phase 4: Testing Strategy
@@ -323,9 +537,10 @@ def test_order_logging(structured_log_capture):
 ### Phase 5: Rollout Plan
 
 #### Week 1: Infrastructure Setup
-- [ ] Implement `structlog_config.py`
-- [ ] Update `main.py` to use new configuration
-- [ ] Test file logging works correctly
+- [x] Implement `structlog_config.py`
+- [x] Create `cyberdelta/logging/logging_helpers.py`
+- [x] Update `main.py` to use new configuration
+- [x] Test file logging works correctly
 - [ ] Deploy to dev environment
 
 #### Week 2: Core Module Migration
@@ -370,6 +585,9 @@ Monitor performance impact:
 - ✅ Use consistent event names (snake_case)
 - ✅ Include relevant business context
 - ✅ Test logging output in unit tests
+- ✅ **PRESERVE OR ENHANCE message informativeness during migration**
+- ✅ Include a `message` field for complex scenarios that need human-readable context
+- ✅ Ensure event names are self-documenting (e.g., `order_fill_triggering_trade_processing` not just `order_filled`)
 
 ### Don'ts
 - ❌ Don't log sensitive data (API keys, secrets)
@@ -377,6 +595,9 @@ Monitor performance impact:
 - ❌ Don't mix logging styles in same module
 - ❌ Don't over-log in hot paths
 - ❌ Don't forget to bind correlation IDs
+- ❌ **Don't lose information when converting from f-strings to structured logs**
+- ❌ Don't use generic event names that don't convey the action
+- ❌ Don't assume structured fields alone are always sufficient for complex scenarios
 
 ## Configuration Examples
 

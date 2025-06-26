@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
@@ -74,10 +74,21 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
         # Use asyncio for file I/O
         await _async_write_file(state_file_path, json_data)
 
-        logger.info(f"Portfolio state saved successfully to {state_file_path}")
+        logger.info(
+            "portfolio_state_saved",
+            action="save",
+            file_path=state_file_path,
+            message=f"Portfolio state saved successfully to {state_file_path}",
+        )
 
     except Exception as e:
-        logger.error(f"Error saving portfolio state: {e}", exc_info=True)
+        logger.error(
+            "portfolio_state_save_failed",
+            action="save",
+            error=str(e),
+            message=f"Error saving portfolio state: {e}",
+            exc_info=True,
+        )
         raise
 
 
@@ -111,7 +122,12 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
 
         # Check if file exists
         if not os.path.exists(state_file_path):
-            logger.warning(f"State file {state_file_path} does not exist")
+            logger.warning(
+                "state_file_not_found",
+                action="load",
+                file_path=state_file_path,
+                message=f"State file {state_file_path} does not exist",
+            )
             return False
 
         # Read file asynchronously
@@ -123,7 +139,12 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
         # Validate version
         version = state_data.get("version", "unknown")
         if version != "1.0":
-            logger.warning(f"Unsupported state file version: {version}")
+            logger.warning(
+                "unsupported_state_version",
+                action="load",
+                version=version,
+                message=f"Unsupported state file version: {version}",
+            )
             return False
 
         # Restore portfolio state
@@ -149,16 +170,34 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
             self.watchlist = set(metadata.get("watchlist", []))
 
         logger.info(
-            f"Portfolio state loaded successfully from {state_file_path}. "
-            f"Timestamp: {state_data.get('timestamp', 'unknown')}"
+            "portfolio_state_loaded",
+            action="load",
+            file_path=state_file_path,
+            timestamp=state_data.get("timestamp", "unknown"),
+            message=(
+                f"Portfolio state loaded successfully from {state_file_path}. "
+                f"Timestamp: {state_data.get('timestamp', 'unknown')}"
+            ),
         )
         return True
 
     except json.JSONDecodeError as e:
-        logger.error(f"Error decoding state file {state_file_path}: {e}")
+        logger.error(
+            "state_file_decode_failed",
+            action="load",
+            file_path=state_file_path,
+            error=str(e),
+            message=f"Error decoding state file {state_file_path}: {e}",
+        )
         return False
     except Exception as e:
-        logger.error(f"Error loading portfolio state: {e}", exc_info=True)
+        logger.error(
+            "portfolio_state_load_failed",
+            action="load",
+            error=str(e),
+            message=f"Error loading portfolio state: {e}",
+            exc_info=True,
+        )
         return False
 
 

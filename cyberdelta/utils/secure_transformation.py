@@ -7,15 +7,17 @@ SECURITY: This module is critical for preventing validation bypass attacks.
 All mapper transformations MUST use these functions instead of direct instantiation.
 """
 
-import logging
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
+import structlog
 from pydantic import BaseModel, ValidationError
+
+from cyberdelta.config.structlog_config import get_logger
 
 
 # Configure security logger
-security_logger = logging.getLogger("cyberdelta.security")
+security_logger = get_logger("cyberdelta.security")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -59,8 +61,16 @@ def secure_transform[T: BaseModel](
     try:
         # Security event logging
         security_logger.debug(
-            f"SECURITY: Transformation attempt - "
-            f"context={context}, model={model_class.__name__}, source={source_exchange}"
+            "security_transformation_attempt",
+            context=context,
+            model_class=model_class.__name__,
+            source_exchange=source_exchange,
+            data_fields=list(data.keys()) if data else [],
+            action="validation_starting",
+            message=(
+                f"SECURITY: Transformation attempt - context={context}, "
+                f"model={model_class.__name__}, source={source_exchange}"
+            ),
         )
 
         # Enforce Pydantic validation - this is the critical security step
@@ -68,7 +78,14 @@ def secure_transform[T: BaseModel](
 
         # Success logging for security monitoring
         security_logger.debug(
-            f"SECURITY: Successful validation - model={model_class.__name__}, context={context}"
+            "security_validation_successful",
+            model_class=model_class.__name__,
+            context=context,
+            source_exchange=source_exchange,
+            action="validation_completed",
+            message=(
+                f"SECURITY: Successful validation - model={model_class.__name__}, context={context}"
+            ),
         )
 
         return result
@@ -76,9 +93,17 @@ def secure_transform[T: BaseModel](
     except ValidationError as e:
         # Critical security event - potential attack attempt
         security_logger.error(
-            f"SECURITY ALERT: Validation failed - "
-            f"context={context}, model={model_class.__name__}, "
-            f"source={source_exchange}, errors={e.errors()}"
+            "security_validation_failed",
+            context=context,
+            model_class=model_class.__name__,
+            source_exchange=source_exchange,
+            validation_errors=e.errors(),
+            error_count=len(e.errors()),
+            action="potential_attack_detected",
+            message=(
+                f"SECURITY ALERT: Validation failed - context={context}, "
+                f"model={model_class.__name__}, source={source_exchange}"
+            ),
         )
 
         # Raise transformation error with sanitized message
@@ -89,8 +114,18 @@ def secure_transform[T: BaseModel](
     except Exception as e:
         # Catch any other unexpected errors
         security_logger.error(
-            f"SECURITY: Unexpected error in transformation - "
-            f"context={context}, error={type(e).__name__}: {str(e)}"
+            "security_unexpected_transformation_error",
+            context=context,
+            model_class=model_class.__name__,
+            source_exchange=source_exchange,
+            error_type=type(e).__name__,
+            error=str(e),
+            action="critical_security_event",
+            message=(
+                f"SECURITY: Unexpected error in transformation - context={context}, "
+                f"error={type(e).__name__}: {str(e)}"
+            ),
+            exc_info=True,
         )
         raise TransformationError(
             f"Unexpected error during secure transformation: {type(e).__name__}"
@@ -102,7 +137,7 @@ def secure_transform_with_audit[T: BaseModel](
     model_class: type[T],
     context: str = "unknown",
     source_exchange: str | None = None,
-    audit_logger: logging.Logger | None = None,
+    audit_logger: structlog.BoundLogger | None = None,
 ) -> T:
     """Secure transformation with enhanced audit logging for financial operations.
 
@@ -127,16 +162,21 @@ def secure_transform_with_audit[T: BaseModel](
 
     # Create audit logger if not provided
     if audit_logger is None:
-        audit_logger = logging.getLogger("cyberdelta.audit")
+        audit_logger = get_logger("cyberdelta.audit")
 
     # Log pre-transformation audit event
     audit_logger.info(
-        f"AUDIT: Transformation started - "
-        f"timestamp={start_time.isoformat()}, "
-        f"context={context}, "
-        f"model={model_class.__name__}, "
-        f"source={source_exchange}, "
-        f"data_fields={list(data.keys())}"
+        "audit_transformation_started",
+        timestamp=start_time.isoformat(),
+        context=context,
+        model_class=model_class.__name__,
+        source_exchange=source_exchange,
+        data_fields=list(data.keys()),
+        action="transformation_initiated",
+        message=(
+            f"AUDIT: Transformation started - context={context}, "
+            f"model={model_class.__name__}, source={source_exchange}"
+        ),
     )
 
     try:
@@ -144,22 +184,37 @@ def secure_transform_with_audit[T: BaseModel](
         result = secure_transform(data, model_class, context, source_exchange)
 
         # Log successful transformation for audit
+        end_time = datetime.now(UTC)
+        duration_ms = (end_time - start_time).total_seconds() * 1000
         audit_logger.info(
-            f"AUDIT: Transformation completed - "
-            f"timestamp={datetime.now(UTC).isoformat()}, "
-            f"context={context}, "
-            f"duration_ms={(datetime.now(UTC) - start_time).total_seconds() * 1000:.2f}"
+            "audit_transformation_completed",
+            timestamp=end_time.isoformat(),
+            context=context,
+            model_class=model_class.__name__,
+            source_exchange=source_exchange,
+            duration_ms=round(duration_ms, 2),
+            action="transformation_successful",
+            message=(
+                f"AUDIT: Transformation completed - context={context}, duration={duration_ms:.2f}ms"
+            ),
         )
 
         return result
 
     except TransformationError as e:
         # Log failed transformation for audit
+        end_time = datetime.now(UTC)
+        duration_ms = (end_time - start_time).total_seconds() * 1000
         audit_logger.error(
-            f"AUDIT: Transformation failed - "
-            f"timestamp={datetime.now(UTC).isoformat()}, "
-            f"context={context}, "
-            f"error={str(e)}"
+            "audit_transformation_failed",
+            timestamp=end_time.isoformat(),
+            context=context,
+            model_class=model_class.__name__,
+            source_exchange=source_exchange,
+            duration_ms=round(duration_ms, 2),
+            error=str(e),
+            action="transformation_failed",
+            message=f"AUDIT: Transformation failed - context={context}, error={str(e)}",
         )
         raise
 

@@ -49,7 +49,11 @@ class Engine:
         self.last_data_time: datetime | None = None
         self.logger = structlog.get_logger(engine_name=name)
 
-        logger.info(f"Engine '{name}' initialized")
+        logger.info(
+            "engine_initialized",
+            engine_name=name,
+            message=f"Engine '{name}' initialized",
+        )
 
     def add_strategy(self, strategy: Strategy) -> None:
         """Add a strategy instance to the engine. Replaces existing strategy with the same name.
@@ -61,7 +65,12 @@ class Engine:
 
         """
         if strategy.name in self.strategies:
-            logger.warning(f"Strategy '{strategy.name}' already exists, replacing.")
+            logger.warning(
+                "strategy_already_exists_replacing",
+                strategy_name=strategy.name,
+                action="replacing_existing_strategy",
+                message=f"Strategy '{strategy.name}' already exists, replacing.",
+            )
             # Ensure the old strategy is disabled if replaced
             if strategy.name in self.enabled_strategies:
                 self.disable_strategy(strategy.name)
@@ -71,8 +80,15 @@ class Engine:
         strategy.disable()
         self._refresh_active_symbols()
         logger.info(
-            f"Added strategy '{strategy.name}' for symbol '{strategy.symbol}'. "
-            f"Strategy is initially disabled.",
+            "strategy_added",
+            strategy_name=strategy.name,
+            symbol=strategy.symbol,
+            initial_state="disabled",
+            action="strategy_added",
+            message=(
+                f"Added strategy '{strategy.name}' for symbol '{strategy.symbol}'. "
+                f"Strategy is initially disabled."
+            ),
         )
 
     def remove_strategy(self, strategy_name: str) -> None:
@@ -83,22 +99,43 @@ class Engine:
 
         """
         if strategy_name in self.strategies:
-            logger.info(f"Removing strategy '{strategy_name}'")
+            logger.info(
+                "strategy_removing",
+                strategy_name=strategy_name,
+                action="removing_strategy",
+                message=f"Removing strategy '{strategy_name}'",
+            )
             # Ensure strategy is disabled before removal
             if strategy_name in self.enabled_strategies:
                 self.disable_strategy(strategy_name)  # Also calls strategy.disable()
             del self.strategies[strategy_name]
             self._refresh_active_symbols()
         else:
-            logger.warning(f"Strategy '{strategy_name}' not found for removal.")
+            logger.warning(
+                "strategy_not_found_for_removal",
+                strategy_name=strategy_name,
+                action="removal_failed",
+                message=f"Strategy '{strategy_name}' not found for removal.",
+            )
 
     def enable_strategy(self, strategy_name: str) -> None:
         """Enable a registered strategy to process data and generate signals."""
         if strategy_name not in self.strategies:
-            logger.warning(f"Cannot enable non-existent strategy '{strategy_name}'.")
+            logger.warning(
+                "cannot_enable_nonexistent_strategy",
+                strategy_name=strategy_name,
+                action="enable_failed",
+                message=f"Cannot enable non-existent strategy '{strategy_name}'.",
+            )
             return
         if strategy_name in self.enabled_strategies:
-            logger.debug(f"Strategy '{strategy_name}' is already enabled.")
+            logger.debug(
+                "strategy_already_enabled",
+                strategy_name=strategy_name,
+                current_state="enabled",
+                action="enable_skipped",
+                message=f"Strategy '{strategy_name}' is already enabled.",
+            )
             return
 
         strategy = self.strategies[strategy_name]
@@ -106,15 +143,31 @@ class Engine:
         self.enabled_strategies.add(strategy_name)
         # Ensure active symbols reflects enabled state if needed (optional refinement)
         self._refresh_active_symbols()
-        logger.info(f"Enabled strategy '{strategy_name}'.")
+        logger.info(
+            "strategy_enabled",
+            strategy_name=strategy_name,
+            action="strategy_enabled",
+            message=f"Enabled strategy '{strategy_name}'.",
+        )
 
     def disable_strategy(self, strategy_name: str) -> None:
         """Disable a registered strategy."""
         if strategy_name not in self.strategies:
-            logger.warning(f"Cannot disable non-existent strategy '{strategy_name}'.")
+            logger.warning(
+                "cannot_disable_nonexistent_strategy",
+                strategy_name=strategy_name,
+                action="disable_failed",
+                message=f"Cannot disable non-existent strategy '{strategy_name}'.",
+            )
             return
         if strategy_name not in self.enabled_strategies:
-            logger.debug(f"Strategy '{strategy_name}' is already disabled.")
+            logger.debug(
+                "strategy_already_disabled",
+                strategy_name=strategy_name,
+                current_state="disabled",
+                action="disable_skipped",
+                message=f"Strategy '{strategy_name}' is already disabled.",
+            )
             return
 
         strategy = self.strategies[strategy_name]
@@ -122,7 +175,12 @@ class Engine:
         self.enabled_strategies.discard(strategy_name)
         # Refreshing symbols might not be strictly needed on disable
         # self._refresh_active_symbols()
-        logger.info(f"Disabled strategy '{strategy_name}'.")
+        logger.info(
+            "strategy_disabled",
+            strategy_name=strategy_name,
+            action="strategy_disabled",
+            message=f"Disabled strategy '{strategy_name}'.",
+        )
 
     def set_signal_handler(self, handler: Callable[[TradeSignal], Awaitable[None]]) -> None:
         """Set the single async handler responsible for processing generated TradeSignals.
@@ -136,7 +194,12 @@ class Engine:
         self.signal_handler = handler
         # Use getattr for safe name retrieval, fallback to repr
         handler_name = getattr(handler, "__name__", repr(handler))
-        logger.info(f"Signal handler set to: {handler_name}")
+        logger.info(
+            "signal_handler_set",
+            handler_name=handler_name,
+            action="signal_handler_configured",
+            message=f"Signal handler set to: {handler_name}",
+        )
 
     async def process_market_data(self, data: Candle) -> None:
         """Process incoming market data.
@@ -173,7 +236,12 @@ class Engine:
     def _should_process_symbol(self, symbol: str) -> bool:
         """Check if the symbol should be processed."""
         if symbol not in self.active_symbols:
-            logger.debug(f"No active strategy for symbol {symbol}, ignoring data.")
+            logger.debug(
+                "no_active_strategy_for_symbol",
+                symbol=symbol,
+                action="ignoring_data",
+                message=f"No active strategy for symbol {symbol}, ignoring data.",
+            )
             return False
         return True
 
@@ -259,7 +327,13 @@ class Engine:
             )
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
-        logger.info(f"Processing DataFrame for {symbol} with {len(df)} rows.")
+        logger.info(
+            "dataframe_processing_started",
+            symbol=symbol,
+            rows_count=len(df),
+            action="processing_dataframe",
+            message=f"Processing DataFrame for {symbol} with {len(df)} rows.",
+        )
         # Process each row in the DataFrame
         for idx, row in df.iterrows():
             # Cast to ensure proper typing for pandas operations
@@ -270,7 +344,13 @@ class Engine:
             # Extract timestamp and convert to datetime
             timestamp_raw: Any = row_typed.get("timestamp")
             if timestamp_raw is None:
-                logger.warning(f"Row {idx_typed}: Missing timestamp, skipping")
+                logger.warning(
+                    "dataframe_row_missing_timestamp",
+                    row_index=idx_typed,
+                    symbol=symbol,
+                    action="skipping_row",
+                    message=f"Row {idx_typed}: Missing timestamp, skipping",
+                )
                 continue
 
             # Convert timestamp to datetime
@@ -284,7 +364,15 @@ class Engine:
                 else:
                     timestamp = cast(datetime, pd_timestamp_result)
             except Exception as e:
-                logger.warning(f"Row {idx_typed}: Invalid timestamp {timestamp_raw}, skipping: {e}")
+                logger.warning(
+                    "dataframe_row_invalid_timestamp",
+                    row_index=idx_typed,
+                    symbol=symbol,
+                    timestamp_raw=timestamp_raw,
+                    error=str(e),
+                    action="skipping_row",
+                    message=f"Row {idx_typed}: Invalid timestamp {timestamp_raw}, skipping: {e}",
+                )
                 continue
 
             # Convert row to dict for Candle creation
@@ -323,7 +411,12 @@ class Engine:
                     exc_info=False,  # Keep log concise for per-row errors
                 )
                 continue  # Skip this row if conversion fails
-        logger.info(f"Finished processing DataFrame for {symbol}.")
+        logger.info(
+            "dataframe_processing_completed",
+            symbol=symbol,
+            action="processing_completed",
+            message=f"Finished processing DataFrame for {symbol}.",
+        )
 
     def start(self) -> None:
         """Start the trading engine. Calls on_start() for all enabled strategies."""
@@ -336,7 +429,12 @@ class Engine:
             # Prevent starting without a crucial dependency
             raise RuntimeError("Engine cannot start without a configured signal handler.")
 
-        logger.info(f"Starting engine '{self.name}'...")
+        logger.info(
+            "engine_starting",
+            engine_name=self.name,
+            action="engine_starting",
+            message=f"Starting engine '{self.name}'...",
+        )
         self.is_running = True
         self.start_time = datetime.now(UTC)  # Use UTC
 
@@ -347,7 +445,12 @@ class Engine:
             strategy = self.strategies.get(strategy_name)
             if strategy:  # Should always exist if in enabled_strategies set
                 try:
-                    logger.debug(f"Calling on_start for strategy '{strategy.name}'...")
+                    logger.debug(
+                        "strategy_on_start_called",
+                        strategy_name=strategy.name,
+                        action="calling_on_start",
+                        message=f"Calling on_start for strategy '{strategy.name}'...",
+                    )
                     strategy.on_start()
                     enabled_count += 1
                 except Exception as e:
@@ -358,7 +461,13 @@ class Engine:
                     )
                     self.disable_strategy(strategy_name)  # Disable faulty strategy
 
-        logger.info(f"Engine '{self.name}' started with {enabled_count} enabled strategies.")
+        logger.info(
+            "engine_started",
+            engine_name=self.name,
+            enabled_strategies_count=enabled_count,
+            action="engine_started",
+            message=f"Engine '{self.name}' started with {enabled_count} enabled strategies.",
+        )
 
     def stop(self) -> None:
         """Stop the trading engine. Calls on_stop() for all enabled strategies.
@@ -369,7 +478,12 @@ class Engine:
             logger.warning("Engine is not running.")
             return
 
-        logger.info(f"Stopping engine '{self.name}'...")
+        logger.info(
+            "engine_stopping",
+            engine_name=self.name,
+            action="engine_stopping",
+            message=f"Stopping engine '{self.name}'...",
+        )
         self.is_running = False
 
         # Stop all currently enabled strategies first
@@ -378,7 +492,12 @@ class Engine:
             strategy = self.strategies.get(strategy_name)
             if strategy:
                 try:
-                    logger.debug(f"Calling on_stop for strategy '{strategy.name}'...")
+                    logger.debug(
+                        "strategy_on_stop_called",
+                        strategy_name=strategy.name,
+                        action="calling_on_stop",
+                        message=f"Calling on_stop for strategy '{strategy.name}'...",
+                    )
                     strategy.on_stop()
                     stopped_count += 1
                 except Exception as e:
@@ -399,12 +518,24 @@ class Engine:
                 strategy.disable()
                 self.enabled_strategies.discard(strategy_name)
 
-        logger.info(f"Engine '{self.name}' stopped. Called on_stop for {stopped_count} strategies.")
+        logger.info(
+            "engine_stopped",
+            engine_name=self.name,
+            stopped_strategies_count=stopped_count,
+            action="engine_stopped",
+            message=f"Engine '{self.name}' stopped. Called on_stop for {stopped_count} strategies.",
+        )
 
     def _refresh_active_symbols(self) -> None:
         """Update the set of symbols monitored by registered strategies."""
         self.active_symbols = {s.symbol for s in self.strategies.values()}
-        logger.debug(f"Engine active symbols refreshed: {self.active_symbols}")
+        logger.debug(
+            "active_symbols_refreshed",
+            active_symbols=list(self.active_symbols),
+            symbols_count=len(self.active_symbols),
+            action="symbols_refreshed",
+            message=f"Engine active symbols refreshed: {self.active_symbols}",
+        )
 
     def get_engine_info(self) -> dict[str, Any]:
         """Get basic information about the engine's operational state.

@@ -5,8 +5,6 @@ Hyperliquid's userFills endpoint, ensuring strict type validation and format
 constraints for all fill-related fields.
 """
 
-import logging
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.hyperliquid.models.common_raw_types import (
@@ -19,9 +17,10 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawTimestampMsInt,
     RawTxHashStr,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidRawFill(BaseModel):

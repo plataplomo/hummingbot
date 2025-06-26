@@ -6,13 +6,11 @@ All parsing errors will include the field name in their messages if provided,
 greatly improving error traceability.
 """
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 
-# Get a logger instance for this module if not already configured elsewhere
-logger = logging.getLogger(__name__)
+# Note: Removed logger import to avoid circular import with config.structlog_config
 
 
 def parse_datetime_utc(
@@ -237,7 +235,7 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
         message = "Timeframe string cannot be empty."
         if default_to_minutes is None:
             raise ValueError(message)
-        logger.warning(f"{message} Defaulting to {default_to_minutes} minute(s).")
+        # Warning: message. Defaulting to default_to_minutes minute(s).
         return default_to_minutes * 60 * 1000
 
     try:
@@ -253,7 +251,7 @@ def timeframe_to_ms(tf_str: str, default_to_minutes: int | None = 1) -> int:
         message = f"Could not parse timeframe string '{tf_str}' as integer or known unit: {e}"
         if default_to_minutes is None:
             raise ValueError(message) from e
-        logger.warning(f"{message} Defaulting to {default_to_minutes} minute(s).")
+        # Warning: message. Defaulting to default_to_minutes minute(s).
         return default_to_minutes * 60 * 1000
 
 

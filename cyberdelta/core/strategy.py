@@ -11,18 +11,18 @@ trading approaches.
 
 from __future__ import annotations  # Enable postponed evaluation
 
-import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.candle import Candle
 
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import TradeSignal
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _T = TypeVar("_T")  # Define a TypeVar for generic parameter types
 
@@ -51,7 +51,13 @@ class Strategy(ABC):
         self.signals_generated = 0
         self._historical_data: list[Candle] = []
 
-        logger.info(f"Initialized strategy '{name}' for {symbol}")
+        logger.info(
+            "strategy_initialized",
+            action="init",
+            strategy_name=name,
+            symbol=symbol,
+            message=f"Initialized strategy '{name}' for {symbol}",
+        )
 
     @abstractmethod
     async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
@@ -87,20 +93,40 @@ class Strategy(ABC):
     def enable(self) -> None:
         """Enable the strategy."""
         self.enabled = True
-        logger.info(f"Enabled strategy '{self.name}'")
+        logger.info(
+            "strategy_enabled",
+            action="enable",
+            strategy_name=self.name,
+            message=f"Enabled strategy '{self.name}'",
+        )
 
     def disable(self) -> None:
         """Disable the strategy."""
         self.enabled = False
-        logger.info(f"Disabled strategy '{self.name}'")
+        logger.info(
+            "strategy_disabled",
+            action="disable",
+            strategy_name=self.name,
+            message=f"Disabled strategy '{self.name}'",
+        )
 
     def on_start(self) -> None:
         """Start the strategy lifecycle."""
-        logger.info(f"Strategy '{self.name}' started")
+        logger.info(
+            "strategy_started",
+            action="start",
+            strategy_name=self.name,
+            message=f"Strategy '{self.name}' started",
+        )
 
     def on_stop(self) -> None:
         """Stop the strategy lifecycle."""
-        logger.info(f"Strategy '{self.name}' stopped")
+        logger.info(
+            "strategy_stopped",
+            action="stop",
+            strategy_name=self.name,
+            message=f"Strategy '{self.name}' stopped",
+        )
 
     # Ensure correct indentation for methods within the class
     def get_param(self, name: str, default: object = None) -> object:
@@ -125,7 +151,14 @@ class Strategy(ABC):
 
         """
         self.params[name] = value
-        logger.info(f"Strategy '{self.name}' parameter '{name}' set to {value}")
+        logger.info(
+            "strategy_parameter_updated",
+            action="update_parameter",
+            strategy_name=self.name,
+            parameter_name=name,
+            parameter_value=value,
+            message=f"Strategy '{self.name}' parameter '{name}' set to {value}",
+        )
 
     def get_strategy_info(self) -> dict[str, Any]:
         """Get information about the strategy's current state.

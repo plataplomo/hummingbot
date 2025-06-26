@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 import pytest
+import structlog.testing
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
@@ -355,7 +356,6 @@ class TestHandleGetMarketDataResponse:
     def test_invalid_kline_item_skipped(
         self,
         symbol_spot: str,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that invalid kline items are skipped with warning."""
         valid_kline = [
@@ -373,20 +373,27 @@ class TestHandleGetMarketDataResponse:
             "0",
         ]
         raw_data = [valid_kline, {"not": "a_list"}]  # Invalid item
-        klines = BackpackResponseHandler.handle_get_market_data_response(
-            cast("ParsedJsonResponse", raw_data),
-            symbol_spot,
-            "1m",
-            200,
-            {},
-        )
+
+        with structlog.testing.capture_logs() as captured_logs:
+            klines = BackpackResponseHandler.handle_get_market_data_response(
+                cast("ParsedJsonResponse", raw_data),
+                symbol_spot,
+                "1m",
+                200,
+                {},
+            )
+
         assert len(klines) == 1  # Only valid kline processed
 
-        # Check that warning was logged
-        log_found = any(
-            "Skipping non-list kline item" in record.getMessage() for record in caplog.records
+        # Check that warning was captured in structured logs
+        warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+        assert len(warning_logs) > 0, "Expected at least one warning log"
+
+        # Check for the specific warning about skipping non-list kline item
+        skip_logs = [log for log in warning_logs if "Skipping non-list kline item" in str(log)]
+        assert len(skip_logs) > 0, (
+            f"Expected warning about skipping kline item, got: {warning_logs}"
         )
-        assert log_found
 
     def test_invalid_top_level_type(self, symbol_spot: str) -> None:
         """Test market data response with wrong top-level type."""

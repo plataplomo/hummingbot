@@ -15,6 +15,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -36,7 +37,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 pytestmark = pytest.mark.timing
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 default_price = Decimal("30000.0")
 PositionType = DerivativePosition | None

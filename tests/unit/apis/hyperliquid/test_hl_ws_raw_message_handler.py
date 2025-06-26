@@ -59,6 +59,8 @@ def test_handle_public_trades_payload_valid() -> None:
             "side": "B",
             "time": 1678886400100,
             "hash": "0xabc",
+            "tid": 1001,
+            "users": ["0x1234567890abcdef1234567890abcdef12345678"],
         },
         {
             "coin": "BTC",
@@ -67,6 +69,8 @@ def test_handle_public_trades_payload_valid() -> None:
             "side": "A",
             "time": 1678886400200,
             "hash": "0xdef",
+            "tid": 1002,
+            "users": ["0xabcdef1234567890abcdef1234567890abcdef12"],
         },
     ]
     expected_models = [HyperliquidRawWsTradeEvent.model_validate(p) for p in valid_payload_list]
@@ -90,6 +94,8 @@ def test_handle_public_trades_payload_invalid_item() -> None:
             "side": "B",
             "time": 1678886400100,
             "hash": "0xabc",
+            "tid": 1001,
+            "users": ["0x1234567890abcdef1234567890abcdef12345678"],
         },
         {
             "coin": "BTC",
@@ -97,6 +103,8 @@ def test_handle_public_trades_payload_invalid_item() -> None:
             "side": "A",
             "time": 1678886400200,
             "hash": "0xdef",
+            "tid": 1002,
+            "users": ["0xabcdef1234567890abcdef1234567890abcdef12"],
         },  # Missing 'px'
     ]
     with pytest.raises(APIError) as excinfo:

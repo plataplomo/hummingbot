@@ -51,7 +51,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -88,7 +88,16 @@ class HyperliquidResponseHandler:
             f"Headers: {headers if headers is not None else 'N/A'}. "
             f"Raw data: {raw_data!r}"
         )
-        logger.error(log_message)
+        logger.error(
+            "pydantic_validation_failed",
+            action="validate_response",
+            context=context,
+            validation_error=str(e),
+            status_code=status_code,
+            headers=headers,
+            raw_data=repr(raw_data),
+            message=log_message,
+        )
         return APIError(
             message=f"Invalid {context} response from exchange: {e}",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -380,7 +389,13 @@ class HyperliquidResponseHandler:
         try:
             return HyperliquidRawExchangeResponse.model_validate(validated_data)
         except ValidationError as e:
-            logger.warning(f"Initial validation of {context} failed. Raw: {validated_data!r}")
+            logger.warning(
+                "response_validation_failed",
+                action="validate_response",
+                context=context,
+                raw_data=repr(validated_data),
+                message=f"Initial validation of {context} failed. Raw: {validated_data!r}",
+            )
             raise HyperliquidResponseHandler._handle_validation_error(
                 e,
                 context,
@@ -440,7 +455,13 @@ class HyperliquidResponseHandler:
                     first_error.get("msg", "")
                 ):
                     error_message = str(first_error.get("msg"))
-                    logger.error(f"{error_message}. Raw: {raw_response_content!r}")
+                    logger.error(
+                        "api_error_response",
+                        action="handle_error",
+                        error_message=error_message,
+                        raw_content=repr(raw_response_content),
+                        message=f"{error_message}. Raw: {raw_response_content!r}",
+                    )
                     raise APIError(
                         message=error_message, code=APIErrorCode.INVALID_RESPONSE.value
                     ) from e

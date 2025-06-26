@@ -4,17 +4,17 @@ This module manages loading and accessing configuration and secrets.
 All configuration access is now through validated Pydantic models.
 """
 
-import logging
 import os
 from pathlib import Path
 
 from .config_manager import ConfigManager, ConfigurationError
-from .config_models import AppSettings
+from .models.config_models import AppSettings
 from .secrets_manager import SecretsManager
 from .secrets_models import SecretsConfig
+from .structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_config_file_path() -> Path:
@@ -64,7 +64,13 @@ def _initialize_config() -> None:
 
     # Check if we're in a testing environment
     if os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in os.environ.get("_", ""):
-        logger.debug("Testing environment detected, skipping automatic config initialization")
+        logger.debug(
+            "testing_environment_detected",
+            pytest_test=os.environ.get("PYTEST_CURRENT_TEST") is not None,
+            pytest_in_path="pytest" in os.environ.get("_", ""),
+            action="skipping_config_initialization",
+            message="Testing environment detected, skipping automatic config initialization",
+        )
         return
 
     CONFIG_FILE_PATH = _get_config_file_path()
@@ -75,24 +81,44 @@ def _initialize_config() -> None:
         _config_manager = ConfigManager(str(CONFIG_FILE_PATH))
         _secrets_manager = SecretsManager(str(SECRETS_FILE_PATH))
     except ConfigurationError as e:
-        logger.critical(f"CRITICAL: Configuration system initialization failed: {e}")
+        logger.critical(
+            "configuration_system_initialization_failed",
+            config_file_path=str(CONFIG_FILE_PATH),
+            secrets_file_path=str(SECRETS_FILE_PATH),
+            error=str(e),
+            action="raising_runtime_error",
+            message=f"CRITICAL: Configuration system initialization failed: {e}",
+        )
         raise RuntimeError(f"Configuration system initialization failed: {e}") from e
 
     # Validate that configuration loaded successfully
     if _config_manager.settings is None:
         logger.critical(
-            f"CRITICAL: AppSettings not loaded by ConfigManager from "
-            f"{_config_manager.config_path}. "
-            "Application cannot proceed safely without configuration.",
+            "app_settings_not_loaded",
+            config_path=str(_config_manager.config_path),
+            config_loaded=_config_manager.loaded,
+            action="raising_runtime_error",
+            message=(
+                f"CRITICAL: AppSettings not loaded by ConfigManager from "
+                f"{_config_manager.config_path}. Application cannot proceed safely "
+                f"without configuration."
+            ),
         )
         raise RuntimeError("AppSettings failed to load. Check logs for details from ConfigManager.")
 
     # Validate that secrets loaded successfully
     if _secrets_manager.secrets_data is None:
         logger.critical(
-            "CRITICAL: SecretsConfig failed to load by SecretsManager "
-            "(expected at ~/.cyberdelta/secrets.yaml or via CYBERDELTA_SECRETS_PATH). "
-            "Application cannot proceed without secrets.",
+            "secrets_config_not_loaded",
+            secrets_path=str(_secrets_manager.secrets_path),
+            secrets_loaded=_secrets_manager.secrets_loaded,
+            env_path_set=os.environ.get("CYBERDELTA_SECRETS_PATH") is not None,
+            action="raising_runtime_error",
+            message=(
+                "CRITICAL: SecretsConfig failed to load by SecretsManager "
+                "(expected at ~/.cyberdelta/secrets.yaml or via CYBERDELTA_SECRETS_PATH). "
+                "Application cannot proceed without secrets."
+            ),
         )
         raise RuntimeError(
             f"SecretsConfig failed to load. Check logs. "

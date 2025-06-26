@@ -29,7 +29,7 @@ from cyberdelta.apis.models.service_args_models import (
     TransferArgs,
     WithdrawArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models import (
     DerivativePosition,

@@ -21,13 +21,14 @@ Security Notes:
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Protocol
 
+import structlog
 from pydantic import BaseModel
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import is_dict_str_any
 
 
@@ -54,7 +55,6 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.logging_config import get_logger
 
 
 logger = get_logger(__name__)
@@ -103,7 +103,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         account_object: LocalAccount | None = None,
         passphrase_secret: SecretStr | None = None,
         is_mainnet_environment: bool = True,
-        logger_param: logging.Logger | None = None,
+        logger_param: structlog.BoundLogger | None = None,
     ) -> None:
         """Initialize the Hyperliquid authenticator with wallet credentials.
 
@@ -140,11 +140,21 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Validate that exactly one authentication method is provided."""
         if not wallet_private_key_secret and not account_object:
             msg = "Either wallet_private_key_secret or account_object must be provided."
-            self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
+            self.logger.error(
+                "auth_parameter_validation_failed",
+                action="validate_auth_parameters",
+                error_type="missing_credentials",
+                message=f"HyperliquidEip712Authenticator: {msg}",
+            )
             raise ValueError(msg)
         if wallet_private_key_secret and account_object:
             msg = "Provide either wallet_private_key_secret or account_object, not both."
-            self.logger.error(f"HyperliquidEip712Authenticator: {msg}")
+            self.logger.error(
+                "auth_parameter_validation_failed",
+                action="validate_auth_parameters",
+                error_type="multiple_credentials",
+                message=f"HyperliquidEip712Authenticator: {msg}",
+            )
             raise ValueError(msg)
 
     def _setup_account(
@@ -164,7 +174,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         else:
             # This case should be impossible due to the initial checks
             impos_msg = "Internal error: Account could not be assigned despite checks."
-            self.logger.critical(f"HyperliquidEip712Authenticator: {impos_msg}")
+            self.logger.critical(
+                "account_assignment_impossible",
+                action="setup_account",
+                error_type="internal_error",
+                message=f"HyperliquidEip712Authenticator: {impos_msg}",
+            )
             raise RuntimeError(impos_msg)
 
     def _create_account_from_private_key(
@@ -366,7 +381,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 "Invalid 'data' for Hyperliquid /exchange request: "
                 "Must be a dictionary (action payload)."
             )
-            self.logger.error(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}")
+            self.logger.error(
+                "exchange_request_data_validation_failed",
+                action="validate_exchange_request_data",
+                data_type=str(type(data)),
+                expected_type="dict",
+                message=f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}",
+            )
             raise ValueError(msg)
 
     def _prepare_action_payload(self, data: dict[str, Any] | BaseModel) -> dict[str, Any]:
@@ -378,15 +399,30 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         For Hyperliquid, we need to use the actual field names (not aliases) because
         the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
         """
-        self.logger.debug(f"[HL_AUTH] Input data type: {type(data)}")
-        self.logger.debug(f"[HL_AUTH] Input data has model_dump: {hasattr(data, 'model_dump')}")
+        self.logger.debug(
+            "action_payload_processing_started",
+            action="prepare_action_payload",
+            data_type=str(type(data)),
+            message=f"[HL_AUTH] Input data type: {type(data)}",
+        )
+        self.logger.debug(
+            "data_model_dump_check",
+            action="prepare_action_payload",
+            has_model_dump=hasattr(data, "model_dump"),
+            message=f"[HL_AUTH] Input data has model_dump: {hasattr(data, 'model_dump')}",
+        )
 
         # If the data is already a Pydantic model, serialize it directly
         if isinstance(data, BaseModel):
             return self._serialize_pydantic_model(data)
 
         # For dict data, ensure we match SDK behavior by removing None 'c' fields
-        self.logger.debug(f"[HL_AUTH] Processing dict data: {data}")
+        self.logger.debug(
+            "processing_dict_data",
+            action="prepare_action_payload",
+            data_keys=list(data.keys()) if isinstance(data, dict) else None,
+            message=f"[HL_AUTH] Processing dict data: {data}",
+        )
         self._process_dict_orders(data)
 
         # Return the dict directly
@@ -399,8 +435,18 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # CRITICAL: Do NOT exclude None values as Hyperliquid expects all fields
         # for msgpack order
         result = data.model_dump(by_alias=False, exclude_none=False, mode="python")
-        self.logger.debug(f"[HL_AUTH] Pydantic model_dump result: {result}")
-        self.logger.debug(f"[HL_AUTH] All model fields present: {list(result.keys())}")
+        self.logger.debug(
+            "pydantic_model_serialized",
+            action="serialize_pydantic_model",
+            result_keys=list(result.keys()),
+            message=f"[HL_AUTH] Pydantic model_dump result: {result}",
+        )
+        self.logger.debug(
+            "model_fields_enumerated",
+            action="serialize_pydantic_model",
+            fields=list(result.keys()),
+            message=f"[HL_AUTH] All model fields present: {list(result.keys())}",
+        )
 
         # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
         if "orders" in result and result["orders"]:
@@ -428,8 +474,19 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Remove 'c' field if it's None to match SDK behavior."""
         if "c" in order_item and order_item["c"] is None:
             del order_item["c"]
-            self.logger.debug(f"[HL_AUTH] Removed None 'c' field from order {index}")
-        self.logger.debug(f"[HL_AUTH] Order {index} fields: {list(order_item.keys())}")
+            self.logger.debug(
+                "none_c_field_removed",
+                action="remove_none_c_field",
+                order_index=index,
+                message=f"[HL_AUTH] Removed None 'c' field from order {index}",
+            )
+        self.logger.debug(
+            "order_fields_listed",
+            action="remove_none_c_field",
+            order_index=index,
+            fields=list(order_item.keys()),
+            message=f"[HL_AUTH] Order {index} fields: {list(order_item.keys())}",
+        )
 
     def _process_dict_orders(self, data: dict[str, Any]) -> None:
         """Process orders in dict data to remove None 'c' fields."""
@@ -445,10 +502,20 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Compute action hash using msgpack and keccak."""
         try:
             # Log the exact payload structure being msgpacked
-            self.logger.debug(f"[HL_AUTH] Action payload keys: {list(action_payload_dict.keys())}")
+            self.logger.debug(
+                "action_payload_structure_logged",
+                action="compute_action_hash",
+                payload_keys=list(action_payload_dict.keys()),
+                message=f"[HL_AUTH] Action payload keys: {list(action_payload_dict.keys())}",
+            )
             if "orders" in action_payload_dict and action_payload_dict["orders"]:
                 order = action_payload_dict["orders"][0]
-                self.logger.debug(f"[HL_AUTH] First order keys: {list(order.keys())}")
+                self.logger.debug(
+                    "first_order_structure_logged",
+                    action="compute_action_hash",
+                    order_keys=list(order.keys()),
+                    message=f"[HL_AUTH] First order keys: {list(order.keys())}",
+                )
                 # Check if 'c' field is present and its value
                 if "c" in order:
                     self.logger.debug(
@@ -459,7 +526,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             msgpacked_action: bytes = msgpack.packb(action_payload_dict)
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to msgpack action payload: {e}")
+            self.logger.error(
+                "msgpack_serialization_failed",
+                action="compute_action_hash",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to msgpack action payload: {e}",
+            )
             raise APIError(
                 f"Failed to serialize action payload: {e}",
                 code=APIErrorCode.INVALID_REQUEST.value,
@@ -467,13 +539,28 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ) from e
 
         # Security: Only log sanitized information
-        self.logger.debug(f"[HL_AUTH] Action type: {action_payload_dict.get('type', 'unknown')}")
-        self.logger.debug(f"[HL_AUTH] Msgpacked action size: {len(msgpacked_action)} bytes")
+        self.logger.debug(
+            "action_type_logged",
+            action="compute_action_hash",
+            action_type=action_payload_dict.get("type", "unknown"),
+            message=f"[HL_AUTH] Action type: {action_payload_dict.get('type', 'unknown')}",
+        )
+        self.logger.debug(
+            "msgpack_size_logged",
+            action="compute_action_hash",
+            msgpack_size_bytes=len(msgpacked_action),
+            message=f"[HL_AUTH] Msgpacked action size: {len(msgpacked_action)} bytes",
+        )
 
         # Build hash input components
         action_hash_data_parts: list[bytes] = [msgpacked_action]
         action_hash_data_parts.append(current_nonce_ms.to_bytes(8, "big"))
-        self.logger.debug(f"[HL_AUTH] Nonce: {current_nonce_ms}")
+        self.logger.debug(
+            "nonce_logged",
+            action="compute_action_hash",
+            nonce=current_nonce_ms,
+            message=f"[HL_AUTH] Nonce: {current_nonce_ms}",
+        )
 
         # Add vault address (None for standard user trades)
         vault_address_for_hash: str | None = None
@@ -490,12 +577,22 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             action_hash_data_parts.append(expires_after_for_hash.to_bytes(8, "big"))
 
         action_hash_input_bytes = b"".join(action_hash_data_parts)
-        self.logger.debug(f"[HL_AUTH] Action hash input size: {len(action_hash_input_bytes)} bytes")
+        self.logger.debug(
+            "action_hash_input_size_logged",
+            action="compute_action_hash",
+            input_size_bytes=len(action_hash_input_bytes),
+            message=f"[HL_AUTH] Action hash input size: {len(action_hash_input_bytes)} bytes",
+        )
 
         try:
             return keccak(action_hash_input_bytes)
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to compute action hash: {e}")
+            self.logger.error(
+                "action_hash_computation_failed",
+                action="compute_action_hash",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to compute action hash: {e}",
+            )
             raise APIError(
                 f"Failed to compute action hash: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -509,7 +606,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "source": source_char,
             "connectionId": action_hash_bytes,
         }
-        self.logger.debug(f"[HL_AUTH] Phantom agent source: {source_char}")
+        self.logger.debug(
+            "phantom_agent_source_set",
+            action="create_phantom_agent_message",
+            source_char=source_char,
+            is_mainnet=self._is_mainnet_env,
+            message=f"[HL_AUTH] Phantom agent source: {source_char}",
+        )
         return phantom_agent_message
 
     def _format_signature_components(self, signed_message_obj: SignatureObject) -> dict[str, Any]:
@@ -550,12 +653,27 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Security: Log signature creation success without exposing values
             self.logger.debug("[HL_AUTH] Signature components generated successfully")
-            self.logger.debug(f"[HL_AUTH] Signature v value: {signed_message_obj.v}")
-            self.logger.debug(f"[HL_AUTH] Signing account: {self._account.address}")
+            self.logger.debug(
+                "signature_v_value_logged",
+                action="format_signature_components",
+                v_value=signed_message_obj.v,
+                message=f"[HL_AUTH] Signature v value: {signed_message_obj.v}",
+            )
+            self.logger.debug(
+                "signing_account_logged",
+                action="format_signature_components",
+                account_address=self._account.address,
+                message=f"[HL_AUTH] Signing account: {self._account.address}",
+            )
 
             return signature_dict
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to format signature components: {e}")
+            self.logger.error(
+                "signature_formatting_failed",
+                action="format_signature_components",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to format signature components: {e}",
+            )
             raise APIError(
                 f"Failed to format signature: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -613,10 +731,18 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             domain_dict = structured_data_to_sign["domain"]
             if isinstance(domain_dict, dict):
                 self.logger.debug(
-                    f"[HL_AUTH] EIP-712 domain name: {domain_dict.get('name', 'unknown')}"
+                    "eip712_domain_logged",
+                    action="sign_eip712_message",
+                    domain_name=domain_dict.get("name", "unknown"),
+                    message=f"[HL_AUTH] EIP-712 domain name: {domain_dict.get('name', 'unknown')}",
                 )
             primary_type = structured_data_to_sign.get("primaryType", "unknown")
-            self.logger.debug(f"[HL_AUTH] EIP-712 primaryType: {primary_type}")
+            self.logger.debug(
+                "eip712_primary_type_logged",
+                action="sign_eip712_message",
+                primary_type=primary_type,
+                message=f"[HL_AUTH] EIP-712 primaryType: {primary_type}",
+            )
 
             # Generate and sign EIP-712 message
             signable_message = self._encode_and_sign_message(structured_data_to_sign)
@@ -624,8 +750,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         except Exception as e:
             self.logger.error(
-                f"HyperliquidEip712Authenticator: Failed to sign Hyperliquid Exchange "
-                f"Agent message: {e}",
+                "eip712_signing_failed",
+                action="sign_eip712_message",
+                error_details=str(e),
+                message=(
+                    f"HyperliquidEip712Authenticator: "
+                    f"Failed to sign Hyperliquid Exchange Agent message: {e}"
+                ),
                 exc_info=True,
             )
             raise APIError(
@@ -639,14 +770,23 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to encode EIP-712 typed data: {e}")
+            self.logger.error(
+                "eip712_encoding_failed",
+                action="encode_and_sign_message",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to encode EIP-712 typed data: {e}",
+            )
             raise APIError(
                 f"Failed to encode EIP-712 message: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
 
-        self.logger.debug("[HL_AUTH] EIP-712 message encoded successfully")
+        self.logger.debug(
+            "eip712_message_encoded",
+            action="encode_and_sign_message",
+            message="[HL_AUTH] EIP-712 message encoded successfully",
+        )
 
         # Debug: Try to recover address before returning
         try:
@@ -655,16 +795,37 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             recovered = Account.recover_message(
                 signable_message, vrs=[signed_msg.v, signed_msg.r, signed_msg.s]
             )
-            self.logger.debug(f"[HL_AUTH] Signing with account: {self._account.address}")
-            self.logger.debug(f"[HL_AUTH] Recovered address: {recovered}")
+            self.logger.debug(
+                "signing_account_info",
+                action="encode_and_sign_message",
+                account_address=self._account.address,
+                message=f"[HL_AUTH] Signing with account: {self._account.address}",
+            )
+            self.logger.debug(
+                "address_recovery_check",
+                action="encode_and_sign_message",
+                recovered_address=recovered,
+                message=f"[HL_AUTH] Recovered address: {recovered}",
+            )
             if recovered.lower() != self._account.address.lower():
                 self.logger.error(
-                    f"[HL_AUTH] SIGNING ERROR: Recovered address {recovered} != "
-                    f"signing address {self._account.address}"
+                    "address_recovery_mismatch",
+                    action="encode_and_sign_message",
+                    recovered_address=recovered,
+                    signing_address=self._account.address,
+                    message=(
+                        f"[HL_AUTH] SIGNING ERROR: "
+                        f"Recovered address {recovered} != signing address {self._account.address}"
+                    ),
                 )
             return signed_msg
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to sign EIP-712 message: {e}")
+            self.logger.error(
+                "eip712_message_signing_failed",
+                action="encode_and_sign_message",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to sign EIP-712 message: {e}",
+            )
             raise APIError(
                 f"Failed to sign EIP-712 message: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -701,11 +862,21 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             }
 
             # Security: Log successful body construction without sensitive data
-            self.logger.debug(f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields")
+            self.logger.debug(
+                "http_body_constructed",
+                action="construct_http_body",
+                field_count=len(final_http_body),
+                message=f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields",
+            )
             return final_http_body
 
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to construct HTTP body: {e}")
+            self.logger.error(
+                "http_body_construction_failed",
+                action="construct_http_body",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to construct HTTP body: {e}",
+            )
             raise APIError(
                 f"Failed to construct request body: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -721,17 +892,32 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     if key != "Content-Type":  # Don't override Content-Type
                         # Validate header values are safe strings
                         if not key.strip():
-                            self.logger.warning(f"[HL_AUTH] Skipping empty header key: {key!r}")
+                            self.logger.warning(
+                                "empty_header_key_skipped",
+                                action="prepare_request_headers",
+                                header_key=key,
+                                message=f"[HL_AUTH] Skipping empty header key: {key!r}",
+                            )
                             continue
                         safe_value = str(value).strip()
                         if safe_value:  # Only add non-empty values
                             final_headers[key] = safe_value
 
-            self.logger.debug(f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers")
+            self.logger.debug(
+                "http_headers_prepared",
+                action="prepare_request_headers",
+                header_count=len(final_headers),
+                message=f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers",
+            )
             return final_headers
 
         except Exception as e:
-            self.logger.error(f"[HL_AUTH] Failed to prepare headers: {e}")
+            self.logger.error(
+                "header_preparation_failed",
+                action="prepare_request_headers",
+                error_details=str(e),
+                message=f"[HL_AUTH] Failed to prepare headers: {e}",
+            )
             raise APIError(
                 f"Failed to prepare request headers: {e}",
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,

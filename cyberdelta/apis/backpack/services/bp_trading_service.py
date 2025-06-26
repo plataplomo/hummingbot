@@ -32,7 +32,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
@@ -1014,7 +1014,14 @@ class BackpackTradingService:
             f"Cancel all orders for {symbol or 'all'} returned invalid data "
             f"or no content (status: {status_code})"
         )
-        logger.error(f"[{self._exchange_name}] {error_message}. Raw: {raw_data}")
+        logger.error(
+            "cancel_all_orders_invalid_response",
+            action="cancel_all_orders",
+            exchange=self._exchange_name,
+            error_message=error_message,
+            raw_data=raw_data,
+            message=f"[{self._exchange_name}] {error_message}. Raw: {raw_data}",
+        )
 
         # If response is not a list, it might be an error structure or unexpected.
         # We can't confirm any cancellations.

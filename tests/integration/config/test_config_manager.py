@@ -14,7 +14,7 @@ import pytest
 import yaml
 
 from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 
 
 class TestConfigManager:

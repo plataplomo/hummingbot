@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 
 

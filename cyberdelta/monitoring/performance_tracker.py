@@ -231,7 +231,12 @@ class PerformanceTracker:
                 self.persistence.save_trades(self.trades)
             else:
                 # Trade not found
-                logger.warning(f"Trade with ID {trade_id} not found for exit tracking")
+                logger.warning(
+                    "trade_not_found",
+                    action="track_exit",
+                    trade_id=trade_id,
+                    message=f"Trade with ID {trade_id} not found for exit tracking",
+                )
 
         # Track return separately if needed (avoids nested locking with track_return)
         if strategy_name_for_return and return_value_to_track is not None:
@@ -329,7 +334,12 @@ class PerformanceTracker:
                 self.persistence.save_signals(self.signals)
             else:
                 # Signal not found
-                logger.warning(f"Signal with ID {signal_id} not found for execution tracking")
+                logger.warning(
+                    "signal_not_found",
+                    action="track_execution",
+                    signal_id=signal_id,
+                    message=f"Signal with ID {signal_id} not found for execution tracking",
+                )
 
     def track_funding_rate(
         self,

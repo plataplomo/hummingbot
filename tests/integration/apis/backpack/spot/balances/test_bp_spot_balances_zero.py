@@ -2,7 +2,6 @@
 
 import asyncio
 import gc
-import logging
 import re
 import sys
 from decimal import Decimal
@@ -14,13 +13,14 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Mark all tests in this file
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]

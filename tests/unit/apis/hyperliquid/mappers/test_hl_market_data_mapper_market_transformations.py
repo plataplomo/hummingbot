@@ -13,11 +13,11 @@ Tests the new market-related transformation methods including:
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+import structlog.testing
 
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
@@ -221,16 +221,24 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
             "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Invalid sz_decimals processing"),
         ):
-            with caplog.at_level(logging.WARNING):
+            with structlog.testing.capture_logs() as captured_logs:
                 markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
 
             # Should return empty list due to error
             assert len(markets) == 0
 
-            # Should log warning for failed transformation
-            assert any(
-                "Failed to transform asset definition ETH-PERP" in record.message
-                for record in caplog.records
+            # Should log warning for failed transformation in structured logs
+            warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+            assert len(warning_logs) > 0, "Expected at least one warning log"
+
+            # Check for the specific warning about transformation failure
+            transformation_logs = [
+                log
+                for log in warning_logs
+                if "Failed to transform asset definition ETH-PERP" in str(log)
+            ]
+            assert len(transformation_logs) > 0, (
+                f"Expected transformation failure logs, got: {captured_logs}"
             )
 
     def test_transform_meta_and_asset_ctxs_transformation_error(
@@ -505,14 +513,24 @@ class TestMarketTransformationErrorHandling:
         ):
             raw_response = create_meta_and_asset_ctxs_response(asset_definitions, [])
 
-            with caplog.at_level(logging.WARNING):
+            with structlog.testing.capture_logs() as captured_logs:
                 markets = mapper.transform_raw_meta_and_asset_ctxs_to_markets(raw_response)
 
             # Should return empty list and log warning
             assert len(markets) == 0
-            assert any(
-                "Failed to transform asset definition VALID-PERP" in record.message
-                for record in caplog.records
+
+            # Should log warning in structured logs
+            warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+            assert len(warning_logs) > 0, "Expected at least one warning log"
+
+            # Check for the specific warning about transformation failure
+            transformation_logs = [
+                log
+                for log in warning_logs
+                if "Failed to transform asset definition VALID-PERP" in str(log)
+            ]
+            assert len(transformation_logs) > 0, (
+                f"Expected transformation failure logs, got: {captured_logs}"
             )
 
     def test_error_handling_with_none_asset_contexts(

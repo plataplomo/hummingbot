@@ -25,7 +25,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
 )
 from cyberdelta.apis.base.exchange_api import MessageHandler
 from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 
 class BackpackWsMessageRouter:

@@ -34,7 +34,12 @@ class PerformanceDataPersistence:
         # If PerformanceTracker handles locking before calling save/load, this might be redundant.
         # For safety, let's include it here.
         self.lock = threading.RLock()
-        logger.info(f"Performance data persistence initialized for directory: {self.output_dir}")
+        logger.info(
+            "persistence_initialized",
+            action="init",
+            output_dir=str(self.output_dir),
+            message=f"Performance data persistence initialized for directory: {self.output_dir}",
+        )
 
     def _get_filepath(self, data_type: str, filename: str) -> Path:
         """Get the full file path for a data type and filename.
@@ -70,10 +75,23 @@ class PerformanceDataPersistence:
             with filepath.open("w", encoding="utf-8") as f:
                 json.dump(serializable_data, f, indent=2, ensure_ascii=False)
 
-            logger.debug(f"Saved {data_type} data to {filepath}")
+            logger.debug(
+                "data_saved",
+                action="save",
+                data_type=data_type,
+                filepath=str(filepath),
+                message=f"Saved {data_type} data to {filepath}",
+            )
 
         except Exception as e:
-            logger.error(f"Failed to save {data_type} data to {filepath}: {e}")
+            logger.error(
+                "data_save_failed",
+                action="save",
+                data_type=data_type,
+                filepath=str(filepath),
+                error=str(e),
+                message=f"Failed to save {data_type} data to {filepath}: {e}",
+            )
 
     def load_data(self, data_type: str, filename: str) -> dict[str, Any] | list[Any] | None:
         """Load data from a JSON file.
@@ -89,7 +107,12 @@ class PerformanceDataPersistence:
         filepath = self._get_filepath(data_type, filename)
 
         if not filepath.exists():
-            logger.debug(f"File {filepath} does not exist")
+            logger.debug(
+                "file_not_found",
+                action="load",
+                filepath=str(filepath),
+                message=f"File {filepath} does not exist",
+            )
             return None
 
         try:
@@ -99,11 +122,24 @@ class PerformanceDataPersistence:
             # Post-process the loaded data (e.g., convert datetime strings back to datetime objects)
             processed_data = self.post_process_loaded_data(data_type, loaded_data)
 
-            logger.debug(f"Loaded {data_type} data from {filepath}")
+            logger.debug(
+                "data_loaded",
+                action="load",
+                data_type=data_type,
+                filepath=str(filepath),
+                message=f"Loaded {data_type} data from {filepath}",
+            )
             return processed_data
 
         except Exception as e:
-            logger.error(f"Failed to load {data_type} data from {filepath}: {e}")
+            logger.error(
+                "data_load_failed",
+                action="load",
+                data_type=data_type,
+                filepath=str(filepath),
+                error=str(e),
+                message=f"Failed to load {data_type} data from {filepath}: {e}",
+            )
             return None
 
     def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
@@ -198,7 +234,12 @@ class PerformanceDataPersistence:
                             timestamp = datetime.fromisoformat(str(ts_str))
                             processed_strategy_data[timestamp] = float(val)
                         except (ValueError, TypeError):
-                            logger.warning(f"Could not parse timestamp: {ts_str}")
+                            logger.warning(
+                                "timestamp_parse_failed",
+                                action="parse",
+                                timestamp_str=str(ts_str),
+                                message=f"Could not parse timestamp: {ts_str}",
+                            )
                             continue
                     processed_returns[strategy_name] = processed_strategy_data
                 else:
@@ -250,7 +291,13 @@ class PerformanceDataPersistence:
                 try:
                     processed_item[key] = datetime.fromisoformat(value)
                 except (ValueError, TypeError):
-                    logger.warning(f"Could not parse datetime field {key}: {value}")
+                    logger.warning(
+                        "datetime_field_parse_failed",
+                        action="parse",
+                        field_name=key,
+                        field_value=str(value),
+                        message=f"Could not parse datetime field {key}: {value}",
+                    )
                     processed_item[key] = value
             else:
                 processed_item[key] = value
@@ -298,7 +345,12 @@ class PerformanceDataPersistence:
                         all_returns[strategy_name] = loaded_data  # type: ignore[assignment]
 
         except Exception as e:
-            logger.error(f"Failed to load returns data: {e}")
+            logger.error(
+                "returns_load_failed",
+                action="load_all",
+                error=str(e),
+                message=f"Failed to load returns data: {e}",
+            )
 
         return all_returns
 

@@ -9,7 +9,10 @@ import pytest
 
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
-from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import (
+    AddressActionSafetyNetConfig,
+    ExchangeSpecificConfig,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

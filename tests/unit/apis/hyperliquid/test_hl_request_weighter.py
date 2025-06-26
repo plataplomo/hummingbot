@@ -9,7 +9,10 @@ from unittest.mock import Mock
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
-from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import (
+    AddressActionSafetyNetConfig,
+    ExchangeSpecificConfig,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

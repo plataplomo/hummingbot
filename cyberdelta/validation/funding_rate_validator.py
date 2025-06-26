@@ -4,14 +4,14 @@ This module implements the validation system for funding rate predictions
 against actual payments received/paid.
 """
 
-import logging
 import math
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict, cast
 
 # from cyberdelta.config import Config # Incorrect path
-from cyberdelta.config.config_models import AppSettings  # Correct path
+from cyberdelta.config.models.config_models import AppSettings  # Correct path
+from cyberdelta.config.structlog_config import get_logger
 
 
 class HistorySeries(TypedDict):
@@ -63,7 +63,7 @@ class FundingRateValidator:
 
         """
         self.config = config
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
 
         # Simple in-memory storage for predictions and payments
         self.predictions: list[dict[str, Any]] = []
@@ -101,8 +101,18 @@ class FundingRateValidator:
 
         self.predictions.append(prediction)
         self.logger.debug(
-            f"Recorded funding rate prediction: {exchange}/{symbol}, "
-            f"rate={predicted_rate:.6f}, method={method}",
+            "funding_rate_prediction_recorded",
+            exchange=exchange,
+            symbol=symbol,
+            predicted_rate=predicted_rate,
+            method=method,
+            confidence=confidence,
+            timestamp=timestamp,
+            action="prediction_stored",
+            message=(
+                f"Recorded funding rate prediction: {exchange}/{symbol}, "
+                f"rate={predicted_rate:.6f}, method={method}"
+            ),
         )
 
     def record_payment(
@@ -137,8 +147,18 @@ class FundingRateValidator:
 
         self.payments.append(payment)
         self.logger.info(
-            f"Recorded funding payment: {exchange}/{symbol}, rate={actual_rate:.6f}, "
-            f"amount={payment_amount:.8f}",
+            "funding_payment_recorded",
+            exchange=exchange,
+            symbol=symbol,
+            actual_rate=actual_rate,
+            payment_amount=payment_amount,
+            position_size=position_size,
+            timestamp=timestamp,
+            action="payment_stored",
+            message=(
+                f"Recorded funding payment: {exchange}/{symbol}, "
+                f"rate={actual_rate:.6f}, amount={payment_amount:.8f}"
+            ),
         )
 
     def calculate_metrics(
@@ -182,7 +202,16 @@ class FundingRateValidator:
 
         # If we don't have enough data, return empty metrics
         if not filtered_predictions or not filtered_payments:
-            self.logger.warning(f"Insufficient data to calculate metrics for {exchange}/{symbol}")
+            self.logger.warning(
+                "insufficient_data_for_metrics",
+                exchange=exchange,
+                symbol=symbol,
+                prediction_count=len(filtered_predictions),
+                payment_count=len(filtered_payments),
+                days=days,
+                action="returning_empty_metrics",
+                message=f"Insufficient data to calculate metrics for {exchange}/{symbol}",
+            )
             return {
                 "rmse": None,
                 "mae": None,
@@ -226,7 +255,16 @@ class FundingRateValidator:
 
         # If we couldn't match any predictions with payments
         if not merged_data:
-            self.logger.warning(f"No matching prediction-payment pairs for {exchange}/{symbol}")
+            self.logger.warning(
+                "no_matching_prediction_payment_pairs",
+                exchange=exchange,
+                symbol=symbol,
+                prediction_count=len(filtered_predictions),
+                payment_count=len(filtered_payments),
+                merged_count=0,
+                action="returning_empty_metrics",
+                message=f"No matching prediction-payment pairs for {exchange}/{symbol}",
+            )
             return {
                 "rmse": None,
                 "mae": None,
@@ -251,8 +289,21 @@ class FundingRateValidator:
         }
 
         self.logger.info(
-            f"Calculated metrics for {exchange}/{symbol}: "
-            f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}",
+            "funding_rate_metrics_calculated",
+            exchange=exchange,
+            symbol=symbol,
+            rmse=rmse,
+            mae=mae,
+            bias=bias,
+            prediction_count=len(filtered_predictions),
+            payment_count=len(filtered_payments),
+            matched_count=len(merged_data),
+            days=days,
+            action="metrics_computed",
+            message=(
+                f"Calculated metrics for {exchange}/{symbol}: "
+                f"RMSE={rmse:.6f}, MAE={mae:.6f}, Bias={bias:.6f}"
+            ),
         )
         return cast(dict[str, float | None], metrics)
 
@@ -424,8 +475,16 @@ class FundingRateValidator:
         self.payments = [p for p in self.payments if p["timestamp"] >= threshold_ms]
 
         self.logger.info(
-            f"Cleared data older than {days_to_keep} days. "
-            f"Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments",
+            "old_data_cleared",
+            days_to_keep=days_to_keep,
+            threshold_time=threshold_time.isoformat(),
+            remaining_predictions=len(self.predictions),
+            remaining_payments=len(self.payments),
+            action="data_cleanup_completed",
+            message=(
+                f"Cleared data older than {days_to_keep} days. "
+                f"Remaining: {len(self.predictions)} predictions, {len(self.payments)} payments"
+            ),
         )
 
     def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 
+from cyberdelta.config.structlog_config import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 class TokenBucketRateLimiterRuntime:
@@ -104,4 +105,9 @@ class TokenBucketRateLimiterRuntime:
         """
         async with self.lock:
             self.is_ip_banned_until = time.monotonic() + duration_seconds
-            logger.critical(f"Rate limiter IP BAN triggered for {duration_seconds:.1f}s.")
+            logger.critical(
+                "rate_limiter_ip_ban_triggered",
+                action="trigger_ip_ban",
+                duration_seconds=duration_seconds,
+                message=f"Rate limiter IP BAN triggered for {duration_seconds:.1f}s.",
+            )

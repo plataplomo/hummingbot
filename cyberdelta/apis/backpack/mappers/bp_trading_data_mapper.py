@@ -17,7 +17,6 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -25,6 +24,7 @@ from typing import Any
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -38,7 +38,7 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackTradingDataMapper:
@@ -323,7 +323,13 @@ class BackpackTradingDataMapper:
         )
 
         if avg_fill_price is not None:
-            logger.debug(f"Using provided avgFillPrice {avg_fill_price} for order {raw_order.id}")
+            logger.debug(
+                "using_provided_avg_fill_price",
+                action="calculate_fill_price",
+                avg_fill_price=avg_fill_price,
+                order_id=raw_order.id,
+                message=f"Using provided avgFillPrice {avg_fill_price} for order {raw_order.id}",
+            )
             return avg_fill_price
 
         # If no avgFillPrice but order has fills, calculate from quote quantity
@@ -499,7 +505,13 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            logger.error(f"Failed to transform order {raw_order.id}: {e}")
+            logger.error(
+                "order_transformation_failed",
+                action="transform_order",
+                order_id=raw_order.id,
+                error=str(e),
+                message=f"Failed to transform order {raw_order.id}: {e}",
+            )
             raise TransformationError(f"Failed to transform BackpackRawOrder to Order: {e}") from e
 
     @staticmethod

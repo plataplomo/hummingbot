@@ -6,7 +6,7 @@ import os
 import sys
 from types import TracebackType
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 
 
 # Standard time formatting for all logs
@@ -64,16 +64,23 @@ def setup_logging(app_settings: AppSettings) -> None:
             try:
                 os.makedirs(log_dir)
             except Exception as e:
-                root_logger.warning(f"Failed to create log directory {log_dir}: {e}")
+                root_logger.warning(
+                    f"log_directory_creation_failed: Failed to create log directory {log_dir}: {e}"
+                )
 
         try:
             file_handler = logging.FileHandler(log_file_path_str)
             file_handler.setLevel(log_level)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
-            root_logger.info(f"Logging to file: {log_file_path_str}")
+            root_logger.info(
+                "file_logging_configured: Logging to file: %s",
+                log_file_path_str,
+            )
         except Exception as e:
-            root_logger.warning(f"Failed to create log file {log_file_path_str}: {e}")
+            root_logger.warning(
+                f"log_file_creation_failed: Failed to create log file {log_file_path_str}: {e}"
+            )
 
     # Apply module-specific log levels if specified
     module_levels_settings = (
@@ -87,12 +94,19 @@ def setup_logging(app_settings: AppSettings) -> None:
                 module_level = log_level_map[level_literal]  # Guaranteed to be valid
                 module_logger = logging.getLogger(module_name_str)
                 module_logger.setLevel(module_level)
-                root_logger.info(f"Set {module_name_str} log level to {level_literal}")
+                root_logger.info(
+                    f"module_log_level_set: Set {module_name_str} log level to {level_literal}"
+                )
             except Exception as e:
-                root_logger.warning(f"Failed to set log level for {module_name_str}: {e}")
+                root_logger.warning(
+                    f"module_log_level_failed: Failed to set log level for {module_name_str}: {e}"
+                )
 
     # Log the configured log level
-    root_logger.info(f"Logging initialized with level: {log_level_str}")
+    root_logger.info(
+        "logging_initialized: Logging initialized with level: %s",
+        log_level_str,
+    )
 
 
 def get_logger(name: str) -> logging.Logger:

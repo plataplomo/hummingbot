@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.ticker import Ticker

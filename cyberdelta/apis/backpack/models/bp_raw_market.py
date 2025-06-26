@@ -23,7 +23,6 @@ These models act as a strict shield between external API data and internal busin
 robustness and security at the data ingestion boundary.
 """
 
-import logging
 from collections.abc import Sequence
 from typing import Self, cast
 
@@ -36,6 +35,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import is_sequence_of_any
 
 from .bp_common_raw_types import (
@@ -52,7 +52,7 @@ from .bp_common_raw_types import (
 
 
 # Get logger for the module
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackRawPriceFilter(BaseModel):

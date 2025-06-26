@@ -9,7 +9,7 @@ from typing import Any, TypeVar
 
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -36,7 +36,13 @@ def ensure_dict_response(
         APIError: If response is None or not a dictionary
     """
     if response is None:
-        logger.error(f"SECURITY: Null response for {context}")
+        logger.error(
+            "response_validation_null_response",
+            action="validate_dict_response",
+            message="Null response received - security violation",
+            context=context,
+            security_alert=True,
+        )
         raise APIError(
             message=f"No data received for {context}, status: {status_code}",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -57,7 +63,13 @@ def ensure_dict_response(
         )
 
     # Log successful validation for audit
-    logger.debug(f"Validated dict response for {context} with {len(response)} keys")
+    logger.debug(
+        "response_validation_dict_success",
+        action="validate_dict_response",
+        message="Successfully validated dictionary response",
+        context=context,
+        key_count=len(response),
+    )
     return response
 
 
@@ -68,7 +80,13 @@ def ensure_list_response(
 ) -> list[Any]:
     """Validate that response is a list with consistent error handling."""
     if response is None:
-        logger.error(f"SECURITY: Null response for {context}")
+        logger.error(
+            "response_validation_null_response",
+            action="validate_list_response",
+            message="Null response received - security violation",
+            context=context,
+            security_alert=True,
+        )
         raise APIError(
             message=f"No data received for {context}, status: {status_code}",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -88,7 +106,13 @@ def ensure_list_response(
             http_status=status_code,
         )
 
-    logger.debug(f"Validated list response for {context} with {len(response)} items")
+    logger.debug(
+        "response_validation_list_success",
+        action="validate_list_response",
+        message="Successfully validated list response",
+        context=context,
+        item_count=len(response),
+    )
     return response
 
 
@@ -102,7 +126,14 @@ def validate_required_fields(
     missing_fields = [field for field in required_fields if field not in response]
 
     if missing_fields:
-        logger.error(f"SECURITY: Missing required fields in {context}: {missing_fields}")
+        logger.error(
+            "response_validation_missing_fields",
+            action="validate_required_fields",
+            message="Missing required fields - security violation",
+            context=context,
+            missing_fields=missing_fields,
+            security_alert=True,
+        )
         raise APIError(
             message=(f"Missing required fields in {context} response: {', '.join(missing_fields)}"),
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -117,7 +148,13 @@ def ensure_string_response(
 ) -> str:
     """Validate that response is a string with consistent error handling."""
     if response is None:
-        logger.error(f"SECURITY: Null response for {context}")
+        logger.error(
+            "response_validation_null_response",
+            action="validate_string_response",
+            message="Null response received - security violation",
+            context=context,
+            security_alert=True,
+        )
         raise APIError(
             message=f"No data received for {context}, status: {status_code}",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -138,7 +175,14 @@ def ensure_string_response(
 
     # Check for suspiciously large strings (potential DoS)
     if len(response) > 1_000_000:  # 1MB limit
-        logger.warning(f"SECURITY: Large string response for {context}: {len(response)} chars")
+        logger.warning(
+            "response_validation_large_string",
+            action="validate_string_response",
+            message="Large string response detected - potential DoS risk",
+            context=context,
+            string_length=len(response),
+            security_alert=True,
+        )
 
     return response
 
@@ -150,7 +194,12 @@ def validate_response_not_empty(
 ) -> None:
     """Validate that a response container is not empty."""
     if not response:
-        logger.warning(f"Empty response for {context}")
+        logger.warning(
+            "response_validation_empty_response",
+            action="validate_response_not_empty",
+            message="Empty response received",
+            context=context,
+        )
         raise APIError(
             message=f"Empty response for {context}, status: {status_code}",
             code=APIErrorCode.INVALID_RESPONSE.value,

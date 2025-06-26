@@ -13,7 +13,6 @@ Responsibilities:
 """
 
 import json
-import logging
 import re
 from typing import Any
 
@@ -25,9 +24,10 @@ from cyberdelta.apis.hyperliquid.hl_api_error import (
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.api_error_response import APIErrorResponse
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidErrorMapper(IErrorMapper):

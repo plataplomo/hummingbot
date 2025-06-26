@@ -2,7 +2,7 @@
 
 from __future__ import annotations  # Enable postponed evaluation
 
-import logging  # Add logging import
+import logging  # Keep for specific mock logger creation
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.config_models import PortfolioTrackerConfig
+from cyberdelta.config.models.config_models import PortfolioTrackerConfig
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,

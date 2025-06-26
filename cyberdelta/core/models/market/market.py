@@ -13,17 +13,17 @@ The Market model ensures data integrity through:
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
 # Instantiate logger for this module
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Market(BaseModel):

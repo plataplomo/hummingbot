@@ -6,15 +6,15 @@ Provides mock strategy classes and utilities for testing strategy-related functi
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.strategy import Strategy
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MockStrategy(Strategy):

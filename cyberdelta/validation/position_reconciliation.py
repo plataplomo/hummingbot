@@ -4,14 +4,14 @@ This module provides validation between various position tracking systems to ens
 """
 
 import asyncio
-import logging
 from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext
 from typing import Any, Literal, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI  # Add ExchangeAPI
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.validation.models.discrepancy_detail import (
@@ -20,7 +20,7 @@ from cyberdelta.validation.models.discrepancy_detail import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Type Aliases for parsed position data and errors
 type ErrorDict = dict[Literal["error", "message", "raw_data"], Any]
@@ -169,7 +169,13 @@ class PositionReconciliationSystem:
         for i, task_result_any in enumerate(results_any_list):
             exchange_name: str = exchange_keys[i]
             if isinstance(task_result_any, Exception):
-                logger.error(f"Reconciliation task for {exchange_name} failed: {task_result_any}")
+                logger.error(
+                    "reconciliation_task_failed",
+                    action="reconcile",
+                    exchange_name=exchange_name,
+                    error=str(task_result_any),
+                    message=f"Reconciliation task for {exchange_name} failed: {task_result_any}",
+                )
                 results_dict[exchange_name] = {
                     "success": False,
                     "error": str(task_result_any),
@@ -180,8 +186,14 @@ class PositionReconciliationSystem:
                 results_dict[exchange_name] = cast(dict[str, Any], task_result_any)
             else:
                 logger.error(
-                    f"Unexpected result type from gather for {exchange_name}: "
-                    f"{type(task_result_any)}",
+                    "unexpected_reconciliation_result",
+                    action="reconcile",
+                    exchange_name=exchange_name,
+                    result_type=type(task_result_any).__name__,
+                    message=(
+                        f"Unexpected result type from gather for {exchange_name}: "
+                        f"{type(task_result_any)}"
+                    ),
                 )
                 results_dict[exchange_name] = {
                     "success": False,
@@ -251,12 +263,22 @@ class PositionReconciliationSystem:
         self.discrepancy_history.append(historical_record)
 
         logger.warning(
-            f"Position discrepancy recorded: {historical_record.exchange_id} "
-            f"{historical_record.detail.symbol} "
-            f"Type: {historical_record.detail.discrepancy_type} "
-            f"[Exchange Value: {historical_record.detail.exchange_value}, "
-            f"Local Value: {historical_record.detail.local_value}] "
-            f"Details: {historical_record.detail.details or 'N/A'}",
+            "position_discrepancy_recorded",
+            action="record",
+            exchange_id=historical_record.exchange_id,
+            symbol=historical_record.detail.symbol,
+            discrepancy_type=historical_record.detail.discrepancy_type,
+            exchange_value=historical_record.detail.exchange_value,
+            local_value=historical_record.detail.local_value,
+            details=historical_record.detail.details or "N/A",
+            message=(
+                f"Position discrepancy recorded: {historical_record.exchange_id} "
+                f"{historical_record.detail.symbol} Type: "
+                f"{historical_record.detail.discrepancy_type} "
+                f"[Exchange Value: {historical_record.detail.exchange_value}, "
+                f"Local Value: {historical_record.detail.local_value}] "
+                f"Details: {historical_record.detail.details or 'N/A'}"
+            ),
         )
 
         return historical_record
@@ -313,8 +335,14 @@ class PositionReconciliationSystem:
         # We are primarily correcting size discrepancies here.
         if discrepancy_detail.discrepancy_type != "size":
             logger.debug(
-                f"Skipping correction for non-size discrepancy type: "
-                f"{discrepancy_detail.discrepancy_type} for symbol {discrepancy_detail.symbol}",
+                "skipping_non_size_correction",
+                action="correct",
+                discrepancy_type=discrepancy_detail.discrepancy_type,
+                symbol=discrepancy_detail.symbol,
+                message=(
+                    f"Skipping correction for non-size discrepancy type: "
+                    f"{discrepancy_detail.discrepancy_type} for symbol {discrepancy_detail.symbol}"
+                ),
             )
             return
 
@@ -336,8 +364,13 @@ class PositionReconciliationSystem:
         exchange_value_str = discrepancy_detail.exchange_value
         if exchange_value_str is None:
             logger.warning(
-                f"Skipping discrepancy for {symbol} due to missing "
-                f"'exchange_value' in DiscrepancyDetail",
+                "missing_exchange_value",
+                action="parse",
+                symbol=symbol,
+                message=(
+                    f"Skipping discrepancy for {symbol} due to missing 'exchange_value' "
+                    f"in DiscrepancyDetail"
+                ),
             )
             return None
 
@@ -345,8 +378,14 @@ class PositionReconciliationSystem:
             return Decimal(exchange_value_str)
         except InvalidOperation:
             logger.warning(
-                f"Could not parse 'exchange_value' from DiscrepancyDetail for {symbol} "
-                f"as Decimal: {exchange_value_str}",
+                "exchange_value_parse_failed",
+                action="parse",
+                symbol=symbol,
+                exchange_value_str=exchange_value_str,
+                message=(
+                    f"Could not parse 'exchange_value' from DiscrepancyDetail for {symbol} "
+                    f"as Decimal: {exchange_value_str}"
+                ),
             )
             return None
 
@@ -766,11 +805,21 @@ class PositionReconciliationSystem:
     async def _reconcile_exchange(self, exchange: str) -> dict[str, Any]:
         """Reconcile positions for a single exchange."""
         now = datetime.now(UTC)
-        self.logger.debug(f"PRS._reconcile_exchange: Starting for {exchange}")
+        self.logger.debug(
+            "position_reconciliation_start",
+            action="reconcile_exchange",
+            exchange=exchange,
+            message=f"PRS._reconcile_exchange: Starting for {exchange}",
+        )
 
         api_client = self._portfolio_tracker.api_clients.get(exchange)
         if not api_client:
-            self.logger.warning(f"PRS._reconcile_exchange: No API client for {exchange}, skipping.")
+            self.logger.warning(
+                "no_api_client_for_exchange",
+                action="reconcile_exchange",
+                exchange=exchange,
+                message=f"PRS._reconcile_exchange: No API client for {exchange}, skipping.",
+            )
             return {
                 "success": False,
                 "error": f"No API client registered for {exchange}",
@@ -783,7 +832,14 @@ class PositionReconciliationSystem:
             exchange_positions_list = (
                 await api_client.get_positions()
             )  # Returns list[DerivativePosition]
-            logger.info(f"Raw exchange positions from {exchange}: {exchange_positions_list}")
+            logger.info(
+                "raw_exchange_positions_fetched",
+                action="reconcile_exchange",
+                exchange=exchange,
+                position_count=len(exchange_positions_list),
+                positions=exchange_positions_list,
+                message=f"Raw exchange positions from {exchange}: {exchange_positions_list}",
+            )
 
             # 2. Fill history-derived positions (REMOVED - Incorrect dependency/method)
             # fill_positions: list[DerivativePosition] = [] # Unused
@@ -877,7 +933,13 @@ class PositionReconciliationSystem:
         ):  # result_item is list[DerivativePosition] | BaseException
             exchange_id = exchange_ids[i]  # exchange_id is str
             if isinstance(result_item, Exception):
-                logger.error(f"Failed to fetch positions from {exchange_id}: {result_item}")
+                logger.error(
+                    "position_fetch_failed",
+                    action="fetch_api_positions",
+                    exchange_id=exchange_id,
+                    error=str(result_item),
+                    message=f"Failed to fetch positions from {exchange_id}: {result_item}",
+                )
                 positions[exchange_id] = {"error": str(result_item)}  # Store error
             else:
                 # result_item is list[DerivativePosition] here
@@ -1057,7 +1119,12 @@ class PositionReconciliationSystem:
         )
 
         if not reconciliation_tasks:
-            logger.info(f"No symbols to reconcile for {exchange_id}.")
+            logger.info(
+                "no_symbols_to_reconcile",
+                action="reconcile_positions",
+                exchange_id=exchange_id,
+                message=f"No symbols to reconcile for {exchange_id}.",
+            )
             return overall_results
 
         # Execute reconciliation and process results

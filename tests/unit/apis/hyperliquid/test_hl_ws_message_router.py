@@ -321,14 +321,33 @@ class TestHyperliquidWsMessageRouter:
 
             # Should be called twice (once for each control message)
             assert mock_logger.debug.call_count == 2
-            mock_logger.debug.assert_any_call(
-                "[Hyperliquid] Control message on 'pong': "
-                "{'channel': 'pong', 'data': {'status': 'ok'}}",
+
+            # Check that structured logging calls were made
+            call_args_list = mock_logger.debug.call_args_list
+
+            # Find calls for both channels
+            pong_calls = [call for call in call_args_list if call[1].get("channel") == "pong"]
+            subscription_calls = [
+                call for call in call_args_list if call[1].get("channel") == "subscriptionResponse"
+            ]
+
+            assert len(pong_calls) == 1, "Expected one pong control message log"
+            assert len(subscription_calls) == 1, (
+                "Expected one subscriptionResponse control message log"
             )
-            mock_logger.debug.assert_any_call(
-                "[Hyperliquid] Control message on 'subscriptionResponse': "
-                "{'channel': 'subscriptionResponse', 'data': {'status': 'ok'}}",
-            )
+
+            # Check the structure of the calls
+            pong_call = pong_calls[0]
+            assert pong_call[0][0] == "control_message_received"
+            assert pong_call[1]["action"] == "handle_control_message"
+            assert pong_call[1]["exchange"] == "Hyperliquid"
+            assert pong_call[1]["channel"] == "pong"
+
+            subscription_call = subscription_calls[0]
+            assert subscription_call[0][0] == "control_message_received"
+            assert subscription_call[1]["action"] == "handle_control_message"
+            assert subscription_call[1]["exchange"] == "Hyperliquid"
+            assert subscription_call[1]["channel"] == "subscriptionResponse"
         mock_app_handler.assert_not_called()
 
     @pytest.mark.asyncio

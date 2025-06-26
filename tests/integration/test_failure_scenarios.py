@@ -12,6 +12,7 @@ import pytest
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config import AppSettings  # Updated import
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution
 from cyberdelta.core.models import (
     SpotBalance,
@@ -38,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Fixtures will be reused from tests/integration/conftest.py
 

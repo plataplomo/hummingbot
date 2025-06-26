@@ -12,18 +12,18 @@ Security Compliance:
 """
 
 import asyncio
-import logging
 from typing import Any
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.config.structlog_config import get_logger
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:

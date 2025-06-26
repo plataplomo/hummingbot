@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
@@ -126,12 +126,23 @@ class MarketOrder:
             return order
 
         except TimeoutError as e:
-            logger.error(f"Market order timed out after {self._config.order_timeout_seconds}s")
+            logger.error(
+                "market_order_timeout",
+                action="execute",
+                timeout_seconds=self._config.order_timeout_seconds,
+                message=f"Market order timed out after {self._config.order_timeout_seconds}s",
+            )
             raise MarketOrderError(
                 f"Market order timed out after {self._config.order_timeout_seconds}s"
             ) from e
         except Exception as e:
-            logger.error(f"Market order execution failed: {e}", exc_info=True)
+            logger.error(
+                "market_order_execution_failed",
+                action="execute",
+                error=str(e),
+                message=f"Market order execution failed: {e}",
+                exc_info=True,
+            )
             raise
 
     def _log_execution_result(self, order: Order) -> None:

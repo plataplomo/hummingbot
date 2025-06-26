@@ -45,7 +45,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.typing import ParsedJsonResponse
 

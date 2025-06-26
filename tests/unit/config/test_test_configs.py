@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import SecretsConfig
 
 

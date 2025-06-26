@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from cyberdelta.core.models.derivative_position import BackpackPositionDetails
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
 
 

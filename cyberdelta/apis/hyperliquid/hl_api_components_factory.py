@@ -25,9 +25,9 @@ from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import Hyperliqu
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -145,7 +145,13 @@ class HyperliquidAPIComponentsFactory:
                     is_mainnet_environment=self.exchange_config.is_mainnet_environment,
                 )
             except ValueError as e:  # Catch init errors from Authenticator
-                logger.error(f"Failed to initialize HyperliquidEip712Authenticator: {e}")
+                logger.error(
+                    "authenticator_initialization_failed",
+                    action="init_authenticator",
+                    authenticator_type="HyperliquidEip712Authenticator",
+                    error=str(e),
+                    message=f"Failed to initialize HyperliquidEip712Authenticator: {e}",
+                )
                 return None
         else:
             logger.warning(

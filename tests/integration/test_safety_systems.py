@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.config import AppSettings  # Updated import
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler  # Added DataHandler
 from cyberdelta.core.execution_handler import (
     ExecutionHandler,
@@ -53,7 +54,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)  # ADD logger instance
+logger = get_logger(__name__)  # ADD logger instance
 # ============================
 
 # Fixtures will be reused from tests/integration/conftest.py

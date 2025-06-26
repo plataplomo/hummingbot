@@ -5,16 +5,16 @@ when abnormal conditions are detected, preventing cascading failures
 and limiting potential losses.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 from typing import Any
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Add the custom exception class
@@ -71,15 +71,37 @@ class CircuitBreaker(ABC):
             # Use timezone-aware datetime
             self.trip_time = datetime.now(UTC)
             self.trip_reason = reason
-            logger.warning(f"Circuit breaker '{self.name}' tripped. Reason: {reason}")
+            logger.warning(
+                "circuit_breaker_tripped",
+                breaker_name=self.name,
+                reason=reason,
+                trip_count=self.trip_count,
+                action="blocking_operations",
+                message=f"Circuit breaker '{self.name}' tripped. Reason: {reason}",
+            )
         else:
             # If already open, maybe update reason if different or just log repeated trip
             if self.trip_reason != reason:
-                logger.warning(f"Circuit breaker '{self.name}' trip reason updated to: {reason}")
+                logger.warning(
+                    "circuit_breaker_reason_updated",
+                    breaker_name=self.name,
+                    old_reason=self.trip_reason,
+                    new_reason=reason,
+                    trip_count=self.trip_count,
+                    action="reason_updated",
+                    message=f"Circuit breaker '{self.name}' trip reason updated to: {reason}",
+                )
                 self.trip_reason = reason
             else:
                 logger.warning(
-                    f"Circuit breaker '{self.name}' tripped again for the same reason: {reason}",
+                    "circuit_breaker_tripped_again",
+                    breaker_name=self.name,
+                    reason=reason,
+                    trip_count=self.trip_count,
+                    action="repeated_trip",
+                    message=(
+                        f"Circuit breaker '{self.name}' tripped again for the same reason: {reason}"
+                    ),
                 )
                 # Optionally update trip_time on subsequent trips?
                 # self.trip_time = datetime.now(timezone.utc)
@@ -95,8 +117,16 @@ class CircuitBreaker(ABC):
                 (self.last_reset_time - self.trip_time).total_seconds() if self.trip_time else 0
             )
             logger.info(
-                f"Circuit breaker '{self.name}' reset after {trip_duration:.1f} seconds. "
-                f"Previous reason: {self.trip_reason}",
+                "circuit_breaker_reset",
+                breaker_name=self.name,
+                trip_duration_seconds=round(trip_duration, 1),
+                previous_reason=self.trip_reason,
+                trip_count=self.trip_count,
+                action="breaker_reset",
+                message=(
+                    f"Circuit breaker '{self.name}' reset after {trip_duration:.1f} seconds. "
+                    f"Previous reason: {self.trip_reason}"
+                ),
             )
 
         self.trip_time = None
@@ -110,17 +140,38 @@ class CircuitBreaker(ABC):
 
         """
         now = datetime.now(UTC)
-        logger.info(
-            f"Breaker {self.name}: Checking allow_operation. State={self.state.name}, "
-            f"Now={now}, TripTime={self.trip_time}, Cooldown={self.cooldown_seconds}",
+        logger.debug(
+            "circuit_breaker_checking_operation",
+            breaker_name=self.name,
+            state=self.state.name,
+            current_time=now.isoformat(),
+            trip_time=self.trip_time.isoformat() if self.trip_time else None,
+            cooldown_seconds=self.cooldown_seconds,
+            action="checking_allow_operation",
+            message=f"Breaker {self.name}: Checking allow_operation. State={self.state.name}",
         )
         if self.state == BreakerState.OPEN:
             if self.trip_time is None:
-                logger.error(f"Breaker {self.name} is OPEN but trip_time is None!")
+                logger.error(
+                    "circuit_breaker_inconsistent_state",
+                    breaker_name=self.name,
+                    state=self.state.name,
+                    trip_time=self.trip_time,
+                    action="invalid_state_detected",
+                    message=f"Breaker {self.name} is OPEN but trip_time is None!",
+                )
                 return False
             if (now - self.trip_time).total_seconds() >= self.cooldown_seconds:
                 self.state = BreakerState.HALF_OPEN
-                logger.info(f"Circuit breaker '{self.name}' entering half-open state for testing")
+                logger.info(
+                    "circuit_breaker_entering_half_open",
+                    breaker_name=self.name,
+                    previous_state="OPEN",
+                    new_state="HALF_OPEN",
+                    cooldown_elapsed=True,
+                    action="state_transition",
+                    message=f"Circuit breaker '{self.name}' entering half-open state for testing",
+                )
 
         # Only allow operations if closed or half-open
         return self.state != BreakerState.OPEN
@@ -432,8 +483,16 @@ class APIErrorBreaker(CircuitBreaker):
         ):
             # Consider this a strong signal for recovery
             logger.info(
-                f"APIErrorBreaker {self.name}: {self.consecutive_success_count} consecutive "
-                f"successful API calls while in half-open state",
+                "api_breaker_consecutive_successes",
+                breaker_name=self.name,
+                consecutive_success_count=self.consecutive_success_count,
+                state="HALF_OPEN",
+                action="recovery_monitoring",
+                message=(
+                    f"APIErrorBreaker {self.name}: "
+                    f"{self.consecutive_success_count} consecutive successful API calls "
+                    f"while in half-open state"
+                ),
             )
 
     def check(self, *args: object, **kwargs: object) -> None:
@@ -490,21 +549,44 @@ class APIErrorBreaker(CircuitBreaker):
         # Consider both error count and success streak
         if len(recent_errors) < self.error_threshold // 2:
             logger.info(
-                f"APIErrorBreaker {self.name} recovery check: {len(recent_errors)} recent errors, "
-                f"{self.consecutive_success_count} consecutive successes - recovery allowed",
+                "api_breaker_recovery_allowed",
+                breaker_name=self.name,
+                recent_error_count=len(recent_errors),
+                consecutive_success_count=self.consecutive_success_count,
+                action="recovery_check",
+                message=(
+                    f"APIErrorBreaker {self.name} recovery check: "
+                    f"{len(recent_errors)} recent errors, "
+                    f"{self.consecutive_success_count} consecutive successes - recovery allowed"
+                ),
             )
             return True
         elif success_recovery:
             logger.info(
-                f"APIErrorBreaker {self.name} recovery check: Despite {len(recent_errors)} "
-                f"recent errors, has {self.consecutive_success_count} consecutive successes "
-                f"- recovery allowed",
+                "api_breaker_recovery_allowed_with_errors",
+                breaker_name=self.name,
+                recent_error_count=len(recent_errors),
+                consecutive_success_count=self.consecutive_success_count,
+                action="recovery_check",
+                message=(
+                    f"APIErrorBreaker {self.name} recovery check: "
+                    f"Despite {len(recent_errors)} recent errors, has "
+                    f"{self.consecutive_success_count} consecutive successes - recovery allowed"
+                ),
             )
             return True
         else:
             logger.info(
-                f"APIErrorBreaker {self.name} recovery check: {len(recent_errors)} recent errors, "
-                f"{self.consecutive_success_count} consecutive successes - recovery rejected",
+                "api_breaker_recovery_rejected",
+                breaker_name=self.name,
+                recent_error_count=len(recent_errors),
+                consecutive_success_count=self.consecutive_success_count,
+                action="recovery_check",
+                message=(
+                    f"APIErrorBreaker {self.name} recovery check: "
+                    f"{len(recent_errors)} recent errors, "
+                    f"{self.consecutive_success_count} consecutive successes - recovery rejected"
+                ),
             )
             return False
 
@@ -541,8 +623,14 @@ class LiquidityBreaker(CircuitBreaker):
         # Extract current_liquidity from args
         if not args or not isinstance(args[0], int | float):
             logger.error(
-                f"LiquidityBreaker {self.name}: check() requires current_liquidity "
-                f"as first argument",
+                "liquidity_breaker_missing_argument",
+                breaker_name=self.name,
+                required_argument="current_liquidity",
+                action="argument_validation",
+                message=(
+                    f"LiquidityBreaker {self.name}: "
+                    f"check() requires current_liquidity as first argument"
+                ),
             )
             return
 
@@ -601,7 +689,11 @@ class CircuitBreakerSystem:
         # === Load Global API Error Breaker ===
         # Check if circuit breakers are enabled in safety_systems
         if not self.config.safety_systems.circuit_breakers.enabled:
-            logger.info("Circuit breakers are disabled in config.")
+            logger.info(
+                "circuit_breakers_disabled",
+                action="system_configuration",
+                message="Circuit breakers are disabled in config",
+            )
             return
 
         # Create a global API error breaker using the global settings
@@ -615,7 +707,12 @@ class CircuitBreakerSystem:
             cooldown_seconds=global_timeout,
         )
         self.register_breaker(self.global_api_error_breaker)
-        logger.info(f"Initialized global API error breaker: {self.global_api_error_breaker.name}")
+        logger.info(
+            "global_api_error_breaker_initialized",
+            breaker_name=self.global_api_error_breaker.name,
+            action="system_initialization",
+            message=f"Initialized global API error breaker: {self.global_api_error_breaker.name}",
+        )
 
         # === Load Exchange-Specific Breakers ===
         exchanges_config = self.config.exchanges
@@ -626,7 +723,12 @@ class CircuitBreakerSystem:
 
         for exchange_id, exchange_config in exchanges_config.items():
             if not exchange_config.enabled:
-                logger.debug(f"Exchange '{exchange_id}' is disabled, skipping circuit breakers.")
+                logger.debug(
+                    "exchange_disabled_skipping_breakers",
+                    exchange_id=exchange_id,
+                    action="skipping_initialization",
+                    message=f"Exchange '{exchange_id}' is disabled, skipping circuit breakers",
+                )
                 continue
 
             # Create an API error breaker for this exchange
@@ -642,9 +744,19 @@ class CircuitBreakerSystem:
             exchange_level_breakers = self.exchange_breakers.setdefault(exchange_id, {})
             exchange_level_breakers["api_errors"] = exchange_api_breaker
 
-            logger.info(f"Initialized API error breaker for exchange '{exchange_id}'")
+            logger.info(
+                "api_error_breaker_initialized",
+                exchange_id=exchange_id,
+                action="breaker_initialization",
+                message=f"Initialized API error breaker for exchange '{exchange_id}'",
+            )
 
-        logger.info(f"Circuit breaker system initialized with {len(self.breakers)} breakers.")
+        logger.info(
+            "circuit_breaker_system_initialized",
+            breaker_count=len(self.breakers),
+            action="system_initialization",
+            message=f"Circuit breaker system initialized with {len(self.breakers)} breakers.",
+        )
 
     def register_breaker(self, breaker: CircuitBreaker) -> None:
         """Register a new circuit breaker with the system.
@@ -654,7 +766,12 @@ class CircuitBreakerSystem:
 
         """
         self.breakers[breaker.name] = breaker
-        logger.debug(f"Registered circuit breaker: {breaker.name}")
+        logger.debug(
+            "circuit_breaker_registered",
+            breaker_name=breaker.name,
+            action="breaker_registration",
+            message=f"Registered circuit breaker: {breaker.name}",
+        )
 
     def get_breaker(self, name: str) -> CircuitBreaker | None:
         """Get a circuit breaker by name.
@@ -717,7 +834,13 @@ class CircuitBreakerSystem:
         for breaker_name, breaker in self.breakers.items():
             if not breaker.allow_operation():
                 reason = f"Global breaker '{breaker_name}' is OPEN due to: {breaker.trip_reason}"
-                logger.warning(f"Execution blocked: {reason}")
+                logger.warning(
+                    "execution_blocked_by_global_breaker",
+                    breaker_name=breaker_name,
+                    reason=reason,
+                    action="blocking_execution",
+                    message=f"Execution blocked: {reason}",
+                )
                 return False, reason
 
             # Test recovery for HALF_OPEN global breakers
@@ -726,10 +849,22 @@ class CircuitBreakerSystem:
                 if now >= breaker.trip_time + cooldown_time:
                     if not breaker.test_recovery():
                         reason = f"Global breaker '{breaker_name}' failed recovery test."
-                        logger.warning(f"Execution blocked: {reason}")
+                        logger.warning(
+                            "execution_blocked_by_recovery_test",
+                            breaker_name=breaker_name,
+                            reason=reason,
+                            action="blocking_execution",
+                            message=f"Execution blocked: {reason}",
+                        )
                         return False, reason
                     else:
-                        logger.info(f"Global breaker '{breaker_name}' recovered and is now CLOSED.")
+                        logger.info(
+                            "global_breaker_recovered",
+                            breaker_name=breaker_name,
+                            new_state="CLOSED",
+                            action="breaker_recovery",
+                            message=f"Global breaker '{breaker_name}' recovered and is now CLOSED.",
+                        )
 
         return True, None
 
@@ -778,7 +913,14 @@ class CircuitBreakerSystem:
                 f"Exchange breaker '{breaker.name}' for {exchange} is OPEN due to: "
                 f"{breaker.trip_reason}"
             )
-            logger.warning(f"Execution blocked for {exchange}: {reason}")
+            logger.warning(
+                "execution_blocked_by_exchange_breaker",
+                exchange=exchange,
+                breaker_name=breaker.name,
+                reason=reason,
+                action="blocking_execution",
+                message=f"Execution blocked for {exchange}: {reason}",
+            )
             return False, reason
 
         # Test recovery for HALF_OPEN exchange breakers
@@ -790,7 +932,14 @@ class CircuitBreakerSystem:
                     reason = (
                         f"Exchange breaker '{breaker.name}' for {exchange} failed recovery test."
                     )
-                    logger.warning(f"Execution blocked for {exchange}: {reason}")
+                    logger.warning(
+                        "execution_blocked_by_exchange_recovery",
+                        exchange=exchange,
+                        breaker_name=breaker.name,
+                        reason=reason,
+                        action="blocking_execution",
+                        message=f"Execution blocked for {exchange}: {reason}",
+                    )
                     return False, reason
                 else:
                     logger.info(
@@ -808,7 +957,13 @@ class CircuitBreakerSystem:
             error_message: Description of the error
 
         """
-        logger.debug(f"Recording API error for {exchange}: {error_message}")
+        logger.debug(
+            "recording_api_error",
+            exchange=exchange,
+            error_message=error_message,
+            action="error_recording",
+            message=f"Recording API error for {exchange}: {error_message}",
+        )
 
         # Record with global breaker if it exists
         global_breaker = getattr(self, "global_api_error_breaker", None)
@@ -931,7 +1086,13 @@ class CircuitBreakerSystem:
             error_message: Description of the critical failure
 
         """
-        logger.error(f"CRITICAL FAILURE for {exchange}: {error_message}")
+        logger.error(
+            "critical_failure_recorded",
+            exchange=exchange,
+            error_message=error_message,
+            action="critical_failure",
+            message=f"CRITICAL FAILURE for {exchange}: {error_message}",
+        )
 
         # Trip the exchange-specific API breaker if it exists
         exchange_api_breaker_item = self.get_exchange_breaker(exchange, "api_errors")
@@ -1031,9 +1192,21 @@ class CircuitBreakerSystem:
             )
             # Log if it was previously open and now closed
             if was_open and breaker.state == BreakerState.CLOSED:
-                logger.info(f"Breaker '{name}' successfully transitioned from OPEN to CLOSED.")
+                logger.info(
+                    "breaker_transition_complete",
+                    breaker_name=name,
+                    previous_state="OPEN",
+                    new_state="CLOSED",
+                    action="state_transition",
+                    message=f"Breaker '{name}' successfully transitioned from OPEN to CLOSED.",
+                )
             return True
-        logger.warning(f"Breaker '{name}' not found for reset.")
+        logger.warning(
+            "breaker_not_found_for_reset",
+            breaker_name=name,
+            action="reset_attempt",
+            message=f"Breaker '{name}' not found for reset.",
+        )
         return False
 
     def reset_exchange_breakers(self, exchange: str) -> int:
@@ -1048,7 +1221,12 @@ class CircuitBreakerSystem:
         """
         exchange_level_breakers_map = self.exchange_breakers.get(exchange)
         if not exchange_level_breakers_map:
-            logger.info(f"No breakers found for exchange '{exchange}' to reset.")
+            logger.info(
+                "no_exchange_breakers_found",
+                exchange=exchange,
+                action="reset_attempt",
+                message=f"No breakers found for exchange '{exchange}' to reset.",
+            )
             return 0
 
         reset_count = 0
@@ -1081,7 +1259,13 @@ class CircuitBreakerSystem:
                     reset_count += 1
 
         if reset_count > 0:
-            logger.info(f"Reset {reset_count} breakers for exchange '{exchange}'.")
+            logger.info(
+                "exchange_breakers_reset_complete",
+                exchange=exchange,
+                reset_count=reset_count,
+                action="reset_complete",
+                message=f"Reset {reset_count} breakers for exchange '{exchange}'.",
+            )
         else:
             logger.info(
                 f"No breakers were actively reset for exchange '{exchange}' "
@@ -1153,7 +1337,12 @@ class CircuitBreakerSystem:
                 f"New state: {breaker.state.name}",
             )
         if reset_count > 0:
-            logger.info(f"Reset {reset_count} total breakers.")
+            logger.info(
+                "all_breakers_reset_complete",
+                reset_count=reset_count,
+                action="mass_reset_complete",
+                message=f"Reset {reset_count} total breakers.",
+            )
         else:
             logger.info("No breakers found to reset.")
         return reset_count
@@ -1165,7 +1354,12 @@ class CircuitBreakerSystem:
             # The original code `for breaker in breaker:` suggested nesting which seems incorrect.
             # If `self.breakers[key]` can hold multiple breakers, the structure needs review.
             # For now, assume direct check on the registered instance.
-            logger.debug(f"Checking breaker: {breaker_key}")
+            logger.debug(
+                "checking_breaker",
+                breaker_key=breaker_key,
+                action="breaker_check",
+                message=f"Checking breaker: {breaker_key}",
+            )
             breaker_instance.check()
 
     def _create_breaker_from_config(
@@ -1189,20 +1383,43 @@ class CircuitBreakerSystem:
 
         except KeyError as e:
             logger.error(
-                f"Configuration key error for {name} (expected key: {e}). Details: "
-                f"{breaker_specific_config}",
+                "breaker_config_key_error",
+                breaker_name=name,
+                missing_key=str(e),
+                config_details=breaker_specific_config,
+                action="configuration_error",
+                message=(
+                    f"Configuration key error for "
+                    f"{name} (expected key: {e}). Details: {breaker_specific_config}"
+                ),
             )
             return None
         except ValueError as e:
             logger.error(
-                f"Configuration value error for {name} (e.g., type conversion failed: {e}). "
-                f"Details: {breaker_specific_config}",
+                "breaker_config_value_error",
+                breaker_name=name,
+                error=str(e),
+                config_details=(breaker_specific_config),
+                action="configuration_error",
+                message=(
+                    f"Configuration value error for "
+                    f"{name} (e.g., type conversion failed: {e}). "
+                    f"Details: {breaker_specific_config}"
+                ),
             )
             return None
         except Exception as e:
             logger.error(
-                f"Generic error creating breaker {name} of type {breaker_class.__name__}: {e} "
-                f"(Config: {breaker_specific_config})",
+                "breaker_creation_error",
+                breaker_name=name,
+                breaker_class=breaker_class.__name__,
+                error=str(e),
+                config_details=breaker_specific_config,
+                action="creation_error",
+                message=(
+                    f"Generic error creating breaker {name} of type {breaker_class.__name__}: "
+                    f"{e} (Config: {breaker_specific_config})"
+                ),
             )
             return None
 
@@ -1224,8 +1441,16 @@ class CircuitBreakerSystem:
 
         if not isinstance(cooldown_raw, int | float | str):
             logger.error(
-                f"Cooldown value for breaker '{name}' is of an unexpected type: {cooldown_raw} "
-                f"(type: {type(cooldown_raw)}). Using system default 300s.",
+                "breaker_cooldown_type_error",
+                breaker_name=name,
+                cooldown_value=cooldown_raw,
+                actual_type=type(cooldown_raw).__name__,
+                default_cooldown=300,
+                action="configuration_error",
+                message=(
+                    f"Cooldown value for breaker '{name}' is of an unexpected type: "
+                    f"{cooldown_raw} (type: {type(cooldown_raw)}). Using system default 300s."
+                ),
             )
             cooldown_raw = 300  # Fallback
 
@@ -1233,8 +1458,15 @@ class CircuitBreakerSystem:
             cooldown = int(float(str(cooldown_raw)))  # Robust parsing: str -> float -> int
         except ValueError:
             logger.error(
-                f"Could not parse cooldown value '{cooldown_raw}' for breaker '{name}'. "
-                "Using system default 300s.",
+                "breaker_cooldown_parse_error",
+                breaker_name=name,
+                cooldown_value=str(cooldown_raw),
+                default_cooldown=300,
+                action="configuration_error",
+                message=(
+                    f"Could not parse cooldown value '{cooldown_raw}' for "
+                    f"breaker '{name}'. Using system default 300s."
+                ),
             )
             cooldown = 300
 
@@ -1258,8 +1490,15 @@ class CircuitBreakerSystem:
             return self._create_liquidity_breaker(name, breaker_specific_config, cooldown)
         else:
             logger.error(
-                f"Attempted to create unknown or unhandled breaker class: "
-                f"{breaker_class.__name__} for config key '{name}'",
+                "unknown_breaker_class",
+                breaker_class=breaker_class.__name__,
+                config_key=name,
+                action="creation_error",
+                message=(
+                    f"Attempted to create unknown or unhandled breaker class: "
+                    f"{breaker_class.__name__} for "
+                    f"config key '{name}'"
+                ),
             )
             return None
 

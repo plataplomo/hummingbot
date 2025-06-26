@@ -1,0 +1,187 @@
+"""Structured logging configuration for CyberDeltaEngine."""
+
+from __future__ import annotations
+
+import logging
+import re
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import structlog
+from structlog.contextvars import merge_contextvars
+from structlog.processors import CallsiteParameter, CallsiteParameterAdder
+from structlog.typing import EventDict, Processor
+
+from cyberdelta.config.models.config_models import AppSettings
+
+
+def add_timestamp(_: object, __: str, event_dict: EventDict) -> EventDict:
+    """Add ISO format timestamp to log events."""
+    event_dict["timestamp"] = datetime.now(UTC).isoformat()
+    return event_dict
+
+
+def censor_sensitive_data(_: object, __: str, event_dict: EventDict) -> EventDict:
+    """Remove or mask sensitive data from logs."""
+    sensitive_keys = {
+        "api_key",
+        "secret",
+        "password",
+        "private_key",
+        "seed_phrase",
+        "auth_token",
+        "signature",
+    }
+
+    for key in list(event_dict.keys()):
+        if any(sensitive in key.lower() for sensitive in sensitive_keys):
+            event_dict[key] = "***REDACTED***"
+
+    return event_dict
+
+
+def strip_ansi_codes(_: object, __: str, event_dict: EventDict) -> EventDict:
+    """Strip ANSI color codes from all string values in event dict."""
+    ansi_pattern = re.compile(r"\x1b\[[0-9;]*m")
+
+    def strip_value(
+        value: str | dict[str, Any] | list[Any] | int | float | bool | None,
+    ) -> str | dict[str, Any] | list[Any] | int | float | bool | None:
+        if isinstance(value, str):
+            return ansi_pattern.sub("", value)
+        elif isinstance(value, dict):
+            return {k: strip_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [strip_value(v) for v in value]
+        else:
+            return value
+
+    return {key: strip_value(value) for key, value in event_dict.items()}
+
+
+def setup_structlog(app_settings: AppSettings) -> None:
+    """Configure structlog for the application.
+
+    Args:
+        app_settings: Application configuration containing logging settings
+    """
+    # Determine log level
+    log_level = getattr(logging, app_settings.general.log_level.upper(), logging.INFO)
+
+    # Configure standard logging first
+    logging.basicConfig(
+        format="%(message)s",
+        stream=sys.stdout,
+        level=log_level,
+        force=True,  # Force reconfiguration
+    )
+
+    # Setup file logging if configured
+    if app_settings.general.log_file:
+        setup_file_logging(app_settings.general.log_file, log_level)
+
+    # Base processors
+    base_processors: list[Processor] = [
+        # Add timestamp
+        add_timestamp,
+        # Merge context variables
+        merge_contextvars,
+        # Add callsite parameters
+        CallsiteParameterAdder(
+            parameters=[
+                CallsiteParameter.FILENAME,
+                CallsiteParameter.LINENO,
+                CallsiteParameter.FUNC_NAME,
+            ],
+            additional_ignores=["structlog", "logging"],
+        ),
+        # Censor sensitive data
+        censor_sensitive_data,
+        # Process positional arguments
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        # Process stack info
+        structlog.processors.StackInfoRenderer(),
+        # Process exceptions
+        structlog.processors.format_exc_info,
+        # Add log level and logger name
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+    ]
+
+    # Configure structlog for console output only
+    # File output is handled by stdlib logging handlers with ProcessorFormatter
+    structlog.configure(
+        processors=base_processors
+        + [
+            # Render as colored console output
+            structlog.dev.ConsoleRenderer(colors=True),
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+
+def setup_file_logging(log_file: str, level: int) -> None:
+    """Setup file logging handler with JSON output.
+
+    Args:
+        log_file: Path to log file
+        level: Logging level
+    """
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Remove any existing file handlers
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            root_logger.removeHandler(handler)
+
+    # Create file handler
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(level)
+
+    # Create processor formatter for clean JSON output
+    # Use separate processors that strip ANSI codes before JSON rendering
+    formatter = structlog.stdlib.ProcessorFormatter(
+        processors=[
+            # Extract from structlog's context and remove meta
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            # Strip ANSI codes before JSON rendering
+            strip_ansi_codes,
+            # Render as clean JSON
+            structlog.processors.JSONRenderer(),
+        ],
+        foreign_pre_chain=[
+            # For non-structlog logs (shouldn't happen but just in case)
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            add_timestamp,
+            censor_sensitive_data,
+            strip_ansi_codes,
+        ],
+    )
+
+    file_handler.setFormatter(formatter)
+
+    # Add to root logger
+    root_logger.addHandler(file_handler)
+
+
+def get_logger(name: str | None = None, **context: object) -> structlog.BoundLogger:
+    """Get a configured structlog logger.
+
+    Args:
+        name: Logger name (defaults to module name)
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured structlog logger with context
+    """
+    logger: structlog.BoundLogger = structlog.get_logger(name)
+    if context:
+        logger = logger.bind(**context)
+    return logger

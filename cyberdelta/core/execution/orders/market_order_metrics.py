@@ -7,7 +7,7 @@ including fill rates, slippage analysis, and performance monitoring.
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderSide, OrderStatus
 
 

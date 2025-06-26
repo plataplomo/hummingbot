@@ -7,7 +7,7 @@ to target mainnet or testnet based on configuration.
 import os
 from unittest.mock import patch
 
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 

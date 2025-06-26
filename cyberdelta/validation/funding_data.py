@@ -17,6 +17,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
+def _create_typed_dict() -> dict[str, Any]:
+    """Create a properly typed empty dict for dataclass field defaults."""
+    return {}
+
+
 class SourceType(Enum):
     """Type of funding rate data source."""
 
@@ -165,7 +170,7 @@ class FundingRatePrediction:
     confidence: float
     method: str
     confidence_factors: ConfidenceFactors | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_create_typed_dict)
 
 
 @dataclass
@@ -182,7 +187,7 @@ class HistoricalTrade:
     position_size: float
     side: str  # "LONG" or "SHORT"
     is_complete: bool
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_create_typed_dict)
 
 
 class ArbitrageOpportunity(BaseModel):

@@ -7,17 +7,17 @@ and recovery in the CyberDeltaEngine trading system.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import shutil
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger: logging.Logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class StateManager:
@@ -61,7 +61,12 @@ class StateManager:
         try:
             if not os.path.exists(self.state_file):
                 logger.info(
-                    f"State file {self.state_file} does not exist, starting with empty state",
+                    "state_file_not_exists_starting_empty",
+                    state_file=self.state_file,
+                    action="starting_with_empty_state",
+                    message=(
+                        f"State file {self.state_file} does not exist, starting with empty state"
+                    ),
                 )
                 return False
 
@@ -72,25 +77,51 @@ class StateManager:
             # Verify state integrity
             if not self._verify_state_integrity(state_data):
                 logger.warning(
-                    f"State file {self.state_file} failed integrity check, "
-                    f"attempting to recover from backup",
+                    "state_integrity_check_failed",
+                    state_file=self.state_file,
+                    action="attempting_backup_recovery",
+                    message=(
+                        f"State file {self.state_file} failed integrity check, "
+                        f"attempting to recover from backup"
+                    ),
                 )
                 return self._recover_from_backup()
 
             # State is valid, update current state
             self.current_state = state_data["state"]
-            logger.info(f"Successfully loaded state from {self.state_file}")
+            logger.info(
+                "state_loaded_successfully",
+                state_file=self.state_file,
+                state_keys=list(self.current_state.keys()),
+                action="state_loaded",
+                message=f"Successfully loaded state from {self.state_file}",
+            )
 
             return True
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             logger.error(
-                f"Error decoding state file {self.state_file}, attempting to recover from backup",
+                "state_file_decode_error",
+                state_file=self.state_file,
+                error=str(e),
+                action="attempting_backup_recovery",
+                message=(
+                    f"Error decoding state file {self.state_file}, "
+                    f"attempting to recover from backup"
+                ),
+                exc_info=True,
             )
             return self._recover_from_backup()
 
         except Exception as e:
-            logger.error(f"Error loading state from {self.state_file}: {str(e)}", exc_info=True)
+            logger.error(
+                "state_loading_error",
+                state_file=self.state_file,
+                error=str(e),
+                action="attempting_backup_recovery",
+                message=f"Error loading state from {self.state_file}: {str(e)}",
+                exc_info=True,
+            )
             return self._recover_from_backup()
 
     def save_state(self, state: dict[str, Any]) -> bool:
@@ -130,11 +161,25 @@ class StateManager:
             # Update last save time
             self.last_save_time = datetime.now(UTC)
 
-            logger.info(f"Successfully saved state to {self.state_file}")
+            logger.info(
+                "state_saved_successfully",
+                state_file=self.state_file,
+                state_keys=list(state.keys()),
+                checksum=state_data["metadata"]["checksum"],
+                action="state_saved",
+                message=f"Successfully saved state to {self.state_file}",
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Error saving state to {self.state_file}: {str(e)}", exc_info=True)
+            logger.error(
+                "state_saving_error",
+                state_file=self.state_file,
+                error=str(e),
+                action="save_failed",
+                message=f"Error saving state to {self.state_file}: {str(e)}",
+                exc_info=True,
+            )
             return False
 
     def get_current_state(self) -> dict[str, Any]:
@@ -167,11 +212,25 @@ class StateManager:
             # Rotate backups (keep only the most recent ones)
             self._rotate_backups()
 
-            logger.debug(f"Created state backup at {backup_path}")
+            logger.debug(
+                "state_backup_created",
+                backup_path=backup_path,
+                timestamp=timestamp,
+                action="backup_created",
+                message=f"Created state backup at {backup_path}",
+            )
             return True
 
         except Exception as e:
-            logger.error(f"Error creating state backup: {str(e)}", exc_info=True)
+            logger.error(
+                "state_backup_creation_error",
+                backup_dir=self.backup_dir,
+                state_file=self.state_file,
+                error=str(e),
+                action="backup_failed",
+                message=f"Error creating state backup: {str(e)}",
+                exc_info=True,
+            )
             return False
 
     def _rotate_backups(self) -> None:
@@ -190,10 +249,24 @@ class StateManager:
             # Remove excess backups
             for backup_path in files[self.backup_count :]:
                 os.remove(backup_path)
-                logger.debug(f"Removed old state backup {backup_path}")
+                logger.debug(
+                    "old_backup_removed",
+                    backup_path=backup_path,
+                    backup_count_limit=self.backup_count,
+                    action="backup_rotated",
+                    message=f"Removed old state backup {backup_path}",
+                )
 
         except Exception as e:
-            logger.error(f"Error rotating backups: {str(e)}", exc_info=True)
+            logger.error(
+                "backup_rotation_error",
+                backup_dir=self.backup_dir,
+                backup_count=self.backup_count,
+                error=str(e),
+                action="rotation_failed",
+                message=f"Error rotating backups: {str(e)}",
+                exc_info=True,
+            )
 
     def _recover_from_backup(self) -> bool:
         """Attempt to recover state from a backup.
@@ -211,7 +284,12 @@ class StateManager:
                     files.append(backup_path)
 
             if not files:
-                logger.warning("No state backups available for recovery")
+                logger.warning(
+                    "no_backups_available_for_recovery",
+                    backup_dir=self.backup_dir,
+                    action="recovery_failed",
+                    message="No state backups available for recovery",
+                )
                 return False
 
             # Sort by modification time (newest first)
@@ -232,19 +310,45 @@ class StateManager:
                         # Copy backup to state file
                         shutil.copy2(backup_path, self.state_file)
 
-                        logger.info(f"Successfully recovered state from backup {backup_path}")
+                        logger.info(
+                            "state_recovered_from_backup",
+                            backup_path=backup_path,
+                            state_file=self.state_file,
+                            state_keys=list(self.current_state.keys()),
+                            action="recovery_successful",
+                            message=f"Successfully recovered state from backup {backup_path}",
+                        )
                         return True
 
                 except Exception as e:
-                    logger.warning(f"Error loading backup {backup_path}: {str(e)}")
+                    logger.warning(
+                        "backup_loading_error",
+                        backup_path=backup_path,
+                        error=str(e),
+                        action="trying_next_backup",
+                        message=f"Error loading backup {backup_path}: {str(e)}",
+                    )
                     continue
 
             # All backups failed
-            logger.error("Failed to recover state from any backup")
+            logger.error(
+                "all_backups_failed_recovery",
+                backup_dir=self.backup_dir,
+                backups_tried=len(files),
+                action="recovery_failed",
+                message="Failed to recover state from any backup",
+            )
             return False
 
         except Exception as e:
-            logger.error(f"Error during recovery process: {str(e)}", exc_info=True)
+            logger.error(
+                "recovery_process_error",
+                backup_dir=self.backup_dir,
+                error=str(e),
+                action="recovery_failed",
+                message=f"Error during recovery process: {str(e)}",
+                exc_info=True,
+            )
             return False
 
     def _verify_state_integrity(self, state_data: dict[str, Any]) -> bool:
@@ -268,8 +372,8 @@ class StateManager:
         if not isinstance(metadata_raw, dict):
             return False
 
-        # Type is now known to be dict
-        metadata: dict[str, Any] = metadata_raw
+        # Type is now known to be dict, cast it explicitly
+        metadata = cast(dict[str, Any], metadata_raw)
 
         if "timestamp" not in metadata or "checksum" not in metadata:
             return False
@@ -283,7 +387,13 @@ class StateManager:
                 if expected_checksum_raw is not None
                 else "None"
             )
-            logger.error(f"Expected checksum must be a string, got {type_name}")
+            logger.error(
+                "checksum_type_mismatch",
+                expected_type="string",
+                actual_type=type_name,
+                action="integrity_check_failed",
+                message=f"Expected checksum must be a string, got {type_name}",
+            )
             return False
 
         # Type narrowed here:

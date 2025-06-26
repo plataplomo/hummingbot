@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiohttp
 import pytest
 import pytest_asyncio
+import structlog.testing
 from aiohttp import ClientSession as RealAiohttpCliSession, WSMessage, WSMsgType
 from aiohttp.helpers import sentinel
 from pydantic import AnyUrl, BaseModel, ValidationError
@@ -22,9 +23,10 @@ from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerCon
 from cyberdelta.apis.connectivity.ws_manager import (
     WebSocketManager,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Define a dummy message handler for tests
@@ -346,10 +348,9 @@ class TestWebSocketManager:
             assert mock_sleep.call_count == max(0, retry_test_config.max_reconnect_attempts - 1)
 
             mock_logger.critical.assert_called_once()
-            assert (
-                f"Failed to connect to {retry_test_config.ws_url} after "
-                f"{retry_test_config.max_reconnect_attempts} attempts. Giving up."
-            ) in mock_logger.critical.call_args[0][0]
+            # Check structured log event name instead of message string
+            call_args = mock_logger.critical.call_args
+            assert call_args[0][0] == "connection_attempts_exhausted"
         finally:
             await retry_manager.close()
 
@@ -979,19 +980,26 @@ class TestWebSocketManagerComprehensiveErrorHandling:
             on_connected_callback=dummy_on_connected_callback,
         )
 
-        # Attempt connection - should fail and retry
-        connect_task = manager.connect()
-        if connect_task:
-            await connect_task
+        with structlog.testing.capture_logs() as captured_logs:
+            # Attempt connection - should fail and retry
+            connect_task = manager.connect()
+            if connect_task:
+                await connect_task
 
-        # Wait for connection attempts to complete
-        await asyncio.sleep(0.2)  # Allow retries to happen
+            # Wait for connection attempts to complete
+            await asyncio.sleep(0.2)  # Allow retries to happen
 
         # Should not be connected after timeout
         assert not manager.is_connected
 
-        # Should have logged timeout errors
-        assert "Connection handshake timeout" in caplog.text or "TimeoutError" in caplog.text
+        # Should have logged timeout errors in structured logs
+        all_log_messages = [str(log) for log in captured_logs]
+        timeout_logs = [
+            log
+            for log in all_log_messages
+            if "Connection handshake timeout" in log or "TimeoutError" in log
+        ]
+        assert len(timeout_logs) > 0, f"Expected timeout logs, got: {captured_logs}"
 
         await manager.close()
 
@@ -1014,13 +1022,20 @@ class TestWebSocketManagerComprehensiveErrorHandling:
             on_connected_callback=dummy_on_connected_callback,
         )
 
-        connect_task = manager.connect()
-        if connect_task:
-            await connect_task
-        await asyncio.sleep(0.2)  # Allow retries
+        with structlog.testing.capture_logs() as captured_logs:
+            connect_task = manager.connect()
+            if connect_task:
+                await connect_task
+            await asyncio.sleep(0.2)  # Allow retries
 
         assert not manager.is_connected
-        assert "Connection refused" in caplog.text or "OSError" in caplog.text
+
+        # Should have logged connection refused errors in structured logs
+        all_log_messages = [str(log) for log in captured_logs]
+        refused_logs = [
+            log for log in all_log_messages if "Connection refused" in log or "OSError" in log
+        ]
+        assert len(refused_logs) > 0, f"Expected connection refused logs, got: {captured_logs}"
 
         await manager.close()
 
@@ -1062,14 +1077,25 @@ class TestWebSocketManagerComprehensiveErrorHandling:
             on_connected_callback=dummy_on_connected_callback,
         )
 
-        connect_task = manager.connect()
-        if connect_task:
-            await connect_task
-        await asyncio.sleep(0.2)  # Allow message processing
+        with structlog.testing.capture_logs() as captured_logs:
+            connect_task = manager.connect()
+            if connect_task:
+                await connect_task
+            await asyncio.sleep(0.2)  # Allow message processing
 
         # Connection should still be active despite handler failures
-        assert "Message handler intentionally failed" in caplog.text
-        assert "Error processing WebSocket message" in caplog.text
+        all_log_messages = [str(log) for log in captured_logs]
+        handler_failure_logs = [
+            log for log in all_log_messages if "Message handler intentionally failed" in log
+        ]
+        error_processing_logs = [
+            log for log in all_log_messages if "Error processing WebSocket message" in log
+        ]
+
+        assert len(handler_failure_logs) > 0, f"Expected handler failure logs, got: {captured_logs}"
+        assert len(error_processing_logs) > 0, (
+            f"Expected error processing logs, got: {captured_logs}"
+        )
 
         await manager.close()
 
@@ -1108,16 +1134,23 @@ class TestWebSocketManagerComprehensiveErrorHandling:
             on_connected_callback=dummy_on_connected_callback,
         )
 
-        connect_task = manager.connect()
-        if connect_task:
-            await connect_task
-        await asyncio.sleep(0.2)
+        with structlog.testing.capture_logs() as captured_logs:
+            connect_task = manager.connect()
+            if connect_task:
+                await connect_task
+            await asyncio.sleep(0.2)
 
         # Should have processed valid messages and logged error for invalid
         assert len(processed_messages) == 2
         assert processed_messages[0] == {"valid": "json"}
         assert processed_messages[1] == {"another": "valid"}
-        assert "Received non-JSON WebSocket message" in caplog.text
+
+        # Check for JSON error in structured logs
+        all_log_messages = [str(log) for log in captured_logs]
+        json_error_logs = [
+            log for log in all_log_messages if "Received non-JSON WebSocket message" in log
+        ]
+        assert len(json_error_logs) > 0, f"Expected non-JSON message logs, got: {captured_logs}"
 
         await manager.close()
 
@@ -1139,11 +1172,18 @@ class TestWebSocketManagerComprehensiveErrorHandling:
             on_connected_callback=dummy_on_connected_callback,
         )
 
-        # Try to send without connecting
-        success = await manager.send_json(MockMessage(test="message"))
+        with structlog.testing.capture_logs() as captured_logs:
+            # Try to send without connecting
+            success = await manager.send_json(MockMessage(test="message"))
 
         assert not success
-        assert "Cannot send JSON, WebSocket not connected" in caplog.text
+
+        # Check for not connected error in structured logs
+        all_log_messages = [str(log) for log in captured_logs]
+        not_connected_logs = [
+            log for log in all_log_messages if "Cannot send JSON, WebSocket not connected" in log
+        ]
+        assert len(not_connected_logs) > 0, f"Expected not connected logs, got: {captured_logs}"
 
         await manager.close()
 

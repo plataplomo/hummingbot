@@ -17,7 +17,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order, OrderSide, OrderStatus
 from cyberdelta.core.models.market import Market
 

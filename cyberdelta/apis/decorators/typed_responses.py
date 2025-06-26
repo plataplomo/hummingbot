@@ -5,7 +5,6 @@ boilerplate while providing compile-time type guarantees and runtime validation.
 """
 
 import inspect
-import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
@@ -14,10 +13,11 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")

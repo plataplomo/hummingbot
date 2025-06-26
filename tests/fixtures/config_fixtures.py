@@ -17,7 +17,7 @@ import pytest
 from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
-from cyberdelta.config.config_models import (
+from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     AppSettings,
     BalanceMonitoringSettings,
@@ -32,6 +32,8 @@ from cyberdelta.config.config_models import (
     PositionReconciliationSettings,
     RiskSettings,
     SafetySystemsSettings,
+)
+from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
@@ -158,6 +160,12 @@ def mock_config() -> AppSettings:
                     funding_threshold=Decimal("0.0001"),
                     max_price_spread_pct=Decimal("0.002"),
                     min_profit_usd=Decimal("1.0"),
+                    min_funding_differential=Decimal("0.0001"),
+                    check_interval=10,
+                    risk_aversion=Decimal("1.0"),
+                    rebalance_threshold=Decimal("0.05"),
+                    perp_exchange="hyperliquid",
+                    spot_exchange="backpack",
                 ),
             ),
         ),

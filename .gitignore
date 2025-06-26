@@ -52,6 +52,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+logs/
 
 # VCR Cassettes - recorded HTTP interactions
 # tests/cassettes/

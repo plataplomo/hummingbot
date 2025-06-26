@@ -68,9 +68,9 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         """
         if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
             # Log the action being taken by this specific strategy
-            import logging
+            from cyberdelta.config.structlog_config import get_logger
 
-            logger = logging.getLogger(__name__)
+            logger = get_logger(__name__)
             logger.info(
                 f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
                 f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "

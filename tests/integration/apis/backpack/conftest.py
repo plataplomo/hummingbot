@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.config.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 

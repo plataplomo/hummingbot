@@ -16,7 +16,6 @@ while maintaining strict validation and type safety throughout the trading proce
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -24,6 +23,7 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
     OrderExpiryReason,
@@ -39,7 +39,7 @@ from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Core Order Model (Mutable) ---

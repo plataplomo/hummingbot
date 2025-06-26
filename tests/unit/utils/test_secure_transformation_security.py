@@ -306,7 +306,7 @@ class TestSecureTransformSecurity:
             "pnl": "10500",
         }
 
-        with patch("cyberdelta.utils.secure_transformation.logging.getLogger") as mock_get_logger:
+        with patch("cyberdelta.utils.secure_transformation.get_logger") as mock_get_logger:
             mock_audit_logger = MagicMock()
             mock_security_logger = MagicMock()
 
@@ -326,13 +326,25 @@ class TestSecureTransformSecurity:
                 source_exchange="hyperliquid",
             )
 
-            # Verify audit log was called
+            # Verify audit log was called with structured logging format
             mock_audit_logger.info.assert_called()
-            info_calls = [str(call) for call in mock_audit_logger.info.call_args_list]
 
-            # Should have audit log
-            audit_log_found = any("AUDIT" in call for call in info_calls)
-            assert audit_log_found
+            # Check that at least one call has the expected structure
+            info_calls = mock_audit_logger.info.call_args_list
+            assert len(info_calls) >= 2  # Should have at least start and complete logs
+
+            # Check first call (transformation started)
+            first_call = info_calls[0]
+            assert first_call[0][0] == "audit_transformation_started"
+            assert first_call[1]["context"] == "position_update"
+            assert first_call[1]["model_class"] == "MockPosition"
+            assert first_call[1]["source_exchange"] == "hyperliquid"
+            assert "AUDIT" in first_call[1]["message"]
+
+            # Check second call (transformation completed)
+            second_call = info_calls[1]
+            assert second_call[0][0] == "audit_transformation_completed"
+            assert "AUDIT" in second_call[1]["message"]
 
             # Verify result is correct
             assert result.symbol == "BTC-USD"

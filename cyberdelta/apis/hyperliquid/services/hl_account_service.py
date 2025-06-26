@@ -61,7 +61,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 # Core Domain Models
 from cyberdelta.core.models import (
@@ -266,7 +266,13 @@ class HyperliquidAccountService:
                     raw_clearinghouse_state,
                 )
             )
-            logger.debug(f"[{self._exchange_name}] Mapped internal balances: {internal_balances}")
+            logger.debug(
+                "mapped_internal_balances",
+                action="map_balances",
+                exchange=self._exchange_name,
+                balances=internal_balances,
+                message=f"[{self._exchange_name}] Mapped internal balances: {internal_balances}",
+            )
             return internal_balances
 
         except APIError:

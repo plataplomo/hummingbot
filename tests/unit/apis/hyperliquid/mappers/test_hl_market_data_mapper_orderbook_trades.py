@@ -12,12 +12,12 @@ trade transformation methods. Tests order book and trade processing including:
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
+import structlog.testing
 from pydantic import ValidationError
 
 
@@ -528,7 +528,7 @@ class TestTransformRawTrades:
             invalid_trade,  # Invalid
         ]
 
-        with caplog.at_level(logging.WARNING):
+        with structlog.testing.capture_logs() as captured_logs:
             result = market_data_mapper.transform_raw_trades(raw_trades)
 
         # Should only return valid trades
@@ -536,8 +536,13 @@ class TestTransformRawTrades:
         assert isinstance(result[0], Trade)
         assert result[0].symbol == "ETH-PERP"  # The valid trade
 
-        # Check that warning was logged for skipped trade
-        assert any("Skipping trade transformation" in record.message for record in caplog.records)
+        # Check that warning was logged for skipped trade in structured logs
+        warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+        assert len(warning_logs) > 0, "Expected at least one warning log"
+
+        # Check for the specific warning about skipped trade
+        skip_logs = [log for log in warning_logs if "Skipping trade transformation" in str(log)]
+        assert len(skip_logs) > 0, f"Expected trade skipping logs, got: {captured_logs}"
 
     def test_transform_trades_with_transformation_error(
         self,
@@ -580,7 +585,7 @@ class TestTransformRawTrades:
             error_trade,  # Will cause error
         ]
 
-        with caplog.at_level(logging.ERROR):
+        with structlog.testing.capture_logs() as captured_logs:
             result = market_data_mapper.transform_raw_trades(raw_trades)
 
         # Should only return the valid trade (error trade should be skipped)
@@ -588,8 +593,15 @@ class TestTransformRawTrades:
         assert isinstance(result[0], Trade)
         assert result[0].symbol == "ETH-PERP"  # The valid trade
 
-        # Check that error was logged
-        assert any("Error transforming trade" in record.message for record in caplog.records)
+        # Check that error was logged in structured logs
+        error_logs = [log for log in captured_logs if log.get("log_level") == "error"]
+        assert len(error_logs) > 0, "Expected at least one error log"
+
+        # Check for the specific error message
+        transform_error_logs = [log for log in error_logs if "Error transforming trade" in str(log)]
+        assert len(transform_error_logs) > 0, (
+            f"Expected trade transformation error logs, got: {captured_logs}"
+        )
 
     def test_transform_trades_zero_limit(
         self,

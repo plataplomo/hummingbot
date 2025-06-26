@@ -4,13 +4,13 @@ Tests use dependency injection patterns to mock collaborators and focus on publi
 """
 
 import asyncio
-import logging
 from collections.abc import Callable, Coroutine, Mapping
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import structlog.testing
 from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
@@ -34,7 +34,7 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.models import (
     AccountSettings,
@@ -254,9 +254,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """Mock implementation of place_batch_orders."""
         return [MagicMock(spec=Order) for _ in orders]
 
-    async def cancel_batch_orders(self, orders: list[CancelOrderArgs]) -> list[CancelOrderResult]:
+    async def cancel_batch_orders(
+        self, cancel_args: list[CancelOrderArgs]
+    ) -> list[CancelOrderResult]:
         """Mock implementation of cancel_batch_orders."""
-        return [MagicMock(spec=CancelOrderResult) for _ in orders]
+        return [MagicMock(spec=CancelOrderResult) for _ in cancel_args]
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
         return MockSubscriptionPayload(type="subscribe", channel=topic)
@@ -492,7 +494,6 @@ class TestExchangeAPIWebSocketOperations:
     async def test_subscribe_logs_warning_when_not_connected(
         self,
         exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that subscribe logs warning when WebSocket not connected."""
         mock_ws = MagicMock()
@@ -505,11 +506,18 @@ class TestExchangeAPIWebSocketOperations:
         async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
             pass
 
-        with caplog.at_level(logging.WARNING):
+        with structlog.testing.capture_logs() as captured_logs:
             await api.subscribe("test.topic", test_handler)
 
-        # Verify warning was logged
-        assert "WebSocket not connected" in caplog.text
+        # Verify warning was logged in structured logs
+        warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+        assert len(warning_logs) > 0, "Expected at least one warning log"
+
+        # Check for WebSocket not connected warning
+        ws_logs = [log for log in warning_logs if "WebSocket not connected" in str(log)]
+        assert len(ws_logs) > 0, f"Expected WebSocket warning, got: {warning_logs}"
+
+        # The send_json should not be called when not connected
         mock_ws.send_json.assert_not_called()
 
         await api.close()

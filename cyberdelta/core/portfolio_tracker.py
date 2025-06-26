@@ -22,8 +22,8 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.config_models import AppSettings, PortfolioTrackerConfig
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import AppSettings, PortfolioTrackerConfig
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -172,16 +172,28 @@ class PortfolioTracker:
         """
         self.api_clients[exchange_id] = client
         self.logger.info(
-            f"PT_REGISTER: Registered API client for {exchange_id}. \
-            Current api_clients keys: {list(self.api_clients.keys())}",
+            "api_client_registered",
+            component="PT_REGISTER",
+            exchange_id=exchange_id,
+            api_client_keys=list(self.api_clients.keys()),
+            message=(
+                f"PT_REGISTER: Registered API client for {exchange_id}. "
+                f"Current api_clients keys: {list(self.api_clients.keys())}"
+            ),
         )
 
     async def initialize(self) -> None:
         """Initialize portfolio state from exchanges."""
         initialization_tasks: list[Awaitable[Any]] = []
         logger.info(
-            f"PortfolioTracker {id(self)}: About to gather init tasks. "
-            f"Balance dict: {self.balances}",
+            "portfolio_tracker_init_start",
+            tracker_id=id(self),
+            phase="gathering_init_tasks",
+            balance_exchanges=list(self.balances.keys()),
+            message=(
+                f"PortfolioTracker {id(self)}: About to gather init tasks. "
+                f"Balance dict: {self.balances}"
+            ),
         )
         for exchange_id, client in self.api_clients.items():
             if not self.app_settings.exchanges[exchange_id].enabled:
@@ -191,21 +203,37 @@ class PortfolioTracker:
             initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
             initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
         logger.info(
-            f"PortfolioTracker {id(self)}: About to gather init tasks. "
-            f"Balances before: {self.balances}",
+            "portfolio_tracker_pre_gather",
+            tracker_id=id(self),
+            phase="pre_gather",
+            balance_exchanges=list(self.balances.keys()),
+            message=(
+                f"PortfolioTracker {id(self)}: About to gather init tasks. "
+                f"Balances before: {self.balances}"
+            ),
         )
         results: list[bool | BaseException] = await asyncio.gather(
             *initialization_tasks,
             return_exceptions=True,
         )
-        logger.info(f"---> State of self.balances immediately after init gather: {self.balances}")
+        logger.info(
+            "portfolio_tracker_post_gather_balances",
+            phase="post_gather",
+            balance_exchanges=list(self.balances.keys()),
+            message=f"---> State of self.balances immediately after init gather: {self.balances}",
+        )
         initialization_failed = False
         failed_tasks_info: list[str] = []
         for i, result in enumerate(results):
             if isinstance(result, BaseException):
                 task_description = f"task index {i}"
                 logger.critical(
-                    (
+                    "portfolio_tracker_init_critical_error",
+                    task_index=i,
+                    task_description=task_description,
+                    error_type=type(result).__name__,
+                    error=str(result),
+                    message=(
                         f"CRITICAL ERROR during PortfolioTracker initialization "
                         f"({task_description}): {result}"
                     ),
@@ -216,36 +244,78 @@ class PortfolioTracker:
         if initialization_failed:
             error_summary = "; ".join(failed_tasks_info)
             logger.critical(
-                f"PortfolioTracker failed to initialize essential data from one or more exchanges. "
-                f"Cannot proceed reliably. Errors: {error_summary}",
+                "portfolio_tracker_init_failed",
+                error_summary=error_summary,
+                failed_task_count=len(failed_tasks_info),
+                action="cannot_proceed_reliably",
+                message=(
+                    f"PortfolioTracker failed to initialize essential data from "
+                    f"one or more exchanges. Cannot proceed reliably. "
+                    f"Errors: {error_summary}"
+                ),
             )
 
         # Set initial reconciliation time AFTER fetching
         now_utc = datetime.now(UTC)
         logger.info(
-            f"PT INIT: Setting reconciliation times. "
-            f"Current self.last_reconciliation_time before: {self.last_reconciliation_time}",
+            "setting_reconciliation_times",
+            component="PT_INIT",
+            phase="before_setting",
+            last_reconciliation_time_before=dict(self.last_reconciliation_time),
+            message=(
+                f"PT INIT: Setting reconciliation times. Current "
+                f"self.last_reconciliation_time before: {self.last_reconciliation_time}"
+            ),
         )
         for exchange_id in self.api_clients:
             self.last_reconciliation_time[exchange_id] = now_utc
         logger.info(
-            f"PT INIT: Reconciliation times set. "
-            f"Current self.last_reconciliation_time after: {self.last_reconciliation_time}",
+            "reconciliation_times_set",
+            component="PT_INIT",
+            phase="after_setting",
+            last_reconciliation_time_after=dict(self.last_reconciliation_time),
+            exchanges_count=len(self.last_reconciliation_time),
+            message=(
+                f"PT INIT: Reconciliation times set. Current "
+                f"self.last_reconciliation_time after: {self.last_reconciliation_time}"
+            ),
         )
 
         # Calculate initial portfolio capital and set high watermark
         initial_capital = await self.get_total_capital()
         self.high_watermark = initial_capital
         if initial_capital > Decimal("0.0"):
-            logger.info(f"Initial high watermark set to: {self.high_watermark}")
+            logger.info(
+                "initial_high_watermark_set",
+                high_watermark=float(self.high_watermark),
+                initial_capital=float(initial_capital),
+                message=f"Initial high watermark set to: {self.high_watermark}",
+            )
         else:
-            logger.warning(f"Initial capital is {initial_capital}. High watermark not set.")
-        logger.info("Portfolio state initialized")
+            logger.warning(
+                "initial_capital_zero_or_negative",
+                initial_capital=float(initial_capital),
+                action="high_watermark_not_set",
+                message=f"Initial capital is {initial_capital}. High watermark not set.",
+            )
+        logger.info(
+            "portfolio_state_initialized",
+            status="initialized",
+            exchanges=list(self.api_clients.keys()),
+            high_watermark=float(self.high_watermark) if self.high_watermark else None,
+            message="Portfolio state initialized",
+        )
 
     async def _fetch_exchange_balances(self, exchange_id: str) -> bool:
         client = self.api_clients.get(exchange_id)
         if not client:
-            logger.error(f"No API client found for {exchange_id} in fetch_balances")
+            logger.error(
+                "api_client_not_found",
+                exchange_id=exchange_id,
+                function="fetch_balances",
+                action="returning_false",
+                message=f"No API client found for {exchange_id} in fetch_balances",
+            )
             return False
 
         try:
@@ -260,7 +330,14 @@ class PortfolioTracker:
             return True
 
         except Exception as e:
-            logger.exception(f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}")
+            logger.exception(
+                "balance_fetch_error",
+                component="FETCH_BALANCES",
+                exchange_id=exchange_id,
+                error_type=type(e).__name__,
+                error=str(e),
+                message=f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}",
+            )
             return False
 
     def _process_balances_data(
@@ -271,7 +348,12 @@ class PortfolioTracker:
 
         # If balances_data is empty dict
         if not balances_data:  # Empty dict received
-            logger.info(f"[{exchange_id}] API returned an empty dictionary of balances.")
+            logger.info(
+                "empty_balances_received",
+                exchange_id=exchange_id,
+                action="processing_empty_dict",
+                message=f"[{exchange_id}] API returned an empty dictionary of balances.",
+            )
             return updated_balances
 
         for asset, balance_obj in balances_data.items():
@@ -279,9 +361,16 @@ class PortfolioTracker:
                 updated_balances[asset] = balance_obj
             else:
                 logger.warning(
-                    f"[{exchange_id}] Skipping balance for asset {asset} "
-                    f"due to mismatched exchange ID ({balance_obj.exchange}) "
-                    f"in received SpotBalance object (from dict).",
+                    "balance_exchange_id_mismatch",
+                    expected_exchange_id=exchange_id,
+                    received_exchange_id=balance_obj.exchange,
+                    asset=asset,
+                    action="skipping_balance",
+                    message=(
+                        f"[{exchange_id}] Skipping balance for asset {asset} due to "
+                        f"mismatched exchange ID ({balance_obj.exchange}) in received "
+                        f"SpotBalance object (from dict)."
+                    ),
                 )
 
         return updated_balances
@@ -304,9 +393,17 @@ class PortfolioTracker:
             self.last_update_time[exchange_id] = datetime.now(UTC)
 
         logger.info(
-            f"[FETCH_BALANCES:{exchange_id}] Balances updated "
-            f"successfully with {len(updated_balances)} items. "
-            f"Assets removed: {len(assets_to_remove)}.",
+            "balances_updated_successfully",
+            component="FETCH_BALANCES",
+            exchange_id=exchange_id,
+            updated_count=len(updated_balances),
+            removed_count=len(assets_to_remove),
+            updated_assets=list(updated_balances.keys()),
+            removed_assets=list(assets_to_remove),
+            message=(
+                f"[FETCH_BALANCES:{exchange_id}] Balances updated successfully "
+                f"with {len(updated_balances)} items. Assets removed: {len(assets_to_remove)}."
+            ),
         )
 
     def _remove_stale_assets(self, exchange_id: str, assets_to_remove: set[str]) -> None:
@@ -318,7 +415,11 @@ class PortfolioTracker:
             if asset_to_remove in self.balances[exchange_id]:
                 del self.balances[exchange_id][asset_to_remove]
                 logger.debug(
-                    f"[{exchange_id}] Removed stale balance for asset {asset_to_remove}.",
+                    "stale_balance_removed",
+                    exchange_id=exchange_id,
+                    asset=asset_to_remove,
+                    action="removed_stale_balance",
+                    message=f"[{exchange_id}] Removed stale balance for asset {asset_to_remove}.",
                 )
 
     def _handle_empty_balances(
@@ -332,8 +433,15 @@ class PortfolioTracker:
         # it would have been caught by an earlier `else`
         # or the initial type hint for `client.get_balances()` would be violated.
         logger.warning(
-            f"[FETCH_BALANCES:{exchange_id}] No valid balances processed or "
-            f"API returned empty data. Type: {type(balances_data)}",
+            "no_valid_balances_processed",
+            component="FETCH_BALANCES",
+            exchange_id=exchange_id,
+            data_type=type(balances_data).__name__,
+            action="handling_empty_balances",
+            message=(
+                f"[FETCH_BALANCES:{exchange_id}] No valid balances processed "
+                f"or API returned empty data. Type: {type(balances_data)}"
+            ),
         )
         # Not returning False here, as an empty (but valid) response is not an error.
 
@@ -347,8 +455,15 @@ class PortfolioTracker:
         if isinstance(balance_info, SpotBalance):
             if balance_info.exchange != exchange_id:
                 logger.error(
-                    f"Mismatched exchange ID in provided SpotBalance object: expected "
-                    f"{exchange_id}, got {balance_info.exchange}",
+                    "spotbalance_exchange_id_mismatch",
+                    expected_exchange_id=exchange_id,
+                    actual_exchange_id=balance_info.exchange,
+                    asset=asset,
+                    action="returning_none",
+                    message=(
+                        f"Mismatched exchange ID in provided SpotBalance object: "
+                        f"expected {exchange_id}, got {balance_info.exchange}"
+                    ),
                 )
                 return None
             return balance_info
@@ -368,14 +483,28 @@ class PortfolioTracker:
             # Additional runtime checks (redundant with Pydantic ge=0 but defensive)
             if parsed.total_quantity < Decimal("0") or parsed.available_quantity < Decimal("0"):
                 logger.error(
-                    f"Parsed balance has negative values: Total={parsed.total_quantity}, "
-                    f"Available={parsed.available_quantity}",
+                    "negative_balance_values",
+                    exchange_id=exchange_id,
+                    asset=asset,
+                    total_quantity=float(parsed.total_quantity),
+                    available_quantity=float(parsed.available_quantity),
+                    action="returning_none",
+                    message=(
+                        f"Parsed balance has negative values: "
+                        f"Total={parsed.total_quantity}, Available={parsed.available_quantity}"
+                    ),
                 )
                 return None
             return parsed
         except (ValidationError, TypeError, InvalidOperation) as e:
             logger.error(
-                f"Failed to parse balance for {asset} on {exchange_id}: {e}",
+                "balance_parse_error",
+                exchange_id=exchange_id,
+                asset=asset,
+                error_type=type(e).__name__,
+                error=str(e),
+                action="returning_none",
+                message=f"Failed to parse balance for {asset} on {exchange_id}: {e}",
                 exc_info=True,
             )
             return None
@@ -413,7 +542,13 @@ class PortfolioTracker:
         """Fetch and update positions for a specific exchange."""
         client = self.api_clients.get(exchange_id)
         if not client:
-            logger.error(f"No API client registered for {exchange_id} in fetch_positions")
+            logger.error(
+                "no_api_client_for_fetch_positions",
+                exchange_id=exchange_id,
+                action="fetch_positions",
+                error="no_api_client_registered",
+                message=f"No API client registered for {exchange_id} in fetch_positions",
+            )
             return False
         try:
             positions_data_raw = await client.get_positions()  # -> list[DerivativePosition]
@@ -455,7 +590,13 @@ class PortfolioTracker:
             )
             return True
         except Exception as e:
-            logger.exception(f"Failed to fetch positions for {exchange_id}: {e}")
+            logger.exception(
+                "position_fetch_failed",
+                action="fetch_positions",
+                exchange_id=exchange_id,
+                error=str(e),
+                message=f"Failed to fetch positions for {exchange_id}: {e}",
+            )
             return False
 
     async def _fetch_exchange_orders(self, exchange_id: str) -> bool:
@@ -463,7 +604,13 @@ class PortfolioTracker:
         try:
             client = self.api_clients.get(exchange_id)
             if not client:
-                logger.error(f"No API client found for {exchange_id}")
+                logger.error(
+                    "no_api_client_found",
+                    exchange_id=exchange_id,
+                    action="reconcile_portfolio",
+                    error="no_api_client_found",
+                    message=f"No API client found for {exchange_id}",
+                )
                 return False
             # ExchangeAPI.get_open_orders returns list[Order], Pyright should infer this.
             orders_data: list[Order] = await client.get_open_orders()
@@ -510,7 +657,13 @@ class PortfolioTracker:
             )
             return True
         except Exception as e:
-            logger.exception(f"Unexpected error fetching orders for {exchange_id}: {e}")
+            logger.exception(
+                "order_fetch_error",
+                action="fetch_orders",
+                exchange_id=exchange_id,
+                error=str(e),
+                message=f"Unexpected error fetching orders for {exchange_id}: {e}",
+            )
             return False
 
     async def update(self) -> None:
@@ -528,14 +681,27 @@ class PortfolioTracker:
                 now - last_reconciliation
             ).total_seconds() >= self.reconciliation_interval
             if needs_reconciliation:
-                logger.info(f"Reconciliation needed for {exchange_id}. Fetching all data.")
+                logger.info(
+                    "reconciliation_needed",
+                    exchange_id=exchange_id,
+                    action="reconcile_portfolio",
+                    data_scope="all_data",
+                    message=f"Reconciliation needed for {exchange_id}. Fetching all data.",
+                )
                 update_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
                 update_tasks.append(self._fetch_exchange_balances(exchange_id))
                 update_tasks.append(self._fetch_exchange_positions(exchange_id))
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
                 self.last_reconciliation_time[exchange_id] = now
             else:
-                logger.debug(f"Fetching only orders for {exchange_id} (no reconciliation needed).")
+                logger.debug(
+                    "fetching_orders_only",
+                    exchange_id=exchange_id,
+                    action="reconcile_portfolio",
+                    data_scope="orders_only",
+                    reason="no_reconciliation_needed",
+                    message=f"Fetching only orders for {exchange_id} (no reconciliation needed).",
+                )
                 update_tasks.append(self._fetch_exchange_orders(exchange_id))
         if update_tasks:
             results: list[bool | BaseException] = await asyncio.gather(
@@ -565,7 +731,14 @@ class PortfolioTracker:
         """
         # self.orders is defaultdict(dict), so exchange_id will be auto-created if missing
         if not order.client_order_id:
-            logger.error(f"Received order update without client_order_id on {exchange_id}: {order}")
+            logger.error(
+                "order_update_missing_client_order_id",
+                exchange_id=exchange_id,
+                order=order.model_dump() if hasattr(order, "model_dump") else str(order),
+                action="update_order",
+                error="missing_client_order_id",
+                message=f"Received order update without client_order_id on {exchange_id}: {order}",
+            )
             return
         order_id_str = str(order.client_order_id)
         self.orders[exchange_id][order_id_str] = order
@@ -595,12 +768,27 @@ class PortfolioTracker:
         # self.positions is defaultdict(defaultdict), so exchange_id will be auto-created
         pos_key = position.symbol
         if not pos_key:
-            logger.error(f"Received position update without symbol on {exchange_id}: {position}")
+            logger.error(
+                "position_update_missing_symbol",
+                exchange_id=exchange_id,
+                position=position.model_dump()
+                if hasattr(position, "model_dump")
+                else str(position),
+                action="update_position",
+                error="missing_symbol",
+                message=f"Received position update without symbol on {exchange_id}: {position}",
+            )
             return
 
         self.positions[exchange_id][pos_key] = position
         self.last_update_time[exchange_id] = datetime.now(UTC)
-        logger.debug(f"Updated position {pos_key} for {exchange_id}")
+        logger.debug(
+            "position_updated",
+            position_key=pos_key,
+            exchange_id=exchange_id,
+            action="update_position",
+            message=f"Updated position {pos_key} for {exchange_id}",
+        )
 
     async def process_trade(self, exchange_id: str, trade: Trade) -> None:
         """Process a trade execution and update relevant portfolio state.
@@ -627,12 +815,28 @@ class PortfolioTracker:
 
         # Placeholder: Balance update logic
         self._update_balances_from_trade(exchange_id, trade)
-        logger.debug(f"Placeholder: Update balances for trade {trade.id} on {exchange_id}")
+        logger.debug(
+            "placeholder_balance_update_for_trade_process",
+            trade_id=trade.id,
+            exchange_id=exchange_id,
+            action="update_balances_for_trade",
+            status="placeholder",
+            context="process_trade",
+            message=f"Placeholder: Update balances for trade {trade.id} on {exchange_id}",
+        )
 
     def _validate_trade(self, exchange_id: str, trade: Trade) -> bool:
         """Validate trade data before processing."""
         if not trade or not trade.symbol or not trade.quantity or trade.quantity <= Decimal(0):
-            logger.warning(f"Ignoring invalid or zero-quantity trade on {exchange_id}: {trade}")
+            logger.warning(
+                "ignoring_invalid_trade",
+                exchange_id=exchange_id,
+                trade_id=trade.id if hasattr(trade, "id") else None,
+                trade_quantity=float(trade.quantity) if hasattr(trade, "quantity") else None,
+                action="process_trade",
+                issue="invalid_or_zero_quantity",
+                message=f"Ignoring invalid or zero-quantity trade on {exchange_id}: {trade}",
+            )
             return False
         return True
 
@@ -739,7 +943,13 @@ class PortfolioTracker:
         self, current_position: DerivativePosition, trade: Trade, base_symbol: str
     ) -> None:
         """Increase an existing position."""
-        logger.debug(f"Increasing position for {base_symbol}. Trade qty: {trade.quantity}")
+        logger.debug(
+            "position_increasing",
+            base_symbol=base_symbol,
+            trade_quantity=float(trade.quantity),
+            action="increase_position",
+            message=f"Increasing position for {base_symbol}. Trade qty: {trade.quantity}",
+        )
 
         current_entry_price = current_position.entry_price or Decimal(0)
 
@@ -821,7 +1031,12 @@ class PortfolioTracker:
         """Update position size based on trade."""
         if trade.quantity < abs(current_position.size):
             # Reducing position, not closing or flipping
-            logger.debug(f"Reducing position for {base_symbol}")
+            logger.debug(
+                "position_reducing",
+                base_symbol=base_symbol,
+                action="reduce_position",
+                message=f"Reducing position for {base_symbol}",
+            )
             if current_position.side == OrderSide.BUY:
                 current_position.size -= trade.quantity
             else:  # SELL side
@@ -830,7 +1045,13 @@ class PortfolioTracker:
 
         elif trade.quantity == abs(current_position.size):
             # Closing position to flat
-            logger.debug(f"Closing position for {base_symbol} to flat.")
+            logger.debug(
+                "position_closing_to_flat",
+                base_symbol=base_symbol,
+                action="close_position",
+                status="flat",
+                message=f"Closing position for {base_symbol} to flat.",
+            )
             current_position.size = Decimal(0)
             current_position.entry_price = None  # Flat position has no entry price
             self.active_symbols.discard(base_symbol)  # Symbol might become inactive
@@ -847,16 +1068,36 @@ class PortfolioTracker:
 
     def _update_balances_from_trade(self, exchange_id: str, trade: Trade) -> None:
         # Placeholder for balance update logic based on trade details
-        logger.debug(f"Placeholder: Update balances for trade {trade.id} on {exchange_id}")
+        logger.debug(
+            "placeholder_balance_update_for_trade_method",
+            trade_id=trade.id,
+            exchange_id=exchange_id,
+            action="update_balances_from_trade",
+            status="placeholder",
+            context="_update_balances_from_trade_method",
+            message=f"Placeholder: Update balances for trade {trade.id} on {exchange_id}",
+        )
         pass
 
     def _update_realized_pnl(self, amount: Decimal) -> None:
         """Update the total realized PNL."""
         if not amount.is_finite():  # Check finiteness directly
-            logger.error(f"Attempted to update realized PNL with invalid amount: {amount}")
+            logger.error(
+                "realized_pnl_update_invalid_amount",
+                amount=str(amount),
+                action="update_realized_pnl",
+                error="invalid_amount",
+                message=f"Attempted to update realized PNL with invalid amount: {amount}",
+            )
             return
         self.realized_pnl += amount
-        logger.info(f"Realized PNL updated by {amount:.4f}. New total: {self.realized_pnl:.4f}")
+        logger.info(
+            "realized_pnl_updated",
+            amount_delta=float(amount),
+            new_total=float(self.realized_pnl),
+            action="update_realized_pnl",
+            message=f"Realized PNL updated by {amount:.4f}. New total: {self.realized_pnl:.4f}",
+        )
 
     # --- Position Access Methods ---
     def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
@@ -895,7 +1136,13 @@ class PortfolioTracker:
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:
         """Get all positions for a specific exchange."""
         if exchange_id not in self.positions:
-            logger.warning(f"Attempted to get positions for unknown exchange: {exchange_id}")
+            logger.warning(
+                "get_positions_unknown_exchange",
+                exchange_id=exchange_id,
+                action="get_positions_by_exchange",
+                issue="unknown_exchange",
+                message=f"Attempted to get positions for unknown exchange: {exchange_id}",
+            )
             return []
         # Filter out placeholders
         return [pos for pos in self.positions[exchange_id].values() if pos.size != Decimal(0)]
@@ -910,7 +1157,12 @@ class PortfolioTracker:
             Total portfolio value as a Decimal.
 
         """
-        logger.debug(f"Calculating total capital in {base_currency}...")
+        logger.debug(
+            "calculating_total_capital",
+            base_currency=base_currency,
+            action="get_total_capital",
+            message=f"Calculating total capital in {base_currency}...",
+        )
         total_value = Decimal("0.0")
 
         # 1. Calculate value of all spot balances
@@ -948,14 +1200,31 @@ class PortfolioTracker:
         # We add unrealized PnL here as a proxy for position value change.
         _realized, unrealized = await self.get_pnl(base_currency)
         total_value += unrealized
-        logger.debug(f"  Adding total unrealized PNL to capital: {unrealized} {base_currency}")
+        logger.debug(
+            "adding_unrealized_pnl_to_capital",
+            unrealized_pnl=float(unrealized),
+            base_currency=base_currency,
+            action="calculate_total_capital",
+            message=f"  Adding total unrealized PNL to capital: {unrealized} {base_currency}",
+        )
 
         # Update high watermark
         if total_value.is_finite() and total_value > self.high_watermark:
             self.high_watermark = total_value
-            logger.debug(f"New high watermark reached: {self.high_watermark}")
+            logger.debug(
+                "new_high_watermark_reached",
+                high_watermark=float(self.high_watermark),
+                action="update_high_watermark",
+                message=f"New high watermark reached: {self.high_watermark}",
+            )
 
-        logger.info(f"Total portfolio capital calculated: {total_value} {base_currency}")
+        logger.info(
+            "total_portfolio_capital_calculated",
+            total_value=float(total_value),
+            base_currency=base_currency,
+            action="get_total_capital",
+            message=f"Total portfolio capital calculated: {total_value} {base_currency}",
+        )
         return total_value if total_value.is_finite() else Decimal("0.0")
 
     async def get_exchange_exposure(
@@ -964,7 +1233,13 @@ class PortfolioTracker:
         valuation_asset: str = "USDC",
     ) -> Decimal:
         """Calculate the total market exposure for a given exchange in a valuation asset."""
-        logger.debug(f"Calculating exposure for {exchange_id} in {valuation_asset}...")
+        logger.debug(
+            "calculating_exchange_exposure",
+            exchange_id=exchange_id,
+            valuation_asset=valuation_asset,
+            action="get_exchange_exposure",
+            message=f"Calculating exposure for {exchange_id} in {valuation_asset}...",
+        )
         exchange_exposure = Decimal("0.0")
         positions = self.positions[exchange_id]  # Direct access to inner dict
 
@@ -1002,18 +1277,36 @@ class PortfolioTracker:
                     f"Skipping in exposure calculation.",
                 )
 
-        logger.info(f"Total exposure for {exchange_id}: {exchange_exposure} {valuation_asset}")
+        logger.info(
+            "total_exchange_exposure_calculated",
+            exchange_id=exchange_id,
+            exchange_exposure=float(exchange_exposure),
+            valuation_asset=valuation_asset,
+            action="get_exchange_exposure",
+            message=f"Total exposure for {exchange_id}: {exchange_exposure} {valuation_asset}",
+        )
         return exchange_exposure if exchange_exposure.is_finite() else Decimal("0.0")
 
     async def get_total_exposure_usd(self, valuation_asset: str = "USDC") -> Decimal:
         """Calculate the total market exposure across all exchanges."""
-        logger.debug(f"Calculating total exposure across all exchanges in {valuation_asset}...")
+        logger.debug(
+            "calculating_total_exposure_all_exchanges",
+            valuation_asset=valuation_asset,
+            action="get_total_exposure_usd",
+            message=f"Calculating total exposure across all exchanges in {valuation_asset}...",
+        )
         total_exposure = Decimal("0.0")
         for exchange_id in self.api_clients.keys():
             if self.app_settings.exchanges[exchange_id].enabled:
                 total_exposure += await self.get_exchange_exposure(exchange_id, valuation_asset)
 
-        logger.info(f"Total portfolio exposure calculated: {total_exposure} {valuation_asset}")
+        logger.info(
+            "total_portfolio_exposure_calculated",
+            total_exposure=float(total_exposure),
+            valuation_asset=valuation_asset,
+            action="get_total_exposure_usd",
+            message=f"Total portfolio exposure calculated: {total_exposure} {valuation_asset}",
+        )
         return total_exposure if total_exposure.is_finite() else Decimal("0.0")
 
     async def get_pnl(self, base_currency: str = "USDC") -> tuple[Decimal, Decimal]:
@@ -1026,7 +1319,12 @@ class PortfolioTracker:
             A tuple containing (total_realized_pnl, total_unrealized_pnl).
 
         """
-        logger.debug(f"Calculating PNL in {base_currency}...")
+        logger.debug(
+            "calculating_pnl",
+            base_currency=base_currency,
+            action="get_pnl",
+            message=f"Calculating PNL in {base_currency}...",
+        )
         total_unrealized_pnl = Decimal("0.0")
         total_realized_pnl = self.realized_pnl  # Start with globally tracked realized PNL
 
@@ -1581,7 +1879,15 @@ class PortfolioTracker:
                         f"Received None for {field_name} for {ex_id_str}, skipping.",
                     )
         except Exception as e:
-            logger.error(f"Error deserializing {field_name} for {ex_id_str}: {e}")
+            logger.error(
+                "timestamp_deserialization_error",
+                field_name=field_name,
+                exchange_id=ex_id_str,
+                error_message=str(e),
+                action="process_timestamp",
+                error="deserialization_failed",
+                message=f"Error deserializing {field_name} for {ex_id_str}: {e}",
+            )
 
     @classmethod
     def _load_scalar_fields_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
@@ -1594,14 +1900,24 @@ class PortfolioTracker:
         """Add a symbol to the watchlist."""
         if symbol not in self.watchlist:
             self.watchlist.add(symbol)
-            logger.info(f"Added {symbol} to portfolio watchlist.")
+            logger.info(
+                "symbol_added_to_watchlist",
+                symbol=symbol,
+                action="add_symbol_to_watchlist",
+                message=f"Added {symbol} to portfolio watchlist.",
+            )
             # Potentially trigger subscription logic if needed
 
     def remove_symbol_from_watchlist(self, symbol: str) -> None:
         """Remove a symbol from the watchlist."""
         if symbol in self.watchlist:
             self.watchlist.remove(symbol)
-            logger.info(f"Removed {symbol} from portfolio watchlist.")
+            logger.info(
+                "symbol_removed_from_watchlist",
+                symbol=symbol,
+                action="remove_symbol_from_watchlist",
+                message=f"Removed {symbol} from portfolio watchlist.",
+            )
             # Potentially trigger unsubscription logic
 
     def get_watchlist(self) -> set[str]:
@@ -1957,7 +2273,14 @@ class PortfolioTracker:
         # Internally, self.balances uses exchange_id which is equivalent to 'exchange' here.
         if exchange in self.balances and asset in self.balances[exchange]:
             return self.balances[exchange][asset]
-        self.logger.debug(f"Balance for {asset} on exchange '{exchange}' not found.")  # DEBUG log
+        self.logger.debug(
+            "balance_not_found",
+            asset=asset,
+            exchange=exchange,
+            action="get_exchange_balance",
+            issue="balance_not_found",
+            message=f"Balance for {asset} on exchange '{exchange}' not found.",
+        )  # DEBUG log
         return None
 
     def _initialize_from_config(self) -> None:
@@ -1974,7 +2297,14 @@ class PortfolioTracker:
                         available_quantity=quantity,  # Assume all available initially
                         timestamp=datetime.now(UTC),
                     )
-                    logger.info(f"Initialized balance for {asset} on {exchange_id}: {quantity}")
+                    logger.info(
+                        "balance_initialized_from_config",
+                        asset=asset,
+                        exchange_id=exchange_id,
+                        quantity=float(quantity),
+                        action="initialize_from_config",
+                        message=f"Initialized balance for {asset} on {exchange_id}: {quantity}",
+                    )
                 except InvalidOperation:
                     logger.error(
                         f"Invalid decimal value for initial balance of {asset} "
@@ -1990,7 +2320,14 @@ class PortfolioTracker:
                     f"Side: {pos.side}, Size: {pos.size}",
                 )
             except (ValidationError, TypeError) as e:
-                logger.error(f"Failed to create DerivativePosition from config: {e}")
+                logger.error(
+                    "derivative_position_creation_failed",
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                    action="initialize_from_config",
+                    error="position_creation_failed",
+                    message=f"Failed to create DerivativePosition from config: {e}",
+                )
         logger.info("PortfolioTracker initialized.")
 
     async def _fetch_exchange_account_summary(
@@ -2003,10 +2340,22 @@ class PortfolioTracker:
             if summary:
                 return exchange_id, summary
             else:
-                logger.warning(f"No account summary found for {exchange_id}")
+                logger.warning(
+                    "no_account_summary_found",
+                    exchange_id=exchange_id,
+                    action="fetch_exchange_account_summary",
+                    issue="no_account_summary",
+                    message=f"No account summary found for {exchange_id}",
+                )
                 return None
         except Exception as e:
-            logger.exception(f"Error fetching account summary for {exchange_id}: {e}")
+            logger.exception(
+                "account_summary_fetch_error",
+                action="fetch_account_summary",
+                exchange_id=exchange_id,
+                error=str(e),
+                message=f"Error fetching account summary for {exchange_id}: {e}",
+            )
             return None
 
     def get_all_derivative_positions_for_exchange(

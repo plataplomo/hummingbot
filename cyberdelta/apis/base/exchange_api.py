@@ -8,7 +8,6 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import json
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine, Mapping
 from typing import TYPE_CHECKING, Any
@@ -38,8 +37,9 @@ from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -87,7 +87,7 @@ __all__ = [
 ]
 
 # Get logger instance for this module
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Type alias for WebSocket message handlers
 # Handler receives data_payload (dict) and the full_message (dict)
@@ -216,7 +216,12 @@ class ExchangeAPI(ABC):
             limiter=default_limiter_primitive,
             default_request_weight=1,
         )
-        logger.info(f"[{self.exchange_name}] Created default simple rate limit strategy")
+        logger.info(
+            "exchange_api_rate_limiter_created",
+            action="create_default_rate_limiter",
+            message="Successfully created default simple rate limit strategy",
+            exchange_name=self.exchange_name,
+        )
         return strategy
 
     def _setup_http_client(self, http_client: HttpClient | None) -> tuple[str, HttpClient]:
@@ -621,10 +626,20 @@ class ExchangeAPI(ABC):
 
         Properly closes the HTTP client session and logs the shutdown process.
         """
-        logger.info(f"Closing ExchangeAPI for {self.exchange_name}")
+        logger.info(
+            "exchange_api_closing",
+            action="close_api",
+            message="Starting ExchangeAPI shutdown process",
+            exchange_name=self.exchange_name,
+        )
         if self._http_client:
             await self._http_client.close_session()
-            logger.info(f"HTTP client for {self.exchange_name} closed.")
+            logger.info(
+                "exchange_api_http_client_closed",
+                action="close_http_client",
+                message="HTTP client closed successfully",
+                exchange_name=self.exchange_name,
+            )
         else:
             logger.info(
                 f"HTTP client for {self.exchange_name} was not initialized or already closed.",
@@ -632,14 +647,24 @@ class ExchangeAPI(ABC):
 
         if self._ws_manager:
             await self._ws_manager.close()
-            logger.info(f"WebSocket manager for {self.exchange_name} closed.")
+            logger.info(
+                "exchange_api_websocket_manager_closed",
+                action="close_websocket_manager",
+                message="WebSocket manager closed successfully",
+                exchange_name=self.exchange_name,
+            )
         else:
             logger.info(
                 f"WebSocket manager for {self.exchange_name} was not initialized "
                 f"or already closed.",
             )
 
-        logger.info(f"ExchangeAPI for {self.exchange_name} closed successfully.")
+        logger.info(
+            "exchange_api_closed_successfully",
+            action="close_api",
+            message="ExchangeAPI shutdown completed successfully",
+            exchange_name=self.exchange_name,
+        )
 
     # --- Abstract Methods for Exchange API Implementation --- #
 
@@ -655,7 +680,13 @@ class ExchangeAPI(ABC):
             try:
                 subscription_payload = self._construct_subscription_payload(topic)
                 await self._ws_manager.send_json(subscription_payload)
-                logger.info(f"[{self.exchange_name}] Sent subscription request for topic: {topic}")
+                logger.info(
+                    "exchange_api_subscription_sent",
+                    action="send_subscription",
+                    message="Subscription request sent successfully",
+                    exchange_name=self.exchange_name,
+                    topic=topic,
+                )
             except (ValueError, APIError) as e:
                 logger.warning(
                     f"[{self.exchange_name}] Could not construct/send subscription payload "
@@ -694,7 +725,12 @@ class ExchangeAPI(ABC):
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics after (re)connection."""
         if not self._ws_handlers:
-            logger.info(f"[{self.exchange_name}] No topics to resubscribe to.")
+            logger.info(
+                "exchange_api_no_resubscribe",
+                action="resubscribe_topics",
+                message="No topics registered for resubscription",
+                exchange_name=self.exchange_name,
+            )
             return
 
         logger.info(
@@ -1031,7 +1067,13 @@ class ExchangeAPI(ABC):
             if connect_task:  # ADDED: Check if task is not None
                 await connect_task
         except Exception as e:
-            logger.error(f"[{self.exchange_name}] Error connecting WebSocket: {e}")
+            logger.error(
+                "exchange_api_websocket_connect_error",
+                action="connect_websocket",
+                message="Failed to connect WebSocket",
+                exchange_name=self.exchange_name,
+                error=str(e),
+            )
             # Corrected: Use map_string_error or map_exchange_error based on available info
             # Assuming 'e' is primarily a string representation of the error here.
             # If 'e' were an HTTP-like error with status_code, map_exchange_error might be better.

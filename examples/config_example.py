@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import cast
 
 from cyberdelta.config import get_app_settings, get_secrets_config
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 
 

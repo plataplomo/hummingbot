@@ -1,7 +1,6 @@
 """Module docstring."""
 
 import json
-import logging
 from typing import Any
 
 import pytest
@@ -12,9 +11,10 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawPublicTradeEvent,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- BackpackRawPublicTrade ---

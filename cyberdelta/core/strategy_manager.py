@@ -7,13 +7,13 @@ including lifecycle management, market data distribution, and signal collection.
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market.candle import Candle
@@ -56,7 +56,7 @@ class StrategyManager:
             signal_queue: Queue for managing trade signals
 
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         self.config = config
         self.execution_handler = execution_handler
         self.portfolio_tracker = portfolio_tracker
@@ -79,11 +79,22 @@ class StrategyManager:
 
         """
         if strategy.name in self.strategies:
-            logger.warning(f"Strategy '{strategy.name}' already exists, replacing")
+            logger.warning(
+                "strategy_already_exists",
+                strategy_name=strategy.name,
+                action="strategy_replacement",
+                message=f"Strategy '{strategy.name}' already exists, replacing",
+            )
 
         self.strategies[strategy.name] = strategy
         self.active_symbols.add(strategy.symbol)
-        logger.info(f"Registered strategy '{strategy.name}' for symbol '{strategy.symbol}'")
+        logger.info(
+            "strategy_registered",
+            strategy_name=strategy.name,
+            symbol=strategy.symbol,
+            action="strategy_registration",
+            message=f"Registered strategy '{strategy.name}' for symbol '{strategy.symbol}'",
+        )
 
     def unregister_strategy(self, strategy_name: str) -> None:
         """Unregister a strategy from the manager.
@@ -93,7 +104,12 @@ class StrategyManager:
 
         """
         if strategy_name not in self.strategies:
-            logger.warning(f"Strategy '{strategy_name}' not found")
+            logger.warning(
+                "strategy_not_found",
+                strategy_name=strategy_name,
+                action="strategy_lookup",
+                message=f"Strategy '{strategy_name}' not found",
+            )
             return
 
         del self.strategies[strategy_name]
@@ -102,7 +118,12 @@ class StrategyManager:
         # Update active symbols
         self._refresh_active_symbols()
 
-        logger.info(f"Unregistered strategy '{strategy_name}'")
+        logger.info(
+            "strategy_unregistered",
+            strategy_name=strategy_name,
+            action="strategy_unregistration",
+            message=f"Unregistered strategy '{strategy_name}'",
+        )
 
     def enable_strategy(self, strategy_name: str) -> bool:
         """Enable a registered strategy.
@@ -115,13 +136,23 @@ class StrategyManager:
 
         """
         if strategy_name not in self.strategies:
-            logger.warning(f"Cannot enable non-existent strategy '{strategy_name}'")
+            logger.warning(
+                "cannot_enable_nonexistent_strategy",
+                strategy_name=strategy_name,
+                action="strategy_enable_failed",
+                message=f"Cannot enable non-existent strategy '{strategy_name}'",
+            )
             return False
 
         strategy = self.strategies[strategy_name]
         strategy.enable()
         self.enabled_strategies.add(strategy_name)
-        logger.info(f"Enabled strategy '{strategy_name}'")
+        logger.info(
+            "strategy_enabled",
+            strategy_name=strategy_name,
+            action="strategy_enable",
+            message=f"Enabled strategy '{strategy_name}'",
+        )
         return True
 
     def disable_strategy(self, strategy_name: str) -> bool:
@@ -135,13 +166,23 @@ class StrategyManager:
 
         """
         if strategy_name not in self.strategies:
-            logger.warning(f"Cannot disable non-existent strategy '{strategy_name}'")
+            logger.warning(
+                "cannot_disable_nonexistent_strategy",
+                strategy_name=strategy_name,
+                action="strategy_disable_failed",
+                message=f"Cannot disable non-existent strategy '{strategy_name}'",
+            )
             return False
 
         strategy = self.strategies[strategy_name]
         strategy.disable()
         self.enabled_strategies.discard(strategy_name)
-        logger.info(f"Disabled strategy '{strategy_name}'")
+        logger.info(
+            "strategy_disabled",
+            strategy_name=strategy_name,
+            action="strategy_disable",
+            message=f"Disabled strategy '{strategy_name}'",
+        )
         return True
 
     async def process_market_data(self, data: Candle) -> None:
@@ -178,8 +219,12 @@ class StrategyManager:
                 f"Halting processing."
             )
             logger.error(
-                log_msg,
+                "critical_historical_data_error",
+                symbol=data.symbol,
+                strategy_name=strategy_name,
                 error=str(e),
+                action="historical_data_update_failure",
+                message=log_msg,
                 exc_info=True,
             )
             raise
@@ -204,8 +249,11 @@ class StrategyManager:
             generated_signals = await strategy.process_data(data)
         except Exception as e:
             logger.error(
-                f"Error processing data in strategy '{strategy_name}'",
+                "strategy_data_processing_error",
+                strategy_name=strategy_name,
                 error=str(e),
+                action="data_processing_failure",
+                message=f"Error processing data in strategy '{strategy_name}'",
                 exc_info=True,
             )
             return
@@ -265,8 +313,11 @@ class StrategyManager:
                 return signal.model_dump()
             except Exception as dump_err:
                 logger.warning(
-                    f"Failed to dump malformed signal data: {dump_err}",
-                    signal_object=str(signal),  # Fallback to str()
+                    "signal_dump_failed",
+                    error=str(dump_err),
+                    signal_object=str(signal),
+                    action="signal_serialization_failure",
+                    message=f"Failed to dump malformed signal data: {dump_err}",
                 )
                 return {"error": "Failed to dump signal"}
         else:
@@ -359,8 +410,11 @@ class StrategyManager:
                 performance_data[name] = strategy.performance_metrics
             except Exception as e:
                 logger.error(
-                    f"Error getting performance metrics from strategy '{name}'",
+                    "performance_metrics_error",
+                    strategy_name=name,
                     error=str(e),
+                    action="metrics_retrieval_failure",
+                    message=f"Error getting performance metrics from strategy '{name}'",
                 )
                 performance_data[name] = {"error": "Failed to retrieve metrics"}
         return performance_data
@@ -373,9 +427,21 @@ class StrategyManager:
                 try:
                     # Call the synchronous on_start method
                     self.strategies[name].on_start()  # Renamed from start_async
-                    logger.info(f"Strategy '{name}' started.")
+                    logger.info(
+                        "strategy_started",
+                        strategy_name=name,
+                        action="strategy_start",
+                        message=f"Strategy '{name}' started.",
+                    )
                 except Exception as e:
-                    logger.error(f"Error starting strategy '{name}'", error=str(e), exc_info=True)
+                    logger.error(
+                        "strategy_start_error",
+                        strategy_name=name,
+                        error=str(e),
+                        action="strategy_start_failure",
+                        message=f"Error starting strategy '{name}'",
+                        exc_info=True,
+                    )
 
     def stop_all(self) -> None:
         """Stop all running strategies by calling their stop_async method."""
@@ -386,13 +452,30 @@ class StrategyManager:
                 try:
                     # Call the synchronous on_stop method
                     strategy.on_stop()  # Renamed from stop_async
-                    logger.info(f"Strategy '{name}' stop signal sent.")
+                    logger.info(
+                        "strategy_stop_signal_sent",
+                        strategy_name=name,
+                        action="strategy_stop",
+                        message=f"Strategy '{name}' stop signal sent.",
+                    )
                     if name in self.enabled_strategies:
                         strategy.disable()
                         self.enabled_strategies.discard(name)
-                        logger.info(f"Strategy '{name}' disabled after stop.")
+                        logger.info(
+                            "strategy_disabled_after_stop",
+                            strategy_name=name,
+                            action="strategy_cleanup",
+                            message=f"Strategy '{name}' disabled after stop.",
+                        )
                 except Exception as e:
-                    logger.error(f"Error stopping strategy '{name}'", error=str(e), exc_info=True)
+                    logger.error(
+                        "strategy_stop_error",
+                        strategy_name=name,
+                        error=str(e),
+                        action="strategy_stop_failure",
+                        message=f"Error stopping strategy '{name}'",
+                        exc_info=True,
+                    )
         self._tasks.clear()
 
     def _refresh_active_symbols(self) -> None:

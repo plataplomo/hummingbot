@@ -25,7 +25,6 @@ VCR: Records real API responses for reproducible testing
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -40,6 +39,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetMarketArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.market import Market
@@ -51,7 +51,7 @@ from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Mark all tests in this file as integration tests requiring network
 pytestmark = [

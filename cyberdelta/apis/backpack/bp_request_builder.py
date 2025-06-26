@@ -51,8 +51,8 @@ from cyberdelta.apis.models.service_args_models import (
     GetMaxOrderQuantityArgs,
     GetMaxWithdrawalQuantityArgs,
 )
-from cyberdelta.config.config_models import ExchangeSpecificConfig
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 

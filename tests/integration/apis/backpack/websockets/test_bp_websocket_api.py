@@ -11,18 +11,18 @@ Security Compliance:
 """
 
 import asyncio
-import logging
 from typing import Any
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.config.structlog_config import get_logger
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr, pytest.mark.timing]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_available_trading_symbols(api: BackpackAPI, limit: int = 3) -> list[str]:

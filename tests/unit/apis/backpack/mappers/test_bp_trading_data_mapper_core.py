@@ -13,12 +13,13 @@ Tests fundamental transformation methods and mapping logic including:
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
+
+from cyberdelta.config.structlog_config import get_logger
 
 
 # Third-party imports for type checking only
@@ -39,7 +40,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Fixtures ---

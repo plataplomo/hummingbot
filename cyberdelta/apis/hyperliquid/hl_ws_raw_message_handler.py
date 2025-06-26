@@ -12,7 +12,6 @@ according to the defined Raw WS Pydantic models before being processed further
 by the application.
 """
 
-import logging
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -29,12 +28,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.structlog_config import get_logger
 
 
 _BM = TypeVar("_BM", bound=BaseModel)
 
 # Get logger for the module
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidWsRawMessageHandler:
@@ -279,7 +279,13 @@ class HyperliquidWsRawMessageHandler:
             validated_model = HyperliquidRawAllMids.model_validate(payload)
             return validated_model
         except ValidationError as e:
-            logger.error(f"Invalid Hyperliquid 'allMids' WS payload: {e}. Payload: {payload!r}")
+            logger.error(
+                "invalid_all_mids_ws_payload",
+                action="validate_ws_message",
+                error=str(e),
+                payload=repr(payload),
+                message=f"Invalid Hyperliquid 'allMids' WS payload: {e}. Payload: {payload!r}",
+            )
             raise APIError(
                 f"Invalid Hyperliquid 'allMids' WS payload: {e}",
                 code=APIErrorCode.INVALID_RESPONSE.value,

@@ -20,7 +20,6 @@ The `map_exchange_error` method is the primary entry point, designed to be used
 by the `BackpackAPI` client when handling non-2xx HTTP responses or other error conditions.
 """
 
-import logging
 import re
 from typing import Any
 
@@ -30,9 +29,10 @@ from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackErrorMapper(IErrorMapper):
@@ -300,7 +300,12 @@ class BackpackErrorMapper(IErrorMapper):
                     )
                     return parsed_retry_after_seconds
                 except (ValueError, IndexError) as e:
-                    logger.debug(f"Failed to parse numeric value from regex match: {e}")
+                    logger.debug(
+                        "retry_after_parse_failed",
+                        action="parse_retry_after",
+                        error=str(e),
+                        message=f"Failed to parse numeric value from regex match: {e}",
+                    )
                     continue
 
         logger.debug(

@@ -5,7 +5,6 @@ core component instances, and test data helpers. These fixtures support
 end-to-end testing of the trading engine components working together.
 """
 
-import logging
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -68,7 +67,8 @@ import pytest_asyncio
 from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config import AppSettings
-from cyberdelta.config.config_models import PortfolioTrackerConfig
+from cyberdelta.config.models.config_models import PortfolioTrackerConfig
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import SpotBalance, Ticker
@@ -85,7 +85,7 @@ from cyberdelta.validation.position_reconciliation import PositionReconciliation
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # --- Integration Test Specific Helpers & Fixtures ---
 
@@ -177,7 +177,10 @@ async def mock_hl_api(
     """Function-scoped mock HyperLiquid API with patched clients."""
     exchange_name = "mock_hl"
     # Create a proper ExchangeSpecificConfig object for the mock
-    from cyberdelta.config.config_models import AddressActionSafetyNetConfig, ExchangeSpecificConfig
+    from cyberdelta.config.models.config_models import (
+        AddressActionSafetyNetConfig,
+        ExchangeSpecificConfig,
+    )
     from cyberdelta.enums.exchange_names import ExchangeName
 
     exchange_config = ExchangeSpecificConfig(
@@ -225,7 +228,7 @@ async def mock_bp_api(
     """Function-scoped mock Backpack API with patched clients."""
     exchange_name = "mock_bp"
     # Create a proper ExchangeSpecificConfig object for the mock
-    from cyberdelta.config.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
     from cyberdelta.enums.exchange_names import ExchangeName
 
     exchange_config = ExchangeSpecificConfig(

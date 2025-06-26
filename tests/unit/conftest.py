@@ -1,6 +1,5 @@
 """Module docstring."""
 
-import logging
 import types
 from collections.abc import Callable
 from decimal import Decimal
@@ -13,7 +12,7 @@ from pydantic import AnyUrl, HttpUrl
 from web3.auto import w3  # Import w3
 
 from cyberdelta.config import AppSettings
-from cyberdelta.config.config_models import (
+from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     BalanceMonitoringSettings,
     CircuitBreakerSettings,
@@ -27,15 +26,18 @@ from cyberdelta.config.config_models import (
     PositionReconciliationSettings,
     RiskSettings,
     SafetySystemsSettings,
+)
+from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
 )
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_test_http_url(url_str: str) -> HttpUrl:
@@ -205,7 +207,12 @@ def hyperliquid_secrets() -> dict[str, str]:
         derived_address = account.address
     except Exception as e:
         # Fallback if w3 or account generation fails unexpectedly
-        logger.warning(f"Error generating Hyperliquid mock account: {e}")
+        logger.warning(
+            "hyperliquid_mock_account_generation_failed",
+            action="generate_mock_account",
+            error=str(e),
+            message=f"Error generating Hyperliquid mock account: {e}",
+        )
         derived_address = "0xMockAddressCreationFailed"  # Provide a fallback
 
     return {
@@ -278,6 +285,12 @@ def mock_config() -> Callable[..., AppSettings]:
                         funding_threshold=Decimal("0.0001"),
                         max_price_spread_pct=Decimal("0.002"),
                         min_profit_usd=Decimal("1.0"),
+                        min_funding_differential=Decimal("0.0001"),
+                        check_interval=10,
+                        risk_aversion=Decimal("1.0"),
+                        rebalance_threshold=Decimal("0.05"),
+                        perp_exchange="hyperliquid",
+                        spot_exchange="backpack",
                     ),
                 ),
             ),
@@ -404,6 +417,12 @@ def test_app_settings() -> AppSettings:
                     funding_threshold=Decimal("0.0001"),
                     max_price_spread_pct=Decimal("0.002"),
                     min_profit_usd=Decimal("1.0"),
+                    min_funding_differential=Decimal("0.0001"),
+                    check_interval=10,
+                    risk_aversion=Decimal("1.0"),
+                    rebalance_threshold=Decimal("0.05"),
+                    perp_exchange="hyperliquid",
+                    spot_exchange="backpack",
                 ),
             ),
         ),

@@ -16,7 +16,7 @@ import pytest
 import pytz
 from pytest_mock import MockerFixture
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market.candle import Candle

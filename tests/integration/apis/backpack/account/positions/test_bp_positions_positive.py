@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
 from tests.integration.apis.backpack.shared.bp_test_helpers import (

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
@@ -177,7 +177,13 @@ class DataHandler:
                 symbol: dt_real.min.replace(tzinfo=UTC) for symbol in symbols
             }
 
-            logger.debug(f"Initialized data structures for {exchange_id} with symbols: {symbols}")
+            logger.debug(
+                "data_structures_initialized",
+                exchange_id=exchange_id,
+                symbols=symbols,
+                action="initialize_data_structures",
+                message=f"Initialized data structures for {exchange_id} with symbols: {symbols}",
+            )
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
         """Register an API client for an exchange.
@@ -188,7 +194,13 @@ class DataHandler:
 
         """
         self.api_clients[exchange_id] = client
-        logger.info(f"Registered API client for {exchange_id} in DataHandler.")
+        logger.info(
+            "api_client_registered",
+            exchange_id=exchange_id,
+            component="DataHandler",
+            action="register_api_client",
+            message=f"Registered API client for {exchange_id} in DataHandler.",
+        )
 
     async def start_connections(self) -> None:
         """Establish WebSocket connections for all enabled exchanges."""
@@ -258,28 +270,78 @@ class DataHandler:
         try:
             # Connect to WebSocket
             await client.connect_websocket()
-            logger.info(f"[{exchange_id}] WebSocket connected.")
+            logger.info(
+                "websocket_connected",
+                exchange_id=exchange_id,
+                action="websocket_connect",
+                message=f"[{exchange_id}] WebSocket connected.",
+            )
 
             if not symbols:
-                logger.warning(f"[{exchange_id}] No symbols configured. Skipping subscriptions.")
+                logger.warning(
+                    "no_symbols_configured",
+                    exchange_id=exchange_id,
+                    action="skip_subscriptions",
+                    reason="no_symbols_configured",
+                    message=f"[{exchange_id}] No symbols configured. Skipping subscriptions.",
+                )
             else:
                 await self._setup_subscriptions(exchange_id, client, symbols)
 
-            logger.info(f"[{exchange_id}] WebSocket setup completed.")
+            logger.info(
+                "websocket_setup_completed",
+                exchange_id=exchange_id,
+                action="websocket_setup",
+                status="completed",
+                message=f"[{exchange_id}] WebSocket setup completed.",
+            )
 
         except ConnectionError as e:
-            logger.error(f"[{exchange_id}] ConnectionError during connect/subscribe: {e}")
+            logger.error(
+                "websocket_connection_error",
+                exchange_id=exchange_id,
+                error_type="ConnectionError",
+                error_message=str(e),
+                action="connect_subscribe",
+                message=f"[{exchange_id}] ConnectionError during connect/subscribe: {e}",
+            )
             raise
         except asyncio.CancelledError:
-            logger.info(f"[{exchange_id}] _connect_and_subscribe task was cancelled.")
+            logger.info(
+                "connect_subscribe_task_cancelled",
+                exchange_id=exchange_id,
+                task="_connect_and_subscribe",
+                action="task_cancellation",
+                message=f"[{exchange_id}] _connect_and_subscribe task was cancelled.",
+            )
             if client.is_connected:
-                logger.info(f"[{exchange_id}] Closing WebSocket due to cancellation.")
+                logger.info(
+                    "websocket_closing_cancellation",
+                    exchange_id=exchange_id,
+                    reason="cancellation",
+                    action="close_websocket",
+                    message=f"[{exchange_id}] Closing WebSocket due to cancellation.",
+                )
                 await client.close_websocket()
             raise
         except Exception as e:
-            logger.error(f"[{exchange_id}] Failed to connect or subscribe: {e}")
+            logger.error(
+                "websocket_connect_subscribe_failed",
+                exchange_id=exchange_id,
+                error_message=str(e),
+                action="connect_subscribe",
+                status="failed",
+                message=f"[{exchange_id}] Failed to connect or subscribe: {e}",
+            )
             if client.is_connected:
-                logger.info(f"[{exchange_id}] Closing WebSocket due to error: {e}")
+                logger.info(
+                    "websocket_closing_error",
+                    exchange_id=exchange_id,
+                    reason="error",
+                    error_message=str(e),
+                    action="close_websocket",
+                    message=f"[{exchange_id}] Closing WebSocket due to error: {e}",
+                )
                 await client.close_websocket()
 
     async def _setup_subscriptions(
@@ -289,7 +351,14 @@ class DataHandler:
         symbols: list[str],
     ) -> None:
         """Setup all subscriptions for the given exchange and symbols."""
-        logger.info(f"[{exchange_id}] Subscribing to channels for symbols: {symbols}")
+        logger.info(
+            "channel_subscriptions_starting",
+            exchange_id=exchange_id,
+            symbols=symbols,
+            symbols_count=len(symbols),
+            action="subscribe_channels",
+            message=f"[{exchange_id}] Subscribing to channels for symbols: {symbols}",
+        )
 
         # Define message handlers for different data types
         handlers = self._create_message_handlers(exchange_id)
@@ -299,9 +368,21 @@ class DataHandler:
 
         if subscribe_tasks:
             await asyncio.gather(*subscribe_tasks, return_exceptions=True)
-            logger.info(f"[{exchange_id}] Subscriptions completed.")
+            logger.info(
+                "channel_subscriptions_completed",
+                exchange_id=exchange_id,
+                action="subscribe_channels",
+                status="completed",
+                message=f"[{exchange_id}] Subscriptions completed.",
+            )
         else:
-            logger.warning(f"[{exchange_id}] No subscription tasks created.")
+            logger.warning(
+                "no_subscription_tasks_created",
+                exchange_id=exchange_id,
+                action="create_subscription_tasks",
+                issue="no_tasks_created",
+                message=f"[{exchange_id}] No subscription tasks created.",
+            )
 
     def _create_message_handlers(self, exchange_id: str) -> dict[str, Any]:
         """Create message handlers for different data types."""
@@ -414,7 +495,14 @@ class DataHandler:
             # This will need to be customized based on each exchange's message format
             symbol = data_payload.get("symbol") or full_message.get("symbol")
             if not symbol:
-                logger.warning(f"[{exchange_id}] Ticker message missing symbol: {data_payload}")
+                logger.warning(
+                    "ticker_message_missing_symbol",
+                    exchange_id=exchange_id,
+                    data_payload=data_payload,
+                    action="handle_ticker_message",
+                    issue="missing_symbol",
+                    message=f"[{exchange_id}] Ticker message missing symbol: {data_payload}",
+                )
                 return
 
             # Create a Ticker object from the message data
@@ -439,7 +527,14 @@ class DataHandler:
                 )
                 self._update_ticker(exchange_id, str(symbol), ticker, dt_real.now(UTC))
         except Exception as e:
-            logger.error(f"[{exchange_id}] Error handling ticker message: {e}")
+            logger.error(
+                "ticker_message_handling_error",
+                exchange_id=exchange_id,
+                error_message=str(e),
+                action="handle_ticker_message",
+                status="error",
+                message=f"[{exchange_id}] Error handling ticker message: {e}",
+            )
 
     async def _handle_orderbook_message(
         self,
@@ -452,7 +547,14 @@ class DataHandler:
             # Extract symbol and order book data from the message
             symbol = data_payload.get("symbol") or full_message.get("symbol")
             if not symbol:
-                logger.warning(f"[{exchange_id}] Order book message missing symbol: {data_payload}")
+                logger.warning(
+                    "orderbook_message_missing_symbol",
+                    exchange_id=exchange_id,
+                    data_payload=data_payload,
+                    action="handle_orderbook_message",
+                    issue="missing_symbol",
+                    message=f"[{exchange_id}] Order book message missing symbol: {data_payload}",
+                )
                 return
 
             # Create an OrderBook object from the message data
@@ -469,7 +571,14 @@ class DataHandler:
                 )
                 self._update_order_book(exchange_id, str(symbol), orderbook, dt_real.now(UTC))
         except Exception as e:
-            logger.error(f"[{exchange_id}] Error handling order book message: {e}")
+            logger.error(
+                "orderbook_message_handling_error",
+                exchange_id=exchange_id,
+                error_message=str(e),
+                action="handle_orderbook_message",
+                status="error",
+                message=f"[{exchange_id}] Error handling order book message: {e}",
+            )
 
     async def _handle_funding_message(
         self,
@@ -482,7 +591,14 @@ class DataHandler:
             # Extract symbol and funding rate data from the message
             symbol = data_payload.get("symbol") or full_message.get("symbol")
             if not symbol:
-                logger.warning(f"[{exchange_id}] Funding message missing symbol: {data_payload}")
+                logger.warning(
+                    "funding_message_missing_symbol",
+                    exchange_id=exchange_id,
+                    data_payload=data_payload,
+                    action="handle_funding_message",
+                    issue="missing_symbol",
+                    message=f"[{exchange_id}] Funding message missing symbol: {data_payload}",
+                )
                 return
 
             # Create a FundingRate object from the message data
@@ -496,7 +612,14 @@ class DataHandler:
                 )
                 self._update_funding_rate(exchange_id, str(symbol), funding_rate, dt_real.now(UTC))
         except Exception as e:
-            logger.error(f"[{exchange_id}] Error handling funding message: {e}")
+            logger.error(
+                "funding_message_handling_error",
+                exchange_id=exchange_id,
+                error_message=str(e),
+                action="handle_funding_message",
+                status="error",
+                message=f"[{exchange_id}] Error handling funding message: {e}",
+            )
 
     async def _handle_user_events_message(
         self,
@@ -525,7 +648,14 @@ class DataHandler:
                 pass
 
         except Exception as e:
-            logger.error(f"[{exchange_id}] Error handling user events message: {e}")
+            logger.error(
+                "user_events_message_handling_error",
+                exchange_id=exchange_id,
+                error_message=str(e),
+                action="handle_user_events_message",
+                status="error",
+                message=f"[{exchange_id}] Error handling user events message: {e}",
+            )
 
     async def _process_websocket_messages(self, exchange_id: str, client: ExchangeAPI) -> None:
         """Handle incoming messages from a WebSocket connection."""
@@ -540,11 +670,23 @@ class DataHandler:
             while client.is_connected and self._running:
                 await asyncio.sleep(1)  # Check connection status every second
         except asyncio.CancelledError:
-            logger.info(f"Message handler for {exchange_id} cancelled.")
+            logger.info(
+                "message_handler_cancelled",
+                exchange_id=exchange_id,
+                component="message_handler",
+                action="task_cancellation",
+                message=f"Message handler for {exchange_id} cancelled.",
+            )
         except Exception as e:
             logger.exception(f"Error in message handler for {exchange_id}: {e}")
         finally:
-            logger.info(f"Message loop for {exchange_id} stopped.")
+            logger.info(
+                "message_loop_stopped",
+                exchange_id=exchange_id,
+                component="message_loop",
+                action="stop",
+                message=f"Message loop for {exchange_id} stopped.",
+            )
             if exchange_id in self.ws_tasks:
                 del self.ws_tasks[exchange_id]
 
@@ -556,7 +698,12 @@ class DataHandler:
         """Parse raw message and update internal state / notify observers."""
         # This method is no longer needed since message parsing and handling
         # is done through the registered handlers in the subscribe calls
-        logger.debug(f"[{exchange_id}] Message handling delegated to registered handlers.")
+        logger.debug(
+            "message_handling_delegated",
+            exchange_id=exchange_id,
+            action="delegate_message_handling",
+            message=f"[{exchange_id}] Message handling delegated to registered handlers.",
+        )
 
     # --- Internal Update Methods ---
 
@@ -569,7 +716,14 @@ class DataHandler:
     ) -> None:
         """Update the ticker data for a given exchange and symbol."""
         if exchange_id not in self.tickers or symbol not in self.tickers[exchange_id]:
-            logger.warning(f"Attempted to update ticker for uninitialized {exchange_id}/{symbol}")
+            logger.warning(
+                "ticker_update_uninitialized",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                action="update_ticker",
+                issue="uninitialized_data_structure",
+                message=f"Attempted to update ticker for uninitialized {exchange_id}/{symbol}",
+            )
             # Optionally initialize here if dynamic symbols are allowed
             if exchange_id not in self.tickers:
                 self.tickers[exchange_id] = {}
@@ -578,7 +732,14 @@ class DataHandler:
 
         self.tickers[exchange_id][symbol] = data
         self.last_update_time[exchange_id][symbol] = timestamp
-        logger.debug(f"Updated ticker: {exchange_id}/{symbol} - {data.price}")
+        logger.debug(
+            "ticker_updated",
+            exchange_id=exchange_id,
+            symbol=symbol,
+            price=float(data.price) if data.price else None,
+            action="update_ticker",
+            message=f"Updated ticker: {exchange_id}/{symbol} - {data.price}",
+        )
 
     def _update_order_book(
         self,
@@ -597,7 +758,13 @@ class DataHandler:
         # Use a separate timestamp field for order book updates if needed
         # self.last_update_time[exchange_id][f"{symbol}_ob"] = timestamp
         self.last_update_time[exchange_id][symbol] = timestamp  # Or reuse main symbol timestamp
-        logger.debug(f"Updated order book: {exchange_id}/{symbol}")
+        logger.debug(
+            "order_book_updated",
+            exchange_id=exchange_id,
+            symbol=symbol,
+            action="update_order_book",
+            message=f"Updated order book: {exchange_id}/{symbol}",
+        )
 
     def _update_funding_rate(
         self,
@@ -655,19 +822,37 @@ class DataHandler:
 
     async def _notify_market_data_observers(self, data: Candle) -> None:
         """Notify all registered market data observers."""
-        logger.debug(f"Notifying {len(self._market_data_observers)} market data observers.")
+        logger.debug(
+            "market_data_observers_notifying",
+            observers_count=len(self._market_data_observers),
+            observer_type="market_data",
+            action="notify_observers",
+            message=f"Notifying {len(self._market_data_observers)} market data observers.",
+        )
         tasks = [observer(data) for observer in self._market_data_observers]
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _notify_order_book_observers(self, data: OrderBook) -> None:
         """Notify all registered order book observers."""
-        logger.debug(f"Notifying {len(self._order_book_observers)} order book observers.")
+        logger.debug(
+            "order_book_observers_notifying",
+            observers_count=len(self._order_book_observers),
+            observer_type="order_book",
+            action="notify_observers",
+            message=f"Notifying {len(self._order_book_observers)} order book observers.",
+        )
         tasks = [observer(data) for observer in self._order_book_observers]
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _notify_funding_rate_observers(self, data: FundingRate) -> None:
         """Notify all registered funding rate observers."""
-        logger.debug(f"Notifying {len(self._funding_rate_observers)} funding rate observers.")
+        logger.debug(
+            "funding_rate_observers_notifying",
+            observers_count=len(self._funding_rate_observers),
+            observer_type="funding_rate",
+            action="notify_observers",
+            message=f"Notifying {len(self._funding_rate_observers)} funding rate observers.",
+        )
         tasks = [observer(data) for observer in self._funding_rate_observers]
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -676,7 +861,15 @@ class DataHandler:
     def get_latest_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
         """Get the latest ticker data for a specific symbol on an exchange."""
         if self._is_data_stale(exchange_id, symbol, "ticker"):
-            logger.warning(f"Ticker data for {exchange_id}:{symbol} is stale.")
+            logger.warning(
+                "ticker_data_stale",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                data_type="ticker",
+                action="get_latest_ticker",
+                issue="stale_data",
+                message=f"Ticker data for {exchange_id}:{symbol} is stale.",
+            )
             return None
         return self.tickers.get(exchange_id, {}).get(symbol)
 
@@ -742,25 +935,144 @@ class DataHandler:
         """Register an observer for data updates."""
         # Infer type based on annotation (basic example)
         # TODO: Improve this with more robust type checking or explicit registration methods
-        observer.__annotations__.get("return")
-        param_key = next(iter(observer.__annotations__), None)
-        param_type = observer.__annotations__.get(param_key) if param_key else None
 
-        if isinstance(param_type, type):
+        # Get the first parameter's type annotation (skip 'self' for methods)
+        annotations = observer.__annotations__
+        param_names = list(annotations.keys())
+
+        # Skip 'self' and 'return' to find the data parameter
+        data_param_name = None
+        for param_name in param_names:
+            if param_name not in ("self", "return"):
+                data_param_name = param_name
+                break
+
+        if data_param_name:
+            param_type = annotations.get(data_param_name)
+
+            # Handle direct type annotations
+            if isinstance(param_type, type):
+                self._register_observer_by_type(observer, param_type)
+            # Handle string annotations (for forward references)
+            elif isinstance(param_type, str):
+                self._register_observer_by_string_type(observer, param_type)
+            # Try to get the origin type for generic types (e.g., List[Candle])
+            elif param_type is not None and hasattr(param_type, "__origin__"):
+                if hasattr(param_type, "__args__") and param_type.__args__:
+                    # Get the first generic argument
+                    inner_type = param_type.__args__[0]
+                    if isinstance(inner_type, type):
+                        self._register_observer_by_type(observer, inner_type)
+                    else:
+                        self._register_observer_fallback(observer, "generic_type_with_complex_args")
+                else:
+                    self._register_observer_fallback(observer, "generic_type_no_args")
+            else:
+                self._register_observer_fallback(observer, "complex_annotation")
+        else:
+            self._register_observer_fallback(observer, "no_data_parameter")
+
+    def _register_observer_by_type(self, observer: Callable[..., Any], param_type: type) -> None:
+        """Register observer based on parameter type."""
+        try:
             if issubclass(param_type, Candle):
                 self._market_data_observers.append(observer)
-                logger.info(f"Registered market data observer: {observer.__name__}")
+                logger.info(
+                    "market_data_observer_registered",
+                    observer_name=observer.__name__,
+                    observer_type="market_data",
+                    action="register_observer",
+                    message=f"Registered market data observer: {observer.__name__}",
+                )
             elif issubclass(param_type, OrderBook):
                 self._order_book_observers.append(observer)
-                logger.info(f"Registered order book observer: {observer.__name__}")
+                logger.info(
+                    "order_book_observer_registered",
+                    observer_name=observer.__name__,
+                    observer_type="order_book",
+                    action="register_observer",
+                    message=f"Registered order book observer: {observer.__name__}",
+                )
             elif issubclass(param_type, FundingRate):
                 self._funding_rate_observers.append(observer)
-                logger.info(f"Registered funding rate observer: {observer.__name__}")
+                logger.info(
+                    "funding_rate_observer_registered",
+                    observer_name=observer.__name__,
+                    observer_type="funding_rate",
+                    action="register_observer",
+                    message=f"Registered funding rate observer: {observer.__name__}",
+                )
             else:
-                logger.warning(f"Could not determine observer type for: {observer.__name__}")
+                self._register_observer_fallback(
+                    observer, f"unrecognized_type_{param_type.__name__}"
+                )
+        except TypeError:
+            # issubclass can fail if param_type is not a class
+            self._register_observer_fallback(observer, f"invalid_type_{param_type}")
+
+    def _register_observer_by_string_type(
+        self, observer: Callable[..., Any], type_string: str
+    ) -> None:
+        """Register observer based on string type annotation."""
+        if type_string == "Candle":
+            self._market_data_observers.append(observer)
+            logger.info(
+                "market_data_observer_registered",
+                observer_name=observer.__name__,
+                observer_type="market_data",
+                action="register_observer",
+                message=(
+                    f"Registered market data observer: {observer.__name__} (from string annotation)"
+                ),
+            )
+        elif type_string == "OrderBook":
+            self._order_book_observers.append(observer)
+            logger.info(
+                "order_book_observer_registered",
+                observer_name=observer.__name__,
+                observer_type="order_book",
+                action="register_observer",
+                message=(
+                    f"Registered order book observer: {observer.__name__} (from string annotation)"
+                ),
+            )
+        elif type_string == "FundingRate":
+            self._funding_rate_observers.append(observer)
+            logger.info(
+                "funding_rate_observer_registered",
+                observer_name=observer.__name__,
+                observer_type="funding_rate",
+                action="register_observer",
+                message=(
+                    f"Registered funding rate observer: {observer.__name__} "
+                    "(from string annotation)"
+                ),
+            )
         else:
-            logger.warning(
-                f"Could not register observer with complex/missing annotation: {observer.__name__}",
+            self._register_observer_fallback(observer, f"unrecognized_string_type_{type_string}")
+
+    def _register_observer_fallback(self, observer: Callable[..., Any], reason: str) -> None:
+        """Register observer as market data observer when type cannot be determined."""
+        # Default to market data observer for known methods
+        if observer.__name__ in ["process_market_data", "on_market_data"]:
+            self._market_data_observers.append(observer)
+            logger.info(
+                "market_data_observer_registered",
+                observer_name=observer.__name__,
+                observer_type="market_data",
+                action="register_observer",
+                message=f"Registered market data observer: {observer.__name__} (fallback)",
+                fallback_reason=reason,
+            )
+        else:
+            logger.debug(
+                "observer_registration_skipped",
+                observer_name=observer.__name__,
+                action="register_observer",
+                reason=reason,
+                message=(
+                    f"Skipped registration for observer: {observer.__name__} (reason: {reason})"
+                ),
             )
 
     def unregister_observer(self, observer: Callable[..., Any]) -> None:
@@ -779,9 +1091,20 @@ class DataHandler:
         # Add removal logic for other observer types
 
         if removed:
-            logger.info(f"Unregistered observer: {observer.__name__}")
+            logger.info(
+                "observer_unregistered",
+                observer_name=observer.__name__,
+                action="unregister_observer",
+                message=f"Unregistered observer: {observer.__name__}",
+            )
         else:
-            logger.warning(f"Observer not found for unregistration: {observer.__name__}")
+            logger.warning(
+                "observer_unregistration_not_found",
+                observer_name=observer.__name__,
+                action="unregister_observer",
+                issue="observer_not_found",
+                message=f"Observer not found for unregistration: {observer.__name__}",
+            )
 
     # --- Connection Management ---
 
@@ -797,13 +1120,24 @@ class DataHandler:
         # Cancel all running WebSocket message handling tasks
         tasks_to_process = list(self.ws_tasks.values())
         if tasks_to_process:
-            logger.debug(f"Cancelling {len(tasks_to_process)} WebSocket tasks...")
+            logger.debug(
+                "websocket_tasks_cancelling",
+                tasks_count=len(tasks_to_process),
+                action="cancel_websocket_tasks",
+                message=f"Cancelling {len(tasks_to_process)} WebSocket tasks...",
+            )
             for task_like in tasks_to_process:
                 if hasattr(task_like, "cancel") and callable(task_like.cancel):
                     try:
                         task_like.cancel()
                     except RuntimeError as e:  # More specific for Task.cancel errors
-                        logger.warning(f"Error cancelling task-like object {type(task_like)}: {e}")
+                        logger.warning(
+                            "task_cancellation_error",
+                            task_type=str(type(task_like)),
+                            error_message=str(e),
+                            action="cancel_task",
+                            message=f"Error cancelling task-like object {type(task_like)}: {e}",
+                        )
                     except Exception as e:
                         logger.warning(
                             f"Unexpected error cancelling task-like object {type(task_like)}: {e}",
@@ -818,11 +1152,22 @@ class DataHandler:
         close_tasks: list[Awaitable[Any]] = []
         for exchange_id, client in self.api_clients.items():
             if hasattr(client, "close_websocket"):
-                logger.debug(f"Closing WebSocket connection for {exchange_id}...")
+                logger.debug(
+                    "websocket_connection_closing",
+                    exchange_id=exchange_id,
+                    action="close_websocket_connection",
+                    message=f"Closing WebSocket connection for {exchange_id}...",
+                )
                 close_method = client.close_websocket
                 close_tasks.append(close_method())
             elif hasattr(client, "close"):  # General close as last resort
-                logger.debug(f"Closing general connection for {exchange_id} via close()...")
+                logger.debug(
+                    "general_connection_closing",
+                    exchange_id=exchange_id,
+                    method="close",
+                    action="close_general_connection",
+                    message=f"Closing general connection for {exchange_id} via close()...",
+                )
                 close_method = client.close
                 close_tasks.append(close_method())
 
@@ -905,9 +1250,22 @@ class DataHandler:
         attempt = 0
         current_delay = reconnect_delay  # Ensure float for calculations
 
-        logger.info(f"[{exchange_id}] Starting WebSocket maintenance loop.")
+        logger.info(
+            "websocket_maintenance_loop_starting",
+            exchange_id=exchange_id,
+            component="websocket_maintenance",
+            action="start_maintenance_loop",
+            message=f"[{exchange_id}] Starting WebSocket maintenance loop.",
+        )
         while True:
-            logger.info(f"[{exchange_id}] Top of maintenance loop, attempt {attempt}.")
+            logger.info(
+                "websocket_maintenance_loop_attempt",
+                exchange_id=exchange_id,
+                attempt=attempt,
+                component="websocket_maintenance",
+                action="maintenance_loop_iteration",
+                message=f"[{exchange_id}] Top of maintenance loop, attempt {attempt}.",
+            )
             try:
                 # This call will internally handle subscriptions and then start message handling.
                 # It will return if _handle_messages exits
@@ -948,7 +1306,14 @@ class DataHandler:
 
             # Check if the DataHandler is still supposed to be running
             if not getattr(self, "_running", True):  # Check _running flag if it exists
-                logger.info(f"[{exchange_id}] DataHandler is stopping. Exiting maintenance loop.")
+                logger.info(
+                    "websocket_maintenance_loop_stopping",
+                    exchange_id=exchange_id,
+                    component="websocket_maintenance",
+                    reason="data_handler_stopping",
+                    action="exit_maintenance_loop",
+                    message=f"[{exchange_id}] DataHandler is stopping. Exiting maintenance loop.",
+                )
                 break
 
             attempt += 1
@@ -967,7 +1332,13 @@ class DataHandler:
             )  # attempt is 0-indexed
             await asyncio.sleep(current_delay)
 
-        logger.info(f"[{exchange_id}] Exited WebSocket maintenance loop.")
+        logger.info(
+            "websocket_maintenance_loop_exited",
+            exchange_id=exchange_id,
+            component="websocket_maintenance",
+            action="exit_maintenance_loop",
+            message=f"[{exchange_id}] Exited WebSocket maintenance loop.",
+        )
 
     def _get_default_ticker(self, symbol: str) -> Ticker:
         """Return a default Ticker object for initialization."""

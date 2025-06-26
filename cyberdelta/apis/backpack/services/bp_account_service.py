@@ -40,7 +40,7 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawArgs,
 )
 from cyberdelta.apis.utils import ensure_dict_response, ensure_list_response
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -331,7 +331,12 @@ class BackpackAccountService:
 
         try:
             # Core operational logic
-            logger.info(f"[{self._exchange_name}] Getting account balances.")
+            logger.info(
+                "getting_account_balances",
+                action="get_balances",
+                exchange=self._exchange_name,
+                message=f"[{self._exchange_name}] Getting account balances.",
+            )
             raw_balances_payload = await self._get_raw_balances_dict()
             internal_balances: dict[str, SpotBalance] = {}
 
@@ -773,7 +778,13 @@ class BackpackAccountService:
         raw_response_content: str | None = None
 
         try:
-            logger.debug(f"[{self._exchange_name}] Fetching enhanced account data with collateral.")
+            logger.debug(
+                "fetching_enhanced_account_data",
+                action="get_account_summary",
+                exchange=self._exchange_name,
+                with_collateral=True,
+                message=f"[{self._exchange_name}] Fetching enhanced account data with collateral.",
+            )
 
             # Fetch collateral, settings, and positions data in parallel
             collateral_task = self._get_raw_collateral_response(subaccount_id)
@@ -874,7 +885,13 @@ class BackpackAccountService:
                 derivative_positions_raw=raw_positions_list,
             )
 
-            logger.debug(f"[{self._exchange_name}] Basic account summary created successfully.")
+            logger.debug(
+                "account_summary_created",
+                action="get_account_summary",
+                exchange=self._exchange_name,
+                summary_type="basic",
+                message=f"[{self._exchange_name}] Basic account summary created successfully.",
+            )
             return internal_summary
 
         except APIError:
@@ -1276,7 +1293,13 @@ class BackpackAccountService:
             client_transfer_id=args.client_transfer_id,
         )
 
-        logger.debug(f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}")
+        logger.debug(
+            "internal_transfer_mapped",
+            action="transfer",
+            exchange=self._exchange_name,
+            transfer=internal_transfer,
+            message=f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}",
+        )
         logger.debug(
             f"[{self._exchange_name}] Transfer successful. "
             f"Response: {internal_transfer.model_dump_json(exclude_none=True)}",

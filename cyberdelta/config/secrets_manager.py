@@ -5,17 +5,18 @@
 This module ensures secrets are stored outside the source code repository.
 """
 
-import logging
 import os
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 from pydantic import ValidationError
 
 from .secrets_models import SecretsConfig
+from .structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConfigurationError(Exception):
@@ -61,7 +62,12 @@ class SecretsManager:
         """
         # Check if secrets file exists
         if not self.secrets_path.exists():
-            logger.critical(f"Secrets file not found: {self.secrets_path}")
+            logger.critical(
+                "secrets_file_not_found",
+                secrets_path=str(self.secrets_path),
+                action="raising_configuration_error",
+                message=f"Secrets file not found: {self.secrets_path}",
+            )
             raise ConfigurationError(f"Secrets file not found: {self.secrets_path}")
 
         try:
@@ -71,24 +77,52 @@ class SecretsManager:
 
             # Ensure loaded data is valid
             if secrets_data_dict is None or not isinstance(secrets_data_dict, dict):
-                logger.critical(f"Invalid or empty content in secrets file: {self.secrets_path}")
+                logger.critical(
+                    "secrets_file_invalid_content",
+                    secrets_path=str(self.secrets_path),
+                    data_type=type(secrets_data_dict).__name__
+                    if secrets_data_dict is not None
+                    else "None",
+                    action="raising_configuration_error",
+                    message=f"Invalid or empty content in secrets file: {self.secrets_path}",
+                )
                 raise ConfigurationError(
                     f"Invalid or empty content in secrets file: {self.secrets_path}",
                 )
 
         except (yaml.YAMLError, OSError) as e:
-            logger.critical(f"Error reading secrets file {self.secrets_path}: {e}", exc_info=True)
+            logger.critical(
+                "secrets_file_reading_error",
+                secrets_path=str(self.secrets_path),
+                error_type=type(e).__name__,
+                error=str(e),
+                action="raising_configuration_error",
+                message=f"Error reading secrets file {self.secrets_path}: {e}",
+                exc_info=True,
+            )
             raise ConfigurationError(f"Error reading secrets file {self.secrets_path}: {e}") from e
 
         # Validate secrets against Pydantic model
         try:
             self.secrets_data = SecretsConfig.model_validate(secrets_data_dict)
             self.secrets_loaded = True
-            logger.info(f"SecretsConfig loaded and validated successfully from {self.secrets_path}")
+            secrets_data_typed = cast(dict[str, Any], secrets_data_dict)
+            logger.info(
+                "secrets_loaded_successfully",
+                secrets_path=str(self.secrets_path),
+                secrets_sections=list(secrets_data_typed.keys()),
+                action="secrets_validated",
+                message=f"SecretsConfig loaded and validated successfully from {self.secrets_path}",
+            )
 
         except ValidationError as e:
             logger.critical(
-                f"Secrets validation failed for {self.secrets_path}: {e}",
+                "secrets_validation_failed",
+                secrets_path=str(self.secrets_path),
+                validation_errors=e.errors(),
+                error_count=len(e.errors()),
+                action="raising_configuration_error",
+                message=f"Secrets validation failed for {self.secrets_path}: {e}",
                 exc_info=True,
             )
             self.secrets_data = None
@@ -108,12 +142,25 @@ class SecretsManager:
         env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
         if env_path_str:
             env_path = Path(env_path_str).expanduser()
-            logger.debug(f"Using secrets path from CYBERDELTA_SECRETS_PATH: {env_path}")
+            logger.debug(
+                "using_secrets_path_from_env",
+                env_variable="CYBERDELTA_SECRETS_PATH",
+                secrets_path=str(env_path),
+                action="path_resolved",
+                message=f"Using secrets path from CYBERDELTA_SECRETS_PATH: {env_path}",
+            )
             return env_path
 
         # Use default location in user's home directory
         default_path = Path.home() / ".cyberdelta" / "secrets.yaml"
-        logger.debug(f"CYBERDELTA_SECRETS_PATH not set, using default secrets path: {default_path}")
+        logger.debug(
+            "using_default_secrets_path",
+            env_variable="CYBERDELTA_SECRETS_PATH",
+            env_variable_set=False,
+            default_path=str(default_path),
+            action="using_default_path",
+            message=f"CYBERDELTA_SECRETS_PATH not set, using default secrets path: {default_path}",
+        )
         return default_path
 
     def reload(self) -> None:

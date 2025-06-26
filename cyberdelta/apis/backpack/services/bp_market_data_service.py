@@ -55,7 +55,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import (
     FundingRate,
     Market,
@@ -532,9 +532,20 @@ class BackpackMarketDataService:
                     if hasattr(raw_model, "model_dump_json")
                     else repr(raw_model)
                 )
-                logger.warning(f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}")
+                logger.warning(
+                    "trade_mapping_error",
+                    action="map_trade",
+                    error=str(e_map_item),
+                    raw_data=raw_data_str,
+                    message=f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}",
+                )
         logger.debug(
-            f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
+            "mapped_recent_trades",
+            action="map_trades",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            trades=internal_trades,
+            message=f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
         )
         return internal_trades
 

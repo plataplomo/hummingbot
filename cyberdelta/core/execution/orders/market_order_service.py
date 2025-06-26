@@ -10,7 +10,7 @@ from typing import cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
@@ -219,7 +219,13 @@ class MarketOrderService:
                 )
                 return rounded
             else:
-                logger.warning(f"No tick size found for {symbol}, returning original price")
+                logger.warning(
+                    "no_tick_size_found",
+                    action="round_price",
+                    symbol=symbol,
+                    price=float(price),
+                    message=f"No tick size found for {symbol}, returning original price",
+                )
                 return price
 
         except MarketOrderError:
@@ -256,7 +262,13 @@ class MarketOrderService:
                 )
                 return rounded
             else:
-                logger.warning(f"No step size found for {symbol}, returning original quantity")
+                logger.warning(
+                    "no_step_size_found",
+                    action="round_quantity",
+                    symbol=symbol,
+                    quantity=float(quantity),
+                    message=f"No step size found for {symbol}, returning original quantity",
+                )
                 return quantity
 
         except MarketOrderError:
@@ -291,7 +303,12 @@ class MarketOrderService:
         except MarketOrderError:
             raise
         except Exception as e:
-            logger.debug(f"Failed to fetch AllMids: {e}")
+            logger.debug(
+                "allmids_fetch_failed",
+                action="fetch_mids",
+                error=str(e),
+                message=f"Failed to fetch AllMids: {e}",
+            )
 
         return None
 

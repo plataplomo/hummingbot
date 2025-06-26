@@ -13,7 +13,6 @@ Tests complex scenarios, cross-method consistency, and advanced business logic i
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -39,7 +39,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Fixtures ---

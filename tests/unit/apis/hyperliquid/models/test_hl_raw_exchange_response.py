@@ -1,7 +1,6 @@
 # tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_response.py
 """Module docstring."""
 
-import logging
 from typing import Any
 
 import pytest
@@ -14,9 +13,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusObject,
     HyperliquidRawExchangeStatusResting,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # --- Fixtures ---

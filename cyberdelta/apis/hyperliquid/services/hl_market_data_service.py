@@ -51,7 +51,7 @@ from cyberdelta.apis.utils.response_validation import (
 )
 
 # Utilities
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 
 # Internal Domain Models
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
@@ -439,7 +439,14 @@ class HyperliquidMarketDataService:
                 )
             except Exception as e:
                 # Wrap request builder exceptions in APIError
-                logger.error(f"[{self._exchange_name}] Request builder failed for l2Book: {e}")
+                logger.error(
+                    "request_builder_failed",
+                    action="get_order_book",
+                    exchange=self._exchange_name,
+                    request_type="l2Book",
+                    error=str(e),
+                    message=f"[{self._exchange_name}] Request builder failed for l2Book: {e}",
+                )
                 raise APIError(
                     message=f"Failed to build l2Book request for symbol {symbol}: {str(e)}",
                     code=APIErrorCode.UNKNOWN.value,
@@ -1399,7 +1406,14 @@ class HyperliquidMarketDataService:
                 f"No content received from HTTP client for recentTrades for {symbol}. "
                 f"Status: {status_code}"
             )
-            logger.error(f"[{self._exchange_name}] {_error_msg}")
+            logger.error(
+                "trade_history_empty_response",
+                action="get_trade_history",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                status_code=status_code,
+                message=f"[{self._exchange_name}] {_error_msg}",
+            )
             raise APIError(
                 message=_error_msg,
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1604,7 +1618,13 @@ class HyperliquidMarketDataService:
             # Find the specific market
             for market in all_markets:
                 if market.symbol == symbol:
-                    logger.debug(f"[{self._exchange_name}] Found market metadata for {symbol}")
+                    logger.debug(
+                        "market_metadata_found",
+                        action="get_market_metadata",
+                        exchange=self._exchange_name,
+                        symbol=symbol,
+                        message=f"[{self._exchange_name}] Found market metadata for {symbol}",
+                    )
                     return market
 
             # Symbol not found

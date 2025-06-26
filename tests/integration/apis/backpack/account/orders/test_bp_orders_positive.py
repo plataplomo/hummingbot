@@ -21,7 +21,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.config.logging_config import get_logger
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackOrderDetails, Order
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (

@@ -1,6 +1,5 @@
 """Balance monitoring and alerting system for portfolio tracking."""
 
-import logging
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -8,14 +7,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from cyberdelta.config.config_models import AppSettings
+from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance  # Changed import
 from cyberdelta.core.portfolio_tracker import (
     PortfolioTracker,  # Updated from Balance
 )
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -161,7 +161,16 @@ class BalanceMonitor:
                     new_alerts.append(alert)
                     self.active_alerts.append(alert)
                     already_alerted.add((exchange_id, asset))
-                    logger.warning(str(alert))
+                    logger.warning(
+                        "low_balance_critical",
+                        action="monitor_balance",
+                        exchange=exchange_id,
+                        asset=asset,
+                        current_balance=available_balance,
+                        threshold=self.low_balance_threshold,
+                        severity=alert.severity,
+                        message=str(alert),
+                    )
                 # Check if balance is below low threshold but above minimum
                 elif (
                     available_balance < self.low_balance_threshold
@@ -179,7 +188,16 @@ class BalanceMonitor:
                     )
                     new_alerts.append(alert)
                     self.active_alerts.append(alert)
-                    logger.info(str(alert))
+                    logger.info(
+                        "low_balance_warning",
+                        action="monitor_balance",
+                        exchange=exchange_id,
+                        asset=asset,
+                        current_balance=available_balance,
+                        threshold=self.low_balance_threshold,
+                        severity=alert.severity,
+                        message=str(alert),
+                    )
 
         # Add alerts to history and cap history size
         self.alert_history.extend(new_alerts)
@@ -227,7 +245,16 @@ class BalanceMonitor:
                 threshold_type="low",
                 threshold_value=required_amount,
             )
-            logger.warning(str(alert))
+            logger.warning(
+                "insufficient_balance_for_trade",
+                action="check_balance",
+                exchange=exchange,
+                asset=asset,
+                required_amount=required_amount,
+                available_balance=available_balance,
+                severity=alert.severity,
+                message=str(alert),
+            )
             # Add to active alerts only if not already present (check ID)
             if not any(a.id == alert.id for a in self.active_alerts):
                 self.active_alerts.append(alert)
@@ -293,24 +320,53 @@ class BalanceMonitor:
         self.state_file = ""
 
         if not self.state_file or not os.path.exists(self.state_file):
-            logger.info(f"No state file found at {self.state_file}, starting with empty state")
+            logger.info(
+                "no_state_file_found",
+                action="load_state",
+                state_file=str(self.state_file),
+                message=f"No state file found at {self.state_file}, starting with empty state",
+            )
             return
 
         try:
             # Placeholder for loading state
-            logger.info(f"Attempting to load balance state from {self.state_file}")
+            logger.info(
+                "loading_balance_state",
+                action="load_state",
+                state_file=str(self.state_file),
+                message=f"Attempting to load balance state from {self.state_file}",
+            )
             # Example: Read and parse JSON, update self.active_alerts, self.alert_history
         except Exception as e:
-            logger.error(f"Error loading balance state from {self.state_file}: {e}")
+            logger.error(
+                "balance_state_load_error",
+                action="load_state",
+                state_file=str(self.state_file),
+                error=str(e),
+                message=f"Error loading balance state from {self.state_file}: {e}",
+            )
 
     def add_alert(self, alert: BalanceAlert) -> None:
         """Add a new balance alert, preventing duplicates."""
         # Alert properties are validated by BalanceAlert dataclass
         if not any(a.id == alert.id for a in self.active_alerts):
             self.active_alerts.append(alert)
-            logger.info(f"Added balance alert: ID={alert.id}, Asset={alert.asset}")
+            logger.info(
+                "balance_alert_added",
+                action="add_alert",
+                alert_id=alert.id,
+                asset=alert.asset,
+                exchange=alert.exchange,
+                alert_type=alert.threshold_type,
+                message=f"Added balance alert: ID={alert.id}, Asset={alert.asset}",
+            )
             # self._save_state() # TODO: Implement state saving
         else:
-            logger.warning(f"Alert with ID {alert.id} already exists, not adding again.")
+            logger.warning(
+                "duplicate_alert_rejected",
+                action="add_alert",
+                alert_id=alert.id,
+                message=f"Alert with ID {alert.id} already exists, not adding again.",
+            )
 
     # TODO: Implement state saving if needed

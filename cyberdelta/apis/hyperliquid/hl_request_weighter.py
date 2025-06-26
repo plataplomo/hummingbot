@@ -10,13 +10,13 @@ the endpoint and payload.
 
 from __future__ import annotations
 
-import logging
 from typing import Any, cast
 
-from cyberdelta.config.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidRequestWeighter:
@@ -90,7 +90,13 @@ class HyperliquidRequestWeighter:
                     api_type,
                     self.hl_exchange_config.default_info_weight or 20,
                 )
-                logger.debug(f"Hyperliquid /info request: type={api_type}, ip_weight={ip_weight}")
+                logger.debug(
+                    "hyperliquid_info_request_weight",
+                    action="calculate_weight",
+                    api_type=api_type,
+                    ip_weight=ip_weight,
+                    message=f"Hyperliquid /info request: type={api_type}, ip_weight={ip_weight}",
+                )
             else:
                 # Use default weight for unknown or missing types
                 ip_weight = self.hl_exchange_config.default_info_weight or 20
@@ -129,7 +135,12 @@ class HyperliquidRequestWeighter:
                 if isinstance(actions, list):
                     action_count = len(cast(list[Any], actions)) if actions else 1  # type: ignore [redundant-cast]
 
-            logger.debug(f"Hyperliquid /exchange request: address_action_count={action_count}")
+            logger.debug(
+                "hyperliquid_exchange_request_weight",
+                action="calculate_weight",
+                address_action_count=action_count,
+                message=f"Hyperliquid /exchange request: address_action_count={action_count}",
+            )
             return action_count
 
         # All other endpoints have zero address action count

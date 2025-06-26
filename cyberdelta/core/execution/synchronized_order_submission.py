@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
-import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,6 +22,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     Order,
     OrderSide,
@@ -36,7 +36,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Define a type for opportunity that can be various types
 OpportunityType = ArbitrageOpportunity
@@ -230,8 +230,13 @@ class OrderVerifier:
             if order_id == "test-order-nonexistent":  # Test specific adjustment
                 verification_error = "Local order not found"
             else:
-                verification_error = (
-                    f"Order {order_id} not found in local portfolio for exchange {exchange}."
+                verification_error = "Order not found in local portfolio for exchange"
+                logger.debug(
+                    "order_not_found_local",
+                    action="verify_local_order",
+                    message="Order not found in local portfolio for exchange",
+                    order_id=order_id,
+                    exchange=exchange,
                 )
             return local_order, verification_success, verification_error
 
@@ -246,11 +251,27 @@ class OrderVerifier:
                         f"Order {key} mismatch: expected {expected_value.name}, "
                         f"got {actual_value.name}"
                     )
+                    logger.debug(
+                        "order_enum_mismatch",
+                        action="verify_local_order",
+                        message="Order enum property mismatch",
+                        property=key,
+                        expected=expected_value.name,
+                        actual=actual_value.name,
+                    )
                     break
             elif actual_value != expected_value:
                 verification_success = False
                 verification_error = (
                     f"Order {key} mismatch: expected {expected_value}, got {actual_value}"
+                )
+                logger.debug(
+                    "order_property_mismatch",
+                    action="verify_local_order",
+                    message="Order property mismatch",
+                    property=key,
+                    expected=expected_value,
+                    actual=actual_value,
                 )
                 break
 
@@ -270,7 +291,13 @@ class OrderVerifier:
 
         if not api_client:
             verification_success = False
-            verification_error = f"API client not found for exchange {exchange}"
+            verification_error = "API client not found for exchange"
+            logger.error(
+                "api_client_not_found",
+                action="verify_api_order",
+                message="API client not found for exchange",
+                exchange=exchange,
+            )
             return api_order, verification_success, verification_error
 
         # Fetch order from API
@@ -282,19 +309,38 @@ class OrderVerifier:
                 ),
             )
         except AttributeError:
-            logger.error(f"API client for {exchange} missing get_order method.")
+            logger.error(
+                "api_method_missing",
+                action="verify_api_order",
+                message="API client missing get_order method",
+                exchange=exchange,
+                method="get_order",
+            )
             verification_success = False
-            verification_error = f"API client for {exchange} missing get_order method."
+            verification_error = "API client missing get_order method"
             return api_order, verification_success, verification_error
         except Exception as e:
-            logger.error(f"Error calling get_order for {exchange}: {e}", exc_info=True)
+            logger.error(
+                "api_get_order_error",
+                action="verify_api_order",
+                message="Error calling get_order",
+                exchange=exchange,
+                order_id=order_id,
+                error=str(e),
+                exc_info=True,
+            )
             verification_success = False
-            verification_error = f"API error fetching order {order_id} from {exchange}"
+            verification_error = "API error fetching order"
             return api_order, verification_success, verification_error
 
         if not api_order:
-            verification_error = (
-                f"Order {order_id} not found or could not be fetched from {exchange} API"
+            verification_error = "Order not found or could not be fetched from API"
+            logger.debug(
+                "order_not_found_api",
+                action="verify_api_order",
+                message="Order not found or could not be fetched from API",
+                order_id=order_id,
+                exchange=exchange,
             )
             verification_success = False
             return api_order, verification_success, verification_error
@@ -332,6 +378,15 @@ class OrderVerifier:
                         f"{expected_detail_key}): expected {expected_value.name}, "
                         f"got {api_value.name}"
                     )
+                    logger.debug(
+                        "api_order_enum_mismatch",
+                        action="verify_api_order_properties",
+                        message="API order enum property mismatch",
+                        attribute=attr_name,
+                        expected_key=expected_detail_key,
+                        expected=expected_value.name,
+                        actual=api_value.name,
+                    )
                     break
             elif api_value != expected_value:
                 verification_success = False
@@ -339,6 +394,15 @@ class OrderVerifier:
                     f" API order {attr_name} mismatch (expected key: "
                     f"{expected_detail_key}): expected {expected_value}, "
                     f"got {api_value}"
+                )
+                logger.debug(
+                    "api_order_property_mismatch",
+                    action="verify_api_order_properties",
+                    message="API order property mismatch",
+                    attribute=attr_name,
+                    expected_key=expected_detail_key,
+                    expected=expected_value,
+                    actual=api_value,
                 )
                 break
 
@@ -409,8 +473,13 @@ class OrderVerifier:
         local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
         if not local_order:
             verification_success = False
-            verification_error = (
-                f"Order {order_id} not found in local portfolio for exchange {exchange}."
+            verification_error = "Order not found in local portfolio for exchange"
+            logger.debug(
+                "order_not_found_local_execution",
+                action="verify_local_order_execution",
+                message="Order not found in local portfolio for exchange",
+                order_id=order_id,
+                exchange=exchange,
             )
             verification_details["local_order_status"] = "NOT_FOUND"
         else:
@@ -428,9 +497,15 @@ class OrderVerifier:
     ) -> dict[str, Any]:
         """Handle case where API client is not found."""
         verification_success = False
-        error_msg = f"API client not found for exchange {exchange}."
+        error_msg = "API client not found for exchange"
         verification_error = (
             f"{verification_error} {error_msg}" if verification_error else error_msg
+        )
+        logger.error(
+            "api_client_missing",
+            action="handle_missing_api_client",
+            message="API client not found for exchange",
+            exchange=exchange,
         )
         return {
             "timestamp": int(time.time() * 1000),
@@ -454,7 +529,12 @@ class OrderVerifier:
         try:
             symbol_for_api_call = local_order.symbol if local_order else None
             if not symbol_for_api_call and local_order:
-                logger.warning(f"Local order {order_id} exists but has no symbol for API call.")
+                logger.warning(
+                    "local_order_no_symbol",
+                    action="fetch_api_order",
+                    message="Local order exists but has no symbol for API call",
+                    order_id=order_id,
+                )
 
             api_order = await self._call_api_order_method(
                 api_client, exchange, order_id, symbol_for_api_call
@@ -468,7 +548,11 @@ class OrderVerifier:
 
         except AttributeError as e:
             logger.error(
-                f"API client for {exchange} is missing a required order fetch method: {e!r}",
+                "api_method_missing_fetch",
+                action="fetch_api_order",
+                message="API client is missing a required order fetch method",
+                exchange=exchange,
+                error=repr(e),
             )
             error_msg = f"API client for {exchange} is missing a required order fetch method: {e!r}"
             verification_error = (
@@ -477,7 +561,12 @@ class OrderVerifier:
             verification_success = False
         except Exception as e:
             logger.error(
-                f"Error fetching order status/details for {order_id} from {exchange} API: {e!r}",
+                "api_fetch_order_error",
+                action="fetch_api_order",
+                message="Error fetching order status/details from API",
+                order_id=order_id,
+                exchange=exchange,
+                error=repr(e),
                 exc_info=True,
             )
             error_msg = (
@@ -503,7 +592,12 @@ class OrderVerifier:
             )
         elif hasattr(api_client, "get_order"):
             logger.warning(
-                f"API client for {exchange} missing get_order_status, falling back to get_order.",
+                "api_method_fallback",
+                action="call_api_order_method",
+                message="API client missing get_order_status, falling back to get_order",
+                exchange=exchange,
+                preferred_method="get_order_status",
+                fallback_method="get_order",
             )
             return await api_client.get_order(
                 GetOrderArgs(
@@ -512,6 +606,12 @@ class OrderVerifier:
                 ),
             )
         else:
+            logger.error(
+                "api_methods_missing",
+                action="call_api_order_method",
+                message="API client missing both get_order_status and get_order methods",
+                exchange=exchange,
+            )
             raise AttributeError(
                 f"API client for {exchange} missing get_order_status and get_order methods.",
             )
@@ -535,12 +635,29 @@ class OrderVerifier:
                 verification_error = (
                     f"{verification_error} {error_msg}" if verification_error else error_msg
                 )
+                logger.debug(
+                    "local_order_status_mismatch",
+                    action="verify_order_statuses",
+                    message="Local order status mismatch",
+                    order_id=order_id,
+                    actual_status=local_order.status.name
+                    if hasattr(local_order.status, "name")
+                    else str(local_order.status),
+                    expected_status="FILLED",
+                )
 
             if not api_order:
                 verification_success = False
-                error_msg = f"Order {order_id} not found on {exchange} via API."
+                error_msg = "Order not found on exchange via API"
                 verification_error = (
                     f"{verification_error} {error_msg}" if verification_error else error_msg
+                )
+                logger.debug(
+                    "api_order_not_found",
+                    action="verify_order_statuses",
+                    message="Order not found on exchange via API",
+                    order_id=order_id,
+                    exchange=exchange,
                 )
             elif api_order.status != OrderStatus.FILLED:
                 verification_success = False
@@ -550,6 +667,16 @@ class OrderVerifier:
                 )
                 verification_error = (
                     f"{verification_error} {error_msg}" if verification_error else error_msg
+                )
+                logger.debug(
+                    "api_order_status_mismatch",
+                    action="verify_order_statuses",
+                    message="API order status mismatch",
+                    order_id=order_id,
+                    actual_status=api_order.status.name
+                    if hasattr(api_order.status, "name")
+                    else str(api_order.status),
+                    expected_status="FILLED",
                 )
 
         return verification_success, verification_error
@@ -571,12 +698,24 @@ class OrderVerifier:
                 verification_details["recent_fills_count"] = len(fills_result)
             except APIError as e:
                 logger.warning(
-                    f"API error getting recent fills for {order_id} on {exchange}: {e!r}",
+                    "api_fills_error",
+                    action="fetch_recent_fills",
+                    message="API error getting recent fills",
+                    order_id=order_id,
+                    exchange=exchange,
+                    error=repr(e),
                 )
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
             except Exception as e:
-                logger.warning(f"Could not get recent fills for {order_id} on {exchange}: {e!r}")
+                logger.warning(
+                    "fills_fetch_error",
+                    action="fetch_recent_fills",
+                    message="Could not get recent fills",
+                    order_id=order_id,
+                    exchange=exchange,
+                    error=repr(e),
+                )
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
         else:
@@ -679,7 +818,13 @@ class ExecutionCoordinator:
         context.checkpoints.append(checkpoint)
 
         # Log checkpoint for debugging
-        logger.debug(f"Execution {context.execution_id} checkpoint: {checkpoint_name}")
+        logger.debug(
+            "execution_checkpoint",
+            action="add_checkpoint",
+            message="Execution checkpoint added",
+            execution_id=context.execution_id,
+            checkpoint_name=checkpoint_name,
+        )
 
     async def complete_execution(self, context: ExecutionContext, result: ExecutionResult) -> None:
         """Mark an execution as complete.
@@ -761,7 +906,12 @@ class ExecutionCoordinator:
         """
         if execution_id in self.executions:
             del self.executions[execution_id]
-            logger.debug(f"Cleaned up execution context {execution_id}")
+            logger.debug(
+                "execution_cleanup",
+                action="cleanup_execution",
+                message="Cleaned up execution context",
+                execution_id=execution_id,
+            )
 
 
 class SynchronizedOrderSubmissionService:
@@ -898,6 +1048,12 @@ class SynchronizedOrderSubmissionService:
                 timestamp=int(time.time() * 1000),
                 error=f"Unknown execution strategy: {execution_strategy}",
             )
+            logger.error(
+                "unknown_execution_strategy",
+                action="submit_orders",
+                message="Unknown execution strategy specified",
+                strategy=execution_strategy,
+            )
 
         # Post-execution verification if execution was successful
         if execution_result.status in (
@@ -1008,6 +1164,14 @@ class SynchronizedOrderSubmissionService:
         if not cb_long_ok:
             all_success = False
             error_msg += f"Long leg CB: {cb_long_msg or 'Failed'}. "
+            logger.debug(
+                "circuit_breaker_long_failed",
+                action="verify_circuit_breakers",
+                message="Long leg circuit breaker check failed",
+                exchange=opportunity.long_exchange,
+                symbol=opportunity.symbol,
+                cb_message=cb_long_msg,
+            )
             results["circuit_breaker_long"] = {"success": False, "error": cb_long_msg}
 
         # Circuit breaker check for short leg
@@ -1025,6 +1189,14 @@ class SynchronizedOrderSubmissionService:
             if not cb_short_ok:
                 all_success = False
                 error_msg += f"Short leg CB: {cb_short_msg or 'Failed'}. "
+                logger.debug(
+                    "circuit_breaker_short_failed",
+                    action="verify_circuit_breakers",
+                    message="Short leg circuit breaker check failed",
+                    exchange=opportunity.short_exchange,
+                    symbol=opportunity.symbol,
+                    cb_message=cb_short_msg,
+                )
                 results["circuit_breaker_short"] = {"success": False, "error": cb_short_msg}
 
         return all_success, error_msg
@@ -1048,6 +1220,12 @@ class SynchronizedOrderSubmissionService:
         if not market_result["verified"]:
             all_success = False
             error_msg += f"Market conditions: {market_result.get('error') or 'Failed'}. "
+            logger.debug(
+                "market_conditions_failed",
+                action="verify_market_conditions_check",
+                message="Market conditions verification failed",
+                error=market_result.get("error"),
+            )
         results["market_conditions"] = market_result
 
         return all_success, error_msg
@@ -1071,6 +1249,12 @@ class SynchronizedOrderSubmissionService:
         if not balance_result["verified"]:
             all_success = False
             error_msg += f"Balance check: {balance_result.get('error') or 'Failed'}. "
+            logger.debug(
+                "balance_check_failed",
+                action="verify_balances_check",
+                message="Balance verification failed",
+                error=balance_result.get("error"),
+            )
         results["balances"] = balance_result
 
         return all_success, error_msg
@@ -1132,6 +1316,13 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"Execution failed: {e!r}"
+            logger.error(
+                "execution_failed",
+                action="execute_sequential_with_verification",
+                message="Sequential execution failed with exception",
+                error=repr(e),
+                exc_info=True,
+            )
 
         return result
 
@@ -1227,6 +1418,14 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"First order placement failed: {e!r}"
+            logger.error(
+                "first_order_placement_failed",
+                action="place_and_verify_first_order",
+                message="First order placement failed",
+                exchange=first_exchange,
+                error=repr(e),
+                exc_info=True,
+            )
 
         return result
 
@@ -1359,6 +1558,14 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.PARTIALLY_COMPLETED
             result.error = f"Second order placement failed: {e!r}"
+            logger.error(
+                "second_order_placement_failed",
+                action="place_and_verify_second_order",
+                message="Second order placement failed",
+                exchange=second_exchange,
+                error=repr(e),
+                exc_info=True,
+            )
 
         return result
 
@@ -1402,7 +1609,15 @@ class SynchronizedOrderSubmissionService:
 
         # Validate extracted values
         if quantity_val is None:  # Simplified check
-            logger.error(f"Missing required quantity in opportunity: {opportunity}")
+            logger.error(
+                "missing_quantity",
+                action="prepare_order",
+                message="Missing required quantity in opportunity",
+                opportunity_id=str(opportunity.id)
+                if hasattr(opportunity, "id")
+                else str(opportunity),
+                leg_type=leg_type,
+            )
             raise ValueError("Invalid opportunity data: quantity missing for order preparation")
 
         # Convert quantity and price to Decimal if they are not None
@@ -1410,7 +1625,14 @@ class SynchronizedOrderSubmissionService:
             quantity_dec = Decimal(str(quantity_val)) if quantity_val is not None else None
             price_dec = Decimal(str(price_val)) if price_val is not None else None
         except (InvalidOperation, TypeError) as e:
-            logger.error(f"Error converting quantity/price to Decimal: {e}")
+            logger.error(
+                "decimal_conversion_error",
+                action="prepare_order",
+                message="Error converting quantity/price to Decimal",
+                error=str(e),
+                quantity=str(quantity_val),
+                price=str(price_val),
+            )
             raise ValueError("Invalid numeric data in opportunity for order preparation") from e
 
         if quantity_dec is None:
@@ -1470,8 +1692,11 @@ class SynchronizedOrderSubmissionService:
     ) -> dict[str, Any]:
         """Verify positions, fills, and orders after execution."""
         logger.info(
-            f"Post-execution verification for opportunity {opportunity} "
-            f"and execution ID {execution_context.execution_id}",
+            "post_execution_verification_start",
+            action="verify_post_execution",
+            message="Starting post-execution verification",
+            opportunity_id=str(opportunity.id) if hasattr(opportunity, "id") else str(opportunity),
+            execution_id=execution_context.execution_id,
         )
         overall_success = True
         all_details: dict[str, Any] = {"positions": {}, "fills": {}, "orders": {}}
@@ -1512,8 +1737,11 @@ class SynchronizedOrderSubmissionService:
         if not position_result.get("verified", False):
             overall_success = False
             logger.warning(
-                f"Post-execution position verification FAILED for "
-                f"{execution_context.execution_id}: {position_result.get('error')}",
+                "position_verification_failed",
+                action="verify_positions_step",
+                message="Post-execution position verification failed",
+                execution_id=execution_context.execution_id,
+                error=position_result.get("error"),
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1540,9 +1768,11 @@ class SynchronizedOrderSubmissionService:
         if not fill_result.get("verified", False):
             overall_success = False
             logger.warning(
-                f"Post-execution fill verification FAILED for "
-                f"{execution_context.execution_id}: "
-                f"{fill_result.get('error')}",
+                "fill_verification_failed",
+                action="verify_fills_step",
+                message="Post-execution fill verification failed",
+                execution_id=execution_context.execution_id,
+                error=fill_result.get("error"),
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1566,9 +1796,11 @@ class SynchronizedOrderSubmissionService:
         if not order_result.get("verified", False):
             overall_success = False
             logger.warning(
-                f"Post-execution order verification FAILED for "
-                f"{execution_context.execution_id}: "
-                f"{order_result.get('error')}",
+                "order_verification_failed",
+                action="verify_orders_step",
+                message="Post-execution order verification failed",
+                execution_id=execution_context.execution_id,
+                error=order_result.get("error"),
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1589,7 +1821,12 @@ class SynchronizedOrderSubmissionService:
     ) -> None:
         """Log the final verification result and add checkpoint."""
         if overall_success:
-            logger.info(f"Post-execution verification SUCCESS for {execution_context.execution_id}")
+            logger.info(
+                "post_execution_verification_success",
+                action="log_verification_result",
+                message="Post-execution verification successful",
+                execution_id=execution_context.execution_id,
+            )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
                     execution_context,
@@ -1597,7 +1834,12 @@ class SynchronizedOrderSubmissionService:
                     all_details,
                 )
         else:
-            logger.error(f"Post-execution verification FAILED for {execution_context.execution_id}")
+            logger.error(
+                "post_execution_verification_failed",
+                action="log_verification_result",
+                message="Post-execution verification failed",
+                execution_id=execution_context.execution_id,
+            )
 
     async def verify_positions(
         self,
@@ -1689,4 +1931,13 @@ class SynchronizedOrderSubmissionService:
         """
         timestamp = int(time.time() * 1000)
         # Use opportunity.id as it's a stable UUID and hashable
-        return f"exec_{timestamp}_{hash(opportunity.id) % 10000:04d}"
+        exec_id = f"exec_{timestamp}_{hash(opportunity.id) % 10000:04d}"
+        logger.debug(
+            "execution_id_generated",
+            action="generate_execution_id",
+            message="Generated unique execution ID",
+            execution_id=exec_id,
+            opportunity_id=str(opportunity.id) if hasattr(opportunity, "id") else str(opportunity),
+            timestamp=timestamp,
+        )
+        return exec_id

@@ -5,7 +5,6 @@ with the existing infrastructure.
 """
 
 import asyncio
-import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -14,9 +13,10 @@ from typing import ParamSpec, TypeVar, cast
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.config.structlog_config import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 P = ParamSpec("P")
 T = TypeVar("T")
