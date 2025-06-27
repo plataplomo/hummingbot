@@ -17,6 +17,10 @@ async def bp_perp_test_config(
 
     This fixture dynamically fetches actual market constraints instead of using
     hardcoded values to ensure tests align with real exchange behavior.
+
+    Returns:
+        dict[str, list[str] | list[Decimal] | Decimal | int]: Test configuration
+            containing market constraints and test parameters.
     """
     # Import here to avoid circular imports
     from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints

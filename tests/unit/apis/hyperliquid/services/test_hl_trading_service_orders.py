@@ -499,7 +499,6 @@ class TestHyperliquidTradingServiceOrders:
                 serialize_none_as_null=True,
             )
             # Fix the method call signature - handle_exchange_response takes
-            # (content, action_type, status_code)
             mock_hl_response_handler.handle_exchange_response.assert_called_once_with(
                 mock_response_content,
                 action_type="order",

@@ -133,7 +133,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         wallet_private_key_secret: SecretStr | None,
         account_object: LocalAccount | None,
     ) -> None:
-        """Validate that exactly one authentication method is provided."""
+        """Validate that exactly one authentication method is provided.
+
+        Args:
+            wallet_private_key_secret: Optional wallet private key
+            account_object: Optional LocalAccount object
+
+        Raises:
+            ValueError: If both or neither authentication methods are provided
+        """
         if not wallet_private_key_secret and not account_object:
             msg = "Either wallet_private_key_secret or account_object must be provided."
             self.logger.error(
@@ -159,7 +167,19 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         account_object: LocalAccount | None,
         passphrase_secret: SecretStr | None,
     ) -> LocalAccount:
-        """Setup and validate the account object."""
+        """Setup and validate the account object.
+
+        Args:
+            wallet_private_key_secret: Optional wallet private key
+            account_object: Optional LocalAccount object
+            passphrase_secret: Optional passphrase for additional validation
+
+        Returns:
+            Configured LocalAccount instance
+
+        Raises:
+            RuntimeError: If account cannot be assigned despite validation
+        """
         if wallet_private_key_secret:
             account = self._create_account_from_private_key(wallet_private_key_secret)
             if passphrase_secret:
@@ -181,7 +201,17 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self,
         wallet_private_key_secret: SecretStr,
     ) -> LocalAccount:
-        """Create a LocalAccount from a private key with validation."""
+        """Create a LocalAccount from a private key with validation.
+
+        Args:
+            wallet_private_key_secret: The private key as a SecretStr
+
+        Returns:
+            LocalAccount instance created from the private key
+
+        Raises:
+            ValueError: If private key format is invalid or creation fails
+        """
         try:
             private_key_str = wallet_private_key_secret.get_secret_value().strip()
             processed_pk_str = self._process_private_key_string(private_key_str)
@@ -210,8 +240,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def _validate_private_key_format(self, processed_pk_str: str) -> None:
         """Validate that private key is a 64-character hex string."""
         if not (
-            len(processed_pk_str) == 64
-            and all(c in string.hexdigits for c in processed_pk_str)
+            len(processed_pk_str) == 64 and all(c in string.hexdigits for c in processed_pk_str)
         ):
             raise ValueError(
                 "Hyperliquid private_key must be a 64-character hex string "
@@ -272,11 +301,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Setup EIP-712 domain and type configurations."""
         # Initialize EIP-712 domain data for Exchange/Agent scheme (sign_l1_action)
         # Use appropriate verifying contract based on environment
-        verifying_contract = (
-            "0x0000000000000000000000000000000000000000"
-            if self._is_mainnet_env
-            else "0x0000000000000000000000000000000000000000"
-        )
+        verifying_contract = "0x0000000000000000000000000000000000000000"
         # IMPORTANT: Hyperliquid SDK hardcodes chainId to 1337 for the Exchange domain
         # regardless of mainnet/testnet
         self._exchange_action_domain = HyperliquidAgentDomainData(
@@ -562,16 +587,14 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         # Add vault address (None for standard user trades)
         vault_address_for_hash: str | None = None
         if vault_address_for_hash is not None:
-            action_hash_data_parts.append(b"\x01")
-            action_hash_data_parts.append(address_to_bytes(vault_address_for_hash))
+            action_hash_data_parts.extend((b"\x01", address_to_bytes(vault_address_for_hash)))
         else:
             action_hash_data_parts.append(b"\x00")
 
         # Add expires_after if present
         expires_after_for_hash: int | None = None
         if expires_after_for_hash is not None:
-            action_hash_data_parts.append(b"\x00")
-            action_hash_data_parts.append(expires_after_for_hash.to_bytes(8, "big"))
+            action_hash_data_parts.extend((b"\x00", expires_after_for_hash.to_bytes(8, "big")))
 
         action_hash_input_bytes = b"".join(action_hash_data_parts)
         self.logger.debug(

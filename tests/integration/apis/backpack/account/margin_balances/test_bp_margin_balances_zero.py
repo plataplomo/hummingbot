@@ -165,12 +165,11 @@ class TestBackpackMarginBalancesZero:
                 assert balance.available_quantity == Decimal(0)
 
                 # Check bp_details for zero balances
-                if balance.bp_details:
-                    if balance.bp_details.open_order_quantity is not None:
-                        assert balance.bp_details.open_order_quantity == Decimal(0)
+                if balance.bp_details and balance.bp_details.open_order_quantity is not None:
+                    assert balance.bp_details.open_order_quantity == Decimal(0)
 
-                    if balance.bp_details.lend_quantity is not None:
-                        assert balance.bp_details.lend_quantity == Decimal(0)
+                if balance.bp_details and balance.bp_details.lend_quantity is not None:
+                    assert balance.bp_details.lend_quantity == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_collateral_endpoint_zero_collateral(
@@ -192,16 +191,18 @@ class TestBackpackMarginBalancesZero:
             assert account_summary.available_equity == Decimal(0)
 
             # Check bp_details for zero state
-            if account_summary.bp_details:
+            if (
+                account_summary.bp_details
+                and account_summary.bp_details.collateral_assets is not None
+            ):
                 # Collateral assets might be empty or contain zero-value entries
-                if account_summary.bp_details.collateral_assets is not None:
-                    for asset in account_summary.bp_details.collateral_assets:
-                        # Zero collateral value
-                        collateral_value = Decimal(asset.get("collateralValue", "0"))
-                        if collateral_value == Decimal(0):
-                            # Total quantity should also be zero
-                            total_quantity = Decimal(asset.get("totalQuantity", "0"))
-                            assert total_quantity == Decimal(0)
+                for asset in account_summary.bp_details.collateral_assets:
+                    # Zero collateral value
+                    collateral_value = Decimal(asset.get("collateralValue", "0"))
+                    if collateral_value == Decimal(0):
+                        # Total quantity should also be zero
+                        total_quantity = Decimal(asset.get("totalQuantity", "0"))
+                        assert total_quantity == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_margin_calculations_no_positions(

@@ -414,7 +414,11 @@ class TestBackpackOrdersPositive:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test placing a post-only order with dynamic pricing."""
+        """Test placing a post-only order with dynamic pricing.
+
+        Raises:
+            AssertionError: If order has unexpected status or authentication fails.
+        """
         symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Get dynamic test price and minimal order size

@@ -20,6 +20,7 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
+import operator
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -330,8 +331,8 @@ class BackpackMarketDataMapper:
 
             # Sort bids in descending order (highest price first) and asks in ascending order
             # (lowest price first)
-            bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
-            asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
+            bids.sort(key=operator.itemgetter(0), reverse=True)  # Sort by price descending
+            asks.sort(key=operator.itemgetter(0), reverse=False)  # Sort by price ascending
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_book.timestamp, field_name="timestamp")
@@ -574,8 +575,8 @@ class BackpackMarketDataMapper:
             FundingRate: Internal domain model with populated fields and BP details
 
         Raises:
-            TransformationError: If transformation fails
-
+            TransformationError: If transformation fails.
+            ValueError: If parsing values fails.
         """
         try:
             # Parse funding rate
@@ -635,8 +636,8 @@ class BackpackMarketDataMapper:
             Candle: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
-
+            TransformationError: If transformation fails.
+            ValueError: If parsing values fails.
         """
         try:
             # Parse OHLCV data using correct field names
@@ -797,8 +798,8 @@ class BackpackMarketDataMapper:
 
             # Sort bids in descending order (highest price first) and asks in ascending order
             # (lowest price first)
-            bids.sort(key=lambda x: x[0], reverse=True)  # Sort by price descending
-            asks.sort(key=lambda x: x[0], reverse=False)  # Sort by price ascending
+            bids.sort(key=operator.itemgetter(0), reverse=True)  # Sort by price descending
+            asks.sort(key=operator.itemgetter(0), reverse=False)  # Sort by price ascending
 
             # Parse timestamp from event_time
             timestamp = parse_datetime_utc(raw_depth.event_time, field_name="event_time")

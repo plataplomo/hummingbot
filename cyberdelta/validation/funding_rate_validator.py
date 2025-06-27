@@ -5,11 +5,11 @@ against actual payments received/paid.
 """
 
 import math
+import operator
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict, cast
 
-# from cyberdelta.config import Config # Incorrect path
 from cyberdelta.config.models.config_models import AppSettings  # Correct path
 from cyberdelta.config.structlog_config import get_logger
 
@@ -221,8 +221,8 @@ class FundingRateValidator:
             }
 
         # Sort by timestamp
-        filtered_predictions.sort(key=lambda x: x["timestamp"])
-        filtered_payments.sort(key=lambda x: x["timestamp"])
+        filtered_predictions.sort(key=operator.itemgetter("timestamp"))
+        filtered_payments.sort(key=operator.itemgetter("timestamp"))
 
         # Merge predictions with closest actual payments
         # For each payment, find the most recent prediction before the payment
@@ -237,7 +237,7 @@ class FundingRateValidator:
             ]
             if relevant_predictions:
                 # Get the most recent prediction before the payment
-                latest_prediction = max(relevant_predictions, key=lambda x: x["timestamp"])
+                latest_prediction = max(relevant_predictions, key=operator.itemgetter("timestamp"))
                 predicted_rate = latest_prediction["predicted_rate"]
                 method = latest_prediction["method"]
                 confidence = latest_prediction["confidence"]
@@ -322,9 +322,13 @@ class FundingRateValidator:
         # Get unique exchange-symbol pairs from all predictions and payments
         exchange_symbols: set[tuple[str, str]] = set()
 
-        exchange_symbols.update((prediction["exchange"], prediction["symbol"]) for prediction in self.predictions)
+        exchange_symbols.update(
+            (prediction["exchange"], prediction["symbol"]) for prediction in self.predictions
+        )
 
-        exchange_symbols.update((payment["exchange"], payment["symbol"]) for payment in self.payments)
+        exchange_symbols.update(
+            (payment["exchange"], payment["symbol"]) for payment in self.payments
+        )
 
         # Generate report for each pair
         for exchange, symbol in exchange_symbols:
@@ -365,7 +369,7 @@ class FundingRateValidator:
         # Sort by timestamp (newest first) and apply limit
         sorted_predictions = sorted(
             filtered_predictions,
-            key=lambda x: x["timestamp"],
+            key=operator.itemgetter("timestamp"),
             reverse=True,
         )
         return sorted_predictions[:limit]
@@ -397,7 +401,9 @@ class FundingRateValidator:
             filtered_payments = [p for p in filtered_payments if p["symbol"] == symbol]
 
         # Sort by timestamp (newest first) and apply limit
-        sorted_payments = sorted(filtered_payments, key=lambda x: x["timestamp"], reverse=True)
+        sorted_payments = sorted(
+            filtered_payments, key=operator.itemgetter("timestamp"), reverse=True
+        )
         return sorted_payments[:limit]
 
     def get_prediction_history(
@@ -440,8 +446,8 @@ class FundingRateValidator:
         ]
 
         # Sort by timestamp
-        filtered_predictions.sort(key=lambda x: x["timestamp"])
-        filtered_payments.sort(key=lambda x: x["timestamp"])
+        filtered_predictions.sort(key=operator.itemgetter("timestamp"))
+        filtered_payments.sort(key=operator.itemgetter("timestamp"))
 
         return {
             "predictions": {

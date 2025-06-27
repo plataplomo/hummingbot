@@ -56,7 +56,14 @@ async def create_test_perp_position(
     api: BackpackAPI,
     symbol: str = "SOL_USDC_PERP",
 ) -> tuple[str, Decimal]:
-    """Create a small test position and return order ID and quantity."""
+    """Create a small test position and return order ID and quantity.
+
+    Returns:
+        tuple[str, Decimal]: Order ID and quantity of the created position.
+
+    Raises:
+        ValueError: If market price cannot be determined.
+    """
     try:
         # Get market price and place order ABOVE it to ensure IOC fill
         ticker = await api.get_ticker(symbol)
@@ -307,7 +314,11 @@ class TestBackpackPerpPositionsPrivate:
         self,
         bp_api_for_test_env: BackpackAPI,
     ) -> list[DerivativePosition]:
-        """Ensure we have positions for testing, creating if necessary."""
+        """Ensure we have positions for testing, creating if necessary.
+
+        Returns:
+            list[DerivativePosition]: List of derivative positions.
+        """
         positions = await bp_api_for_test_env.get_positions()
 
         if not positions:

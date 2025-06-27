@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test script to verify Hyperliquid update_account_settings implementation."""
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -15,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-async def test_hyperliquid_account_settings() -> None:
+def test_hyperliquid_account_settings() -> None:
     """Test the Hyperliquid account settings implementation."""
     # Test creating args
     args = UpdateAccountSettingsArgs(
@@ -85,4 +84,4 @@ async def test_hyperliquid_account_settings() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(test_hyperliquid_account_settings())
+    test_hyperliquid_account_settings()

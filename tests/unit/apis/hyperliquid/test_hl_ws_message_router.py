@@ -25,7 +25,11 @@ class TestHyperliquidWsMessageRouter:
 
     @pytest.fixture
     def mock_market_data_mapper(self) -> Mock:
-        """Create a mock market data mapper."""
+        """Create a mock market data mapper.
+
+        Returns:
+            Mock HyperliquidMarketDataMapper for testing.
+        """
         mapper = Mock(spec=HyperliquidMarketDataMapper)
         mapper.transform_ws_book_update_to_internal = Mock(return_value=Mock())
         mapper.transform_ws_trade_event_to_internal = Mock(return_value=Mock())
@@ -33,7 +37,11 @@ class TestHyperliquidWsMessageRouter:
 
     @pytest.fixture
     def mock_account_data_mapper(self) -> Mock:
-        """Create a mock account data mapper."""
+        """Create a mock account data mapper.
+
+        Returns:
+            Mock HyperliquidAccountDataMapper for testing.
+        """
         mapper = Mock(spec=HyperliquidAccountDataMapper)
         mapper.transform_ws_fill_event_to_internal = Mock(return_value=Mock())
         mapper.transform_ws_position_update_to_internal_position = Mock(return_value=Mock())
@@ -41,14 +49,22 @@ class TestHyperliquidWsMessageRouter:
 
     @pytest.fixture
     def mock_trading_data_mapper(self) -> Mock:
-        """Create a mock trading data mapper."""
+        """Create a mock trading data mapper.
+
+        Returns:
+            Mock HyperliquidTradingDataMapper for testing.
+        """
         mapper = Mock(spec=HyperliquidTradingDataMapper)
         mapper.transform_ws_order_update_to_internal_order = Mock(return_value=Mock())
         return mapper
 
     @pytest.fixture
     def mock_raw_ws_handler(self) -> Mock:
-        """Create a mock raw WebSocket message handler."""
+        """Create a mock raw WebSocket message handler.
+
+        Returns:
+            Mock HyperliquidWsRawMessageHandler for testing.
+        """
         handler = Mock(spec=HyperliquidWsRawMessageHandler)
         handler.handle_l2book_payload = Mock(return_value=Mock())
         handler.handle_public_trades_payload = Mock(return_value=[Mock()])
@@ -67,7 +83,11 @@ class TestHyperliquidWsMessageRouter:
         mock_trading_data_mapper: Mock,
         mock_raw_ws_handler: Mock,
     ) -> HyperliquidWsMessageRouter:
-        """Create a HyperliquidWsMessageRouter instance with mocked dependencies."""
+        """Create a HyperliquidWsMessageRouter instance with mocked dependencies.
+
+        Returns:
+            HyperliquidWsMessageRouter instance with mock dependencies for testing.
+        """
         return HyperliquidWsMessageRouter(
             market_data_mapper=mock_market_data_mapper,
             account_data_mapper=mock_account_data_mapper,
@@ -78,7 +98,11 @@ class TestHyperliquidWsMessageRouter:
 
     @pytest.fixture
     def mock_app_handler(self) -> AsyncMock:
-        """Create a mock application handler."""
+        """Create a mock application handler.
+
+        Returns:
+            AsyncMock: Mock MessageHandler for testing message routing.
+        """
         return AsyncMock(spec=MessageHandler)
 
     def test_init(self, router: HyperliquidWsMessageRouter) -> None:

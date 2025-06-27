@@ -173,7 +173,6 @@ class TestBackpackTradingServiceAccountMisc:
 
         mock_payload = {"symbol": symbol, "side": side.value}
         # Convert internal OrderSide to Backpack side format
-        # bp_side = "Bid" if side == OrderSide.BUY else "Ask"
         mock_raw_order = BackpackRawOrder(
             id="123",
             symbol=symbol,

@@ -3,6 +3,7 @@
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime as dt_real, timedelta
 from decimal import Decimal
@@ -21,7 +22,6 @@ from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
 if TYPE_CHECKING:
     # This can remain for linters/type checkers if desired, but isn't strictly needed now
-    # from cyberdelta.core.models import MarketData
     # Keep Callable import for type hinting observers
     from collections.abc import Callable, Coroutine
 
@@ -276,7 +276,12 @@ class DataHandler:
         client: ExchangeAPI,
         symbols: list[str],
     ) -> None:
-        """Connect to WebSocket and subscribe to required data feeds."""
+        """Connect to WebSocket and subscribe to required data feeds.
+
+        Raises:
+            ConnectionError: If WebSocket connection fails.
+            CancelledError: If the task is cancelled during execution.
+        """
         try:
             # Connect to WebSocket
             await client.connect_websocket()
@@ -471,20 +476,25 @@ class DataHandler:
         tasks: list[Coroutine[Any, Any, None]] = []
 
         if exchange_id == "hyperliquid":
-            # Hyperliquid uses l2Book for order book data
-            tasks.append(client.subscribe(f"l2Book:{symbol}", handlers["orderbook"]))
-            # Hyperliquid uses trades for trade data
-            tasks.append(client.subscribe(f"trades:{symbol}", handlers["ticker"]))
+            # Hyperliquid uses l2Book for order book data and trades for trade data
+            tasks.extend([
+                client.subscribe(f"l2Book:{symbol}", handlers["orderbook"]),
+                client.subscribe(f"trades:{symbol}", handlers["ticker"]),
+            ])
         elif exchange_id == "backpack":
             # Backpack topic formats (adjust based on actual implementation)
-            tasks.append(client.subscribe(f"ticker.{symbol}", handlers["ticker"]))
-            tasks.append(client.subscribe(f"orderbook.{symbol}", handlers["orderbook"]))
-            tasks.append(client.subscribe(f"funding.{symbol}", handlers["funding"]))
+            tasks.extend((
+                client.subscribe(f"ticker.{symbol}", handlers["ticker"]),
+                client.subscribe(f"orderbook.{symbol}", handlers["orderbook"]),
+                client.subscribe(f"funding.{symbol}", handlers["funding"]),
+            ))
         else:
             # Generic fallback - adjust based on actual exchange implementations
-            tasks.append(client.subscribe(f"ticker:{symbol}", handlers["ticker"]))
-            tasks.append(client.subscribe(f"orderbook:{symbol}", handlers["orderbook"]))
-            tasks.append(client.subscribe(f"funding:{symbol}", handlers["funding"]))
+            tasks.extend((
+                client.subscribe(f"ticker:{symbol}", handlers["ticker"]),
+                client.subscribe(f"orderbook:{symbol}", handlers["orderbook"]),
+                client.subscribe(f"funding:{symbol}", handlers["funding"]),
+            ))
 
         return tasks
 
@@ -814,7 +824,6 @@ class DataHandler:
             return
         self.order_books[exchange_id][symbol] = data
         # Use a separate timestamp field for order book updates if needed
-        # self.last_update_time[exchange_id][f"{symbol}_ob"] = timestamp
         self.last_update_time[exchange_id][symbol] = timestamp  # Or reuse main symbol timestamp
 
         # Sample order book updates to reduce spam (2% sampling rate)
@@ -863,28 +872,17 @@ class DataHandler:
 
     def _update_user_fills(self, exchange_id: str, symbol: str, fills: list[Trade]) -> None:
         # Ensure structures are initialized if symbol is new
-        # self._ensure_symbol_structures_exist(exchange_id, symbol)
         # Method does not exist, commenting out
 
         # Retrieve the stored FundingRate object
-        # funding_rate_obj = self.funding_rates.get(exchange_id, {}).get(symbol)
         # if not funding_rate_obj:
-        #    return None  # Or raise an error if data is expected
 
         # Check if data is stale (using a reasonable staleness_threshold)
-        # staleness_key = f"{exchange_id}_funding" # Correct key for staleness_thresholds
-        # threshold = self.staleness_thresholds.get(staleness_key, self.default_staleness_threshold)
 
         # if self.last_update_time.get(exchange_id, {}).get(
-        #    symbol, datetime.min.replace(tzinfo=UTC)
         # ) < datetime.now(UTC) - threshold:
         #    logger.warning(
-        #        f"Funding rate data for {exchange_id} - {symbol} is stale. "
-        #        f"Last update: {self.last_update_time[exchange_id][symbol]}"
-        #    )
-        #    return None
 
-        # return funding_rate_obj
         # This method's purpose is to update user fills, not return funding rates.
         # The body was incorrect. Commenting out the incorrect logic.
         # Actual fill update logic needs to be implemented.
@@ -1310,10 +1308,8 @@ class DataHandler:
             if not task.done():
                 logger.info(f"Cancelling funding refresh task for {exchange_id}")
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
 
     async def _cancel_websocket_tasks(self) -> None:
         """Cancel all running WebSocket message handling tasks."""
@@ -1372,7 +1368,9 @@ class DataHandler:
         self.ws_connections.clear()  # Clear connection references
 
     def _get_client_close_task(
-        self, exchange_id: str, client: ExchangeAPI,
+        self,
+        exchange_id: str,
+        client: ExchangeAPI,
     ) -> Awaitable[Any] | None:
         """Get the close task for a client if it has a close method."""
         if hasattr(client, "close_websocket"):

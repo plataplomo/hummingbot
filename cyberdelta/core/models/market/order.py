@@ -145,7 +145,18 @@ class Order(BaseModel):
     )
     @classmethod
     def validate_optional_str_id(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string ID fields with appropriate length limits."""
+        """Validate optional string ID fields with appropriate length limits.
+
+        Args:
+            v: The value to validate (optional string)
+            info: Validation context containing field name
+
+        Returns:
+            Validated string value or None if optional field is None
+
+        Raises:
+            ValueError: If field name is None or validation fails
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -161,7 +172,18 @@ class Order(BaseModel):
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
     def validate_required_str_short(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields with shorter length limits."""
+        """Validate required string fields with shorter length limits.
+
+        Args:
+            v: The value to validate (required string)
+            info: Validation context containing field name
+
+        Returns:
+            Validated string value
+
+        Raises:
+            ValueError: If field name is None or validation fails
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -286,9 +308,8 @@ class Order(BaseModel):
             raise ValueError("Field name is unexpectedly None during validation.")
         if v is None:
             return None
-        dt = parse_datetime_utc(v, field_name=field_name)
+        return parse_datetime_utc(v, field_name=field_name)
         # Return None if parsing failed for optional field
-        return dt
 
     # Enum fields (side, order_type, status, trigger_by, time_in_force) rely on Pydantic's
     # default enum validation. Ensure type hints are correct.

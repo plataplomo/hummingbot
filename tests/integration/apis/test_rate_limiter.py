@@ -17,12 +17,20 @@ class TestTokenBucketRateLimiterRuntime:
 
     @pytest.fixture
     def limiter(self) -> TokenBucketRateLimiterRuntime:
-        """Create a basic rate limiter for testing."""
+        """Create a basic rate limiter for testing.
+
+        Returns:
+            TokenBucketRateLimiterRuntime: Configured rate limiter instance.
+        """
         return TokenBucketRateLimiterRuntime(rate=10.0, bucket_size=10)
 
     @pytest.fixture
     def slow_limiter(self) -> TokenBucketRateLimiterRuntime:
-        """Create a slow rate limiter for testing wait scenarios."""
+        """Create a slow rate limiter for testing wait scenarios.
+
+        Returns:
+            TokenBucketRateLimiterRuntime: Slow rate limiter instance.
+        """
         return TokenBucketRateLimiterRuntime(rate=1.0, bucket_size=2)
 
     @pytest.mark.asyncio
@@ -123,7 +131,11 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
 
     @pytest.fixture
     def limiter(self) -> TokenBucketRateLimiterRuntime:
-        """Create a rate limiter for IP ban testing."""
+        """Create a rate limiter for IP ban testing.
+
+        Returns:
+            TokenBucketRateLimiterRuntime: Rate limiter instance for testing IP bans.
+        """
         return TokenBucketRateLimiterRuntime(rate=10.0, bucket_size=10)
 
     @pytest.mark.asyncio

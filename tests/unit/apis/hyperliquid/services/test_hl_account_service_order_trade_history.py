@@ -100,9 +100,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         )
         assert result == [mapped_order]
 
-        # expected_start_ms = int(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        # expected_end_ms = int(datetime(2024, 1, 2, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-
         # Business logic only passes wallet_address to build_historical_orders_payload
         mock_request_builder.build_historical_orders_payload.assert_called_once_with(
             wallet_address="0xTestWalletAddress",
@@ -472,7 +469,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         # Wallet address is already set by the hyperliquid_account_service fixture
         mock_payload_model = MagicMock()
         mock_payload_model.model_dump.return_value = {"foo": "bar"}
-        # expected_args = GetUserFillsArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_fills_request_payload.return_value = mock_payload_model
         mock_http_client_requester.return_value = ([{"fill": 1}], 200, {})
         mock_raw_fill1 = MagicMock(

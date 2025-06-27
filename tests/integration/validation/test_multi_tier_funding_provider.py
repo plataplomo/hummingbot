@@ -398,7 +398,6 @@ class TestMultiTierFundingProvider:
         assert integrated.exchange == "hyperliquid"
         assert integrated.symbol == "BTC-PERP"
         # Adjust expected value based on reliability-weighted calculation
-        # (0.0015*0.6*1.0 + 0.0014*0.3*0.8 + 0.0016*0.1*0.5) / (0.6*1.0 + 0.3*0.8 + 0.1*0.5)
         # = (0.0009 + 0.000336 + 0.00008) / (0.6 + 0.24 + 0.05)
         # = 0.001316 / 0.89 = 0.0014786516...
         assert integrated.rate == approx(0.00147865, abs=1e-7)

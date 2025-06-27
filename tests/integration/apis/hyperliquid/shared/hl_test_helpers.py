@@ -100,6 +100,9 @@ class HyperliquidTestHelpers:
 
         Returns:
             Dict with tick_size, step_size, min_quantity, max_quantity
+
+        Raises:
+            RuntimeError: If market data retrieval fails or required fields are missing.
         """
         try:
             market = await api.get_market(GetMarketArgs(symbol=symbol))
@@ -147,6 +150,9 @@ class HyperliquidTestHelpers:
 
         Returns:
             Current market price as Decimal
+
+        Raises:
+            RuntimeError: If market price cannot be retrieved or no valid price data available.
         """
         try:
             # Try ticker first (most current)
@@ -279,6 +285,9 @@ class HyperliquidTestHelpers:
 
         Returns:
             Safe test price that won't immediately execute
+
+        Raises:
+            RuntimeError: If market price or constraints cannot be retrieved.
         """
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
@@ -314,10 +323,7 @@ class HyperliquidTestHelpers:
         else:
             # Handle special cases like 'n', 'N', 'F' - fallback to string analysis
             tick_str = str(tick_size)
-            if "." in tick_str:
-                tick_decimal_places = len(tick_str.split(".")[1])
-            else:
-                tick_decimal_places = 0
+            tick_decimal_places = len(tick_str.split(".")[1]) if "." in tick_str else 0
         price_precision = Decimal(10) ** (-tick_decimal_places)
 
         # Calculate how many ticks this test price represents
@@ -369,7 +375,11 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: str) -> Decimal:
-        """Get an unreasonably large price for negative testing."""
+        """Get an unreasonably large price for negative testing.
+
+        Returns:
+            Decimal: An unreasonably large price for testing order rejection.
+        """
         market_price = await HyperliquidTestHelpers.get_current_market_price(api, symbol)
         # Use exchange maximum price limits instead of arbitrary multiplier
         await HyperliquidTestHelpers.get_market_constraints(api, symbol)
@@ -378,7 +388,11 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def get_unreasonably_large_quantity(api: HyperliquidAPI, symbol: str) -> Decimal:
-        """Get an unreasonably large quantity for negative testing."""
+        """Get an unreasonably large quantity for negative testing.
+
+        Returns:
+            Decimal: An unreasonably large quantity for testing order rejection.
+        """
         constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
         # Use exchange maximum or account limits instead of arbitrary multiplier
         max_account_size = await HyperliquidTestHelpers.calculate_maximum_position_size(api, symbol)
@@ -577,10 +591,7 @@ class HyperliquidTestHelpers:
 
             # Check tick size alignment
             tick_size = constraints["tick_size"]
-            if (price % tick_size) != Decimal(0):
-                return False
-
-            return True
+            return price % tick_size == Decimal(0)
 
         except Exception:
             return False
@@ -596,6 +607,9 @@ class HyperliquidTestHelpers:
 
         Returns:
             Dict containing account state information
+
+        Raises:
+            RuntimeError: If account state detection fails.
         """
         try:
             account_summary = await api.get_account_summary()
@@ -626,7 +640,11 @@ class HyperliquidTestHelpers:
         symbol: str | None = None,
         timeout: int = 30,
     ) -> None:
-        """Wait for order cancellation to complete with proper verification and adaptive polling."""
+        """Wait for order cancellation to complete with proper verification and adaptive polling.
+
+        Raises:
+            RuntimeError: If order cancellation verification fails or times out.
+        """
         import time
 
         start_time = time.time()
@@ -663,7 +681,11 @@ class HyperliquidTestHelpers:
         order_id: str,
         timeout: int = 30,
     ) -> None:
-        """Wait for order to appear in open orders with proper verification."""
+        """Wait for order to appear in open orders with proper verification.
+
+        Raises:
+            RuntimeError: If order placement verification fails or times out.
+        """
         import time
 
         start_time = time.time()
@@ -696,7 +718,11 @@ class HyperliquidTestHelpers:
         timeout: int = 30,
         message: str = "Condition not met",
     ) -> None:
-        """Poll until condition is true or timeout occurs."""
+        """Poll until condition is true or timeout occurs.
+
+        Raises:
+            RuntimeError: If condition is not met within timeout.
+        """
         import time
 
         start_time = time.time()
@@ -755,7 +781,11 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     def _get_fallback_margin_params() -> dict[str, Decimal]:
-        """Get conservative fallback margin parameters."""
+        """Get conservative fallback margin parameters.
+
+        Returns:
+            dict[str, Decimal]: Dictionary of fallback margin parameters.
+        """
         return {
             "maintenance_margin": Decimal("0.05"),  # 5%
             "initial_margin": Decimal("0.1"),  # 10%
@@ -818,6 +848,9 @@ class HyperliquidTestHelpers:
         Args:
             api: HyperliquidAPI instance
             symbol: Specific symbol to clean (if None, cleans all)
+
+        Raises:
+            RuntimeError: If order cleanup fails.
         """
         try:
             # Cancel all open orders for the symbol or all symbols
@@ -840,6 +873,9 @@ class HyperliquidTestHelpers:
         Args:
             api: HyperliquidAPI instance
             symbol: Specific symbol to clean (if None, attempts all)
+
+        Raises:
+            RuntimeError: If position cleanup fails.
         """
         try:
             positions = await api.get_positions()
@@ -868,13 +904,21 @@ class HyperliquidTestHelpers:
 
 
 async def get_symbol_tick_size(api: HyperliquidAPI, symbol: str) -> Decimal:
-    """Get tick size for a symbol."""
+    """Get tick size for a symbol.
+
+    Returns:
+        Decimal: The tick size for the symbol.
+    """
     constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
     return constraints["tick_size"]
 
 
 async def get_symbol_step_size(api: HyperliquidAPI, symbol: str) -> Decimal:
-    """Get step size for a symbol."""
+    """Get step size for a symbol.
+
+    Returns:
+        Decimal: The step size for the symbol.
+    """
     constraints = await HyperliquidTestHelpers.get_market_constraints(api, symbol)
     return constraints["step_size"]
 
@@ -884,7 +928,11 @@ async def get_minimal_test_quantity(
     symbol: str,
     side: OrderSide,
 ) -> Decimal:
-    """Get minimal test quantity for an order."""
+    """Get minimal test quantity for an order.
+
+    Returns:
+        Decimal: The minimal quantity for testing orders.
+    """
     return await HyperliquidTestHelpers.get_minimal_order_size(api, symbol, side)
 
 
@@ -897,6 +945,9 @@ async def get_minimal_test_quantity_for_zero_balance(
 
     Returns exchange minimum quantity without requiring account equity.
     Suitable for zero balance testing scenarios.
+
+    Returns:
+        Decimal: The minimal quantity for zero balance testing.
     """
     return await HyperliquidTestHelpers.get_minimal_order_size_for_zero_balance(api, symbol, side)
 

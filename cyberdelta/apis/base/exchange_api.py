@@ -206,7 +206,6 @@ class ExchangeAPI(ABC):
     ) -> RateLimitStrategy:
         """Create a default rate limiting strategy."""
         # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
-        # Mypy=[operator, arg-type]
         if exchange_config.rate_limit_per_minute is None:
             raise ValueError("rate_limit_per_minute cannot be None")
 

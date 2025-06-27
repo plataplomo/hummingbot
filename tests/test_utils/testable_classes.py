@@ -80,10 +80,18 @@ class TestableExecutionHandler(ExecutionHandler):
         return await self._compensate_position(execution, exchange_id, symbol, side, quantity)
 
     def test_add_to_history(self, execution: TradeExecution) -> None:
-        """Test wrapper for _add_to_history."""
+        """Test wrapper for _add_to_history.
+
+        Args:
+            execution: Trade execution to add to history.
+        """
         return self._add_to_history(execution)
 
     @property
     def test_execution_history(self) -> list[TradeExecution]:
-        """Test accessor for execution history."""
+        """Test accessor for execution history.
+
+        Returns:
+            Copy of the execution history list.
+        """
         return list(self.executions)  # Return a copy for safety

@@ -240,7 +240,11 @@ class ExecutionHandler:
         execution: TradeExecution,
         opportunity: SizedOpportunity,
     ) -> None:
-        """Check circuit breakers for both exchanges."""
+        """Check circuit breakers for both exchanges.
+
+        Raises:
+            CircuitBreakerTrippedError: If circuit breaker is tripped for either exchange.
+        """
         if not self.circuit_breaker_system:
             return
 
@@ -267,7 +271,11 @@ class ExecutionHandler:
         execution: TradeExecution,
         opportunity: SizedOpportunity,
     ) -> tuple[ExchangeAPI, ExchangeAPI, str, str]:
-        """Setup and validate API clients and symbols for execution."""
+        """Setup and validate API clients and symbols for execution.
+
+        Raises:
+            APIError: If API clients are missing or symbol mapping fails.
+        """
         # Get API clients
         long_client = self.api_clients.get(opportunity.opportunity.long_exchange)
         short_client = self.api_clients.get(opportunity.opportunity.short_exchange)
@@ -898,14 +906,16 @@ class ExecutionHandler:
                     f"Slippage detected for long leg of execution {execution.id}: "
                     f"Fill price {order.average_fill_price} > Expected {expected_long_price}",
                 )
-        elif not is_long_leg and expected_short_price is not None:
-            if order.average_fill_price and order.average_fill_price < expected_short_price * (
-                Decimal(1) - self.max_slippage
-            ):
-                logger.warning(
-                    f"Slippage detected for short leg of execution {execution.id}: "
-                    f"Fill price {order.average_fill_price} < Expected {expected_short_price}",
-                )
+        elif (
+            not is_long_leg
+            and expected_short_price is not None
+            and order.average_fill_price
+            and order.average_fill_price < expected_short_price * (Decimal(1) - self.max_slippage)
+        ):
+            logger.warning(
+                f"Slippage detected for short leg of execution {execution.id}: "
+                f"Fill price {order.average_fill_price} < Expected {expected_short_price}",
+            )
 
     async def _process_order_trades(
         self,
@@ -1178,9 +1188,7 @@ class ExecutionHandler:
             f"Assuming cancelled or filled. Original error: {e.message}",
         )
         # Decide if this is terminal or retryable (might appear with delay)
-        if attempt == self.max_retries - 1:
-            return False  # Stop if not found after retries
-        return True
+        return attempt != self.max_retries - 1  # Stop if not found after retries
 
     def _handle_rate_limited_error(self, order_id: str, exchange_id: str, e: APIError) -> bool:
         """Handle RATE_LIMITED error."""
@@ -1232,9 +1240,7 @@ class ExecutionHandler:
             f"Original error: {e.message}",
         )
         # Decide if retryable based on specific exchange error message?
-        if not e.is_retryable:
-            return False  # Stop if error is explicitly not retryable
-        return True
+        return e.is_retryable  # Stop if error is explicitly not retryable
 
     def _handle_non_retryable_error(self, order_id: str, e: APIError) -> bool:
         """Handle non-retryable errors."""
@@ -1309,7 +1315,6 @@ class ExecutionHandler:
             f"(type: {type(limit_price_offset_pct)})",
         )
 
-        # reduce_only = True  # Compensation orders should always be reduce_only # Unused variable
         order_type = OrderType.MARKET
         price = None
 
@@ -1543,7 +1548,6 @@ class ExecutionHandler:
         )
 
         # Persist PnL or notify other systems if needed
-        # Example: await some_pnl_service.record_pnl(execution.id, execution.realized_pnl)
 
     async def _monitor_order_status(
         self,

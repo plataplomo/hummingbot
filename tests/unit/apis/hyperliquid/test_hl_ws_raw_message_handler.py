@@ -18,7 +18,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsOrderUpdate,
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
-    # Removed: HyperliquidRawBookLevel
 )
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode

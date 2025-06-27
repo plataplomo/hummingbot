@@ -18,11 +18,9 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
 
-# from cyberdelta.core.portfolio_tracker import PortfolioTrackerProtocol
 # This line should be commented out or removed
 # from cyberdelta.core.models import (
 #     ArbitrageOpportunity, Order, OrderSide, OrderType, TradeSignal
-# )
 # REMOVING this runtime import
 from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import (
@@ -159,7 +157,6 @@ class ConstraintViolationError(RiskManagerError):
 # --- Data Structures for Protocols ---
 # Remove ExchangeBalance TypedDict as it's replaced by SpotBalance
 # class ExchangeBalance(TypedDict, total=False):
-#     available_quantity: Decimal
 
 
 class Position(Protocol):
@@ -316,7 +313,8 @@ class RiskManager:
     def _load_config(self) -> None:
         """Load and validate all configuration values, storing them as attributes.
 
-        Raises ConfigError if any required value is missing or invalid.
+        Raises:
+            ConfigError: If any required value is missing or invalid.
         """
         try:
             # General Risk Parameters - access through AppSettings structure
@@ -1040,7 +1038,6 @@ class RiskManager:
         # if self._check_correlation_limits(sized_opportunity):
         #     self.logger.warning(f"Opportunity {sized_opportunity.opportunity.symbol}
         #     rejected due to correlation limits.")
-        #     return None
 
         # 3. Circuit Breaker Recovery Adjustment
         # If any relevant circuit breaker is in HALF_OPEN state, reduce size
@@ -1339,20 +1336,11 @@ class RiskManager:
         # --- Apply Validation Factor ---
         validation_factor = min(long_val_factor, short_val_factor)
         # self.logger.info(
-        #     f"RM_DEBUG_CSS: symbol={opportunity.symbol}, initial_size_calc=${size:.2f}, "
-        #     f"long_val_factor={long_val_factor}, short_val_factor={short_val_factor}, "
-        #     f"effective_validation_factor={validation_factor}"
-        # )
         if validation_factor < ONE:
             # self.logger.info(
-            #     f"RM_DEBUG_CSS: Applying validation factor {validation_factor:.3f} "
-            #     f"to size ${size:.2f}"
             # ) # Log before multiplication
-            # size_before_vf = size # This variable is no longer used as the log is commented out
             size *= validation_factor
             # self.logger.info(
-            #     f"RM_DEBUG_CSS: Size after validation_factor {validation_factor:.3f}: "
-            #     f"${size_before_vf:.2f} -> ${size:.2f}" # This log used size_before_vf
             # ) # Log after
             size = size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
             if size <= ZERO:  # Check if size became zero or negative
@@ -1452,7 +1440,6 @@ class RiskManager:
 
         # if not self._check_market_liquidity(opportunity): # COMMENTED OUT -
         # POTENTIALLY MISSING METHOD
-        #     logger.warning(f"Market liquidity check failed for {opportunity.symbol}")
         #     # raise ValueError(f"Validation failed at _check_market_liquidity "
         #     #                  f"for {opportunity.symbol}")
 
@@ -1770,7 +1757,7 @@ class RiskManager:
         sizing_tasks = [self.size_opportunity(opp) for opp in opportunities]
         # Corrected type hint for asyncio.gather results to use BaseException
         # Now expects SizedOpportunity | None | BaseException because size_opportunity returns that
-        sized_results: list[SizedOpportunity | None | BaseException] = await asyncio.gather(
+        sized_results: list[SizedOpportunity | BaseException | None] = await asyncio.gather(
             *sizing_tasks,
             return_exceptions=True,
         )
@@ -1828,10 +1815,7 @@ class RiskManager:
     def _get_max_position_size_for_opportunity(self, opportunity: ArbitrageOpportunity) -> Decimal:
         """Get max position size, potentially overridden by symbol-specific config."""
         # Example: Check for symbol-specific override
-        # config_path = f"risk.asset_specific.{opportunity.symbol}.max_position_usd"
-        # symbol_max_size = self.config.get(config_path)
         # if symbol_max_size is not None:
-        #     return Decimal(str(symbol_max_size))
         # For now, always use global max position size
         max_size = self.max_position_size
         self.logger.debug(
@@ -1988,8 +1972,7 @@ class RiskManager:
 
             # Lower distance_pct means higher risk. Invert to make higher value = higher risk?
             # Example: Risk Factor = 1 / distance_pct (handle distance_pct = 0)
-            risk_factor = ONE / distance_pct if distance_pct > ZERO else Decimal("inf")
-            return risk_factor
+            return ONE / distance_pct if distance_pct > ZERO else Decimal("inf")
 
         except (InvalidOperation, TypeError, AttributeError) as e:
             self.logger.error(
@@ -2069,10 +2052,7 @@ class RiskManager:
                     ),
                 )
                 return False
-        # else: # Log if values are None
         #     self.logger.warning(
-        #         "Sanity Check: Could not check leverage due to unavailable capital or exposure."
-        #     )
 
         # Check 2: Drawdown (if available)
         current_drawdown = await self.portfolio_tracker.get_current_drawdown()
@@ -2319,20 +2299,11 @@ class RiskManager:
         # For example:
         # if current_size_usd > self.max_position_size:
         #     logger.info(
-        #         f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} "
-        #         f"> max {self.max_position_size}"
-        #     )
-        #     current_size_usd = self.max_position_size
         #     # Cap it, or return None if rejection is preferred
 
         # Collateral check (should use the potentially capped size)
-        # available_collateral = await self.portfolio_tracker.get_available_collateral(...)
         # if current_size_usd > available_collateral:
         #     logger.info(
-        #         f"RM_CONSTRAINTS: Opp {opportunity.symbol} rejected: Size {current_size_usd} > "
-        #         f"available collateral {available_collateral}"
-        #     )
-        #     return None
 
         return current_size_usd  # Return the validated (and possibly capped) size
 
@@ -2346,7 +2317,6 @@ class RiskManager:
 
         # ... other capping logic like max_position_size ...
         # For example:
-        # final_size_usd = min(final_size_usd, self.max_position_size)
 
         # === START MODIFIED SECTION for _validate_and_cap_final_size ===
         # The following line is problematic if min_trade_size check has already occurred
@@ -2354,9 +2324,7 @@ class RiskManager:
         # already be >= min_trade_size (if positive).
         # Forcing it up to min_trade_size here can make tiny valid Kelly sizes
         # (that should be rejected) appear as valid minimum trades.
-        # min_trade_size_usd_for_constraints = self.min_trade_size_usd.get(
         #     opportunity.long_exchange, self._global_min_trade_size_usd
-        # )
         min_trade_size_usd_for_constraints = self.min_trade_size_usd_per_exchange.get(
             opportunity.long_exchange,
             self._global_min_trade_size_usd,
@@ -2372,5 +2340,4 @@ class RiskManager:
         # === END MODIFIED SECTION for _validate_and_cap_final_size ===
 
         # ... logging success ...
-        # self.logger.info(f"Successfully sized opportunity: ... {final_size_usd}")
         return final_size_usd

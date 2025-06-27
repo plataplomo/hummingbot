@@ -172,7 +172,7 @@ class TestBackpackSpotBalancesZero:
             for _, result in enumerate(successful_results[1:], 1):
                 assert result.keys() == first_result.keys()
 
-                for asset in first_result.keys():
+                for asset in first_result:
                     assert result[asset].total_quantity == first_result[asset].total_quantity
 
         logger.info(

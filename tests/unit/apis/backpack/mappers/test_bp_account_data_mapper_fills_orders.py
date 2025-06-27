@@ -29,13 +29,21 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance."""
+    """Fixture providing a BackpackAccountDataMapper instance.
+
+    Returns:
+        BackpackAccountDataMapper instance for testing.
+    """
     return BackpackAccountDataMapper()
 
 
 @pytest.fixture
 def test_timestamp() -> str:
-    """Fixture providing a consistent test timestamp string."""
+    """Fixture providing a consistent test timestamp string.
+
+    Returns:
+        Consistent ISO timestamp string for testing.
+    """
     return "2024-01-15T10:30:00Z"
 
 
@@ -52,7 +60,11 @@ def create_raw_fill(
     trade_id: int = 123456,
     client_id: str | None = None,
 ) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fills and orders."""
+    """Create BackpackRawFill instances for testing fills and orders.
+
+    Returns:
+        BackpackRawFill instance configured with test data.
+    """
     return BackpackRawFill(
         fee=fee,
         feeSymbol=fee_symbol,
@@ -84,7 +96,11 @@ def create_raw_order(
     trigger_price: str | None = None,
     trigger_by: str | None = None,
 ) -> BackpackRawOrder:
-    """Create BackpackRawOrder instances for testing order transformations."""
+    """Create BackpackRawOrder instances for testing order transformations.
+
+    Returns:
+        BackpackRawOrder instance configured with test data.
+    """
     return BackpackRawOrder(
         clientId=None,
         id=id,
@@ -121,7 +137,11 @@ def create_raw_trade(
     order_id: str = "order123",
     is_buyer: bool = True,
 ) -> BackpackRawPublicTrade:
-    """Create BackpackRawPublicTrade instances for testing trade transformations."""
+    """Create BackpackRawPublicTrade instances for testing trade transformations.
+
+    Returns:
+        BackpackRawPublicTrade instance configured with test data.
+    """
     return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,

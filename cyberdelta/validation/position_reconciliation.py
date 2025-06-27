@@ -100,8 +100,8 @@ class PositionReconciliationSystem:
         self._action_mode: str = "log"  # Default value
 
         # Ensure check_interval is timedelta
-        _check_interval_td = timedelta(seconds=pos_recon_config.check_interval_sec)
-        self.check_interval = _check_interval_td
+        check_interval_td = timedelta(seconds=pos_recon_config.check_interval_sec)
+        self.check_interval = check_interval_td
 
         # Set reconciliation_interval as timedelta
         self.reconciliation_interval = timedelta(seconds=self._reconciliation_interval_secs)
@@ -132,8 +132,6 @@ class PositionReconciliationSystem:
         interval = self.reconciliation_interval
         # Runtime check for interval type - this should always be timedelta due to __init__
         # if not isinstance(interval, timedelta):
-        #     logger.error("Reconciliation interval is not a timedelta. Using default 300s.")
-        #     interval = timedelta(seconds=300)
 
         # Check if interval has passed or if forced
         should_run = force
@@ -761,7 +759,7 @@ class PositionReconciliationSystem:
         api_clients_dict_any = getattr(self._portfolio_tracker, "api_clients", None)
         if isinstance(api_clients_dict_any, dict):
             api_clients_dict = cast("dict[str, ExchangeAPI]", api_clients_dict_any)
-            for exchange_id_key in api_clients_dict.keys():  # exchange_id_key is str
+            for exchange_id_key in api_clients_dict:  # exchange_id_key is str
                 exchange_id: str = str(
                     exchange_id_key,
                 )  # Explicitly cast to string, though already str
@@ -861,7 +859,6 @@ class PositionReconciliationSystem:
             )
 
             # 2. Fill history-derived positions (REMOVED - Incorrect dependency/method)
-            # fill_positions: list[DerivativePosition] = [] # Unused
 
             # 3. Local state tracking
             local_positions_list = self._portfolio_tracker.get_positions_by_exchange(
@@ -937,9 +934,6 @@ class PositionReconciliationSystem:
         # if isinstance(api_clients, dict):
         for exchange_id, client in api_clients.items():
             tasks[exchange_id] = asyncio.create_task(client.get_positions())
-        # else:
-        #     logger.error("api_clients is not a dictionary, cannot fetch positions.")
-        #     return {}
 
         # Use return_exceptions=True
         results_gather = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -1050,17 +1044,9 @@ class PositionReconciliationSystem:
         # Removed redundant isinstance check.
         # if not isinstance(pos_data, DerivativePosition):
         #     self.logger.warning(
-        #         f"PRS_PARSE_API_UNEXPECTED_TYPE: API position for {exchange_id}/{symbol} "
-        #         f"is not DerivativePosition type: {type(pos_data)}. Raw: {pos_data}"
-        #     )
         #     return cast(ErrorDict, {
-        #         "error": "api_parsing_error",
         #         "message": (
-        #             f"Unexpected data type {type(pos_data)} from API for {symbol} "
-        #             f"on {exchange_id}. Expected DerivativePosition."
         #         ),
-        #         "raw_data": str(pos_data),
-        #     })
 
         try:
             size = pos_data.size  # Assuming pos_data.size is Decimal, not Optional[Decimal]
@@ -1324,7 +1310,6 @@ class PositionReconciliationSystem:
                 )
                 continue
 
-            # res_item is list[HistoricalDiscrepancyRecord]
             aggregated_discrepancies.extend(res_item)
             if res_item:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True
@@ -1544,20 +1529,19 @@ class PositionReconciliationSystem:
             return discrepancy_records
 
         # Case 2: Position exists locally but API reports flat
-        if api_pos_data["size"] == Decimal(0):
-            if local_pos_data["size"] != Decimal(0):
-                record = self._record_discrepancy(
-                    exchange_id=exchange_id,
-                    symbol=symbol,
-                    discrepancy_type="size",
-                    api_val=Decimal(0),
-                    local_val=local_pos_data["size"],
-                    details=(
-                        f"Position exists in PortfolioTracker (size {local_pos_data['size']}) "
-                        f"but flat or not found on {exchange_id}."
-                    ),
-                )
-                discrepancy_records.append(record)
+        if api_pos_data["size"] == Decimal(0) and local_pos_data["size"] != Decimal(0):
+            record = self._record_discrepancy(
+                exchange_id=exchange_id,
+                symbol=symbol,
+                discrepancy_type="size",
+                api_val=Decimal(0),
+                local_val=local_pos_data["size"],
+                details=(
+                    f"Position exists in PortfolioTracker (size {local_pos_data['size']}) "
+                    f"but flat or not found on {exchange_id}."
+                ),
+            )
+            discrepancy_records.append(record)
 
         return discrepancy_records
 
@@ -1583,16 +1567,17 @@ class PositionReconciliationSystem:
             discrepancy_records.append(record)
 
         # Entry price comparison (only if sides and sizes match)
-        if self._should_compare_entry_price(api_pos_data, local_pos_data):
-            if api_pos_data["entry_price"] != local_pos_data["entry_price"]:
-                record = self._record_discrepancy(
-                    exchange_id=exchange_id,
-                    symbol=symbol,
-                    discrepancy_type="entry_price",
-                    api_val=api_pos_data["entry_price"],
-                    local_val=local_pos_data["entry_price"],
-                )
-                discrepancy_records.append(record)
+        if (self._should_compare_entry_price(api_pos_data, local_pos_data)) and (
+            api_pos_data["entry_price"] != local_pos_data["entry_price"]
+        ):
+            record = self._record_discrepancy(
+                exchange_id=exchange_id,
+                symbol=symbol,
+                discrepancy_type="entry_price",
+                api_val=api_pos_data["entry_price"],
+                local_val=local_pos_data["entry_price"],
+            )
+            discrepancy_records.append(record)
 
         # Mark price comparison
         if self._should_compare_mark_price(api_pos_data, local_pos_data):
@@ -1646,7 +1631,6 @@ class PositionReconciliationSystem:
             "discrepancies": [],
             "symbols_checked": 0,
             "has_discrepancies": False,
-            # "exchange_results": {}, # Not directly applicable here or needs careful thought
         }
 
         reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]] = []
@@ -1737,7 +1721,6 @@ class PositionReconciliationSystem:
                 overall_results["has_discrepancies"] = True
                 continue
 
-            # res_item is list[HistoricalDiscrepancyRecord]
             aggregated_discrepancies.extend(res_item)
             if res_item:  # If the list is not empty, there were discrepancies
                 overall_results["has_discrepancies"] = True

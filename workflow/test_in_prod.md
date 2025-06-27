@@ -74,7 +74,7 @@ graph TB
     classDef external fill:#f9f,stroke:#333,stroke-width:2px
     classDef core fill:#bbf,stroke:#333,stroke-width:2px
     classDef safety fill:#fbb,stroke:#333,stroke-width:2px
-    
+
     class HL,BP external
     class ENG,DH,STRAT,RM,SQ,EH,PT core
     class CB safety
@@ -146,7 +146,7 @@ sequenceDiagram
 
     RM->>CB: Check breaker status
     CB-->>RM: Status (OPEN/CLOSED)
-    
+
     alt Circuit Breaker OPEN
         RM-->>RM: Reject signal
     else Circuit Breaker CLOSED
@@ -249,10 +249,10 @@ INFO - [DRY RUN] Estimated profit: $12.50 after fees
 exchanges:
   hyperliquid:
     is_mainnet_environment: false  # Uses testnet
-    
+
   backpack:
     is_mainnet_environment: true   # No testnet available
-    
+
 risk:
   global:
     max_position_usd: 100.0       # Small test positions
@@ -324,10 +324,10 @@ Monitor these metrics:
    ```yaml
    # Day 1-3: Minimal
    max_position_usd: 100.0
-   
+
    # Day 4-5: Small
    max_position_usd: 500.0
-   
+
    # Day 6-7: Normal
    max_position_usd: 1000.0
    ```
@@ -374,7 +374,7 @@ from pathlib import Path
 async def monitor_logs():
     """Monitor trading logs in real-time"""
     log_file = Path("logs/cyberdelta.log")
-    
+
     metrics = {
         "opportunities_detected": 0,
         "signals_generated": 0,
@@ -383,10 +383,10 @@ async def monitor_logs():
         "circuit_breaker_trips": 0,
         "last_update": datetime.now()
     }
-    
+
     # Tail log file and update metrics
     # ... implementation
-    
+
     print(json.dumps(metrics, indent=2))
 
 if __name__ == "__main__":
@@ -491,7 +491,7 @@ def inspect_portfolio_state():
 Before running in production:
 
 - [ ] Dry run executed successfully for 24 hours
-- [ ] Testnet trading profitable over 3+ days  
+- [ ] Testnet trading profitable over 3+ days
 - [ ] Circuit breakers tested and working
 - [ ] Error handling verified
 - [ ] Monitoring dashboard operational

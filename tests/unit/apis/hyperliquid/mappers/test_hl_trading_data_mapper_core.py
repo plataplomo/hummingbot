@@ -109,7 +109,7 @@ def create_raw_historical_order(
         order_type_str = "market"
         tif = "Ioc"  # Market orders default to IOC
     else:
-        order_type_str = list(order_type.keys())[0] if order_type else "limit"
+        order_type_str = next(iter(order_type.keys())) if order_type else "limit"
         tif = "Gtc"  # Default to GTC for unknown order types
 
     return HyperliquidRawHistoricalOrder(

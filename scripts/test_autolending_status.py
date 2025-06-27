@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-async def get_autolend_status(api: BackpackAPI) -> bool | None:
+def get_autolend_status(api: BackpackAPI) -> bool | None:
     """Get the autoLend status from account settings."""
     logger.info("1. ACCOUNT SETTINGS (/api/v1/account):")
     logger.info("   NOTE: The Backpack API client does not currently expose a public method")
@@ -40,7 +40,7 @@ async def display_spot_balances(api: BackpackAPI) -> None:
             )
 
 
-async def display_collateral_data(api: BackpackAPI) -> None:
+def display_collateral_data(api: BackpackAPI) -> None:
     """Display collateral data."""
     logger.info("\n   Collateral Data (/api/v1/capital/collateral):")
     logger.info("   NOTE: The Backpack API client does not currently expose a public method")
@@ -96,7 +96,7 @@ async def test() -> None:
         logger.info("=" * 60)
 
         # 1. Get account summary to check autoLend setting
-        auto_lend = await get_autolend_status(api)
+        auto_lend = get_autolend_status(api)
 
         logger.info("")
         logger.info("2. BALANCE COMPARISON:")
@@ -105,7 +105,7 @@ async def test() -> None:
         await display_spot_balances(api)
 
         # 3. Get collateral data
-        await display_collateral_data(api)
+        display_collateral_data(api)
 
         # 4. Analyze the relationship
         analyze_autolend_status(auto_lend)

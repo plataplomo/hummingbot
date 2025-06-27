@@ -33,7 +33,14 @@ class MarketOrderTestHelpers:
 
     @staticmethod
     def _get_hyperliquid_symbol(markets: list[Market]) -> str:
-        """Get test symbol for Hyperliquid exchange."""
+        """Get test symbol for Hyperliquid exchange.
+
+        Returns:
+            Preferred test symbol for Hyperliquid trading
+
+        Raises:
+            RuntimeError: If no perpetual markets are available.
+        """
         # Filter for perpetual markets
         perp_markets = [m for m in markets if m.market_type == "Perpetual"]
         if not perp_markets:
@@ -52,7 +59,14 @@ class MarketOrderTestHelpers:
 
     @staticmethod
     def _get_backpack_symbol(markets: list[Market]) -> str:
-        """Get test symbol for Backpack exchange."""
+        """Get test symbol for Backpack exchange.
+
+        Returns:
+            Preferred test symbol for Backpack trading
+
+        Raises:
+            RuntimeError: If no markets are available.
+        """
         # Debug: print available market types
         market_types = {m.market_type for m in markets}
         logger.info(f"Available market types on Backpack: {market_types}")
@@ -362,7 +376,11 @@ class MarketOrderTestHelpers:
         order_id: str,
         history_args: GetOrderHistoryArgs,
     ) -> Decimal | None:
-        """Check order history for filled quantity."""
+        """Check order history for filled quantity.
+
+        Returns:
+            Filled quantity if found in order history, None otherwise.
+        """
         orders = await exchange_api.get_order_history(history_args)
 
         if not orders:
@@ -402,7 +420,11 @@ class MarketOrderTestHelpers:
         exchange_api: ExchangeAPI,
         order_id: str,
     ) -> Decimal | None:
-        """Check trade history for filled quantity."""
+        """Check trade history for filled quantity.
+
+        Returns:
+            Total filled quantity from trade history, None if no matching trades found.
+        """
         try:
             trades_args = GetTradeHistoryArgs(limit=50)
             trades = await exchange_api.get_trade_history(trades_args)

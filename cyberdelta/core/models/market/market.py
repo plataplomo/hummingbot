@@ -93,8 +93,7 @@ class Market(BaseModel):
         """Validate and parse the 'created_at' field to an optional UTC datetime object."""
         if v is None:
             return None
-        dt = parse_datetime_utc(v, field_name="created_at")
-        return dt
+        return parse_datetime_utc(v, field_name="created_at")
 
     @field_validator(
         "tick_size",

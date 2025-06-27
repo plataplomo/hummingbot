@@ -28,7 +28,11 @@ TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, Primitive
 # --- Helper Fixtures ---
 @pytest.fixture
 def valid_bp_spot_details_data() -> dict[str, Any]:
-    """Provide valid data for BackpackSpotBalanceDetails."""
+    """Provide valid data for BackpackSpotBalanceDetails.
+
+    Returns:
+        Dictionary containing valid BackpackSpotBalanceDetails data.
+    """
     return {
         "open_order_quantity": Decimal("2.5"),
         "lend_quantity": Decimal("1.0"),
@@ -38,7 +42,11 @@ def valid_bp_spot_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_spot_balance_data() -> dict[str, Any]:
-    """Provide a dictionary with valid core data for SpotBalance creation."""
+    """Provide a dictionary with valid core data for SpotBalance creation.
+
+    Returns:
+        Dictionary containing valid SpotBalance core data.
+    """
     return {
         "exchange": "backpack",
         "asset": "SOL",
@@ -96,7 +104,6 @@ def test_spot_balance_creation_with_hl_details(
     balance = SpotBalance(**data)
     assert balance.hl_details is not None
     # Add assertion for empty model if fields were added later
-    # assert not balance.hl_details.model_dump(exclude_unset=True)
     assert balance.bp_details is None
     assert balance.hl_details.model_config.get("frozen") is True
     assert balance.hl_details.model_config.get("extra") == "ignore"
@@ -281,12 +288,10 @@ def test_hl_details_creation_and_immutability() -> None:
     """Test HyperliquidSpotBalanceDetails creation (empty) and immutability."""
     details = HyperliquidSpotBalanceDetails()
     # Assert it's empty if fields were added
-    # assert not details.model_dump(exclude_unset=True)
     assert details.model_config.get("frozen") is True
 
     # Test immutability (if fields are added later)
     # with pytest.raises(ValidationError, match="Instance is frozen"):
-    #     details.some_future_field = "value"
 
 
 def test_hl_details_extra_fields_ignored() -> None:

@@ -137,7 +137,7 @@ class TestParseDatetimeUTC:
         """Should raise ValueError for invalid ISO string."""
         with pytest.raises(
             ValueError,
-            match="Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            match=r"Cannot parse string .* as ISO datetime .* or as numeric timestamp",
         ):
             parse_datetime_utc("not-a-date")
 

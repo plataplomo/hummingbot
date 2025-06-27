@@ -86,10 +86,7 @@ class MarketOrderService:
             )
 
         # 3. Get reference price (best bid/ask)
-        if side == OrderSide.BUY:
-            reference_price = order_book.asks[0][0]  # Best ask
-        else:
-            reference_price = order_book.bids[0][0]  # Best bid
+        reference_price = order_book.asks[0][0] if side == OrderSide.BUY else order_book.bids[0][0]
 
         # 4. Calculate slippage
         estimated_slippage = self._estimate_slippage(symbol, quantity)
@@ -209,6 +206,9 @@ class MarketOrderService:
 
         Returns:
             Decimal: Rounded price
+
+        Raises:
+            MarketOrderError: If market metadata retrieval fails with specific errors.
         """
         try:
             # Get market metadata from exchange
@@ -251,6 +251,9 @@ class MarketOrderService:
 
         Returns:
             Decimal: Rounded quantity
+
+        Raises:
+            MarketOrderError: If market metadata retrieval fails with specific errors.
         """
         try:
             # Get market metadata from exchange
@@ -293,6 +296,9 @@ class MarketOrderService:
 
         Returns:
             Decimal | None: Mid price if available, None otherwise
+
+        Raises:
+            MarketOrderError: If AllMids fetch fails with specific errors.
         """
         if not self._config.use_all_mids_for_reference:
             return None

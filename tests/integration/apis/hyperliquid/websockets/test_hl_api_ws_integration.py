@@ -85,7 +85,7 @@ class TestHyperliquidWebSocketIntegration:
         asyncio.Event()
         data_received = asyncio.Event()
 
-        async def ticker_handler(ticker: Ticker) -> None:
+        def ticker_handler(ticker: Ticker) -> None:
             """Handle incoming ticker updates with validation."""
             # Validate ticker model integrity
             assert isinstance(ticker, Ticker), "WebSocket must transform raw data to Ticker model"
@@ -133,7 +133,7 @@ class TestHyperliquidWebSocketIntegration:
             )
 
             # Process through ticker handler
-            await ticker_handler(ws_ticker)
+            ticker_handler(ws_ticker)
 
             # Validate that we received properly formatted ticker
             assert len(received_tickers) > 0, (
@@ -186,7 +186,7 @@ class TestHyperliquidWebSocketIntegration:
         order_placed_event = asyncio.Event()
         order_cancelled_event = asyncio.Event()
 
-        async def order_handler(order_update: Order) -> None:
+        def order_handler(order_update: Order) -> None:
             """Handle incoming order updates with validation."""
             # Validate order model integrity
             assert isinstance(order_update, Order), (
@@ -268,7 +268,7 @@ class TestHyperliquidWebSocketIntegration:
             )
 
             # Process through order handler
-            await order_handler(ws_order_placed)
+            order_handler(ws_order_placed)
 
             # Step 2: Cancel the order to generate cancellation event
             from cyberdelta.apis.models.service_args_models import CancelOrderArgs
@@ -300,7 +300,7 @@ class TestHyperliquidWebSocketIntegration:
                 signal_id=None,
             )
 
-            await order_handler(ws_order_cancelled)
+            order_handler(ws_order_cancelled)
 
             # Step 3: Validate WebSocket order events
             assert len(received_order_events) >= 1, (
@@ -411,7 +411,11 @@ class TestHyperliquidWebSocketIntegration:
             logger.info(f"Correctly rejected naive timestamp: {e}")
 
     async def _test_connection_retry_logic(self, max_attempts: int = 3) -> int:
-        """Test WebSocket connection retry logic."""
+        """Test WebSocket connection retry logic.
+
+        Returns:
+            Number of connection attempts made
+        """
         connection_attempts = 0
 
         async def simulate_connection_with_retry() -> dict[str, str | int]:
@@ -454,7 +458,11 @@ class TestHyperliquidWebSocketIntegration:
         return connection_attempts
 
     async def _test_message_parsing_error_handling(self, test_symbol: str) -> bool:
-        """Test WebSocket message parsing error handling."""
+        """Test WebSocket message parsing error handling.
+
+        Returns:
+            True if error handling works correctly
+        """
         import json
 
         # Simulate invalid JSON message
@@ -479,7 +487,14 @@ class TestHyperliquidWebSocketIntegration:
             pytest.fail(f"Unexpected error in message parsing: {e}")
 
     async def _test_subscription_failure_handling(self) -> bool:
-        """Test WebSocket subscription failure handling."""
+        """Test WebSocket subscription failure handling.
+
+        Returns:
+            True if subscription failure is handled correctly
+
+        Raises:
+            APIError: When simulating invalid symbol subscription failures.
+        """
         # Simulate subscription to invalid symbol
         invalid_symbol = "DEFINITELY_INVALID_SYMBOL_XYZ"
 
@@ -589,7 +604,11 @@ class TestHyperliquidWebSocketIntegration:
         concurrent_tasks = 5
 
         async def process_concurrent_message(message_id: int) -> Ticker:
-            """Process a WebSocket message concurrently."""
+            """Process a WebSocket message concurrently.
+
+            Returns:
+                Ticker: Processed ticker message with unique price per message ID.
+            """
             ticker = Ticker(
                 symbol=test_symbol,
                 price=Decimal(f"100.{message_id:02d}"),  # Unique price per message
@@ -624,7 +643,7 @@ class TestHyperliquidWebSocketIntegration:
         )
 
         # Validate all results maintain data integrity
-        for _i, result in enumerate(concurrent_results):
+        for result in concurrent_results:
             assert isinstance(result, Ticker), "Concurrent processing must maintain model integrity"
             assert result.symbol == test_symbol, (
                 "Concurrent processing must maintain symbol consistency"

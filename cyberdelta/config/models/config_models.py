@@ -247,7 +247,7 @@ class ExchangeSpecificConfig(BaseModel):
     @classmethod
     def _validate_url_strings(
         cls,
-        v: str | float | bool | None | HttpUrl | AnyUrl,
+        v: str | float | bool | HttpUrl | AnyUrl | None,
         info: ValidationInfo,
     ) -> str | None:
         # Testnet URLs can be None

@@ -18,7 +18,11 @@ def exchange_client(
     bp_api_for_test_env: BackpackAPI,
     hl_api_for_test_env: HyperliquidAPI,
 ) -> BackpackAPI | HyperliquidAPI:
-    """Parametrized exchange client fixture."""
+    """Parametrized exchange client fixture.
+
+    Returns:
+        BackpackAPI | HyperliquidAPI: Exchange client based on parameter.
+    """
     if request.param == "backpack":
         return bp_api_for_test_env
     return hl_api_for_test_env
@@ -29,7 +33,11 @@ def all_exchange_clients(
     bp_api_for_test_env: BackpackAPI,
     hl_api_for_test_env: HyperliquidAPI,
 ) -> dict[str, BackpackAPI | HyperliquidAPI]:
-    """All exchange clients for cross-exchange testing."""
+    """All exchange clients for cross-exchange testing.
+
+    Returns:
+        dict[str, BackpackAPI | HyperliquidAPI]: Dictionary of exchange clients.
+    """
     return {
         "backpack": bp_api_for_test_env,
         "hyperliquid": hl_api_for_test_env,

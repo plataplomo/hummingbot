@@ -153,6 +153,9 @@ class TestPerformanceVisualizer:
         Validates that the returns chart correctly displays multiple strategy
         performance lines and handles strategy filtering. This is critical for
         comparing different trading strategies in the CyberDeltaEngine system.
+
+        Raises:
+            TypeError: If the figure data is not in the expected tuple format.
         """
         if go is None:
             pytest.skip("plotly not available")
@@ -183,6 +186,9 @@ class TestPerformanceVisualizer:
         Validates that drawdown charts correctly show the peak-to-trough declines
         for each strategy. Drawdown analysis is essential for understanding the
         risk characteristics of trading strategies in the CyberDeltaEngine.
+
+        Raises:
+            TypeError: If the figure data is not in the expected tuple format.
         """
         if go is None:
             pytest.skip("plotly not available")
@@ -201,6 +207,9 @@ class TestPerformanceVisualizer:
         Validates that trade analysis charts properly categorize and display
         profitable vs. losing trades. This visualization is crucial for
         understanding trade execution quality and identifying patterns.
+
+        Raises:
+            TypeError: If the figure data is not in the expected tuple format.
         """
         if go is None:
             pytest.skip("plotly not available")
@@ -220,6 +229,9 @@ class TestPerformanceVisualizer:
         Validates that funding rate heatmaps correctly display temporal patterns
         across different assets. This is essential for identifying funding rate
         arbitrage opportunities in the CyberDeltaEngine trading system.
+
+        Raises:
+            TypeError: If the figure data is not in the expected tuple format.
         """
         if go is None:
             pytest.skip("plotly not available")
@@ -239,6 +251,9 @@ class TestPerformanceVisualizer:
         visualization components (returns, drawdowns, trades, funding rates)
         into a unified view. This dashboard provides traders with a complete
         performance overview of the CyberDeltaEngine system.
+
+        Raises:
+            TypeError: If the figure data is not in the expected tuple format.
         """
         if go is None:
             pytest.skip("plotly not available")

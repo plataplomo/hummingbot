@@ -17,7 +17,6 @@ from cyberdelta.core.models import (
     FundingRate,
     OrderBook,
     Ticker,
-    # Position, # Removed unused Position import
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
@@ -34,7 +33,11 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def mock_config_dict(self) -> dict[str, Any]:
-        """Provide a dictionary for simple config mocking."""
+        """Provide a dictionary for simple config mocking.
+
+        Returns:
+            dict[str, Any]: Configuration dictionary for testing.
+        """
         return {
             "exchanges": {
                 "hyperliquid": {
@@ -61,12 +64,20 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def config(self, test_app_settings: "AppSettings") -> MagicMock:
-        """Create a mock config for testing using the new AppSettings."""
+        """Create a mock config for testing using the new AppSettings.
+
+        Returns:
+            MagicMock: Mock configuration object with get method.
+        """
         mock_config = MagicMock()
 
         # Define side effect using nested function with type hints
         def config_get_side_effect(key: str, default: object | None = None) -> object | None:
-            """Handle config get side effect for testing."""
+            """Handle config get side effect for testing.
+
+            Returns:
+                object | None: Configuration value for the key or default if not found.
+            """
             if "." in key:
                 parts = key.split(".")
                 base = parts[0]
@@ -105,7 +116,11 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def data_handler(self) -> MagicMock:
-        """Fixture for mock DataHandler."""
+        """Fixture for mock DataHandler.
+
+        Returns:
+            MagicMock: Mock DataHandler with funding rates, tickers, and orderbooks.
+        """
         handler = MagicMock(spec=DataHandler)
         now = datetime.now(UTC)
 
@@ -196,19 +211,31 @@ class TestSignalGenerator:
         }
 
         def get_funding_rate_side_effect(exchange: str, symbol: str) -> FundingRate | None:
-            """Get funding rate side effect for testing."""
+            """Get funding rate side effect for testing.
+
+            Returns:
+                FundingRate | None: Funding rate for the exchange and symbol or None.
+            """
             return funding_rates.get(exchange, {}).get(symbol)
 
         # get_ticker side effect is no longer directly used by SignalGenerator for opportunities,
         # as it uses handler.tickers. However, other parts of tests might still use it.
         # For safety, ensure it returns Ticker if something still calls it.
         def get_ticker_side_effect(exchange: str, symbol: str) -> Ticker | None:
-            """Get ticker side effect for testing."""
+            """Get ticker side effect for testing.
+
+            Returns:
+                Ticker | None: Ticker for the exchange and symbol or None.
+            """
             ticker = handler.tickers.get(exchange, {}).get(symbol)
             return ticker if ticker is None or isinstance(ticker, Ticker) else None
 
         def get_orderbook_side_effect(exchange: str, symbol: str) -> OrderBook | None:
-            """Get orderbook side effect for testing."""
+            """Get orderbook side effect for testing.
+
+            Returns:
+                OrderBook | None: OrderBook for the exchange and symbol or None.
+            """
             return orderbooks.get(exchange, {}).get(symbol)
 
         handler.get_latest_funding_rate.side_effect = get_funding_rate_side_effect
@@ -219,7 +246,11 @@ class TestSignalGenerator:
 
     @pytest.fixture
     def symbol_mapper(self, test_app_settings: AppSettings) -> SymbolMapper:
-        """Fixture for a SymbolMapper using the test AppSettings."""
+        """Fixture for a SymbolMapper using the test AppSettings.
+
+        Returns:
+            SymbolMapper: Configured symbol mapper for testing.
+        """
         exchanges_map_for_mapper: dict[str, Any] = {}
         for ex_id, exchange_config in test_app_settings.exchanges.items():
             if exchange_config.enabled:
@@ -234,7 +265,11 @@ class TestSignalGenerator:
         data_handler: MagicMock,
         symbol_mapper: SymbolMapper,
     ) -> SignalGenerator:
-        """Create a SignalGenerator instance for testing."""
+        """Create a SignalGenerator instance for testing.
+
+        Returns:
+            SignalGenerator: Configured signal generator instance.
+        """
         return SignalGenerator(test_app_settings, data_handler, symbol_mapper)
 
     def test_init(
@@ -285,7 +320,11 @@ class TestSignalGenerator:
             symbol: str,
             rate_chg: Decimal = Decimal(0),
         ) -> FundingRate | None:
-            """Get funding iter for testing."""
+            """Get funding iter for testing.
+
+            Returns:
+                FundingRate | None: Funding rate with base rate and adjustments.
+            """
             base_rate = Decimal("-0.001") if exchange == "hyperliquid" else Decimal("0.002")
             return FundingRate(
                 symbol=symbol,
@@ -298,7 +337,11 @@ class TestSignalGenerator:
             symbol: str,
             price_chg: Decimal = Decimal(0),
         ) -> Ticker | None:
-            """Get ticker iter for testing."""
+            """Get ticker iter for testing.
+
+            Returns:
+                Ticker | None: Ticker with base price and adjustments.
+            """
             base_price = Decimal(30000) if exchange == "hyperliquid" else Decimal(30010)
             return Ticker(symbol=symbol, price=base_price + price_chg, timestamp=datetime.now(UTC))
 
@@ -437,7 +480,6 @@ class TestSignalGenerator:
         config: MagicMock,
     ) -> None:
         """Test generating arbitrage opportunities."""
-        # now = datetime.now(UTC) # Unused variable
         # Prepare mock data arguments based on the method's needs
         # Mock funding_data structure: symbol -> exchange -> FundingRate | None
         mock_funding_data = {
@@ -547,10 +589,13 @@ class TestSignalGenerator:
     ) -> None:
         """Test scenario with only one exchange configured."""
 
-        # now = datetime.now(UTC) # Unused variable
         # Define side effect with type hints
         def single_exchange_config_get(key: str, default: object | None = None) -> object | None:
-            """Handle single exchange config get for testing."""
+            """Handle single exchange config get for testing.
+
+            Returns:
+                object | None: Configuration value for single exchange or default.
+            """
             mock_single_config_dict: dict[str, Any] = {
                 "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",
@@ -600,7 +645,7 @@ class TestSignalGenerator:
     async def test_arbitrage_opportunity_creation(self, signal_generator: SignalGenerator) -> None:
         """Test the internal creation logic for ArbitrageOpportunity."""
         now = datetime.now(UTC)
-        _funding_data = {
+        funding_data_ = {
             "hyperliquid": FundingRate(
                 symbol="BTC",
                 funding_rate=Decimal("-0.001"),
@@ -613,7 +658,7 @@ class TestSignalGenerator:
             ),
         }
         # Ticker data for test
-        _ticker_data: dict[str, Ticker] = {
+        ticker_data: dict[str, Ticker] = {
             "hyperliquid": Ticker(
                 symbol="BTC",
                 price=Decimal(41000),
@@ -643,15 +688,15 @@ class TestSignalGenerator:
         # Now test with proper funding data structure
         funding_data: dict[str, dict[str, FundingRate | None]] = {
             "BTC": {
-                "hyperliquid": _funding_data["hyperliquid"],
-                "backpack": _funding_data["backpack"],
+                "hyperliquid": funding_data_["hyperliquid"],
+                "backpack": funding_data_["backpack"],
             },
         }
 
         # Need to mock the ticker data in the data handler
         signal_generator.data_handler.tickers = {
-            "hyperliquid": {"BTC": _ticker_data["hyperliquid"]},
-            "backpack": {"BTC-USDC": _ticker_data["backpack"]},
+            "hyperliquid": {"BTC": ticker_data["hyperliquid"]},
+            "backpack": {"BTC-USDC": ticker_data["backpack"]},
         }
 
         opportunities = await signal_generator.generate_arbitrage_opportunities(funding_data)
@@ -682,9 +727,5 @@ def assert_decimal_approx(
         actual (Decimal): The actual value.
         expected (Decimal): The expected value.
         tol (Decimal): The allowed tolerance (default: 1e-6).
-
-    Raises:
-        AssertionError: If the values differ by more than tol.
-
     """
     assert abs(actual - expected) <= tol, f"{actual} != {expected} within {tol}"

@@ -22,7 +22,11 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 
 @pytest.fixture
 def mock_hl_http_client() -> MagicMock:
-    """Mock HttpClient for HyperliquidAPI main endpoint."""
+    """Mock HttpClient for HyperliquidAPI main endpoint.
+
+    Returns:
+        MagicMock: Mock HTTP client with async request methods.
+    """
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -31,7 +35,11 @@ def mock_hl_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_authenticator() -> MagicMock:
-    """Mock HyperliquidEip712Authenticator."""
+    """Mock HyperliquidEip712Authenticator.
+
+    Returns:
+        MagicMock: Mock authenticator with wallet address and prepare_request method.
+    """
     from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 
     mock_auth = MagicMock(spec=HyperliquidEip712Authenticator)
@@ -42,79 +50,107 @@ def mock_hl_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_error_mapper() -> MagicMock:
-    """Mock HyperliquidErrorMapper."""
+    """Mock HyperliquidErrorMapper.
+
+    Returns:
+        MagicMock: Mock error mapper for handling API errors.
+    """
     from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidErrorMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidErrorMapper)
 
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Mock HyperliquidRequestBuilder."""
+    """Mock HyperliquidRequestBuilder.
+
+    Returns:
+        MagicMock: Mock request builder for constructing API requests.
+    """
     from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 
-    mock_builder = MagicMock(spec=HyperliquidRequestBuilder)
-    return mock_builder
+    return MagicMock(spec=HyperliquidRequestBuilder)
 
 
 @pytest.fixture
 def mock_hl_response_handler() -> MagicMock:
-    """Mock HyperliquidResponseHandler."""
+    """Mock HyperliquidResponseHandler.
+
+    Returns:
+        MagicMock: Mock response handler for processing API responses.
+    """
     from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 
-    mock_handler = MagicMock(spec=HyperliquidResponseHandler)
-    return mock_handler
+    return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
-    """Mock HyperliquidMarketDataMapper (for backwards compatibility)."""
+    """Mock HyperliquidMarketDataMapper (for backwards compatibility).
+
+    Returns:
+        MagicMock: Mock market data mapper for transforming market data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidMarketDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidMarketDataMapper)
 
 
 @pytest.fixture
 def mock_hl_account_mapper() -> MagicMock:
-    """Mock HyperliquidAccountDataMapper."""
+    """Mock HyperliquidAccountDataMapper.
+
+    Returns:
+        MagicMock: Mock account data mapper for transforming account data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:
-    """Mock HyperliquidTradingDataMapper (legacy order mapper)."""
+    """Mock HyperliquidTradingDataMapper (legacy order mapper).
+
+    Returns:
+        MagicMock: Mock trading data mapper for transforming order data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_trading_mapper() -> MagicMock:
-    """Mock HyperliquidTradingDataMapper."""
+    """Mock HyperliquidTradingDataMapper.
+
+    Returns:
+        MagicMock: Mock trading data mapper for transforming trading data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_user_fill_mapper() -> MagicMock:
-    """Mock HyperliquidAccountDataMapper (for user fills)."""
+    """Mock HyperliquidAccountDataMapper (for user fills).
+
+    Returns:
+        MagicMock: Mock account data mapper for transforming user fill data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
 def mock_hl_account_service() -> MagicMock:
-    """Mock HyperliquidAccountService."""
+    """Mock HyperliquidAccountService.
+
+    Returns:
+        MagicMock: Mock account service with async methods for account operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 
     mock_service = MagicMock(spec=HyperliquidAccountService)
@@ -128,7 +164,11 @@ def mock_hl_account_service() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_trading_service() -> MagicMock:
-    """Mock HyperliquidTradingService."""
+    """Mock HyperliquidTradingService.
+
+    Returns:
+        MagicMock: Mock trading service with async methods for trading operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 
     mock_service = MagicMock(spec=HyperliquidTradingService)
@@ -142,7 +182,11 @@ def mock_hl_trading_service() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_market_data_service() -> MagicMock:
-    """Mock HyperliquidMarketDataService."""
+    """Mock HyperliquidMarketDataService.
+
+    Returns:
+        MagicMock: Mock market data service with async methods for market data operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
         HyperliquidMarketDataService,
     )
@@ -181,6 +225,9 @@ def hl_api_with_di(
 
     This enables black-box testing without accessing private members.
     Uses active configuration and secrets from test fixtures.
+
+    Returns:
+        Callable[..., Any]: Factory function for creating HyperliquidAPI instances.
     """
     from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
@@ -190,7 +237,11 @@ def hl_api_with_di(
         secrets: PrivateKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
-        """Create HyperliquidAPI with injected dependencies."""
+        """Create HyperliquidAPI with injected dependencies.
+
+        Returns:
+            HyperliquidAPI: Configured API instance with injected dependencies.
+        """
         # Use active fixtures as defaults
         if config is None:
             config = active_hl_config
@@ -661,4 +712,5 @@ class TestHyperliquidAPIMarketDataMethods:
 
         # Test that extra fields are forbidden
         with pytest.raises(ValidationError):
-            GetMarketsArgs(extra_field="not_allowed")
+            # This should fail due to extra fields being forbidden
+            GetMarketsArgs(**{"extra_field": "not_allowed"})

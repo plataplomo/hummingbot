@@ -30,7 +30,7 @@ VALID_KLINE_LIST = [
 
 
 @pytest.mark.asyncio
-async def test_valid_kline_list_parsing() -> None:
+def test_valid_kline_list_parsing() -> None:
     """Test successful parsing of a valid kline list."""
     kline = BackpackRawKline.model_validate(VALID_KLINE_LIST)
 
@@ -61,7 +61,7 @@ async def test_valid_kline_list_parsing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invalid_structure_input_type() -> None:
+def test_invalid_structure_input_type() -> None:
     """Test failure when input is not a list or tuple."""
     # Catch ValidationError and check message
     with pytest.raises(ValidationError) as exc_info:
@@ -74,7 +74,7 @@ async def test_invalid_structure_input_type() -> None:
 
 
 @pytest.mark.asyncio
-async def test_invalid_structure_list_length() -> None:
+def test_invalid_structure_list_length() -> None:
     """Test failure when input list has incorrect length."""
     invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
     # Catch ValueError and check substring
@@ -82,7 +82,7 @@ async def test_invalid_structure_list_length() -> None:
         BackpackRawKline.model_validate(invalid_list_short)
     assert "Expected 12 elements in kline data list/tuple, got 11" in str(exc_info_short.value)
 
-    invalid_list_long = VALID_KLINE_LIST + ["extra"]
+    invalid_list_long = [*VALID_KLINE_LIST, "extra"]
     # Catch ValueError and check substring
     with pytest.raises(ValueError) as exc_info_long:
         BackpackRawKline.model_validate(invalid_list_long)
@@ -142,7 +142,7 @@ async def test_invalid_structure_list_length() -> None:
     ],
 )
 @pytest.mark.asyncio
-async def test_field_validation_failures(
+def test_field_validation_failures(
     index: int,
     field_name: str,
     invalid_value: object,

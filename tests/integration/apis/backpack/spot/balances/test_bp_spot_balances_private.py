@@ -103,14 +103,18 @@ class TestBackpackSpotBalancesPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() rate limiting behavior."""
+        """Test get_balances() rate limiting behavior.
+
+        Raises:
+            APIError: If rate limiting is encountered
+        """
         try:
             tasks: list[Any] = []
             for _ in range(5):
                 tasks.append(bp_api_for_test_env.get_balances())
 
             results: list[dict[str, Any]] = []
-            for _, task in enumerate(tasks):
+            for task in tasks:
                 try:
                     result: dict[str, Any] = await task
                     results.append(result)
@@ -226,7 +230,11 @@ class TestBackpackSpotBalancesPrivate:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() behavior with network timeout scenarios."""
+        """Test get_balances() behavior with network timeout scenarios.
+
+        Raises:
+            APIError: If network timeout occurs during API call
+        """
         try:
             balances = await bp_api_for_test_env.get_balances()
             assert isinstance(balances, dict)

@@ -41,19 +41,31 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 
 @pytest.fixture
 def mapper() -> BackpackMarketDataMapper:
-    """Fixture providing a BackpackMarketDataMapper instance."""
+    """Fixture providing a BackpackMarketDataMapper instance.
+
+    Returns:
+        BackpackMarketDataMapper: Mapper instance for testing.
+    """
     return BackpackMarketDataMapper()
 
 
 @pytest.fixture
 def test_timestamp() -> str:
-    """Fixture providing a consistent test timestamp string."""
+    """Fixture providing a consistent test timestamp string.
+
+    Returns:
+        str: ISO format timestamp for testing.
+    """
     return "2024-01-15T10:30:00Z"
 
 
 @pytest.fixture
 def test_timestamp_ms() -> int:
-    """Fixture providing a consistent test timestamp in milliseconds."""
+    """Fixture providing a consistent test timestamp in milliseconds.
+
+    Returns:
+        int: Timestamp in milliseconds for testing.
+    """
     return 1705314600000  # 2024-01-15T10:30:00Z
 
 
@@ -69,7 +81,11 @@ def create_raw_ticker(
     quote_volume: str = "100500.0",
     trades: str = "500",
 ) -> BackpackRawTicker:
-    """Create BackpackRawTicker instances for testing ticker transformations."""
+    """Create BackpackRawTicker instances for testing ticker transformations.
+
+    Returns:
+        BackpackRawTicker: Raw ticker data for testing.
+    """
     return BackpackRawTicker(
         symbol=symbol,
         firstPrice=first_price,
@@ -89,7 +105,11 @@ def create_raw_order_book(
     asks: list[tuple[str, str]] | None = None,
     timestamp: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawOrderBook:
-    """Create BackpackRawOrderBook instances for testing order book transformations."""
+    """Create BackpackRawOrderBook instances for testing order book transformations.
+
+    Returns:
+        BackpackRawOrderBook: Raw order book data for testing.
+    """
     if bids is None:
         bids = [("100.25", "10.0"), ("100.00", "5.0")]
     if asks is None:
@@ -111,7 +131,11 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
 ) -> BackpackRawPublicTrade:
-    """Create BackpackRawPublicTrade instances for testing trade transformations."""
+    """Create BackpackRawPublicTrade instances for testing trade transformations.
+
+    Returns:
+        BackpackRawPublicTrade: Raw public trade data for testing.
+    """
     return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,
@@ -129,7 +153,11 @@ def create_raw_funding_rate(
     index_price: str = "100.25",
     time: int = 1705314600000,
 ) -> BackpackRawFundingRate:
-    """Create BackpackRawFundingRate instances for testing funding rate transformations."""
+    """Create BackpackRawFundingRate instances for testing funding rate transformations.
+
+    Returns:
+        BackpackRawFundingRate: Raw funding rate data for testing.
+    """
     return BackpackRawFundingRate(
         symbol=symbol,
         rate=rate,
@@ -144,7 +172,11 @@ def create_raw_funding_interval_rate(
     funding_rate: str = "0.0001",
     interval_end_timestamp: str = "2024-01-15T10:30:00",
 ) -> BackpackRawFundingIntervalRate:
-    """Create BackpackRawFundingIntervalRate instances for testing interval rate transformations."""
+    """Create BackpackRawFundingIntervalRate instances for testing interval rate transformations.
+
+    Returns:
+        BackpackRawFundingIntervalRate: Raw funding interval rate data for testing.
+    """
     return BackpackRawFundingIntervalRate(
         symbol=symbol,
         fundingRate=funding_rate,
@@ -161,7 +193,11 @@ def create_raw_kline(
     close_price: str = "100.50",
     volume: str = "1000.0",
 ) -> BackpackRawKline:
-    """Create BackpackRawKline instances for testing kline transformations."""
+    """Create BackpackRawKline instances for testing kline transformations.
+
+    Returns:
+        BackpackRawKline: Raw kline data for testing.
+    """
     # BackpackRawKline expects a list/tuple of 12 elements in this order:
     # [start_time_ms, open_price, high_price, low_price, close_price, volume,
     #  end_time_ms, quote_volume, trade_count, taker_buy_base_volume,
@@ -197,7 +233,11 @@ def create_raw_market(
     order_book_state: str = "NORMAL",
     created_at: str = "2024-01-01T00:00:00.000Z",
 ) -> BackpackRawMarket:
-    """Create BackpackRawMarket instances for testing market transformations."""
+    """Create BackpackRawMarket instances for testing market transformations.
+
+    Returns:
+        BackpackRawMarket: Raw market data for testing.
+    """
     return BackpackRawMarket(
         symbol=symbol,
         baseSymbol=base_symbol,

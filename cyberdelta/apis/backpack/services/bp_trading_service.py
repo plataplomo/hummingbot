@@ -532,10 +532,9 @@ class BackpackTradingService:
                     status_code,
                 )
             )
-            internal_orders = [
+            return [
                 self._trading_mapper.transform_raw_order_to_internal(ro) for ro in raw_orders_list
             ]
-            return internal_orders
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -728,8 +727,7 @@ class BackpackTradingService:
             identifier,
             status_code,
         )
-        internal_order = self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
-        return internal_order
+        return self._trading_mapper.transform_raw_order_to_internal(raw_order_model)
 
     def _handle_get_order_api_error(
         self,

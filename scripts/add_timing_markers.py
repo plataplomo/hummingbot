@@ -47,10 +47,7 @@ def check_timing_operations(content: str) -> bool:
         r"timeout\s*=",
     ]
 
-    for pattern in timing_patterns:
-        if re.search(pattern, content):
-            return True
-    return False
+    return any(re.search(pattern, content) for pattern in timing_patterns)
 
 
 def has_timing_marker(content: str) -> bool:

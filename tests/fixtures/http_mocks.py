@@ -65,11 +65,19 @@ class MockResponse:
             )
 
     async def json(self) -> object:  # JSON data can be any serializable object
-        """Return JSON data from response."""
+        """Return JSON data from response.
+
+        Returns:
+            object: The JSON-serializable data stored in this mock response.
+        """
         return self._data
 
     async def __aenter__(self) -> MockResponse:
-        """Enter async context manager."""
+        """Enter async context manager.
+
+        Returns:
+            MockResponse: This mock response instance.
+        """
         return self
 
     async def __aexit__(
@@ -99,7 +107,11 @@ class MockClientSession:
         self.closed = False
 
     async def __aenter__(self) -> MockClientSession:
-        """Enter async context manager."""
+        """Enter async context manager.
+
+        Returns:
+            MockClientSession: This mock session instance.
+        """
         return self
 
     async def __aexit__(
@@ -120,6 +132,11 @@ class MockClientSession:
         url: str,
         **kwargs: dict[str, Any],
     ) -> MockResponse:  # Accepts any kwargs
+        """Internal method to handle HTTP requests.
+
+        Returns:
+            MockResponse: Mock response matching the request or a 404 response.
+        """
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -133,15 +150,27 @@ class MockClientSession:
         return MockResponse({}, status=404)
 
     async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
-        """Execute GET request."""
+        """Execute GET request.
+
+        Returns:
+            MockResponse: Mock response for the GET request.
+        """
         return await self._request("GET", url, **kwargs)
 
     async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
-        """Execute POST request."""
+        """Execute POST request.
+
+        Returns:
+            MockResponse: Mock response for the POST request.
+        """
         return await self._request("POST", url, **kwargs)
 
     async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:  # Accepts any kwargs
-        """Execute PUT request."""
+        """Execute PUT request.
+
+        Returns:
+            MockResponse: Mock response for the PUT request.
+        """
         return await self._request("PUT", url, **kwargs)
 
     async def delete(
@@ -149,7 +178,11 @@ class MockClientSession:
         url: str,
         **kwargs: dict[str, Any],
     ) -> MockResponse:  # Accepts any kwargs
-        """Execute DELETE request."""
+        """Execute DELETE request.
+
+        Returns:
+            MockResponse: Mock response for the DELETE request.
+        """
         return await self._request("DELETE", url, **kwargs)
 
 
@@ -161,12 +194,20 @@ def mock_client_session() -> Callable[
     [dict[tuple[str, str], MockResponse] | None],
     MockClientSession,
 ]:
-    """Fixture to provide a mock aiohttp ClientSession."""
+    """Fixture to provide a mock aiohttp ClientSession.
+
+    Returns:
+        Callable: Factory function that creates MockClientSession instances.
+    """
 
     def create_session(
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> MockClientSession:
-        """Create session for testing."""
+        """Create session for testing.
+
+        Returns:
+            MockClientSession: New mock session with predefined responses.
+        """
         return MockClientSession(responses)
 
     return create_session
@@ -181,7 +222,11 @@ def create_mock_response(
     text_data: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> MockResponse:
-    """Create mock response for testing."""
+    """Create mock response for testing.
+
+    Returns:
+        MockResponse: Mock response configured with the provided parameters.
+    """
     mock_resp = MockResponse(
         json_data,
         status,
@@ -206,7 +251,7 @@ def create_mock_response(
     return mock_resp
 
 
-async def mock_request(
+def mock_request(
     method: str,
     url: str,
     *,
@@ -217,7 +262,11 @@ async def mock_request(
     status_code: int = 200,
     **kwargs: object,  # Additional kwargs for flexibility
 ) -> MockResponse:
-    """Create mock HTTP request for testing."""
+    """Create mock HTTP request for testing.
+
+    Returns:
+        MockResponse: Mock response representing the HTTP request result.
+    """
     text_data = str(json) if json else ""
     actual_headers = headers or {}
     mock_resp = MockResponse(

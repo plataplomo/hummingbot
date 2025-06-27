@@ -39,14 +39,18 @@ class TestRiskManagerSizingStandard:
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
-        # max_position_cap = risk_manager.max_position_size  # e.g., 1000.0
         # No longer used in assertion logic
 
         # Patch protected methods for test isolation (intentional for unit test)
         def portfolio_level_controls_side_effect(
             sized_opp: SizedOpportunity,
         ) -> SizedOpportunity | None:
-            """Apply portfolio level controls and return adjusted opportunity."""
+            """Apply portfolio level controls and return adjusted opportunity.
+
+            Returns:
+                SizedOpportunity | None: Adjusted opportunity with reduced size,
+                    or None if rejected.
+            """
             adjustment_factor = Decimal("0.95")
             return SizedOpportunity(
                 opportunity=sized_opp.opportunity,
@@ -84,7 +88,6 @@ class TestRiskManagerSizingStandard:
             mock_portfolio.assert_called_once()
             mock_constraints.assert_called_once()
 
-            # expected_uncapped_size = Decimal("1282.50") # Old value
             # This is the size after _calculate_kelly_size (mocked to 1500)
             # and then _apply_portfolio_level_controls (mocked to multiply by 0.95)
             expected_uncapped_size = Decimal("1500.0") * Decimal("0.95")  # Should be 1425.0
@@ -93,7 +96,6 @@ class TestRiskManagerSizingStandard:
             # we assume the max_position_cap is not applied by the mocked path,
             # so final size is the uncapped (but mock-adjusted) size.
             expected_final_size = expected_uncapped_size
-            # expected_final_size = min(expected_uncapped_size, max_position_cap) # Old logic
             assert sized_opp.long_size == expected_final_size, (
                 f"Expected {expected_final_size}, got {sized_opp.long_size}"
             )

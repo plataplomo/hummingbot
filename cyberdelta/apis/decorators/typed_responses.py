@@ -469,14 +469,11 @@ def auto_typed(
             model_origin = get_origin(model_type)
 
             if model_origin is list:
-                # Optional[list[T]]
                 item_type = get_args(model_type)[0]
                 return typed_api_method(list_of=item_type, allow_none=True)(func)
-            # Optional[T]
             return typed_api_method(response_model=model_type, allow_none=True)(func)
 
     elif origin is list:
-        # list[T]
         item_type = args[0]
         return typed_api_method(list_of=item_type)(func)
 

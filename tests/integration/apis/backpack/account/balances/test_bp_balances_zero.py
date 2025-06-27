@@ -194,15 +194,20 @@ class TestBackpackBalancesZero:
                 assert balance.available_quantity == Decimal(0)
 
                 # Check bp_details for consistency in zero balance scenario
-                if balance.bp_details:
-                    if hasattr(balance.bp_details, "open_order_quantity"):
-                        # After full withdrawal, no open orders should exist
-                        if balance.bp_details.open_order_quantity is not None:
-                            assert balance.bp_details.open_order_quantity == Decimal(0)
-                    if hasattr(balance.bp_details, "lend_quantity"):
-                        # After full withdrawal, no lending should exist
-                        if balance.bp_details.lend_quantity is not None:
-                            assert balance.bp_details.lend_quantity == Decimal(0)
+                if (
+                    balance.bp_details
+                    and hasattr(balance.bp_details, "open_order_quantity")
+                    and balance.bp_details.open_order_quantity is not None
+                ):
+                    # After full withdrawal, no open orders should exist
+                    assert balance.bp_details.open_order_quantity == Decimal(0)
+                if (
+                    balance.bp_details
+                    and hasattr(balance.bp_details, "lend_quantity")
+                    and balance.bp_details.lend_quantity is not None
+                ):
+                    # After full withdrawal, no lending should exist
+                    assert balance.bp_details.lend_quantity == Decimal(0)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -335,10 +340,11 @@ class TestBackpackBalancesZero:
                     total_usd_value += balance.total_quantity
 
             # If balances are zero, equity should also be zero (or very close)
-            if total_usd_value == Decimal(0):
+            if total_usd_value == Decimal(0) and account_summary.total_position_notional == Decimal(
+                0
+            ):
                 # Account with no USD balances and no positions should have zero equity
-                if account_summary.total_position_notional == Decimal(0):
-                    assert account_summary.total_equity <= Decimal("0.01"), (
-                        f"Expected near-zero equity for account with no balances, "
-                        f"but got {account_summary.total_equity}"
-                    )
+                assert account_summary.total_equity <= Decimal("0.01"), (
+                    f"Expected near-zero equity for account with no balances, "
+                    f"but got {account_summary.total_equity}"
+                )

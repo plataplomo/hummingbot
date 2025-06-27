@@ -33,7 +33,6 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
     """
 
     root: tuple[RawTimestampMsInt, RawFiniteDecimalStr]
-    # model_config = ConfigDict(frozen=True) # Not standard for RootModel root itself
 
     @field_validator("root", mode="before")
     @classmethod
@@ -78,9 +77,7 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
             # return type list[int | str] mandated by user. Elements are originally
             # object from the input sequence; Pydantic will validate them further.
             # Runtime checks for actual types (int/str) are deferred to Pydantic.
-            # #[CAST-REVIEW-REQUIRED]
             elem0 = cast("int | str", v_sequence[0])
-            # #[CAST-REVIEW-REQUIRED]
             elem1 = cast("int | str", v_sequence[1])
             return [elem0, elem1]
         raise ValueError(

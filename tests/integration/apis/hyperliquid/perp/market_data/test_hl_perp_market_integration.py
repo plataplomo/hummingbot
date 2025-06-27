@@ -581,14 +581,13 @@ async def test_hl_perp_market_business_logic_validation(
 
         assert market.hl_details.sz_decimals <= 18, "sz_decimals should not exceed 18"
 
-        if market.hl_details.mark_price is not None:
-            if market.symbol == "BTC":
-                assert market.hl_details.mark_price > Decimal(1000), (
-                    f"BTC mark price seems too low: {market.hl_details.mark_price}"
-                )
-                assert market.hl_details.mark_price < Decimal(1000000), (
-                    f"BTC mark price seems too high: {market.hl_details.mark_price}"
-                )
+        if market.hl_details.mark_price is not None and market.symbol == "BTC":
+            assert market.hl_details.mark_price > Decimal(1000), (
+                f"BTC mark price seems too low: {market.hl_details.mark_price}"
+            )
+            assert market.hl_details.mark_price < Decimal(1000000), (
+                f"BTC mark price seems too high: {market.hl_details.mark_price}"
+            )
 
         if market.hl_details.funding_rate is not None:
             assert abs(market.hl_details.funding_rate) <= Decimal("0.1"), (

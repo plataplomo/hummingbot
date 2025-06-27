@@ -136,13 +136,17 @@ async def get_exchange_symbol_mapping(api: HyperliquidAPI) -> dict[str, Any]:
 
     Returns:
         Dict with symbol mapping information from exchange
+
+    Raises:
+        RuntimeError: When failing to get exchange symbol mapping due to
+            connectivity issues or API errors.
     """
     try:
         # Get market information that includes symbol formatting
         args = GetMarketsArgs()
         markets = await api.get_markets(args)
 
-        mapping = {
+        return {
             "available_symbols": [m.symbol for m in markets],
             "perp_symbols": [m.symbol for m in markets if m.market_type == "Perpetual"],
             "spot_symbols": [m.symbol for m in markets if m.market_type == "Spot"],
@@ -157,8 +161,6 @@ async def get_exchange_symbol_mapping(api: HyperliquidAPI) -> dict[str, Any]:
                 for m in markets
             },
         }
-
-        return mapping
 
     except Exception as e:
         raise RuntimeError(

@@ -18,7 +18,6 @@ from .bp_trading_service import BackpackTradingService
 
 
 # Placeholder for BackpackTradingService, to be added in this step
-# from .bp_trading_service import BackpackTradingService
 
 __all__ = [
     "BackpackAccountService",

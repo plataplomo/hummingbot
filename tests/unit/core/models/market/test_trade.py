@@ -406,7 +406,6 @@ def test_trade_optional_decimal_fields() -> None:
     assert trade.hl_details is not None
     assert trade.hl_details.liquidation_mark_px is None
     assert trade.hl_details.start_position is None
-    # Invalid: non-finite
     with pytest.raises(ValueError):
         HyperliquidTradeDetails(
             trade_hash="hash-abc",

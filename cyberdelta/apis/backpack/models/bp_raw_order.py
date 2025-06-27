@@ -253,6 +253,9 @@ class BackpackRawOrder(BaseModel):
         """Normalizes all supported field aliases to canonical field names before validation.
 
         Ensures compatibility with both REST and WebSocket payloads.
+
+        Returns:
+            dict[str, object]: Dictionary with normalized field names.
         """
         alias_map: dict[str, list[str]] = {
             "id": ["id", "i"],

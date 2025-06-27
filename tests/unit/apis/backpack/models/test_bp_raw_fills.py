@@ -138,7 +138,6 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
         ("side", ["Bid"]),
         ("symbol", {"s": "SOL_USDC"}),
         ("timestamp", 1673788200123),  # Should be string
-        # ("clientId", 123), # Removed: clientId now accepts integers and converts to string
     ],
 )
 def test_backpack_raw_fill_invalid_types(

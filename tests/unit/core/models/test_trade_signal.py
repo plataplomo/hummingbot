@@ -29,7 +29,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def minimal_signal_data() -> dict[str, Any]:
-    """Provide data for a minimal valid TradeSignal."""
+    """Provide data for a minimal valid TradeSignal.
+
+    Returns:
+        dict[str, Any]: Minimal data dictionary for creating TradeSignal instances.
+    """
     return {
         "symbol": "BTC-PERP",
         "signal_type": SignalType.ENTER_LONG,
@@ -42,7 +46,11 @@ def minimal_signal_data() -> dict[str, Any]:
 
 @pytest.fixture
 def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
-    """Provide data for a TradeSignal with all fields populated."""
+    """Provide data for a TradeSignal with all fields populated.
+
+    Returns:
+        dict[str, Any]: Complete data dictionary for creating TradeSignal instances with all fields.
+    """
     # Ensure enum is recognized
     assert isinstance(SignalType.ENTER_LONG, SignalType)
     now = datetime.now(UTC)

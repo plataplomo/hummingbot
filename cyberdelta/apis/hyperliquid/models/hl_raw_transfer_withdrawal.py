@@ -82,6 +82,3 @@ class HyperliquidRawWithdrawalToL1ActionPayload(
 # If "withdrawEth" has a different structure, define HyperliquidRawEthWithdrawalActionPayload here.
 # Example:
 # class HyperliquidRawEthWithdrawalActionPayload(BaseModel):
-#     amount: str
-#     destination: str
-#     model_config = ConfigDict(extra="forbid", frozen=True)

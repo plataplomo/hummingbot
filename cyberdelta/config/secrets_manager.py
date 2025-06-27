@@ -48,7 +48,11 @@ class SecretsManager:
         self.secrets_path = Path(secrets_path) if secrets_path else self._get_secrets_path()
         self.secrets_loaded = False
         # Load secrets on instantiation - will raise ConfigurationError on failure
-        self.load()
+        try:
+            self.load()
+        except ConfigurationError:
+            # Re-raise ConfigurationError from load() to make it explicit
+            raise
 
     def load(self) -> None:
         """Load secrets from the configured location and validate against SecretsConfig model.
@@ -170,4 +174,8 @@ class SecretsManager:
         """
         self.secrets_data = None
         self.secrets_loaded = False
-        self.load()
+        try:
+            self.load()
+        except ConfigurationError:
+            # Re-raise ConfigurationError from load() to make it explicit
+            raise

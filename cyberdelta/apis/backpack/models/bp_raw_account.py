@@ -48,7 +48,11 @@ class BackpackRawAccount(BaseModel):
     def validate_id_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the id is a non-empty UTF-8 string of max 128 chars.
 
-        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        Returns:
+            str: Validated ID string.
+
+        Raises:
+            ValueError: If not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "id"
         return validate_str_field(v, field_name=field_name, max_length=128)
@@ -58,7 +62,11 @@ class BackpackRawAccount(BaseModel):
     def validate_email_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the email is a non-empty UTF-8 string of max 254 chars.
 
-        Raises ValueError if not a string, is empty, exceeds max length, or is not valid UTF-8.
+        Returns:
+            str: Validated email string.
+
+        Raises:
+            ValueError: If not a string, is empty, exceeds max length, or is not valid UTF-8.
         """
         field_name = info.field_name or "email"
         return validate_str_field(v, field_name=field_name, max_length=254)
@@ -69,8 +77,13 @@ class BackpackRawAccount(BaseModel):
         """Validates status as a string with proper format and allowed enum values.
 
         Checks non-empty, max 32 chars, valid UTF-8, and in allowed enum values.
-        Raises ValueError if not a string, is empty, exceeds max length, not valid UTF-8, or not in
-        allowed set.
+
+        Returns:
+            str: Validated status string.
+
+        Raises:
+            ValueError: If not a string, is empty, exceeds max length, not valid UTF-8, or not in
+                allowed set.
         """
         field_name = info.field_name or "status"
         allowed_values = {"active", "suspended", "pending"}
@@ -105,8 +118,13 @@ class BackpackRawBalance(BaseModel):
         """Validates that the value is a non-empty string representing a finite decimal.
 
         Validates max 64 chars and ensures it's parseable as a finite decimal.
-        Raises ValueError if not a string, not parseable as decimal, not finite, or exceeds max
-        length.
+
+        Returns:
+            str: Validated decimal string.
+
+        Raises:
+            ValueError: If not a string, not parseable as decimal, not finite, or exceeds max
+                length.
         """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)

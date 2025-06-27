@@ -46,7 +46,11 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def mock_arbitrage_opportunity() -> ArbitrageOpportunity:
-    """Provide a basic mock ArbitrageOpportunity for testing execution scenarios."""
+    """Provide a basic mock ArbitrageOpportunity for testing execution scenarios.
+
+    Returns:
+        ArbitrageOpportunity: A mock opportunity with predefined values for testing.
+    """
     return ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="hyperliquid",
@@ -71,7 +75,11 @@ class TestTradeExecution:
         self,
         mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
-        """Create a SizedOpportunity for testing."""
+        """Create a SizedOpportunity for testing.
+
+        Returns:
+            SizedOpportunity: A test sized opportunity with specified parameters.
+        """
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
             long_size=Decimal("1000.0"),
@@ -84,7 +92,11 @@ class TestTradeExecution:
 
     @pytest.fixture
     def trade_execution(self, sized_opportunity: SizedOpportunity) -> TradeExecution:
-        """Create a TradeExecution instance for testing."""
+        """Create a TradeExecution instance for testing.
+
+        Returns:
+            TradeExecution: A test trade execution instance.
+        """
         return TradeExecution(sized_opportunity)
 
     def test_initial_state(self, trade_execution: TradeExecution) -> None:
@@ -114,7 +126,11 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_config_dict(self) -> dict[str, Any]:
-        """Provide a dictionary for simple config mocking in execution tests."""
+        """Provide a dictionary for simple config mocking in execution tests.
+
+        Returns:
+            dict[str, Any]: Configuration dictionary with test execution settings.
+        """
         return {
             "execution.max_retries": 3,
             "execution.retry_delay_base_sec": 0.01,
@@ -131,7 +147,11 @@ class TestExecutionHandler:
 
     @pytest.fixture
     def mock_config(self, mock_config_dict: dict[str, Any]) -> MagicMock:
-        """Provide a mock Config object using the test configuration dictionary."""
+        """Provide a mock Config object using the test configuration dictionary.
+
+        Returns:
+            MagicMock: Mock AppSettings object configured with test values.
+        """
         cfg = MagicMock(spec=AppSettings)
 
         # Mock the execution attribute structure
@@ -171,13 +191,12 @@ class TestExecutionHandler:
         # Add a side effect to process_trade for debugging
         process_trade_call_tracker: list[tuple[str, Trade]] = []  # Explicitly typed
 
-        async def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
+        def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
             """Process trade and log the call for testing portfolio tracker integration."""
             logger.debug(
                 f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}",
             )
             process_trade_call_tracker.append((exchange_id, trade))
-            # original_process_trade_behavior_if_any() # If it had real behavior to mimic
 
         tracker.process_trade = AsyncMock(side_effect=process_trade_side_effect)
         tracker.process_trade_call_tracker = process_trade_call_tracker  # Attach for assertion
@@ -192,7 +211,11 @@ class TestExecutionHandler:
         mapper = MagicMock(spec=SymbolMapper)
 
         def get_exchange_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
-            """Get exchange symbol side effect for testing."""
+            """Get exchange symbol side effect for testing.
+
+            Returns:
+                str | None: Exchange-specific symbol or None if not found.
+            """
             mapping = {
                 ("BTC", "hyperliquid"): "BTC-PERP",
                 ("BTC", "backpack"): "BTC_USDC",
@@ -202,7 +225,11 @@ class TestExecutionHandler:
             return mapping.get((internal_symbol, ex_id))
 
         def get_internal_symbol_side_effect(ex_sym: str, ex_id: str) -> str | None:
-            """Get internal symbol side effect for testing."""
+            """Get internal symbol side effect for testing.
+
+            Returns:
+                str | None: Internal symbol or None if not found.
+            """
             mapping = {
                 ("BTC-PERP", "hyperliquid"): "BTC",
                 ("BTC_USDC", "backpack"): "BTC",
@@ -258,7 +285,11 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> ExecutionHandler:
-        """Create execution handler instance with mocked dependencies for testing."""
+        """Create execution handler instance with mocked dependencies for testing.
+
+        Returns:
+            ExecutionHandler: Configured execution handler with registered API clients.
+        """
         handler = ExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
@@ -279,7 +310,11 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> TestableExecutionHandler:
-        """Fixture for TestableExecutionHandler that exposes protected methods."""
+        """Fixture for TestableExecutionHandler that exposes protected methods.
+
+        Returns:
+            TestableExecutionHandler: Test execution handler with exposed internal methods.
+        """
         handler = TestableExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
@@ -295,7 +330,11 @@ class TestExecutionHandler:
         self,
         mock_arbitrage_opportunity: ArbitrageOpportunity,
     ) -> SizedOpportunity:
-        """Create sized opportunity instance for testing order execution scenarios."""
+        """Create sized opportunity instance for testing order execution scenarios.
+
+        Returns:
+            SizedOpportunity: Configured sized opportunity for execution testing.
+        """
         return SizedOpportunity(
             opportunity=mock_arbitrage_opportunity,
             long_size=Decimal("1.0"),
@@ -340,7 +379,11 @@ class TestExecutionHandler:
         """Test execution handler behavior when symbol mapping fails for one exchange."""
 
         def get_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
-            """Get symbol side effect for testing."""
+            """Get symbol side effect for testing.
+
+            Returns:
+                str | None: Exchange symbol or None for failure simulation.
+            """
             return "BTC-PERP" if ex_id == "hyperliquid" else None
 
         mock_symbol_mapper.get_exchange_symbol.side_effect = get_symbol_side_effect
@@ -604,7 +647,6 @@ class TestExecutionHandler:
             pos_args, kwargs = mock_place_comp.call_args
             # _place_order_with_retry(
             #     execution, exchange_id, symbol, side, quantity, order_type, price, ...
-            # )
             # Indices: 0 1 2 3 4 5 6
             assert pos_args[3] == OrderSide.SELL  # side
             assert pos_args[5] == OrderType.LIMIT  # order_type (derived in _compensate_position)
@@ -663,7 +705,7 @@ class TestExecutionHandler:
         mock_portfolio_tracker.get_order.return_value = original_filled_order
 
         # Define an async side_effect function that raises the APIError
-        async def async_api_error_side_effect(*_args: object, **_kwargs: object) -> None:
+        def async_api_error_side_effect(*_args: object, **_kwargs: object) -> None:
             raise APIError("Comp Failed", APIErrorCode.UNKNOWN.value)
 
         with patch.object(
@@ -688,7 +730,11 @@ class TestExecutionHandler:
             mock_place_retry_method.assert_called_once()  # Check it was actually called
 
     def _create_test_tickers(self, now_ts: datetime) -> tuple[Ticker, Ticker]:
-        """Create test ticker objects for concurrent execution test."""
+        """Create test ticker objects for concurrent execution test.
+
+        Returns:
+            tuple[Ticker, Ticker]: Hyperliquid and Backpack test tickers.
+        """
         hl_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=now_ts,
@@ -708,7 +754,11 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
         now_ts: datetime,
     ) -> tuple[Order, Order]:
-        """Create base order objects for concurrent execution test."""
+        """Create base order objects for concurrent execution test.
+
+        Returns:
+            tuple[Order, Order]: Long and short base order objects for testing.
+        """
         base_long_order = Order(
             client_order_id="HL-CONC-L-1",
             exchange_order_id="EX-HL-CONC-L-126",
@@ -774,7 +824,12 @@ class TestExecutionHandler:
         hl_ticker: Ticker,
         bp_ticker: Ticker,
     ) -> Callable[..., Coroutine[Any, Any, Order]]:
-        """Create the side effect function for place_order_with_retry mock."""
+        """Create the side effect function for place_order_with_retry mock.
+
+        Returns:
+            Callable[..., Coroutine[Any, Any, Order]]: Mock side effect function for order
+                placement.
+        """
 
         async def place_order_retry_side_effect(
             **kwargs: TradeExecution | str | OrderSide | OrderType | Decimal | None,
@@ -829,7 +884,11 @@ class TestExecutionHandler:
         bp_ticker: Ticker,
         client_oid: str,
     ) -> Order:
-        """Handle order placement logic based on exchange and side."""
+        """Handle order placement logic based on exchange and side.
+
+        Returns:
+            Order: Configured order object based on exchange and side parameters.
+        """
         if exchange_id == "hyperliquid" and side == OrderSide.BUY:
             return self._create_hyperliquid_buy_order(
                 execution_handler,
@@ -856,7 +915,11 @@ class TestExecutionHandler:
         hl_ticker: Ticker,
         client_oid: str,
     ) -> Order:
-        """Create hyperliquid buy order response."""
+        """Create hyperliquid buy order response.
+
+        Returns:
+            Order: Filled buy order for Hyperliquid with trades.
+        """
         # Simulate the circuit breaker call that would happen in real code
         if execution_handler.circuit_breaker_system:
             execution_handler.circuit_breaker_system.record_api_success(
@@ -897,7 +960,11 @@ class TestExecutionHandler:
         bp_ticker: Ticker,
         client_oid: str,
     ) -> Order:
-        """Create backpack sell order response."""
+        """Create backpack sell order response.
+
+        Returns:
+            Order: Filled sell order for Backpack with trades.
+        """
         # Simulate the circuit breaker call that would happen in real code
         if execution_handler.circuit_breaker_system:
             execution_handler.circuit_breaker_system.record_api_success(
@@ -994,7 +1061,11 @@ class TestExecutionHandler:
         assert len(mock_portfolio_tracker.process_trade_call_tracker) == 2
 
     def _setup_failed_order_config(self) -> dict[str, object]:
-        """Setup configuration for failed order test."""
+        """Setup configuration for failed order test.
+
+        Returns:
+            dict[str, object]: Configuration values for testing failed order scenarios.
+        """
         return {
             "execution.order_placement_type": "concurrent",
             "execution.compensation.use_limit_orders": True,

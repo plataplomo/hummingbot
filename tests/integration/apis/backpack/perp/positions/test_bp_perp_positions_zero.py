@@ -151,7 +151,9 @@ class TestBackpackPerpPositionsZero:
             logger.info("✓ Authentication validation passed")
         except APIError as e:
             # If authentication fails, it should be a specific auth error
-            assert e.code == APIErrorCode.AUTHENTICATION_FAILED.value, f"Unexpected authentication error: {e.code}"
+            assert e.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
+                f"Unexpected authentication error: {e.code}"
+            )
             pytest.fail(f"Authentication should not fail with valid credentials: {e}")
 
     @pytest.mark.vcr

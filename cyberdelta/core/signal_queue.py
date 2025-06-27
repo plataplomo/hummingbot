@@ -9,6 +9,7 @@ from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 import heapq
+import operator
 
 # logging constants replaced with structlog equivalents
 from datetime import UTC, datetime, timedelta
@@ -481,10 +482,7 @@ class PrioritySignalQueue:
         all_signals: list[TradeSignal] = [item[2] for item in signals_with_priority]
 
         # Filter signals after releasing the lock
-        if symbol:
-            signals_to_sort = [s for s in all_signals if s.symbol == symbol]
-        else:
-            signals_to_sort = all_signals
+        signals_to_sort = [s for s in all_signals if s.symbol == symbol] if symbol else all_signals
 
         # Sort by priority (descending utility score) before returning
         # Ensure metadata and utility_score exist before sorting
@@ -563,8 +561,6 @@ class PrioritySignalQueue:
                     message=f"[_clean_expired] Removing expired signal {signal.signal_id}",
                 )
 
-        # self.signal_queue = valid_signals  # Assign the filtered list back
-        # heapq.heapify(self.signal_queue)  # Re-heapify is crucial after filtering
         # Update: Optimized approach - Build new heap directly if many removals expected,
         # or selectively remove if few. For simplicity and clarity, rebuilding is robust.
         self.signal_queue.clear()  # Clear the existing list
@@ -611,7 +607,7 @@ class PrioritySignalQueue:
             highest_priority_signals = heapq.nsmallest(
                 num_to_keep,
                 self.signal_queue,
-                key=lambda x: x[0],
+                key=operator.itemgetter(0),
             )
             num_removed = len(self.signal_queue) - len(highest_priority_signals)
 
@@ -801,10 +797,7 @@ class PrioritySignalQueue:
             return False
 
         # Check exchange-symbol pair specific breaker
-        if not self._check_pair_breaker(signal, exchange_name):
-            return False
-
-        return True
+        return self._check_pair_breaker(signal, exchange_name)
 
     def _check_api_error_breaker(self, signal: TradeSignal, exchange_name: str) -> bool:
         """Check API error breaker for an exchange."""
@@ -1010,7 +1003,7 @@ class PrioritySignalQueue:
                 signal
                 for _score, _count, signal in sorted(
                     self.signal_queue,
-                    key=lambda x: (x[0], x[1]),
+                    key=operator.itemgetter(0, 1),
                 )
                 if signal.is_valid()
             ]
@@ -1264,12 +1257,8 @@ class PrioritySignalQueue:
             # Optionally clean expired signals before checking
             # This depends on whether "is_empty" should reflect only valid signals
             # If cleanup is desired here, uncomment:
-            # now = datetime.now(UTC)
             # if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
-            #     self._clean_expired_signals()
-            #     self.last_cleanup = now
-            is_currently_empty = not self.signal_queue
-        return is_currently_empty  # Return the boolean value
+            return not self.signal_queue
 
     async def enqueue_signal(self, signal: TradeSignal) -> None:
         """Asynchronously enqueue a trade signal into the priority queue and notify listeners.

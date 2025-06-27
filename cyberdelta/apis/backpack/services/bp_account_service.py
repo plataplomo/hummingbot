@@ -111,7 +111,11 @@ class BackpackAccountService:
         )  # Updated to use account-specific mapper
 
     async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
-        """Helper to fetch and validate raw account balances dictionary."""
+        """Helper to fetch and validate raw account balances dictionary.
+
+        Returns:
+            Dictionary mapping asset symbols to BackpackRawBalance objects.
+        """
         endpoint_path = "/api/v1/capital"
         params = self._request_builder.build_get_balances_params()
         logger.debug(
@@ -120,7 +124,6 @@ class BackpackAccountService:
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
-        # headers: Mapping[str, str] = {}
         # Not strictly needed if not used beyond _http_client_requester
         try:
             raw_data, status_code, _ = await self._http_client_requester(
@@ -170,7 +173,11 @@ class BackpackAccountService:
             ) from e_unhandled
 
     async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
-        """Helper to fetch and validate raw current open positions list."""
+        """Helper to fetch and validate raw current open positions list.
+
+        Returns:
+            List of BackpackRawPosition objects for current open positions.
+        """
         endpoint_path = "/api/v1/position"
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
@@ -712,13 +719,12 @@ class BackpackAccountService:
         current_method = frame.f_code.co_name if frame is not None else "get_account_summary"
 
         # Validate subaccount_id if provided (OpenAPI spec: uint16)
-        if subaccount_id is not None:
-            if subaccount_id < 0 or subaccount_id > 65535:
-                raise APIError(
-                    code=APIErrorCode.INVALID_REQUEST.value,
-                    message=f"Invalid subaccount_id: {subaccount_id}. Must be uint16 (0-65535).",
-                    http_status=400,
-                )
+        if subaccount_id is not None and (subaccount_id < 0 or subaccount_id > 65535):
+            raise APIError(
+                code=APIErrorCode.INVALID_REQUEST.value,
+                message=f"Invalid subaccount_id: {subaccount_id}. Must be uint16 (0-65535).",
+                http_status=400,
+            )
 
         logger.debug(
             f"[{self._exchange_name}] Getting account summary for subaccount_id={subaccount_id}",

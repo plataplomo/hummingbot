@@ -123,6 +123,9 @@ class TestHyperliquidBalancesZeroComprehensive:
 
         Note: This test may be challenging to reproduce consistently in VCR,
         so it might need to be mocked or use specific testnet conditions.
+
+        Raises:
+            APIError: When network timeout or connection errors occur during API calls.
         """
         try:
             # Attempt the call - in normal conditions this should succeed
@@ -154,6 +157,9 @@ class TestHyperliquidBalancesZeroComprehensive:
 
         This test validates proper handling of rate limit responses from Hyperliquid.
         May require multiple rapid calls to trigger rate limiting during recording.
+
+        Raises:
+            APIError: When rate limiting is triggered by making too many rapid API calls.
         """
         try:
             # Make multiple rapid calls to potentially trigger rate limiting

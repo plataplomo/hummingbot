@@ -9,7 +9,11 @@ import pytest
 
 @pytest.fixture
 def hl_perp_test_config() -> dict[str, list[str] | list[Decimal] | Decimal | int]:
-    """Hyperliquid perp test configuration."""
+    """Hyperliquid perp test configuration.
+
+    Returns:
+        Dict with perp test configuration parameters
+    """
     return {
         # REMOVED HARDCODED SYMBOLS - SECURITY VIOLATION
         # Must get available perp symbols from exchange API

@@ -95,7 +95,14 @@ class TestBackpackPositionsPositive:
                 assert isinstance(position.bp_details, BackpackPositionDetails)
 
     async def _get_test_symbol(self, bp_api: BackpackAPI, default_symbol: str) -> str:
-        """Get a valid perpetual symbol for testing."""
+        """Get a valid perpetual symbol for testing.
+
+        Returns:
+            str: A valid perpetual symbol for testing.
+
+        Raises:
+            AssertionError: If no perpetual symbols are available for testing.
+        """
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
         markets = await bp_api.get_markets(GetMarketsArgs())
@@ -116,7 +123,15 @@ class TestBackpackPositionsPositive:
         bp_api: BackpackAPI,
         symbol: str,
     ) -> tuple[bool, list[DerivativePosition]]:
-        """Check if a position exists for the given symbol."""
+        """Check if a position exists for the given symbol.
+
+        Returns:
+            tuple[bool, list[DerivativePosition]]: A tuple containing whether position
+                exists and the list of positions.
+
+        Raises:
+            APIError: If API call fails with non-symbol-not-found errors.
+        """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -131,7 +146,11 @@ class TestBackpackPositionsPositive:
             raise
 
     async def _open_test_position(self, bp_api: BackpackAPI, symbol: str) -> None:
-        """Open a test position for the given symbol."""
+        """Open a test position for the given symbol.
+
+        Raises:
+            ValueError: If cannot determine market price for the symbol.
+        """
         from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
         from cyberdelta.core.models.enums import OrderType, TimeInForce
         from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -213,6 +232,10 @@ class TestBackpackPositionsPositive:
         """Test retrieving a specific position by symbol.
 
         Dynamically creates position if needed.
+
+        Raises:
+            AssertionError: If position validation fails.
+            APIError: If API call fails or symbol is not found.
         """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode

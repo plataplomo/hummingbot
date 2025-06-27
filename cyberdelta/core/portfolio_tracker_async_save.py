@@ -217,8 +217,7 @@ async def _async_write_file(file_path: str, content: str) -> None:
     def _write_sync() -> None:
         # Write to temporary file first for atomicity
         temp_path = f"{file_path}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as f:
-            f.write(content)
+        Path(temp_path).write_text(content, encoding="utf-8")
         # Atomic rename
         os.replace(temp_path, file_path)
 
@@ -237,8 +236,7 @@ async def _async_read_file(file_path: str) -> str:
     loop = asyncio.get_event_loop()
 
     def _read_sync() -> str:
-        with open(file_path, encoding="utf-8") as f:
-            return f.read()
+        return Path(file_path).read_text(encoding="utf-8")
 
     return await loop.run_in_executor(None, _read_sync)
 

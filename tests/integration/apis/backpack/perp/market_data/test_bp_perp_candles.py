@@ -664,7 +664,7 @@ class TestBackpackPerpCandles:
         candles = await bp_api_for_test_env.get_market_data(args)
 
         if len(candles) > 0:
-            for _, candle in enumerate(candles):
+            for candle in candles:
                 # Test that perp candles can handle funding-related calculations
                 # Funding typically occurs every 8 hours
 

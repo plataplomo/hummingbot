@@ -9,7 +9,11 @@ import pytest
 
 @pytest.fixture
 def bp_spot_test_config() -> dict[str, list[str] | list[Decimal] | Decimal]:
-    """Backpack spot test configuration."""
+    """Backpack spot test configuration.
+
+    Returns:
+        dict[str, list[str] | list[Decimal] | Decimal]: Configuration for spot tests.
+    """
     return {
         "symbols": ["SOL_USDC", "BTC_USDC"],
         "min_order_size": Decimal("0.01"),

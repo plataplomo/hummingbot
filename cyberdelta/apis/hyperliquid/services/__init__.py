@@ -17,7 +17,6 @@ from .hl_market_data_service import HyperliquidMarketDataService
 
 
 # Placeholder for HyperliquidTradingService, to be added in this step
-# from .hl_trading_service import HyperliquidTradingService
 
 __all__ = [
     "HyperliquidAccountService",

@@ -113,7 +113,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
-        """Map a Backpack order status string to internal OrderStatus enum."""
+        """Map a Backpack order status string to internal OrderStatus enum.
+
+        Returns:
+            OrderStatus enum value corresponding to the Backpack status.
+        """
         status_lower = bp_status.lower() if bp_status else ""
         if status_lower == "new":
             return OrderStatus.NEW
@@ -140,7 +144,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_type_to_internal(bp_type: str) -> OrderType:
-        """Map a Backpack order type string to internal OrderType enum."""
+        """Map a Backpack order type string to internal OrderType enum.
+
+        Returns:
+            OrderType enum value corresponding to the Backpack type.
+        """
         type_lower = bp_type.lower() if bp_type else ""
         if type_lower in ("limit", "limit_order"):
             return OrderType.LIMIT
@@ -165,7 +173,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_tif_to_internal(bp_tif: str | None) -> TimeInForce:
-        """Map a Backpack time in force string to internal TimeInForce enum."""
+        """Map a Backpack time in force string to internal TimeInForce enum.
+
+        Returns:
+            TimeInForce enum value corresponding to the Backpack TIF.
+        """
         if bp_tif is None:
             return TimeInForce.GTC  # Default to GTC
         tif_lower = bp_tif.lower()
@@ -186,7 +198,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_trigger_by_to_internal(trigger_by: str | None) -> TriggerType | None:
-        """Map a Backpack trigger_by string to internal TriggerType enum."""
+        """Map a Backpack trigger_by string to internal TriggerType enum.
+
+        Returns:
+            TriggerType enum value or None if trigger_by is None or unknown.
+        """
         if trigger_by is None:
             return None
         trigger_lower = trigger_by.lower()
@@ -207,7 +223,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_transfer_status_to_internal(raw_status: str | None) -> InternalTransferStatus:
-        """Map a Backpack transfer status string to internal InternalTransferStatus enum."""
+        """Map a Backpack transfer status string to internal InternalTransferStatus enum.
+
+        Returns:
+            InternalTransferStatus enum value corresponding to the raw status.
+        """
         if raw_status is None:
             return InternalTransferStatus.UNKNOWN
         status_lower = raw_status.lower()
@@ -546,7 +566,12 @@ class BackpackAccountDataMapper:
 
         """
         try:
-            internal_spot_balances = list(starmap(BackpackAccountDataMapper.transform_raw_balance_to_internal, spot_balances_raw.items()))
+            internal_spot_balances = list(
+                starmap(
+                    BackpackAccountDataMapper.transform_raw_balance_to_internal,
+                    spot_balances_raw.items(),
+                )
+            )
             internal_derivative_positions = [
                 BackpackAccountDataMapper.transform_raw_position_to_internal(pos_raw)
                 for pos_raw in derivative_positions_raw
@@ -567,9 +592,10 @@ class BackpackAccountDataMapper:
             for dp in internal_derivative_positions:
                 if dp.unrealized_pnl is not None:
                     calculated_total_unrealized_pnl += dp.unrealized_pnl
-                if dp.entry_price is not None:
-                    if dp.size.is_finite() and dp.entry_price.is_finite():
-                        calculated_total_position_notional += abs(dp.size * dp.entry_price)
+                if (dp.entry_price is not None) and (
+                    dp.size.is_finite() and dp.entry_price.is_finite()
+                ):
+                    calculated_total_position_notional += abs(dp.size * dp.entry_price)
 
             calculated_total_equity += calculated_total_unrealized_pnl
 
@@ -932,10 +958,7 @@ class BackpackAccountDataMapper:
             if timestamp_str:
                 try:
                     parsed_dt = parse_datetime_utc(timestamp_str, field_name="created_at")
-                    if parsed_dt is None:
-                        timestamp_value = datetime.now(UTC)
-                    else:
-                        timestamp_value = parsed_dt
+                    timestamp_value = datetime.now(UTC) if parsed_dt is None else parsed_dt
                 except ValueError:
                     logger.warning(
                         "bp_account_mapper_timestamp_parse_failed",
@@ -996,7 +1019,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_self_trade_prevention(raw_stp: str | None) -> SelfTradePrevention | None:
-        """Map self trade prevention string to enum."""
+        """Map self trade prevention string to enum.
+
+        Returns:
+            SelfTradePrevention enum value or None if raw_stp is empty.
+        """
         if not raw_stp:
             return None
 
@@ -1014,7 +1041,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_expiry_reason(raw_expiry: str | None) -> OrderExpiryReason | None:
-        """Map expiry reason string to enum."""
+        """Map expiry reason string to enum.
+
+        Returns:
+            OrderExpiryReason enum value or None if raw_expiry is empty.
+        """
         if not raw_expiry:
             return None
 
@@ -1033,7 +1064,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _map_order_origin(raw_origin: str | None) -> OrderUpdateOrigin | None:
-        """Map origin string to enum."""
+        """Map origin string to enum.
+
+        Returns:
+            OrderUpdateOrigin enum value or None if raw_origin is empty.
+        """
         if not raw_origin:
             return None
 
@@ -1050,7 +1085,14 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _parse_required_order_fields(raw: BackpackRawOrder) -> tuple[Decimal, datetime]:
-        """Parse and validate required order fields."""
+        """Parse and validate required order fields.
+
+        Returns:
+            Tuple of (quantity, timestamp) with parsed and validated values.
+
+        Raises:
+            TransformationError: If parsing fails.
+        """
         parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
         if parsed_quantity is None:
             raise TransformationError("quantity missing/invalid in BackpackRawOrder")
@@ -1063,7 +1105,11 @@ class BackpackAccountDataMapper:
 
     @staticmethod
     def _parse_optional_order_fields(raw: BackpackRawOrder) -> dict[str, Any]:
-        """Parse optional order fields."""
+        """Parse optional order fields.
+
+        Returns:
+            Dictionary with parsed optional order field values.
+        """
         quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
 
         # Calculate average fill price if not provided but order has fills
@@ -1226,16 +1272,16 @@ class BackpackAccountDataMapper:
         Returns:
             Trade | None: Internal domain model with BP details populated, or None if
                          price or quantity is zero
-
-        Raises:
-            TransformationError: If transformation fails
-
         """
         return BackpackAccountDataMapper.transform_raw_fill_to_internal(raw_fill)
 
     @staticmethod
     def _parse_position_update_size(raw_position_update: BackpackRawPositionUpdate) -> Decimal:
-        """Parse and validate size from position update."""
+        """Parse and validate size from position update.
+
+        Returns:
+            Decimal size value parsed from the position update.
+        """
         if raw_position_update.net_quantity:
             size_dec = parse_decimal_value(
                 raw_position_update.net_quantity,
@@ -1254,7 +1300,11 @@ class BackpackAccountDataMapper:
     def _parse_position_update_prices(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> dict[str, Decimal | None]:
-        """Parse optional price fields from position update."""
+        """Parse optional price fields from position update.
+
+        Returns:
+            Dictionary with parsed price field values (entry_price, avg_price, unrealized_pnl).
+        """
         entry_price_dec = None
         if raw_position_update.entry_price:
             entry_price_dec = parse_decimal_value(raw_position_update.entry_price)
@@ -1277,7 +1327,11 @@ class BackpackAccountDataMapper:
     def _parse_position_update_timestamp(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> datetime:
-        """Parse timestamp from position update event."""
+        """Parse timestamp from position update event.
+
+        Returns:
+            Datetime object with parsed timestamp from the event.
+        """
         timestamp = datetime.now(UTC)
         if raw_position_update.event_time:
             event_timestamp = parse_datetime_utc(
@@ -1292,7 +1346,11 @@ class BackpackAccountDataMapper:
     def _parse_position_update_margin_details(
         raw_position_update: BackpackRawPositionUpdate,
     ) -> BackpackPositionDetails:
-        """Parse margin details from position update."""
+        """Parse margin details from position update.
+
+        Returns:
+            BackpackPositionDetails object with parsed margin information.
+        """
         imf_dec = None
         if raw_position_update.initial_margin_fraction:
             imf_dec = parse_decimal_value(

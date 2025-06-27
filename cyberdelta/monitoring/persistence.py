@@ -12,7 +12,6 @@ import structlog
 
 
 # Assuming Decimal might be used in trade/signal data, import if needed
-# from decimal import Decimal
 # Using the centralized encoder is recommended
 
 logger = structlog.get_logger(__name__)
@@ -154,7 +153,6 @@ class PerformanceDataPersistence:
         """
         if isinstance(data, dict):
             return self._make_dict_serializable(data)
-        # data is list[Any]
         serializable_list: list[Any] = []
         for item in data:
             if isinstance(item, dict):
@@ -181,11 +179,9 @@ class PerformanceDataPersistence:
                 serializable_item[key] = value.isoformat()
             elif isinstance(value, dict):
                 # DEFENSIVE CHECK: Recursively handle nested dicts.
-                # Pyright=[reportUnknownArgumentType]
                 serializable_item[key] = self._make_dict_serializable(value)
             elif isinstance(value, list):
                 # DEFENSIVE CHECK: Recursively handle nested lists.
-                # Pyright=[reportUnknownArgumentType]
                 serializable_item[key] = self._make_serializable(value)
             else:
                 serializable_item[key] = value
@@ -228,7 +224,6 @@ class PerformanceDataPersistence:
                 if isinstance(strategy_data, dict):
                     processed_strategy_data: dict[datetime, float] = {}
                     # DEFENSIVE CHECK: Handle unknown types from JSON.
-                    # Pyright=[reportUnknownVariableType, reportUnknownArgumentType]
                     for ts_str, val in strategy_data.items():
                         try:
                             timestamp = datetime.fromisoformat(str(ts_str))
@@ -258,7 +253,6 @@ class PerformanceDataPersistence:
             for item in loaded_data:
                 if isinstance(item, dict):
                     # DEFENSIVE CHECK: Handle unknown dict types from JSON.
-                    # Pyright=[reportUnknownArgumentType]
                     processed_list.append(self._post_process_dict(item))
                 else:
                     processed_list.append(item)
@@ -335,12 +329,10 @@ class PerformanceDataPersistence:
                         strategy_data = loaded_data[strategy_name]
                         if isinstance(strategy_data, dict):
                             # DEFENSIVE CHECK: Type conversion for loaded data.
-                            # Pyright=[reportArgumentType]
                             all_returns[strategy_name] = strategy_data
                     else:
                         # If the file contains the strategy data directly
                         # DEFENSIVE CHECK: Type conversion for loaded data.
-                        # Pyright=[reportArgumentType]
                         all_returns[strategy_name] = loaded_data  # type: ignore[assignment]
 
         except Exception as e:

@@ -23,6 +23,7 @@ Key test categories:
 - Malformed error response handling
 """
 
+import contextlib
 import json
 
 import pytest
@@ -246,10 +247,8 @@ class TestBackpackErrorMapper:
         mapper = BackpackErrorMapper()
         # error_data might not be parsable if body is not JSON
         error_data = None
-        try:
+        with contextlib.suppress(json.JSONDecodeError):
             error_data = json.loads(error_body)
-        except json.JSONDecodeError:
-            pass
         api_error = mapper.map_exchange_error(http_status, error_body, error_data=error_data)
         assert api_error.code == expected_code.value
         assert expected_message_contains in api_error.message

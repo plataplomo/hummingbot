@@ -155,7 +155,11 @@ class TestExchangeSpecificConfig:
     """Test cases for ExchangeSpecificConfig model."""
 
     def create_valid_exchange_data(self) -> dict[str, Any]:
-        """Create valid exchange configuration data."""
+        """Create valid exchange configuration data.
+
+        Returns:
+            dict[str, Any]: Dictionary containing valid exchange configuration parameters.
+        """
         data: dict[str, Any] = {
             "enabled": True,
             "api_base_url_mainnet": "https://api.exchange.com",
@@ -369,7 +373,11 @@ class TestRiskSettings:
     """Test cases for RiskSettings model."""
 
     def create_valid_risk_data(self) -> dict[str, Any]:
-        """Create valid risk settings data."""
+        """Create valid risk settings data.
+
+        Returns:
+            dict[str, Any]: Dictionary containing valid risk management configuration.
+        """
         data: dict[str, Any] = {
             "global": {
                 "max_position_usd": "1000.0",
@@ -599,7 +607,11 @@ class TestAppSettings:
     """Test cases for AppSettings model."""
 
     def create_valid_app_data(self) -> dict[str, Any]:
-        """Create valid AppSettings data."""
+        """Create valid AppSettings data.
+
+        Returns:
+            dict[str, Any]: Dictionary containing valid application settings configuration.
+        """
         data: dict[str, Any] = {
             "general": {
                 "log_level": "INFO",

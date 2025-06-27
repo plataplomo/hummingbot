@@ -47,7 +47,11 @@ class MockOpportunity(NamedTuple):
     expected_profit: Decimal = Decimal("1.0")
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert mock opportunity to dictionary representation for testing."""
+        """Convert mock opportunity to dictionary representation for testing.
+
+        Returns:
+            Dictionary containing all opportunity fields as strings for JSON serialization.
+        """
         return {
             "symbol": self.symbol,
             "long_exchange": self.long_exchange,
@@ -74,7 +78,11 @@ class TestOrderVerifier:
 
     @pytest.fixture
     def portfolio_tracker(self) -> MagicMock:
-        """Create a mock portfolio tracker."""
+        """Create a mock portfolio tracker.
+
+        Returns:
+            Mock PortfolioTracker instance configured for testing.
+        """
         mock_tracker = MagicMock(spec=PortfolioTracker)
 
         # Initialize orders ; type is inferred from spec=PortfolioTracker
@@ -167,9 +175,6 @@ class TestOrderVerifier:
 
         mock_tracker.get_order_by_id = MagicMock(side_effect=mock_get_order_by_id)
 
-        # Deprecated: mock_tracker.get_api_client.return_value = mock_api_client_hyperliquid
-        # mock_tracker.get_order.return_value = sample_filled_order # Also part of old logic
-
         return mock_tracker
 
     @pytest.mark.asyncio
@@ -223,7 +228,6 @@ class TestOrderVerifier:
         assert result_dict.get("error") is None
 
         # Test failed verification with missing order
-        # portfolio_tracker.get_order.return_value = None # REMOVE: PortfolioTracker
         # has no get_order
         # Instead, rely on the mock_get_order_by_id logic in the fixture for missing orders
 
@@ -316,7 +320,11 @@ class TestExecutionCoordinator:
 
     @pytest.fixture
     def coordinator(self) -> ExecutionCoordinator:
-        """Create an execution coordinator."""
+        """Create an execution coordinator.
+
+        Returns:
+            ExecutionCoordinator instance configured for testing.
+        """
         config: dict[str, Any] = {
             "execution.context_retention_seconds": 1,  # Short retention for testing
         }
@@ -470,7 +478,11 @@ class TestSynchronizedOrderSubmissionService:
         MagicMock,  # mock_cb_system
         MagicMock,  # mock_portfolio_tracker
     ]:
-        """Create a service instance with mocked dependencies using dependency injection."""
+        """Create a service instance with mocked dependencies using dependency injection.
+
+        Returns:
+            Tuple containing service instance, config dictionary, and mock dependencies.
+        """
         config: dict[str, Any] = {
             "execution.order_placement_type": "sequential",
             "execution.verification_timeout_seconds": 0.1,
@@ -496,8 +508,6 @@ class TestSynchronizedOrderSubmissionService:
         # Mocks for components potentially used internally or returned for test assertions
         # These are not directly injected via __init__ based on previous fixture structure,
         # but tests might expect them. Tests using @patch will override these anyway.
-        # mock_order_verifier = MagicMock(spec=OrderVerifier) # No longer returned
-        # mock_coordinator = MagicMock(spec=ExecutionCoordinator) # No longer returned
 
         # 2. Configure Default Mock Methods (Optional - keep minimal in fixture)
         # Example: Default CB allows execution
@@ -518,13 +528,6 @@ class TestSynchronizedOrderSubmissionService:
         # --- REMOVED direct mocking of internal service methods --- #
         # The following lines caused [method-assign] errors and are replaced
         # by dependency injection and test-specific @patch decorators.
-        # service._verify_pre_execution = AsyncMock(...) # REMOVED
-        # service._verify_market_conditions = AsyncMock(...) # REMOVED
-        # service._verify_balances = AsyncMock(...) # REMOVED
-        # service._verify_post_execution = AsyncMock(...) # REMOVED
-        # service._compensate_verification_failure = AsyncMock(...) # REMOVED
-        # service._execute_sequential_with_verification = AsyncMock(...) # REMOVED
-        # service._execute_simultaneous_with_verification = AsyncMock(...) # REMOVED
 
         # 4. Return service instance and necessary mocks
         # Returning mocks needed for assertions or further configuration in tests.
@@ -763,7 +766,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_context = MagicMock(spec=ExecutionContext)  # Use spec for better mock
         mock_ec_start_exec.return_value = mock_context
 
-        async def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
+        def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
             assert isinstance(res, ExecutionResult)
             assert res.status == ExecutionStatus.REJECTED
             # ensure ctx is the same mock_context if needed
@@ -889,7 +892,7 @@ class TestSynchronizedOrderSubmissionService:
         )
         mock_ec_start_exec.return_value = mock_exec_context
 
-        async def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
+        def mock_complete_side_effect(ctx: ExecutionContext, res: ExecutionResult) -> None:
             assert isinstance(res, ExecutionResult)
             assert res.status == ExecutionStatus.PARTIALLY_COMPLETED
             assert ctx == mock_exec_context
@@ -1068,8 +1071,6 @@ class TestSynchronizedOrderSubmissionService:
         assert "Short leg CB tripped" in result_dict_fail_short_cb.get("error", "")
         # Market/balance checks might not be called if short CB fails.
         # For now, assume they are not called after a CB failure in verify_pre_execution
-        # mock_verify_market_conditions.assert_not_awaited()
-        # mock_verify_balances.assert_not_awaited()
         assert mock_cb_system.can_execute.call_count == 2
         assert mock_coordinator_instance.add_checkpoint.call_count > 0
 

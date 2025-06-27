@@ -20,7 +20,14 @@ from .enums import OrderSide, SignalType
 
 
 def _is_list_of_any(v: object) -> TypeGuard[list[Any]]:
-    """Type guard to check if v is a list."""
+    """Type guard to check if v is a list.
+
+    Args:
+        v: The object to check
+
+    Returns:
+        True if v is a list, False otherwise
+    """
     return isinstance(v, list)
 
 
@@ -76,7 +83,18 @@ class TradeSignal(BaseModel):
     @field_validator("symbol", "source_strategy", mode="before")
     @classmethod
     def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string fields are non-empty, reasonable length."""
+        """Validate optional string fields are non-empty, reasonable length.
+
+        Args:
+            v: Optional string value to validate
+            info: Validation context containing field information
+
+        Returns:
+            Validated string value or None if not provided
+
+        Raises:
+            ValueError: If field name is None or string validation fails
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
@@ -96,7 +114,19 @@ class TradeSignal(BaseModel):
         v: str | list[str] | object,
         info: ValidationInfo,
     ) -> str | list[str]:
-        """Validate exchange is a non-empty str or a list of non-empty strs."""
+        """Validate exchange is a non-empty str or a list of non-empty strs.
+
+        Args:
+            v: Exchange value - either a string or list of strings
+            info: Validation context
+
+        Returns:
+            Validated string or list of strings
+
+        Raises:
+            TypeError: If v is not a string or list of strings
+            ValueError: If validation fails
+        """
         field_name = "exchange"
         # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
         if isinstance(v, str):
@@ -126,7 +156,18 @@ class TradeSignal(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite. Positive check via Field."""
+        """Parse required decimal, ensuring finite. Positive check via Field.
+
+        Args:
+            v: Value to parse as decimal
+            info: Validation context
+
+        Returns:
+            Parsed and validated Decimal value
+
+        Raises:
+            ValueError: If field name is missing, value is invalid, or not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name missing.")
@@ -144,7 +185,18 @@ class TradeSignal(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if not None. Positive check via Field."""
+        """Parse optional decimal, ensuring finite if not None. Positive check via Field.
+
+        Args:
+            v: Optional value to parse as decimal
+            info: Validation context
+
+        Returns:
+            Parsed Decimal value or None
+
+        Raises:
+            ValueError: If field name is missing or value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name missing.")
@@ -164,16 +216,26 @@ class TradeSignal(BaseModel):
         v: str | float | None,
         info: ValidationInfo,
     ) -> float | None:
-        """Validate optional float value."""
+        """Validate optional float value.
+
+        Args:
+            v: Optional value to convert to float
+            info: Validation context
+
+        Returns:
+            Float value or None
+
+        Raises:
+            ValueError: If field name is missing or value cannot be converted to float
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name missing.")
         if v is None:
             return None
         try:
-            float_val = float(v)
+            return float(v)
             # Optional: Add range check e.g., if 0.0 <= float_val <= 1.0:
-            return float_val
         except (ValueError, TypeError) as e:
             raise ValueError(f"{field_name}: Invalid float value: {v!r}. Error: {e}") from e
 
@@ -184,14 +246,24 @@ class TradeSignal(BaseModel):
         v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime | None:
-        """Parse optional datetime, ensuring UTC if present."""
+        """Parse optional datetime, ensuring UTC if present.
+
+        Args:
+            v: Optional datetime value in various formats
+            info: Validation context
+
+        Returns:
+            UTC datetime or None
+
+        Raises:
+            ValueError: If field name is missing or datetime parsing fails
+        """
         field_name = info.field_name
         if field_name is None:
             raise ValueError("Field name missing.")
         if v is None:
             return None
-        dt = parse_datetime_utc(v, field_name=field_name)
-        return dt  # Returns None if parsing fails, which is okay for optional
+        return parse_datetime_utc(v, field_name=field_name)
 
     def is_valid(self) -> bool:
         """Check if the signal is still valid (e.g., not expired).

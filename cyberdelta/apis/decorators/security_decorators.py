@@ -609,8 +609,7 @@ class SecureTransformStack[T: BaseModel]:
         # Final transformation
         # The transformer properly handles both sync and async functions
         # and returns the correct type based on the input
-        final_func = transformer(validated_func)
-        return final_func
+        return transformer(validated_func)
 
 
 # Export legacy function names for minimal disruption during migration

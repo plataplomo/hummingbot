@@ -15,7 +15,6 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Removed in refactor
 from cyberdelta.core.models.enums import InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Withdrawal
@@ -31,43 +30,66 @@ HttpClientRequesterSig = Callable[
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Provide a mock HTTP client requester for Backpack API testing."""
+    """Provide a mock HTTP client requester for Backpack API testing.
+
+    Returns:
+        AsyncMock: Mock HTTP client requester for testing.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_http_client() -> MagicMock:
-    """Provide a mock HTTP client for withdrawal testing scenarios."""
+    """Provide a mock HTTP client for withdrawal testing scenarios.
+
+    Returns:
+        MagicMock: Mock HTTP client for testing.
+    """
     return MagicMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Provide a mock BackpackRequestBuilder for API request testing."""
+    """Provide a mock BackpackRequestBuilder for API request testing.
+
+    Returns:
+        MagicMock: Mock BackpackRequestBuilder instance.
+    """
     return MagicMock(spec=BackpackRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Return a mock BackpackResponseHandler for testing."""
+    """Return a mock BackpackResponseHandler for testing.
+
+    Returns:
+        MagicMock: Mock BackpackResponseHandler instance.
+    """
     return MagicMock(spec=BackpackResponseHandler)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Return a mock IAuthenticator for testing."""
+    """Return a mock IAuthenticator for testing.
+
+    Returns:
+        MagicMock: Mock IAuthenticator instance.
+    """
     return MagicMock(spec=IAuthenticator)
 
 
 # @pytest.fixture
 # def mock_rate_limiter_service() -> AsyncMock:
 #     """Provides a mock RateLimiterService."""
-#     return AsyncMock(spec=RateLimiterService)  # Removed in refactor
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Return a mock BackpackAccountDataMapper for testing."""
+    """Return a mock BackpackAccountDataMapper for testing.
+
+    Returns:
+        MagicMock: Mock BackpackAccountDataMapper instance.
+    """
     return MagicMock(spec=BackpackAccountDataMapper)
 
 
@@ -78,39 +100,58 @@ def bp_account_service(
     mock_response_handler: MagicMock,
     mock_authenticator: MagicMock,
 ) -> BackpackAccountService:
-    """Return an instance of BackpackAccountService with mocked dependencies."""
-    service = BackpackAccountService(
+    """Return an instance of BackpackAccountService with mocked dependencies.
+
+    Returns:
+        BackpackAccountService: Service instance with mocked dependencies.
+    """
+    return BackpackAccountService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
         exchange_name="backpack_test_account",
     )
-    return service
 
 
 # Withdrawal test fixtures
 @pytest.fixture
 def asset() -> str:
-    """Return standard asset symbol for withdrawal tests."""
+    """Return standard asset symbol for withdrawal tests.
+
+    Returns:
+        str: Asset symbol 'USDC' for testing.
+    """
     return "USDC"
 
 
 @pytest.fixture
 def amount() -> Decimal:
-    """Return standard amount for withdrawal tests."""
+    """Return standard amount for withdrawal tests.
+
+    Returns:
+        Decimal: Amount value of 100.0 for testing.
+    """
     return Decimal("100.0")
 
 
 @pytest.fixture
 def address() -> str:
-    """Return standard withdrawal address for testing."""
+    """Return standard withdrawal address for testing.
+
+    Returns:
+        str: Mock Ethereum address for testing.
+    """
     return "0x1234567890abcdef1234567890abcdef12345678"
 
 
 @pytest.fixture
 def withdrawal_result() -> Withdrawal:
-    """Return standard withdrawal result for tests."""
+    """Return standard withdrawal result for tests.
+
+    Returns:
+        Withdrawal: Complete withdrawal object for testing.
+    """
     return Withdrawal(
         id="withdrawal_123",
         exchange="backpack_test_account",

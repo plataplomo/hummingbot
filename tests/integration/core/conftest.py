@@ -40,6 +40,9 @@ async def hyperliquid_api(
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     Follows the same pattern as tests/integration/apis/hyperliquid/conftest.py.
+
+    Yields:
+        HyperliquidAPI: Hyperliquid API instance for testing.
     """
     api = HyperliquidAPI(
         exchange_config=active_hl_config,
@@ -59,6 +62,9 @@ async def backpack_api(
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     Follows the same pattern as tests/integration/apis/backpack/conftest.py.
+
+    Yields:
+        BackpackAPI: Backpack API instance for testing.
     """
     api = BackpackAPI(
         exchange_config=active_bp_config,
@@ -71,7 +77,11 @@ async def backpack_api(
 
 @pytest.fixture
 def market_order_config() -> MarketOrderConfig:
-    """Create market order configuration for testing."""
+    """Create market order configuration for testing.
+
+    Returns:
+        MarketOrderConfig instance with test parameters
+    """
     return MarketOrderConfig(
         default_slippage_pct=Decimal("0.002"),  # 0.2% for testing
         max_slippage_pct=Decimal("0.05"),  # 5% max
@@ -85,7 +95,11 @@ def hyperliquid_market_order(
     hyperliquid_api: HyperliquidAPI,
     market_order_config: MarketOrderConfig,
 ) -> MarketOrder:
-    """Create MarketOrder instance for Hyperliquid."""
+    """Create MarketOrder instance for Hyperliquid.
+
+    Returns:
+        MarketOrder instance configured for testing
+    """
     service = MarketOrderService(exchange_api=hyperliquid_api, config=market_order_config)
     return MarketOrder(
         exchange_api=hyperliquid_api,
@@ -99,7 +113,11 @@ def backpack_market_order(
     backpack_api: BackpackAPI,
     market_order_config: MarketOrderConfig,
 ) -> MarketOrder:
-    """Create MarketOrder instance for Backpack."""
+    """Create MarketOrder instance for Backpack.
+
+    Returns:
+        MarketOrder instance configured for Backpack testing
+    """
     service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
     return MarketOrder(
         exchange_api=backpack_api,

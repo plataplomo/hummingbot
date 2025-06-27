@@ -130,12 +130,13 @@ class TestBackpackPerpTrades:
                 current_trade = trades[i]
                 next_trade = trades[i + 1]
 
-                if hasattr(current_trade, "executed_at") and hasattr(next_trade, "executed_at"):
-                    if current_trade.executed_at and next_trade.executed_at:
-                        # Trades should be in reverse chronological order (newest first)
-                        assert current_trade.executed_at >= next_trade.executed_at, (
-                            f"Trades not in reverse chronological order for {symbol}"
-                        )
+                if (
+                    hasattr(current_trade, "executed_at") and hasattr(next_trade, "executed_at")
+                ) and (current_trade.executed_at and next_trade.executed_at):
+                    # Trades should be in reverse chronological order (newest first)
+                    assert current_trade.executed_at >= next_trade.executed_at, (
+                        f"Trades not in reverse chronological order for {symbol}"
+                    )
 
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",

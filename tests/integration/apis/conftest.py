@@ -21,6 +21,9 @@ async def bp_api_for_test_env(
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
+
+    Yields:
+        BackpackAPI instance configured for integration testing
     """
     # Let BackpackAPI create its own real components via factory
     api = BackpackAPI(
@@ -43,6 +46,9 @@ async def hl_api_for_test_env(
 
     Uses configuration from test_config.yaml and test_secrets.yaml.
     For cassette recording/playback, this uses real components.
+
+    Yields:
+        HyperliquidAPI instance configured for integration testing
     """
     # Let HyperliquidAPI create its own real components via factory
     api = HyperliquidAPI(

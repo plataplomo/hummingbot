@@ -82,9 +82,9 @@ class PortfolioTracker:
         self.exchange_factories = exchange_factories or {}
         self.symbol_mapper: SymbolMapper | None = symbol_mapper  # STORE AS SELF.SYMBOL_MAPPER
         self._lock = asyncio.Lock()
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # Internal state
-        # Balances: dict[exchange_id, dict[asset_symbol, SpotBalance]]
         self.balances: defaultdict[str, defaultdict[str, SpotBalance]] = defaultdict(
             lambda: defaultdict(
                 # Ensure a default SpotBalance that makes sense if an asset is queried
@@ -98,7 +98,6 @@ class PortfolioTracker:
                 ),
             ),
         )
-        # Positions: dict[exchange_id, dict[symbol, DerivativePosition]]
         self.positions: defaultdict[str, defaultdict[str, DerivativePosition]] = defaultdict(
             lambda: defaultdict(
                 # Placeholder for a non-existent position
@@ -153,7 +152,7 @@ class PortfolioTracker:
 
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for all configured exchanges."""
-        for exchange_id in self.app_settings.exchanges.keys():
+        for exchange_id in self.app_settings.exchanges:
             if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
 
@@ -198,10 +197,12 @@ class PortfolioTracker:
         for exchange_id, client in self.api_clients.items():
             if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
-            initialization_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
-            initialization_tasks.append(self._fetch_exchange_balances(exchange_id))
-            initialization_tasks.append(self._fetch_exchange_positions(exchange_id))
-            initialization_tasks.append(self._fetch_exchange_orders(exchange_id))
+            initialization_tasks.extend((
+                self._fetch_exchange_account_summary(client, exchange_id),
+                self._fetch_exchange_balances(exchange_id),
+                self._fetch_exchange_positions(exchange_id),
+                self._fetch_exchange_orders(exchange_id),
+            ))
         logger.info(
             "portfolio_tracker_pre_gather",
             tracker_id=id(self),
@@ -524,16 +525,13 @@ class PortfolioTracker:
     ) -> Decimal | None:
         """Safely convert a value to Decimal, logging errors."""
         if value is None:
-            # logger.debug(f"Value for {field_name} ({asset} on {exchange_id}) is None.")
             return None
         try:
             # Handle potential scientific notation strings from some APIs
             if isinstance(value, str) and ("e" in value or "E" in value):
-                dec_value = Decimal(value)
+                return Decimal(value)
                 # Optional: Convert very small numbers near zero to actual zero if desired
                 # if abs(dec_value) < Decimal('1e-18'): # Adjust threshold as needed
-                #     return Decimal('0')
-                return dec_value
             if isinstance(value, Decimal):
                 return value
             return Decimal(str(value))  # Convert via string for precision
@@ -694,10 +692,12 @@ class PortfolioTracker:
                     data_scope="all_data",
                     message=f"Reconciliation needed for {exchange_id}. Fetching all data.",
                 )
-                update_tasks.append(self._fetch_exchange_account_summary(client, exchange_id))
-                update_tasks.append(self._fetch_exchange_balances(exchange_id))
-                update_tasks.append(self._fetch_exchange_positions(exchange_id))
-                update_tasks.append(self._fetch_exchange_orders(exchange_id))
+                update_tasks.extend((
+                    self._fetch_exchange_account_summary(client, exchange_id),
+                    self._fetch_exchange_balances(exchange_id),
+                    self._fetch_exchange_positions(exchange_id),
+                    self._fetch_exchange_orders(exchange_id),
+                ))
                 self.last_reconciliation_time[exchange_id] = now
             else:
                 logger.debug(
@@ -761,7 +761,6 @@ class PortfolioTracker:
                 f"Order {order_id_str} on {exchange_id} is {order.status}. "
                 f"Triggering trade processing (placeholder).",
             )
-            # self.process_trade(exchange_id, Trade(...)) # Requires Trade object creation logic
 
     def update_position(self, exchange_id: str, position: DerivativePosition) -> None:
         """Update the state of a single position.
@@ -922,7 +921,6 @@ class PortfolioTracker:
             entry_price=trade_price,
             timestamp=trade_timestamp,  # Uses corrected trade_timestamp
             mark_price=trade_price,  # Initial mark price
-            # last_trade_id=trade.id # REMOVED
         )
         self.positions[exchange_id][base_symbol] = new_pos
         self.active_symbols.add(base_symbol)
@@ -1124,8 +1122,7 @@ class PortfolioTracker:
         """Return the position for a specific symbol on a specific exchange."""
         if exchange_id not in self.positions:
             return None
-        position = self.positions[exchange_id].get(symbol)  # Direct access to inner dict
-        return position
+        return self.positions[exchange_id].get(symbol)  # Direct access to inner dict
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
         """Retrieve all positions for a specific symbol on a given exchange."""
@@ -1316,7 +1313,7 @@ class PortfolioTracker:
             message=f"Calculating total exposure across all exchanges in {valuation_asset}...",
         )
         total_exposure = Decimal("0.0")
-        for exchange_id in self.api_clients.keys():
+        for exchange_id in self.api_clients:
             if self.app_settings.exchanges[exchange_id].enabled:
                 total_exposure += await self.get_exchange_exposure(exchange_id, valuation_asset)
 
@@ -1698,8 +1695,6 @@ class PortfolioTracker:
             "high_watermark": self.high_watermark,
             "realized_pnl": self.realized_pnl,
             # Active symbols and watchlist could be added if needed for persistence
-            # "active_symbols": list(self.active_symbols),
-            # "watchlist": list(self.watchlist),
         }
 
     @classmethod
@@ -1984,7 +1979,6 @@ class PortfolioTracker:
                 ]:
                     active.add(order.symbol)
         self.active_symbols = active
-        # logger.debug(f"Active symbols updated: {self.active_symbols}")
 
     def get_active_symbols(self) -> set[str]:
         """Get the current set of symbols with active positions or orders."""
@@ -2044,7 +2038,9 @@ class PortfolioTracker:
                     f"{new_count} new (as Order objects), {updated_count} updated (from dict).",
                 )
 
-        asyncio.create_task(_do_parse())
+        task = asyncio.create_task(_do_parse())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     def _prepare_order_items(
         self,

@@ -64,12 +64,11 @@ from tests.fixtures.vcr_config import (
 
 # Re-export all imported fixtures so they can be discovered by pytest
 __all__ = [
+    # Time fixtures
+    "FreezerProtocol",
     # HTTP mocks
     "MockClientSession",
     "MockResponse",
-    "create_mock_response",
-    "mock_client_session",
-    "mock_request",
     # Configuration fixtures
     "active_bp_config",
     "active_bp_secrets",
@@ -78,31 +77,32 @@ __all__ = [
     "backpack_config",
     "backpack_secrets",
     "circuit_breaker_system",
+    "create_mock_response",
+    # VCR configuration
+    "custom_vcr_config",
+    "frozen_time",
     "hl_test_environment",
     "hl_test_environment_from_config",
     "hyperliquid_config",
     "hyperliquid_secrets",
+    "market_time_simulation",
+    # Exchange mocks
+    "mock_arbitrage_opportunity",
+    "mock_client_session",
     "mock_config",
+    "mock_data_handler",
+    "mock_exchange_api",
     "mock_get_config",
+    "mock_portfolio_tracker",
+    "mock_request",
     "mock_secrets_manager_with_missing",
+    "mock_time_factory",
+    "mock_time_patch",
+    "rate_limit_timer",
     "test_app_settings",
     "test_config_file_path",
     "test_secrets_config",
     "test_secrets_file_path",
-    # Exchange mocks
-    "mock_arbitrage_opportunity",
-    "mock_data_handler",
-    "mock_exchange_api",
-    "mock_portfolio_tracker",
-    # VCR configuration
-    "custom_vcr_config",
     "vcr_cassette_dir",
     "vcr_config",
-    # Time fixtures
-    "FreezerProtocol",
-    "frozen_time",
-    "market_time_simulation",
-    "mock_time_factory",
-    "mock_time_patch",
-    "rate_limit_timer",
 ]

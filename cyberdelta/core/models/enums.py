@@ -92,7 +92,11 @@ class OrderStatus(Enum):
     UNKNOWN = "UNKNOWN"  # Status cannot be determined.
 
     def is_open(self) -> bool:
-        """Check if the order status represents an open order."""
+        """Check if the order status represents an open order.
+
+        Returns:
+            True if the status represents an open/active order, False otherwise
+        """
         return self in {
             OrderStatus.NEW,
             OrderStatus.OPEN,
@@ -104,7 +108,11 @@ class OrderStatus(Enum):
         }
 
     def is_closed(self) -> bool:
-        """Check if the order status represents a closed/terminal order."""
+        """Check if the order status represents a closed/terminal order.
+
+        Returns:
+            True if the status represents a closed/terminal order, False otherwise
+        """
         return self in {
             OrderStatus.FILLED,
             OrderStatus.CANCELED,
@@ -114,7 +122,11 @@ class OrderStatus(Enum):
         }
 
     def is_terminal(self) -> bool:  # Alias for is_closed for clarity
-        """Alias for is_closed, checks for terminal states."""
+        """Alias for is_closed, checks for terminal states.
+
+        Returns:
+            True if the status represents a terminal state, False otherwise
+        """
         return self.is_closed()
 
 
@@ -334,19 +346,19 @@ class InternalWithdrawalStatus(Enum):
 
 # Define __all__ for explicit public export
 __all__ = [
-    "OrderSide",
-    "OrderType",
-    "OrderStatus",
-    "SignalType",
-    "TimeInForce",
-    "SelfTradePrevention",
-    "TriggerType",
-    "OrderUpdateOrigin",
-    "OrderExpiryReason",
-    "MarketType",
     "Blockchain",
     "CancelOrderResultStatus",
     # New Operation Status Enums
     "InternalTransferStatus",
     "InternalWithdrawalStatus",
+    "MarketType",
+    "OrderExpiryReason",
+    "OrderSide",
+    "OrderStatus",
+    "OrderType",
+    "OrderUpdateOrigin",
+    "SelfTradePrevention",
+    "SignalType",
+    "TimeInForce",
+    "TriggerType",
 ]

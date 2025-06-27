@@ -31,14 +31,12 @@ def _check_datetime_patches(file_path: Path, content: str, lines: list[str]) -> 
 
     for i, line in enumerate(lines, 1):
         for pattern in datetime_patch_patterns:
-            if re.search(pattern, line):
-                # Check if it's using frozen_time fixture
-                if "frozen_time" not in content:
-                    issues.append(
-                        f"{file_path}:{i}: Use 'frozen_time' fixture instead of "
-                        f"patching datetime. See tests/fixtures/time_fixtures.py",
-                    )
-                    break
+            if re.search(pattern, line) and "frozen_time" not in content:
+                issues.append(
+                    f"{file_path}:{i}: Use 'frozen_time' fixture instead of "
+                    f"patching datetime. See tests/fixtures/time_fixtures.py",
+                )
+                break
     return issues
 
 
@@ -52,14 +50,12 @@ def _check_time_patches(file_path: Path, content: str, lines: list[str]) -> list
 
     for i, line in enumerate(lines, 1):
         for pattern in time_patch_patterns:
-            if re.search(pattern, line):
-                # Check if it's using mock_time_patch fixture
-                if "mock_time_patch" not in content:
-                    issues.append(
-                        f"{file_path}:{i}: Use 'mock_time_patch' fixture instead of "
-                        f"patching time.time. See tests/fixtures/time_fixtures.py",
-                    )
-                    break
+            if re.search(pattern, line) and "mock_time_patch" not in content:
+                issues.append(
+                    f"{file_path}:{i}: Use 'mock_time_patch' fixture instead of "
+                    f"patching time.time. See tests/fixtures/time_fixtures.py",
+                )
+                break
     return issues
 
 
@@ -98,7 +94,7 @@ def main() -> int:
         file_path = Path(file_str)
 
         # Only check Python test files
-        if not file_path.name.startswith("test_") or not file_path.suffix == ".py":
+        if not file_path.name.startswith("test_") or file_path.suffix != ".py":
             continue
 
         success, issues = check_file(file_path)

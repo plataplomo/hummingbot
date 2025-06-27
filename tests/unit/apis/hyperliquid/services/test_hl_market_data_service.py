@@ -277,27 +277,29 @@ class TestHyperliquidMarketDataService:
             [],
         ])
 
-        with patch.object(
-            hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
-            new=AsyncMock(return_value=mock_all_contexts_response),
+        with (
+            patch.object(
+                hyperliquid_market_data_service,
+                "get_all_asset_contexts_raw",
+                new=AsyncMock(return_value=mock_all_contexts_response),
+            ),
+            patch.object(
+                HyperliquidMarketDataMapper,
+                "transform_raw_asset_ctx_to_ticker",
+                return_value=None,
+            ),
         ):
             # If _get_asset_context_by_name returns None, mapper shouldn't be called.
             # If it's called with None, it should handle it or map_raw_ctx_to_ticker
             # might return None.
-            with patch.object(
-                HyperliquidMarketDataMapper,
-                "transform_raw_asset_ctx_to_ticker",
-                return_value=None,
-            ):
-                result = await hyperliquid_market_data_service.get_ticker(symbol)
-                assert result is None
-                # Depending on exact internal logic of get_ticker if asset_ctx is None:
-                # mock_mapper_method.assert_not_called() or ensure it was called and
-                # returned None.
-                # For this test, we assume if context is not found,
-                # transform_raw_asset_ctx_to_ticker might not be called or if it is
-                # (e.g. with None), it's mocked to return None.
+            result = await hyperliquid_market_data_service.get_ticker(symbol)
+            assert result is None
+            # Depending on exact internal logic of get_ticker if asset_ctx is None:
+            # mock_mapper_method.assert_not_called() or ensure it was called and
+            # returned None.
+            # For this test, we assume if context is not found,
+            # transform_raw_asset_ctx_to_ticker might not be called or if it is
+            # (e.g. with None), it's mocked to return None.
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_success(
@@ -1798,7 +1800,6 @@ class TestHyperliquidMarketDataService:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        # #[CAST-REVIEW-REQUIRED]
         none_symbol = cast("str", None)
         assert None is None  # Runtime verification
 

@@ -139,7 +139,11 @@ class TestTicker:
 
         # Helper function to create Ticker instance and get attribute
         def get_ticker_field_value(value: str | float | Decimal | None) -> Decimal | None:
-            """Get ticker field value for testing."""
+            """Get ticker field value for testing.
+
+            Returns:
+                Decimal | None: The processed field value from the ticker instance.
+            """
             kwargs = valid_kwargs_base.copy()
             kwargs[field_name] = value
             # Ignore arg-type specifically for the field being parameterized,

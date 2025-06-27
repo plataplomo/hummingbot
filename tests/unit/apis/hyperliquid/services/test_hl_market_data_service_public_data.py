@@ -102,7 +102,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        # #[CAST-REVIEW-REQUIRED]
         none_symbol = cast("str", None)
         assert None is None  # Runtime verification
 
@@ -149,7 +148,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        # #[CAST-REVIEW-REQUIRED]
         none_symbol = cast("str", None)
         assert None is None  # Runtime verification
 
@@ -185,7 +183,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        # #[CAST-REVIEW-REQUIRED]
         none_symbol = cast("str", None)
         assert None is None  # Runtime verification
 
@@ -759,7 +756,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        # #[CAST-REVIEW-REQUIRED]
         none_symbol = cast("str", None)
         assert None is None  # Runtime verification
 

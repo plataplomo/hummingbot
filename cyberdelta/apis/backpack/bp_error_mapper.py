@@ -251,7 +251,11 @@ class BackpackErrorMapper(IErrorMapper):
         effective_error_body: str,
         has_error_data: bool,
     ) -> str:
-        """Construct the effective error message based on context."""
+        """Construct the effective error message based on context.
+
+        Returns:
+            Formatted error message string.
+        """
         if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
             return (
                 f"{api_error_code_enum.name.replace('_', ' ').title()}: "
@@ -266,7 +270,11 @@ class BackpackErrorMapper(IErrorMapper):
         api_error_code_enum: APIErrorCode,
         effective_exchange_message: str,
     ) -> float | None:
-        """Parse retry_after from rate limit error messages."""
+        """Parse retry_after from rate limit error messages.
+
+        Returns:
+            Retry after time in seconds if found, None otherwise.
+        """
         if api_error_code_enum != APIErrorCode.RATE_LIMITED:
             return None
 
@@ -318,7 +326,11 @@ class BackpackErrorMapper(IErrorMapper):
         api_error_code_enum: APIErrorCode,
         status_code: int,
     ) -> APIErrorCode:
-        """Refine error code when no error_data is available."""
+        """Refine error code when no error_data is available.
+
+        Returns:
+            Refined APIErrorCode based on status code and context.
+        """
         if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
             return api_error_code_enum
 

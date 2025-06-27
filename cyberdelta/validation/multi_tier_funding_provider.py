@@ -180,8 +180,6 @@ class MultiTierFundingProvider:
             reliability: Reliability category of the source
 
         """
-        # source_info = {"func": source_func, "reliability": reliability} # F841 Unused variable
-
         if source_type == SourceType.PRIMARY:
             self.primary_sources[exchange] = source_func
         elif source_type == SourceType.SECONDARY:
@@ -379,7 +377,7 @@ class MultiTierFundingProvider:
                     ts = datetime.now(UTC)  # Fallback if conversion fails
 
             # Create funding data
-            funding_data = FundingData(
+            return FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
@@ -388,8 +386,6 @@ class MultiTierFundingProvider:
                 source_reliability=SourceReliability.HIGH,
                 raw_data=raw_data,
             )
-
-            return funding_data
 
         except Exception as e:
             logger.warning(
@@ -437,7 +433,7 @@ class MultiTierFundingProvider:
                     ts = datetime.now(UTC)
 
             # Create funding data
-            funding_data = FundingData(
+            return FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
@@ -446,8 +442,6 @@ class MultiTierFundingProvider:
                 source_reliability=SourceReliability.MEDIUM,
                 raw_data=raw_data,
             )
-
-            return funding_data
 
         except Exception as e:
             logger.warning(
@@ -495,7 +489,7 @@ class MultiTierFundingProvider:
                     ts = datetime.now(UTC)
 
             # Create funding data
-            funding_data = FundingData(
+            return FundingData(
                 exchange=exchange,
                 symbol=symbol,
                 rate=raw_data.get("rate", 0.0),
@@ -504,8 +498,6 @@ class MultiTierFundingProvider:
                 source_reliability=SourceReliability.LOW,
                 raw_data=raw_data,
             )
-
-            return funding_data
 
         except Exception as e:
             logger.warning(
@@ -704,7 +696,7 @@ class MultiTierFundingProvider:
             rate_dispersion = 0.0
 
         # Correctly instantiate IntegratedFundingData based on its definition
-        integrated_data = IntegratedFundingData(
+        return IntegratedFundingData(
             exchange=exchange,
             symbol=symbol,
             rate=float(integrated_rate),  # Convert Decimal to float as per model
@@ -720,10 +712,6 @@ class MultiTierFundingProvider:
         )
 
         # REMOVED CACHE UPDATE
-        # cache_key = (exchange, symbol)
-        # self.funding_cache[cache_key] = integrated_data
-
-        return integrated_data
 
     def _calculate_confidence_factors(
         self,

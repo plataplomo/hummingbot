@@ -885,9 +885,7 @@ class PerformanceMetricsCalculator:
         winning_trades = len(trades[trades["pnl"] > 0])
 
         # Calculate win rate
-        win_rate = (winning_trades / len(trades)) * 100
-
-        return win_rate
+        return (winning_trades / len(trades)) * 100
 
     def calculate_profit_factor(self, trades: pd.DataFrame) -> float:
         """Calculate the profit factor.

@@ -555,7 +555,6 @@ class WebSocketManager:
 
         try:
             # DEFENSIVE CHECK: self._ws_connection is confirmed not None by caller.
-            # Mypy=[union-attr]
             async for msg in self._ws_connection:  # type: ignore[union-attr]
                 loop_iteration_count += 1
 
@@ -760,39 +759,40 @@ class WebSocketManager:
 
     async def _schedule_reconnection_if_needed(self, final_is_cancelled_state: bool) -> None:
         """Schedule reconnection if needed and conditions are met."""
-        if self._should_reconnect and not final_is_cancelled_state:
-            if self._connection_task is None or self._connection_task.done():
-                self._logger.info(
-                    "scheduling_reconnection_from_listener",
-                    action="schedule_reconnection_if_needed",
-                    message="Scheduling reconnection from listener task termination.",
-                )
-                try:
-                    reconnect_task = self.connect()
-                    if reconnect_task:
-                        self._logger.debug(
-                            "reconnection_task_created_from_listener",
-                            action="schedule_reconnection_if_needed",
-                            task_name=reconnect_task.get_name(),
-                            message=f"Reconnection task created: {reconnect_task.get_name()}",
-                        )
-                    else:
-                        self._logger.debug(
-                            "Reconnection task was not created (already connecting)",
-                        )
-                except RuntimeError as e:
-                    if "no running event loop" in str(e):
-                        self._logger.debug(
-                            "reconnection_scheduling_no_event_loop",
-                            action="schedule_reconnection_if_needed",
-                            reason="no_running_event_loop",
-                            message=(
-                                "Cannot schedule reconnection: no running event loop "
-                                "(likely test cleanup)"
-                            ),
-                        )
-                    else:
-                        raise
+        if (self._should_reconnect and not final_is_cancelled_state) and (
+            self._connection_task is None or self._connection_task.done()
+        ):
+            self._logger.info(
+                "scheduling_reconnection_from_listener",
+                action="schedule_reconnection_if_needed",
+                message="Scheduling reconnection from listener task termination.",
+            )
+            try:
+                reconnect_task = self.connect()
+                if reconnect_task:
+                    self._logger.debug(
+                        "reconnection_task_created_from_listener",
+                        action="schedule_reconnection_if_needed",
+                        task_name=reconnect_task.get_name(),
+                        message=f"Reconnection task created: {reconnect_task.get_name()}",
+                    )
+                else:
+                    self._logger.debug(
+                        "Reconnection task was not created (already connecting)",
+                    )
+            except RuntimeError as e:
+                if "no running event loop" in str(e):
+                    self._logger.debug(
+                        "reconnection_scheduling_no_event_loop",
+                        action="schedule_reconnection_if_needed",
+                        reason="no_running_event_loop",
+                        message=(
+                            "Cannot schedule reconnection: no running event loop "
+                            "(likely test cleanup)"
+                        ),
+                    )
+                else:
+                    raise
 
     async def _keep_alive(self) -> None:
         """Periodically sends a ping to keep the connection alive."""

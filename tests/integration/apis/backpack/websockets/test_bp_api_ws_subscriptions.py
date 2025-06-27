@@ -63,7 +63,7 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
         ) from e
 
 
-async def validate_websocket_topic_format(topic: str) -> bool:
+def validate_websocket_topic_format(topic: str) -> bool:
     """Validate WebSocket topic format.
 
     Args:
@@ -91,6 +91,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_dynamic_symbol_subscription(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -118,6 +119,7 @@ class TestBackpackAPIWebSocketSubscriptions:
             full_message: dict[str, Any],
         ) -> None:
             """Handler for subscription messages."""
+            await asyncio.sleep(0)  # Satisfy RUF029
             received_messages.append(message)
             logger.info(f"Subscription handler received: {message}")
 
@@ -140,6 +142,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_multiple_stream_types_real_symbols(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -160,10 +163,11 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         stream_handlers: dict[str, list[dict[str, Any]]] = {}
 
-        async def create_handler(
+        def create_handler(
             stream_type: str,
         ) -> Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]:
             async def handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+                await asyncio.sleep(0)  # Satisfy RUF029
                 if stream_type not in stream_handlers:
                     stream_handlers[stream_type] = []
                 stream_handlers[stream_type].append(message)
@@ -181,11 +185,11 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         try:
             for topic, stream_type in stream_configs:
-                handler = await create_handler(stream_type)
+                handler = create_handler(stream_type)
                 await bp_api_for_test_env.subscribe(topic, handler)
 
                 # Validate topic format
-                if not await validate_websocket_topic_format(topic):
+                if not validate_websocket_topic_format(topic):
                     pytest.fail(
                         f"Invalid topic format: {topic}. "
                         "Topic format validation is critical for WebSocket connectivity.",
@@ -203,6 +207,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_subscription_state_consistency(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -218,6 +223,7 @@ class TestBackpackAPIWebSocketSubscriptions:
             message: dict[str, Any],
             full_message: dict[str, Any],
         ) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(f"Consistency handler: {message}")
 
         # Test state consistency
@@ -297,6 +303,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_concurrent_subscriptions_real_data(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -314,6 +321,7 @@ class TestBackpackAPIWebSocketSubscriptions:
             )
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(f"Concurrent handler: {message}")
 
         # Create concurrent subscription tasks
@@ -348,6 +356,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_websocket_connection_lifecycle_real_operations(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -361,6 +370,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         topic = f"ticker.{test_symbol}"
 
         async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(f"Lifecycle handler: {message}")
 
         try:
@@ -402,6 +412,7 @@ class TestBackpackAPIAdvancedSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_mixed_market_type_subscriptions(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -413,6 +424,7 @@ class TestBackpackAPIAdvancedSubscriptions:
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
 
         async def mixed_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(f"Mixed market handler: {message}")
 
         subscription_count = 0
@@ -453,6 +465,7 @@ class TestBackpackAPIAdvancedSubscriptions:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_subscription_error_handling_real_scenarios(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -465,6 +478,7 @@ class TestBackpackAPIAdvancedSubscriptions:
         valid_symbol = symbols["spot"][0]
 
         async def error_test_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(f"Error test handler: {message}")
 
         # Test scenarios that might cause errors

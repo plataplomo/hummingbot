@@ -21,7 +21,6 @@ from pydantic_core.core_schema import ValidationInfo
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
-# from cyberdelta.apis.hyperliquid.models import HyperliquidRawLeverage # Should not be needed here
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -95,7 +94,18 @@ class DerivativePosition(BaseModel):
     @field_validator("exchange", "symbol", mode="before")
     @classmethod
     def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length."""
+        """Validate required string fields are non-empty, reasonable length.
+
+        Args:
+            v: The value to validate
+            info: Validation context containing field information
+
+        Returns:
+            Validated string value
+
+        Raises:
+            ValueError: If field name is None or string validation fails
+        """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
@@ -107,7 +117,18 @@ class DerivativePosition(BaseModel):
     @field_validator("strategy_name", "signal_id", mode="before")
     @classmethod
     def validate_optional_strings(cls, v: object, info: ValidationInfo) -> str | None:
-        """Validate optional string fields if provided."""
+        """Validate optional string fields if provided.
+
+        Args:
+            v: The value to validate (optional string)
+            info: Validation context containing field information
+
+        Returns:
+            Validated string value or None if not provided
+
+        Raises:
+            ValueError: If field name is None or string validation fails
+        """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
@@ -232,12 +253,12 @@ class DerivativePosition(BaseModel):
             )
 
         # Add check for unrecognized exchanges having details
-        if self.exchange not in known_exchanges_with_details:
-            if self.hl_details is not None or self.bp_details is not None:
-                raise ValueError(
-                    f"Exchange-specific details provided for unrecognized exchange: "
-                    f"{self.exchange}",
-                )
+        if (self.exchange not in known_exchanges_with_details) and (
+            self.hl_details is not None or self.bp_details is not None
+        ):
+            raise ValueError(
+                f"Exchange-specific details provided for unrecognized exchange: {self.exchange}",
+            )
 
 
 # --- Derivative Position Details & Sub-Models (INTERNAL) ---

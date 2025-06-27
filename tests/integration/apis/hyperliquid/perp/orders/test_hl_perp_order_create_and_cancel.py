@@ -244,11 +244,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 # Use the most recent open order
                 # Sort by created_at (most recent first) if available, otherwise use last in list
                 if hasattr(open_orders[0], "created_at") and open_orders[0].created_at:
-                    order_to_cancel = sorted(
-                        open_orders,
-                        key=lambda x: x.created_at or 0,
-                        reverse=True,
-                    )[0]
+                    order_to_cancel = max(open_orders, key=lambda x: x.created_at or 0)
                 else:
                     order_to_cancel = open_orders[-1]  # Last order in list
 

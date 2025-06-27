@@ -12,7 +12,6 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 # Note: Fixtures risk_manager, mock_portfolio_tracker, mock_config,
-#       mock_circuit_breaker, mock_funding_validator, sample_opportunity
 #       are provided by tests/unit/risk/conftest.py
 
 
@@ -85,18 +84,20 @@ class TestRiskManagerDependencyFailures:
         risk_manager.app_settings = mock_config  # Explicitly assign patched config
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-        with patch.object(
-            risk_manager,
-            "_apply_portfolio_exposure_management",
-            side_effect=apply_portfolio_exposure_management_passthrough,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                risk_manager,
+                "_apply_portfolio_exposure_management",
+                side_effect=apply_portfolio_exposure_management_passthrough,
+            ),
+            patch.object(
                 risk_manager,
                 "_check_portfolio_constraints",
                 return_value=(False, "constraint failed"),
-            ):
-                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-                assert sized_opp is None
+            ),
+        ):
+            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+            assert sized_opp is None
 
     @pytest.mark.asyncio
     async def test_size_opportunity_dependency_exception(
@@ -231,22 +232,24 @@ class TestRiskManagerDependencyFailures:
         # Configure mock_config attributes directly instead of patching get method
         mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
         mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-        with patch.object(
-            risk_manager,
-            "_apply_portfolio_exposure_management",
-            side_effect=apply_portfolio_exposure_management_passthrough,
-        ):
-            with patch.object(
+        with (
+            patch.object(
+                risk_manager,
+                "_apply_portfolio_exposure_management",
+                side_effect=apply_portfolio_exposure_management_passthrough,
+            ),
+            patch.object(
                 risk_manager,
                 "_check_portfolio_constraints",
                 return_value=(True, None),
-            ):
-                risk_manager.funding_rate_validator = None
-                mock_circuit_breaker.can_execute.side_effect = Exception("Simulated CB Error")
-                risk_manager.circuit_breaker_system = mock_circuit_breaker
-                with pytest.raises(Exception) as excinfo:
-                    await risk_manager.size_opportunity(sample_opportunity)
-                assert "Simulated CB Error" in str(excinfo.value)
+            ),
+        ):
+            risk_manager.funding_rate_validator = None
+            mock_circuit_breaker.can_execute.side_effect = Exception("Simulated CB Error")
+            risk_manager.circuit_breaker_system = mock_circuit_breaker
+            with pytest.raises(Exception) as excinfo:
+                await risk_manager.size_opportunity(sample_opportunity)
+            assert "Simulated CB Error" in str(excinfo.value)
 
     # --- FundingRateValidator Failures ---
 
@@ -279,7 +282,12 @@ class TestRiskManagerDependencyFailures:
         # combined_factor = min(0, 1) = 0
         # Since 0 < 0.2 (min_validation_factor), should return None
         def get_symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
-            """Side effect for get_symbol_metrics."""
+            """Side effect for get_symbol_metrics.
+
+            Returns:
+                dict[str, float]: Symbol metrics with high RMSE to simulate low
+                    validation confidence.
+            """
             return {
                 "rmse": 1.0,
                 "bias": 0.0,

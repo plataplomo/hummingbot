@@ -929,14 +929,13 @@ class HyperliquidMarketDataMapper:
                 else None,  # Properly typed Hyperliquid details
             }
 
-            market = secure_transform(
+            return secure_transform(
                 data=market_data,
                 model_class=Market,
                 context="hyperliquid_asset_def_market_transform",
                 source_exchange="hyperliquid",
             )
 
-            return market
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise

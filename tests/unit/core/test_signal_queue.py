@@ -8,8 +8,6 @@ from uuid import UUID
 import pytest
 
 from cyberdelta.config.models.config_models import AppSettings
-
-# import pytest_asyncio # Remove if not needed elsewhere in the file
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 
@@ -26,14 +24,21 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mock_config() -> MagicMock:
-    """Fixture for a mock AppSettings object."""
-    mock = MagicMock(spec=AppSettings)
-    return mock
+    """Fixture for a mock AppSettings object.
+
+    Returns:
+        Mock AppSettings instance for testing
+    """
+    return MagicMock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_circuit_breaker() -> MagicMock:
-    """Fixture for a mock CircuitBreakerSystem."""
+    """Fixture for a mock CircuitBreakerSystem.
+
+    Returns:
+        Mock CircuitBreakerSystem instance for testing
+    """
     mock_system = MagicMock(spec=CircuitBreakerSystem)
     # Mock the get_exchange_breaker to return another mock
     mock_breaker_instance = MagicMock()
@@ -47,14 +52,21 @@ def mock_circuit_breaker() -> MagicMock:
 
 @pytest.fixture
 def signal_queue(mock_config: AppSettings, mock_circuit_breaker: MagicMock) -> PrioritySignalQueue:
-    """Fixture for a PrioritySignalQueue instance with mocks."""
-    queue = PrioritySignalQueue(mock_config, mock_circuit_breaker)
-    return queue
+    """Fixture for a PrioritySignalQueue instance with mocks.
+
+    Returns:
+        PrioritySignalQueue instance configured with mock dependencies
+    """
+    return PrioritySignalQueue(mock_config, mock_circuit_breaker)
 
 
 @pytest.fixture
 def sample_signal() -> TradeSignal:
-    """Sample trade signal for testing."""
+    """Sample trade signal for testing.
+
+    Returns:
+        TradeSignal instance for test scenarios
+    """
     now = datetime.now(UTC)  # Use UTC
     return TradeSignal(
         timestamp=now,
@@ -71,7 +83,11 @@ def sample_signal() -> TradeSignal:
 
 @pytest.fixture
 def sample_opportunity() -> ArbitrageOpportunity:
-    """Fixture to create a sample ArbitrageOpportunity."""
+    """Fixture to create a sample ArbitrageOpportunity.
+
+    Returns:
+        ArbitrageOpportunity instance for testing
+    """
     now = datetime.now(UTC)
     return ArbitrageOpportunity(
         symbol="ETH/USDT",
@@ -104,7 +120,11 @@ def create_test_signal(
     exchange_pair: tuple[str, str] | None = None,
     base_time: datetime | None = None,  # Allow passing explicit time for mocked tests
 ) -> TradeSignal:
-    """Create a test signal with a utility score."""
+    """Create a test signal with a utility score.
+
+    Returns:
+        TradeSignal configured with the specified parameters
+    """
     now = (
         base_time if base_time is not None else datetime.now(UTC)
     )  # Use provided time or current UTC
@@ -242,7 +262,11 @@ async def test_add_signal_with_circuit_breaker_open(
     mock_symbol_breaker.trip_reason = "Test trip"
 
     def get_breaker_side_effect(breaker_name: str) -> MagicMock | None:
-        """Mock get_breaker to return open breaker for target symbol."""
+        """Mock get_breaker to return open breaker for target symbol.
+
+        Returns:
+            Mock breaker set to OPEN state or None for other breakers
+        """
         if f"symbol_{sample_signal.symbol}_main" in breaker_name:
             return mock_symbol_breaker
         return None
@@ -280,7 +304,11 @@ async def test_add_signal_with_circuit_breaker_closed(
     mock_pair_breaker.state = BreakerState.CLOSED  # Set to CLOSED state
 
     def get_breaker_side_effect(breaker_name: str) -> MagicMock | None:
-        """Mock get_breaker to return closed breaker for symbol and pair."""
+        """Mock get_breaker to return closed breaker for symbol and pair.
+
+        Returns:
+            Mock breaker set to CLOSED state or None for other breakers
+        """
         if f"symbol_{sample_signal.symbol}_main" in breaker_name:
             return mock_symbol_breaker
         if f"pair_{target_exchange}_{sample_signal.symbol}_main" in breaker_name:
@@ -483,7 +511,6 @@ async def test_clean_expired_signals_direct_patch(
 
         # Verify cleanup happened (using the internal counter for simplicity in this test)
         # Note: Accessing _cleaned_count is not ideal practice outside testing.
-        # assert queue._cleaned_count == 2 # This attribute doesn't exist, remove assertion
 
     finally:
         # No background tasks to wait for

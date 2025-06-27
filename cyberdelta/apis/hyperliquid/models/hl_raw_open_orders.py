@@ -11,7 +11,7 @@ order types, triggers, modification/cancellation, and exchange action/response.
   or WebSocket event payloads as closely as possible.
 - All fields use `Field(..., alias=...)` to match the exact key names in Hyperliquid's JSON.
 - Timestamp fields are typed as `int | str | float | None` to accept ISO8601 strings, epoch
-  ms/µs/seconds, or null, per the spec.
+  ms/μs/seconds, or null, per the spec.
 - All models use `extra="forbid"` to ensure strict schema validation—any unexpected field
   will raise a validation error.
 - These models are the *first step* in the "validate first, then transform" pattern:
@@ -324,10 +324,6 @@ class HyperliquidRawModifyOrderRequest(BaseModel):
 # --- Exchange Action/Response Models ---
 # These are now canonically defined in hl_raw_exchange_response.py
 # Removing definitions from here to avoid duplication.
-
-# class HyperliquidRawExchangeStatusObject(BaseModel): ... (REMOVED)
-# class HyperliquidRawExchangeResponseData(BaseModel): ... (REMOVED)
-# class HyperliquidRawExchangeActionResponse(BaseModel): ... (REMOVED)
 
 
 class HyperliquidRawOrderStatusResponse(BaseModel):

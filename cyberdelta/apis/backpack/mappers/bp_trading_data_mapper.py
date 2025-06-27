@@ -261,7 +261,12 @@ class BackpackTradingDataMapper:
 
     @staticmethod
     def _parse_order_quantities(raw_order: BackpackRawOrder) -> tuple[Decimal, Decimal]:
-        """Parse and validate order quantities."""
+        """Parse and validate order quantities.
+
+        Raises:
+            TransformationError: If quantity requirements are not met.
+            ValueError: If quantity values cannot be parsed as decimals.
+        """
         quantity_requested = parse_decimal_value(
             raw_order.quantity,
             allow_none=True,
@@ -269,13 +274,14 @@ class BackpackTradingDataMapper:
         )
 
         # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
-        if quantity_requested is None or quantity_requested == Decimal(0):
-            if raw_order.triggerQuantity:
-                quantity_requested = parse_decimal_value(
-                    raw_order.triggerQuantity,
-                    allow_none=False,
-                    field_name="triggerQuantity",
-                )
+        if (quantity_requested is None or quantity_requested == Decimal(0)) and (
+            raw_order.triggerQuantity
+        ):
+            quantity_requested = parse_decimal_value(
+                raw_order.triggerQuantity,
+                allow_none=False,
+                field_name="triggerQuantity",
+            )
 
         if quantity_requested is None or quantity_requested <= Decimal(0):
             raise TransformationError("quantity_requested is required and must be > 0")
@@ -343,8 +349,7 @@ class BackpackTradingDataMapper:
             )
 
             if executed_quote is not None and executed_quote > 0:
-                calculated_avg_price = executed_quote / quantity_filled
-                return calculated_avg_price
+                return executed_quote / quantity_filled
             logger.warning(
                 f"Could not calculate average fill price for order {raw_order.id}: "
                 f"executed_quote={executed_quote}, quantity_filled={quantity_filled}",
@@ -361,7 +366,12 @@ class BackpackTradingDataMapper:
     def _parse_order_timestamps(
         raw_order: BackpackRawOrder,
     ) -> tuple[datetime, datetime | None, datetime | None]:
-        """Parse order timestamps."""
+        """Parse order timestamps.
+
+        Raises:
+            TransformationError: If required timestamp is missing.
+            ValueError: If timestamp values cannot be parsed as datetime.
+        """
         created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
         if created_timestamp is None:
             raise TransformationError("createdAt is required")

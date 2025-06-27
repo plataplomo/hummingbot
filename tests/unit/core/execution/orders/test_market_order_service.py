@@ -25,21 +25,33 @@ class TestMarketOrderService:
 
     @pytest.fixture
     def mock_exchange_api(self) -> AsyncMock:
-        """Create a mock exchange API."""
+        """Create a mock exchange API.
+
+        Returns:
+            AsyncMock: Mock exchange API for testing.
+        """
         api = AsyncMock()
         api.exchange_name = "test_exchange"
         return api
 
     @pytest.fixture
     def mock_signal_generator(self) -> MagicMock:
-        """Create a mock signal generator."""
+        """Create a mock signal generator.
+
+        Returns:
+            MagicMock: Mock signal generator with slippage estimation.
+        """
         generator = MagicMock()
         generator.estimate_slippage.return_value = Decimal("0.002")  # 0.2% slippage
         return generator
 
     @pytest.fixture
     def default_config(self) -> MarketOrderConfig:
-        """Create default market order config."""
+        """Create default market order config.
+
+        Returns:
+            MarketOrderConfig: Default configuration for market order service.
+        """
         return MarketOrderConfig()
 
     @pytest.fixture
@@ -49,17 +61,24 @@ class TestMarketOrderService:
         mock_signal_generator: MagicMock,
         default_config: MarketOrderConfig,
     ) -> MarketOrderService:
-        """Create MarketOrderService instance."""
-        service = MarketOrderService(
+        """Create MarketOrderService instance.
+
+        Returns:
+            MarketOrderService: Configured market order service for testing.
+        """
+        return MarketOrderService(
             exchange_api=mock_exchange_api,
             signal_generator=mock_signal_generator,
             config=default_config,
         )
-        return service
 
     @pytest.fixture
     def sample_order_book(self) -> OrderBook:
-        """Create a sample order book with good liquidity."""
+        """Create a sample order book with good liquidity.
+
+        Returns:
+            OrderBook: Order book with good bid/ask liquidity for testing.
+        """
         from datetime import UTC, datetime
 
         return OrderBook(
@@ -79,7 +98,11 @@ class TestMarketOrderService:
 
     @pytest.fixture
     def thin_order_book(self) -> OrderBook:
-        """Create a thin order book with limited liquidity."""
+        """Create a thin order book with limited liquidity.
+
+        Returns:
+            OrderBook: Order book with limited liquidity for testing.
+        """
         from datetime import UTC, datetime
 
         return OrderBook(

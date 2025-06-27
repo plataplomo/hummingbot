@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -24,7 +25,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 @pytest.fixture
 def example_test_setup() -> Generator[tuple[str, str]]:
-    """Set up test environment for example script tests."""
+    """Set up test environment for example script tests.
+
+    Yields:
+        tuple[str, str]: Temporary directory path and example script path.
+    """
     with tempfile.TemporaryDirectory() as temp_dir_name:
         example_script_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -57,7 +62,8 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
             [sys.executable, os.path.basename(example_script), "--create-example"],
             cwd=script_dir,
             capture_output=True,
-            text=True, check=False,
+            text=True,
+            check=False,
         )
         exit_code = result.returncode
 
@@ -94,8 +100,8 @@ def test_benchmark(example_test_setup: tuple[str, str]) -> None:
     os.environ["CYBERDELTA_CONFIG_PATH"] = config_path
     os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
 
-    with open(config_path, "w") as f:
-        f.write("""
+    Path(config_path).write_text(
+        """
 # General settings
 general:
   log_level: INFO
@@ -132,10 +138,12 @@ strategies:
 risk:
   global:
     max_position_usd: 1000.0
-            """)
+            """,
+        encoding="utf-8",
+    )
 
-    with open(secrets_path, "w") as f:
-        f.write("""
+    Path(secrets_path).write_text(
+        """
 exchanges:
   hyperliquid:
     api_key: "test_key"
@@ -143,7 +151,9 @@ exchanges:
   backpack:
     api_key: "test_key2"
     api_secret: "test_secret2"
-            """)
+            """,
+        encoding="utf-8",
+    )
 
     script_dir = os.path.dirname(example_script)
 
@@ -167,7 +177,8 @@ exchanges:
         cwd=script_dir,
         capture_output=True,
         text=True,
-        env=env, check=False,
+        env=env,
+        check=False,
     )
     exit_code = result.returncode
     assert exit_code == 0, (
@@ -187,8 +198,8 @@ def test_display_config(example_test_setup: tuple[str, str]) -> None:
     os.environ["CYBERDELTA_CONFIG_PATH"] = config_path
     os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
 
-    with open(config_path, "w") as f:
-        f.write("""
+    Path(config_path).write_text(
+        """
 # General settings
 general:
   log_level: INFO
@@ -223,10 +234,12 @@ strategies:
 risk:
   global:
     max_position_usd: 1000.0
-            """)
+            """,
+        encoding="utf-8",
+    )
 
-    with open(secrets_path, "w") as f:
-        f.write("""
+    Path(secrets_path).write_text(
+        """
 exchanges:
   hyperliquid:
     api_key: "test_api_key"
@@ -234,7 +247,9 @@ exchanges:
   backpack:
     api_key: "test_api_key2"
     api_secret: "test_api_secret2"
-            """)
+            """,
+        encoding="utf-8",
+    )
 
     script_dir = os.path.dirname(example_script)
 
@@ -257,7 +272,8 @@ exchanges:
         cwd=script_dir,
         capture_output=True,
         text=True,
-        env=env, check=False,
+        env=env,
+        check=False,
     )
     exit_code = result.returncode
     assert exit_code == 0, (

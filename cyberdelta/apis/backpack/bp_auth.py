@@ -36,6 +36,10 @@ class BackpackEd25519Authenticator(IAuthenticator):
             api_key_b64_secret: SecretStr containing Base64-encoded public key for API auth.
             private_key_b64_secret: SecretStr containing Base64-encoded private key for signing.
 
+        Raises:
+            ValueError: If API key or private key is empty, or if the private key is invalid Base64
+                or cannot be loaded as an ED25519 private key.
+
         """
         # Get secret values and validate
         api_key_b64 = api_key_b64_secret.get_secret_value().strip()
@@ -177,7 +181,11 @@ class BackpackEd25519Authenticator(IAuthenticator):
         params: dict[str, Any] | None,
         data: dict[str, Any] | None,
     ) -> str:
-        """Build content part for signing based on method and data."""
+        """Build content part for signing based on method and data.
+
+        Returns:
+            URL-encoded string of parameters for signature generation, or empty string if no data.
+        """
         if method.upper() == "GET" and params:
             filtered_params = {k: v for k, v in params.items() if v is not None}
             if filtered_params:
@@ -216,14 +224,23 @@ class BackpackEd25519Authenticator(IAuthenticator):
         timestamp_ms: int,
         window_ms: int,
     ) -> str:
-        """Build the string to sign for authentication."""
+        """Build the string to sign for authentication.
+
+        Args:
+            instruction_str: The instruction string from URL
+            content_part_str: The content part for the signature
+            timestamp_ms: Current timestamp in milliseconds
+            window_ms: Time window in milliseconds
+
+        Returns:
+            The string to be signed for authentication
+
+        """
         sign_payload_parts = [f"instruction={instruction_str}"]
         if content_part_str:
             sign_payload_parts.append(content_part_str)
-        sign_payload_parts.append(f"timestamp={timestamp_ms}")
-        sign_payload_parts.append(f"window={window_ms}")
-        string_to_sign = "&".join(sign_payload_parts)
-        return string_to_sign
+        sign_payload_parts.extend((f"timestamp={timestamp_ms}", f"window={window_ms}"))
+        return "&".join(sign_payload_parts)
 
     def _create_auth_headers(
         self,
@@ -231,7 +248,17 @@ class BackpackEd25519Authenticator(IAuthenticator):
         window_ms: int,
         signature_b64: str,
     ) -> dict[str, str]:
-        """Create authentication headers."""
+        """Create authentication headers.
+
+        Args:
+            timestamp_ms: Current timestamp in milliseconds
+            window_ms: Time window in milliseconds
+            signature_b64: Base64 encoded signature
+
+        Returns:
+            Dictionary of authentication headers
+
+        """
         return {
             "X-API-Key": self._api_key_b64,
             "X-Timestamp": str(timestamp_ms),
@@ -246,7 +273,18 @@ class BackpackEd25519Authenticator(IAuthenticator):
         method: str,
         data: dict[str, Any] | None,
     ) -> dict[str, str]:
-        """Merge existing headers with auth headers and add Content-Type if needed."""
+        """Merge existing headers with auth headers and add Content-Type if needed.
+
+        Args:
+            headers: Existing headers to merge
+            auth_headers: Authentication headers to add
+            method: HTTP method being used
+            data: Request data payload
+
+        Returns:
+            Merged dictionary of headers
+
+        """
         final_headers: dict[str, Any] = {}
         if headers:
             final_headers.update(headers)
@@ -338,6 +376,9 @@ class BackpackEd25519Authenticator(IAuthenticator):
 
         Returns:
             BackpackWsSignatureComponents model with api_key, timestamp, window, and signature
+
+        Raises:
+            APIError: If signature generation fails due to any error during the signing process.
 
         """
         try:

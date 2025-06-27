@@ -238,12 +238,15 @@ class TestHyperliquidAccountSummaryZero:
 
         # Available equity should be total equity minus used margin (approximately)
         # Note: This is a simplified check - real calculation may include other factors
-        if account_summary.total_equity > Decimal(0) and total_maintenance_used > Decimal(0):
+        if (
+            account_summary.total_equity > Decimal(0)
+            and total_maintenance_used > Decimal(0)
+            and total_maintenance_used > Decimal("0.01")
+        ):  # Only check if significant margin usage
             # Available should be less than total if margin is being used
-            if total_maintenance_used > Decimal("0.01"):  # Only check if significant margin usage
-                assert account_summary.available_equity <= account_summary.total_equity, (
-                    "Available equity should be <= total equity when margin is being used"
-                )
+            assert account_summary.available_equity <= account_summary.total_equity, (
+                "Available equity should be <= total equity when margin is being used"
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -278,15 +281,15 @@ class TestHyperliquidAccountSummaryZero:
                 )
 
         # Test small margin amounts
-        if account_summary.total_initial_margin_required is not None:
-            if account_summary.total_initial_margin_required > Decimal(
-                0,
-            ) and account_summary.total_initial_margin_required < Decimal("0.01"):
-                # Small margin should be properly represented
-                assert account_summary.total_initial_margin_required.is_finite(), (
-                    f"Small margin should be finite: "
-                    f"{account_summary.total_initial_margin_required}"
-                )
+        if (
+            account_summary.total_initial_margin_required is not None
+            and account_summary.total_initial_margin_required > Decimal(0)
+            and account_summary.total_initial_margin_required < Decimal("0.01")
+        ):
+            # Small margin should be properly represented
+            assert account_summary.total_initial_margin_required.is_finite(), (
+                f"Small margin should be finite: {account_summary.total_initial_margin_required}"
+            )
 
         # Test precision consistency across fields
         equity_precision = (

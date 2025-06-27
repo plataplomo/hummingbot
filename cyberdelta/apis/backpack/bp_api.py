@@ -139,6 +139,10 @@ class BackpackAPI(ExchangeAPI):
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
 
+        Raises:
+            ValueError: If testnet environment is requested but testnet URLs are not configured,
+                or if rate_limit_per_minute is not provided.
+
         """
         # Create the factory to handle component instantiation
         factory = BackpackAPIComponentsFactory(exchange_config, exchange_secrets)
@@ -254,8 +258,7 @@ class BackpackAPI(ExchangeAPI):
             BackpackRawWsSubscriptionRequest model
 
         Raises:
-            ValueError: If topic format is invalid or required info is missing
-            APIError: If topic is not supported by the exchange
+            APIError: If authenticator is missing for private subscriptions
 
         """
         # Determine if this is a private topic that requires authentication
@@ -304,59 +307,162 @@ class BackpackAPI(ExchangeAPI):
     # --- Market Data Methods --- #
 
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Get ticker information for a specific symbol."""
+        """Get ticker information for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get ticker information for
+
+        Returns:
+            Ticker information for the specified symbol
+
+        """
         return await self.market_data_service.get_ticker(symbol=symbol)
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
-        """Get order book for a specific symbol."""
+        """Get order book for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get order book for
+            depth: Maximum number of price levels to return (default: 20)
+
+        Returns:
+            Order book containing bids and asks for the specified symbol
+
+        """
         return await self.market_data_service.get_order_book(symbol=symbol, limit=depth)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
-        """Get recent trades for a specific symbol."""
+        """Get recent trades for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get recent trades for
+            limit: Maximum number of trades to return (default: 50)
+
+        Returns:
+            List of recent trades for the specified symbol
+
+        """
         return await self.market_data_service.get_recent_trades(symbol=symbol, limit=limit)
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
-        """Get current funding rate for a specific symbol."""
+        """Get current funding rate for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get funding rate for
+
+        Returns:
+            Current funding rate information for the specified symbol
+
+        """
         return await self.market_data_service.get_funding_rate(symbol=symbol)
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Get historical market data (candlesticks) for a specific symbol."""
+        """Get historical market data (candlesticks) for a specific symbol.
+
+        Args:
+            args: Arguments specifying symbol, interval, and time range
+
+        Returns:
+            List of candlestick data for the specified parameters
+
+        """
         return await self.market_data_service.get_market_data(args=args)
 
     async def get_market(self, args: GetMarketArgs) -> Market:
-        """Get market metadata for a specific symbol."""
+        """Get market metadata for a specific symbol.
+
+        Args:
+            args: Arguments specifying the symbol to get market data for
+
+        Returns:
+            Market metadata for the specified symbol
+
+        """
         return await self.market_data_service.get_market(args=args)
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
-        """Get market metadata for all available markets."""
+        """Get market metadata for all available markets.
+
+        Args:
+            args: Arguments specifying market filters
+
+        Returns:
+            List of market metadata for all matching markets
+
+        """
         return await self.market_data_service.get_markets(args=args)
 
     # --- Account Methods --- #
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances."""
+        """Get account balances.
+
+        Returns:
+            Dictionary mapping asset symbols to their spot balances
+
+        """
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Get derivative positions."""
+        """Get derivative positions.
+
+        Args:
+            symbol: Optional symbol to filter positions (default: all positions)
+
+        Returns:
+            List of derivative positions
+
+        """
         return await self.account_service.get_positions(symbol=symbol)
 
     # --- Trading Methods --- #
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place a new order."""
+        """Place a new order.
+
+        Args:
+            args: Order placement arguments including symbol, size, price, etc.
+
+        Returns:
+            Order object representing the placed order
+
+        """
         return await self.trading_service.place_order(args=args)
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-        """Cancel an existing order."""
+        """Cancel an existing order.
+
+        Args:
+            args: Arguments specifying the order to cancel
+
+        Returns:
+            Result of the cancellation operation
+
+        """
         return await self.trading_service.cancel_order(args=args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get all open orders."""
+        """Get all open orders.
+
+        Args:
+            symbol: Optional symbol to filter orders (default: all symbols)
+
+        Returns:
+            List of currently open orders
+
+        """
         return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Get funding rates for specified symbols or all symbols."""
+        """Get funding rates for specified symbols or all symbols.
+
+        Args:
+            args: Arguments specifying which symbols to get funding rates for
+
+        Returns:
+            List of funding rates for the requested symbols
+
+        """
         return await self.market_data_service.get_funding_rates(args=args)
 
     async def get_account_summary(self) -> MarginAccountSummary:
@@ -382,15 +488,35 @@ class BackpackAPI(ExchangeAPI):
         Note:
             This allows updating leverage limits which directly impacts maximum position sizes
             for large balance testing. Changes take effect immediately.
+
+        Returns:
+            Updated account settings
+
         """
         return await self.account_service.update_account_settings(args=args)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
-        """Transfer funds between account types."""
+        """Transfer funds between account types.
+
+        Args:
+            args: Transfer arguments including amount, from/to account types
+
+        Returns:
+            Transfer object with transaction details
+
+        """
         return await self.account_service.transfer(args=args)
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Withdraw funds to an external address."""
+        """Withdraw funds to an external address.
+
+        Args:
+            args: Withdrawal arguments including amount, address, etc.
+
+        Returns:
+            Withdrawal object with transaction details
+
+        """
         return await self.account_service.withdraw(args=args)
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
@@ -445,7 +571,15 @@ class BackpackAPI(ExchangeAPI):
         )
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Get historical orders."""
+        """Get historical orders.
+
+        Args:
+            args: Arguments for filtering order history
+
+        Returns:
+            List of historical orders
+
+        """
         return await self.account_service.get_order_history(args=args)
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
@@ -453,6 +587,9 @@ class BackpackAPI(ExchangeAPI):
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
+
+        Returns:
+            List of recent trades
 
         """
         return await self.account_service.get_trade_history(args=args)
@@ -462,18 +599,39 @@ class BackpackAPI(ExchangeAPI):
         await super().connect_websocket()
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Fetch a single order by its ID."""
+        """Fetch a single order by its ID.
+
+        Args:
+            args: Arguments containing order ID and symbol
+
+        Returns:
+            Order object if found, None otherwise
+
+        Raises:
+            ValueError: If symbol parameter is not provided
+
+        """
         if args.symbol is None:
             raise ValueError("'symbol' parameter is required for Backpack.get_order()")
         return await self.trading_service.get_order(args=args)
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """Fetch the status of a specific order."""
+        """Fetch the status of a specific order.
+
+        Args:
+            args: Arguments containing order ID and symbol
+
+        Returns:
+            Order object with current status if found, None otherwise
+
+        Raises:
+            ValueError: If symbol parameter is not provided
+
+        """
         if args.symbol is None:
             raise ValueError("'symbol' parameter is required for Backpack.get_order_status()")
         # Return type changed to Order | None to align with abstract method
-        order = await self.trading_service.get_order_status(args=args)
-        return order
+        return await self.trading_service.get_order_status(args=args)
 
     # All abstract methods should now be implemented.
 
@@ -514,6 +672,9 @@ class BackpackAPI(ExchangeAPI):
         Args:
             args: Parameters for filtering open orders including optional symbol.
 
+        Returns:
+            List of all open orders
+
         """
         return await self.trading_service.get_all_open_orders(args=args)
 
@@ -548,7 +709,11 @@ class BackpackAPI(ExchangeAPI):
         self,
         args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
-        """Get historical funding rates for a specific symbol."""
+        """Get historical funding rates for a specific symbol.
+
+        Returns:
+            List of funding rates for the specified symbol and time range.
+        """
         return await self.market_data_service.get_historical_funding_rates(args=args)
 
     async def close(self) -> None:
@@ -556,7 +721,11 @@ class BackpackAPI(ExchangeAPI):
         await super().close()
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all open orders."""
+        """Cancel all open orders.
+
+        Returns:
+            List of cancel order results for each cancelled order.
+        """
         return await self.trading_service.cancel_all_orders(symbol=symbol)
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:

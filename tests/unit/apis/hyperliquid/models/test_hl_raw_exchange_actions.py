@@ -80,7 +80,6 @@ def set_nested_value(
 
         # Handle integer indices (for lists)
         # DEFENSIVE CHECK: isinstance needed to distinguish int from str in Union.
-        # Pyright=[reportUnnecessaryIsInstance]
         elif isinstance(key_or_index, int):  # pyright: ignore[reportUnnecessaryIsInstance]
             # DEFENSIVE CHECK: Ensure current_level is a list before int index access
             if not isinstance(current_level, list):

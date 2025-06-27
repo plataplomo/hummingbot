@@ -13,7 +13,6 @@ from typing import Any
 
 import structlog
 
-# from cyberdelta.core.types import TradeOperation, TradeSignal # Remove old imports
 from cyberdelta.core.models import TradeSignal  # Import from models
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.strategy import Strategy
@@ -107,9 +106,6 @@ class DashboardIntegration:
             port: Port to run the dashboard on
             debug: Enable debug mode for the dashboard
             in_thread: Run dashboard in a separate thread
-
-        Returns:
-            Dashboard instance
 
         """
         if self.portfolio_tracker is None:

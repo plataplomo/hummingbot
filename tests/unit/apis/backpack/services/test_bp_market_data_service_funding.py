@@ -59,7 +59,7 @@ class TestBackpackMarketDataServiceFunding:
         )
         expected_internal_funding_rate = FundingRate(
             symbol=symbol,
-            timestamp=datetime.fromisoformat(raw_time_str.replace("Z", "+00:00")),
+            timestamp=datetime.fromisoformat(raw_time_str),
             funding_rate=Decimal("0.0001"),
             bp_details=BackpackFundingDetails(),
         )

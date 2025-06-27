@@ -31,8 +31,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
-
-# from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -553,7 +551,6 @@ class HyperliquidMarketDataService:
     async def get_recent_trades(
         self,
         symbol: str,
-        # limit: int = 100, # Limit is not part of HL /info request for recentTrades
     ) -> list[Trade]:
         """Retrieve recent public trades for a specific symbol using a POST request to /info.
 
@@ -776,12 +773,11 @@ class HyperliquidMarketDataService:
                 args.symbols,
                 all_contexts_response.asset_ctxs,
             )
-            rates = self._process_funding_rates_for_symbols(
+            return self._process_funding_rates_for_symbols(
                 symbols_to_process,
                 all_contexts_response.asset_ctxs,
                 args.symbols,
             )
-            return rates
 
         except APIError:
             raise
@@ -1231,14 +1227,13 @@ class HyperliquidMarketDataService:
 
         # The handler expects raw JSON, not already Pydantic validated models typically
         # For candles, it might be list of lists or list of dicts
-        raw_candles = self._response_handler.handle_info_candle_snapshot_response(
+        return self._response_handler.handle_info_candle_snapshot_response(
             raw_response_content_parsed,
             symbol,
             interval,
             status_code,
             headers,
         )
-        return raw_candles
 
     def _handle_market_data_transformation_error(
         self,
@@ -1475,7 +1470,7 @@ class HyperliquidMarketDataService:
         )
 
         if raw_response_content_parsed is None:
-            _error_msg = (
+            error_msg = (
                 f"No content received from HTTP client for recentTrades for {symbol}. "
                 f"Status: {status_code}"
             )
@@ -1485,10 +1480,10 @@ class HyperliquidMarketDataService:
                 exchange=self._exchange_name,
                 symbol=symbol,
                 status_code=status_code,
-                message=f"[{self._exchange_name}] {_error_msg}",
+                message=f"[{self._exchange_name}] {error_msg}",
             )
             raise APIError(
-                message=_error_msg,
+                message=error_msg,
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )

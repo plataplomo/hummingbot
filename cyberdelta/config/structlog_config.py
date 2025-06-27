@@ -121,8 +121,8 @@ def setup_structlog(app_settings: AppSettings) -> None:
     # Configure structlog for console output only
     # File output is handled by stdlib logging handlers with ProcessorFormatter
     structlog.configure(
-        processors=base_processors
-        + [
+        processors=[
+            *base_processors,
             # Render as colored console output
             structlog.dev.ConsoleRenderer(colors=True),
         ],

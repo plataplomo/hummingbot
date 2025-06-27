@@ -39,13 +39,21 @@ pytestmark = pytest.mark.timing
 # --- Helper Fixtures ---
 @pytest.fixture
 def valid_hl_order_details_data() -> dict[str, Any]:
-    """Provide valid data for HyperliquidOrderDetails."""
+    """Provide valid data for HyperliquidOrderDetails.
+
+    Returns:
+        dict[str, Any]: Valid data dictionary for HyperliquidOrderDetails testing.
+    """
     return {"remaining_sz": Decimal("0.5")}
 
 
 @pytest.fixture
 def valid_bp_order_details_data() -> dict[str, Any]:
-    """Provide valid data for BackpackOrderDetails."""
+    """Provide valid data for BackpackOrderDetails.
+
+    Returns:
+        dict[str, Any]: Valid data dictionary for BackpackOrderDetails testing.
+    """
     return {
         "executed_quote_quantity": Decimal("1000.50"),
         "self_trade_prevention": SelfTradePrevention.REJECT_TAKER,
@@ -63,7 +71,11 @@ def valid_bp_order_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_order_data() -> dict[str, Any]:
-    """Provide a dictionary with valid core data for Order creation."""
+    """Provide a dictionary with valid core data for Order creation.
+
+    Returns:
+        dict[str, Any]: Valid core data dictionary for Order testing.
+    """
     return {
         "exchange": "backpack",
         "symbol": "BTC-PERP",
@@ -165,7 +177,7 @@ def test_order_required_fields_missing(base_order_data: dict[str, Any]) -> None:
         "time_in_force",
     ]
     # price is required for LIMIT type in base_order_data
-    required_fields_limit = required_fields + ["price"]
+    required_fields_limit = [*required_fields, "price"]
 
     for field_to_remove in required_fields_limit:
         invalid_data = base_order_data.copy()
@@ -319,7 +331,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["bp_details"] = BackpackOrderDetails()
     with pytest.raises(
         ValidationError,
-        match="Value error, Backpack details .* must be None for a Hyperliquid order",
+        match=r"Value error, Backpack details .* must be None for a Hyperliquid order",
     ):
         Order(**data)
 
@@ -329,7 +341,7 @@ def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> Non
     data["hl_details"] = HyperliquidOrderDetails()
     with pytest.raises(
         ValidationError,
-        match="Value error, Hyperliquid details .* must be None for a Backpack order",
+        match=r"Value error, Hyperliquid details .* must be None for a Backpack order",
     ):
         Order(**data)
 
@@ -581,16 +593,9 @@ class TestOrderModel:
 
 # Example of how you might test with details (adjust based on actual fixture availability)
 # @pytest.mark.xfail(
-#     reason="Fixture 'base_order_data' might not be available here or needs adjustment"
-# )
 # def test_order_with_hl_details(
 # base_order_data: dict[str, Any],
-# valid_hl_order_details_data: dict[str, Any]
 # ) -> None:
 # """Test Order creation with HyperliquidOrderDetails."""
-# data = base_order_data.copy()
-# data["exchange"] = "hyperliquid" # Ensure exchange matches details
-# order = Order(**data, hl_details=HyperliquidOrderDetails(**valid_hl_order_details_data))
 # assert order.hl_details is not None
-# assert order.hl_details.remaining_sz == Decimal("0.5")
 # assert order.bp_details is None

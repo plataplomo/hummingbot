@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Integration test showing the complete Hyperliquid leverage update flow."""
 
-import asyncio
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -16,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-async def simulate_hyperliquid_leverage_update() -> None:
+def simulate_hyperliquid_leverage_update() -> None:
     """Simulate the complete flow of updating leverage in Hyperliquid."""
     logger.info("=== Hyperliquid Leverage Update Flow ===\n")
 
@@ -114,4 +113,4 @@ async def simulate_hyperliquid_leverage_update() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(simulate_hyperliquid_leverage_update())
+    simulate_hyperliquid_leverage_update()

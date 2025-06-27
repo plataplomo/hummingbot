@@ -12,7 +12,6 @@ from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarke
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Removed in refactor
 
 
@@ -37,12 +36,7 @@ def mock_response_handler() -> MagicMock:
 # @pytest.fixture
 # def mock_rate_limiter_service() -> MagicMock:
 #     """Provides a mock RateLimiterService."""
-#     mock_service = MagicMock(spec=RateLimiterService)
 #     # Mock get_limiter to return an AsyncMock for the runtime limiter
-#     limiter_runtime_mock = AsyncMock()  # This will have .acquire()
-#     limiter_runtime_mock.acquire = AsyncMock()  # Ensure acquire is an AsyncMock
-#     mock_service.get_limiter.return_value = limiter_runtime_mock
-#     return mock_service  # Removed in refactor
 
 
 @pytest.fixture

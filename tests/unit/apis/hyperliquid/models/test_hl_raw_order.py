@@ -3,7 +3,7 @@
 Validates parsing, aliases, and error handling for raw order request structures.
 """
 
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import pytest
 from pydantic import ValidationError
@@ -199,7 +199,7 @@ class TestHyperliquidRawTriggerInfo:
         data["triggerPx"] = "inf"
         with pytest.raises(
             ValidationError,
-            match="trigger_px: Value 'inf' must be a parseable finite decimal string.",
+            match=r"trigger_px: Value 'inf' must be a parseable finite decimal string.",
         ):
             HyperliquidRawTriggerInfo(**data)
 
@@ -237,7 +237,7 @@ class TestHyperliquidRawTriggerInfo:
 class TestHyperliquidRawPlaceOrderAction:
     """Test class for HyperliquidRawPlaceOrderAction model."""
 
-    EXPECTED_PYTHON_TYPES_AFTER_PARSING: dict[str, type] = {
+    EXPECTED_PYTHON_TYPES_AFTER_PARSING: ClassVar[dict[str, type]] = {
         "asset": int,
         "is_buy": bool,
         "limit_px": str,

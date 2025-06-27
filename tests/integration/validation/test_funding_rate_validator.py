@@ -97,7 +97,6 @@ class TestFundingRateValidator:
         # Expected metrics:
         # First pair: error = 0.0010 - 0.0012 = -0.0002
         # Second pair: error = 0.0008 - 0.0009 = -0.0001
-        # RMSE = sqrt(mean([-0.0002, -0.0001]^2))
         #      = sqrt(mean([0.00000004, 0.00000001]))
         #      = sqrt(0.000000025) = 0.00015811
         # MAE = mean(abs([-0.0002, -0.0001])) = mean([0.0002, 0.0001]) = 0.00015

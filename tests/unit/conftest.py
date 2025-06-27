@@ -41,12 +41,20 @@ logger = get_logger(__name__)
 
 
 def create_test_http_url(url_str: str) -> HttpUrl:
-    """Create an HTTP URL for tests."""
+    """Create an HTTP URL for tests.
+
+    Returns:
+        HttpUrl: HttpUrl instance for testing.
+    """
     return HttpUrl(url_str)
 
 
 def create_test_any_url(url_str: str) -> AnyUrl:
-    """Create an Any URL for tests."""
+    """Create an Any URL for tests.
+
+    Returns:
+        AnyUrl: AnyUrl instance for testing.
+    """
     return AnyUrl(url_str)
 
 
@@ -77,7 +85,11 @@ class MockResponse:
         return str(self._data)
 
     async def __aenter__(self) -> "MockResponse":
-        """Enter async context manager."""
+        """Enter async context manager.
+
+        Returns:
+            Self for use as async context manager.
+        """
         return self
 
     async def __aexit__(
@@ -89,7 +101,11 @@ class MockResponse:
         """Exit async context manager."""
 
     def raise_for_status(self) -> None:  # Add return type hint
-        """Raise an exception for HTTP error status codes."""
+        """Raise an exception for HTTP error status codes.
+
+        Raises:
+            ClientResponseError: When HTTP status code is 400 or higher.
+        """
         self._raise_for_status_called = True
         if self.status >= 400:
             raise aiohttp.ClientResponseError(
@@ -109,7 +125,11 @@ class MockClientSession:
         self.closed = False
 
     async def __aenter__(self) -> "MockClientSession":
-        """Enter async context manager."""
+        """Enter async context manager.
+
+        Returns:
+            Self for use as async context manager.
+        """
         return self
 
     async def __aexit__(
@@ -125,6 +145,16 @@ class MockClientSession:
         self.closed = True
 
     async def _request(self, method: str, url: str, **kwargs: dict[str, Any]) -> MockResponse:
+        """Execute an HTTP request and return a mock response.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE)
+            url: Request URL
+            **kwargs: Additional request parameters
+
+        Returns:
+            MockResponse for the request or a 404 response if no match found.
+        """
         self.requests.append({"method": method, "url": url, "kwargs": kwargs})
 
         # Find match in responses
@@ -138,30 +168,54 @@ class MockClientSession:
         return MockResponse({}, status=404)
 
     async def get(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
-        """Send a GET request to the specified URL."""
+        """Send a GET request to the specified URL.
+
+        Returns:
+            MockResponse with the result of the GET request.
+        """
         return await self._request("GET", url, **kwargs)
 
     async def post(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
-        """Send a POST request to the specified URL."""
+        """Send a POST request to the specified URL.
+
+        Returns:
+            MockResponse with the result of the POST request.
+        """
         return await self._request("POST", url, **kwargs)
 
     async def put(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
-        """Send a PUT request to the specified URL."""
+        """Send a PUT request to the specified URL.
+
+        Returns:
+            MockResponse with the result of the PUT request.
+        """
         return await self._request("PUT", url, **kwargs)
 
     async def delete(self, url: str, **kwargs: dict[str, Any]) -> MockResponse:
-        """Send a DELETE request to the specified URL."""
+        """Send a DELETE request to the specified URL.
+
+        Returns:
+            MockResponse with the result of the DELETE request.
+        """
         return await self._request("DELETE", url, **kwargs)
 
 
 @pytest.fixture
 def mock_client_session() -> Callable[..., MockClientSession]:
-    """Fixture to provide a mock aiohttp ClientSession."""
+    """Fixture to provide a mock aiohttp ClientSession.
+
+    Returns:
+        Factory function that creates MockClientSession instances.
+    """
 
     def create_session(
         responses: dict[tuple[str, str], MockResponse] | None = None,
     ) -> MockClientSession:
-        """Create session for testing."""
+        """Create session for testing.
+
+        Returns:
+            MockClientSession: MockClientSession instance for testing.
+        """
         return MockClientSession(responses)
 
     return create_session
@@ -169,7 +223,11 @@ def mock_client_session() -> Callable[..., MockClientSession]:
 
 @pytest.fixture
 def hyperliquid_config() -> dict[str, Any]:
-    """Fixture to provide Hyperliquid API configuration."""
+    """Fixture to provide Hyperliquid API configuration.
+
+    Returns:
+        Dictionary containing Hyperliquid API configuration settings.
+    """
     return {
         "base_url": "https://api.hyperliquid.xyz",
         "ws_endpoint": "wss://api.hyperliquid.xyz/ws",
@@ -183,7 +241,11 @@ def hyperliquid_config() -> dict[str, Any]:
 
 @pytest.fixture
 def backpack_config() -> dict[str, Any]:
-    """Fixture to provide Backpack API configuration."""
+    """Fixture to provide Backpack API configuration.
+
+    Returns:
+        Dictionary containing Backpack API configuration settings.
+    """
     return {
         "base_url": "https://api.backpack.exchange",
         "ws_endpoint": "wss://ws.backpack.exchange",
@@ -197,7 +259,11 @@ def backpack_config() -> dict[str, Any]:
 
 @pytest.fixture
 def hyperliquid_secrets() -> dict[str, str]:
-    """Fixture to provide Hyperliquid API secrets with a VALID derived address."""
+    """Fixture to provide Hyperliquid API secrets with a VALID derived address.
+
+    Returns:
+        Dictionary containing Hyperliquid API secrets with valid derived address.
+    """
     # Use a fixed dummy private key for reproducibility in tests
     dummy_private_key = "0x1111111111111111111111111111111111111111111111111111111111111111"
     try:
@@ -221,7 +287,11 @@ def hyperliquid_secrets() -> dict[str, str]:
 
 @pytest.fixture
 def backpack_secrets() -> dict[str, str | None]:
-    """Provide default secrets for BackpackAPI testing."""
+    """Provide default secrets for BackpackAPI testing.
+
+    Returns:
+        Dictionary containing Backpack API secrets for testing.
+    """
     return {
         "BACKPACK_API_KEY": "test_api_key",
         "BACKPACK_API_SECRET": "test_api_secret",
@@ -230,9 +300,18 @@ def backpack_secrets() -> dict[str, str | None]:
 
 @pytest.fixture
 def mock_config() -> Callable[..., AppSettings]:
-    """Fixture to create an AppSettings object with the provided data dictionary."""
+    """Fixture to create an AppSettings object with the provided data dictionary.
+
+    Returns:
+        Factory function that creates AppSettings instances for testing.
+    """
 
     def _create_config(config_data: dict[str, Any] | None = None) -> AppSettings:
+        """Create AppSettings for testing.
+
+        Returns:
+            AppSettings: Configured AppSettings instance for testing.
+        """
         # For now, return a basic AppSettings instance
         # This is a simplified version for unit tests
         return AppSettings(
@@ -352,7 +431,11 @@ def mock_config() -> Callable[..., AppSettings]:
 
 @pytest.fixture
 def mock_hl_http_client() -> MagicMock:
-    """Mock HyperliquidHttpClient."""
+    """Mock HyperliquidHttpClient.
+
+    Returns:
+        MagicMock instance configured for HyperliquidHttpClient testing.
+    """
     mock_client = MagicMock()
     mock_client.close_session = AsyncMock()
     return mock_client
@@ -360,7 +443,11 @@ def mock_hl_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_http_client() -> MagicMock:
-    """Mock BackpackHttpClient."""
+    """Mock BackpackHttpClient.
+
+    Returns:
+        MagicMock instance configured for BackpackHttpClient testing.
+    """
     mock_client = MagicMock()
     mock_client.close_session = AsyncMock()
     return mock_client
@@ -371,6 +458,9 @@ def test_app_settings() -> AppSettings:
     """Provides a complete AppSettings instance for testing.
 
     This replaces the old Config class usage in tests with proper Pydantic models.
+
+    Returns:
+        Complete AppSettings instance configured for testing.
     """
     return AppSettings(
         general=GeneralSettings(
@@ -482,7 +572,11 @@ def test_app_settings() -> AppSettings:
 
 @pytest.fixture
 def active_bp_config() -> ExchangeSpecificConfig:
-    """Fixture providing an active Backpack exchange configuration."""
+    """Fixture providing an active Backpack exchange configuration.
+
+    Returns:
+        ExchangeSpecificConfig instance for active Backpack testing.
+    """
     return ExchangeSpecificConfig.model_validate({
         "exchange_name": ExchangeName.BACKPACK,
         "enabled": True,
@@ -497,7 +591,11 @@ def active_bp_config() -> ExchangeSpecificConfig:
 
 @pytest.fixture
 def active_bp_secrets() -> ApiKeyAuthSecrets:
-    """Fixture providing active Backpack secrets for testing."""
+    """Fixture providing active Backpack secrets for testing.
+
+    Returns:
+        ApiKeyAuthSecrets instance with test credentials for Backpack.
+    """
     from pydantic import SecretStr
 
     return ApiKeyAuthSecrets(
@@ -512,6 +610,9 @@ def test_config_dict() -> dict[str, Any]:
     """Provides a dictionary representation of test configuration for legacy test compatibility.
 
     This helps transition tests that expect dictionary-style config access.
+
+    Returns:
+        Dictionary containing legacy-style configuration for testing.
     """
     return {
         "exchanges": {

@@ -38,7 +38,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def default_http_client_config() -> HttpClientConfig:
-    """Provide default http client config."""
+    """Provide default http client config.
+
+    Returns:
+        HttpClientConfig instance for testing.
+    """
     return HttpClientConfig(rest_endpoint=HttpUrl("http://test.api"))
 
 
@@ -58,7 +62,11 @@ def mock_authenticator() -> IAuthenticator:
 async def http_client_instance(
     default_http_client_config: HttpClientConfig,
 ) -> AsyncGenerator[HttpClient]:
-    """Provide HttpClient instance for testing."""
+    """Provide HttpClient instance for testing.
+
+    Yields:
+        HttpClient: HTTP client instance for testing.
+    """
     client = HttpClient(exchange_name="test_exchange", config=default_http_client_config)
     yield client
     await client.close_session()
@@ -66,7 +74,11 @@ async def http_client_instance(
 
 @pytest.fixture
 def mock_aiohttp_response_factory() -> Callable[..., AsyncMock]:
-    """Create AsyncMock(spec=aiohttp.ClientResponse) instances."""
+    """Create AsyncMock(spec=aiohttp.ClientResponse) instances.
+
+    Returns:
+        Factory function for creating mock aiohttp ClientResponse instances.
+    """
 
     def _factory(
         status_code: int = 200,
@@ -447,7 +459,6 @@ class TestHttpClient:
         # method signature. To access mock-specific attributes like assert_called_once_with,
         # we must cast to inform the type checker of its true runtime nature as an AsyncMock.
         # This cast is safe because the object *is* an AsyncMock here.
-        # [CAST-REVIEW-REQUIRED]
         prepare_request_mock_signed = cast("AsyncMock", mock_authenticator.prepare_request)
         assert isinstance(prepare_request_mock_signed, AsyncMock)
         # Verify the authenticator was called with the original parameters
@@ -514,7 +525,6 @@ class TestHttpClient:
         # is an AsyncMock at runtime. The type checker sees the original IAuthenticator signature.
         # We need to cast to AsyncMock to assign to its .side_effect attribute.
         # This cast is safe because the object *is* an AsyncMock here.
-        # [CAST-REVIEW-REQUIRED]
         prepare_request_mock_error = cast("AsyncMock", mock_authenticator.prepare_request)
         assert isinstance(prepare_request_mock_error, AsyncMock)
         prepare_request_mock_error.side_effect = auth_error

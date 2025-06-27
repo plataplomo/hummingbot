@@ -102,8 +102,8 @@ class BackpackDataCollector:
         """Save JSON data to a file."""
         filepath = self.output_dir / filename
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            json_content = json.dumps(data, indent=2, ensure_ascii=False)
+            filepath.write_text(json_content, encoding="utf-8")
             logger.info(f"Saved fixture: {filepath}")
         except Exception as e:
             logger.error(f"Error saving {filepath}: {e}")
@@ -112,8 +112,7 @@ class BackpackDataCollector:
         """Save text data to a file."""
         filepath = self.output_dir / filename
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(data)
+            filepath.write_text(data, encoding="utf-8")
             logger.info(f"Saved fixture: {filepath}")
         except Exception as e:
             logger.error(f"Error saving {filepath}: {e}")
@@ -188,10 +187,7 @@ class BackpackDataCollector:
         params = {"interval": interval} if interval else None
         data = await self._fetch_json(url, params)
         if data:
-            if interval:
-                filename = f"bp_tickers_{interval}.json"
-            else:
-                filename = "bp_tickers_all.json"
+            filename = f"bp_tickers_{interval}.json" if interval else "bp_tickers_all.json"
             self._save_json(data, filename)
 
     async def fetch_depth(self, symbol: str, limit: int | None = None) -> None:

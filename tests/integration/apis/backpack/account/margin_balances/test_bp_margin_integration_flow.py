@@ -106,7 +106,6 @@ class TestBackpackMarginIntegrationFlow:
                 "Liabilities value should be non-negative"
             )
 
-            # Equity = Assets - Liabilities
             calculated_equity = bp_details.assets_value - bp_details.liabilities_value
             assert is_within_tolerance(
                 calculated_equity,

@@ -121,7 +121,6 @@ def test_referred_by_invalid(
         HyperliquidRawReferredBy.model_validate(data_copy)
 
 
-# HyperliquidRawReferralState (item)
 def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any]) -> None:
     """Test referral state item valid."""
     item = HyperliquidRawReferralState.model_validate(valid_referral_state_item_data)

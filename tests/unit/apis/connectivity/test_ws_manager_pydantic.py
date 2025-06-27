@@ -26,7 +26,11 @@ class MockSubscriptionModel(BaseModel):
 
 @pytest.fixture
 def ws_config() -> WebSocketManagerConfig:
-    """Create test WebSocket configuration."""
+    """Create test WebSocket configuration.
+
+    Returns:
+        WebSocketManagerConfig instance for testing.
+    """
     return WebSocketManagerConfig(
         ws_url=AnyUrl("wss://test.example.com/ws"),
         ping_interval=30,
@@ -38,7 +42,11 @@ def ws_config() -> WebSocketManagerConfig:
 
 @pytest.fixture
 def mock_websocket() -> MagicMock:
-    """Create a mock WebSocket connection."""
+    """Create a mock WebSocket connection.
+
+    Returns:
+        Mock WebSocket connection for testing.
+    """
     ws = MagicMock()
     ws.closed = False
     ws.send_json = AsyncMock()
@@ -49,7 +57,11 @@ def mock_websocket() -> MagicMock:
 
 @pytest.fixture
 def mock_session() -> MagicMock:
-    """Create a mock aiohttp ClientSession."""
+    """Create a mock aiohttp ClientSession.
+
+    Returns:
+        Mock aiohttp ClientSession for testing.
+    """
     session = MagicMock()
     session.ws_connect = AsyncMock()
     return session
@@ -61,7 +73,11 @@ async def ws_manager(
     mock_websocket: MagicMock,
     mock_session: MagicMock,
 ) -> AsyncGenerator[WebSocketManager]:
-    """Create WebSocketManager with mocked dependencies."""
+    """Create WebSocketManager with mocked dependencies.
+
+    Yields:
+        WebSocketManager: WebSocket manager with mocked dependencies.
+    """
     with patch("aiohttp.ClientSession", return_value=mock_session):
         mock_session.ws_connect.return_value.__aenter__.return_value = mock_websocket
 

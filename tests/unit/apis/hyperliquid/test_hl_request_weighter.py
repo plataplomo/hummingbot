@@ -21,7 +21,11 @@ class TestHyperliquidRequestWeighter:
 
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
-        """Create a mock Hyperliquid configuration."""
+        """Create a mock Hyperliquid configuration.
+
+        Returns:
+            Mock ExchangeSpecificConfig for Hyperliquid testing.
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.exchange_name = ExchangeName.HYPERLIQUID
         config.info_request_type_ip_weights = {
@@ -40,7 +44,11 @@ class TestHyperliquidRequestWeighter:
 
     @pytest.fixture
     def weighter(self, hl_config: ExchangeSpecificConfig) -> HyperliquidRequestWeighter:
-        """Create a HyperliquidRequestWeighter with mock config."""
+        """Create a HyperliquidRequestWeighter with mock config.
+
+        Returns:
+            HyperliquidRequestWeighter instance for testing.
+        """
         return HyperliquidRequestWeighter(hl_config)
 
     def test_initialization_with_valid_config(self, hl_config: ExchangeSpecificConfig) -> None:
@@ -64,7 +72,11 @@ class TestHyperliquidRequestWeighterIPWeight:
 
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
-        """Create a mock Hyperliquid configuration."""
+        """Create a mock Hyperliquid configuration.
+
+        Returns:
+            Mock ExchangeSpecificConfig for Hyperliquid testing.
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.info_request_type_ip_weights = {
             "l2Book": 2,
@@ -80,7 +92,11 @@ class TestHyperliquidRequestWeighterIPWeight:
 
     @pytest.fixture
     def weighter(self, hl_config: ExchangeSpecificConfig) -> HyperliquidRequestWeighter:
-        """Create a HyperliquidRequestWeighter."""
+        """Create a HyperliquidRequestWeighter.
+
+        Returns:
+            HyperliquidRequestWeighter instance for testing.
+        """
         return HyperliquidRequestWeighter(hl_config)
 
     def test_exchange_endpoint_single_action(self, weighter: HyperliquidRequestWeighter) -> None:
@@ -203,7 +219,11 @@ class TestHyperliquidRequestWeighterAddressActionCount:
 
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
-        """Create a mock Hyperliquid configuration."""
+        """Create a mock Hyperliquid configuration.
+
+        Returns:
+            Mock ExchangeSpecificConfig for Hyperliquid testing.
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.info_request_type_ip_weights = {"l2Book": 2}
         config.default_info_weight = 20
@@ -213,7 +233,11 @@ class TestHyperliquidRequestWeighterAddressActionCount:
 
     @pytest.fixture
     def weighter(self, hl_config: ExchangeSpecificConfig) -> HyperliquidRequestWeighter:
-        """Create a HyperliquidRequestWeighter."""
+        """Create a HyperliquidRequestWeighter.
+
+        Returns:
+            HyperliquidRequestWeighter instance for testing.
+        """
         return HyperliquidRequestWeighter(hl_config)
 
     def test_exchange_endpoint_single_action(self, weighter: HyperliquidRequestWeighter) -> None:
@@ -282,7 +306,11 @@ class TestHyperliquidRequestWeighterEdgeCases:
 
     @pytest.fixture
     def minimal_config(self) -> ExchangeSpecificConfig:
-        """Create minimal valid config."""
+        """Create minimal valid config.
+
+        Returns:
+            Minimal ExchangeSpecificConfig for testing.
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.info_request_type_ip_weights = {}
         config.default_info_weight = 1

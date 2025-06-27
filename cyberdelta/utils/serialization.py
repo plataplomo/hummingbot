@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 
 # Type alias for JSON-compatible values
-JSONValue = str | int | float | bool | None | dict[str, "JSONValue"] | list["JSONValue"]
+JSONValue = str | int | float | bool | dict[str, "JSONValue"] | list["JSONValue"] | None
 
 
 class CyberDeltaJSONEncoder(json.JSONEncoder):

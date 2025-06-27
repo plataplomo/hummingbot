@@ -60,7 +60,11 @@ class TestBackpackPositionsZero:
         bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test retrieving a position for a symbol with no position."""
+        """Test retrieving a position for a symbol with no position.
+
+        Raises:
+            APIError: If API call fails with non-symbol-not-found errors.
+        """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -117,6 +121,9 @@ class TestBackpackPositionsZero:
         """Test retrieving position for a spot symbol (not derivative).
 
         Spot symbols should not have derivative positions.
+
+        Raises:
+            APIError: If API call fails with non-symbol-not-found errors.
         """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
@@ -146,7 +153,11 @@ class TestBackpackPositionsZero:
         bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test position state for a new account that has never traded derivatives."""
+        """Test position state for a new account that has never traded derivatives.
+
+        Raises:
+            APIError: If API call fails with non-symbol-not-found errors.
+        """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
@@ -237,7 +248,11 @@ class TestBackpackPositionsZero:
         bp_api_for_zero_balance_test: BackpackAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test retrieving position for a delisted or invalid symbol."""
+        """Test retrieving position for a delisted or invalid symbol.
+
+        Raises:
+            APIError: If API call fails with non-symbol-not-found errors.
+        """
         from cyberdelta.apis.models.api_error import APIError
         from cyberdelta.apis.models.api_error_codes import APIErrorCode
 

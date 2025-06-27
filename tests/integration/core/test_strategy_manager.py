@@ -36,7 +36,11 @@ UTC = pytz.UTC
 # Mock configuration object
 @pytest.fixture
 def mock_config_dict() -> dict[str, Any]:
-    """Fixture for a mock config dictionary."""
+    """Fixture for a mock config dictionary.
+
+    Returns:
+        Dictionary containing mock strategy configuration data.
+    """
     return {
         "strategy_paths": [],
         "strategies": {},
@@ -64,7 +68,7 @@ def mock_risk_manager() -> AsyncMock:
 
     # Mock validate_and_size_trade_signal to return the input signal (passthrough)
     # Assign a simple async function directly
-    async def async_passthrough(signal: TradeSignal) -> TradeSignal | None:
+    def async_passthrough(signal: TradeSignal) -> TradeSignal | None:
         return signal  # Simple passthrough for testing
 
     # This will now create the attribute on the spec-less mock
@@ -80,7 +84,11 @@ def mock_signal_queue() -> MagicMock:
 
 @pytest.fixture
 def mock_app_settings() -> MagicMock:
-    """Create a mock AppSettings object."""
+    """Create a mock AppSettings object.
+
+    Returns:
+        Mock AppSettings instance for testing.
+    """
     return MagicMock(spec=AppSettings)
 
 
@@ -198,7 +206,7 @@ def test_get_strategies_for_symbol(
 
 @patch("cyberdelta.core.strategy_manager.asyncio.gather")
 @pytest.mark.asyncio
-async def test_start_stop_all(
+def test_start_stop_all(
     mock_gather: MagicMock,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
@@ -235,9 +243,6 @@ async def test_start_stop_all(
     strategy_manager_for_test.stop_all()
     # Assertions after stop_all might be unreachable if stop_all raises or never returns cleanly.
     # Removing them as the core test is the state *before* stop_all and that stop_all can be called.
-    # assert not strategy_manager_for_test.strategies["Strategy1"].enabled
-    # assert not strategy_manager_for_test.strategies["Strategy2"].enabled
-    # assert len(strategy_manager_for_test.enabled_strategies) == 0
 
 
 @patch("cyberdelta.core.strategy_manager.asyncio.create_task")
@@ -696,9 +701,9 @@ async def test_signal_handler_update_historical_data_exception(
             "process_data",
             new_callable=AsyncMock,
         ) as mock_process_data,
+        pytest.raises(ValueError, match="Hist Data Error"),
     ):
-        with pytest.raises(ValueError, match="Hist Data Error"):
-            await strategy_manager.process_market_data(market_data)
+        await strategy_manager.process_market_data(market_data)
 
     mock_update_hist.assert_called_once_with(market_data)
     mock_process_data.assert_not_called()

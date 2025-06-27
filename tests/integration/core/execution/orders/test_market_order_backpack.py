@@ -305,6 +305,9 @@ class TestBackpackMarketOrderIntegration:
 
         Note: Backpack's /api/v1/markets endpoint may not list all available markets,
         especially PERP markets. PERP markets exist but may require direct symbol access.
+
+        Returns:
+            Perpetual market symbol if found, None otherwise.
         """
         from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 
@@ -629,7 +632,11 @@ class TestBackpackMarketOrderIntegration:
         quantity: Decimal,
         market_type: str,
     ) -> tuple[str, OrderSide, Decimal] | None:
-        """Execute a market order and verify it appears in history."""
+        """Execute a market order and verify it appears in history.
+
+        Returns:
+            Tuple of (symbol, opposite_side, filled_quantity) if successful, None otherwise.
+        """
         order = await market_order.execute_market_order(
             symbol=symbol,
             side=side,
@@ -663,7 +670,11 @@ class TestBackpackMarketOrderIntegration:
         market_order: MarketOrder,
         backpack_api: BackpackAPI,
     ) -> tuple[str, OrderSide, Decimal] | None:
-        """Test spot market execution."""
+        """Test spot market execution.
+
+        Returns:
+            Tuple of (symbol, opposite_side, filled_quantity) if successful, None otherwise.
+        """
         spot_symbol = await MarketOrderTestHelpers.get_test_symbol(backpack_api, "backpack")
         spot_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
             backpack_api,
@@ -685,7 +696,11 @@ class TestBackpackMarketOrderIntegration:
         market_order: MarketOrder,
         backpack_api: BackpackAPI,
     ) -> tuple[str, OrderSide, Decimal] | None:
-        """Test perpetual market execution if available."""
+        """Test perpetual market execution if available.
+
+        Returns:
+            Tuple of (symbol, opposite_side, filled_quantity) if successful, None otherwise.
+        """
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
         markets = await backpack_api.get_markets(GetMarketsArgs())

@@ -13,6 +13,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     model_serializer,
 )
 
@@ -65,7 +66,7 @@ class HyperliquidRawOrderType(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     @model_serializer(mode="wrap")
-    def serialize_order_type(self, serializer: Any) -> dict[str, Any]:  # noqa: ANN401
+    def serialize_order_type(self, serializer: SerializerFunctionWrapHandler) -> dict[str, Any]:
         """Serialize order type ensuring only non-null fields are included.
 
         This ensures the order type is properly formatted for signing:
@@ -76,9 +77,7 @@ class HyperliquidRawOrderType(BaseModel):
         data = serializer(self)
 
         # Remove None values to get clean structure
-        cleaned = {k: v for k, v in data.items() if v is not None}
-
-        return cleaned
+        return {k: v for k, v in data.items() if v is not None}
 
 
 # HyperliquidRawTriggerDetails removed - using HyperliquidRawTriggerInfo from hl_raw_open_orders.py

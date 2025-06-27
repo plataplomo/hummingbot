@@ -50,8 +50,7 @@ class PerformanceMetricsCalculator:
 
         # Convert numpy result to Decimal for final calculation
         sqrt_periods = Decimal(str(np.sqrt(periods_per_year)))
-        annualized_sharpe_ratio = Decimal(str(sharpe_ratio)) * sqrt_periods
-        return annualized_sharpe_ratio
+        return Decimal(str(sharpe_ratio)) * sqrt_periods
 
     @staticmethod
     def calculate_sortino_ratio(
@@ -97,8 +96,7 @@ class PerformanceMetricsCalculator:
 
         # Convert numpy result to Decimal
         sqrt_periods = Decimal(str(np.sqrt(periods_per_year)))
-        annualized_sortino_ratio = Decimal(str(sortino_ratio)) * sqrt_periods
-        return annualized_sortino_ratio
+        return Decimal(str(sortino_ratio)) * sqrt_periods
 
     @staticmethod
     def calculate_max_drawdown(returns: pd.Series[float]) -> Decimal:
@@ -142,8 +140,7 @@ class PerformanceMetricsCalculator:
             return Decimal("Infinity") if mean_annual_return > 0 else Decimal("0.0")
 
         # Calculate ratio using Decimal arithmetic
-        calmar_ratio = mean_annual_return / abs(max_drawdown)
-        return calmar_ratio
+        return mean_annual_return / abs(max_drawdown)
 
     @staticmethod
     def calculate_win_rate(trades: pd.DataFrame) -> Decimal:
@@ -168,8 +165,7 @@ class PerformanceMetricsCalculator:
         if total_trades == 0:
             return Decimal("0.0")
 
-        win_rate = (Decimal(str(len(winning_trades))) / Decimal(str(total_trades))) * Decimal(100)
-        return win_rate
+        return (Decimal(str(len(winning_trades))) / Decimal(str(total_trades))) * Decimal(100)
 
     @staticmethod
     def calculate_profit_factor(trades: pd.DataFrame) -> Decimal:

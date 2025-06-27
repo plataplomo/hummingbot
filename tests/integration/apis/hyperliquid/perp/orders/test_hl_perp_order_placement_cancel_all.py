@@ -438,7 +438,11 @@ class TestHyperliquidPerpOrdersComprehensive:
         self,
         cancel_results: list[CancelOrderResult | BaseException],
     ) -> dict[str, int]:
-        """Process cancellation results and return success/failure counts."""
+        """Process cancellation results and return success/failure counts.
+
+        Returns:
+            Dict with 'successful' and 'failed' cancellation counts
+        """
         successful_cancellations = 0
         failed_cancellations = 0
 
@@ -499,7 +503,11 @@ class TestHyperliquidPerpOrdersComprehensive:
         cancel_results: list[CancelOrderResult],
         initial_order_ids: set[str],
     ) -> dict[str, Any]:
-        """Validate cancel_all results and categorize by success/failure."""
+        """Validate cancel_all results and categorize by success/failure.
+
+        Returns:
+            Dict with validation results and categorized cancel results
+        """
         successful_results: list[CancelOrderResult] = []
         failed_results: list[CancelOrderResult] = []
 

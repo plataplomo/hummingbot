@@ -276,8 +276,7 @@ class HyperliquidWsRawMessageHandler:
         """
         try:
             # HyperliquidRawAllMids is a RootModel, expects the dict itself
-            validated_model = HyperliquidRawAllMids.model_validate(payload)
-            return validated_model
+            return HyperliquidRawAllMids.model_validate(payload)
         except ValidationError as e:
             logger.error(
                 "invalid_all_mids_ws_payload",

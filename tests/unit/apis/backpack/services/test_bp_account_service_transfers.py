@@ -150,8 +150,8 @@ class TestBackpackAccountServiceTransfers:
             client_transfer_id=None,
         )
         mock_http_client_requester.assert_called_once()
-        _call_pos_args, call_kwargs = mock_http_client_requester.call_args
-        assert not _call_pos_args
+        call_pos_args, call_kwargs = mock_http_client_requester.call_args
+        assert not call_pos_args
         assert call_kwargs.get("method") == "POST"
         assert call_kwargs.get("endpoint") == "/api/v1/capital/transfer"
         assert call_kwargs.get("data") == expected_payload_to_requester
@@ -216,8 +216,8 @@ class TestBackpackAccountServiceTransfers:
             client_transfer_id=None,
         )
         mock_http_client_requester.assert_called_once()
-        _call_pos_args, call_kwargs = mock_http_client_requester.call_args
-        assert not _call_pos_args
+        call_pos_args, call_kwargs = mock_http_client_requester.call_args
+        assert not call_pos_args
         assert call_kwargs.get("method") == "POST"
         assert call_kwargs.get("endpoint") == "/api/v1/capital/transfer"
         assert call_kwargs.get("data") == expected_payload_to_requester

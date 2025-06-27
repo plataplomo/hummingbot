@@ -147,11 +147,8 @@ class SignalGenerator:
                             f"(maps to {exchange_symbol})"
                         ),
                     )
-                # else: # No need to log missing mappings, it's expected
                 #    logger.debug(
-                #        f"  No mapping found for {internal_symbol} on {exchange_id}, "
                 #        f"skipping funding deque."
-                #    )
 
         # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
@@ -166,8 +163,6 @@ class SignalGenerator:
             )
 
         # Log the final structure for verification
-        # logger.debug(f"Final historical_funding_rates structure: {self.historical_funding_rates}")
-        # logger.debug(f"Final historical_basis structure: {self.historical_basis}")
 
         logger.info(
             "data_structures_initialized",
@@ -402,8 +397,6 @@ class SignalGenerator:
 
         if internal_symbol not in self.historical_funding_rates[exchange]:
             # logger.debug(
-            #    f"No funding data for {internal_symbol} on {exchange}. Returning default."
-            # )
             return Decimal("0.0001")  # Default funding volatility
 
         history_deque = self.historical_funding_rates[exchange][internal_symbol]
@@ -465,9 +458,7 @@ class SignalGenerator:
         history_deque = self.historical_basis[symbol]
         if len(history_deque) < 2:
             # logger.debug(
-            #    f"Insufficient historical basis data for {symbol} (need >= 2). "
             #    f"Returning default."
-            # )
             return Decimal("0.01")  # Default volatility
 
         basis_values = [basis for _, basis in history_deque]
@@ -533,10 +524,8 @@ class SignalGenerator:
             slippage_data = self.historical_slippage[exchange][symbol]
             if slippage_data and len(slippage_data) > 0:
                 # Calculate average slippage from historical data (result is Decimal)
-                avg_slippage = sum(slippage_data) / Decimal(len(slippage_data))
+                return sum(slippage_data) / Decimal(len(slippage_data))
                 # Removed redundant check: if not isinstance(avg_slippage, Decimal):
-                # avg_slippage = Decimal(str(avg_slippage))
-                return avg_slippage
 
         # TODO: Add exchange-specific slippage configuration to AppSettings when needed
         base_slippage = self.default_slippage  # Use default slippage for all exchanges

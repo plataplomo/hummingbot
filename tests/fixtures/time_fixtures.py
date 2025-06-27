@@ -48,11 +48,11 @@ def frozen_time(freezer: FreezerProtocol) -> Generator[FreezerProtocol]:
             assert datetime.now(UTC).hour == 12
 
     Yields:
-        FreezerProtocol: The freezer instance for time control
+        FreezerProtocol: The freezer instance for time control.
     """
     # Start at a deterministic time for consistency
     freezer.move_to("2024-01-01 00:00:00+00:00")
-    return freezer
+    yield freezer
 
 
 @pytest.fixture
@@ -74,7 +74,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
                 pass
 
     Yields:
-        Callable: Factory function for creating time mocks
+        Callable[..., Any]: Factory function for creating time mocks.
     """
 
     def create_time_mock(
@@ -114,7 +114,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         mock_datetime.utcnow = MagicMock(return_value=now.replace(tzinfo=None))
         return patch(module_path, mock_datetime)
 
-    return create_time_mock
+    yield create_time_mock
 
 
 @pytest.fixture
@@ -130,7 +130,7 @@ def mock_time_patch() -> Generator[MagicMock]:
             # Test auth signature generation
 
     Yields:
-        MagicMock: The time.time mock
+        MagicMock: The time.time mock.
     """
     with patch("time.time", return_value=1678886400.0) as mock_time:
         yield mock_time
@@ -152,7 +152,7 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
         freezer: Time freezing protocol for time manipulation
 
     Yields:
-        Callable: Function to set market time
+        Callable[..., None]: Function to set market time.
     """
 
     def set_market_time(
@@ -182,7 +182,7 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
         target_time = datetime(year, month, day, hour, minute, second, tzinfo=ZoneInfo(timezone))
         freezer.move_to(target_time)
 
-    return set_market_time
+    yield set_market_time
 
 
 @pytest.fixture
@@ -199,7 +199,7 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
             # Make another request
 
     Yields:
-        Callable: Function to advance time
+        Callable[..., None]: Function to advance time.
     """
 
     def advance_time(
@@ -229,4 +229,4 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
         # Move to new time
         freezer.move_to(current + total_advance)
 
-    return advance_time
+    yield advance_time

@@ -41,10 +41,17 @@ def vcr_config() -> dict[str, Any]:
     Provides comprehensive configuration for recording and playing back HTTP interactions,
     with robust filtering for sensitive data including authentication tokens, signatures,
     timestamps, and personal information.
+
+    Returns:
+        dict[str, Any]: VCR configuration dictionary with filtering functions.
     """
 
     def filter_request_body(request: VCRRequest) -> VCRRequest:
-        """Filter and sanitize request body content for VCR cassette recording."""
+        """Filter and sanitize request body content for VCR cassette recording.
+
+        Returns:
+            VCRRequest: The request with sanitized body content.
+        """
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
             request_body: Any = request.body
@@ -78,7 +85,11 @@ def vcr_config() -> dict[str, Any]:
         return request
 
     def filter_response_body(response: VCRResponse) -> VCRResponse:
-        """Filter and sanitize response body content for VCR cassette recording."""
+        """Filter and sanitize response body content for VCR cassette recording.
+
+        Returns:
+            VCRResponse: The response with sanitized body content.
+        """
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
             # user credentials, but this hook is available for future use
@@ -206,6 +217,9 @@ def custom_vcr_config(vcr_config: dict[str, Any], request: pytest.FixtureRequest
         @pytest.mark.vcr
         async def test_something(custom_vcr_config):
             ...
+
+    Returns:
+        dict[str, Any]: VCR configuration with custom cassette directory.
     """
     # Make a copy of the base config
     config = vcr_config.copy()
@@ -232,6 +246,9 @@ def vcr_cassette_dir(request: pytest.FixtureRequest) -> str:
         @pytest.mark.vcr
         async def test_backpack_public_endpoint(vcr_cassette_dir):
             ...
+
+    Returns:
+        str: Path to the cassette directory.
     """
     if hasattr(request, "param"):
         # Create the full path

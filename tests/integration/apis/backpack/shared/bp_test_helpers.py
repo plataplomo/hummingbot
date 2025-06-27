@@ -90,9 +90,6 @@ async def wait_for_value(
 
     Returns:
         The expected value once obtained
-
-    Raises:
-        TimeoutError: If expected value is not obtained within timeout
     """
     if message is None:
         message = f"Expected value {expected_value} not obtained"
@@ -287,7 +284,7 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
                 "Failed to get markets from exchange. Tests require access to real market data.",
             )
 
-        mapping = {
+        return {
             "available_symbols": [m.symbol for m in markets],
             "spot_symbols": [
                 m.symbol
@@ -315,8 +312,6 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
                 for m in markets
             },
         }
-
-        return mapping
 
     except Exception as e:
         raise RuntimeError(
@@ -376,6 +371,9 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
     Returns:
         Tick size for the symbol (price precision)
 
+    Raises:
+        RuntimeError: If symbol is not found or API call fails.
+
     Example:
         >>> tick_size = await get_symbol_tick_size(api, "SOL-USDC")
         >>> # Returns Decimal("0.01") for 2 decimal places
@@ -412,6 +410,9 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
 
     Returns:
         Step size for the symbol (quantity precision)
+
+    Raises:
+        RuntimeError: If symbol is not found or API call fails.
     """
     try:
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
@@ -451,6 +452,9 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         - max_quantity: Maximum order size (if available)
         - min_price: Minimum price (if available)
         - max_price: Maximum price (if available)
+
+    Raises:
+        RuntimeError: If API call fails or constraints cannot be retrieved.
     """
     try:
         from cyberdelta.apis.models.service_args_models import GetMarketArgs
@@ -534,6 +538,10 @@ async def get_dynamic_test_price(
 
     Returns:
         Test price quantized to proper tick size
+
+    Raises:
+        ValueError: If unable to determine market price for the symbol.
+        RuntimeError: If failed to get dynamic test price or real market data cannot be obtained.
 
     Example:
         >>> # For SOL-USDC at $150, BUY side with 5% tolerance
@@ -627,11 +635,15 @@ async def get_minimal_order_size_for_zero_balance_test(
         ) from e
 
 
-async def _get_quote_currency_balance(
+def _get_quote_currency_balance(
     balances: dict[str, SpotBalance],
     quote_currency: str,
 ) -> tuple[SpotBalance | None, str]:
-    """Get balance object for quote currency, handling alternative names."""
+    """Get balance object for quote currency, handling alternative names.
+
+    Returns:
+        tuple[SpotBalance | None, str]: Balance object and currency name, or None and currency.
+    """
     if quote_currency in balances:
         return balances[quote_currency], quote_currency
     if quote_currency == "USDC" and "USD" in balances:
@@ -671,7 +683,11 @@ async def _check_buy_order_balance(
     min_quantity: Decimal,
     price: Decimal,
 ) -> None:
-    """Check if there's sufficient balance for a buy order."""
+    """Check if there's sufficient balance for a buy order.
+
+    Raises:
+        RuntimeError: If no balance available for the quote currency or insufficient balance.
+    """
     # Extract quote currency from symbol using existing helper
     _, quote_currency = get_base_quote_assets(symbol)
 
@@ -679,7 +695,7 @@ async def _check_buy_order_balance(
     balances = await api.get_balances()
 
     # Check if quote currency exists in balances
-    balance_obj, found_currency = await _get_quote_currency_balance(balances, quote_currency)
+    balance_obj, found_currency = _get_quote_currency_balance(balances, quote_currency)
 
     if balance_obj:
         total_balance = balance_obj.total_quantity
@@ -804,6 +820,9 @@ async def validate_order_constraints(
         - quantity_valid: Quantity meets step size requirements
         - size_valid: Quantity meets min/max requirements
         - price_range_valid: Price within min/max range
+
+    Raises:
+        RuntimeError: If failed to validate order constraints for the symbol.
     """
     try:
         constraints = await get_market_constraints(api, symbol)
@@ -1071,6 +1090,9 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
 
     Returns:
         True if auto-lending is likely active
+
+    Raises:
+        RuntimeError: If failed to detect auto-lending status.
     """
     try:
         # Check spot balances
@@ -1087,14 +1109,12 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
                 return True
 
         # Additional check: look for lend_quantity in bp_details
-        has_lending = any(
+        return any(
             balance.bp_details
             and balance.bp_details.lend_quantity
             and balance.bp_details.lend_quantity > Decimal(0)
             for balance in spot_balances.values()
         )
-
-        return has_lending
 
     except Exception as e:
         raise RuntimeError(
@@ -1111,6 +1131,9 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
 
     Returns:
         Dict mapping asset to balance details including lent amounts
+
+    Raises:
+        RuntimeError: If failed to get balances with lending information.
     """
     try:
         # Get regular spot balances
@@ -1181,12 +1204,16 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         - maintenance_margin_factor: MMF from exchange
         - has_positions: Whether account has positions
         - has_open_orders: Whether account has open orders
+
+    Raises:
+        ValueError: If failed to parse initial or maintenance margin factors.
+        RuntimeError: If failed to get margin parameters from the exchange.
     """
     try:
         # Get account summary which includes margin info
         account_summary = await api.get_account_summary()
 
-        params: dict[str, Decimal | None | bool] = {
+        params: dict[str, Decimal | bool | None] = {
             "margin_fraction": None,
             "initial_margin_factor": None,
             "maintenance_margin_factor": None,
@@ -1263,7 +1290,7 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         ) from e
 
 
-async def validate_margin_consistency(
+def validate_margin_consistency(
     api: BackpackAPI,
     account_summary: MarginAccountSummary,
 ) -> dict[str, bool]:
@@ -1397,6 +1424,9 @@ async def get_unreasonably_large_price(
 
     Returns:
         Price that's too high for typical test accounts
+
+    Raises:
+        RuntimeError: If failed to get unreasonably large price for the symbol.
     """
     try:
         current_price = await get_current_market_price(api, symbol)
@@ -1425,6 +1455,9 @@ async def get_unreasonably_large_quantity(
 
     Returns:
         Quantity that's too large for typical test accounts
+
+    Raises:
+        RuntimeError: If failed to get unreasonably large quantity for the symbol.
     """
     try:
         constraints = await get_market_constraints(api, symbol)

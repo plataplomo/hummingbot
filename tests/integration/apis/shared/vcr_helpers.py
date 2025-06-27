@@ -15,7 +15,14 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def vcr_cassette_dir(request: FixtureRequest, custom_vcr_cassette_dir: str | None = None) -> str:
-    """Dynamic VCR cassette directory based on test location."""
+    """Dynamic VCR cassette directory based on test location.
+
+    Returns:
+        Directory path for VCR cassettes
+
+    Raises:
+        ValueError: If unable to determine test module or file path.
+    """
     if custom_vcr_cassette_dir:
         return custom_vcr_cassette_dir
 
@@ -34,19 +41,31 @@ def vcr_cassette_dir(request: FixtureRequest, custom_vcr_cassette_dir: str | Non
 
 @pytest.fixture
 def spot_test_symbols() -> list[str]:
-    """Common spot trading symbols for testing."""
+    """Common spot trading symbols for testing.
+
+    Returns:
+        List of spot trading symbols
+    """
     return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
 
 
 @pytest.fixture
 def perp_test_symbols() -> list[str]:
-    """Common perp symbols for testing."""
+    """Common perp symbols for testing.
+
+    Returns:
+        List of perpetual futures symbols
+    """
     return ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
 
 
 @pytest.fixture
 def precision_test_amounts() -> list[Decimal]:
-    """Test amounts for precision validation."""
+    """Test amounts for precision validation.
+
+    Returns:
+        List of Decimal amounts for testing precision
+    """
     return [
         Decimal("0.00000001"),  # Dust
         Decimal("0.1"),  # Small

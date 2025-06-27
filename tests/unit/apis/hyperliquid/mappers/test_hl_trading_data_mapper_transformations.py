@@ -517,7 +517,7 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.side_effect = ValueError("Parse error")
 
-        with pytest.raises(TransformationError, match="Failed to transform.*HistoricalOrder"):
+        with pytest.raises(TransformationError, match=r"Failed to transform.*HistoricalOrder"):
             trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_edge_case_zero_remaining_sz(

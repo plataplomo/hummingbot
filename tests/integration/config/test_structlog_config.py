@@ -29,7 +29,11 @@ class TestStructlogConfiguration:
         log_level: str = "INFO",
         log_file: str | None = None,
     ) -> AppSettings:
-        """Create minimal AppSettings for testing."""
+        """Create minimal AppSettings for testing.
+
+        Returns:
+            AppSettings instance configured with minimal test configuration.
+        """
         config_data: dict[str, Any] = {
             "general": {
                 "log_level": log_level,
@@ -128,14 +132,13 @@ class TestStructlogConfiguration:
 
             # Verify file was created and contains JSON
             assert log_file_path.exists()
-            with open(log_file_path) as f:
-                content = f.read().strip()
-                if content:  # File might be empty depending on buffering
-                    # Should be valid JSON
-                    log_entry = json.loads(content.split("\n")[0])
-                    assert "test_message" in log_entry.get("event", "")
-                    assert log_entry.get("action") == "test"
-                    assert log_entry.get("value") == 42
+            content = log_file_path.read_text().strip()
+            if content:  # File might be empty depending on buffering
+                # Should be valid JSON
+                log_entry = json.loads(content.split("\n")[0])
+                assert "test_message" in log_entry.get("event", "")
+                assert log_entry.get("action") == "test"
+                assert log_entry.get("value") == 42
 
 
 class TestStructlogProcessors:
@@ -312,7 +315,12 @@ class TestStructuredLogging:
             assert entry.get("session") == "sess_456"
 
     def test_exception_logging(self) -> None:
-        """Test that exceptions are logged correctly."""
+        """Test that exceptions are logged correctly.
+
+        Raises:
+            ValueError: Test exception that is intentionally raised and caught for logging
+                verification.
+        """
         cap = structlog.testing.LogCapture()
         structlog.configure(logger_factory=lambda: cap)
 
@@ -370,24 +378,27 @@ class TestFileLogging:
 
             # Read and verify JSON structure
             if log_file_path.exists():
-                with open(log_file_path) as f:
-                    content = f.read().strip()
-                    if content:  # File might be empty due to buffering
-                        lines = content.split("\n")
-                        for line in lines:
-                            if line.strip():
-                                log_entry = json.loads(line)
-                                assert isinstance(log_entry, dict)
-                                assert "timestamp" in log_entry
-                                # No ANSI codes should be present in file output
-                                assert "\x1b[" not in json.dumps(log_entry)
+                content = log_file_path.read_text().strip()
+                if content:  # File might be empty due to buffering
+                    lines = content.split("\n")
+                    for line in lines:
+                        if line.strip():
+                            log_entry = json.loads(line)
+                            assert isinstance(log_entry, dict)
+                            assert "timestamp" in log_entry
+                            # No ANSI codes should be present in file output
+                            assert "\x1b[" not in json.dumps(log_entry)
 
     def create_minimal_app_settings(
         self,
         log_level: str = "INFO",
         log_file: str | None = None,
     ) -> AppSettings:
-        """Create minimal AppSettings for testing."""
+        """Create minimal AppSettings for testing.
+
+        Returns:
+            AppSettings instance configured with minimal test configuration.
+        """
         config_data: dict[str, Any] = {
             "general": {
                 "log_level": log_level,

@@ -72,7 +72,11 @@ def mock_config_dict() -> dict[str, Any]:
 
 @fixture
 def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
-    """Create a mock AppSettings object for testing."""
+    """Create a mock AppSettings object for testing.
+
+    Returns:
+        MagicMock: Mock AppSettings object with nested risk configuration attributes.
+    """
     # Don't use spec=AppSettings since we need to mock nested attributes
     mock = MagicMock()
 
@@ -171,7 +175,11 @@ def mock_circuit_breaker_system() -> MagicMock:
 
 @fixture
 def mock_circuit_breaker() -> MagicMock:
-    """Create a mock CircuitBreakerSystem."""
+    """Create a mock CircuitBreakerSystem.
+
+    Returns:
+        MagicMock: Mock circuit breaker system for risk management testing.
+    """
     # Define the methods expected by RiskManager based on CircuitBreakerSystem definition
     # Use autospec=True to automatically create the spec from the class
     cb = MagicMock(spec=CircuitBreakerSystem, autospec=True)
@@ -182,14 +190,26 @@ def mock_circuit_breaker() -> MagicMock:
 
 @fixture
 def mock_funding_validator() -> MagicMock:
-    """Create a mock FundingRateValidator."""
+    """Create a mock FundingRateValidator.
+
+    Returns:
+        MagicMock: Mock funding rate validator with high-confidence symbol metrics.
+    """
     from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
     fv = MagicMock(spec=FundingRateValidator)
 
     # Always return high-confidence metrics for any call
     def symbol_metrics_side_effect(exchange: str, symbol: str) -> dict[str, float]:
-        """Handle symbol metrics side effect for testing."""
+        """Handle symbol metrics side effect for testing.
+
+        Args:
+            exchange: Exchange name
+            symbol: Trading symbol
+
+        Returns:
+            Symbol metrics with zero RMSE and bias for high confidence.
+        """
         return {"rmse": 0.0, "bias": 0.0}
 
     fv.get_symbol_metrics.side_effect = symbol_metrics_side_effect
@@ -198,7 +218,11 @@ def mock_funding_validator() -> MagicMock:
 
 @fixture
 def mock_data_handler() -> MagicMock:
-    """Create a mock data handler for testing."""
+    """Create a mock data handler for testing.
+
+    Returns:
+        MagicMock: Mock data handler with market data retrieval methods.
+    """
     # Import locally
     from cyberdelta.core.data_handler import DataHandler
 
@@ -217,19 +241,26 @@ def risk_manager(
     mock_circuit_breaker_system: CircuitBreakerSystemProtocol,
     mock_funding_validator: FundingRateValidatorProtocol,
 ) -> RiskManager:
-    """Create a RiskManager instance with mocked dependencies."""
-    rm = RiskManager(
+    """Create a RiskManager instance with mocked dependencies.
+
+    Returns:
+        RiskManager: Risk manager instance configured with mock dependencies for testing.
+    """
+    return RiskManager(
         app_settings=mock_config,
         portfolio_tracker=mock_portfolio_tracker,
         circuit_breaker_system=mock_circuit_breaker_system,
         funding_rate_validator=mock_funding_validator,
     )
-    return rm
 
 
 @fixture
 def sample_opportunity_dict() -> dict[str, Any]:
-    """Create sample opportunity dict for testing."""
+    """Create sample opportunity dict for testing.
+
+    Returns:
+        dict[str, Any]: Sample arbitrage opportunity data dictionary.
+    """
     now = datetime.now(UTC)
     return {
         "symbol": "BTC-PERP",
@@ -252,12 +283,20 @@ def sample_opportunity_dict() -> dict[str, Any]:
 
 @fixture
 def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOpportunity:
-    """Create sample opportunity for testing."""
+    """Create sample opportunity for testing.
+
+    Returns:
+        ArbitrageOpportunity: Sample arbitrage opportunity instance for testing.
+    """
     return ArbitrageOpportunity(**sample_opportunity_dict)
 
 
 def mock_get_config(key: str, default: object = None) -> object | None:
-    """Mock function for Config.get."""
+    """Mock function for Config.get.
+
+    Returns:
+        object | None: Configuration value for the specified key, or default if not found.
+    """
     config_values = {
         # Global Risk
         "risk.global.max_position_usd": "1000.0",

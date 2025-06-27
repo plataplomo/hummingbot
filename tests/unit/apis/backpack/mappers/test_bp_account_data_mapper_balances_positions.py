@@ -35,7 +35,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance."""
+    """Fixture providing a BackpackAccountDataMapper instance.
+
+    Returns:
+        BackpackAccountDataMapper: Mapper instance for testing.
+    """
     return BackpackAccountDataMapper()
 
 
@@ -44,7 +48,11 @@ def create_raw_balance(
     locked: str = "50.0",
     staked: str = "50.0",
 ) -> BackpackRawBalance:
-    """Create BackpackRawBalance instances for testing."""
+    """Create BackpackRawBalance instances for testing.
+
+    Returns:
+        BackpackRawBalance: Raw balance object for testing.
+    """
     return BackpackRawBalance(
         available=available,
         locked=locked,
@@ -71,7 +79,11 @@ def create_raw_position(
     position_id: str = "pos123",
     cumulative_interest: str = "0.0",
 ) -> BackpackRawPosition:
-    """Create BackpackRawPosition instances for testing."""
+    """Create BackpackRawPosition instances for testing.
+
+    Returns:
+        BackpackRawPosition: Raw position object for testing.
+    """
     # Create minimal IMF and MMF function objects with correct parameters
     imf_function = BackpackRawImfFunction(
         base="0.1",
@@ -122,7 +134,11 @@ def create_raw_account_summary(
     spot_taker_fee: str = "0.001",
     trigger_orders: int = 50,
 ) -> BackpackRawAccountSummary:
-    """Create BackpackRawAccountSummary instances for testing."""
+    """Create BackpackRawAccountSummary instances for testing.
+
+    Returns:
+        BackpackRawAccountSummary: Raw account summary object for testing.
+    """
     return BackpackRawAccountSummary.model_validate(
         {
             "autoBorrowSettlements": auto_borrow_settlements,

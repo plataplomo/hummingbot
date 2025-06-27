@@ -40,7 +40,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance."""
+    """Fixture providing a BackpackAccountDataMapper instance.
+
+    Returns:
+        BackpackAccountDataMapper: A mapper instance for testing.
+    """
     return BackpackAccountDataMapper()
 
 
@@ -50,7 +54,11 @@ def create_raw_transfer_response(
     message: str | None = None,
     timestamp: str | None = "1678886400000",
 ) -> RawJsonResponse:
-    """Create raw transfer response dictionaries for testing account operations."""
+    """Create raw transfer response dictionaries for testing account operations.
+
+    Returns:
+        RawJsonResponse: Raw transfer response dictionary for testing.
+    """
     response: dict[str, str | int | float | bool | None] = {
         "id": transfer_id,
         "status": status,
@@ -64,7 +72,11 @@ def create_raw_transfer_response(
 
 
 def _create_base_withdrawal_data(**kwargs: str | float | bool | None) -> dict[str, Any]:
-    """Create base withdrawal data dictionary."""
+    """Create base withdrawal data dictionary.
+
+    Returns:
+        dict[str, Any]: Base withdrawal data dictionary.
+    """
     defaults: dict[str, Any] = {
         "id": 123,
         "status": "confirmed",
@@ -105,7 +117,11 @@ def _add_optional_withdrawal_fields(
     data: dict[str, Any],
     **optional_fields: str | float | bool | None,
 ) -> dict[str, Any]:
-    """Add optional fields to withdrawal data if they are not None."""
+    """Add optional fields to withdrawal data if they are not None.
+
+    Returns:
+        Updated withdrawal data dict with non-None optional fields
+    """
     for key, value in optional_fields.items():
         if value is not None:
             data[key] = value
@@ -115,7 +131,11 @@ def _add_optional_withdrawal_fields(
 def create_raw_withdrawal_response(
     **kwargs: str | float | bool | None,
 ) -> BackpackRawWithdrawalResponse:
-    """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations."""
+    """Create BackpackRawWithdrawalResponse instances for testing withdrawal operations.
+
+    Returns:
+        BackpackRawWithdrawalResponse instance for testing
+    """
     # Create base data with defaults
     raw_data = _create_base_withdrawal_data(**kwargs)
 
@@ -150,7 +170,11 @@ def create_raw_fill(
     order_id: str = "order123",
     client_id: str | None = "client123",
 ) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fill data mapping."""
+    """Create BackpackRawFill instances for testing fill data mapping.
+
+    Returns:
+        BackpackRawFill: Test fill instance with specified parameters.
+    """
     return BackpackRawFill(
         tradeId=trade_id,
         symbol=symbol,
@@ -181,7 +205,11 @@ def create_raw_position_update(
     Q: str | None = "10.0",  # netExposureQuantity
     n: str | None = "1000.0",  # netExposureNotional
 ) -> BackpackRawPositionUpdate:
-    """Create BackpackRawPositionUpdate instances for testing."""
+    """Create BackpackRawPositionUpdate instances for testing.
+
+    Returns:
+        BackpackRawPositionUpdate: Test position update instance with specified parameters.
+    """
     return BackpackRawPositionUpdate(
         e=event_type,
         E=event_time,

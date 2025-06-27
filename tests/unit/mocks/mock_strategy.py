@@ -49,7 +49,11 @@ class MockStrategy(Strategy):
         await asyncio.sleep(0)  # Yield control
 
     async def process_data(self, data: Candle) -> list[TradeSignal] | None:
-        """Mock data processing method."""
+        """Mock data processing method.
+
+        Returns:
+            None for mock strategy testing
+        """
         self.process_data_async_called_with = data
         logger.debug(f"{self.name} processed data: {data.symbol} (mock)")
         return None

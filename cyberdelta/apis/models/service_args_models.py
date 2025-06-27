@@ -80,9 +80,8 @@ class PlaceOrderArgs(BaseModel):
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=not is_required)
         if parsed is None and is_required:
             raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
-        if parsed is not None:
-            if not parsed.is_finite():
-                raise ValueError(f"Field '{field_name}' must be a finite decimal, got {v}.")
+        if parsed is not None and not parsed.is_finite():
+            raise ValueError(f"Field '{field_name}' must be a finite decimal, got {v}.")
             # Positivity (gt=0) is handled by Field constraint AFTER this validator.
         return parsed
 
@@ -302,9 +301,8 @@ class GetOrderHistoryArgs(BaseModel):
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
-            int_val = int(v)
+            return int(v)
             # Positivity (gt=0) is handled by Field constraint
-            return int_val
         except ValueError as e:
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
@@ -351,9 +349,8 @@ class GetMarketDataArgs(BaseModel):
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
-            int_val = int(v)
+            return int(v)
             # Positivity (gt=0) is handled by Field constraint
-            return int_val
         except ValueError as e:
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
@@ -509,9 +506,8 @@ class GetTradeHistoryArgs(BaseModel):
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' must be an integer or convertible.")
         try:
-            int_val = int(v)
+            return int(v)
             # Positivity (gt=0) is handled by Field constraint.
-            return int_val
         except ValueError as e:
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
@@ -584,7 +580,6 @@ class GetOrderArgs(BaseModel):
         """
         if self.symbol is None:
             # Log a debug message or warning if symbol is often needed but not provided.
-            # logger.debug(f"GetOrderArgs created without a symbol for order_id {self.order_id}")
             pass
         return self
 
@@ -648,8 +643,7 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         if not isinstance(v, int | str | float):
             raise ValueError(f"Field '{info.field_name!s}' must be an integer or convertible.")
         try:
-            int_val = int(v)
-            return int_val
+            return int(v)
         except ValueError as e:
             msg = f"Field '{info.field_name!s}' could not be converted to int: {v}"
             raise ValueError(msg) from e

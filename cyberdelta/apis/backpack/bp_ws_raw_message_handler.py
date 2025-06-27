@@ -60,8 +60,7 @@ class BackpackWsRawMessageHandler:
 
         """
         try:
-            validated_model = BackpackRawDepthUpdateEvent.model_validate(payload)
-            return validated_model
+            return BackpackRawDepthUpdateEvent.model_validate(payload)
         except ValidationError as e:
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -92,8 +91,7 @@ class BackpackWsRawMessageHandler:
 
         """
         try:
-            validated_model = BackpackRawTickerEvent.model_validate(payload)
-            return validated_model
+            return BackpackRawTickerEvent.model_validate(payload)
         except ValidationError as e:
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -124,8 +122,7 @@ class BackpackWsRawMessageHandler:
 
         """
         try:
-            validated_model = BackpackRawPublicTradeEvent.model_validate(payload)
-            return validated_model
+            return BackpackRawPublicTradeEvent.model_validate(payload)
         except ValidationError as e:
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -156,8 +153,7 @@ class BackpackWsRawMessageHandler:
 
         """
         try:
-            validated_model = BackpackRawOrderUpdate.model_validate(payload)
-            return validated_model
+            return BackpackRawOrderUpdate.model_validate(payload)
         except ValidationError as e:
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -189,8 +185,7 @@ class BackpackWsRawMessageHandler:
 
         """
         try:
-            validated_model = BackpackRawPositionUpdate.model_validate(payload)
-            return validated_model
+            return BackpackRawPositionUpdate.model_validate(payload)
         except ValidationError as e:
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,

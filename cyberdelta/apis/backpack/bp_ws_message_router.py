@@ -132,7 +132,11 @@ class BackpackWsMessageRouter:
         self,
         message: dict[str, Any],
     ) -> tuple[str | None, dict[str, Any] | None]:
-        """Extract topic and data from WebSocket message."""
+        """Extract topic and data from WebSocket message.
+
+        Returns:
+            Tuple of (topic string, data payload) from the message.
+        """
         topic_str: str | None = message.get("topic")
         data_payload: dict[str, Any] | None = message.get("data")
 
@@ -149,7 +153,11 @@ class BackpackWsMessageRouter:
         return topic_str, data_payload
 
     def _get_base_topic(self, topic_str: str) -> str:
-        """Determine base topic for handler lookup."""
+        """Determine base topic for handler lookup.
+
+        Returns:
+            Base topic string for handler lookup.
+        """
         base_topic = topic_str
         if base_topic.startswith("depth."):
             base_topic = "depth"
@@ -163,7 +171,11 @@ class BackpackWsMessageRouter:
         base_topic: str,
         ws_handlers: dict[str, MessageHandler],
     ) -> MessageHandler | None:
-        """Find appropriate handler for the topic."""
+        """Find appropriate handler for the topic.
+
+        Returns:
+            Message handler if found, None otherwise.
+        """
         app_handler = ws_handlers.get(topic_str)
         if not app_handler:
             app_handler = ws_handlers.get(base_topic)
@@ -175,7 +187,11 @@ class BackpackWsMessageRouter:
         topic_str: str,
         data_payload: dict[str, Any],
     ) -> tuple[Any, Any]:
-        """Process payload based on topic type and return validated payload and internal model."""
+        """Process payload based on topic type and return validated payload and internal model.
+
+        Returns:
+            Tuple of (validated_payload, internal_model) for the specific topic.
+        """
         validated_payload: Any = None
         internal_model: Any = None
 

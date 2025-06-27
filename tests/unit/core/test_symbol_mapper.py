@@ -63,7 +63,6 @@ def test_symbol_mapper_init_success() -> None:
 
 def test_symbol_mapper_init_missing_exchanges_key() -> None:
     """Test initialization fails if 'exchanges' key is missing."""
-    # invalid_config: dict[str, Any] = {"some_other_key": {}} # This config doesn't have "exchanges"
     # SymbolMapper expects the exchanges dict directly.
     # This test should perhaps test that SymbolMapper raises if passed something other than a dict,
     with pytest.raises(SymbolMappingError, match="Invalid configuration: Expected a dictionary"):
@@ -138,7 +137,11 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
 
 @pytest.fixture
 def mapper() -> SymbolMapper:
-    """Fixture to provide a configured SymbolMapper instance."""
+    """Fixture to provide a configured SymbolMapper instance.
+
+    Returns:
+        SymbolMapper instance with test configuration
+    """
     return SymbolMapper(VALID_CONFIG["exchanges"])
 
 

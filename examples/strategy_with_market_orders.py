@@ -106,7 +106,7 @@ class MarketOrderStrategy(Strategy):
 
             try:
                 # Execute market order
-                order = await market_order.execute_market_order(
+                return await market_order.execute_market_order(
                     symbol=signal.symbol,
                     side=signal.side,
                     quantity=signal.quantity or Decimal("0.1"),  # Default if None
@@ -118,7 +118,6 @@ class MarketOrderStrategy(Strategy):
                 )
 
                 # Market order executed successfully
-                return order
 
             except InsufficientLiquidityError:
                 # Insufficient liquidity for order

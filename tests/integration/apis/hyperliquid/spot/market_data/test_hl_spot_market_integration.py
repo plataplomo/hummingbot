@@ -30,7 +30,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
 @pytest.mark.spot
 @pytest.mark.asyncio
 @pytest.mark.vcr
-async def test_hl_spot_markets_not_supported_placeholder(
+def test_hl_spot_markets_not_supported_placeholder(
     hl_api_for_test_env: HyperliquidAPI,
     custom_vcr_config: dict[str, Any],
 ) -> None:

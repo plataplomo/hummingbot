@@ -15,157 +15,261 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 @pytest.fixture
 def symbol_spot() -> str:
-    """Return standard spot trading symbol."""
+    """Return standard spot trading symbol.
+
+    Returns:
+        str: The standard spot trading symbol.
+    """
     return "SOL_USDC"
 
 
 @pytest.fixture
 def symbol_perp() -> str:
-    """Return standard perpetual trading symbol."""
+    """Return standard perpetual trading symbol.
+
+    Returns:
+        str: The standard perpetual trading symbol.
+    """
     return "SOL-PERP"
 
 
 @pytest.fixture
 def symbol_btc_spot() -> str:
-    """Bitcoin spot trading symbol."""
+    """Bitcoin spot trading symbol.
+
+    Returns:
+        str: The Bitcoin spot trading symbol.
+    """
     return "BTC_USDT"
 
 
 @pytest.fixture
 def symbol_eth_spot() -> str:
-    """Ethereum spot trading symbol."""
+    """Ethereum spot trading symbol.
+
+    Returns:
+        str: The Ethereum spot trading symbol.
+    """
     return "ETH_USDC"
 
 
 @pytest.fixture
 def order_id() -> str:
-    """Return a standard order ID for testing."""
+    """Return a standard order ID for testing.
+
+    Returns:
+        str: A standard order ID for testing.
+    """
     return "987654321"
 
 
 @pytest.fixture
 def client_order_id() -> str:
-    """Return a standard client order ID for testing."""
+    """Return a standard client order ID for testing.
+
+    Returns:
+        str: A standard client order ID for testing.
+    """
     return "myOrder1"
 
 
 @pytest.fixture
 def buy_order_side() -> OrderSide:
-    """Buy order side."""
+    """Buy order side.
+
+    Returns:
+        OrderSide: The buy order side enum value.
+    """
     return OrderSide.BUY
 
 
 @pytest.fixture
 def sell_order_side() -> OrderSide:
-    """Sell order side."""
+    """Sell order side.
+
+    Returns:
+        OrderSide: The sell order side enum value.
+    """
     return OrderSide.SELL
 
 
 @pytest.fixture
 def limit_order_type() -> OrderType:
-    """Limit order type."""
+    """Limit order type.
+
+    Returns:
+        OrderType: The limit order type enum value.
+    """
     return OrderType.LIMIT
 
 
 @pytest.fixture
 def market_order_type() -> OrderType:
-    """Market order type."""
+    """Market order type.
+
+    Returns:
+        OrderType: The market order type enum value.
+    """
     return OrderType.MARKET
 
 
 @pytest.fixture
 def stop_market_order_type() -> OrderType:
-    """Stop market order type."""
+    """Stop market order type.
+
+    Returns:
+        OrderType: The stop market order type enum value.
+    """
     return OrderType.STOP_MARKET
 
 
 @pytest.fixture
 def stop_limit_order_type() -> OrderType:
-    """Stop limit order type."""
+    """Stop limit order type.
+
+    Returns:
+        OrderType: The stop limit order type enum value.
+    """
     return OrderType.STOP_LIMIT
 
 
 @pytest.fixture
 def gtc_time_in_force() -> TimeInForce:
-    """Good Till Cancelled time in force."""
+    """Good Till Cancelled time in force.
+
+    Returns:
+        TimeInForce: The GTC time in force enum value.
+    """
     return TimeInForce.GTC
 
 
 @pytest.fixture
 def ioc_time_in_force() -> TimeInForce:
-    """Immediate or Cancel time in force."""
+    """Immediate or Cancel time in force.
+
+    Returns:
+        TimeInForce: The IOC time in force enum value.
+    """
     return TimeInForce.IOC
 
 
 @pytest.fixture
 def standard_quantity() -> Decimal:
-    """Return a standard order quantity for testing."""
+    """Return a standard order quantity for testing.
+
+    Returns:
+        Decimal: A standard order quantity for testing.
+    """
     return Decimal("10.5")
 
 
 @pytest.fixture
 def standard_price() -> Decimal:
-    """Return standard order price for testing."""
+    """Return standard order price for testing.
+
+    Returns:
+        Decimal: A standard order price for testing.
+    """
     return Decimal("140.00")
 
 
 @pytest.fixture
 def trigger_price() -> Decimal:
-    """Return standard trigger price for stop orders."""
+    """Return standard trigger price for stop orders.
+
+    Returns:
+        Decimal: A standard trigger price for stop orders.
+    """
     return Decimal("28.00")
 
 
 @pytest.fixture
 def withdrawal_amount() -> Decimal:
-    """Return standard withdrawal amount for testing."""
+    """Return standard withdrawal amount for testing.
+
+    Returns:
+        Decimal: A standard withdrawal amount for testing.
+    """
     return Decimal("100.0")
 
 
 @pytest.fixture
 def withdrawal_address() -> str:
-    """Return standard withdrawal address for testing."""
+    """Return standard withdrawal address for testing.
+
+    Returns:
+        str: A standard withdrawal address for testing.
+    """
     return "xyzAddress"
 
 
 @pytest.fixture
 def solana_network() -> str:
-    """Solana network name."""
+    """Solana network name.
+
+    Returns:
+        str: The Solana network name.
+    """
     return "Solana"
 
 
 @pytest.fixture
 def ethereum_network() -> str:
-    """Ethereum network name."""
+    """Ethereum network name.
+
+    Returns:
+        str: The Ethereum network name.
+    """
     return "Ethereum"
 
 
 @pytest.fixture
 def current_timestamp_ms() -> int:
-    """Return current timestamp in milliseconds."""
+    """Return current timestamp in milliseconds.
+
+    Returns:
+        int: Current timestamp in milliseconds.
+    """
     return int(datetime.now(UTC).timestamp() * 1000)
 
 
 @pytest.fixture
 def past_timestamp_ms(current_timestamp_ms: int) -> int:
-    """Past timestamp in milliseconds."""
+    """Past timestamp in milliseconds.
+
+    Returns:
+        int: Past timestamp in milliseconds.
+    """
     return current_timestamp_ms - 100000
 
 
 @pytest.fixture
 def usdc_asset() -> str:
-    """USDC asset symbol."""
+    """USDC asset symbol.
+
+    Returns:
+        str: The USDC asset symbol.
+    """
     return "USDC"
 
 
 @pytest.fixture
 def sol_asset() -> str:
-    """SOL asset symbol."""
+    """SOL asset symbol.
+
+    Returns:
+        str: The SOL asset symbol.
+    """
     return "SOL"
 
 
 @pytest.fixture
 def eth_asset() -> str:
-    """ETH asset symbol."""
+    """ETH asset symbol.
+
+    Returns:
+        str: The ETH asset symbol.
+    """
     return "ETH"
 
 
@@ -180,6 +284,9 @@ def bp_api_with_di(
     """Create BackpackAPI instances with all dependencies mocked.
 
     This enables unit testing without accessing protected members.
+
+    Returns:
+        Callable[..., BackpackAPI]: Factory function for creating BackpackAPI instances with mocks.
     """
 
     def _create_api(
@@ -187,7 +294,11 @@ def bp_api_with_di(
         secrets: ApiKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> BackpackAPI:
-        """Create BackpackAPI with mocked dependencies."""
+        """Create BackpackAPI with mocked dependencies.
+
+        Returns:
+            BackpackAPI: Configured BackpackAPI instance with mocked dependencies.
+        """
         final_config = config or active_bp_config
 
         # Use active secrets as default if not provided

@@ -70,7 +70,11 @@ class AccountSettings(BaseModel):
 
     # --- Field Validators (Simplified - reuse validation from parsing utils) ---
     def update_leverage_limit(self, new_limit: Decimal | None) -> None:
-        """Update leverage limit with validation."""
+        """Update leverage limit with validation.
+
+        Raises:
+            ValueError: If leverage limit is not finite or less than 1.
+        """
         if new_limit is not None:
             parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
             if parsed is None or not parsed.is_finite() or parsed < Decimal(1):

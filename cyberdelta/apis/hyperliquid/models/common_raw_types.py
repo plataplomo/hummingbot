@@ -10,6 +10,7 @@ for raw models, ensuring consistency and adhering to project rules.
 from __future__ import annotations
 
 import string
+from collections import UserString
 from collections.abc import (
     Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
 )
@@ -72,7 +73,6 @@ def _wrap_validate_finite_decimal_str(
 
     # CRITICAL: Use SDK's exact float_to_wire algorithm for consistent signatures
     # From SDK: rounded = f"{x:.8f}"; normalized = Decimal(rounded).normalize();
-    # return f"{normalized:f}"
     # This ensures our strings match exactly what the SDK produces
     x_float = float(d)
     rounded = f"{x_float:.8f}"
@@ -449,7 +449,6 @@ RawOptionalString = Annotated[
 # The current `RawOptionalString` definition with `str | None` as the first arg to Annotated
 # means the validator logic itself doesn't need to handle `v is None`.
 
-# ADDED: RawSideStr
 RawSideStr = Annotated[
     str,
     WrapValidator(
@@ -464,7 +463,6 @@ RawSideStr = Annotated[
 ]
 """A raw string representing an order side, must be 'B' (Buy) or 'A' (Ask/Sell)."""
 
-# ADDED: RawTpslStr
 RawTpslStr = Annotated[
     str,
     WrapValidator(
@@ -479,7 +477,6 @@ RawTpslStr = Annotated[
 ]
 """A raw string representing a trigger type, must be 'tp' or 'sl'."""
 
-# ADDED: RawTifStr
 RawTifStr = Annotated[
     str,
     WrapValidator(
@@ -875,7 +872,7 @@ RawHlParsableFiniteDecimalString = Annotated[
 RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
 
 
-class RawHlCoinName(str):
+class RawHlCoinName(UserString):
     """Represents a coin name from Hyperliquid, typically a non-empty uppercase string."""
 
     @classmethod

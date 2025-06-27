@@ -360,7 +360,11 @@ class TestSecretsConfig:
     """Test cases for SecretsConfig model."""
 
     def create_valid_secrets_data(self) -> dict[str, Any]:
-        """Create valid secrets data for testing."""
+        """Create valid secrets data for testing.
+
+        Returns:
+            Dictionary containing valid secrets configuration data for testing.
+        """
         return {
             "exchanges": {
                 "backpack": {

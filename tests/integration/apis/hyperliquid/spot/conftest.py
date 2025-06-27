@@ -9,7 +9,11 @@ import pytest
 
 @pytest.fixture
 def hl_spot_test_config() -> dict[str, list[str] | list[Decimal] | Decimal]:
-    """Hyperliquid spot test configuration."""
+    """Hyperliquid spot test configuration.
+
+    Returns:
+        Dict with spot test configuration parameters
+    """
     return {
         # REMOVED HARDCODED SYMBOLS - SECURITY VIOLATION
         # Must get available spot symbols from exchange API

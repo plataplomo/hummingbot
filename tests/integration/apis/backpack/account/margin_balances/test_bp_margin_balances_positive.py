@@ -127,40 +127,39 @@ class TestBackpackMarginBalancesPositive:
             assert isinstance(spot_balance, SpotBalance)
 
             # If we have non-zero balance, it might appear in collateral
-            if spot_balance.total_quantity > 0:
+            if spot_balance.total_quantity > 0 and symbol in collateral_map:
                 # Note: Due to auto-lending, spot and collateral may not match directly
                 # If auto-lending is enabled, spot shows actual balance while collateral may show 0
                 # If auto-lending is disabled, both should match
-                if symbol in collateral_map:
-                    collateral_data = collateral_map[symbol]
-                    collateral_total = Decimal(collateral_data.get("totalQuantity", "0"))
+                collateral_data = collateral_map[symbol]
+                collateral_total = Decimal(collateral_data.get("totalQuantity", "0"))
 
-                    # If both are non-zero, they should match
-                    if collateral_total > 0:
+                # If both are non-zero, they should match
+                if collateral_total > 0:
+                    assert is_within_tolerance(
+                        spot_balance.total_quantity,
+                        collateral_total,
+                        tolerance=BALANCE_PRECISION_TOLERANCE,
+                    ), (
+                        f"Quantity mismatch for {symbol}: "
+                        f"spot={spot_balance.total_quantity}, "
+                        f"collateral={collateral_total}"
+                    )
+
+                # Check lend quantity if available
+                if spot_balance.bp_details and spot_balance.bp_details.lend_quantity:
+                    collateral_lend = Decimal(collateral_data.get("lendQuantity", "0"))
+                    # Only check if collateral actually has lend data
+                    if collateral_lend > 0:
                         assert is_within_tolerance(
-                            spot_balance.total_quantity,
-                            collateral_total,
+                            spot_balance.bp_details.lend_quantity,
+                            collateral_lend,
                             tolerance=BALANCE_PRECISION_TOLERANCE,
                         ), (
-                            f"Quantity mismatch for {symbol}: "
-                            f"spot={spot_balance.total_quantity}, "
-                            f"collateral={collateral_total}"
+                            f"Lend quantity mismatch for {symbol}: "
+                            f"spot={spot_balance.bp_details.lend_quantity}, "
+                            f"collateral={collateral_lend}"
                         )
-
-                    # Check lend quantity if available
-                    if spot_balance.bp_details and spot_balance.bp_details.lend_quantity:
-                        collateral_lend = Decimal(collateral_data.get("lendQuantity", "0"))
-                        # Only check if collateral actually has lend data
-                        if collateral_lend > 0:
-                            assert is_within_tolerance(
-                                spot_balance.bp_details.lend_quantity,
-                                collateral_lend,
-                                tolerance=BALANCE_PRECISION_TOLERANCE,
-                            ), (
-                                f"Lend quantity mismatch for {symbol}: "
-                                f"spot={spot_balance.bp_details.lend_quantity}, "
-                                f"collateral={collateral_lend}"
-                            )
 
     @pytest.mark.asyncio
     async def test_margin_account_with_positions(

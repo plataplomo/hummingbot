@@ -285,7 +285,11 @@ class StrategyManager:
         await self._add_signal_to_queue(signal)
 
     def _validate_signal(self, signal: TradeSignal, strategy: Strategy) -> bool:
-        """Validate that a signal has all required fields."""
+        """Validate that a signal has all required fields.
+
+        Returns:
+            True if the signal has all required attributes, False otherwise.
+        """
         # Basic Sanity Check:
         if not all(
             [
@@ -310,7 +314,11 @@ class StrategyManager:
         return True
 
     def _get_signal_data_dict(self, signal: TradeSignal) -> dict[str, Any]:
-        """Get a dictionary representation of signal data for logging."""
+        """Get a dictionary representation of signal data for logging.
+
+        Returns:
+            A dictionary containing the signal data, or error information if serialization fails.
+        """
         if hasattr(signal, "model_dump") and callable(signal.model_dump):
             try:
                 return signal.model_dump()
@@ -327,18 +335,16 @@ class StrategyManager:
             return {"raw_signal": str(signal)}
 
     async def _apply_risk_management(self, signal: TradeSignal) -> bool:
-        """Apply risk management to a signal (placeholder for now)."""
+        """Apply risk management to a signal (placeholder for now).
+
+        Returns:
+            True if the signal passes risk management checks, False otherwise.
+        """
         try:
             # For now, skip risk management sizing since the method doesn't exist
             # TODO: Implement proper risk management integration
-            # sized_signal = await self.risk_manager.validate_and_size_trade_signal(signal)
             # if sized_signal is None:
             #     logger.info(
-            #         f"Signal rejected by risk manager sizing: {signal.signal_id}",
-            #         signal_symbol=signal.symbol,
-            #     )
-            #     return False
-            # signal = sized_signal  # Replace original signal with sized one
             # Placeholder for future risk management integration
             return True
 

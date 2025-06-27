@@ -75,7 +75,12 @@ class TestHyperliquidSpotBalancesZero:
         hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() behavior with network timeout scenarios."""
+        """Test get_balances() behavior with network timeout scenarios.
+
+        Raises:
+            APIError: When network timeout, connection errors, or other
+                network-related issues occur during API calls.
+        """
         try:
             balances = await hl_api_for_zero_balance_test.get_balances()
 
@@ -98,7 +103,12 @@ class TestHyperliquidSpotBalancesZero:
         hl_api_for_zero_balance_test: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() rate limiting behavior."""
+        """Test get_balances() rate limiting behavior.
+
+        Raises:
+            APIError: When rate limits are exceeded or other API errors
+                occur during rapid concurrent requests.
+        """
         try:
             tasks: list[Any] = []
             for _ in range(5):

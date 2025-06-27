@@ -125,7 +125,6 @@ def test_delegation_item_invalid(
         HyperliquidRawDelegationItem.model_validate(d)
 
 
-# HyperliquidRawDelegationsResponse (RootModel)
 def test_delegations_response_valid() -> None:
     """Test delegations response valid."""
     resp = HyperliquidRawDelegationsResponse.model_validate(VALID_DELEGATIONS_RESPONSE)
@@ -236,7 +235,6 @@ class TestHyperliquidRawDelegatorHistoryItem:
             HyperliquidRawDelegatorHistoryItem.model_validate(d)
 
 
-# HyperliquidRawDelegatorHistoryResponse (RootModel)
 def test_history_response_valid() -> None:
     """Test history response valid."""
     resp = HyperliquidRawDelegatorHistoryResponse.model_validate(VALID_HISTORY_RESPONSE)
@@ -252,7 +250,6 @@ def test_reward_item_valid(valid_reward_item_data: dict[str, Any]) -> None:
     assert item.total_amount == valid_reward_item_data["totalAmount"]
 
 
-# HyperliquidRawDelegatorRewardsResponse (RootModel)
 def test_rewards_response_valid() -> None:
     """Test rewards response valid."""
     resp = HyperliquidRawDelegatorRewardsResponse.model_validate(VALID_REWARDS_RESPONSE)

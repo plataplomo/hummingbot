@@ -210,7 +210,7 @@ async def test_process_data_scheduling(
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
         # Configure mock to return an awaitable
-        async def mock_evaluate_entry() -> list[Any]:
+        def mock_evaluate_entry() -> list[Any]:
             return []
 
         mock_eval.side_effect = mock_evaluate_entry
@@ -242,7 +242,7 @@ async def test_process_data_no_scheduling_if_recent_check(
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
         # Configure mock to return an awaitable (though it shouldn't be called)
-        async def mock_evaluate_entry() -> list[Any]:
+        def mock_evaluate_entry() -> list[Any]:
             return []
 
         mock_eval.side_effect = mock_evaluate_entry
@@ -414,7 +414,7 @@ async def test_evaluate_entry_opportunity_no_opportunity(
         patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,
     ):
         # Configure async mock to return None
-        async def mock_check_opp() -> None:
+        def mock_check_opp() -> None:
             return None
 
         mock_check_internal.side_effect = mock_check_opp

@@ -40,7 +40,7 @@ class EthereumAddressNormalizer:
         check_fields=False,
     )
     @classmethod
-    def normalize_address_fields(cls, v: str | Any) -> str | Any:  # noqa: ANN401
+    def normalize_address_fields(cls, v: str | object) -> str | object:
         """Normalize Ethereum address fields to lowercase."""
         if isinstance(v, str):
             return normalize_ethereum_address(v)
@@ -88,7 +88,7 @@ class SigningPayloadSerializer:
 
         return cleaned
 
-    def _clean_value(self, value: Any) -> Any:  # noqa: ANN401
+    def _clean_value(self, value: object) -> object:
         """Clean a single value for signing."""
         if is_dict_str_any(value):
             # value is now properly typed as dict[str, Any] due to TypeGuard

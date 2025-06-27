@@ -71,7 +71,6 @@ class TestBackpackAccountSummaryEnhanced:
                 assert bp_details.liabilities_value >= Decimal(0)
 
             # Check if we have both assets_value and liabilities_value
-            # net_equity = assets_value - liabilities_value
             if (
                 hasattr(bp_details, "liabilities_value")
                 and bp_details.liabilities_value is not None
@@ -302,17 +301,16 @@ class TestBackpackAccountSummaryEnhanced:
             )
 
         # Available equity consistency check
-        if account_summary.bp_details:
+        if account_summary.bp_details and account_summary.bp_details.locked_equity is not None:
             # Check if locked_equity is tracked
-            if account_summary.bp_details.locked_equity is not None:
-                # Available equity should be total minus locked
-                expected_available = (
-                    account_summary.total_equity - account_summary.bp_details.locked_equity
-                )
-                available_diff = abs(account_summary.available_equity - expected_available)
-                # Allow small differences due to rounding or timing
-                assert available_diff < Decimal("1.0"), (
-                    f"Large discrepancy between available_equity "
-                    f"({account_summary.available_equity}) and calculated available "
-                    f"({expected_available})"
-                )
+            # Available equity should be total minus locked
+            expected_available = (
+                account_summary.total_equity - account_summary.bp_details.locked_equity
+            )
+            available_diff = abs(account_summary.available_equity - expected_available)
+            # Allow small differences due to rounding or timing
+            assert available_diff < Decimal("1.0"), (
+                f"Large discrepancy between available_equity "
+                f"({account_summary.available_equity}) and calculated available "
+                f"({expected_available})"
+            )

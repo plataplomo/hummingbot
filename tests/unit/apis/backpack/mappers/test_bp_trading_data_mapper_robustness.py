@@ -471,7 +471,7 @@ class TestPerformanceAndMemoryConsiderations:
 
         # Transform orders (simulating concurrent access)
         results: list[Order] = []
-        for _i, order in enumerate(orders, 1):
+        for order in orders:
             result = trading_data_mapper.transform_raw_order_to_internal(order)
             results.append(result)
 

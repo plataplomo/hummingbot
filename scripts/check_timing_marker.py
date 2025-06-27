@@ -21,10 +21,7 @@ def has_timing_operations(content: str) -> bool:
         r"\.sleep\(",
     ]
 
-    for pattern in timing_patterns:
-        if re.search(pattern, content):
-            return True
-    return False
+    return any(re.search(pattern, content) for pattern in timing_patterns)
 
 
 def has_timing_marker(content: str) -> bool:
@@ -36,10 +33,7 @@ def has_timing_marker(content: str) -> bool:
         r"pytest\.mark\.timing",  # Simple pattern to catch it in any context
     ]
 
-    for pattern in marker_patterns:
-        if re.search(pattern, content, re.MULTILINE | re.DOTALL):
-            return True
-    return False
+    return any(re.search(pattern, content, re.MULTILINE | re.DOTALL) for pattern in marker_patterns)
 
 
 def check_file(file_path: Path) -> tuple[bool, list[str]]:
@@ -75,7 +69,7 @@ def main() -> int:
         file_path = Path(file_str)
 
         # Only check Python test files
-        if not file_path.name.startswith("test_") or not file_path.suffix == ".py":
+        if not file_path.name.startswith("test_") or file_path.suffix != ".py":
             continue
 
         success, issues = check_file(file_path)

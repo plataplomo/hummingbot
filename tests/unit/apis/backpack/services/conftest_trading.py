@@ -15,7 +15,6 @@ from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
-# from cyberdelta.apis.connectivity.rate_limiter_service import RateLimiterService
 # Removed in refactor
 
 # Type alias for the HTTP client requester callable
@@ -52,7 +51,6 @@ def mock_authenticator() -> MagicMock:
 # @pytest.fixture
 # def mock_rate_limiter_service() -> AsyncMock:
 #     """Provides a mock RateLimiterService."""
-#     return AsyncMock(spec=RateLimiterService)  # Removed in refactor
 
 
 @pytest.fixture
@@ -69,7 +67,7 @@ def bp_trading_service(
     mock_authenticator: MagicMock,
 ) -> BackpackTradingService:
     """Return a BackpackTradingService instance configured with mocked dependencies for testing."""
-    service = BackpackTradingService(
+    return BackpackTradingService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
@@ -77,4 +75,3 @@ def bp_trading_service(
         exchange_name="backpack_test_trading",
     )
     # The service instantiates its own _order_mapper. Tests will patch this.
-    return service

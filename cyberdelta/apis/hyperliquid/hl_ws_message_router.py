@@ -272,7 +272,6 @@ class HyperliquidWsMessageRouter:
             checked_list_for_topic_derivation: list[dict[str, Any]] = []
             # After isinstance check, we know it's a list
             # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-            # Mypy=[redundant-cast]
             raw_list: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
             for item in raw_list:
                 if isinstance(item, dict):
@@ -381,7 +380,6 @@ class HyperliquidWsMessageRouter:
         checked_list_of_trades: list[dict[str, Any]] = []
         # After isinstance check, we know it's a list
         # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-        # Mypy=[redundant-cast]
         raw_list_trades: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
         for item in raw_list_trades:
             if isinstance(item, dict):
@@ -423,7 +421,6 @@ class HyperliquidWsMessageRouter:
         checked_list_of_any_events: list[dict[str, Any]] = []
         # After isinstance check, we know it's a list
         # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
-        # Mypy=[redundant-cast]
         raw_list_events: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
         for event_loop_var_any in raw_list_events:
             if isinstance(event_loop_var_any, dict):
@@ -500,10 +497,10 @@ class HyperliquidWsMessageRouter:
         message: dict[str, Any],
     ) -> None:
         """Process an order event."""
-        _handle_order_wrapper = self._raw_ws_handler.handle_user_order_update_wrapper_payload
-        order_update_wrapper = _handle_order_wrapper(event_item_dict)
-        _handle_order_event = self._raw_ws_handler.handle_user_order_event_payload
-        validated_order_details = _handle_order_event(order_update_wrapper.data)
+        handle_order_wrapper = self._raw_ws_handler.handle_user_order_update_wrapper_payload
+        order_update_wrapper = handle_order_wrapper(event_item_dict)
+        handle_order_event = self._raw_ws_handler.handle_user_order_event_payload
+        validated_order_details = handle_order_event(order_update_wrapper.data)
         try:
             # Transform raw validated model to internal domain model
             order_transform_method = (
@@ -525,8 +522,8 @@ class HyperliquidWsMessageRouter:
         message: dict[str, Any],
     ) -> None:
         """Process a position update event."""
-        _handle_pos_update = self._raw_ws_handler.handle_user_position_update_event_payload
-        validated_position_update = _handle_pos_update(event_item_dict)
+        handle_pos_update = self._raw_ws_handler.handle_user_position_update_event_payload
+        validated_position_update = handle_pos_update(event_item_dict)
         try:
             # Transform raw validated model to internal domain model
             position_transform_method = (

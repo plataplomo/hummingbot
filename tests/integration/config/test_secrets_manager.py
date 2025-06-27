@@ -25,7 +25,11 @@ class TestSecretsManager:
     """Test cases for SecretsManager class."""
 
     def create_valid_secrets_dict(self) -> dict[str, Any]:
-        """Create valid secrets dictionary for testing."""
+        """Create valid secrets dictionary for testing.
+
+        Returns:
+            dict[str, Any]: Dictionary containing valid secrets configuration for testing.
+        """
         return {
             "exchanges": {
                 "backpack": {
@@ -52,7 +56,11 @@ class TestSecretsManager:
         }
 
     def create_secrets_file(self, temp_dir: str, filename: str = "secrets.yaml") -> Path:
-        """Create a temporary secrets file with valid content."""
+        """Create a temporary secrets file with valid content.
+
+        Returns:
+            Path: Path to the created temporary secrets file.
+        """
         secrets_path = Path(temp_dir) / filename
         secrets_data = self.create_valid_secrets_dict()
 
@@ -100,9 +108,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            with open(secrets_path, "w") as f:
-                f.write("invalid: yaml: content: [\n")
-
+            Path(secrets_path).write_text("invalid: yaml: content: [\n")
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
@@ -114,9 +120,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "empty.yaml"
 
             # Write empty file
-            with open(secrets_path, "w") as f:
-                f.write("")
-
+            Path(secrets_path).write_text("")
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
@@ -231,9 +235,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            with open(secrets_path, "w") as f:
-                f.write("invalid: yaml: [unclosed\n")
-
+            Path(secrets_path).write_text("invalid: yaml: [unclosed\n")
             manager = SecretsManager.__new__(SecretsManager)
             manager.secrets_path = secrets_path
             manager.secrets_data = None
@@ -307,9 +309,7 @@ class TestSecretsManager:
             manager = SecretsManager(str(secrets_path))
 
             # Corrupt the secrets file
-            with open(secrets_path, "w") as f:
-                f.write("invalid: yaml: [unclosed\n")
-
+            Path(secrets_path).write_text("invalid: yaml: [unclosed\n")
             # Reload should fail
             with pytest.raises(ConfigurationError):
                 manager.reload()
@@ -499,9 +499,7 @@ logfire:
 dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"]
 """
 
-            with open(secrets_path, "w") as f:
-                f.write(dangerous_yaml)
-
+            Path(secrets_path).write_text(dangerous_yaml)
             # Should fail validation due to extra field, not execute dangerous code
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))

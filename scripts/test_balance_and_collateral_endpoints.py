@@ -40,7 +40,7 @@ async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
     return spot_balances
 
 
-async def test_collateral_endpoint(api: BackpackAPI) -> None:
+def test_collateral_endpoint(api: BackpackAPI) -> None:
     """Test collateral endpoint."""
     logger.info("")
     logger.info("2. COLLATERAL ENDPOINT (/api/v1/capital/collateral):")
@@ -97,7 +97,7 @@ async def test() -> None:
         spot_balances = await test_spot_balances(api)
 
         # Test collateral endpoint
-        await test_collateral_endpoint(api)
+        test_collateral_endpoint(api)
 
         # Display summary
         display_summary(spot_balances)

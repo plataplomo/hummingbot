@@ -86,8 +86,6 @@ class TestFailureScenarios:
             SpotBalance(
                 exchange="backpack",  # Use real exchange name
                 asset="USDT",
-                # total=Decimal("10000"), # Use correct fields
-                # available=Decimal("10000"),
                 total_quantity=Decimal(10000),  # Add missing
                 available_quantity=Decimal(10000),  # Add missing
                 timestamp=now,  # Add missing
@@ -97,15 +95,12 @@ class TestFailureScenarios:
             SpotBalance(
                 exchange="hyperliquid",  # Use real exchange name
                 asset="USDT",
-                # total=Decimal("10000"), # Use correct fields
-                # available=Decimal("10000"),
                 total_quantity=Decimal(10000),  # Add missing
                 available_quantity=Decimal(10000),  # Add missing
                 timestamp=now,  # Add missing
             ),
         )
         await real_portfolio_tracker.initialize()
-        # ts = datetime.now(UTC) # Moved 'now' up
         # Ensure BOTH exchanges have valid tickers configured *before* error simulation
         bp_symbol = str(mock_config.exchanges[target_exchange].symbols["BTC"])  # Cast to str
         hl_symbol = str(mock_config.exchanges[other_exchange].symbols["BTC"])  # Cast to str
@@ -236,7 +231,6 @@ class TestFailureScenarios:
         # Re-enable the breaker for the target exchange before the next attempt
         # circuit_breaker_system.force_trip(
         #     f"exchange:{target_exchange}:{target_breaker_type}\", "Re-tripped for test"
-        # )
         # No, we keep it reset to test if the *other* exchange works
 
         # Correctly formatted multi-line f-string
@@ -307,17 +301,8 @@ class TestFailureScenarios:
             )
 
         # 6. Reset Breaker Manually (Optional Check)
-        # circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}")
-        # assert breaker.state == BreakerState.CLOSED, "Breaker should be CLOSED after manual reset"
-        # logger.info(f"Breaker {breaker.name} manually reset.")
 
         # Optional: Attempt execution again after reset, should pass if API error is removed
-        # mock_bp_api.clear_error_simulation("place_order")
-        # reset_success_result = await execution_handler.execute_opportunity(sized_opportunity)
-        # assert reset_success_result.status == ExecutionStatus.SUCCESS, \
-        #     f"Execution failed after reset and error removal: " \
-        #     f"{reset_success_result.error_message}"
-        # logger.info("Execution successful after manual reset and error removal.")
 
         # --- Cleanup ---
         # Restore mocks/state if necessary
@@ -358,7 +343,6 @@ class TestFailureScenarios:
         # Ensure breaker exists (might need adjustment based on CBSystem init)
         # circuit_breaker_system.get_or_create_breaker(
         #     breaker_name, APIErrorBreaker, threshold=3, recovery_timeout=60
-        # )
 
         breaker = circuit_breaker_system.get_breaker(breaker_name)
         # Handle case where breaker might not exist if loading logic changes
@@ -372,7 +356,6 @@ class TestFailureScenarios:
         )
 
         # Manual trip - Assuming force_trip doesn't exist, trip manually for test setup
-        # circuit_breaker_system.force_trip(breaker_name, "Manual trip for testing")
         # Instead, directly call trip on the breaker instance for the test
         if not isinstance(breaker, dict):
             breaker.trip("Manual trip for testing")
@@ -455,14 +438,6 @@ class TestFailureScenarios:
 
 # Placeholder test (commented out from original ruff output)
 # def test_placeholder():
-#     # reset_success_result = await execution_handler.execute_opportunity(sized_opportunity)
-#     # assert reset_success_result.status == ExecutionStatus.SUCCESS, \
-#     #     f"Execution failed after reset and error removal: {reset_success_result.error_message}"
-#     # logger.info("Execution successful after manual reset and error removal.")
 #     # --- Test assertion --- Removed the failing assertion
 #     # assert reset_success_result is not None, "Execution result after reset should not be None"
 #     # assert reset_success_result.status == ExecutionStatus.COMPLETED, (
-#     #     f"Execution failed after reset and error removal: "
-#     #     f"{reset_success_result.error_message}"
-#     # )
-#     logger.info("Test completed, skipping final execution assertion after reset.")

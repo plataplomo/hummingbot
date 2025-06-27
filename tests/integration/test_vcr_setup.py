@@ -18,9 +18,11 @@ async def test_vcr_basic_functionality() -> None:
     that VCR can record the interaction and play it back.
     Uses pytest-recording's automatic cassette management.
     """
-    async with aiohttp.ClientSession() as session:
-        async with session.get("https://httpbin.org/get") as response:
-            assert response.status == 200
-            data = await response.json()
-            assert "url" in data
-            assert data["url"] == "https://httpbin.org/get"
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get("https://httpbin.org/get") as response,
+    ):
+        assert response.status == 200
+        data = await response.json()
+        assert "url" in data
+        assert data["url"] == "https://httpbin.org/get"

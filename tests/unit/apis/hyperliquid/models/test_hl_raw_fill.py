@@ -10,7 +10,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 # Placeholder valid data for the fixture
 @pytest.fixture
 def valid_fill_data() -> dict[str, Any]:
-    """Provide a dictionary with minimal valid data for HyperliquidRawFill."""
+    """Provide a dictionary with minimal valid data for HyperliquidRawFill.
+
+    Returns:
+        dict[str, Any]: Valid data dictionary for HyperliquidRawFill testing.
+    """
     return {
         "tid": 12345,
         "oid": 67890,
@@ -53,11 +57,8 @@ def test_valid_hyperliquid_fill(valid_fill_data: dict[str, Any]) -> None:
 
 # @pytest.mark.parametrize(
 #     "field, invalid_value, match_pattern",
-#     [
 #         # TODO: Add comprehensive test cases for HyperliquidRawFill validation
-#         ("qty", None, "Field required"),  # Placeholder: test missing required field
 #     ],
-# )
 # def test_invalid_hyperliquid_fill(
 #     field: str,
 #     invalid_value: Any,   # Intentional Any for testing invalid inputs

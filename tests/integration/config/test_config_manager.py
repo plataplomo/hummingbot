@@ -21,7 +21,11 @@ class TestConfigManager:
     """Test cases for ConfigManager class."""
 
     def create_valid_config_dict(self) -> dict[str, Any]:
-        """Create valid configuration dictionary for testing."""
+        """Create valid configuration dictionary for testing.
+
+        Returns:
+            dict[str, Any]: Valid configuration dictionary with all required fields.
+        """
         return {
             "general": {
                 "log_level": "INFO",
@@ -103,7 +107,11 @@ class TestConfigManager:
         }
 
     def create_config_file(self, temp_dir: str, filename: str = "config.yaml") -> Path:
-        """Create a temporary config file with valid content."""
+        """Create a temporary config file with valid content.
+
+        Returns:
+            Path: Path to the created temporary config file.
+        """
         config_path = Path(temp_dir) / filename
         config_data = self.create_valid_config_dict()
 
@@ -151,9 +159,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            with open(config_path, "w") as f:
-                f.write("invalid: yaml: content: [\n")
-
+            Path(config_path).write_text("invalid: yaml: content: [\n")
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))
 
@@ -165,9 +171,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "empty.yaml"
 
             # Write empty file
-            with open(config_path, "w") as f:
-                f.write("")
-
+            Path(config_path).write_text("")
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))
 
@@ -315,9 +319,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            with open(config_path, "w") as f:
-                f.write("invalid: yaml: [unclosed\n")
-
+            Path(config_path).write_text("invalid: yaml: [unclosed\n")
             manager = ConfigManager.__new__(ConfigManager)
             manager.config_path = config_path
             manager.settings = None
@@ -392,9 +394,7 @@ class TestConfigManager:
             manager = ConfigManager(str(config_path))
 
             # Corrupt the config file
-            with open(config_path, "w") as f:
-                f.write("invalid: yaml: [unclosed\n")
-
+            Path(config_path).write_text("invalid: yaml: [unclosed\n")
             # Reload should fail
             with pytest.raises(ConfigurationError):
                 manager.reload()
@@ -597,9 +597,7 @@ portfolio_tracker:
 dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"]
 """
 
-            with open(config_path, "w") as f:
-                f.write(dangerous_yaml)
-
+            Path(config_path).write_text(dangerous_yaml)
             # Should fail validation due to extra field, not execute dangerous code
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))

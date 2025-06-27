@@ -71,7 +71,11 @@ class BackpackResponseHandler:
         context: str,
         raw_data: RawJsonResponse,
     ) -> APIError:
-        """Create a standardized APIError from a ValidationError."""
+        """Create a standardized APIError from a ValidationError.
+
+        Returns:
+            APIError with INVALID_RESPONSE code and validation details.
+        """
         logger.error(
             f"[BackpackResponseHandler] Pydantic validation failed for {context}: {e}. "
             f"Raw data: {raw_data!r}",
@@ -90,7 +94,14 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawTicker:
-        """Validate the raw response for the Get Ticker endpoint."""
+        """Validate the raw response for the Get Ticker endpoint.
+
+        Returns:
+            Validated BackpackRawTicker model.
+
+        Raises:
+            APIError: If validation fails or response format is invalid.
+        """
         context = f"ticker ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -100,11 +111,12 @@ class BackpackResponseHandler:
         try:
             return BackpackRawTicker.model_validate(validated_data)
         except ValidationError as e:
-            raise BackpackResponseHandler._handle_validation_error(
+            api_error = BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
                 validated_data,
-            ) from e
+            )
+            raise api_error from e
 
     @staticmethod
     def handle_get_order_book_response(
@@ -113,7 +125,14 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawOrderBook:
-        """Validate the raw response for the Get Order Book endpoint."""
+        """Validate the raw response for the Get Order Book endpoint.
+
+        Returns:
+            Validated BackpackRawOrderBook model.
+
+        Raises:
+            APIError: If validation fails or response format is invalid.
+        """
         context = f"order book ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -123,11 +142,12 @@ class BackpackResponseHandler:
         try:
             return BackpackRawOrderBook.model_validate(validated_data)
         except ValidationError as e:
-            raise BackpackResponseHandler._handle_validation_error(
+            api_error = BackpackResponseHandler._handle_validation_error(
                 e,
                 context,
                 validated_data,
-            ) from e
+            )
+            raise api_error from e
 
     @staticmethod
     def handle_get_recent_trades_response(
@@ -136,7 +156,14 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawRecentPublicTrade]:
-        """Validate the raw response for the Get Recent Trades endpoint."""
+        """Validate the raw response for the Get Recent Trades endpoint.
+
+        Returns:
+            List of validated BackpackRawRecentPublicTrade models.
+
+        Raises:
+            APIError: If validation fails or response format is invalid.
+        """
         context = f"recent trades ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -155,11 +182,12 @@ class BackpackResponseHandler:
             try:
                 validated_items.append(BackpackRawRecentPublicTrade.model_validate(validated_item))
             except ValidationError as e:
-                raise BackpackResponseHandler._handle_validation_error(
+                api_error = BackpackResponseHandler._handle_validation_error(
                     e,
                     f"single trade item in {context}",
                     validated_item,
-                ) from e
+                )
+                raise api_error from e
         return validated_items
 
     @staticmethod
@@ -167,7 +195,14 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         status_code: int,
     ) -> dict[str, BackpackRawBalance]:
-        """Validate the raw response for the Get Balances endpoint."""
+        """Validate the raw response for the Get Balances endpoint.
+
+        Returns:
+            Dictionary mapping asset symbols to BackpackRawBalance models.
+
+        Raises:
+            APIError: If validation fails or response format is invalid.
+        """
         context = "balances"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -190,11 +225,12 @@ class BackpackResponseHandler:
                     validated_balance,
                 )
             except ValidationError as e:
-                raise BackpackResponseHandler._handle_validation_error(
+                api_error = BackpackResponseHandler._handle_validation_error(
                     e,
                     f"balance details for {asset_symbol}",
                     validated_balance,
-                ) from e
+                )
+                raise api_error from e
         return validated_balances
 
     @staticmethod
@@ -207,6 +243,12 @@ class BackpackResponseHandler:
 
         Handles a single position dictionary if a symbol is provided,
         or a list of position dictionaries if no symbol is provided.
+
+        Returns:
+            List of validated BackpackRawPosition models.
+
+        Raises:
+            APIError: If symbol not found or validation of position data fails.
         """
         context = f"positions ({symbol or 'all'})"
         validated_positions: list[BackpackRawPosition] = []
@@ -246,7 +288,14 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         status_code: int,
     ) -> BackpackRawOrder:
-        """Validate the raw response for the Place Order endpoint."""
+        """Validate the raw response for the Place Order endpoint.
+
+        Returns:
+            Validated BackpackRawOrder model.
+
+        Raises:
+            APIError: If validation of order data fails.
+        """
         context = "place order response"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -271,6 +320,9 @@ class BackpackResponseHandler:
         """Validate the raw response for the Cancel Order endpoint.
 
         Expects no content on success.
+
+        Returns:
+            CancelOrderResult indicating successful cancellation.
         """
         if raw_response_content not in [None, {}]:
             # If we get content, it might be an error structure or unexpected success data.
@@ -300,7 +352,14 @@ class BackpackResponseHandler:
         symbol: str | None,
         status_code: int,
     ) -> list[BackpackRawOrder]:
-        """Validate the raw response for the Get Open Orders endpoint."""
+        """Validate the raw response for the Get Open Orders endpoint.
+
+        Returns:
+            List of validated BackpackRawOrder models for open orders.
+
+        Raises:
+            APIError: If validation of order data fails.
+        """
         context = f"open orders ({symbol or 'all'})"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -332,7 +391,15 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRate:
-        """Validate the raw response for the Get Funding Rate endpoint."""
+        """Validate the raw response for the Get Funding Rate endpoint.
+
+        Returns:
+            Validated BackpackRawFundingRate model.
+
+        Raises:
+            APIError: If response format is unexpected (empty list or non-dict/list type) or
+                validation of funding rate data fails.
+        """
         context = f"funding rate ({symbol}) - Status: {status_code}"
 
         # Try to handle as dict first
@@ -375,7 +442,14 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         status_code: int,
     ) -> BackpackRawAccountSummary:
-        """Validate the raw response for the Get Account Info endpoint."""
+        """Validate the raw response for the Get Account Info endpoint.
+
+        Returns:
+            Validated BackpackRawAccountSummary model.
+
+        Raises:
+            APIError: If validation of account data fails.
+        """
         context = "account info"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -396,7 +470,14 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         status_code: int,
     ) -> list[BackpackRawMarket]:
-        """Validate the raw response for the Get Markets endpoint."""
+        """Validate the raw response for the Get Markets endpoint.
+
+        Returns:
+            List of validated BackpackRawMarket models.
+
+        Raises:
+            APIError: If validation of market data fails.
+        """
         context = "markets"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -452,8 +533,7 @@ class BackpackResponseHandler:
         )
 
         try:
-            market_model = BackpackRawMarket.model_validate(validated_data)
-            return market_model
+            return BackpackRawMarket.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackResponseHandler._handle_validation_error(
                 e,
@@ -466,7 +546,14 @@ class BackpackResponseHandler:
         raw_response_content: RawJsonResponse,
         status_code: int,
     ) -> BackpackRawWithdrawalResponse:
-        """Validate the raw response for the Withdraw endpoint."""
+        """Validate the raw response for the Withdraw endpoint.
+
+        Returns:
+            Validated BackpackRawWithdrawalResponse model.
+
+        Raises:
+            APIError: If validation of withdrawal data fails.
+        """
         context = "withdraw response"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -488,7 +575,14 @@ class BackpackResponseHandler:
         symbol: str | None,
         status_code: int,
     ) -> list[BackpackRawOrder]:
-        """Validate the raw response for the Get Order History endpoint."""
+        """Validate the raw response for the Get Order History endpoint.
+
+        Returns:
+            List of validated BackpackRawOrder models from order history.
+
+        Raises:
+            APIError: If validation of order data fails.
+        """
         context = f"order history ({symbol or 'all'})"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -522,6 +616,12 @@ class BackpackResponseHandler:
         """Validate the raw response for the Get Trade History endpoint.
 
         Now returns list[BackpackRawPublicTrade] as per user request.
+
+        Returns:
+            List of validated BackpackRawPublicTrade models.
+
+        Raises:
+            APIError: If validation of trade data fails.
         """
         context = f"trade history ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -556,6 +656,12 @@ class BackpackResponseHandler:
         """Validate the raw response for the Get Fills (/wapi/v1/history/fills) endpoint.
 
         This endpoint returns BackpackRawFill format, different from BackpackRawPublicTrade.
+
+        Returns:
+            List of validated BackpackRawFill models.
+
+        Raises:
+            APIError: If validation of fill data fails.
         """
         context = f"fills history ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -589,7 +695,15 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawKline]:  # Changed return type
-        """Validate the raw response for the Get Market Data (Klines) endpoint."""
+        """Validate the raw response for the Get Market Data (Klines) endpoint.
+
+        Returns:
+            List of validated BackpackRawKline models.
+
+        Raises:
+            APIError: If unexpected error occurs validating kline items or validation of
+                kline data fails.
+        """
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -598,7 +712,7 @@ class BackpackResponseHandler:
         )
 
         validated_klines: list[BackpackRawKline] = []
-        for _i, item_raw in enumerate(validated_list):
+        for item_raw in validated_list:
             if not isinstance(item_raw, list):  # Backpack klines are lists of values
                 logger.warning(
                     f"[{__name__}] Skipping non-list kline item in {context}: {item_raw!r}",
@@ -640,7 +754,14 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawPublicTrade]:
-        """Validate the raw response for the Get Historical Trades endpoint."""
+        """Validate the raw response for the Get Historical Trades endpoint.
+
+        Returns:
+            List of validated BackpackRawPublicTrade models.
+
+        Raises:
+            APIError: If validation of trade data fails.
+        """
         context = f"historical trades ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
@@ -671,7 +792,11 @@ class BackpackResponseHandler:
         identifier: str,
         status_code: int,
     ) -> BackpackRawOrder:
-        """Validate the raw response for the Get Order Status endpoint."""
+        """Validate the raw response for the Get Order Status endpoint.
+
+        Returns:
+            Validated BackpackRawOrder model with current order status.
+        """
         context = f"order status (id={identifier})"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -697,6 +822,9 @@ class BackpackResponseHandler:
 
         (DELETE /api/v1/orders/cancelAll).
         Expects a list of successfully cancelled orders.
+
+        Returns:
+            List of validated BackpackRawOrder models for cancelled orders.
         """
         context = f"cancel all orders ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -735,7 +863,6 @@ class BackpackResponseHandler:
                 # Optionally, re-raise if any single item failing should invalidate
                 # the whole response:
                 # raise BackpackResponseHandler._handle_validation_error(
-                #     e, f"single order item in {context}", validated_item
                 # ) from e
                 # For now, we'll be lenient and collect valid ones.
                 # Consider if this behavior is desired or if it should be stricter.
@@ -750,6 +877,12 @@ class BackpackResponseHandler:
 
         Expects a dict with 'success' (bool), optional 'message' (str), and
         optional 'transferId' (str).
+
+        Returns:
+            Validated raw response dictionary with transfer details.
+
+        Raises:
+            APIError: If 'success' field is missing or not a boolean.
         """
         context = "internal transfer response"
         validated_data = ensure_dict_response(
@@ -802,7 +935,11 @@ class BackpackResponseHandler:
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRate:
-        """Validate the raw response for the Get Current Funding Rate endpoint."""
+        """Validate the raw response for the Get Current Funding Rate endpoint.
+
+        Returns:
+            Validated BackpackRawFundingRate model.
+        """
         context = f"current funding rate ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
@@ -829,6 +966,9 @@ class BackpackResponseHandler:
         """Validate the raw response for the Get Historical Funding Rates endpoint.
 
         (/api/v1/fundingRates).
+
+        Returns:
+            List of validated BackpackRawFundingIntervalRate models.
         """
         context = f"historical funding rates ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(
@@ -866,6 +1006,9 @@ class BackpackResponseHandler:
         """Validate the raw response for the Get Collateral endpoint.
 
         (/api/v1/capital/collateral).
+
+        Returns:
+            Validated BackpackRawCollateralResponse model.
         """
         context = f"collateral data (subaccount_id={subaccount_id}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -896,6 +1039,9 @@ class BackpackResponseHandler:
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/borrow).
+
+        Returns:
+            Validated BackpackRawMaxBorrowQuantity model.
         """
         context = f"max borrow quantity ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -925,6 +1071,9 @@ class BackpackResponseHandler:
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/order).
+
+        Returns:
+            Validated BackpackRawMaxOrderQuantity model.
         """
         context = f"max order quantity ({symbol} {side}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -953,6 +1102,9 @@ class BackpackResponseHandler:
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/withdrawal).
+
+        Returns:
+            Validated BackpackRawMaxWithdrawalQuantity model.
         """
         context = f"max withdrawal quantity ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(

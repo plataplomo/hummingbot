@@ -33,7 +33,11 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @pytest.fixture
 def mock_exchange_api() -> AsyncMock:
-    """Create a mock ExchangeAPI for testing."""
+    """Create a mock ExchangeAPI for testing.
+
+    Returns:
+        AsyncMock: A mock exchange API configured with test data and methods.
+    """
     mock_api = AsyncMock()
     now = datetime.now(UTC)
 
@@ -127,7 +131,11 @@ def mock_exchange_api() -> AsyncMock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> MagicMock:
-    """Create a mock PortfolioTracker for testing."""
+    """Create a mock PortfolioTracker for testing.
+
+    Returns:
+        MagicMock: A mock portfolio tracker with preconfigured test values.
+    """
     mock_tracker = MagicMock()
 
     # Configure mock methods
@@ -141,7 +149,11 @@ def mock_portfolio_tracker() -> MagicMock:
 
 @pytest.fixture
 def mock_data_handler() -> MagicMock:
-    """Create a mock DataHandler for testing."""
+    """Create a mock DataHandler for testing.
+
+    Returns:
+        MagicMock: A mock data handler with preconfigured market data.
+    """
     mock_handler = MagicMock()
     now = datetime.now(UTC)
 
@@ -165,7 +177,11 @@ def mock_data_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_arbitrage_opportunity() -> MagicMock:
-    """Create a mock ArbitrageOpportunity for testing."""
+    """Create a mock ArbitrageOpportunity for testing.
+
+    Returns:
+        MagicMock: A mock arbitrage opportunity with test trading data.
+    """
     opportunity = MagicMock(spec=ArbitrageOpportunity)
     opportunity.symbol = "BTC"
     opportunity.long_exchange = "hyperliquid"

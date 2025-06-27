@@ -486,13 +486,10 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 @pytest.mark.parametrize(
     "field, invalid_value",
     [
-        # ("tid", "123"), # Validator allows numeric string -> int coercion
         ("coin", 123),
         ("px", 2000.50),  # Validator allows float -> Decimal string coercion
         ("sz", 0.1),  # Validator allows float -> Decimal string coercion
-        # ("time", "1678886400123"), # Validator allows numeric string -> int coercion
         ("side", ["B"]),
-        # ("oid", "987"), # Validator allows numeric string -> int coercion
         ("startPosition", 1.0),  # Validator allows float -> Decimal string coercion
         ("dir", True),
         ("hash", None),  # Hash is required string, not Optional
@@ -638,4 +635,3 @@ class TestHyperliquidRawUserFill:
         with pytest.raises(ValidationError):
             HyperliquidRawUserFill.model_validate(data)  # Removed assignment to unused 'fill'
             # Optional: Check error message details
-            # assert "side" in str(exc_info.value)

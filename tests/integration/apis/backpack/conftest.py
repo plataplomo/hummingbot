@@ -25,6 +25,9 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
     """Provide ExchangeSpecificConfig for Backpack from test configuration.
 
     Uses test_config.yaml settings. Backpack always uses mainnet.
+
+    Returns:
+        ExchangeSpecificConfig: Backpack exchange configuration.
     """
     return test_app_settings.exchanges["backpack"]
 
@@ -34,6 +37,9 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
     """Provide ApiKeyAuthSecrets for Backpack from test secrets.
 
     Uses test_secrets.yaml settings.
+
+    Returns:
+        ApiKeyAuthSecrets: Backpack authentication secrets.
     """
     secrets = test_secrets_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
@@ -44,7 +50,11 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
 # Mock fixtures for Backpack components
 @pytest.fixture
 def mock_bp_authenticator() -> MagicMock:
-    """Provide mock BackpackEd25519Authenticator."""
+    """Provide mock BackpackEd25519Authenticator.
+
+    Returns:
+        MagicMock: Mock BackpackEd25519Authenticator instance.
+    """
     from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 
     mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
@@ -54,7 +64,11 @@ def mock_bp_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_error_mapper() -> MagicMock:
-    """Provide mock BackpackErrorMapper."""
+    """Provide mock BackpackErrorMapper.
+
+    Returns:
+        MagicMock: Mock BackpackErrorMapper instance.
+    """
     from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 
     return MagicMock(spec=BackpackErrorMapper)
@@ -62,7 +76,11 @@ def mock_bp_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_request_builder() -> MagicMock:
-    """Provide mock BackpackRequestBuilder."""
+    """Provide mock BackpackRequestBuilder.
+
+    Returns:
+        MagicMock: Mock BackpackRequestBuilder instance.
+    """
     from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 
     return MagicMock(spec=BackpackRequestBuilder)
@@ -70,7 +88,11 @@ def mock_bp_request_builder() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_response_handler() -> MagicMock:
-    """Provide mock BackpackResponseHandler."""
+    """Provide mock BackpackResponseHandler.
+
+    Returns:
+        MagicMock: Mock BackpackResponseHandler instance.
+    """
     from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 
     return MagicMock(spec=BackpackResponseHandler)
@@ -78,7 +100,11 @@ def mock_bp_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_account_data_mapper() -> MagicMock:
-    """Provide mock BackpackAccountDataMapper."""
+    """Provide mock BackpackAccountDataMapper.
+
+    Returns:
+        MagicMock: Mock BackpackAccountDataMapper instance.
+    """
     from cyberdelta.apis.backpack.mappers import BackpackAccountDataMapper
 
     return MagicMock(spec=BackpackAccountDataMapper)
@@ -86,7 +112,11 @@ def mock_bp_account_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_market_data_mapper() -> MagicMock:
-    """Provide mock BackpackMarketDataMapper."""
+    """Provide mock BackpackMarketDataMapper.
+
+    Returns:
+        MagicMock: Mock BackpackMarketDataMapper instance.
+    """
     from cyberdelta.apis.backpack.mappers import BackpackMarketDataMapper
 
     return MagicMock(spec=BackpackMarketDataMapper)
@@ -94,7 +124,11 @@ def mock_bp_market_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_trading_data_mapper() -> MagicMock:
-    """Provide mock BackpackTradingDataMapper."""
+    """Provide mock BackpackTradingDataMapper.
+
+    Returns:
+        MagicMock: Mock BackpackTradingDataMapper instance.
+    """
     from cyberdelta.apis.backpack.mappers import BackpackTradingDataMapper
 
     return MagicMock(spec=BackpackTradingDataMapper)
@@ -102,7 +136,11 @@ def mock_bp_trading_data_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_account_service() -> MagicMock:
-    """Provide mock BackpackAccountService."""
+    """Provide mock BackpackAccountService.
+
+    Returns:
+        MagicMock: Mock BackpackAccountService instance.
+    """
     from cyberdelta.apis.backpack.services import BackpackAccountService
 
     mock_service = MagicMock(spec=BackpackAccountService)
@@ -117,7 +155,11 @@ def mock_bp_account_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_market_data_service() -> MagicMock:
-    """Provide mock BackpackMarketDataService."""
+    """Provide mock BackpackMarketDataService.
+
+    Returns:
+        MagicMock: Mock BackpackMarketDataService instance.
+    """
     from cyberdelta.apis.backpack.services import BackpackMarketDataService
 
     mock_service = MagicMock(spec=BackpackMarketDataService)
@@ -131,7 +173,11 @@ def mock_bp_market_data_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_trading_service() -> MagicMock:
-    """Provide mock BackpackTradingService."""
+    """Provide mock BackpackTradingService.
+
+    Returns:
+        MagicMock: Mock BackpackTradingService instance.
+    """
     from cyberdelta.apis.backpack.services import BackpackTradingService
 
     mock_service = MagicMock(spec=BackpackTradingService)
@@ -145,7 +191,11 @@ def mock_bp_trading_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_http_client() -> MagicMock:
-    """Provide mock HttpClient for BackpackAPI."""
+    """Provide mock HttpClient for BackpackAPI.
+
+    Returns:
+        MagicMock: Mock HttpClient instance.
+    """
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -174,6 +224,10 @@ def bp_api_with_di(
     """Create factory fixture for BackpackAPI instances with all dependencies injected.
 
     This enables black-box testing without accessing protected members.
+
+    Returns:
+        Callable[..., BackpackAPI]: Factory function for creating BackpackAPI instances
+            with injected dependencies.
     """
 
     def _create_api(
@@ -181,7 +235,11 @@ def bp_api_with_di(
         secrets: ApiKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> BackpackAPI:
-        """Create BackpackAPI with injected dependencies."""
+        """Create BackpackAPI with injected dependencies.
+
+        Returns:
+            BackpackAPI: Configured BackpackAPI instance with injected dependencies.
+        """
         final_config = config or active_bp_config
         final_secrets = secrets or active_bp_secrets
 
@@ -207,20 +265,35 @@ def bp_api_with_di(
 # Zero Balance Test Fixtures
 @pytest.fixture(scope="session")
 def test_secrets_zero_balance_file_path() -> Path:
-    """Path to the zero balance test secrets file."""
+    """Path to the zero balance test secrets file.
+
+    Returns:
+        Path: Path to test_secrets_zero_balance.yaml file.
+    """
     return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_zero_balance.yaml"
 
 
 # Large Balance Test Fixtures
 @pytest.fixture(scope="session")
 def test_secrets_large_balance_file_path() -> Path:
-    """Path to the large balance test secrets file."""
+    """Path to the large balance test secrets file.
+
+    Returns:
+        Path: Path to test_secrets_large_balance.yaml file.
+    """
     return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_large_balance.yaml"
 
 
 @pytest.fixture(scope="session")
 def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path) -> SecretsConfig:
-    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml."""
+    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml.
+
+    Returns:
+        SecretsConfig: Loaded configuration for large balance tests.
+
+    Raises:
+        RuntimeError: If secrets data is None after loading.
+    """
     if not test_secrets_large_balance_file_path.exists():
         pytest.skip(
             f"Large balance test secrets file not found at {test_secrets_large_balance_file_path}, "
@@ -245,6 +318,9 @@ def bp_secrets_for_large_balance(
     """Provide ApiKeyAuthSecrets for large balance account.
 
     Loads from test_secrets_large_balance.yaml.
+
+    Returns:
+        ApiKeyAuthSecrets: Authentication secrets for large balance tests.
     """
     secrets = test_secrets_large_balance_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
@@ -268,6 +344,9 @@ async def bp_api_for_large_balance_test(
     - High leverage limits
     - Sufficient margin for edge case testing
     - Ability to open and close large positions
+
+    Yields:
+        BackpackAPI instance configured for large balance testing
     """
     # Create BackpackAPI with large balance account credentials
     api = BackpackAPI(
@@ -281,7 +360,14 @@ async def bp_api_for_large_balance_test(
 
 @pytest.fixture(scope="session")
 def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) -> SecretsConfig:
-    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml."""
+    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml.
+
+    Returns:
+        SecretsConfig: Loaded configuration for zero balance tests.
+
+    Raises:
+        RuntimeError: If secrets data is None after loading.
+    """
     if not test_secrets_zero_balance_file_path.exists():
         pytest.skip(
             f"Zero balance test secrets file not found at {test_secrets_zero_balance_file_path}, "
@@ -306,6 +392,9 @@ def bp_secrets_for_zero_balance(
     """Provide ApiKeyAuthSecrets for zero balance account.
 
     Loads from test_secrets_zero_balance.yaml.
+
+    Returns:
+        ApiKeyAuthSecrets: Authentication secrets for zero balance tests.
     """
     secrets = test_secrets_zero_balance_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
@@ -329,6 +418,9 @@ async def bp_api_for_zero_balance_test(
     - No positions
     - No open orders
     - Minimal or no trading history
+
+    Yields:
+        BackpackAPI instance configured for zero balance testing.
     """
     # Create BackpackAPI with zero balance account credentials
     api = BackpackAPI(

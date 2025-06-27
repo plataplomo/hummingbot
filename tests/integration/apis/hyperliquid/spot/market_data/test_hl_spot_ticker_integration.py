@@ -357,7 +357,7 @@ async def test_hl_get_spot_ticker_symbol_normalization(
             f"Expected same normalized symbol for all variants, got: {symbols_returned}"
         )
 
-        normalized_symbol = list(symbols_returned)[0]
+        normalized_symbol = next(iter(symbols_returned))
         assert normalized_symbol.isupper(), (
             f"Expected uppercase normalized symbol, got '{normalized_symbol}'"
         )

@@ -45,7 +45,7 @@ class BackpackRawCollateralAsset(BaseModel):
     balance_notional: RawBpStringToFiniteDecimal = Field(
         ...,
         alias="balanceNotional",
-        description="Notional value of balance (quantity × price)",
+        description="Notional value of balance (quantity * price)",
     )
     collateral_weight: RawBpStringToFiniteDecimal = Field(
         ...,
@@ -55,7 +55,7 @@ class BackpackRawCollateralAsset(BaseModel):
     collateral_value: RawBpStringToFiniteDecimal = Field(
         ...,
         alias="collateralValue",
-        description="Effective collateral value (notional × weight)",
+        description="Effective collateral value (notional * weight)",
     )
     open_order_quantity: RawBpStringToFiniteDecimal = Field(
         ...,
@@ -83,7 +83,11 @@ class BackpackRawCollateralAsset(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol(cls, v: object) -> str:
-        """Validate symbol is non-empty string per OpenAPI spec."""
+        """Validate symbol is non-empty string per OpenAPI spec.
+
+        Returns:
+            str: Validated symbol string.
+        """
         return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
 
 

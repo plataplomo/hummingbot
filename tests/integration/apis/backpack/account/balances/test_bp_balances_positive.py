@@ -178,10 +178,11 @@ class TestBackpackBalancesPositive:
                 assert locked_amount > Decimal(0)
 
                 # bp_details might have open_order_quantity which represents locked in orders
-                if balance.bp_details and hasattr(balance.bp_details, "open_order_quantity"):
-                    if balance.bp_details.open_order_quantity is not None:
-                        # open_order_quantity represents amount locked in open orders
-                        assert balance.bp_details.open_order_quantity <= locked_amount
+                if (balance.bp_details and hasattr(balance.bp_details, "open_order_quantity")) and (
+                    balance.bp_details.open_order_quantity is not None
+                ):
+                    # open_order_quantity represents amount locked in open orders
+                    assert balance.bp_details.open_order_quantity <= locked_amount
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -231,7 +232,11 @@ class TestBackpackBalancesPositive:
                     )
 
     def _check_auto_lending_active(self, balances: dict[str, SpotBalance]) -> bool:
-        """Check if auto-lending is active based on balance details."""
+        """Check if auto-lending is active based on balance details.
+
+        Returns:
+            bool: True if any balance has active lending (lend_quantity > 0), False otherwise.
+        """
         return any(
             balance.bp_details
             and balance.bp_details.lend_quantity

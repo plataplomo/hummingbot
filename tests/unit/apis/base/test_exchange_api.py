@@ -128,7 +128,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Mock implementation of authentication."""
+        """Mock implementation of authentication.
+
+        Returns:
+            Empty dictionary for testing.
+        """
         return {}
 
     def _update_rate_limit_from_headers(
@@ -147,62 +151,118 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     # Implement all abstract methods with simple mocks
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Get ticker data for the specified symbol."""
+        """Get ticker data for the specified symbol.
+
+        Returns:
+            Mock Ticker object.
+        """
         return MagicMock(spec=Ticker)
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
-        """Get order book data for the specified symbol."""
+        """Get order book data for the specified symbol.
+
+        Returns:
+            Mock OrderBook object.
+        """
         return MagicMock(spec=OrderBook)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Get current funding rates for the specified arguments."""
+        """Get current funding rates for the specified arguments.
+
+        Returns:
+            List of mock FundingRate objects.
+        """
         return [MagicMock(spec=FundingRate)]
 
     async def get_historical_funding_rates(
         self,
         args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
-        """Get historical funding rates for the specified arguments."""
+        """Get historical funding rates for the specified arguments.
+
+        Returns:
+            List of mock FundingRate objects.
+        """
         return [MagicMock(spec=FundingRate)]
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Get market data candles for the specified arguments."""
+        """Get market data candles for the specified arguments.
+
+        Returns:
+            List of mock Candle objects.
+        """
         return [MagicMock(spec=Candle)]
 
     async def get_market(self, args: GetMarketArgs) -> Market:
-        """Get market metadata for the specified symbol."""
+        """Get market metadata for the specified symbol.
+
+        Returns:
+            Mock Market object.
+        """
         return MagicMock(spec=Market)
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
-        """Get market metadata for all available markets."""
+        """Get market metadata for all available markets.
+
+        Returns:
+            List of mock Market objects.
+        """
         return [MagicMock(spec=Market)]
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances for all assets."""
+        """Get account balances for all assets.
+
+        Returns:
+            Dictionary mapping asset symbols to mock SpotBalance objects.
+        """
         return {"USD": MagicMock(spec=SpotBalance)}
 
     async def get_account_summary(self) -> MarginAccountSummary:
-        """Get margin account summary information."""
+        """Get margin account summary information.
+
+        Returns:
+            Mock MarginAccountSummary object.
+        """
         return MagicMock(spec=MarginAccountSummary)
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Get derivative positions for the specified symbol or all positions."""
+        """Get derivative positions for the specified symbol or all positions.
+
+        Returns:
+            List of mock DerivativePosition objects.
+        """
         return [MagicMock(spec=DerivativePosition)]
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place a new order with the specified arguments."""
+        """Place a new order with the specified arguments.
+
+        Returns:
+            Mock Order object.
+        """
         return MagicMock(spec=Order)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
-        """Execute a transfer with the specified arguments."""
+        """Execute a transfer with the specified arguments.
+
+        Returns:
+            Mock Transfer object.
+        """
         return MagicMock(spec=Transfer)
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Execute a withdrawal with the specified arguments."""
+        """Execute a withdrawal with the specified arguments.
+
+        Returns:
+            Mock Withdrawal object.
+        """
         return MagicMock(spec=Withdrawal)
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-        """Cancel an order with the specified arguments."""
+        """Cancel an order with the specified arguments.
+
+        Returns:
+            CancelOrderResult with success status and details.
+        """
         from cyberdelta.core.models.enums import CancelOrderResultStatus
         from cyberdelta.core.models.market.order import CancelOrderResult
 
@@ -217,51 +277,96 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         )
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all orders for the specified symbol or all symbols."""
+        """Cancel all orders for the specified symbol or all symbols.
+
+        Returns:
+            Empty list of CancelOrderResult objects.
+        """
         return []
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get open orders for the specified symbol or all symbols."""
+        """Get open orders for the specified symbol or all symbols.
+
+        Returns:
+            List of mock Order objects.
+        """
         return [MagicMock(spec=Order)]
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Get order history for the specified arguments."""
+        """Get order history for the specified arguments.
+
+        Returns:
+            List of mock Order objects.
+        """
         return [MagicMock(spec=Order)]
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
-        """Get trade history for the specified arguments."""
+        """Get trade history for the specified arguments.
+
+        Returns:
+            List of mock Trade objects.
+        """
         return [MagicMock(spec=Trade)]
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """Get the status of a specific order."""
+        """Get the status of a specific order.
+
+        Returns:
+            Mock Order object.
+        """
         mock_order = MagicMock(spec=Order)
         mock_order.exchange_order_id = args.order_id
         return mock_order
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Get a specific order by its arguments."""
+        """Get a specific order by its arguments.
+
+        Returns:
+            Mock Order object.
+        """
         return MagicMock(spec=Order)
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
-        """Get all open orders for the specified arguments."""
+        """Get all open orders for the specified arguments.
+
+        Returns:
+            List of mock Order objects.
+        """
         return [MagicMock(spec=Order)]
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
-        """Mock implementation of update_account_settings."""
+        """Mock implementation of update_account_settings.
+
+        Returns:
+            Mock AccountSettings object.
+        """
         return MagicMock(spec=AccountSettings)
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
-        """Mock implementation of place_batch_orders."""
+        """Mock implementation of place_batch_orders.
+
+        Returns:
+            List of mock Order objects corresponding to input orders.
+        """
         return [MagicMock(spec=Order) for _ in orders]
 
     async def cancel_batch_orders(
         self,
         cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
-        """Mock implementation of cancel_batch_orders."""
+        """Mock implementation of cancel_batch_orders.
+
+        Returns:
+            List of mock CancelOrderResult objects corresponding to input args.
+        """
         return [MagicMock(spec=CancelOrderResult) for _ in cancel_args]
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
+        """Construct subscription payload for the given topic.
+
+        Returns:
+            MockSubscriptionPayload with subscription details.
+        """
         return MockSubscriptionPayload(type="subscribe", channel=topic)
 
     async def ping_websocket(self) -> None:
@@ -273,7 +378,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
 @pytest.fixture
 def mock_error_mapper() -> MagicMock:
-    """Mock error mapper for ExchangeAPI."""
+    """Mock error mapper for ExchangeAPI.
+
+    Returns:
+        Configured MagicMock for IErrorMapper interface.
+    """
     mock_mapper = MagicMock(spec=IErrorMapper)
     # Configure the mock to return proper APIError instances
     mock_mapper.map_string_error.return_value = APIError(
@@ -289,7 +398,11 @@ def mock_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Mock authenticator for ExchangeAPI."""
+    """Mock authenticator for ExchangeAPI.
+
+    Returns:
+        Configured MagicMock for IAuthenticator interface.
+    """
     mock_auth = MagicMock(spec=IAuthenticator)
     mock_auth.prepare_request = AsyncMock()
     return mock_auth
@@ -297,7 +410,11 @@ def mock_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_http_client() -> MagicMock:
-    """Mock HTTP client for ExchangeAPI."""
+    """Mock HTTP client for ExchangeAPI.
+
+    Returns:
+        Configured MagicMock for HTTP client with async methods.
+    """
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -306,7 +423,11 @@ def mock_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_ws_manager() -> MagicMock:
-    """Mock WebSocket manager for ExchangeAPI."""
+    """Mock WebSocket manager for ExchangeAPI.
+
+    Returns:
+        Configured MagicMock for WebSocket manager with async methods.
+    """
     mock_manager = MagicMock()
     mock_manager.connect = AsyncMock()
     mock_manager.close = AsyncMock()
@@ -317,13 +438,21 @@ def mock_ws_manager() -> MagicMock:
 
 @pytest.fixture
 def mock_rate_limiter() -> MagicMock:
-    """Mock rate limiter service for ExchangeAPI."""
+    """Mock rate limiter service for ExchangeAPI.
+
+    Returns:
+        MagicMock for rate limiter service.
+    """
     return MagicMock()
 
 
 @pytest.fixture
 def base_config() -> dict[str, Any]:
-    """Provide base configuration for ExchangeAPI tests."""
+    """Provide base configuration for ExchangeAPI tests.
+
+    Returns:
+        Dictionary containing base configuration settings.
+    """
     return {
         "rate_limits": {"default_rate": 10, "default_bucket_size": 10},
         "ws_endpoint": "wss://test.ws.endpoint",
@@ -347,7 +476,11 @@ def base_config() -> dict[str, Any]:
 
 @pytest.fixture
 def mock_secrets() -> dict[str, str | None]:
-    """Mock secrets for ExchangeAPI tests."""
+    """Mock secrets for ExchangeAPI tests.
+
+    Returns:
+        Dictionary containing mock API credentials.
+    """
     return {"API_KEY": "test_key", "API_SECRET": "test_secret"}
 
 
@@ -364,6 +497,9 @@ def exchange_api_with_di(
     """Create factory fixture to create ExchangeAPI instances with all dependencies injected.
 
     This enables black-box testing without accessing private members.
+
+    Returns:
+        Factory function that creates ConcreteTestExchangeAPI instances with injected dependencies.
     """
 
     def _create_api(
@@ -372,7 +508,11 @@ def exchange_api_with_di(
         secrets: dict[str, str | None] | None = None,
         **overrides: MagicMock,
     ) -> ConcreteTestExchangeAPI:
-        """Create ExchangeAPI with injected dependencies."""
+        """Create ExchangeAPI with injected dependencies.
+
+        Returns:
+            ConcreteTestExchangeAPI instance with mocked dependencies.
+        """
         actual_config = config or base_config
         actual_secrets = secrets or mock_secrets
 

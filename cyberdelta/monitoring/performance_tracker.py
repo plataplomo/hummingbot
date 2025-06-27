@@ -445,7 +445,6 @@ class PerformanceTracker:
                     df[strategy] = series
 
             # Sort by timestamp (already sorted by index creation)
-            # df = df.sort_index()
 
             # Filter by time range
             if start_time:
@@ -456,9 +455,7 @@ class PerformanceTracker:
                 df = df[df.index <= pd.to_datetime(end_time)]
 
             # Fill NaN values with 0
-            df = df.fillna(0)
-
-            return df
+            return df.fillna(0)
 
     def get_trades_dataframe(
         self,
@@ -671,8 +668,7 @@ class PerformanceTracker:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # Set index
-        df = df.set_index("timestamp")
-        return df
+        return df.set_index("timestamp")
 
     def _apply_pivot_if_requested(self, df: pd.DataFrame, pivot: bool) -> pd.DataFrame:
         """Apply pivot transformation if requested."""
@@ -684,12 +680,11 @@ class PerformanceTracker:
                     subset=["timestamp", "symbol"],
                     keep="last",
                 )
-                df_pivot = df_unique.pivot(
+                return df_unique.pivot(
                     index="timestamp",
                     columns="symbol",
                     values="funding_rate",
                 )
-                return df_pivot
             except Exception as e:
                 logger.warning(
                     f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}",
@@ -716,7 +711,3 @@ class PerformanceTracker:
         )
 
     # Remove original _save_* methods as they are replaced by calls to self.persistence
-    # def _save_returns(self, strategy_name: str) -> None: ...
-    # def _save_trades(self) -> None: ...
-    # def _save_signals(self) -> None: ...
-    # def _save_funding_rates(self) -> None: ...

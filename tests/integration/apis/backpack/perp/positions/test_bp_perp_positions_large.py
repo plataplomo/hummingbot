@@ -114,7 +114,11 @@ class TestBackpackPerpLargePositions:
         symbol: str,
         side: OrderSide,
     ) -> Decimal:
-        """Get the maximum order quantity from the exchange."""
+        """Get the maximum order quantity from the exchange.
+
+        Returns:
+            The maximum order quantity that can be placed on the exchange.
+        """
         # Get current market price for the query
         market_price = await get_current_market_price(api, symbol)
 
@@ -129,7 +133,15 @@ class TestBackpackPerpLargePositions:
         return await api.account_service._get_exchange_max_order_quantity(max_order_args)  # pyright: ignore[reportPrivateUsage]
 
     async def _get_account_margin_parameters(self, api: BackpackAPI) -> dict[str, Decimal | None]:
-        """Get actual margin parameters from the exchange."""
+        """Get actual margin parameters from the exchange.
+
+        Returns:
+            Dictionary containing margin parameters with keys: imf, mmf,
+                margin_fraction, leverage_limit.
+
+        Raises:
+            ValueError: If no Backpack-specific margin details are available.
+        """
         # Get account summary which includes bp_details with enhanced margin info
         account_summary = await api.get_account_summary()
 
@@ -156,7 +168,12 @@ class TestBackpackPerpLargePositions:
         api: BackpackAPI,
         symbol: str,
     ) -> MaxPositionParams:
-        """Find the absolute maximum position using exchange's max order endpoint."""
+        """Find the absolute maximum position using exchange's max order endpoint.
+
+        Returns:
+            MaxPositionParams containing max position size, notional value, account equity,
+            available equity, market price, step size, and margin parameters.
+        """
         # Close all positions first
         await self._close_all_positions(api)
 

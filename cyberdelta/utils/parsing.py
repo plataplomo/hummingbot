@@ -52,12 +52,30 @@ def parse_datetime_utc(
 
 
 def _ensure_utc_timezone(dt: datetime) -> datetime:
-    """Ensure datetime has UTC timezone."""
+    """Ensure datetime has UTC timezone.
+
+    Args:
+        dt: Datetime object to ensure has UTC timezone
+
+    Returns:
+        Datetime object with UTC timezone
+    """
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _parse_numeric_timestamp(value: float, prefix: str) -> datetime:
-    """Parse numeric timestamp, auto-detecting scale (ns, us, ms, s)."""
+    """Parse numeric timestamp, auto-detecting scale (ns, us, ms, s).
+
+    Args:
+        value: Numeric timestamp value
+        prefix: Error message prefix for better error context
+
+    Returns:
+        Parsed datetime object in UTC
+
+    Raises:
+        ValueError: If timestamp value is invalid
+    """
     try:
         timestamp_s = _determine_timestamp_scale(value)
         return datetime.fromtimestamp(timestamp_s, tz=UTC)
@@ -66,7 +84,14 @@ def _parse_numeric_timestamp(value: float, prefix: str) -> datetime:
 
 
 def _determine_timestamp_scale(value: float) -> float:
-    """Determine the scale of a timestamp and convert to seconds."""
+    """Determine the scale of a timestamp and convert to seconds.
+
+    Args:
+        value: Timestamp value to analyze
+
+    Returns:
+        Timestamp converted to seconds
+    """
     # Determine scale: ns, us, ms, or s
     if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
         return value / 1e9
@@ -79,7 +104,15 @@ def _determine_timestamp_scale(value: float) -> float:
 
 
 def _parse_string_datetime(value: str, prefix: str) -> datetime:
-    """Parse string as ISO datetime or numeric timestamp."""
+    """Parse string as ISO datetime or numeric timestamp.
+
+    Args:
+        value: String value to parse
+        prefix: Error message prefix for better error context
+
+    Returns:
+        Parsed datetime object in UTC
+    """
     # ---
     # NOTE: The following type narrowing is canonical and type-safe in Python.
     # Pylance/Pyright may incorrectly flag this as unnecessary due to static type inference,
@@ -95,7 +128,19 @@ def _parse_string_datetime(value: str, prefix: str) -> datetime:
 
 
 def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: ValueError) -> datetime:
-    """Try to parse string as numeric timestamp if ISO parsing failed."""
+    """Try to parse string as numeric timestamp if ISO parsing failed.
+
+    Args:
+        value: String value to parse as numeric
+        prefix: Error message prefix
+        iso_error: The original ISO parsing error for context
+
+    Returns:
+        Parsed datetime object in UTC
+
+    Raises:
+        ValueError: If parsing as numeric timestamp also fails
+    """
     try:
         float_val = float(value)
         # Reuse the timestamp scale logic

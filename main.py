@@ -9,6 +9,7 @@ backtesting, and other engine operations with proper configuration management.
 
 import argparse
 import asyncio
+import contextlib
 import os  # Added for path manipulation
 import signal
 import sys
@@ -42,6 +43,9 @@ logger = get_structlog(__name__)
 
 # Global cancellation token
 cancellation_token = asyncio.Event()
+
+# Global task store for signal handlers
+_signal_handler_tasks: set[asyncio.Task[Any]] = set()
 
 
 async def _stop_components(app_state: dict[str, Any]) -> None:
@@ -77,10 +81,8 @@ async def _close_api_connections(app_state: dict[str, Any]) -> None:
             for task in pending:
                 task.cancel()
                 # Try to await the cancelled task to clean up properly
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
 
 
 async def _save_application_state(app_state: dict[str, Any]) -> None:
@@ -234,7 +236,6 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         app_state["circuit_breaker"] = circuit_breaker
 
         # ExecutionHandler expects:
-        #   (Config, PortfolioTracker, SymbolMapper, CircuitBreakerSystem|None)
         execution_handler = ExecutionHandler(
             config,
             portfolio_tracker,
@@ -411,7 +412,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
         raise
 
 
-async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
+def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
     """Set up signal handling for graceful shutdown."""
     loop = asyncio.get_running_loop()
 
@@ -426,10 +427,12 @@ async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
         # Create a closure to properly capture the signal
         def create_signal_handler(sig: signal.Signals) -> Callable[[], None]:
             def handler() -> None:
-                asyncio.create_task(
+                task = asyncio.create_task(
                     _shutdown_coro_for_signal(),
                     name=f"ShutdownHandler_{signal.Signals(sig).name}",
                 )
+                _signal_handler_tasks.add(task)
+                task.add_done_callback(_signal_handler_tasks.discard)
 
             return handler
 
@@ -440,7 +443,7 @@ async def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
     logger.debug("Signal handlers registered.")
 
 
-async def _wire_components(app_state: dict[str, Any]) -> None:
+def _wire_components(app_state: dict[str, Any]) -> None:
     """Wire components according to the new architecture."""
     logger.info("Wiring components...")
     # DataHandler pushes MarketData -> Engine
@@ -473,24 +476,21 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
 
     logger.info("Starting background component tasks...")
     # Start data streams and processing
-    main_tasks.append(
+    main_tasks.extend([
         asyncio.create_task(
             app_state["data_handler"].start_connections(),
             name="DataHandler_start_connections",
         ),
-    )
-    # Start signal queue processing
-    main_tasks.append(
         asyncio.create_task(
             app_state["signal_queue"].run(cancellation_token),
             name="SignalQueue_run",
         ),
-    )
+    ])
 
     return main_tasks
 
 
-async def _start_engine(app_state: dict[str, Any]) -> None:
+def _start_engine(app_state: dict[str, Any]) -> None:
     """Start the trading engine."""
     logger.info("Starting Trading Engine...")
     app_state["engine"].start()  # Call the synchronous start method
@@ -597,7 +597,7 @@ async def main() -> None:
         sys.exit(1)
 
     # Wire components
-    await _wire_components(app_state)
+    _wire_components(app_state)
 
     # Add and enable strategies in the Engine
     for strategy in strategies:
@@ -608,9 +608,9 @@ async def main() -> None:
     # Start components and main loop
     try:
         main_tasks = await _start_background_tasks(app_state)
-        await _start_engine(app_state)
+        _start_engine(app_state)
 
-        await _setup_signal_handlers(app_state)
+        _setup_signal_handlers(app_state)
         await _run_main_loop()
 
     except asyncio.CancelledError:

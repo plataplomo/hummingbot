@@ -85,7 +85,11 @@ class MarketOrderConfig(BaseModel):
     @field_validator("default_slippage_pct", "max_slippage_pct", "max_price_deviation_pct")
     @classmethod
     def validate_percentage(cls, v: Decimal) -> Decimal:
-        """Validate percentage values are finite and positive."""
+        """Validate percentage values are finite and positive.
+
+        Raises:
+            ValueError: If percentage is not finite or not positive.
+        """
         if not v.is_finite():
             raise ValueError("Percentage must be a finite decimal")
         if v <= Decimal(0):
@@ -95,7 +99,11 @@ class MarketOrderConfig(BaseModel):
     @field_validator("slippage_by_symbol")
     @classmethod
     def validate_slippage_map(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
-        """Validate all slippage values in the symbol map."""
+        """Validate all slippage values in the symbol map.
+
+        Raises:
+            ValueError: If 'default' entry is missing or slippage values are invalid.
+        """
         if "default" not in v:
             raise ValueError("slippage_by_symbol must contain a 'default' entry")
 

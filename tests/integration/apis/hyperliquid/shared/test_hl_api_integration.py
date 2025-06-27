@@ -83,7 +83,12 @@ class TestHyperliquidAPIComponentIntegration:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test integration between trading and account services."""
+        """Test integration between trading and account services.
+
+        Raises:
+            APIError: When API operations fail due to insufficient funds,
+                order rejection, or other exchange-specific errors.
+        """
         # Get account summary before trading
         account_before = await hl_api_for_test_env.get_account_summary()
         assert account_before is not None, "Account summary must be accessible"
@@ -232,7 +237,12 @@ class TestHyperliquidAPIComponentIntegration:
         hl_api_for_test_env: HyperliquidAPI,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test that data models maintain consistency through the request/response pipeline."""
+        """Test that data models maintain consistency through the request/response pipeline.
+
+        Raises:
+            APIError: When API operations fail due to invalid symbols,
+                request errors, or other exchange-specific issues.
+        """
         # Get test symbol
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
@@ -360,7 +370,11 @@ class TestHyperliquidAPIComponentIntegration:
         assert duration < 5.0, f"Concurrent operations took too long: {duration}s"
 
     def _separate_results(self, results: list[Any]) -> tuple[list[Any], list[Exception]]:
-        """Separate successful results from errors."""
+        """Separate successful results from errors.
+
+        Returns:
+            Tuple of (successful_results, errors)
+        """
         successful_results: list[Any] = []
         errors: list[Exception] = []
         for result in results:
@@ -379,7 +393,11 @@ class TestHyperliquidAPIComponentIntegration:
         Ticker | None,
         list[Order] | None,
     ]:
-        """Categorize successful results by type."""
+        """Categorize successful results by type.
+
+        Returns:
+            Tuple of categorized results by type
+        """
         account_data = None
         market_data = None
         ticker_data = None
@@ -415,8 +433,7 @@ class TestHyperliquidAPIComponentIntegration:
         """Validate financial precision is maintained."""
         financial_values: list[Decimal] = []
         if isinstance(account_data, MarginAccountSummary):
-            financial_values.append(account_data.total_equity)
-            financial_values.append(account_data.available_equity)
+            financial_values.extend((account_data.total_equity, account_data.available_equity))
         if isinstance(market_data, Market):
             financial_values.append(market_data.tick_size)
         if isinstance(ticker_data, Ticker) and ticker_data.price is not None:
@@ -474,7 +491,11 @@ class TestHyperliquidAPIConcurrentOperations:
         assert duration < 5.0, f"Concurrent operations took too long: {duration}s"
 
     def _separate_results(self, results: list[Any]) -> tuple[list[Any], list[Exception]]:
-        """Separate successful results from errors."""
+        """Separate successful results from errors.
+
+        Returns:
+            Tuple of (successful_results, errors)
+        """
         successful_results: list[Any] = []
         errors: list[Exception] = []
         for result in results:
@@ -493,7 +514,11 @@ class TestHyperliquidAPIConcurrentOperations:
         Ticker | None,
         list[Order] | None,
     ]:
-        """Categorize successful results by type."""
+        """Categorize successful results by type.
+
+        Returns:
+            Tuple of categorized results by type
+        """
         account_data = None
         market_data = None
         ticker_data = None
@@ -549,8 +574,7 @@ class TestHyperliquidAPIConcurrentOperations:
         """Validate financial precision is maintained."""
         financial_values: list[Decimal] = []
         if isinstance(account_data, MarginAccountSummary):
-            financial_values.append(account_data.total_equity)
-            financial_values.append(account_data.available_equity)
+            financial_values.extend((account_data.total_equity, account_data.available_equity))
         if isinstance(market_data, Market):
             financial_values.append(market_data.tick_size)
         if isinstance(ticker_data, Ticker) and ticker_data.price is not None:
@@ -566,7 +590,11 @@ class TestHyperliquidAPIConcurrentOperations:
         hl_api_for_test_env: HyperliquidAPI,
         test_symbol: str,
     ) -> tuple[list[Any], datetime, datetime]:
-        """Execute concurrent operations and return results with timing."""
+        """Execute concurrent operations and return results with timing.
+
+        Returns:
+            Tuple of (results, start_time, end_time)
+        """
 
         async def get_account_data() -> MarginAccountSummary:
             result = await hl_api_for_test_env.get_account_summary()

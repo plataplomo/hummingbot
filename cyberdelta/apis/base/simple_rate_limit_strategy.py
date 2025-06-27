@@ -43,9 +43,6 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         Args:
             request_context: RateLimitRequestContext containing request details.
 
-        Returns:
-            None - this strategy does not modify the request payload.
-
         """
         cost = request_context.request_weight
         if cost > 0:  # Only acquire if cost is positive

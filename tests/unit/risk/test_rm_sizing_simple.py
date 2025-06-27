@@ -66,7 +66,11 @@ def mock_config_dict() -> dict[str, Any]:
 
 @pytest.fixture
 def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
-    """Create a mock AppSettings object with the required structure."""
+    """Create a mock AppSettings object with the required structure.
+
+    Returns:
+        MagicMock: Mock AppSettings object with risk configuration for simple sizing tests.
+    """
     mock_app_settings = MagicMock()
 
     # Mock the risk configuration structure
@@ -106,7 +110,11 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
 @pytest.fixture
 def sample_opportunity() -> ArbitrageOpportunity:
-    """Create sample arbitrage opportunity for testing."""
+    """Create sample arbitrage opportunity for testing.
+
+    Returns:
+        ArbitrageOpportunity: Sample arbitrage opportunity with required fields for sizing.
+    """
     # Ensure all necessary fields for SizedOpportunity creation are present
     return ArbitrageOpportunity(
         symbol="BTC-PERP",

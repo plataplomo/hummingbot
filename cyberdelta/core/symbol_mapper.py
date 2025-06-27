@@ -12,21 +12,7 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 # Assuming a config structure like:
-# config = {
-#     "exchanges": {
-#         "exchange_id_1": {
-#             "symbols": {
-#                 "INTERNAL_SYMBOL_A": "EXCHANGE_SYMBOL_X",
-#                 "INTERNAL_SYMBOL_B": "EXCHANGE_SYMBOL_Y",
-#             }
 #         },
-#         "exchange_id_2": {
-#              "symbols": {
-#                 "INTERNAL_SYMBOL_A": "EXCHANGE_SYMBOL_Z",
-#             }
-#         }
-#     }
-# }
 
 logger = get_logger(__name__)  # Use standard logging logger
 
@@ -49,9 +35,6 @@ class SymbolMapper:
             exchanges_config: A dictionary where keys are exchange_ids and values are
                               dictionaries containing a "symbols" map.
                               Example: {"exchange_A": {"symbols": {"BTC": "BTC-USD"}}, ...}
-
-        Raises:
-            SymbolMappingError: If config structure is invalid or missing essential parts.
 
         """
         self._internal_to_exchange: dict[
@@ -76,7 +59,11 @@ class SymbolMapper:
         )
 
     def _validate_config_structure(self, exchanges_config: dict[str, Any]) -> None:
-        """Validate the basic structure of the exchanges configuration."""
+        """Validate the basic structure of the exchanges configuration.
+
+        Raises:
+            SymbolMappingError: If the configuration structure is invalid.
+        """
         if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
             raise SymbolMappingError(
                 f"Invalid configuration: Expected a dictionary of exchanges, "
@@ -241,9 +228,6 @@ class SymbolMapper:
 
         Returns:
             Dictionary mapping exchange symbols to internal symbols
-
-        Raises:
-            SymbolMappingError: If exchange_id is not found in the configuration
 
         """
         return self._exchange_to_internal.get(exchange_id, {}).copy()  # Return a copy

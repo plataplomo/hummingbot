@@ -32,7 +32,6 @@ It is a core part of CyberDeltaEngine's boundary validation layer for error hand
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# from cyberdelta.apis.hyperliquid.models.common_raw_types import RawDefaultString
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawApiErrorStringHL
 
 
@@ -46,6 +45,5 @@ class HyperliquidRawApiError(BaseModel):
         error (str): Error message string returned by the API (max length 1024).
     """
 
-    # error: RawDefaultString = Field(..., alias="error", max_length=1024)
     error: RawApiErrorStringHL = Field(..., alias="error")
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)

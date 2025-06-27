@@ -24,7 +24,11 @@ class TestBackpackWsMessageRouter:
 
     @pytest.fixture
     def mock_market_data_mapper(self) -> Mock:
-        """Create a mock market data mapper."""
+        """Create a mock market data mapper.
+
+        Returns:
+            Mock BackpackMarketDataMapper for testing.
+        """
         mapper = Mock(spec=BackpackMarketDataMapper)
         mapper.transform_ws_depth_event_to_internal = Mock(return_value=Mock())
         mapper.transform_ws_ticker_event_to_internal = Mock(return_value=Mock())
@@ -32,7 +36,11 @@ class TestBackpackWsMessageRouter:
 
     @pytest.fixture
     def mock_account_data_mapper(self) -> Mock:
-        """Create a mock account data mapper."""
+        """Create a mock account data mapper.
+
+        Returns:
+            Mock BackpackAccountDataMapper for testing.
+        """
         mapper = Mock(spec=BackpackAccountDataMapper)
         mapper.transform_ws_fill_event_to_internal_trade = Mock(return_value=Mock())
         mapper.transform_ws_position_update_to_internal_position = Mock(return_value=Mock())
@@ -40,14 +48,22 @@ class TestBackpackWsMessageRouter:
 
     @pytest.fixture
     def mock_trading_data_mapper(self) -> Mock:
-        """Create a mock trading data mapper."""
+        """Create a mock trading data mapper.
+
+        Returns:
+            Mock BackpackTradingDataMapper for testing.
+        """
         mapper = Mock(spec=BackpackTradingDataMapper)
         mapper.transform_ws_order_update_to_internal_order = Mock(return_value=Mock())
         return mapper
 
     @pytest.fixture
     def mock_raw_ws_handler(self) -> Mock:
-        """Create a mock raw WebSocket message handler."""
+        """Create a mock raw WebSocket message handler.
+
+        Returns:
+            Mock BackpackWsRawMessageHandler for testing.
+        """
         handler = Mock(spec=BackpackWsRawMessageHandler)
         handler.handle_depth_payload = Mock(return_value={"mock": "depth_data"})
         handler.handle_ticker_payload = Mock(return_value={"mock": "ticker_data"})
@@ -64,7 +80,11 @@ class TestBackpackWsMessageRouter:
         mock_trading_data_mapper: Mock,
         mock_raw_ws_handler: Mock,
     ) -> BackpackWsMessageRouter:
-        """Create a BackpackWsMessageRouter instance with mocked dependencies."""
+        """Create a BackpackWsMessageRouter instance with mocked dependencies.
+
+        Returns:
+            BackpackWsMessageRouter instance with mock dependencies for testing.
+        """
         return BackpackWsMessageRouter(
             market_data_mapper=mock_market_data_mapper,
             account_data_mapper=mock_account_data_mapper,
@@ -75,7 +95,11 @@ class TestBackpackWsMessageRouter:
 
     @pytest.fixture
     def mock_app_handler(self) -> AsyncMock:
-        """Create a mock application handler with proper typing."""
+        """Create a mock application handler with proper typing.
+
+        Returns:
+            Mock MessageHandler instance for testing.
+        """
         return AsyncMock(spec=MessageHandler)
 
     def test_init(self, router: BackpackWsMessageRouter) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations  # Enable postponed evaluation
 
+import asyncio
 import logging  # Keep for specific mock logger creation
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -36,7 +37,11 @@ ExchangeOrders = dict[str, dict[str, Order]]
 
 @pytest.fixture
 def config() -> MagicMock:
-    """Create a mock config for testing."""
+    """Create a mock config for testing.
+
+    Returns:
+        MagicMock: Mock configuration object with get method.
+    """
     config = MagicMock()
 
     # Explicitly type the side effect function for config.get
@@ -46,6 +51,9 @@ def config() -> MagicMock:
         Returns values for known keys, otherwise returns the provided default.
         Type: (str, object) -> object
         Note: This is a test mock; in production, config values should be strictly typed.
+
+        Returns:
+            object: Configuration value for the key or default if not found.
         """
         config_dict: dict[str, object] = {
             "exchanges": {"hyperliquid": {}, "backpack": {}},
@@ -61,7 +69,11 @@ def config() -> MagicMock:
 
 @pytest.fixture
 def pt_config() -> PortfolioTrackerConfig:
-    """Create a PortfolioTrackerConfig for testing."""
+    """Create a PortfolioTrackerConfig for testing.
+
+    Returns:
+        PortfolioTrackerConfig: Test configuration for portfolio tracker.
+    """
     return PortfolioTrackerConfig(
         data_freshness_seconds=60,
         initial_balances={},
@@ -70,7 +82,11 @@ def pt_config() -> PortfolioTrackerConfig:
 
 
 def _get_mock_price_data() -> dict[str, Decimal]:
-    """Get mock price data for testing."""
+    """Get mock price data for testing.
+
+    Returns:
+        dict[str, Decimal]: Mock price data mapping symbols to prices.
+    """
     return {
         "BTC_USDC": Decimal("50000.0"),
         "ETH_USDC": Decimal("3000.0"),
@@ -79,13 +95,21 @@ def _get_mock_price_data() -> dict[str, Decimal]:
 
 
 def _handle_direct_pairs(base: str, quote: str, prices: dict[str, Decimal]) -> Decimal | None:
-    """Handle direct trading pairs."""
+    """Handle direct trading pairs.
+
+    Returns:
+        Decimal | None: Price for the trading pair or None if not found.
+    """
     pair_key = f"{base}_{quote}"
     return prices.get(pair_key)
 
 
 def _handle_inverse_pairs(base: str, quote: str, prices: dict[str, Decimal]) -> Decimal | None:
-    """Handle inverse trading pairs."""
+    """Handle inverse trading pairs.
+
+    Returns:
+        Decimal | None: Inverse price for the trading pair or None if not found.
+    """
     inverse_key = f"{quote}_{base}"
     if inverse_key in prices:
         return Decimal("1.0") / prices[inverse_key]
@@ -93,7 +117,11 @@ def _handle_inverse_pairs(base: str, quote: str, prices: dict[str, Decimal]) -> 
 
 
 def _handle_usd_usdc_pairs(base: str, quote: str) -> Decimal | None:
-    """Handle USD/USDC conversion pairs."""
+    """Handle USD/USDC conversion pairs.
+
+    Returns:
+        Decimal | None: Conversion rate of 1.0 for USD/USDC pairs or None.
+    """
     if (base == "USD" and quote == "USDC") or (base == "USDC" and quote == "USD"):
         return Decimal("1.0")
     return None
@@ -102,10 +130,15 @@ def _handle_usd_usdc_pairs(base: str, quote: str) -> Decimal | None:
 def _create_mock_get_ticker_side_effect(
     mock_logger: logging.Logger,
 ) -> Callable[[str], Awaitable[Ticker | None]]:
-    """Create mock get_ticker side effect function."""
+    """Create mock get_ticker side effect function.
+
+    Returns:
+        Callable[[str], Awaitable[Ticker | None]]: Mock function that returns ticker data.
+    """
     prices = _get_mock_price_data()
 
     async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
+        await asyncio.sleep(0)  # Satisfy RUF029
         mock_logger.debug(f"SIDE_EFFECT: Called with symbol: '{symbol}'")
 
         # Parse symbol
@@ -156,7 +189,11 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def api_clients(self) -> dict[str, AsyncMock]:
-        """Create mock API clients for testing."""
+        """Create mock API clients for testing.
+
+        Returns:
+            dict[str, AsyncMock]: Dictionary mapping exchange names to mock API clients.
+        """
         # Use a distinct logger for the mock side effect
         mock_logger = logging.getLogger(__name__ + ".mock_get_ticker_side_effect")
         mock_logger.setLevel(logging.DEBUG)
@@ -179,7 +216,11 @@ class TestPortfolioTracker:
         pt_config: PortfolioTrackerConfig,
         api_clients: dict[str, AsyncMock],
     ) -> PortfolioTracker:
-        """Create a PortfolioTracker instance for testing."""
+        """Create a PortfolioTracker instance for testing.
+
+        Returns:
+            PortfolioTracker: Configured portfolio tracker with registered API clients.
+        """
         tracker = PortfolioTracker(config, pt_config)
 
         # Register API clients
@@ -190,13 +231,14 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def sample_positions(self) -> dict[str, dict[str, DerivativePosition]]:
-        """Create sample derivative positions for testing."""
+        """Create sample derivative positions for testing.
+
+        Returns:
+            dict[str, dict[str, DerivativePosition]]: Sample positions by exchange and symbol.
+        """
         now = datetime.now(UTC)
         # Define defaults ONLY for OPTIONAL fields NOT explicitly set below
         default_pos_args: dict[str, Any] = {
-            # "mark_price": None, # Explicitly set
-            # "liquidation_price": None, # Explicitly set
-            # "unrealized_pnl": None, # Explicitly set
             "realized_pnl": None,
             "strategy_name": None,
             "signal_id": None,
@@ -236,7 +278,11 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def sample_orders(self) -> dict[str, dict[str, Order]]:
-        """Create sample orders for testing."""
+        """Create sample orders for testing.
+
+        Returns:
+            dict[str, dict[str, Order]]: Sample orders by exchange and order ID.
+        """
         now = datetime.now(UTC)
         # Define defaults ONLY for OPTIONAL fields NOT explicitly set below
         default_order_args: dict[str, Any] = {
@@ -306,7 +352,11 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def sample_balances_raw(self) -> dict[str, dict[str, Decimal]]:
-        """Create sample balances raw data for setting up mocks."""
+        """Create sample balances raw data for setting up mocks.
+
+        Returns:
+            dict[str, dict[str, Decimal]]: Raw balance data by exchange and asset.
+        """
         return {
             "hyperliquid": {"USDC": Decimal("100000.0"), "BTC": Decimal("2.0")},
             "backpack": {"USDC": Decimal("50000.0"), "ETH": Decimal("20.0")},
@@ -314,15 +364,27 @@ class TestPortfolioTracker:
 
     @pytest.fixture
     def now(self) -> datetime:
-        """Provide the current time in UTC."""
+        """Provide the current time in UTC.
+
+        Returns:
+            datetime: Current UTC timestamp.
+        """
         return datetime.now(UTC)
 
     @pytest.fixture
     def sample_balances_state(self, now: datetime) -> ExchangeBalances:
-        """Create sample balances state for testing."""
+        """Create sample balances state for testing.
+
+        Returns:
+            ExchangeBalances: Structured balance data for testing.
+        """
 
         def create_balance(exchange: str, asset: str, qty: Decimal) -> SpotBalance:
-            """Create balance for testing."""
+            """Create balance for testing.
+
+            Returns:
+                SpotBalance: A test spot balance with specified parameters.
+            """
             return SpotBalance(
                 exchange=exchange,
                 asset=asset,
@@ -347,6 +409,7 @@ class TestPortfolioTracker:
         return balances_state
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_initialize(
         self,
         portfolio_tracker: PortfolioTracker,
@@ -464,9 +527,7 @@ class TestPortfolioTracker:
 
         # Mock API responses for the *first* update call (if any were needed beyond orders)
         now_update = datetime.now(UTC)
-        # mock_hl_balances_update = [...] # Not needed if get_balances isn't called for HL
         mock_bp_orders_update = [sample_orders["backpack"]["bp-order-2"]]
-        # api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_update
         # # Not expecting call
         api_clients["backpack"].get_open_orders.return_value = mock_bp_orders_update
 
@@ -694,8 +755,6 @@ class TestPortfolioTracker:
         """Test reconciliation with API errors."""
         # Store initial state for comparison
         initial_balances = portfolio_tracker.balances.copy()
-        # initial_positions = portfolio_tracker.positions.copy() # Unused variable
-        # initial_orders = portfolio_tracker.orders.copy() # Unused variable
         old_time = datetime.now(UTC) - timedelta(days=1)
         portfolio_tracker.last_reconciliation_time["hyperliquid"] = old_time
         initial_reconciliation_time = portfolio_tracker.last_reconciliation_time["hyperliquid"]
@@ -911,7 +970,7 @@ class TestPortfolioTracker:
         # the exchange API returning the new balance data
         with patch.object(portfolio_tracker, "_fetch_exchange_balances") as mock_fetch:
             # Make the API fetch return our new balance data
-            async def mock_fetch_balances(exchange_id: str) -> None:
+            def mock_fetch_balances(exchange_id: str) -> None:
                 portfolio_tracker.balances[exchange_id][asset_to_update] = new_balance_data
 
             mock_fetch.side_effect = mock_fetch_balances
@@ -976,7 +1035,6 @@ class TestPortfolioTracker:
         # for client in api_clients.values():
         #     if isinstance(client, AsyncMock) and hasattr(client, 'exchange_id'):
         # # Hypothetical attr
-        #        portfolio_tracker.register_api_client(client.exchange_id, client)
 
         # Expected total capital based on sample_balances_state and mocked prices
         # HyperLiquid: USDC 100000.0 (price 1.0) = 100000.0
@@ -1012,17 +1070,14 @@ class TestPortfolioTracker:
 
         # Test with a different base currency if _get_asset_price_in_base supports it
         # For example, if BTC is base currency (this requires USDC-BTC ticker mock)
-        # price_usdc_btc = await portfolio_tracker._get_asset_price_in_base(
         #     "hyperliquid", "USDC", "BTC")  , SLF001
 
-        # total_capital_btc = await portfolio_tracker.get_total_capital(
         # base_currency="BTC")
         # hl_usdc_in_btc = sample_balances_state["hyperliquid"]["USDC"].total_quantity *
         # price_usdc_btc
         # bp_usdc_in_btc = sample_balances_state["backpack"]["USDC"].total_quantity *
         # price_usdc_btc
         # bp_btc_in_btc = sample_balances_state["backpack"]["BTC"].total_quantity *
-        # Decimal("1.0")
 
         # Test with an asset that has no price (should be skipped)
         # Add a balance for an unpriced asset
@@ -1036,7 +1091,6 @@ class TestPortfolioTracker:
         # Ensure _get_asset_price_in_base returns None for "UNPRICED"
         # The api_clients fixture's mock_get_ticker_side_effect should return None
         # for it.
-        # unpriced_price = await portfolio_tracker._get_asset_price_in_base(
         #     "hyperliquid", "UNPRICED", "USDC")  , SLF001
 
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
@@ -1086,14 +1140,6 @@ class TestPortfolioTracker:
         # constructor
         # This variable is assigned but not used, it was part of a commented out
         # section for multiple positions
-        # another_btc_pos = DerivativePosition(
-        #     exchange="hyperliquid",
-        #     symbol="BTC", # Same symbol
-        #     side=OrderSide.SELL,
-        #     size=Decimal("-0.5"),
-        #     entry_price=Decimal("51000"), # Required for non-zero size
-        #     timestamp=now_get_pos,
-        # )
         # Correct way to add to defaultdict[str, defaultdict[str, DerivativePosition]]
         # where self.positions[exchange_id] is defaultdict[str, DerivativePosition]
         # and the key for the inner dict is the symbol.
@@ -1105,7 +1151,6 @@ class TestPortfolioTracker:
         # The method get_positions_by_symbol implies it *could* return multiple,
         # suggesting the internal storage might be a list or the keying is more complex.
         # Based on current PortfolioTracker.positions type:
-        # self.positions: defaultdict[str, defaultdict[str, DerivativePosition]]
         # This means one symbol per exchange maps to one DerivativePosition.
         # So, adding "another_btc_pos" with key "BTC" will overwrite.
         # The test, as written, implies it *expects* multiple if they exist.
@@ -1204,15 +1249,11 @@ class TestPortfolioTracker:
         assert "hl-order-1" not in portfolio_tracker.orders["hyperliquid"]
 
         # Check individual order statuses before calling get_open_orders
-        # order1 = portfolio_tracker.orders["hyperliquid"].get("hl-order-1") # hl-order-1 is removed
         order2 = portfolio_tracker.orders["hyperliquid"].get("hl-order-2")
         # assert order1 is not None, "hl-order-1 should be in tracker"
         assert order2 is not None, "hl-order-2 should be in tracker"
 
         # assert order1.status == OrderStatus.PARTIALLY_FILLED, (
-        #     f"hl-order-1 status is {order1.status}, expected PARTIALLY_FILLED"
-        # )
-        # assert order1.status.is_open(), "hl-order-1 (PARTIALLY_FILLED) should be open"
 
         assert order2.status == OrderStatus.NEW, (
             f"hl-order-2 status is {order2.status}, expected NEW"
@@ -1229,15 +1270,11 @@ class TestPortfolioTracker:
         assert "hl-order-2" in open_order_ids_hl
 
         open_orders_bp = portfolio_tracker.get_open_orders("backpack")
-        # bp-order-1 is FILLED (closed)
-        # bp-order-2 is NEW (open)
         assert len(open_orders_bp) == 1  # Only bp-order-2 should be open
         assert open_orders_bp[0].client_order_id == "bp-order-2"
 
         # Test with symbol filter
-        # open_btc_orders_hl = portfolio_tracker.get_open_orders(
         #     "hyperliquid", "BTC") # No BTC orders now
-        # assert len(open_btc_orders_hl) == 0
 
         open_eth_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", "ETH")
         assert len(open_eth_orders_hl) == 1
@@ -1291,7 +1328,6 @@ class TestPortfolioTracker:
 
         # Calculate PNL
         # Must be awaited as get_pnl is async
-        # realized_pnl, unrealized_pnl = asyncio.run(portfolio_tracker.get_pnl())
         # Pytest-asyncio handles the event loop for async test functions.
         # We need to properly await the async call within the test.
         # This test function itself is not async, so direct await is not possible.

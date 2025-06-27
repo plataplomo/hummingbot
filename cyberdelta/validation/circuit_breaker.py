@@ -100,8 +100,7 @@ class CircuitBreaker(ABC):
                     f"Circuit breaker '{self.name}' tripped again for the same reason: {reason}"
                 ),
             )
-                # Optionally update trip_time on subsequent trips?
-                # self.trip_time = datetime.now(timezone.utc)
+            # Optionally update trip_time on subsequent trips?
 
     def reset(self) -> None:
         """Reset the circuit breaker to allow operations."""
@@ -1035,7 +1034,6 @@ class CircuitBreakerSystem:
                         )
                         # Keep state HALF_OPEN, reset success count
                         # Commenting out potentially incorrect line
-                        # self._recovery_success_counts[exchange_breaker_name] = 0
                 else:
                     # Correctly formatted multi-line f-string
                     logger.info(

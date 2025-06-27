@@ -26,13 +26,21 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance."""
+    """Fixture providing a BackpackAccountDataMapper instance.
+
+    Returns:
+        BackpackAccountDataMapper: Configured mapper instance for testing.
+    """
     return BackpackAccountDataMapper()
 
 
 @pytest.fixture
 def test_timestamp() -> str:
-    """Fixture providing a consistent test timestamp string."""
+    """Fixture providing a consistent test timestamp string.
+
+    Returns:
+        str: ISO format timestamp string for consistent testing.
+    """
     return "2024-01-15T10:30:00Z"
 
 
@@ -49,7 +57,11 @@ def create_raw_fill(
     trade_id: int = 123456,
     client_id: str | None = None,
 ) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing edge cases."""
+    """Create BackpackRawFill instances for testing edge cases.
+
+    Returns:
+        BackpackRawFill: Test fill instance with specified parameters for edge case testing.
+    """
     return BackpackRawFill(
         fee=fee,
         feeSymbol=fee_symbol,

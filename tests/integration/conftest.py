@@ -5,6 +5,7 @@ core component instances, and test data helpers. These fixtures support
 end-to-end testing of the trading engine components working together.
 """
 
+import asyncio
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -98,7 +99,11 @@ def create_mock_ticker(
     price: str | float | Decimal,
     timestamp: datetime,  # Expect datetime object
 ) -> Ticker:  # Return Ticker object
-    """Create a Ticker object with Decimal conversion."""
+    """Create a Ticker object with Decimal conversion.
+
+    Returns:
+        Ticker: A Ticker object with converted Decimal values.
+    """
     return Ticker(
         symbol=symbol,
         bid=Decimal(str(bid)),
@@ -110,10 +115,14 @@ def create_mock_ticker(
 
 @pytest.fixture(scope="function")
 def basic_opportunity() -> ArbitrageOpportunity:
-    """Provide a basic ArbitrageOpportunity instance for integration tests."""
+    """Provide a basic ArbitrageOpportunity instance for integration tests.
+
+    Returns:
+        ArbitrageOpportunity: A basic arbitrage opportunity for testing.
+    """
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
-    opp = ArbitrageOpportunity(
+    return ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="backpack",  # Use real exchange name
         short_exchange="hyperliquid",  # Use real exchange name
@@ -128,12 +137,15 @@ def basic_opportunity() -> ArbitrageOpportunity:
         utility_score=None,  # Add optional float
         expected_profit=Decimal("0.01"),  # Set via constructor, not as attribute
     )
-    return opp
 
 
 @pytest.fixture
 def mock_pt_config() -> PortfolioTrackerConfig:
-    """Create a PortfolioTrackerConfig for testing."""
+    """Create a PortfolioTrackerConfig for testing.
+
+    Returns:
+        PortfolioTrackerConfig: Configuration for portfolio tracker testing.
+    """
     return PortfolioTrackerConfig(
         data_freshness_seconds=60,
         initial_balances={},
@@ -146,7 +158,12 @@ async def real_portfolio_tracker(
     mock_config: AppSettings,
     mock_pt_config: PortfolioTrackerConfig,
 ) -> AsyncGenerator[PortfolioTracker]:
-    """Provide a real PortfolioTracker instance initialized with mock config."""
+    """Provide a real PortfolioTracker instance initialized with mock config.
+
+    Yields:
+        PortfolioTracker: Real portfolio tracker instance.
+    """
+    await asyncio.sleep(0)  # Satisfy RUF029
     tracker = PortfolioTracker(mock_config, mock_pt_config)
     # DO NOT call await tracker.initialize() here.
     # Initialization should happen in the test or a more specific fixture
@@ -162,7 +179,11 @@ async def real_portfolio_tracker(
 # Define needed secrets locally for integration tests
 @pytest.fixture
 def mock_secrets() -> dict[str, dict[str, str | None]]:
-    """Provide dummy secrets needed by integration mock APIs."""
+    """Provide dummy secrets needed by integration mock APIs.
+
+    Returns:
+        dict[str, dict[str, str | None]]: Mock secrets configuration.
+    """
     return {
         "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
         "mock_bp": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
@@ -174,7 +195,11 @@ async def mock_hl_api(
     mock_config: AppSettings,
     mock_secrets: dict[str, dict[str, str | None]],
 ) -> AsyncGenerator[MockExchangeAPI]:
-    """Function-scoped mock HyperLiquid API with patched clients."""
+    """Function-scoped mock HyperLiquid API with patched clients.
+
+    Yields:
+        MockExchangeAPI: Mock HyperLiquid API instance.
+    """
     exchange_name = "mock_hl"
     # Create a proper ExchangeSpecificConfig object for the mock
     from cyberdelta.config.models.config_models import (
@@ -225,7 +250,11 @@ async def mock_bp_api(
     mock_config: AppSettings,
     mock_secrets: dict[str, dict[str, str | None]],
 ) -> AsyncGenerator[MockExchangeAPI]:
-    """Function-scoped mock Backpack API with patched clients."""
+    """Function-scoped mock Backpack API with patched clients.
+
+    Yields:
+        MockExchangeAPI: Mock Backpack API instance.
+    """
     exchange_name = "mock_bp"
     # Create a proper ExchangeSpecificConfig object for the mock
     from cyberdelta.config.models.config_models import ExchangeSpecificConfig
@@ -276,7 +305,11 @@ def data_handler(
     symbol_mapper: SymbolMapper,
     real_portfolio_tracker: PortfolioTracker,
 ) -> DataHandler:
-    """Create Data Handler instance with mock APIs registered."""
+    """Create Data Handler instance with mock APIs registered.
+
+    Returns:
+        DataHandler: Data handler instance with mocked dependencies.
+    """
     from typing import cast
 
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
@@ -288,19 +321,22 @@ def data_handler(
             "backpack": mock_bp_api,
         },
     )
-    dh = DataHandler(
+    return DataHandler(
         app_settings=mock_config,
         api_clients=api_clients,
         portfolio_tracker=real_portfolio_tracker,
         symbol_mapper=symbol_mapper,
     )
-    return dh
 
 
 # Define symbol_mapper fixture
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
-    """Provide a SymbolMapper instance initialized with mock config."""
+    """Provide a SymbolMapper instance initialized with mock config.
+
+    Returns:
+        SymbolMapper: Symbol mapper instance for testing.
+    """
     # Convert AppSettings exchanges config to dict format that SymbolMapper expects
     # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
     config_data_for_mapper: dict[str, Any] = {
@@ -316,7 +352,11 @@ def signal_generator(
     data_handler: DataHandler,
     symbol_mapper: SymbolMapper,
 ) -> SignalGenerator:
-    """Fixture for a SignalGenerator instance with mock data handler."""
+    """Fixture for a SignalGenerator instance with mock data handler.
+
+    Returns:
+        SignalGenerator: Signal generator instance for testing.
+    """
     return SignalGenerator(mock_config, data_handler, symbol_mapper)
 
 
@@ -327,6 +367,9 @@ def risk_manager(
     """Create Risk Manager instance using protocol-compliant mocks.
 
     Uses mocks for portfolio tracker and funding rate validator.
+
+    Returns:
+        object: RiskManager instance with mocked dependencies.
     """
     from cyberdelta.core.risk_manager import RiskManager  # Local import
 
@@ -359,7 +402,11 @@ def execution_handler(
     mock_bp_api: MockExchangeAPI,
     circuit_breaker_system: CircuitBreakerSystem,
 ) -> ExecutionHandler:
-    """Create Execution Handler instance with real tracker, mock APIs, and CB system."""
+    """Create Execution Handler instance with real tracker, mock APIs, and CB system.
+
+    Returns:
+        ExecutionHandler: Execution handler with registered mock API clients.
+    """
     from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
     # Convert AppSettings exchanges config to dict format that SymbolMapper expects
@@ -385,7 +432,11 @@ def execution_handler(
 
 @pytest.fixture
 def funding_rate_validator() -> FundingRateValidatorProtocol:
-    """Provide a protocol-compliant mock for the FundingRateValidator."""
+    """Provide a protocol-compliant mock for the FundingRateValidator.
+
+    Returns:
+        FundingRateValidatorProtocol: Mock funding rate validator.
+    """
     from typing import cast
     from unittest.mock import create_autospec  # Local import
 
@@ -401,8 +452,12 @@ async def position_reconciler(
     # real_portfolio_tracker: PortfolioTracker, # No longer directly used, will create its own
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-) -> AsyncGenerator[PositionReconciliationSystem]:  # Changed return type
-    """Provide a PositionReconciliationSystem instance with mock APIs."""
+) -> AsyncGenerator[PositionReconciliationSystem]:
+    """Provide a PositionReconciliationSystem instance with mock APIs.
+
+    Yields:
+        PositionReconciliationSystem: Position reconciliation system with mock APIs.
+    """
     # Create a fresh PortfolioTracker for this fixture
     portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
     await portfolio_tracker.initialize()  # Initialize it
@@ -422,7 +477,11 @@ async def position_reconciler(
 
 @pytest.fixture
 def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-    """Provide a CircuitBreakerSystem instance initialized with mock config."""
+    """Provide a CircuitBreakerSystem instance initialized with mock config.
+
+    Returns:
+        CircuitBreakerSystem: Circuit breaker system with mock configuration.
+    """
     # The mock_config already has safety_systems configured, use it directly
     return CircuitBreakerSystem(mock_config)
 
@@ -458,10 +517,17 @@ def vcr_config() -> dict[str, Any]:
     Provides complete VCR configuration with environment variable support for
     organized cassette directory structure. This avoids calling fixtures directly
     which is deprecated in pytest.
+
+    Returns:
+        dict[str, Any]: Complete VCR configuration for integration tests.
     """
 
     def filter_request_body(request: VCRRequest) -> VCRRequest:
-        """Filter and sanitize request body content for VCR cassette recording."""
+        """Filter and sanitize request body content for VCR cassette recording.
+
+        Returns:
+            VCRRequest: Filtered request with sanitized body content.
+        """
         if hasattr(request, "body") and getattr(request, "body", None):
             # Filter known sensitive patterns in request bodies
             request_body: Any = request.body
@@ -495,7 +561,11 @@ def vcr_config() -> dict[str, Any]:
         return request
 
     def filter_response_body(response: VCRResponse) -> VCRResponse:
-        """Filter and sanitize response body content for VCR cassette recording."""
+        """Filter and sanitize response body content for VCR cassette recording.
+
+        Returns:
+            VCRResponse: Filtered response with sanitized body content.
+        """
         if hasattr(response, "body") and getattr(response, "body", None):
             # For now, we don't filter response bodies as they typically don't contain
             # user credentials, but this hook is available for future use
@@ -503,7 +573,7 @@ def vcr_config() -> dict[str, Any]:
         return response
 
     # Base VCR configuration (copied from tests.fixtures.vcr_config to avoid fixture calling)
-    config = {
+    return {
         "filter_headers": [
             # ===== GLOBAL HEADERS =====
             # Standard authentication headers
@@ -609,8 +679,6 @@ def vcr_config() -> dict[str, Any]:
     # NOTE: cassette_library_dir is now managed by the vcr_cassette_dir fixture
     # which handles organized directory structure based on test parametrization
 
-    return config
-
 
 @pytest.fixture
 def custom_vcr_cassette_dir(request: PytestRequest) -> str:
@@ -621,6 +689,9 @@ def custom_vcr_cassette_dir(request: PytestRequest) -> str:
         @pytest.mark.vcr
         async def test_backpack_public_endpoint(custom_vcr_cassette_dir):
             ...
+
+    Returns:
+        str: Custom cassette directory path for VCR recordings.
     """
     if hasattr(request, "param"):
         # Create the full path
@@ -637,6 +708,9 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
     """VCR configuration with custom cassette path for integration tests.
 
     This fixture uses the custom_vcr_cassette_dir to set the cassette directory.
+
+    Returns:
+        dict[str, Any]: VCR configuration with custom cassette directory.
     """
     # Make a copy of the base config
     config = vcr_config.copy()
@@ -648,7 +722,11 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
 
 
 def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
-    """Extract custom VCR cassette directory from test parametrization."""
+    """Extract custom VCR cassette directory from test parametrization.
+
+    Returns:
+        str | None: Custom cassette directory if parametrized, None otherwise.
+    """
     if not (hasattr(request, "node") and hasattr(request.node, "callspec")):
         return None
 
@@ -667,7 +745,11 @@ def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
 
 
 def _get_module_based_cassette_dir(request: PytestRequest) -> str:
-    """Get module-based cassette directory from test file path."""
+    """Get module-based cassette directory from test file path.
+
+    Returns:
+        str: Module-based cassette directory path.
+    """
     # Ensure node and fspath exist
     if not (hasattr(request, "node") and hasattr(request.node, "fspath")):
         return "tests/cassettes"
@@ -699,6 +781,9 @@ def vcr_cassette_dir(request: PytestRequest) -> str:
     This fixture is automatically used by pytest-recording to determine where
     to save cassette files. We override it to use organized subdirectories
     based on the test parametrization.
+
+    Returns:
+        str: VCR cassette directory path for test recordings.
     """
     # Check for custom parametrized cassette directory
     custom_dir = _get_custom_cassette_dir(request)

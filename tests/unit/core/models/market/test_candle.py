@@ -31,7 +31,11 @@ DEC_INF: Decimal = Decimal("Infinity")
 
 # Helper function to create valid candle data easily
 def create_valid_candle_data(**overrides: object) -> dict[str, Any]:
-    """Create valid candle data for testing."""
+    """Create valid candle data for testing.
+
+    Returns:
+        dict[str, Any]: Valid candle data dictionary for testing.
+    """
     defaults: dict[str, Any] = {
         "symbol": VALID_SYMBOL,
         "interval": VALID_INTERVAL,
@@ -168,19 +172,19 @@ class TestCandle:
     def test_ohlc_consistency_validation(self) -> None:
         """Test the model-level OHLC consistency validation."""
         # high < low
-        with pytest.raises(ValueError, match="high .* must be >= low"):
+        with pytest.raises(ValueError, match=r"high .* must be >= low"):
             Candle(**create_valid_candle_data(high=Decimal(90), low=Decimal(95)))
         # high < open
-        with pytest.raises(ValueError, match="high .* must be >= open"):
+        with pytest.raises(ValueError, match=r"high .* must be >= open"):
             Candle(**create_valid_candle_data(high=Decimal(99), open=Decimal(100)))
         # high < close
-        with pytest.raises(ValueError, match="high .* must be >= close"):
+        with pytest.raises(ValueError, match=r"high .* must be >= close"):
             Candle(**create_valid_candle_data(high=Decimal(101), close=Decimal(102)))
         # low > open
-        with pytest.raises(ValueError, match="low .* must be <= open"):
+        with pytest.raises(ValueError, match=r"low .* must be <= open"):
             Candle(**create_valid_candle_data(low=Decimal(101), open=Decimal(100)))
         # low > close - This case also violates low > open, which is checked first.
-        with pytest.raises(ValueError, match="low .* must be <= open"):
+        with pytest.raises(ValueError, match=r"low .* must be <= open"):
             Candle(**create_valid_candle_data(low=Decimal(103), close=Decimal(102)))
 
         # Valid case (already tested in test_valid_creation, but good to be explicit)

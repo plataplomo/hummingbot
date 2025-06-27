@@ -76,6 +76,13 @@ class BackpackRawKline(BaseModel):
         """Validates input is list/tuple of 12 elements, maps to dict for field validation.
 
         Ensures that `data` is a sequence type before checking its length.
+
+        Returns:
+            Dictionary mapping field names to values from the input list/tuple.
+
+        Raises:
+            ValueError: If data doesn't have exactly 12 elements.
+            RuntimeError: If model definition has incorrect number of fields.
         """
         if len(data) != 12:
             # Match test message for test_invalid_structure_list_length

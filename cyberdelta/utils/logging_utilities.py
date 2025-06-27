@@ -4,6 +4,7 @@ This module provides utilities for sampling, aggregation, and error suppression
 to reduce log volume while maintaining operational visibility.
 """
 
+import operator
 import secrets
 import time
 from collections import defaultdict
@@ -221,7 +222,7 @@ class MessageStatsAggregator:
         total_events = sum(self.stats.values())
 
         # Sort stats by count (descending) and take top 10
-        top_events = dict(sorted(self.stats.items(), key=lambda x: x[1], reverse=True)[:10])
+        top_events = dict(sorted(self.stats.items(), key=operator.itemgetter(1), reverse=True)[:10])
 
         self.logger.info(
             "message_stats_summary",

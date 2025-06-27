@@ -21,6 +21,9 @@ def _get_value_for_assignment_test() -> bool:
 
     Typed to return bool, but will be mocked to return an invalid type (str)
     at runtime to test Pydantic's validate_assignment.
+
+    Returns:
+        Always returns True, but can be mocked for testing
     """
     # This actual return value doesn't impact the test when mocked,
     # but it ensures the function itself is statically correct.
@@ -105,8 +108,6 @@ def test_discrepancy_detail_invalid_discrepancy_type() -> None:
     assert errors[0]["input"] == "invalid_type"
     # Ensure the message indicates it's about the literal/enum type
     # assert (
-    #     "Input should be" in str(exc_info.value) and "[type=literal_error]" in str(exc_info.value)
-    # )
 
 
 def test_discrepancy_detail_frozen() -> None:
@@ -118,7 +119,6 @@ def test_discrepancy_detail_frozen() -> None:
     with pytest.raises(ValidationError) as exc_info:
         # Direct assignment to a frozen model should raise ValidationError
         # Pydantic v2 raises pydantic_core.ValidationError which includes info about frozen fields.
-        # detail.symbol = "ETH-PERP" # This will be caught by mypy if not careful
         detail.symbol = "ETH-PERP"  # Use setattr to test runtime frozen validation
     assert "Instance is frozen" in str(exc_info.value) or "frozen_field" in str(exc_info.value)
 
@@ -215,11 +215,7 @@ def test_historical_record_invalid_detail_type() -> None:
     assert errors[0]["type"] == "literal_error"
     assert errors[0]["loc"] == ("detail", "discrepancy_type")
     assert errors[0]["input"] == "SUPER_INVALID_TYPE_NOW"
-    # assert "detail" in str(exc_info.value)
     # # Check for the nested validation error from DiscrepancyDetail
-    # assert "Input should be" in str(exc_info.value)
-    # assert "SUPER_INVALID_TYPE_NOW" in str(exc_info.value)
-    # assert "[type=literal_error]" in str(exc_info.value)
 
 
 def test_historical_record_validate_assignment_for_is_corrected() -> None:
@@ -241,9 +237,11 @@ def test_historical_record_validate_assignment_for_is_corrected() -> None:
     # Test invalid assignment.
     # Patch helper to return str, Mypy sees `bool = func() -> bool` (statically fine).
     # Pydantic's validate_assignment should catch the runtime str assignment to bool field.
-    with patch(f"{__name__}._get_value_for_assignment_test", return_value="not_a_bool"):
-        with pytest.raises(ValidationError) as exc_info:
-            record.is_corrected = _get_value_for_assignment_test()
+    with (
+        patch(f"{__name__}._get_value_for_assignment_test", return_value="not_a_bool"),
+        pytest.raises(ValidationError) as exc_info,
+    ):
+        record.is_corrected = _get_value_for_assignment_test()
 
     assert "is_corrected" in str(exc_info.value)
     assert "Input should be a valid boolean" in str(exc_info.value)

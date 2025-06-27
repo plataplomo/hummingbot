@@ -3,6 +3,7 @@
 Tests use dependency injection patterns to mock collaborators and focus on public interface testing.
 """
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -52,7 +53,11 @@ from cyberdelta.core.models.market.order import CancelOrderResult, Order
 
 @pytest.fixture
 def mock_bp_http_client() -> MagicMock:
-    """Mock HttpClient for BackpackAPI."""
+    """Mock HttpClient for BackpackAPI.
+
+    Returns:
+        MagicMock configured for HTTP client operations.
+    """
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     return mock_client
@@ -60,7 +65,11 @@ def mock_bp_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_authenticator() -> MagicMock:
-    """Mock BackpackEd25519Authenticator."""
+    """Mock BackpackEd25519Authenticator.
+
+    Returns:
+        MagicMock configured for Backpack authentication.
+    """
     from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 
     mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
@@ -70,7 +79,11 @@ def mock_bp_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_error_mapper() -> MagicMock:
-    """Mock BackpackErrorMapper."""
+    """Mock BackpackErrorMapper.
+
+    Returns:
+        MagicMock configured for error mapping operations.
+    """
     mock_mapper = MagicMock()
     mock_mapper.map_exchange_error = MagicMock()
     mock_mapper.map_string_error = MagicMock()
@@ -79,7 +92,11 @@ def mock_bp_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_request_builder() -> MagicMock:
-    """Mock BackpackRequestBuilder."""
+    """Mock BackpackRequestBuilder.
+
+    Returns:
+        MagicMock configured for request building operations.
+    """
     mock_builder = MagicMock()
     mock_builder.build_place_order_payload = MagicMock()
     return mock_builder
@@ -87,7 +104,11 @@ def mock_bp_request_builder() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_response_handler() -> MagicMock:
-    """Mock BackpackResponseHandler."""
+    """Mock BackpackResponseHandler.
+
+    Returns:
+        MagicMock configured for response handling operations.
+    """
     mock_handler = MagicMock()
     mock_handler.handle_response = MagicMock()
     return mock_handler
@@ -95,7 +116,11 @@ def mock_bp_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_mapper() -> MagicMock:
-    """Mock BackpackMapper."""
+    """Mock BackpackMapper.
+
+    Returns:
+        MagicMock configured for data mapping operations.
+    """
     mock_mapper = MagicMock()
     mock_mapper.transform_raw_to_internal = MagicMock()
     return mock_mapper
@@ -103,7 +128,11 @@ def mock_bp_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_order_mapper() -> MagicMock:
-    """Mock BackpackOrderMapper."""
+    """Mock BackpackOrderMapper.
+
+    Returns:
+        MagicMock configured for order mapping operations.
+    """
     mock_mapper = MagicMock()
     mock_mapper.transform_raw_order_to_internal = MagicMock()
     return mock_mapper
@@ -111,7 +140,11 @@ def mock_bp_order_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_account_service() -> MagicMock:
-    """Mock BackpackAccountService."""
+    """Mock BackpackAccountService.
+
+    Returns:
+        MagicMock configured for account service operations.
+    """
     mock_service = MagicMock()
     mock_service.get_balances = AsyncMock()
     mock_service.get_account_info = AsyncMock()
@@ -124,7 +157,11 @@ def mock_bp_account_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_trading_service() -> MagicMock:
-    """Mock BackpackTradingService."""
+    """Mock BackpackTradingService.
+
+    Returns:
+        MagicMock configured for trading service operations.
+    """
     mock_service = MagicMock()
     mock_service.place_order = AsyncMock()
     mock_service.cancel_order = AsyncMock()
@@ -136,7 +173,11 @@ def mock_bp_trading_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_market_data_service() -> MagicMock:
-    """Mock BackpackMarketDataService."""
+    """Mock BackpackMarketDataService.
+
+    Returns:
+        MagicMock configured for market data service operations.
+    """
     mock_service = MagicMock()
     mock_service.get_ticker = AsyncMock()
     mock_service.get_funding_rates = AsyncMock()
@@ -145,7 +186,11 @@ def mock_bp_market_data_service() -> MagicMock:
 
 @pytest.fixture
 def mock_bp_ws_manager() -> MagicMock:
-    """Mock WebSocketManager for BackpackAPI."""
+    """Mock WebSocketManager for BackpackAPI.
+
+    Returns:
+        MagicMock configured for WebSocket management operations.
+    """
     mock_manager = MagicMock()
     mock_manager.send_json = AsyncMock()
     mock_manager.close = AsyncMock()
@@ -164,6 +209,9 @@ def bp_api_with_di(
 
     This enables black-box testing without accessing private members.
     Uses active configuration and secrets from test fixtures.
+
+    Returns:
+        Factory function for creating BackpackAPI instances with injected dependencies.
     """
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
 
@@ -908,6 +956,7 @@ class TestBackpackAPIWebSocketOperations:
     """Test WebSocket operations using black-box approach."""
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_subscribe_delegates_to_ws_manager(
         self,
         bp_api_with_di: Callable[..., BackpackAPI],
@@ -917,6 +966,7 @@ class TestBackpackAPIWebSocketOperations:
 
         # Create a mock handler
         async def mock_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             pass
 
         # Test subscription (this tests the public interface)
@@ -945,6 +995,7 @@ class TestBackpackAPIWebSocketOperations:
         assert callable(api.subscribe)
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_websocket_message_handling_public_behavior(
         self,
         bp_api_with_di: Callable[..., BackpackAPI],
@@ -958,6 +1009,7 @@ class TestBackpackAPIWebSocketOperations:
         message_received = False
 
         async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+            await asyncio.sleep(0)  # Satisfy RUF029
             nonlocal message_received
             message_received = True
 

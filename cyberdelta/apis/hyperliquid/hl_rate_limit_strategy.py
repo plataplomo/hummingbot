@@ -94,9 +94,6 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         Args:
             request_context: RateLimitRequestContext containing request details
 
-        Returns:
-            None - Hyperliquid doesn't modify request payloads for rate limiting.
-
         Raises:
             APIError: If rate limit acquisition fails or times out.
 

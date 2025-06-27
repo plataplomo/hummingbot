@@ -7,6 +7,7 @@ SECURITY: This module is critical for preventing validation bypass attacks.
 All mapper transformations MUST use these functions instead of direct instantiation.
 """
 
+import operator
 import time
 from datetime import UTC, datetime
 from typing import Any, TypeVar
@@ -72,11 +73,13 @@ class SecurityValidationAggregator:
                 if self.attempts > 0
                 else 0,
                 top_contexts=dict(
-                    sorted(self.contexts.items(), key=lambda x: x[1], reverse=True)[:5],
+                    sorted(self.contexts.items(), key=operator.itemgetter(1), reverse=True)[:5],
                 ),
-                top_models=dict(sorted(self.models.items(), key=lambda x: x[1], reverse=True)[:5]),
+                top_models=dict(
+                    sorted(self.models.items(), key=operator.itemgetter(1), reverse=True)[:5]
+                ),
                 top_exchanges=dict(
-                    sorted(self.exchanges.items(), key=lambda x: x[1], reverse=True)[:3],
+                    sorted(self.exchanges.items(), key=operator.itemgetter(1), reverse=True)[:3],
                 ),
                 message=(
                     f"Security validations: {self.attempts} attempts, "

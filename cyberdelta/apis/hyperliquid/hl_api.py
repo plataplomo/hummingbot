@@ -127,6 +127,8 @@ class HyperliquidAPI(ExchangeAPI):
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
 
+        Raises:
+            ValueError: If chain_id is required but missing from exchange_config.
         """
         # URL Selection Logic based on environment
         if exchange_config.is_mainnet_environment:
@@ -339,7 +341,11 @@ class HyperliquidAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Use the HyperliquidEip712Authenticator to prepare request components."""
+        """Use the HyperliquidEip712Authenticator to prepare request components.
+
+        Returns:
+            Dictionary containing authentication headers for the request.
+        """
         if not self._hl_authenticator:
             logger.error(
                 "hyperliquid_authentication_missing",
@@ -401,7 +407,11 @@ class HyperliquidAPI(ExchangeAPI):
         }
 
     async def _get_asset_index(self, symbol: str) -> int:
-        """Fetch or retrieve from cache the asset_index for a given symbol."""
+        """Fetch or retrieve from cache the asset_index for a given symbol.
+
+        Returns:
+            Integer asset index for the given symbol.
+        """
         return await self._asset_indexer.get_asset_index(symbol)
 
     def _update_rate_limit_from_headers(

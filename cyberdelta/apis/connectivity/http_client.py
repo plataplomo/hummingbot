@@ -761,17 +761,10 @@ class HttpClient:
         """Determine if an error should cause immediate failure without retries."""
         if error.code == APIErrorCode.INVALID_RESPONSE.value:
             return True
-        if hasattr(error, "http_status") and error.http_status in [
-            400,
-            401,
-            403,
-            404,
-            405,
-            406,
-            415,
-        ]:
-            return True
-        return False
+        return bool(
+            hasattr(error, "http_status")
+            and error.http_status in [400, 401, 403, 404, 405, 406, 415]
+        )
 
     def _should_skip_retry_delay(self, exception: Exception) -> bool:
         """Determine if retry delay should be skipped for certain exceptions."""

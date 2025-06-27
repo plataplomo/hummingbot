@@ -58,20 +58,22 @@ class TimePatchMigrator(ast.NodeTransformer):
 
     def _is_datetime_patch(self, decorator: ast.AST) -> bool:
         """Check if decorator is a datetime patch."""
-        if isinstance(decorator, ast.Call):
-            if isinstance(decorator.func, ast.Name) and decorator.func.id == "patch":
-                if decorator.args and isinstance(decorator.args[0], ast.Constant):
-                    patch_target = decorator.args[0].value
-                    return "datetime" in patch_target and "time.time" not in patch_target
+        if (isinstance(decorator, ast.Call)) and (
+            (isinstance(decorator.func, ast.Name) and decorator.func.id == "patch")
+            and (decorator.args and isinstance(decorator.args[0], ast.Constant))
+        ):
+            patch_target = decorator.args[0].value
+            return "datetime" in patch_target and "time.time" not in patch_target
         return False
 
     def _is_time_patch(self, decorator: ast.AST) -> bool:
         """Check if decorator is a time.time patch."""
-        if isinstance(decorator, ast.Call):
-            if isinstance(decorator.func, ast.Name) and decorator.func.id == "patch":
-                if decorator.args and isinstance(decorator.args[0], ast.Constant):
-                    patch_target = decorator.args[0].value
-                    return bool(patch_target == "time.time")
+        if (isinstance(decorator, ast.Call)) and (
+            (isinstance(decorator.func, ast.Name) and decorator.func.id == "patch")
+            and (decorator.args and isinstance(decorator.args[0], ast.Constant))
+        ):
+            patch_target = decorator.args[0].value
+            return bool(patch_target == "time.time")
         return False
 
 
@@ -128,10 +130,10 @@ def _add_imports_and_cleanup(migrator: TimePatchMigrator, new_content: str) -> s
     # Remove unittest.mock import if no longer needed
     new_lines: list[str] = []
     for line in lines:
-        if "from unittest.mock import patch" in line:
-            # Check if patch is still used for non-datetime things
-            if not re.search(r'@patch\s*\((?!".*datetime|"time\.time")', "\n".join(lines)):
-                continue  # Skip this import
+        if "from unittest.mock import patch" in line and not re.search(
+            r'@patch\s*\((?!".*datetime|"time\.time")', "\n".join(lines)
+        ):
+            continue  # Skip this import
         new_lines.append(line)
 
     return "\n".join(new_lines)
@@ -173,10 +175,11 @@ def find_migration_candidates(directory: Path) -> list[Path]:
     for test_file in directory.rglob("test_*.py"):
         content = test_file.read_text()
         # Look for unittest.mock datetime patches
-        if re.search(r"@patch.*datetime|with\s+patch.*datetime", content):
-            # Skip if already using fixtures
-            if "frozen_time" not in content:
-                candidates.append(test_file)
+        if (
+            re.search(r"@patch.*datetime|with\s+patch.*datetime", content)
+            and "frozen_time" not in content
+        ):
+            candidates.append(test_file)
 
     return candidates
 

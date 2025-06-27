@@ -67,7 +67,7 @@ def test_hl_auth_init_no_key_or_account() -> None:
     """Test initialization with no private key or account object raises ValueError."""
     with pytest.raises(
         ValueError,
-        match="Either wallet_private_key_secret or account_object must be provided.",
+        match=r"Either wallet_private_key_secret or account_object must be provided.",
     ):
         HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID)
 
@@ -76,7 +76,7 @@ def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
     """Test initialization with both private key and account object raises ValueError."""
     with pytest.raises(
         ValueError,
-        match="Provide either wallet_private_key_secret or account_object, not both.",
+        match=r"Provide either wallet_private_key_secret or account_object, not both.",
     ):
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),

@@ -7,11 +7,14 @@ and environment-aware test configuration loading.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pytest
 from pydantic import AnyUrl, HttpUrl
@@ -51,7 +54,12 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 @pytest.fixture
 def hyperliquid_config() -> dict[str, Any]:
-    """Fixture to provide Hyperliquid API configuration."""
+    """Fixture to provide Hyperliquid API configuration.
+
+    Returns:
+        dict[str, Any]: Hyperliquid API configuration dictionary containing
+            rest endpoint, WebSocket endpoint, and rate limit settings.
+    """
     return {
         "rest_endpoint": "https://api.hyperliquid.xyz",
         "ws_endpoint": "wss://api.hyperliquid.xyz/ws",
@@ -65,7 +73,12 @@ def hyperliquid_config() -> dict[str, Any]:
 
 @pytest.fixture
 def backpack_config() -> dict[str, Any]:
-    """Fixture to provide Backpack API configuration."""
+    """Fixture to provide Backpack API configuration.
+
+    Returns:
+        dict[str, Any]: Backpack API configuration dictionary containing
+            rest endpoint, WebSocket endpoint, and rate limit settings.
+    """
     return {
         "rest_endpoint": "https://api.backpack.exchange",
         "ws_endpoint": "wss://ws.backpack.exchange",
@@ -79,7 +92,12 @@ def backpack_config() -> dict[str, Any]:
 
 @pytest.fixture
 def hyperliquid_secrets() -> dict[str, str]:
-    """Fixture to provide Hyperliquid API secrets."""
+    """Fixture to provide Hyperliquid API secrets.
+
+    Returns:
+        dict[str, str]: Dictionary containing Hyperliquid wallet private key
+            and wallet address for authentication.
+    """
     return {
         "HYPERLIQUID_WALLET_PRIVATE_KEY": (
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -90,7 +108,12 @@ def hyperliquid_secrets() -> dict[str, str]:
 
 @pytest.fixture
 def backpack_secrets() -> dict[str, str]:
-    """Fixture to provide Backpack API secrets."""
+    """Fixture to provide Backpack API secrets.
+
+    Returns:
+        dict[str, str]: Dictionary containing Backpack API key
+            and secret for authentication.
+    """
     return {
         "BACKPACK_API_KEY": "backpack-api-key-123456",
         "BACKPACK_API_SECRET": "backpack-api-secret-123456",
@@ -102,7 +125,14 @@ def backpack_secrets() -> dict[str, str]:
 
 @pytest.fixture
 def mock_config() -> AppSettings:
-    """Create a mock AppSettings object with test settings."""
+    """Create a mock AppSettings object with test settings.
+
+    Returns:
+        AppSettings: Mock application settings configured for testing,
+            including general settings, exchange configurations, strategies,
+            risk parameters, execution settings, safety systems, monitoring,
+            and portfolio tracking configuration.
+    """
     # Create a test AppSettings instance
     return AppSettings(
         general=GeneralSettings(
@@ -226,7 +256,13 @@ def mock_config() -> AppSettings:
 
 
 def mock_get_config() -> dict[str, Any]:
-    """Fixture to provide a mock configuration dictionary."""
+    """Fixture to provide a mock configuration dictionary.
+
+    Returns:
+        dict[str, Any]: Mock configuration dictionary containing exchange settings,
+            portfolio configuration, risk parameters, execution settings,
+            validation rules, and data staleness thresholds.
+    """
     return {
         "exchanges": {
             "hyperliquid": {
@@ -323,20 +359,36 @@ def mock_get_config() -> dict[str, Any]:
 
 @pytest.fixture(scope="session")
 def test_config_file_path() -> Path:
-    """Path to the test configuration file."""
+    """Path to the test configuration file.
+
+    Returns:
+        Path: Path object pointing to test_config.yaml in the tests/config directory.
+    """
     # Assumes test_config.yaml is in tests/config/ relative to project root
     return Path(__file__).parent.parent / "config" / "test_config.yaml"
 
 
 @pytest.fixture(scope="session")
 def test_secrets_file_path() -> Path:
-    """Path to the test secrets file."""
+    """Path to the test secrets file.
+
+    Returns:
+        Path: Path object pointing to test_secrets.yaml in the tests/config directory.
+    """
     return Path(__file__).parent.parent / "config" / "test_secrets.yaml"
 
 
 @pytest.fixture(scope="session")
 def test_app_settings(test_config_file_path: Path) -> AppSettings:
-    """Load test-specific AppSettings from test_config.yaml."""
+    """Load test-specific AppSettings from test_config.yaml.
+
+    Returns:
+        AppSettings: Application settings loaded from the test configuration file.
+
+    Raises:
+        RuntimeError: If the fixture fails unexpectedly after error handling.
+        ConfigurationError: If the configuration file cannot be loaded or parsed.
+    """
     if not test_config_file_path.exists():
         pytest.skip(
             f"Test config file not found at {test_config_file_path}, skipping tests that need it.",
@@ -355,7 +407,15 @@ def test_app_settings(test_config_file_path: Path) -> AppSettings:
 
 @pytest.fixture(scope="session")
 def test_secrets_config(test_secrets_file_path: Path) -> SecretsConfig:
-    """Load test-specific SecretsConfig from test_secrets.yaml."""
+    """Load test-specific SecretsConfig from test_secrets.yaml.
+
+    Returns:
+        SecretsConfig: Secrets configuration loaded from the test secrets file.
+
+    Raises:
+        RuntimeError: If the fixture fails unexpectedly after error handling.
+        ConfigurationError: If the secrets file cannot be loaded or parsed.
+    """
     if not test_secrets_file_path.exists():
         pytest.skip(
             f"Test secrets file not found at {test_secrets_file_path}, "
@@ -379,6 +439,9 @@ def hl_test_environment() -> str:
     """Fixture to determine Hyperliquid test environment.
 
     Defaults to 'testnet' but can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
+
+    Returns:
+        str: Environment name ('testnet' or 'mainnet').
     """
     return os.environ.get("CYBERDELTA_TEST_ENV_HL", "testnet")
 
@@ -388,6 +451,10 @@ def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
     """Get the default Hyperliquid test environment from test_config.yaml.
 
     Can be overridden with CYBERDELTA_TEST_ENV_HL environment variable.
+
+    Returns:
+        str: Environment name ('mainnet' or 'testnet') based on configuration
+            or environment variable override.
     """
     hl_config = test_app_settings.exchanges.get("hyperliquid")
     is_mainnet_from_config = False  # Default to testnet
@@ -410,6 +477,10 @@ def active_hl_config(
 
     Uses test_config.yaml settings with environment override support.
     Matches Backpack pattern for consistency.
+
+    Returns:
+        ExchangeSpecificConfig: Hyperliquid exchange configuration with
+            environment-aware settings.
     """
     hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
     # Override is_mainnet_environment based on hl_test_environment_from_config fixture
@@ -424,6 +495,10 @@ def active_hl_secrets(test_secrets_config: SecretsConfig) -> PrivateKeyAuthSecre
 
     Uses test_secrets.yaml settings.
     Matches Backpack pattern for consistency.
+
+    Returns:
+        PrivateKeyAuthSecrets: Hyperliquid authentication secrets with
+            private key and wallet address.
     """
     secrets = test_secrets_config.exchanges["hyperliquid"]
     if not isinstance(secrets, PrivateKeyAuthSecrets):
@@ -436,6 +511,9 @@ def active_bp_config(test_app_settings: AppSettings) -> ExchangeSpecificConfig:
     """Environment-aware ExchangeSpecificConfig fixture for Backpack.
 
     Uses test configuration from test_config.yaml. Backpack always uses mainnet.
+
+    Returns:
+        ExchangeSpecificConfig: Backpack exchange configuration settings.
     """
     return test_app_settings.exchanges["backpack"]
 
@@ -445,6 +523,9 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
     """Environment-aware ApiKeyAuthSecrets fixture for Backpack.
 
     Uses test secrets from test_secrets.yaml.
+
+    Returns:
+        ApiKeyAuthSecrets: Backpack authentication secrets with API key and secret.
     """
     from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 
@@ -459,7 +540,11 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
 
 @pytest.fixture
 def mock_secrets_manager_with_missing() -> MagicMock:
-    """Fixture for SecretsManager where some keys are missing."""
+    """Fixture for SecretsManager where some keys are missing.
+
+    Returns:
+        MagicMock: Mocked SecretsManager instance configured to simulate missing optional keys.
+    """
     manager = MagicMock(spec=SecretsManager)
 
     # Configure get method to return None for specific keys
@@ -471,7 +556,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
         _deep_get: bool = False,
         getter: Callable[..., object] | None = None,
     ) -> object:
-        """Return mock get for testing."""
+        """Return mock get for testing.
+
+        Returns:
+            object: Default value for missing keys, or a mock value string for existing keys.
+        """
         # Simulate missing keys for testing
         missing_keys = ["optional_key_1", "optional_key_2"]
         if key in missing_keys:
@@ -487,6 +576,9 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 
 @pytest.fixture
 def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-    """Create a CircuitBreakerSystem instance using mock config."""
-    system = CircuitBreakerSystem(mock_config)
-    return system
+    """Create a CircuitBreakerSystem instance using mock config.
+
+    Returns:
+        CircuitBreakerSystem: Configured circuit breaker system for testing.
+    """
+    return CircuitBreakerSystem(mock_config)

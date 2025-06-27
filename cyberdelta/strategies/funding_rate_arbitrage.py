@@ -100,7 +100,6 @@ class FundingRateArbitrageStrategy(Strategy):
         self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
         self._consecutive_failures = 0  # Track consecutive funding rate failures
         # Defensive: ensure check_interval is always int
-        # max_history = self._get_int_param("history_length", 24)  # Unused, remove
 
         # Exchange mapping
         self.perp_exchange: str = str(self.get_param("perp_exchange", "hyperliquid"))
@@ -846,7 +845,6 @@ class FundingRateArbitrageStrategy(Strategy):
         # handles position existence.
         # if not self.portfolio_tracker: # REMOVED
         #    or not self.portfolio_tracker.has_active_positions(self.name): # REMOVED
-        #     return False # REMOVED
 
         # Get current positions
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
@@ -1042,15 +1040,10 @@ class FundingRateArbitrageStrategy(Strategy):
                 ),
             )
             # Example fallback (not recommended for live trading without proper sizing logic):
-            # nominal_trade_value = Decimal("100") # e.g., $100 USD
-            # perp_quantity = (
             #     nominal_trade_value / perp_price_entry # MODIFIED
             #     if perp_price_entry > Decimal(0) else default_size
-            # )
-            # spot_quantity = (
             #     nominal_trade_value / spot_price_entry # MODIFIED
             #     if spot_price_entry > Decimal(0) else default_size
-            # )
             return []  # For safety, do not proceed if not properly sized.
 
         if perp_quantity > Decimal(0):

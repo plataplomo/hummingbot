@@ -23,62 +23,102 @@ HttpClientRequesterSig = Callable[
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Return mock http client requester for testing."""
+    """Return mock http client requester for testing.
+
+    Returns:
+        AsyncMock: Mock HTTP client requester instance.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Return mock request builder for testing."""
+    """Return mock request builder for testing.
+
+    Returns:
+        MagicMock: Mock HyperliquidRequestBuilder instance.
+    """
     return MagicMock(spec=HyperliquidRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Return mock response handler for testing."""
+    """Return mock response handler for testing.
+
+    Returns:
+        MagicMock: Mock response handler instance.
+    """
     return MagicMock()
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Return mock authenticator for testing."""
+    """Return mock authenticator for testing.
+
+    Returns:
+        MagicMock: Mock IAuthenticator instance.
+    """
     return MagicMock(spec=IAuthenticator)
 
 
 @pytest.fixture
 def mock_hl_account_mapper() -> MagicMock:  # For general user state to balance/summary
-    """Return mock hl account mapper for testing."""
+    """Return mock hl account mapper for testing.
+
+    Returns:
+        MagicMock: Mock HyperliquidAccountDataMapper instance.
+    """
     return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
 def mock_hl_trading_mapper() -> MagicMock:  # For order/fill related mappings
-    """Return mock hl trading mapper for testing."""
+    """Return mock hl trading mapper for testing.
+
+    Returns:
+        MagicMock: Mock HyperliquidTradingDataMapper instance.
+    """
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:  # Backward compatibility alias
-    """Return mock hl order mapper for testing."""
+    """Return mock hl order mapper for testing.
+
+    Returns:
+        MagicMock: Mock HyperliquidTradingDataMapper instance.
+    """
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_user_fill_mapper() -> MagicMock:  # Backward compatibility alias
-    """Return mock hl user fill mapper for testing."""
+    """Return mock hl user fill mapper for testing.
+
+    Returns:
+        MagicMock: Mock HyperliquidTradingDataMapper instance.
+    """
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_http_client() -> Generator[MagicMock, Any, Any]:
-    """Return mock http client for testing."""
+    """Return mock http client for testing.
+
+    Yields:
+        MagicMock: Mock HTTP client instance.
+    """
     with patch("cyberdelta.apis.connectivity.http_client.HttpClient") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_get_asset_index_callable() -> AsyncMock:
-    """Create a mock for the get_asset_index_callable."""
+    """Create a mock for the get_asset_index_callable.
+
+    Returns:
+        AsyncMock: Mock callable for getting asset index.
+    """
     mock = AsyncMock()
     mock.return_value = 0  # Default return value for asset index
     return mock
@@ -94,8 +134,12 @@ def hyperliquid_account_service(
     mock_hl_trading_mapper: MagicMock,
     mock_get_asset_index_callable: AsyncMock,
 ) -> HyperliquidAccountService:
-    """Create HyperliquidAccountService instance with mocked dependencies for testing."""
-    service = HyperliquidAccountService(
+    """Create HyperliquidAccountService instance with mocked dependencies for testing.
+
+    Returns:
+        HyperliquidAccountService: Service instance with mocked dependencies.
+    """
+    return HyperliquidAccountService(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
@@ -106,4 +150,3 @@ def hyperliquid_account_service(
         trading_mapper=mock_hl_trading_mapper,
         get_asset_index_callable=mock_get_asset_index_callable,
     )
-    return service

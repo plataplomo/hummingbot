@@ -489,8 +489,6 @@ def test_calculate_performance_metrics(
     assert "win_rate" in metrics
 
     # Check calculation of profit/loss
-    # BTC: (10300 - 10100) * 1.0 = 200
-    # ETH: (215 - 205) * 5.0 = 50
     # Total P&L = 250
     assert metrics["profit_loss"] == 250
     assert metrics["total_trades"] == 4

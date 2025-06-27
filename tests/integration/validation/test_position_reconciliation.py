@@ -341,7 +341,7 @@ class TestPositionReconciliationSystem:
         # Use a list to record calls to the mock, similar to test_auto_correct
         reconcile_exchange_calls: list[str] = []
 
-        async def mock_reconcile_exchange_side_effect(exchange: str) -> dict[str, Any]:
+        def mock_reconcile_exchange_side_effect(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls.append(exchange)
             # Return the expected dictionary structure
             return {
@@ -374,7 +374,7 @@ class TestPositionReconciliationSystem:
 
         reconcile_exchange_calls_s2: list[str] = []
 
-        async def mock_reconcile_exchange_side_effect_s2(exchange: str) -> dict[str, Any]:
+        def mock_reconcile_exchange_side_effect_s2(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls_s2.append(exchange)
             return {"success": True, "discrepancies": [], "timestamp": datetime.now(UTC)}
 
@@ -394,7 +394,7 @@ class TestPositionReconciliationSystem:
 
         reconcile_exchange_calls_s3: list[str] = []
 
-        async def mock_reconcile_exchange_side_effect_s3(exchange: str) -> dict[str, Any]:
+        def mock_reconcile_exchange_side_effect_s3(exchange: str) -> dict[str, Any]:
             reconcile_exchange_calls_s3.append(exchange)
             return {"success": True, "discrepancies": [], "timestamp": datetime.now(UTC)}
 
@@ -535,7 +535,7 @@ class TestPositionReconciliationSystem:
         # Mock _reconcile_exchange to track calls and simulate its return
         reconcile_calls: list[dict[str, str]] = []
 
-        async def mock_side_effect_reconcile_exchange(exchange: str) -> dict[str, Any]:
+        def mock_side_effect_reconcile_exchange(exchange: str) -> dict[str, Any]:
             reconcile_calls.append({"exchange": exchange})  # Record the call
 
             # Simulate return structure of _reconcile_exchange
@@ -610,7 +610,7 @@ class TestPositionReconciliationSystem:
             # if mock_discrepancies was non-empty and auto_correct logic was fully exercised.
             # For example, if hyperliquid had a discrepancy:
             # Await the coroutine to get its result (the dictionary)
-            reconcile_result_hyperliquid = await mock_side_effect_reconcile_exchange("hyperliquid")
+            reconcile_result_hyperliquid = mock_side_effect_reconcile_exchange("hyperliquid")
             if any(d["symbol"] == "BTC" for d in reconcile_result_hyperliquid["discrepancies"]):
                 # This part of assertion depends on _apply_corrections being called by
                 # _reconcile_exchange

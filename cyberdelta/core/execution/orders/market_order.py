@@ -195,7 +195,7 @@ class MarketOrder:
             Order: Final order result
 
         Raises:
-            Same as execute_market_order
+            MarketOrderError: If no orders were executed or same as execute_market_order
         """
         remaining_quantity = quantity
         total_filled = Decimal(0)

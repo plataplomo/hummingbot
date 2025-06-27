@@ -68,7 +68,6 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 logger = get_logger(__name__)
 
 # Type alias for WebSocket message handlers from base.py
-# MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
 
 
 # Define a custom exception for mock API errors
@@ -88,7 +87,11 @@ class MockErrorMapper(IErrorMapper):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """Map exchange error details to APIError instance."""
+        """Map exchange error details to APIError instance.
+
+        Returns:
+            APIError instance with mapped error details.
+        """
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         return APIError(
             message=error_body or "Mock API Error",
@@ -97,7 +100,11 @@ class MockErrorMapper(IErrorMapper):
         )
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
-        """Map string error message to APIError instance."""
+        """Map string error message to APIError instance.
+
+        Returns:
+            APIError instance with mapped error message.
+        """
         exchange_code = getattr(self, "exchange_name", "MockExchange")
         api_error_code_val = APIErrorCode.EXCHANGE_SPECIFIC.value  # Default
         if http_status == 404:  # MODIFIED: Simplified condition
@@ -138,12 +145,12 @@ class MockExchangeAPI(ExchangeAPI):
             config_copy = {"api_base_url": "http://fixedmock.exchange"}  # Simplified for mock
             current_api_base_url = str(config.api_base_url_mainnet)
         is_valid_url = False
-        if isinstance(current_api_base_url, str):
+        if isinstance(current_api_base_url, str) and (
+            current_api_base_url.startswith("http://")
+            or current_api_base_url.startswith("https://")
+        ):
             # Simple check for protocol, can be enhanced if needed
-            if current_api_base_url.startswith("http://") or current_api_base_url.startswith(
-                "https://",
-            ):
-                is_valid_url = True
+            is_valid_url = True
 
         if not is_valid_url:
             logger.warning(
@@ -443,7 +450,11 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
-        """Split a symbol like 'BTC-USDC' into base and quote."""
+        """Split a symbol like 'BTC-USDC' into base and quote.
+
+        Returns:
+            tuple[str, str]: Base and quote assets from the symbol.
+        """
         parts = symbol.split("-")
         if len(parts) == 2:
             return parts[0], parts[1]
@@ -495,7 +506,11 @@ class MockExchangeAPI(ExchangeAPI):
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Mock authentication - returns empty dict."""
+        """Mock authentication - returns empty dict.
+
+        Returns:
+            dict[str, Any]: Empty authentication dictionary.
+        """
         self._check_error("_authenticate")
         await self._simulate_latency()
         return {}
@@ -618,7 +633,11 @@ class MockExchangeAPI(ExchangeAPI):
         return list(self._positions.values())
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
-        """Update mock account settings."""
+        """Update mock account settings.
+
+        Returns:
+            AccountSettings: Updated mock account settings.
+        """
         self._check_error("update_account_settings")
         await self._simulate_latency()
 
@@ -682,7 +701,12 @@ class MockExchangeAPI(ExchangeAPI):
         self,
         args: PlaceOrderArgs,
     ) -> tuple[OrderStatus, Decimal, Decimal | None]:
-        """Determine order status, fill quantity, and average fill price based on behavior."""
+        """Determine order status, fill quantity, and average fill price based on behavior.
+
+        Returns:
+            tuple[OrderStatus, Decimal, Decimal | None]: Order status, fill quantity, and
+                average fill price.
+        """
         now = datetime.now(UTC)
 
         if self._open_orders_behavior == "fill_immediately":
@@ -701,7 +725,11 @@ class MockExchangeAPI(ExchangeAPI):
         return order_status, qty_filled, avg_fill_price
 
     def _get_fill_price(self, args: PlaceOrderArgs, timestamp: datetime) -> Decimal:
-        """Get fill price for an order."""
+        """Get fill price for an order.
+
+        Returns:
+            Decimal: Fill price for the order based on order type and market conditions.
+        """
         if args.order_type == OrderType.LIMIT:
             return args.price or Decimal(0)
 
@@ -712,7 +740,11 @@ class MockExchangeAPI(ExchangeAPI):
         return ticker.price or Decimal(0)
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place an order. Mock implementation."""
+        """Place an order. Mock implementation.
+
+        Returns:
+            Order: Created order with mock execution status and pricing.
+        """
         self._check_error("place_order")
         await self._simulate_latency()
 
@@ -797,7 +829,11 @@ class MockExchangeAPI(ExchangeAPI):
         return order
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-        """Mock implementation for cancelling an order."""
+        """Mock implementation for cancelling an order.
+
+        Returns:
+            CancelOrderResult: Result of the order cancellation operation.
+        """
         self._check_error("cancel_order")
         await self._simulate_latency()
 
@@ -867,7 +903,11 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Get order details by exchange ID or client ID."""
+        """Get order details by exchange ID or client ID.
+
+        Returns:
+            Order | None: Order details if found, None otherwise.
+        """
         logger.debug(
             f"Mock {self.exchange_name}: Getting order: ID={args.order_id}, "
             f"Symbol={args.symbol}, ClientID={args.client_order_id}",
@@ -896,7 +936,11 @@ class MockExchangeAPI(ExchangeAPI):
         return order
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """Get a specific order by ID, returning None if not found."""
+        """Get a specific order by ID, returning None if not found.
+
+        Returns:
+            Order | None: Order if found, None otherwise.
+        """
         self._check_error("get_order_status")
         await self._simulate_latency()
         order = self._orders.get(args.order_id)
@@ -959,7 +1003,11 @@ class MockExchangeAPI(ExchangeAPI):
     # --- ADDED PLACEHOLDERS FOR MISSING ExchangeAPI ABSTRACT METHODS ---
 
     def _construct_subscription_payload(self, topic: str) -> BaseModel:
-        """Mock implementation for constructing subscription payload."""
+        """Mock implementation for constructing subscription payload.
+
+        Returns:
+            BaseModel: Generic subscription payload as BaseModel.
+        """
         logger.debug(f"MockExchange {self.exchange_name}: Constructing payload for {topic}")
         # Return a generic payload as a BaseModel
 
@@ -1023,14 +1071,19 @@ class MockExchangeAPI(ExchangeAPI):
         return []
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Mock implementation for cancelling all orders."""
+        """Mock implementation for cancelling all orders.
+
+        Returns:
+            list[CancelOrderResult]: List of cancellation results for all orders.
+        """
         self._check_error("cancel_all_orders")
         await self._simulate_latency()
         orders_to_cancel_ids: list[str] = []
         for order_id, order in self._orders.items():
-            if order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
-                if symbol is None or order.symbol == symbol:
-                    orders_to_cancel_ids.append(order_id)
+            if (order.status in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]) and (
+                symbol is None or order.symbol == symbol
+            ):
+                orders_to_cancel_ids.append(order_id)
 
         results: list[CancelOrderResult] = []
         for order_id in orders_to_cancel_ids:
@@ -1101,7 +1154,11 @@ class MockExchangeAPI(ExchangeAPI):
         return results
 
     async def transfer(self, args: TransferArgs) -> Transfer:
-        """Mock implementation for internal transfer."""
+        """Mock implementation for internal transfer.
+
+        Returns:
+            Transfer: Mock transfer record with transaction details.
+        """
         self._check_error("transfer")
         await self._simulate_latency()
 
@@ -1119,7 +1176,11 @@ class MockExchangeAPI(ExchangeAPI):
         )
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Mock implementation for withdrawal."""
+        """Mock implementation for withdrawal.
+
+        Returns:
+            Withdrawal: Mock withdrawal record with transaction details.
+        """
         self._check_error("withdraw")
         await self._simulate_latency()
 
@@ -1179,7 +1240,11 @@ class MockExchangeAPI(ExchangeAPI):
     # --- END OF ADDED PLACEHOLDERS ---
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
-        """Mock implementation of place_batch_orders."""
+        """Mock implementation of place_batch_orders.
+
+        Returns:
+            list[Order]: List of created orders from the batch operation.
+        """
         self._check_error("place_batch_orders")
         await self._simulate_latency()
 
@@ -1227,7 +1292,11 @@ class MockExchangeAPI(ExchangeAPI):
         self,
         cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
-        """Mock implementation of cancel_batch_orders."""
+        """Mock implementation of cancel_batch_orders.
+
+        Returns:
+            list[CancelOrderResult]: List of cancellation results for the batch operation.
+        """
         self._check_error("cancel_batch_orders")
         await self._simulate_latency()
 

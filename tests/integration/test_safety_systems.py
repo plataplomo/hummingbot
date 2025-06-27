@@ -77,7 +77,6 @@ async def test_circuit_breaker_global_halts_execution(
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
     mock_hl_api.reset()
-    # real_portfolio_tracker.reset() # Method does not exist, rely on fixture for fresh state
     # Explicitly reset breakers associated with the system
     circuit_breaker_system.reset_breaker("global/api_error")
     circuit_breaker_system.reset_exchange_breakers("backpack")  # This method iterates internal keys
@@ -115,7 +114,6 @@ async def test_circuit_breaker_global_halts_execution(
     await real_portfolio_tracker.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    # ts_int = int(ts_dt.timestamp() * 1000) # Unused variable
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
@@ -187,7 +185,6 @@ async def test_circuit_breaker_exchange_halts_execution(
     # 1. Setup - Basic state, no initial errors
     mock_bp_api.reset()
     mock_hl_api.reset()
-    # real_portfolio_tracker.reset() # Method does not exist
     # Explicitly reset breakers associated with the system
     circuit_breaker_system.reset_breaker("global/api_error")
     circuit_breaker_system.reset_exchange_breakers("backpack")  # Reset exchange specific
@@ -225,7 +222,6 @@ async def test_circuit_breaker_exchange_halts_execution(
     await real_portfolio_tracker.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    # ts_int = int(ts_dt.timestamp() * 1000) # Unused variable
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
     mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
 
@@ -290,7 +286,6 @@ async def test_circuit_breaker_exchange_halts_execution(
     assert not await mock_hl_api.get_open_orders()
 
     # 5. Attempt Execution NOT involving the tripped exchange (if possible) - Optional extension
-    # logger.info("Exchange circuit breaker test passed.") # Moved to end if step 5 is omitted
     logger.info("Exchange circuit breaker test passed.")
 
 
@@ -523,7 +518,6 @@ async def test_position_reconciler_detects_discrepancy(
     logger.info(f"Full initial reconciliation results: {results}")
 
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
-    # real_portfolio_tracker.reset() # Method does not exist
     mock_bp_api.reset()  # Clear position from mock API
     real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
 

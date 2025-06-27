@@ -15,43 +15,71 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 
 @pytest.fixture
 def mock_http_client_requester() -> AsyncMock:
-    """Mock for the HTTP client requester used for all operations."""
+    """Mock for the HTTP client requester used for all operations.
+
+    Returns:
+        AsyncMock: Mock HTTP client requester instance.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Mock for the HyperliquidRequestBuilder."""
+    """Mock for the HyperliquidRequestBuilder.
+
+    Returns:
+        MagicMock: Mock HyperliquidRequestBuilder instance.
+    """
     return MagicMock(spec=HyperliquidRequestBuilder)
 
 
 @pytest.fixture
 def mock_get_asset_index_callable() -> AsyncMock:
-    """Mock for the get_asset_index callable function."""
+    """Mock for the get_asset_index callable function.
+
+    Returns:
+        AsyncMock: Mock get_asset_index callable.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_hl_trading_mapper() -> MagicMock:
-    """Mock for the HyperliquidTradingDataMapper."""
+    """Mock for the HyperliquidTradingDataMapper.
+
+    Returns:
+        MagicMock: Mock HyperliquidTradingDataMapper instance.
+    """
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Mock for the authenticator."""
+    """Mock for the authenticator.
+
+    Returns:
+        MagicMock: Mock authenticator instance.
+    """
     return MagicMock(spec=IAuthenticator)
 
 
 @pytest.fixture
 def mock_hl_response_handler() -> MagicMock:
-    """Mock for the HyperliquidResponseHandler."""
+    """Mock for the HyperliquidResponseHandler.
+
+    Returns:
+        MagicMock: Mock HyperliquidResponseHandler instance.
+    """
     return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_hl_error_mapper() -> MagicMock:
-    """Mock for the HyperliquidErrorMapper."""
+    """Mock for the HyperliquidErrorMapper.
+
+    Returns:
+        MagicMock: Mock HyperliquidErrorMapper instance.
+    """
     return MagicMock(spec=HyperliquidErrorMapper)
 
 
@@ -67,7 +95,11 @@ def make_hl_trading_service(
 ) -> Callable[..., HyperliquidTradingService]:
     """Create factory for HyperliquidTradingService instances with mocked dependencies.
 
-    Returns a factory function that accepts optional parameters like wallet_address
+    Returns:
+        Callable[..., HyperliquidTradingService]: Factory function for creating service instances.
+
+    Note:
+        Returns a factory function that accepts optional parameters like wallet_address
     and returns a properly configured HyperliquidTradingService instance with all
     dependencies mocked.
     """

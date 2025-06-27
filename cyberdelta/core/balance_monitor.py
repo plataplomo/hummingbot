@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -43,16 +43,20 @@ class BalanceAlert:
     message: str = ""
 
     # Define severity constants
-    SEVERITY_CRITICAL = "critical"
-    SEVERITY_WARNING = "warning"
-    SEVERITY_INFO = "info"
+    SEVERITY_CRITICAL: ClassVar[str] = "critical"
+    SEVERITY_WARNING: ClassVar[str] = "warning"
+    SEVERITY_INFO: ClassVar[str] = "info"
 
     def __post_init__(self) -> None:
         """Ensure all numeric fields are Decimal."""
         # Validations removed as fields are type-hinted correctly with defaults
 
     def __str__(self) -> str:
-        """Generate string representation of the alert."""
+        """Generate string representation of the alert.
+
+        Returns:
+            A formatted string describing the balance alert.
+        """
         return (
             f"Balance Alert: {self.exchange} {self.asset} - "
             f"Current: {self.current_balance}, Required: {self.required_balance} - "
@@ -360,7 +364,6 @@ class BalanceMonitor:
                 alert_type=alert.threshold_type,
                 message=f"Added balance alert: ID={alert.id}, Asset={alert.asset}",
             )
-            # self._save_state() # TODO: Implement state saving
         else:
             logger.warning(
                 "duplicate_alert_rejected",

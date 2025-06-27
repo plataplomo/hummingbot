@@ -31,13 +31,21 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture
 def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance."""
+    """Fixture providing a BackpackAccountDataMapper instance.
+
+    Returns:
+        BackpackAccountDataMapper: Configured mapper instance for testing.
+    """
     return BackpackAccountDataMapper()
 
 
 @pytest.fixture
 def test_timestamp() -> str:
-    """Fixture providing a consistent test timestamp string."""
+    """Fixture providing a consistent test timestamp string.
+
+    Returns:
+        str: ISO format timestamp string for consistent testing.
+    """
     return "2024-01-15T10:30:00Z"
 
 
@@ -54,7 +62,11 @@ def create_raw_fill(
     trade_id: int = 123456,
     client_id: str | None = None,
 ) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fill transformations."""
+    """Create BackpackRawFill instances for testing fill transformations.
+
+    Returns:
+        BackpackRawFill instance configured with test data.
+    """
     return BackpackRawFill(
         fee=fee,
         feeSymbol=fee_symbol,
@@ -79,7 +91,11 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
 ) -> BackpackRawPublicTrade:
-    """Create BackpackRawPublicTrade instances for testing trade transformations."""
+    """Create BackpackRawPublicTrade instances for testing trade transformations.
+
+    Returns:
+        BackpackRawPublicTrade instance configured with test data.
+    """
     return BackpackRawPublicTrade(
         id=id,
         symbol=symbol,
@@ -104,7 +120,11 @@ def create_raw_position_update(
     net_exposure_quantity: str | None = "10.0",
     net_exposure_notional: str | None = "1000.0",
 ) -> BackpackRawPositionUpdate:
-    """Create BackpackRawPositionUpdate instances for testing position updates."""
+    """Create BackpackRawPositionUpdate instances for testing position updates.
+
+    Returns:
+        BackpackRawPositionUpdate instance configured with test data.
+    """
     return BackpackRawPositionUpdate(
         e=event_type,
         E=event_time,

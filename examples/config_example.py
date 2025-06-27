@@ -47,9 +47,7 @@ CYBERDELTA_DIR = PROJECT_ROOT / "cyberdelta"
 EXAMPLES_DIR = PROJECT_ROOT / "examples"
 
 # Configuration paths (as used by the application)
-# DEFAULT_CONFIG_DIR = CYBERDELTA_DIR / "config" # Defined but not used in this script directly
 USER_CONFIG_DIR = Path.home() / ".cyberdelta"  # Define user_config_dir for global use
-# DEFAULT_SECRETS_FILE = USER_CONFIG_DIR / "secrets.yaml" # Defined but not used directly
 
 # Example file paths (within the examples directory)
 EXAMPLE_CONFIG_BASE_SOURCE = EXAMPLES_DIR / "config_base.yaml"
@@ -279,7 +277,7 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
         logger.info("Exchange configuration missing, cannot check API credential status.")
         return
 
-    for exchange_name in exchanges.keys():
+    for exchange_name in exchanges:
         logger.info(f"  - {exchange_name}")
         if exchange_name in secrets_config.exchanges:
             exchange_secrets = secrets_config.exchanges[exchange_name]

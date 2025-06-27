@@ -557,7 +557,6 @@ class TestCircuitBreakerSystem:
 
         # Check if volatility breakers for symbols were created
         # Don't fail the test if they weren't - this is more of an informational check
-        # system.get_exchange_breaker("test_exchange", "BTC_volatility")
 
     def test_register_and_get_breaker(self, mock_config: AppSettings) -> None:
         """Test registering and retrieving a breaker."""

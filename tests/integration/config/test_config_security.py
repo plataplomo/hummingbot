@@ -32,11 +32,16 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSe
 
 @pytest.fixture
 def secure_config_manager_setup() -> Generator[tuple[ConfigManager, str, str]]:
-    """Set up test case with temporary config files for ConfigManager security tests."""
+    """Set up test case with temporary config files for ConfigManager security tests.
+
+    Yields:
+        tuple[ConfigManager, str, str]: ConfigManager instance and paths to valid and
+            invalid config files.
+    """
     with tempfile.TemporaryDirectory() as temp_dir_name:
         config_path = os.path.join(temp_dir_name, "config.yaml")
-        with open(config_path, "w") as f:
-            f.write("""
+        Path(config_path).write_text(
+            """
 # General settings
 general:
   log_level: DEBUG
@@ -119,15 +124,19 @@ monitoring:
 portfolio_tracker:
   data_freshness_seconds: 30
   initial_positions: []
-            """)
+            """,
+            encoding="utf-8",
+        )
 
         invalid_config_path = os.path.join(temp_dir_name, "invalid_config.yaml")
-        with open(invalid_config_path, "w") as f:
-            f.write("""
+        Path(invalid_config_path).write_text(
+            """
 # Missing required sections
 general:
   log_level: DEBUG
-            """)
+            """,
+            encoding="utf-8",
+        )
 
         config_manager = ConfigManager(config_path)
         yield config_manager, config_path, invalid_config_path
@@ -189,8 +198,8 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
     config_data["general"]["log_level"] = "INFO"
     config_data["risk"]["global"]["max_position_usd"] = 200.0
 
-    with open(config_path, "w") as f:
-        yaml.dump(config_data, f)
+    yaml_content = yaml.dump(config_data)
+    Path(config_path).write_text(yaml_content, encoding="utf-8")
 
     config_manager.reload()
     assert config_manager.settings is not None
@@ -202,14 +211,18 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
 
 @pytest.fixture
 def secure_secrets_manager_setup() -> Generator[tuple[str, str, str]]:
-    """Set up test case with temporary secrets files for SecretsManager security tests."""
+    """Set up test case with temporary secrets files for SecretsManager security tests.
+
+    Yields:
+        tuple[str, str, str]: Paths to secrets file, home directory, and temp directory.
+    """
     with (
         tempfile.TemporaryDirectory() as temp_dir_name,
         tempfile.TemporaryDirectory() as home_dir_name,
     ):
         secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
-        with open(secrets_path, "w") as f:
-            f.write("""
+        Path(secrets_path).write_text(
+            """
 exchanges:
   hyperliquid:
     auth_type: "private_key"
@@ -224,13 +237,15 @@ notifications:
     chat_id: "123456789"
 logfire:
   write_token: "test_logfire_token"
-            """)
+            """,
+            encoding="utf-8",
+        )
 
         cyberdelta_dir_in_home = os.path.join(home_dir_name, ".cyberdelta")
         os.makedirs(cyberdelta_dir_in_home)
         home_secrets_path = os.path.join(cyberdelta_dir_in_home, "secrets.yaml")
-        with open(home_secrets_path, "w") as f:
-            f.write("""
+        Path(home_secrets_path).write_text(
+            """
 exchanges:
   hyperliquid:
     auth_type: "private_key"
@@ -245,7 +260,9 @@ notifications:
     chat_id: "123456789"
 logfire:
   write_token: "home_logfire_token"
-            """)
+            """,
+            encoding="utf-8",
+        )
         yield secrets_path, home_dir_name, temp_dir_name
 
 
@@ -326,13 +343,18 @@ def test_automatic_loading_on_get(secure_secrets_manager_setup: tuple[str, str, 
 
 @pytest.fixture
 def integration_config_secrets_setup() -> Generator[tuple[ConfigManager, SecretsManager, str, str]]:
-    """Set up for ConfigManager and SecretsManager integration tests."""
+    """Set up for ConfigManager and SecretsManager integration tests.
+
+    Yields:
+        tuple[ConfigManager, SecretsManager, str, str]: ConfigManager and SecretsManager
+            instances with their file paths.
+    """
     with (
         tempfile.TemporaryDirectory() as temp_dir_name,
     ):
         config_path = os.path.join(temp_dir_name, "config.yaml")
-        with open(config_path, "w") as f:
-            f.write("""
+        Path(config_path).write_text(
+            """
 general:
   log_level: INFO
 exchanges:
@@ -398,11 +420,13 @@ monitoring:
 portfolio_tracker:
   data_freshness_seconds: 30
   initial_positions: []
-            """)
+            """,
+            encoding="utf-8",
+        )
 
         secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
-        with open(secrets_path, "w") as f:
-            f.write("""
+        Path(secrets_path).write_text(
+            """
 exchanges:
   hyperliquid:
     auth_type: "private_key"
@@ -417,7 +441,9 @@ notifications:
     chat_id: "123456789"
 logfire:
   write_token: "test_logfire_token"
-            """)
+            """,
+            encoding="utf-8",
+        )
 
         config_manager = ConfigManager(config_path)
 
@@ -442,7 +468,4 @@ def test_config_secrets_integration(
         assert backpack_secrets.api_key.get_secret_value() == "integrated_api_key"
 
     # Example: Test resolving a secret reference from config (if such functionality existed)
-    # config_api_key_ref = config_manager.get("exchanges.hyperliquid.api_key_secret_ref")
-    # resolved_key = secrets_manager.get(config_api_key_ref)
-    # assert resolved_key == "integrated_api_key"
     # This part is commented out as ConfigManager doesn't inherently resolve secrets refs.

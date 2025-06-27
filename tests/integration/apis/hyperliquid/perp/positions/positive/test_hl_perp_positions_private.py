@@ -17,6 +17,7 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
+import contextlib
 from decimal import Decimal
 from typing import Any
 
@@ -194,11 +195,9 @@ class TestHyperliquidPerpPositionsPrivate:
                 time_in_force=TimeInForce.IOC,
             )
 
-            try:
-                await hl_api_for_test_env.place_order(close_args)
-            except APIError:
+            with contextlib.suppress(APIError):
                 # If close fails, that's acceptable for test cleanup
-                pass
+                await hl_api_for_test_env.place_order(close_args)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -363,6 +362,10 @@ class TestHyperliquidPerpPositionsPrivate:
 
         This validates handling of very small position sizes, dust amounts,
         and precision edge cases that might occur in real trading.
+
+        Raises:
+            APIError: When the exchange rejects orders due to minimum position
+                size requirements or other precision-related constraints.
         """
         # Get available trading symbols from exchange
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
@@ -430,11 +433,9 @@ class TestHyperliquidPerpPositionsPrivate:
                         time_in_force=TimeInForce.IOC,
                     )
 
-                    try:
-                        await hl_api_for_test_env.place_order(close_args)
-                    except APIError:
+                    with contextlib.suppress(APIError):
                         # If close fails, that's acceptable for test cleanup
-                        pass
+                        await hl_api_for_test_env.place_order(close_args)
 
         except APIError as e:
             # If exchange rejects due to minimum position size, that's also valid behavior
@@ -610,8 +611,6 @@ class TestHyperliquidPerpPositionsPrivate:
                 time_in_force=TimeInForce.IOC,
             )
 
-            try:
-                await hl_api_for_test_env.place_order(close_args)
-            except APIError:
+            with contextlib.suppress(APIError):
                 # If close fails, that's acceptable for test cleanup
-                pass
+                await hl_api_for_test_env.place_order(close_args)

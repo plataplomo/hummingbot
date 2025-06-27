@@ -127,7 +127,7 @@ def generate_metrics(test_dir: Path = Path("tests")) -> dict[str, Any]:
         elif result["migration_status"] == "needs_migration":
             by_directory[str(relative_dir)]["needs_migration"] += 1
 
-    metrics = {
+    return {
         "timestamp": datetime.now(UTC).isoformat(),
         "summary": {
             "total_test_files": total_files,
@@ -149,31 +149,29 @@ def generate_metrics(test_dir: Path = Path("tests")) -> dict[str, Any]:
         ],
     }
 
-    return metrics
-
 
 def format_console_output(metrics: dict[str, Any]) -> str:
     """Format metrics for console output."""
     summary = metrics["summary"]
 
     output: list[str] = []
-    output.append("# Time Fixtures Adoption Metrics")
-    output.append("=" * 50)
-    output.append(f"Generated: {metrics['timestamp']}")
-    output.append("")
-
-    output.append("## Summary")
-    output.append(f"Total test files: {summary['total_test_files']}")
-    output.append(f"Files with time operations: {summary['files_with_time_operations']}")
-    output.append(f"Files using old mocking: {summary['files_with_old_mocking']}")
-    output.append(f"Files using new fixtures: {summary['files_with_new_fixtures']}")
-    output.append(f"**Adoption rate: {summary['adoption_percentage']}%**")
-    output.append("")
-
-    output.append("## Timing Markers")
-    output.append(f"Files with @pytest.mark.timing: {summary['files_with_timing_marker']}")
-    output.append(f"Files needing timing marker: {summary['files_needing_timing_marker']}")
-    output.append("")
+    output.extend((
+        "# Time Fixtures Adoption Metrics",
+        "=" * 50,
+        f"Generated: {metrics['timestamp']}",
+        "",
+        "## Summary",
+        f"Total test files: {summary['total_test_files']}",
+        f"Files with time operations: {summary['files_with_time_operations']}",
+        f"Files using old mocking: {summary['files_with_old_mocking']}",
+        f"Files using new fixtures: {summary['files_with_new_fixtures']}",
+        f"**Adoption rate: {summary['adoption_percentage']}%**",
+        "",
+        "## Timing Markers",
+        f"Files with @pytest.mark.timing: {summary['files_with_timing_marker']}",
+        f"Files needing timing marker: {summary['files_needing_timing_marker']}",
+        "",
+    ))
 
     if metrics["migration_candidates"]:
         output.append("## Next Migration Candidates")
@@ -206,9 +204,11 @@ def format_github_output(metrics: dict[str, Any]) -> str:
         )
 
     # Set output variables for badge generation
-    lines.append(f"::set-output name=adoption_percentage::{summary['adoption_percentage']}")
-    lines.append(f"::set-output name=files_migrated::{summary['files_migrated']}")
-    lines.append(f"::set-output name=files_needing_migration::{summary['files_needing_migration']}")
+    lines.extend((
+        f"::set-output name=adoption_percentage::{summary['adoption_percentage']}",
+        f"::set-output name=files_migrated::{summary['files_migrated']}",
+        f"::set-output name=files_needing_migration::{summary['files_needing_migration']}",
+    ))
 
     return "\n".join(lines)
 

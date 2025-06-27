@@ -28,7 +28,11 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfi
 
 @pytest.fixture
 def mock_hl_http_client() -> MagicMock:
-    """Provide mock HttpClient for HyperliquidAPI main endpoint."""
+    """Provide mock HttpClient for HyperliquidAPI main endpoint.
+
+    Returns:
+        MagicMock: Mock HTTP client with async request and session management methods.
+    """
     mock_client = MagicMock()
     mock_client.request = AsyncMock()
     mock_client.close_session = AsyncMock()
@@ -37,7 +41,11 @@ def mock_hl_http_client() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_authenticator() -> MagicMock:
-    """Provide mock HyperliquidEip712Authenticator."""
+    """Provide mock HyperliquidEip712Authenticator.
+
+    Returns:
+        MagicMock: Mock authenticator with EIP-712 signature capabilities for Hyperliquid API.
+    """
     from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 
     mock_auth = MagicMock(spec=HyperliquidEip712Authenticator)
@@ -48,103 +56,136 @@ def mock_hl_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_error_mapper() -> MagicMock:
-    """Provide mock HyperliquidErrorMapper."""
+    """Provide mock HyperliquidErrorMapper.
+
+    Returns:
+        MagicMock: Mock error mapper for handling Hyperliquid API error responses.
+    """
     from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidErrorMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidErrorMapper)
 
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Provide mock HyperliquidRequestBuilder."""
+    """Provide mock HyperliquidRequestBuilder.
+
+    Returns:
+        MagicMock: Mock request builder for constructing Hyperliquid API requests.
+    """
     from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 
-    mock_builder = MagicMock(spec=HyperliquidRequestBuilder)
-    return mock_builder
+    return MagicMock(spec=HyperliquidRequestBuilder)
 
 
 @pytest.fixture
 def mock_hl_response_handler() -> MagicMock:
-    """Provide mock HyperliquidResponseHandler."""
+    """Provide mock HyperliquidResponseHandler.
+
+    Returns:
+        MagicMock: Mock response handler for processing Hyperliquid API responses.
+    """
     from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 
-    mock_handler = MagicMock(spec=HyperliquidResponseHandler)
-    return mock_handler
+    return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
-    """Provide mock HyperliquidMarketDataMapper (for backwards compatibility)."""
+    """Provide mock HyperliquidMarketDataMapper (for backwards compatibility).
+
+    Returns:
+        MagicMock: Mock market data mapper for transforming Hyperliquid market data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidMarketDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidMarketDataMapper)
 
 
 @pytest.fixture
 def mock_hl_account_mapper() -> MagicMock:
-    """Provide mock HyperliquidAccountDataMapper."""
+    """Provide mock HyperliquidAccountDataMapper.
+
+    Returns:
+        MagicMock: Mock account data mapper for processing Hyperliquid account data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:
-    """Provide mock HyperliquidTradingDataMapper (legacy order mapper)."""
+    """Provide mock HyperliquidTradingDataMapper (legacy order mapper).
+
+    Returns:
+        MagicMock: Mock trading data mapper for legacy order data processing.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_trading_mapper() -> MagicMock:
-    """Provide mock HyperliquidTradingDataMapper."""
+    """Provide mock HyperliquidTradingDataMapper.
+
+    Returns:
+        MagicMock: Mock trading data mapper for processing Hyperliquid trading data.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidTradingDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
 @pytest.fixture
 def mock_hl_user_fill_mapper() -> MagicMock:
-    """Provide mock HyperliquidAccountDataMapper (for user fills)."""
+    """Provide mock HyperliquidAccountDataMapper (for user fills).
+
+    Returns:
+        MagicMock: Mock account data mapper specialized for user fill data processing.
+    """
     from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
-    mock_mapper = MagicMock(spec=HyperliquidAccountDataMapper)
-    return mock_mapper
+    return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
 @pytest.fixture
 def mock_hl_account_service() -> MagicMock:
-    """Provide mock HyperliquidAccountService."""
+    """Provide mock HyperliquidAccountService.
+
+    Returns:
+        MagicMock: Mock account service for Hyperliquid account operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 
-    mock_service = MagicMock(spec=HyperliquidAccountService)
-    return mock_service
+    return MagicMock(spec=HyperliquidAccountService)
 
 
 @pytest.fixture
 def mock_hl_trading_service() -> MagicMock:
-    """Provide mock HyperliquidTradingService."""
+    """Provide mock HyperliquidTradingService.
+
+    Returns:
+        MagicMock: Mock trading service for Hyperliquid trading operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 
-    mock_service = MagicMock(spec=HyperliquidTradingService)
-    return mock_service
+    return MagicMock(spec=HyperliquidTradingService)
 
 
 @pytest.fixture
 def mock_hl_market_data_service() -> MagicMock:
-    """Provide mock HyperliquidMarketDataService."""
+    """Provide mock HyperliquidMarketDataService.
+
+    Returns:
+        MagicMock: Mock market data service for Hyperliquid market data operations.
+    """
     from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
         HyperliquidMarketDataService,
     )
 
-    mock_service = MagicMock(spec=HyperliquidMarketDataService)
-    return mock_service
+    return MagicMock(spec=HyperliquidMarketDataService)
 
 
 # REMOVED MOCK FIXTURES - SECURITY VIOLATION
@@ -180,6 +221,10 @@ def hl_api_with_di(
     This enables black-box testing without accessing private members.
 
     UPDATED: Now uses active_hl_config and active_hl_secrets by default.
+
+    Returns:
+        Callable[..., Any]: Factory function that creates HyperliquidAPI instances with
+            mocked dependencies.
     """
 
     def _create_api(
@@ -188,7 +233,11 @@ def hl_api_with_di(
         secrets: PrivateKeyAuthSecrets | None = None,
         **overrides: MagicMock,
     ) -> HyperliquidAPI:
-        """Create HyperliquidAPI with injected dependencies."""
+        """Create HyperliquidAPI with injected dependencies.
+
+        Returns:
+            HyperliquidAPI: Hyperliquid API instance with dependency injection for testing.
+        """
         # Use active fixtures if not overridden
         if config is None:
             config = active_hl_config
@@ -220,19 +269,34 @@ def hl_api_with_di(
 
 @pytest.fixture(scope="session")
 def test_secrets_zero_balance_file_path() -> Path:
-    """Path to the zero balance test secrets file."""
+    """Path to the zero balance test secrets file.
+
+    Returns:
+        Path: Path object pointing to the zero balance test secrets YAML file.
+    """
     return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_zero_balance.yaml"
 
 
 @pytest.fixture(scope="session")
 def test_secrets_large_balance_file_path() -> Path:
-    """Path to the large balance test secrets file."""
+    """Path to the large balance test secrets file.
+
+    Returns:
+        Path: Path object pointing to the large balance test secrets YAML file.
+    """
     return Path(__file__).parent.parent.parent.parent / "config" / "test_secrets_large_balance.yaml"
 
 
 @pytest.fixture(scope="session")
 def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) -> SecretsConfig:
-    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml."""
+    """Load zero balance test-specific SecretsConfig from test_secrets_zero_balance.yaml.
+
+    Returns:
+        SecretsConfig: Secrets configuration for zero balance test scenarios.
+
+    Raises:
+        RuntimeError: If the secrets manager fails to load the configuration.
+    """
     if not test_secrets_zero_balance_file_path.exists():
         pytest.skip(
             f"Zero balance test secrets file not found at {test_secrets_zero_balance_file_path}, "
@@ -252,7 +316,14 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
 
 @pytest.fixture(scope="session")
 def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path) -> SecretsConfig:
-    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml."""
+    """Load large balance test-specific SecretsConfig from test_secrets_large_balance.yaml.
+
+    Returns:
+        SecretsConfig: Secrets configuration for large balance test scenarios.
+
+    Raises:
+        RuntimeError: If the secrets manager fails to load the configuration.
+    """
     if not test_secrets_large_balance_file_path.exists():
         pytest.skip(
             f"Large balance test secrets file not found at {test_secrets_large_balance_file_path}, "
@@ -277,6 +348,9 @@ def hl_secrets_for_zero_balance(
     """Provide PrivateKeyAuthSecrets for zero balance account.
 
     Loads from test_secrets_zero_balance.yaml.
+
+    Returns:
+        PrivateKeyAuthSecrets: Authentication secrets for zero balance test account.
     """
     secrets = test_secrets_zero_balance_config.exchanges["hyperliquid"]
     if not isinstance(secrets, PrivateKeyAuthSecrets):
@@ -294,6 +368,9 @@ def hl_secrets_for_large_balance(
     """Provide PrivateKeyAuthSecrets for large balance account.
 
     Loads from test_secrets_large_balance.yaml.
+
+    Returns:
+        PrivateKeyAuthSecrets: Authentication secrets for large balance test account.
     """
     secrets = test_secrets_large_balance_config.exchanges["hyperliquid"]
     if not isinstance(secrets, PrivateKeyAuthSecrets):
@@ -318,6 +395,9 @@ async def hl_api_for_zero_balance_test(
     - No positions
     - No open orders
     - Minimal or no trading history
+
+    Yields:
+        HyperliquidAPI: Instance configured for zero balance testing.
     """
     # Create HyperliquidAPI with zero balance account credentials
     api = HyperliquidAPI(
@@ -343,6 +423,9 @@ async def hl_api_for_large_balance_test(
     - High leverage limits
     - Sufficient margin for edge case testing
     - Ability to open and close large positions
+
+    Yields:
+        HyperliquidAPI: Instance configured for large balance testing.
     """
     # Create HyperliquidAPI with large balance account credentials
     api = HyperliquidAPI(

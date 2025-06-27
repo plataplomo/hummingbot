@@ -206,7 +206,6 @@ class BackpackRawOrderBook(BaseModel):
         # `TypeGuard` is not suitable for refining the return type of `v` itself here.
         # The cast is considered safe as Pydantic will immediately perform detailed
         # validation on the elements.
-        # #[CAST-REVIEW-REQUIRED]
 
         # Runtime Verification already done above with isinstance check
         # More detailed structural assertions (e.g., on v[0]) are omitted here;

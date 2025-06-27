@@ -1113,7 +1113,6 @@ class SynchronizedOrderSubmissionService:
                     post_verify_result,
                 )
                 # Keep this for any direct access
-                # execution_result.compensation_result = compensation_outcome_dict
                 execution_result.status = ExecutionStatus.PARTIALLY_COMPLETED
 
                 # Populate details for assertions
@@ -1725,7 +1724,7 @@ class SynchronizedOrderSubmissionService:
         )
 
         # Call _verify_post_execution with the context
-        verification_outcome = await self.verify_post_execution(
+        return await self.verify_post_execution(
             execution_context,
             opportunity,
             mock_simultaneous_execution_result,
@@ -1734,7 +1733,6 @@ class SynchronizedOrderSubmissionService:
         # We might need to update mock_simultaneous_execution_result based on verification_outcome
         # or the caller of _execute_simultaneous_with_verification handles the dict.
         # For now, let's return the verification outcome as it's what the test might assert on.
-        return verification_outcome
 
     async def verify_post_execution(
         self,

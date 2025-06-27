@@ -61,7 +61,11 @@ class TestRiskManagerControls:
         mock_short_breaker.state = BreakerState.OPEN  # Any state other than HALF_OPEN
 
         def get_breaker_side_effect(exchange_name_param: str, breaker_type_param: str) -> MagicMock:
-            """Get breaker side effect for testing."""
+            """Get breaker side effect for testing.
+
+            Returns:
+                MagicMock: Mock circuit breaker for the specified exchange and breaker type.
+            """
             if (
                 exchange_name_param == sample_opportunity.long_exchange
                 and breaker_type_param == "APIErrorBreaker"

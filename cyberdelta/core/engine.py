@@ -174,7 +174,6 @@ class Engine:
         strategy.disable()  # Update the strategy's internal state
         self.enabled_strategies.discard(strategy_name)
         # Refreshing symbols might not be strictly needed on disable
-        # self._refresh_active_symbols()
         logger.info(
             "strategy_disabled",
             strategy_name=strategy_name,
@@ -318,6 +317,8 @@ class Engine:
             df: DataFrame with market data (must have timestamp, open, high, low, close, volume).
             symbol: Symbol this data represents.
 
+        Raises:
+            ValueError: If DataFrame is missing required columns.
         """
         required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
         missing = [col for col in required_cols if col not in df.columns]
@@ -421,7 +422,11 @@ class Engine:
         )
 
     def start(self) -> None:
-        """Start the trading engine. Calls on_start() for all enabled strategies."""
+        """Start the trading engine. Calls on_start() for all enabled strategies.
+
+        Raises:
+            RuntimeError: If signal handler is not configured before starting.
+        """
         if self.is_running:
             logger.warning("Engine is already running.")
             return
@@ -549,7 +554,6 @@ class Engine:
 
         """
         # Removed PNL calculation - Engine doesn't track closed positions
-        # total_pnl_closed = sum(...)
 
         uptime_seconds = (
             (datetime.now(UTC) - self.start_time).total_seconds()
@@ -566,7 +570,4 @@ class Engine:
             "total_strategies": len(self.strategies),
             "enabled_strategies": len(self.enabled_strategies),
             # Removed position counts and PNL
-            # "active_positions": len(self.active_positions),
-            # "closed_positions_count": len(self.closed_positions),
-            # "total_realized_pnl": total_pnl_closed,
         }

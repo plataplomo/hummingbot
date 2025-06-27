@@ -431,7 +431,7 @@ class HyperliquidTradingDataMapper:
             price = parse_decimal_value(raw_simple_order.limit_px, field_name="limit_px")
 
             # For simple orders, these are not available
-            average_fill_price = None if quantity_filled == Decimal(0) else None
+            average_fill_price = None
             stop_price = None
             trigger_by = None
 

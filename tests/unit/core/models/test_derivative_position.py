@@ -29,7 +29,11 @@ TestParamValue = PrimitiveTestVal | list[PrimitiveTestVal] | dict[str, Primitive
 
 @pytest.fixture
 def valid_hl_details_data() -> dict[str, Any]:
-    """Provide valid data for HyperliquidPositionDetails."""
+    """Provide valid data for HyperliquidPositionDetails.
+
+    Returns:
+        dict[str, Any]: Valid data dictionary for HyperliquidPositionDetails testing.
+    """
     return {
         "leverage_type": "cross",
         "leverage_value": 10,
@@ -40,7 +44,11 @@ def valid_hl_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_bp_details_data() -> dict[str, Any]:
-    """Provide valid data for BackpackPositionDetails."""
+    """Provide valid data for BackpackPositionDetails.
+
+    Returns:
+        dict[str, Any]: Valid data dictionary for BackpackPositionDetails testing.
+    """
     return {
         "imf_base": Decimal("0.1"),
         "imf_factor": Decimal("0.01"),
@@ -52,7 +60,11 @@ def valid_bp_details_data() -> dict[str, Any]:
 
 @pytest.fixture
 def base_derivative_position_data() -> dict[str, Any]:
-    """Provide a dictionary with valid core data for DerivativePosition creation."""
+    """Provide a dictionary with valid core data for DerivativePosition creation.
+
+    Returns:
+        dict[str, Any]: Valid core data dictionary for DerivativePosition testing.
+    """
     return {
         "exchange": "hyperliquid",
         "symbol": "BTC-PERP",
@@ -289,7 +301,7 @@ def test_derivative_position_model_validation_failures(
     data["entry_price"] = Decimal(0)
     with pytest.raises(
         ValidationError,
-        match="entry_price must be positive .* if size is non-zero",
+        match=r"entry_price must be positive .* if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -298,7 +310,7 @@ def test_derivative_position_model_validation_failures(
     data["entry_price"] = Decimal(-10)
     with pytest.raises(
         ValidationError,
-        match="entry_price must be positive .* if size is non-zero",
+        match=r"entry_price must be positive .* if size is non-zero",
     ):
         DerivativePosition(**data)
 
@@ -316,7 +328,7 @@ def test_derivative_position_model_validation_failures(
     data["hl_details"] = None
     with pytest.raises(
         ValidationError,
-        match="Backpack details .* must be None for a Hyperliquid position",
+        match=r"Backpack details .* must be None for a Hyperliquid position",
     ):
         DerivativePosition(**data)
 
@@ -327,7 +339,7 @@ def test_derivative_position_model_validation_failures(
     data["bp_details"] = None
     with pytest.raises(
         ValidationError,
-        match="Hyperliquid details .* must be None for a Backpack position",
+        match=r"Hyperliquid details .* must be None for a Backpack position",
     ):
         DerivativePosition(**data)
 

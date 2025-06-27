@@ -290,6 +290,9 @@ class TestBackpackSpotBalancesZeroComprehensive:
 
         This test validates proper handling of rate limit responses from Backpack.
         May require multiple rapid calls to trigger rate limiting during recording.
+
+        Raises:
+            APIError: If rate limiting is encountered or other API errors occur
         """
         try:
             # Make multiple rapid calls to potentially trigger rate limiting
@@ -332,6 +335,9 @@ class TestBackpackSpotBalancesZeroComprehensive:
 
         Note: This test may be challenging to reproduce consistently in VCR,
         so it might need to be mocked or use specific network conditions.
+
+        Raises:
+            APIError: If network timeout or connection errors occur
         """
         try:
             # Attempt the call - in normal conditions this should succeed

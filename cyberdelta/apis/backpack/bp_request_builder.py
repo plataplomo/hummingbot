@@ -73,6 +73,9 @@ class BackpackRequestBuilder:
         Args:
             exchange_config: Exchange-specific configuration model.
 
+        Raises:
+            ValueError: If testnet environment is requested but testnet API URL is not configured.
+
         """
         self._exchange_config = exchange_config
         # Get base URL from the configuration based on environment
@@ -84,14 +87,22 @@ class BackpackRequestBuilder:
             self.base_url = str(self._exchange_config.api_base_url_testnet)
 
     def _get_endpoint_url(self, path: str) -> str:
-        """Construct the full URL for an API endpoint path."""
+        """Construct the full URL for an API endpoint path.
+
+        Returns:
+            Full URL string for the API endpoint.
+        """
         if not path.startswith("/"):
             path = f"/{path}"
         return f"{self.base_url}{path}"
 
     @staticmethod
     def format_symbol(symbol: str) -> str:
-        """Ensure symbol is in the format X_Y (e.g., SOL_USDC)."""
+        """Ensure symbol is in the format X_Y (e.g., SOL_USDC).
+
+        Returns:
+            Symbol formatted with underscores and uppercase.
+        """
         return symbol.replace("-", "_").upper()
 
     @staticmethod
@@ -174,7 +185,6 @@ class BackpackRequestBuilder:
 
         """
         # GET /api/v1/positions
-        # GET /api/v1/positions/{symbol}
         # Symbol is used in the URL path, not as a query parameter,
         # so we return an empty params model for consistency.
         return BackpackRawGetPositionsParams()
@@ -186,7 +196,11 @@ class BackpackRequestBuilder:
         time_in_force: TimeInForce,
         self_trade_prevention: str | None,
     ) -> tuple[str, str, str | None, str | None]:
-        """Map internal enums to API string values."""
+        """Map internal enums to API string values.
+
+        Returns:
+            Tuple of (api_side, api_order_type, api_time_in_force, api_self_trade_prevention).
+        """
         api_side = "Bid" if side == OrderSide.BUY else "Ask"
 
         api_order_type = {

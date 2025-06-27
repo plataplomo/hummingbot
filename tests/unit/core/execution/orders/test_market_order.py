@@ -23,14 +23,22 @@ class TestMarketOrder:
 
     @pytest.fixture
     def mock_exchange_api(self) -> AsyncMock:
-        """Create a mock exchange API."""
+        """Create a mock exchange API.
+
+        Returns:
+            AsyncMock: Mock exchange API for testing.
+        """
         api = AsyncMock()
         api.exchange_name = "test_exchange"
         return api
 
     @pytest.fixture
     def mock_market_order_service(self) -> AsyncMock:
-        """Create a mock market order service."""
+        """Create a mock market order service.
+
+        Returns:
+            AsyncMock: Mock market order service with configured return values.
+        """
         service = AsyncMock(spec=MarketOrderService)
         service.calculate_aggressive_price.return_value = Decimal(50100)
 
@@ -44,7 +52,11 @@ class TestMarketOrder:
 
     @pytest.fixture
     def default_config(self) -> MarketOrderConfig:
-        """Create default market order config."""
+        """Create default market order config.
+
+        Returns:
+            MarketOrderConfig: Default configuration for market orders.
+        """
         return MarketOrderConfig()
 
     @pytest.fixture
@@ -54,7 +66,11 @@ class TestMarketOrder:
         mock_market_order_service: AsyncMock,
         default_config: MarketOrderConfig,
     ) -> MarketOrder:
-        """Create MarketOrder instance."""
+        """Create MarketOrder instance.
+
+        Returns:
+            MarketOrder: Configured market order instance for testing.
+        """
         return MarketOrder(
             exchange_api=mock_exchange_api,
             market_order_service=mock_market_order_service,
@@ -63,7 +79,11 @@ class TestMarketOrder:
 
     @pytest.fixture
     def filled_order(self) -> Order:
-        """Create a filled order response."""
+        """Create a filled order response.
+
+        Returns:
+            Order: Fully filled order for testing.
+        """
         return Order(
             exchange_order_id="12345",
             exchange="test_exchange",
@@ -84,7 +104,11 @@ class TestMarketOrder:
 
     @pytest.fixture
     def partial_fill_order(self) -> Order:
-        """Create a partially filled order response."""
+        """Create a partially filled order response.
+
+        Returns:
+            Order: Partially filled order for testing.
+        """
         return Order(
             exchange_order_id="12346",
             exchange="test_exchange",
@@ -105,7 +129,11 @@ class TestMarketOrder:
 
     @pytest.fixture
     def cancelled_order(self) -> Order:
-        """Create a cancelled order response."""
+        """Create a cancelled order response.
+
+        Returns:
+            Order: Cancelled order for testing.
+        """
         return Order(
             exchange_order_id="12347",
             exchange="test_exchange",
