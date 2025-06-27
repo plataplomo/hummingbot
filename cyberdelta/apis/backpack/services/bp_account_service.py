@@ -27,7 +27,6 @@ from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollate
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.http_status_codes import HTTP_NOT_FOUND
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -50,7 +49,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.enums import HTTPStatusCode, OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
@@ -230,7 +229,7 @@ class BackpackAccountService:
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
             # or account may have no positions, return empty list
-            if e.http_status == HTTP_NOT_FOUND:
+            if e.http_status == HTTPStatusCode.NOT_FOUND.value:
                 logger.info(
                     f"[{self._exchange_name}] Positions endpoint returned 404, "
                     f"returning empty positions list for symbol '{symbol or 'all'}'",
@@ -827,7 +826,7 @@ class BackpackAccountService:
         except APIError as e:
             # If collateral endpoint not available (404) or returns invalid data,
             # return None for fallback
-            if e.http_status == HTTP_NOT_FOUND or (
+            if e.http_status == HTTPStatusCode.NOT_FOUND.value or (
                 e.code == APIErrorCode.INVALID_RESPONSE.value and "collateral" in e.message
             ):
                 logger.debug(

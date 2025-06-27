@@ -8,17 +8,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-
-# Precision and batch size constants
-PRECISION_TOLERANCE = 1e-12  # Tolerance for floating point precision checks
-MAX_BATCH_SIZE = 50  # Maximum number of orders/cancellations per batch request
-
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
 )
-
-# Specific model imports for type hints and construction
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiEthWithdrawalRequest,
@@ -88,6 +81,11 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawL1Args,
 )
 from cyberdelta.core.models import OrderSide, OrderType
+
+
+# Precision and batch size constants
+PRECISION_TOLERANCE = 1e-12  # Tolerance for floating point precision checks
+MAX_BATCH_SIZE = 50  # Maximum number of orders/cancellations per batch request
 
 
 class HyperliquidRequestBuilder:
@@ -645,8 +643,8 @@ class HyperliquidRequestBuilder:
 
         if len(orders_with_indices) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
-                f"Batch size {len(orders_with_indices)} exceeds maximum of {MAX_BATCH_SIZE} orders. "
-                "Consider splitting into smaller batches.",
+                f"Batch size {len(orders_with_indices)} exceeds maximum of {MAX_BATCH_SIZE} "
+                + "orders. Consider splitting into smaller batches."
             )
 
         # Build order specs for all orders in the batch
@@ -690,8 +688,8 @@ class HyperliquidRequestBuilder:
 
         if len(cancel_items) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
-                f"Batch size {len(cancel_items)} exceeds maximum of {MAX_BATCH_SIZE} cancellations. "
-                "Consider splitting into smaller batches.",
+                f"Batch size {len(cancel_items)} exceeds maximum of {MAX_BATCH_SIZE} "
+                + "cancellations. Consider splitting into smaller batches."
             )
 
         # Build cancel item specs for all cancellations in the batch

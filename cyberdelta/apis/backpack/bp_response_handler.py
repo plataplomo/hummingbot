@@ -77,8 +77,12 @@ class BackpackResponseHandler:
             APIError with INVALID_RESPONSE code and validation details.
         """
         logger.error(
-            f"[BackpackResponseHandler] Pydantic validation failed for {context}: {e}. "
-            f"Raw data: {raw_data!r}",
+            "backpack_pydantic_validation_failed",
+            context=context,
+            validation_error=str(e),
+            raw_data=raw_data,
+            handler_class="BackpackResponseHandler",
+            message="Pydantic validation failed",
         )
         # Use INVALID_RESPONSE code as per architecture rules
         return APIError(
@@ -328,8 +332,11 @@ class BackpackResponseHandler:
             # If we get content, it might be an error structure or unexpected success data.
             # For Backpack, successful cancel usually returns 200 OK with empty body or {}.
             logger.warning(
-                f"Received unexpected content after cancelling order {order_id} "
-                f"for {symbol}: {raw_response_content!r}",
+                "backpack_unexpected_cancel_content",
+                order_id=order_id,
+                symbol=symbol,
+                raw_response_content=raw_response_content,
+                message="Received unexpected content after cancelling order",
             )
 
         # Create CancelOrderResult for successful cancellation
@@ -715,7 +722,11 @@ class BackpackResponseHandler:
         for item_raw in validated_list:
             if not isinstance(item_raw, list):  # Backpack klines are lists of values
                 logger.warning(
-                    f"[{__name__}] Skipping non-list kline item in {context}: {item_raw!r}",
+                    "backpack_non_list_kline_item",
+                    context=context,
+                    item_raw=item_raw,
+                    module_name=__name__,
+                    message="Skipping non-list kline item",
                 )
                 continue
             try:
@@ -724,8 +735,12 @@ class BackpackResponseHandler:
             except ValidationError as e:
                 # Log the specific item that failed validation
                 logger.error(
-                    f"[{__name__}] Pydantic validation failed for single kline item in "
-                    f"{context}: {e}. Item: {item_raw!r}",
+                    "backpack_kline_validation_failed",
+                    context=context,
+                    validation_error=str(e),
+                    item_raw=item_raw,
+                    module_name=__name__,
+                    message="Pydantic validation failed for single kline item",
                 )
                 # Re-raise to fail the entire response if one kline is bad, or collect valid ones
                 # Pass the full validated_list since item_raw type is not fully known
@@ -736,8 +751,12 @@ class BackpackResponseHandler:
                 ) from e
             except Exception as e_unk_item:
                 logger.error(
-                    f"[{__name__}] Unexpected error validating single kline item in "
-                    f"{context}: {e_unk_item}. Item: {item_raw!r}",
+                    "backpack_kline_unexpected_error",
+                    context=context,
+                    error=str(e_unk_item),
+                    item_raw=str(item_raw),
+                    module_name=__name__,
+                    message="Unexpected error validating single kline item",
                 )
                 raise APIError(
                     message=f"Unexpected error validating kline item: {e_unk_item}",
@@ -844,8 +863,12 @@ class BackpackResponseHandler:
                 )
             except APIError:
                 logger.warning(
-                    f"[{__name__}] Skipping non-dict item in {context} list: {item!r}. "
-                    f"Full response: {raw_response_content!r}",
+                    "backpack_non_dict_item_skip",
+                    context=context,
+                    item=item,
+                    raw_response_content=raw_response_content,
+                    module_name=__name__,
+                    message="Skipping non-dict item in response list",
                 )
                 continue  # Skip non-dict items, but don't fail the whole batch
 
@@ -857,8 +880,12 @@ class BackpackResponseHandler:
                 # Or, re-raise if strictness is required. For cancelAll, it might be better
                 # to return what was successfully parsed as cancelled.
                 logger.error(
-                    f"[{__name__}] Pydantic validation failed for single order item in "
-                    f"{context}: {e}. Item: {validated_item!r}.",
+                    "backpack_order_validation_failed",
+                    context=context,
+                    validation_error=str(e),
+                    validated_item=validated_item,
+                    module_name=__name__,
+                    message="Pydantic validation failed for single order item",
                 )
                 # Optionally, re-raise if any single item failing should invalidate
                 # the whole response:
@@ -909,8 +936,11 @@ class BackpackResponseHandler:
             str,
         ):
             logger.warning(
-                f"[{__name__}] {context} 'message' field is not a string: "
-                f"{validated_data['message']}",
+                "backpack_transfer_message_not_string",
+                context=context,
+                message_field=validated_data["message"],
+                module_name=__name__,
+                message="Transfer response 'message' field is not a string",
             )
             # Don't raise, but log. Message is optional and for info.
 
@@ -919,8 +949,11 @@ class BackpackResponseHandler:
             str,
         ):
             logger.warning(
-                f"[{__name__}] {context} 'transferId' field is not a string: "
-                f"{validated_data['transferId']}",
+                "backpack_transfer_id_not_string",
+                context=context,
+                transfer_id_field=validated_data["transferId"],
+                module_name=__name__,
+                message="Transfer response 'transferId' field is not a string",
             )
             # Don't raise, but log. TransferId is optional and for info.
 

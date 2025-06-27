@@ -38,10 +38,6 @@ from pydantic import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import is_sequence_of_any
 
-
-# Market data structure constants
-PAIR_ELEMENT_COUNT = 2  # Expected number of elements in price/quantity pairs
-
 from .bp_common_raw_types import (
     RawBpDepthPriceString,
     RawBpDepthQuantityString,
@@ -54,6 +50,9 @@ from .bp_common_raw_types import (
     RawBpParsableNonNegativeFiniteDecimalString,
 )
 
+
+# Market data structure constants
+PAIR_ELEMENT_COUNT = 2  # Expected number of elements in price/quantity pairs
 
 # Get logger for the module
 logger = get_logger(__name__)

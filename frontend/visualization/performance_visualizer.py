@@ -20,6 +20,9 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 from plotly.subplots import make_subplots  # type: ignore[import-untyped]
 
 
+# Constants for statistical calculations
+MIN_DATA_POINTS_FOR_STATS = 2  # Minimum data points needed for statistical calculations
+
 logger = logging.getLogger(__name__)
 
 
@@ -715,7 +718,7 @@ class PerformanceMetricsCalculator:
             Sharpe ratio (annualized)
 
         """
-        if len(returns) < 2:
+        if len(returns) < MIN_DATA_POINTS_FOR_STATS:
             return 0.0
 
         # Convert annual risk-free rate to period rate
@@ -748,7 +751,7 @@ class PerformanceMetricsCalculator:
             Sortino ratio (annualized)
 
         """
-        if len(returns) < 2:
+        if len(returns) < MIN_DATA_POINTS_FOR_STATS:
             return 0.0
 
         # Convert annual rates to period rates
@@ -781,7 +784,7 @@ class PerformanceMetricsCalculator:
             Maximum drawdown as a percentage (0-100)
 
         """
-        if len(returns) < 2:
+        if len(returns) < MIN_DATA_POINTS_FOR_STATS:
             return 0.0
 
         # Calculate cumulative returns
@@ -809,7 +812,7 @@ class PerformanceMetricsCalculator:
             Calmar ratio
 
         """
-        if len(returns) < 2:
+        if len(returns) < MIN_DATA_POINTS_FOR_STATS:
             return 0.0
 
         # Annualized return
@@ -862,7 +865,7 @@ class PerformanceMetricsCalculator:
             Annualized volatility (decimal)
 
         """
-        if len(returns) < 2:
+        if len(returns) < MIN_DATA_POINTS_FOR_STATS:
             return 0.0
 
         # Annualize the standard deviation

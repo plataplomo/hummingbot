@@ -91,7 +91,8 @@ class BackpackRawKline(BaseModel):
         if len(data) != BACKPACK_KLINE_FIELDS_COUNT:
             # Match test message for test_invalid_structure_list_length
             raise ValueError(
-                f"Expected {BACKPACK_KLINE_FIELDS_COUNT} elements in kline data list/tuple, got {len(data)}"
+                f"Expected {BACKPACK_KLINE_FIELDS_COUNT} elements in kline data list/tuple, "
+                f"got {len(data)}"
             )
 
         field_names: list[str] = list(cls.model_fields.keys())

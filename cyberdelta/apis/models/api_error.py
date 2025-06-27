@@ -2,7 +2,16 @@
 
 from typing import Any
 
+# Import HTTPStatusCode for server error range constants
+from cyberdelta.core.models.enums import HTTPStatusCode
+
+from .api_error_codes import APIErrorCode
 from .api_error_response import APIErrorResponse
+
+
+# Server error range constants
+SERVER_ERROR_START = HTTPStatusCode.INTERNAL_SERVER_ERROR.value  # 500
+SERVER_ERROR_END = 600  # End of 5xx range (exclusive)
 
 
 class APIError(Exception):
@@ -100,12 +109,16 @@ class APIError(Exception):
             return (
                 code_val
                 in {
-                    109,  # RATE_LIMITED
-                    1,  # TIMEOUT
-                    0,  # CONNECTION_ERROR
+                    APIErrorCode.RATE_LIMITED.value,  # 109
+                    APIErrorCode.TIMEOUT.value,  # 1
+                    APIErrorCode.CONNECTION_ERROR.value,  # 0
                 }
-                or (code_val == 4 and self.http_status and 500 <= self.http_status < 600)
-                or code_val == 2  # NETWORK_ISSUE
+                or (
+                    code_val == APIErrorCode.SERVER_ERROR.value  # 4
+                    and self.http_status
+                    and SERVER_ERROR_START <= self.http_status < SERVER_ERROR_END  # Server error
+                )
+                or code_val == APIErrorCode.NETWORK_ISSUE.value  # 2
             )
         return False
 

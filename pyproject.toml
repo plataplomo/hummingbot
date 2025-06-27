@@ -167,7 +167,7 @@ select = [  # Linting rules to apply
     "PLR6201",  # literal-membership (performance improvement)
     "PLR1714",  # repeated-equality-comparison (cleaner code)
     "PLR6104",  # non-augmented-assignment (minor improvement)
-#    "G",
+    "G",
 ]
 
 # Ignore rules that conflict with current codebase formatting

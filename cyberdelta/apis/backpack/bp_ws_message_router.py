@@ -264,15 +264,24 @@ class BackpackWsMessageRouter:
             if error_key not in self._suppressed_errors:
                 # First occurrence - log and suppress future
                 self.logger.warning(
-                    f"[{self._exchange_name}] Unroutable message (suppressing future) - "
-                    f"no clear string topic: {message}",
+                    "backpack_unroutable_message_suppressing",
+                    exchange_name=self._exchange_name,
+                    message=message,
+                    error_key=error_key,
+                    action="suppressing_future",
+                    message_text="Unroutable message (suppressing future) - no clear string topic",
                 )
                 self._suppressed_errors[error_key] = current_time
             elif current_time - self._suppressed_errors[error_key] > self._suppression_duration:
                 # Re-log after suppression duration
                 self.logger.warning(
-                    f"[{self._exchange_name}] Repeated unroutable message - "
-                    f"no clear string topic: {message} (count: {self._error_counts[error_key]})",
+                    "backpack_repeated_unroutable_message",
+                    exchange_name=self._exchange_name,
+                    message=message,
+                    error_key=error_key,
+                    error_count=self._error_counts[error_key],
+                    action="re_logging_after_suppression",
+                    message_text="Repeated unroutable message - no clear string topic",
                 )
                 self._suppressed_errors[error_key] = current_time
                 self._error_counts[error_key] = 0  # Reset count
@@ -281,8 +290,11 @@ class BackpackWsMessageRouter:
 
         if data_payload is None:
             self.logger.debug(
-                f"[{self._exchange_name}] Received message with topic/type '{topic_str}' "
-                f"but no data_payload: {message}",
+                "backpack_no_data_payload",
+                exchange_name=self._exchange_name,
+                topic_str=topic_str,
+                message=message,
+                message_text="Received message with topic/type but no data_payload",
             )
             return
 
@@ -292,8 +304,11 @@ class BackpackWsMessageRouter:
 
         if not app_handler:
             self.logger.debug(
-                f"[{self._exchange_name}] No application handler registered for topic: "
-                f"{topic_str} (or base topic: {base_topic})",
+                "backpack_no_handler_registered",
+                exchange_name=self._exchange_name,
+                topic_str=topic_str,
+                base_topic=base_topic,
+                message_text="No application handler registered for topic",
             )
             return
 
@@ -308,9 +323,12 @@ class BackpackWsMessageRouter:
             if validated_payload is None and internal_model is None:
                 # Unknown topic, send raw payload
                 self.logger.warning(
-                    f"[{self._exchange_name}] No specific raw WS validator for topic "
-                    f"'{topic_str}' (base: '{base_topic}'). "
-                    f"Application handler will receive raw payload.",
+                    "backpack_no_raw_ws_validator",
+                    exchange_name=self._exchange_name,
+                    topic_str=topic_str,
+                    base_topic=base_topic,
+                    action="sending_raw_payload",
+                    message_text="No specific raw WS validator for topic, application handler will receive raw payload",
                 )
                 await app_handler(data_payload, message)
                 return
@@ -320,19 +338,31 @@ class BackpackWsMessageRouter:
 
         except APIError as e:
             self.logger.error(
-                f"[{self._exchange_name}] APIError validating WS payload for topic "
-                f"{topic_str} (base: {base_topic}): {e.message}",
+                "backpack_api_error_validating_ws",
+                exchange_name=self._exchange_name,
+                topic_str=topic_str,
+                base_topic=base_topic,
+                error_message=e.message,
+                message_text="APIError validating WS payload for topic",
                 exc_info=True,
             )
         except TransformationError as e_transform:
             self.logger.error(
-                f"[{self._exchange_name}] TransformationError transforming WS payload for topic "
-                f"{topic_str} (base: {base_topic}): {e_transform}",
+                "backpack_transformation_error_ws",
+                exchange_name=self._exchange_name,
+                topic_str=topic_str,
+                base_topic=base_topic,
+                error=str(e_transform),
+                message_text="TransformationError transforming WS payload for topic",
                 exc_info=True,
             )
         except Exception as e_app:
             self.logger.error(
-                f"[{self._exchange_name}] Error in application handler for topic {topic_str} "
-                f"(base: {base_topic}): {e_app}",
+                "backpack_application_handler_error",
+                exchange_name=self._exchange_name,
+                topic_str=topic_str,
+                base_topic=base_topic,
+                error=str(e_app),
+                message_text="Error in application handler for topic",
                 exc_info=True,
             )

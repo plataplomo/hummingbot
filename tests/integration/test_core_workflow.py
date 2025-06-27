@@ -655,25 +655,43 @@ async def test_happy_path_full_cycle(
     # -------------------------------------------------
 
     # --- Log DataHandler state BEFORE generating opportunities ---
-    logger.debug("--- DataHandler State Check Before Generate --- ")
-    logger.debug(f"Tickers Keys: {list(data_handler.tickers.keys())}")
-    logger.debug(f"Funding Keys: {list(data_handler.funding_rates.keys())}")
+    logger.debug("data_handler_state_check_before_generate")
+    logger.debug(
+        "tickers_keys_check",
+        tickers_keys=list(data_handler.tickers.keys()),
+        message="Tickers Keys check",
+    )
+    logger.debug(
+        "funding_keys_check",
+        funding_keys=list(data_handler.funding_rates.keys()),
+        message="Funding Keys check",
+    )
     # Log nested structure
     logger.debug(
-        f"HL Ticker Data (Nested): {data_handler.tickers.get('hyperliquid', {}).get(symbol_hl)}",
+        "hl_ticker_data_nested",
+        hl_ticker_data=data_handler.tickers.get("hyperliquid", {}).get(symbol_hl),
+        symbol=symbol_hl,
+        message="HL Ticker Data (Nested)",
     )
     logger.debug(
-        f"BP Ticker Data (Nested): {data_handler.tickers.get('backpack', {}).get(symbol_bp)}",
+        "bp_ticker_data_nested",
+        bp_ticker_data=data_handler.tickers.get("backpack", {}).get(symbol_bp),
+        symbol=symbol_bp,
+        message="BP Ticker Data (Nested)",
     )
     logger.debug(
-        f"HL Funding Data (Nested): "
-        f"{data_handler.funding_rates.get('hyperliquid', {}).get(symbol_hl)}",
+        "hl_funding_data_nested",
+        hl_funding_data=data_handler.funding_rates.get("hyperliquid", {}).get(symbol_hl),
+        symbol=symbol_hl,
+        message="HL Funding Data (Nested)",
     )
     logger.debug(
-        f"BP Funding Data (Nested): "
-        f"{data_handler.funding_rates.get('backpack', {}).get(symbol_bp)}",
+        "bp_funding_data_nested",
+        bp_funding_data=data_handler.funding_rates.get("backpack", {}).get(symbol_bp),
+        symbol=symbol_bp,
+        message="BP Funding Data (Nested)",
     )
-    logger.debug("--- End DataHandler State Check --- ")
+    logger.debug("data_handler_state_check_end")
     # -----------------------------------------------------------
 
     # 3. Generate Opportunities
@@ -688,8 +706,11 @@ async def test_happy_path_full_cycle(
             internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
             if internal_sym is None:
                 logger.warning(
-                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
-                    f"to internal symbol. Skipping.",
+                    "test_funding_prep_mapping_failed",
+                    exchange_id=ex_id_key,
+                    exchange_symbol=ex_specific_sym,
+                    action="skipping",
+                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol",
                 )
                 continue
 
@@ -705,7 +726,9 @@ async def test_happy_path_full_cycle(
     )
 
     # --- Logging and Assertions for Opportunities ---
-    logger.info(f"Generated {len(opportunities)} opportunities.")
+    logger.info(
+        "opportunities_generated", count=len(opportunities), message="Generated opportunities"
+    )
     if not opportunities:
         logger.warning("No opportunities generated. This is unexpected.")
         return
@@ -741,21 +764,35 @@ async def test_happy_path_full_cycle(
     # RM needs portfolio state (balances mainly)
     # Verify balances directly via internal dict for test setup accuracy
     logger.info(
-        f"HL balance before sizing: {portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}",
+        "hl_balance_before_sizing",
+        balance=portfolio_tracker.get_exchange_balance("mock_hl", "USD"),
+        exchange="mock_hl",
+        asset="USD",
+        message="HL balance before sizing",
     )
     logger.info(
-        f"BP balance before sizing: {portfolio_tracker.get_exchange_balance('mock_bp', 'USDC')}",
+        "bp_balance_before_sizing",
+        balance=portfolio_tracker.get_exchange_balance("mock_bp", "USDC"),
+        exchange="mock_bp",
+        asset="USDC",
+        message="BP balance before sizing",
     )
     # Let's assume RM uses get_total_capital directly from balances for now
+    total_capital = await portfolio_tracker.get_total_capital()
     logger.info(
-        f"Portfolio Total Capital for Sizing (from getter): "
-        f"{await portfolio_tracker.get_total_capital()}",
-    )  # Added await
+        "portfolio_total_capital_for_sizing",
+        total_capital=total_capital,
+        message="Portfolio Total Capital for Sizing (from getter)",
+    )
 
     logger.info("Validating and sizing opportunities with RiskManager...")
 
     sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
-    logger.info(f"Validated {len(sized_opportunities_list)} opportunities.")
+    logger.info(
+        "opportunities_validated",
+        count=len(sized_opportunities_list),
+        message="Validated opportunities",
+    )
     assert len(sized_opportunities_list) == 1, (
         "Opportunity should be valid and sized by RiskManager"
     )

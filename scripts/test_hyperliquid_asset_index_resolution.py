@@ -12,6 +12,9 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
+# Test constants for expected asset indices in mock data
+EXPECTED_SOL_INDEX = 5  # SOL is at index 5 in the mock universe array
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -144,8 +147,8 @@ async def test_asset_index_resolution() -> None:
     logger.info("Test 3: Fetching asset index for SOL (from cache)")
     sol_index = await indexer.get_asset_index("SOL")
     logger.info(f"  SOL index: {sol_index}")
-    if sol_index != 5:
-        raise AssertionError(f"Expected SOL index to be 5, got {sol_index}")
+    if sol_index != EXPECTED_SOL_INDEX:
+        raise AssertionError(f"Expected SOL index to be {EXPECTED_SOL_INDEX}, got {sol_index}")
     logger.info("  ✓ SOL index is correct\n")
 
     # Test 4: Verify caching works (API should only be called once)
@@ -167,7 +170,7 @@ async def test_asset_index_resolution() -> None:
     # Test 6: Verify known assets are in cache
     logger.info("Test 6: Verifying known assets are cached:")
     # We know these were fetched, so they should resolve from cache
-    known_assets = [("BTC", 0), ("ETH", 1), ("SOL", 5)]
+    known_assets = [("BTC", 0), ("ETH", 1), ("SOL", EXPECTED_SOL_INDEX)]
     for symbol, expected_index in known_assets:
         index = await indexer.get_asset_index(symbol)
         logger.info(f"  {symbol}: {index}")

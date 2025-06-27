@@ -54,6 +54,9 @@ EXAMPLE_CONFIG_BASE_SOURCE = EXAMPLES_DIR / "config_base.yaml"
 EXAMPLE_CONFIG_CYBERDELTA_SOURCE = EXAMPLES_DIR / "config_cyberdelta.yaml"
 EXAMPLE_SECRETS_SOURCE = EXAMPLES_DIR / "secrets_example.yaml"
 
+# Constants for display formatting
+API_KEY_DISPLAY_SUFFIX_LENGTH = 4  # Show last 4 characters of API key for identification
+
 # --- Helper Functions ---
 
 
@@ -246,7 +249,11 @@ def _display_exchange_credential_status(exchange_name: str, exchange_secrets: ob
         api_key = getattr(exchange_secrets, "api_key", None)
         if isinstance(api_key, str):
             api_key_str = api_key
-            masked_key = api_key_str[-4:] if len(api_key_str) >= 4 else "****"
+            masked_key = (
+                api_key_str[-API_KEY_DISPLAY_SUFFIX_LENGTH:]
+                if len(api_key_str) >= API_KEY_DISPLAY_SUFFIX_LENGTH
+                else "****"
+            )
             logger.info(f"    API Key: Set (ending with ...{masked_key})")
         else:
             logger.info("    API Key: Set (complex structure)")

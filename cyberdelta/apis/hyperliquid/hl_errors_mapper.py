@@ -17,12 +17,6 @@ import re
 from typing import Any
 
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
-from cyberdelta.apis.http_status_codes import (
-    HTTP_FORBIDDEN,
-    HTTP_SERVICE_UNAVAILABLE,
-    HTTP_TOO_MANY_REQUESTS,
-    HTTP_UNAUTHORIZED,
-)
 from cyberdelta.apis.hyperliquid.hl_api_error import (
     HYPERLIQUID_ERROR_STRINGS,
     HyperliquidAPIErrorCategory,
@@ -31,6 +25,7 @@ from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.api_error_response import APIErrorResponse
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 logger = get_logger(__name__)
@@ -343,7 +338,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Check for Hyperliquid IP ban pattern (403 + rate limit message)."""
-        if status_code == HTTP_FORBIDDEN:
+        if status_code == HTTPStatusCode.FORBIDDEN.value:
             error_category = self._categorize_hyperliquid_error(error_body or "")
             if error_category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
                 logger.warning(
@@ -367,7 +362,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Handle critical HTTP status codes with direct mapping."""
-        if status_code == HTTP_SERVICE_UNAVAILABLE:
+        if status_code == HTTPStatusCode.SERVICE_UNAVAILABLE.value:
             return APIError(
                 message=error_body or "Service Unavailable (503)",
                 code=APIErrorCode.SERVICE_UNAVAILABLE.value,
@@ -376,7 +371,7 @@ class HyperliquidErrorMapper(IErrorMapper):
                 original_exception=original_exception,
             )
 
-        if status_code == HTTP_TOO_MANY_REQUESTS:
+        if status_code == HTTPStatusCode.TOO_MANY_REQUESTS.value:
             return APIError(
                 message=error_body or "Rate limit exceeded (429)",
                 code=APIErrorCode.RATE_LIMITED.value,
@@ -385,10 +380,10 @@ class HyperliquidErrorMapper(IErrorMapper):
                 original_exception=original_exception,
             )
 
-        if status_code == HTTP_UNAUTHORIZED:
+        if status_code == HTTPStatusCode.UNAUTHORIZED.value:
             return self._handle_authentication_error(status_code, error_body, original_exception)
 
-        if status_code == HTTP_FORBIDDEN:
+        if status_code == HTTPStatusCode.FORBIDDEN.value:
             # Non-rate-limit 403, treat as authentication failure
             message = error_body or "Forbidden"
             return APIError(

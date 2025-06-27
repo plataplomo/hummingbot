@@ -20,7 +20,6 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.http_status_codes import HTTP_NOT_FOUND
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -37,6 +36,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     CancelOrderResultStatus,
+    HTTPStatusCode,
     OrderType,
     TimeInForce,
 )
@@ -711,7 +711,7 @@ class BackpackTradingService:
         symbol: str | None,
     ) -> Order | None:
         """Process the get order API response."""
-        if status_code == HTTP_NOT_FOUND:  # Order not found
+        if status_code == HTTPStatusCode.NOT_FOUND.value:  # Order not found
             logger.info(
                 f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.",
             )

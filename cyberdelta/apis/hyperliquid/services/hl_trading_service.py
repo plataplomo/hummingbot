@@ -655,8 +655,8 @@ class HyperliquidTradingService:
         """Validate batch-specific constraints."""
         if len(orders) > MAX_BATCH_SIZE:
             raise ValueError(
-                f"[{current_method}] Batch size {len(orders)} exceeds maximum of {MAX_BATCH_SIZE} orders. "
-                "Consider splitting into smaller batches.",
+                f"[{current_method}] Batch size {len(orders)} exceeds maximum of {MAX_BATCH_SIZE} "
+                "orders. Consider splitting into smaller batches."
             )
 
         market_order_indices = [
@@ -1691,8 +1691,8 @@ class HyperliquidTradingService:
 
         if len(cancel_args) > 1 and len(cancel_args) > MAX_BATCH_SIZE:
             raise ValueError(
-                f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of {MAX_BATCH_SIZE} "
-                "cancellations. Consider splitting into smaller batches.",
+                f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of "
+                f"{MAX_BATCH_SIZE} cancellations. Consider splitting into smaller batches."
             )
 
     async def _prepare_cancel_data(

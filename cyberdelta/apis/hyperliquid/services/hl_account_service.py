@@ -1285,7 +1285,10 @@ class HyperliquidAccountService:
             leverage_int = int(args.leverage_limit)
             if leverage_int < 1 or leverage_int > MAX_LEVERAGE_VALUE:
                 raise APIError(
-                    message=f"Invalid leverage value: {leverage_int}. Must be between 1 and {MAX_LEVERAGE_VALUE}.",
+                    message=(
+                        f"Invalid leverage value: {leverage_int}. "
+                        f"Must be between 1 and {MAX_LEVERAGE_VALUE}."
+                    ),
                     code=APIErrorCode.INVALID_REQUEST.value,
                 )
 

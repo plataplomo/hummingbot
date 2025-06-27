@@ -24,11 +24,14 @@ from typing import Any
 
 import aiohttp
 
+from cyberdelta.core.models.enums import HTTPStatusCode
+
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 os.chdir(project_root)  # Change to project root to ensure imports work
+
 
 # Configure logging before other imports
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -146,7 +149,7 @@ class BackpackPrivateDataCollector:
                 headers=auth_components.headers,
                 timeout=timeout,
             ) as response:
-                if response.status == 200:
+                if response.status == HTTPStatusCode.OK.value:
                     response_data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return response_data

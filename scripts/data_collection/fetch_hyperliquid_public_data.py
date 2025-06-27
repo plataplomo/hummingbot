@@ -32,6 +32,7 @@ import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 # Configure logging
@@ -173,7 +174,7 @@ class HyperliquidDataCollector:
         try:
             logger.info(f"Fetching: {url} with payload: {payload}")
             async with self.session.post(url, json=payload) as response:
-                if response.status == 200:
+                if response.status == HTTPStatusCode.OK.value:
                     data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return data

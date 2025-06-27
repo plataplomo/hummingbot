@@ -5,6 +5,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.hyperliquid.services.hl_account_service import MAX_LEVERAGE_VALUE
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
@@ -43,10 +44,13 @@ def simulate_hyperliquid_leverage_update() -> None:
     leverage_int = int(args.leverage_limit)
     logger.info(f"2. Convert leverage to int: {args.leverage_limit} -> {leverage_int}")
 
-    if leverage_int < 1 or leverage_int > 100:
+    if leverage_int < 1 or leverage_int > MAX_LEVERAGE_VALUE:
         logger.error(f"   ERROR: Invalid leverage {leverage_int}")
         raise APIError(
-            message=f"Invalid leverage value: {leverage_int}. Must be between 1 and 100.",
+            message=(
+                f"Invalid leverage value: {leverage_int}. "
+                f"Must be between 1 and {MAX_LEVERAGE_VALUE}."
+            ),
             code=APIErrorCode.INVALID_REQUEST.value,
         )
     logger.info("   ✓ Leverage is valid")

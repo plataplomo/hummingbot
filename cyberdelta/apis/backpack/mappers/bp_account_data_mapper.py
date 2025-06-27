@@ -281,8 +281,12 @@ class BackpackAccountDataMapper:
             # Check if price or quantity is zero - Trade model requires positive values
             if price <= Decimal(0) or quantity <= Decimal(0):
                 logger.warning(
-                    f"Skipping trade {raw_fill.trade_id} with zero price ({price}) "
-                    f"or quantity ({quantity})",
+                    "backpack_trade_zero_price_or_quantity",
+                    trade_id=raw_fill.trade_id,
+                    price=price,
+                    quantity=quantity,
+                    action="skipping",
+                    message="Skipping trade with zero price or quantity",
                 )
                 return None
 
@@ -640,7 +644,10 @@ class BackpackAccountDataMapper:
             )
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
             logger.error(
-                f"[BackpackAccountDataMapper] Error transforming raw account summary: {e}",
+                "backpack_account_summary_transform_error",
+                mapper_class="BackpackAccountDataMapper",
+                error=str(e),
+                message="Error transforming raw account summary",
                 exc_info=True,
             )
             raise TransformationError(f"Error transforming raw account summary: {e}") from e
@@ -787,7 +794,10 @@ class BackpackAccountDataMapper:
 
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
             logger.error(
-                f"[BackpackAccountDataMapper] Error transforming collateral data: {e}",
+                "backpack_collateral_data_transform_error",
+                mapper_class="BackpackAccountDataMapper",
+                error=str(e),
+                message="Error transforming collateral data",
                 exc_info=True,
             )
             raise TransformationError(f"Error transforming collateral data: {e}") from e
@@ -822,8 +832,11 @@ class BackpackAccountDataMapper:
         """
         try:
             logger.debug(
-                f"[BackpackAccountDataMapper] Transforming raw transfer: "
-                f"{raw_response!r} for {asset}",
+                "backpack_transforming_raw_transfer",
+                mapper_class="BackpackAccountDataMapper",
+                raw_response=raw_response,
+                asset=asset,
+                message="Transforming raw transfer",
             )
 
             if not isinstance(raw_response, dict):
@@ -865,8 +878,10 @@ class BackpackAccountDataMapper:
                     timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
                 except ValueError:
                     logger.warning(
-                        f"Invalid timestamp format '{timestamp_ms_str}' "
-                        f"for transfer '{transfer_id}'",
+                        "backpack_invalid_timestamp_format",
+                        timestamp_ms_str=timestamp_ms_str,
+                        transfer_id=transfer_id,
+                        message="Invalid timestamp format for transfer",
                     )
                     timestamp = datetime.now(UTC)
             else:

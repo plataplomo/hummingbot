@@ -27,18 +27,10 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
-from cyberdelta.apis.http_status_codes import (
-    HTTP_BAD_REQUEST,
-    HTTP_FORBIDDEN,
-    HTTP_INTERNAL_SERVER_ERROR,
-    HTTP_NOT_FOUND,
-    HTTP_SERVICE_UNAVAILABLE,
-    HTTP_TOO_MANY_REQUESTS,
-    HTTP_UNAUTHORIZED,
-)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 logger = get_logger(__name__)
@@ -116,17 +108,23 @@ class BackpackErrorMapper(IErrorMapper):
                 mapped_code = code_map.get(code, APIErrorCode.EXCHANGE_SPECIFIC)
                 if mapped_code == APIErrorCode.EXCHANGE_SPECIFIC and code not in code_map:
                     logger.warning(
-                        f"[{BackpackErrorMapper.__name__}] Unmapped or ambiguous "
-                        f"Backpack error code: {code}",
+                        "backpack_unmapped_error_code",
+                        error_code=code,
+                        mapper_class=BackpackErrorMapper.__name__,
+                        message="Unmapped or ambiguous Backpack error code",
                     )
                 return mapped_code
             except ValidationError as e:
                 detailed_errors = e.errors(include_url=False, include_context=False)
                 logger.warning(
-                    f"[{BackpackErrorMapper.__name__}] Failed to parse error_data as "
-                    f"{BackpackRawApiError.__name__}. "
-                    f"Pydantic errors: {detailed_errors}. Original exception string: {e}. "
-                    f"Falling back to heuristics.",
+                    "backpack_error_data_parse_failed",
+                    mapper_class=BackpackErrorMapper.__name__,
+                    target_model=BackpackRawApiError.__name__,
+                    pydantic_errors=detailed_errors,
+                    exception_str=str(e),
+                    action="falling_back_to_heuristics",
+                    message="Failed to parse error_data as BackpackRawApiError, "
+                    "falling back to heuristics",
                 )
 
         # If no error_data or parsing failed, delegate to string-based mapping
@@ -196,17 +194,20 @@ class BackpackErrorMapper(IErrorMapper):
 
         # If mapped_code_enum is still EXCHANGE_SPECIFIC but http_status suggests something else:
         if mapped_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
-            if effective_http_status == HTTP_BAD_REQUEST:
+            if effective_http_status == HTTPStatusCode.BAD_REQUEST.value:
                 mapped_code_enum = APIErrorCode.INVALID_REQUEST
-            elif effective_http_status in {HTTP_UNAUTHORIZED, HTTP_FORBIDDEN}:
+            elif effective_http_status in {
+                HTTPStatusCode.UNAUTHORIZED.value,
+                HTTPStatusCode.FORBIDDEN.value,
+            }:
                 mapped_code_enum = APIErrorCode.AUTHENTICATION_FAILED
-            elif effective_http_status == HTTP_NOT_FOUND:
+            elif effective_http_status == HTTPStatusCode.NOT_FOUND.value:
                 mapped_code_enum = APIErrorCode.ORDER_NOT_FOUND  # Or generic NOT_FOUND
-            elif effective_http_status == HTTP_TOO_MANY_REQUESTS:
+            elif effective_http_status == HTTPStatusCode.TOO_MANY_REQUESTS.value:
                 mapped_code_enum = APIErrorCode.RATE_LIMITED
-            elif effective_http_status == HTTP_INTERNAL_SERVER_ERROR:
+            elif effective_http_status == HTTPStatusCode.INTERNAL_SERVER_ERROR.value:
                 mapped_code_enum = APIErrorCode.SERVER_ERROR
-            elif effective_http_status == HTTP_SERVICE_UNAVAILABLE:
+            elif effective_http_status == HTTPStatusCode.SERVICE_UNAVAILABLE.value:
                 mapped_code_enum = APIErrorCode.MAINTENANCE  # Or SERVICE_UNAVAILABLE
 
         return APIError(
@@ -246,10 +247,12 @@ class BackpackErrorMapper(IErrorMapper):
         exc_str = str(e_val_specific)
 
         logger.warning(
-            f"[{class_name}] Failed to parse error_data as BackpackRawApiError. "
-            f"Pydantic errors: {errors_str}. "
-            f"Original exception string: {exc_str}. "
-            f"Error classified as EXCHANGE_SPECIFIC based on initial mapping.",
+            "backpack_validation_error",
+            class_name=class_name,
+            pydantic_errors=errors_str,
+            exception_str=exc_str,
+            classification="EXCHANGE_SPECIFIC",
+            message="Failed to parse error_data as BackpackRawApiError, classified as EXCHANGE_SPECIFIC",
         )
 
     def _construct_effective_message(
@@ -288,8 +291,9 @@ class BackpackErrorMapper(IErrorMapper):
             return None
 
         logger.debug(
-            f"Attempting to parse retry_after from Backpack rate limit message: "
-            f"'{effective_exchange_message}'",
+            "backpack_retry_after_parse_attempt",
+            exchange_message=effective_exchange_message,
+            message="Attempting to parse retry_after from Backpack rate limit message",
         )
 
         # Define regex patterns to search for retry-after hints (case-insensitive)
@@ -312,8 +316,9 @@ class BackpackErrorMapper(IErrorMapper):
                         parsed_retry_after_seconds = float(numeric_value)
 
                     logger.info(
-                        f"Parsed retry_after from Backpack message: "
-                        f"{parsed_retry_after_seconds} seconds.",
+                        "backpack_retry_after_parsed",
+                        retry_after_seconds=parsed_retry_after_seconds,
+                        message="Parsed retry_after from Backpack message",
                     )
                     return parsed_retry_after_seconds
                 except (ValueError, IndexError) as e:
@@ -321,7 +326,7 @@ class BackpackErrorMapper(IErrorMapper):
                         "retry_after_parse_failed",
                         action="parse_retry_after",
                         error=str(e),
-                        message=f"Failed to parse numeric value from regex match: {e}",
+                        message="Failed to parse numeric value from regex match",
                     )
                     continue
 
@@ -343,11 +348,14 @@ class BackpackErrorMapper(IErrorMapper):
         if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
             return api_error_code_enum
 
-        if status_code in {HTTP_UNAUTHORIZED, HTTP_FORBIDDEN}:
+        if status_code in {
+            HTTPStatusCode.UNAUTHORIZED.value,
+            HTTPStatusCode.FORBIDDEN.value,
+        }:
             return APIErrorCode.AUTHENTICATION_FAILED
-        if status_code == HTTP_NOT_FOUND:
+        if status_code == HTTPStatusCode.NOT_FOUND.value:
             return APIErrorCode.ORDER_NOT_FOUND
-        if status_code == HTTP_TOO_MANY_REQUESTS:
+        if status_code == HTTPStatusCode.TOO_MANY_REQUESTS.value:
             return APIErrorCode.RATE_LIMITED
         return api_error_code_enum
 

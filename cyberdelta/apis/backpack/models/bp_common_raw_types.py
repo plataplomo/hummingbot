@@ -310,7 +310,7 @@ def _validate_raw_iso_timestamp_string(v: object, info: ValidationInfo) -> str:
 
 
 def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, value: object) -> None:
-    """Validate timestamp year is within funding rate range (1970-2070).
+    """Validate timestamp year is within acceptable range for funding rate context.
 
     Raises:
         ValueError: If the timestamp year is outside the valid range (1970-2070).
@@ -318,7 +318,8 @@ def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, valu
     if dt_object.year < UNIX_EPOCH_YEAR or dt_object.year > TIMESTAMP_MAX_YEAR_CONSERVATIVE:
         raise ValueError(
             f"Field {field_name}: Timestamp '{value}' results in an implausible year "
-            f"({dt_object.year}) for funding rate context (expected {UNIX_EPOCH_YEAR}-{TIMESTAMP_MAX_YEAR_CONSERVATIVE}).",
+            f"({dt_object.year}) for funding rate context "
+            f"(expected {UNIX_EPOCH_YEAR}-{TIMESTAMP_MAX_YEAR_CONSERVATIVE})."
         )
 
 

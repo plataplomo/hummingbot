@@ -61,8 +61,11 @@ class BackpackAPIComponentsFactory:
         # Log error if Backpack receives wrong auth type
         if not isinstance(exchange_secrets, ApiKeyAuthSecrets):
             logger.error(
-                f"Backpack expects auth_type 'api_key' but received "
-                f"'{exchange_secrets.auth_type}'. ED25519 authentication will not work.",
+                "backpack_wrong_auth_type",
+                expected_auth_type="api_key",
+                received_auth_type=exchange_secrets.auth_type,
+                message="Backpack expects auth_type 'api_key' but received different type. "
+                "ED25519 authentication will not work.",
             )
 
     def create_authenticator(self) -> BackpackEd25519Authenticator | None:
@@ -77,9 +80,12 @@ class BackpackAPIComponentsFactory:
         # Check if we have the correct secrets type for Backpack
         if not isinstance(self.exchange_secrets, ApiKeyAuthSecrets):
             logger.error(
-                f"Cannot create Backpack authenticator: expected auth_type 'api_key' "
-                f"but received '{self.exchange_secrets.auth_type}'. "
-                f"Signed operations will fail.",
+                "backpack_authenticator_wrong_auth_type",
+                expected_auth_type="api_key",
+                received_auth_type=self.exchange_secrets.auth_type,
+                action="create_authenticator",
+                message="Cannot create Backpack authenticator: expected auth_type 'api_key' "
+                "but received different type. Signed operations will fail.",
             )
             return None
 
@@ -100,7 +106,7 @@ class BackpackAPIComponentsFactory:
                     action="init_authenticator",
                     authenticator_type="BackpackEd25519Authenticator",
                     error=str(e),
-                    message=f"Failed to initialize BackpackEd25519Authenticator: {e}",
+                    message="Failed to initialize BackpackEd25519Authenticator",
                 )
                 return None
         else:
