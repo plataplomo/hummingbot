@@ -72,8 +72,12 @@ class HyperliquidRequestWeighter:
             ip_weight = base_weight + (batch_length // 40)
 
             logger.debug(
-                f"Hyperliquid /exchange request: batch_length={batch_length}, "
-                f"ip_weight={ip_weight}",
+                "hyperliquid_exchange_request_weight",
+                action="calculate_weight",
+                batch_length=batch_length,
+                ip_weight=ip_weight,
+                message="Hyperliquid /exchange request: batch_length=%s, ip_weight=%s",
+                message_args=(batch_length, ip_weight),
             )
             return ip_weight
 
@@ -94,13 +98,18 @@ class HyperliquidRequestWeighter:
                     action="calculate_weight",
                     api_type=api_type,
                     ip_weight=ip_weight,
-                    message=f"Hyperliquid /info request: type={api_type}, ip_weight={ip_weight}",
+                    message="Hyperliquid /info request: type=%s, ip_weight=%s",
+                    message_args=(api_type, ip_weight),
                 )
             else:
                 # Use default weight for unknown or missing types
                 ip_weight = self.hl_exchange_config.default_info_weight or 20
                 logger.debug(
-                    f"Hyperliquid /info request: unknown type, using default ip_weight={ip_weight}",
+                    "hyperliquid_info_request_unknown_type",
+                    action="calculate_weight",
+                    ip_weight=ip_weight,
+                    message="Hyperliquid /info request: unknown type, using default ip_weight=%s",
+                    message_args=(ip_weight,),
                 )
 
             return ip_weight
@@ -108,7 +117,12 @@ class HyperliquidRequestWeighter:
         # Handle other endpoints with default weight
         ip_weight = self.hl_exchange_config.default_info_weight or 20
         logger.warning(
-            f"Hyperliquid unknown endpoint '{endpoint}', using default ip_weight={ip_weight}",
+            "hyperliquid_unknown_endpoint",
+            action="calculate_weight",
+            endpoint=endpoint,
+            ip_weight=ip_weight,
+            message="Hyperliquid unknown endpoint '%s', using default ip_weight=%s",
+            message_args=(endpoint, ip_weight),
         )
         return ip_weight
 
@@ -137,7 +151,8 @@ class HyperliquidRequestWeighter:
                 "hyperliquid_exchange_request_weight",
                 action="calculate_weight",
                 address_action_count=action_count,
-                message=f"Hyperliquid /exchange request: address_action_count={action_count}",
+                message="Hyperliquid /exchange request: address_action_count=%s",
+                message_args=(action_count,),
             )
             return action_count
 

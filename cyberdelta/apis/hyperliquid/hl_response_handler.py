@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError  # BaseModel, Field no longer used directly here
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -45,8 +46,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_vault_details import (
     HyperliquidRawVaultDetailsResponse,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.utils.response_validation import (
     ensure_dict_response,
     ensure_list_response,
@@ -83,10 +82,8 @@ class HyperliquidResponseHandler:
     ) -> APIError:
         """Helper to create a standardized APIError from a ValidationError."""
         log_message = (
-            f"[HyperliquidResponseHandler] Pydantic validation failed for {context}: {e}. "
-            f"Status: {status_code if status_code is not None else 'N/A'}. "
-            f"Headers: {headers if headers is not None else 'N/A'}. "
-            f"Raw data: {raw_data!r}"
+            "[HyperliquidResponseHandler] Pydantic validation failed for %s: %s. "
+            "Status: %s. Headers: %s. Raw data: %r"
         )
         logger.error(
             "pydantic_validation_failed",
@@ -97,6 +94,13 @@ class HyperliquidResponseHandler:
             headers=headers,
             raw_data=repr(raw_data),
             message=log_message,
+            message_args=(
+                context,
+                str(e),
+                status_code if status_code is not None else "N/A",
+                headers if headers is not None else "N/A",
+                raw_data,
+            ),
         )
         return APIError(
             message=f"Invalid {context} response from exchange: {e}",
@@ -227,8 +231,11 @@ class HyperliquidResponseHandler:
             ) from e
         except AttributeError:
             logger.error(
-                f"Model HyperliquidRawAssetCtx appears incomplete or unavailable for {context}. "
-                "Validation skipped.",
+                "model_incomplete_or_unavailable",
+                context=context,
+                model_name="HyperliquidRawAssetCtx",
+                message="Model %s appears incomplete or unavailable for %s. Validation skipped.",
+                message_args=("HyperliquidRawAssetCtx", context),
             )
             raise APIError(
                 message=f"Asset context model (for funding rate) not fully available for {context}",
@@ -379,8 +386,11 @@ class HyperliquidResponseHandler:
             ) from e
         except AttributeError:
             logger.error(
-                f"Placeholder or missing model for HyperliquidRawVaultDetailsResponse used for "
-                f"{context}. Validation skipped.",
+                "placeholder_or_missing_model",
+                context=context,
+                model_name="HyperliquidRawVaultDetailsResponse",
+                message="Placeholder or missing model for %s used for %s. Validation skipped.",
+                message_args=("HyperliquidRawVaultDetailsResponse", context),
             )
             raise APIError(
                 message=f"Vault details model not fully available for {context}",
@@ -405,7 +415,8 @@ class HyperliquidResponseHandler:
                 action="validate_response",
                 context=context,
                 raw_data=repr(validated_data),
-                message=f"Initial validation of {context} failed. Raw: {validated_data!r}",
+                message="Initial validation of %s failed. Raw: %r",
+                message_args=(context, validated_data),
             )
             raise HyperliquidResponseHandler._handle_validation_error(
                 e,
@@ -473,7 +484,8 @@ class HyperliquidResponseHandler:
                         action="handle_error",
                         error_message=error_message,
                         raw_content=repr(raw_response_content),
-                        message=f"{error_message}. Raw: {raw_response_content!r}",
+                        message="%s. Raw: %r",
+                        message_args=(error_message, raw_response_content),
                     )
                     raise APIError(
                         message=error_message,
@@ -485,8 +497,12 @@ class HyperliquidResponseHandler:
                 ):
                     error_message = str(first_error.get("msg"))
                     logger.error(
-                        f"[HyperliquidResponseHandler] {error_message}. "
-                        f"Full raw response: {raw_response_content!r}",
+                        "validation_error_item_type",
+                        action="handle_error",
+                        error_message=error_message,
+                        raw_response_content=repr(raw_response_content),
+                        message="[HyperliquidResponseHandler] %s. Full raw response: %r",
+                        message_args=(error_message, raw_response_content),
                     )
                     raise APIError(
                         message=error_message,

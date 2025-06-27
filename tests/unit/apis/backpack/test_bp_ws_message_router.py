@@ -15,8 +15,7 @@ from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMess
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
-from cyberdelta.apis.base.exchange_api import MessageHandler
-from cyberdelta.apis.models.api_error import APIError, TransformationError
+from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 
 
 class TestBackpackWsMessageRouter:

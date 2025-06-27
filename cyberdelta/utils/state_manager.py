@@ -100,7 +100,7 @@ class StateManager:
             return True
 
         except json.JSONDecodeError as e:
-            logger.error(
+            logger.exception(
                 "state_file_decode_error",
                 state_file=self.state_file,
                 error=str(e),
@@ -109,18 +109,16 @@ class StateManager:
                     f"Error decoding state file {self.state_file}, "
                     f"attempting to recover from backup"
                 ),
-                exc_info=True,
             )
             return self._recover_from_backup()
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_loading_error",
                 state_file=self.state_file,
                 error=str(e),
                 action="attempting_backup_recovery",
                 message=f"Error loading state from {self.state_file}: {e!s}",
-                exc_info=True,
             )
             return self._recover_from_backup()
 
@@ -172,13 +170,12 @@ class StateManager:
             return True
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_saving_error",
                 state_file=self.state_file,
                 error=str(e),
                 action="save_failed",
                 message=f"Error saving state to {self.state_file}: {e!s}",
-                exc_info=True,
             )
             return False
 
@@ -222,14 +219,13 @@ class StateManager:
             return True
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_backup_creation_error",
                 backup_dir=self.backup_dir,
                 state_file=self.state_file,
                 error=str(e),
                 action="backup_failed",
                 message=f"Error creating state backup: {e!s}",
-                exc_info=True,
             )
             return False
 
@@ -258,14 +254,13 @@ class StateManager:
                 )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "backup_rotation_error",
                 backup_dir=self.backup_dir,
                 backup_count=self.backup_count,
                 error=str(e),
                 action="rotation_failed",
                 message=f"Error rotating backups: {e!s}",
-                exc_info=True,
             )
 
     def _recover_from_backup(self) -> bool:
@@ -341,13 +336,12 @@ class StateManager:
             return False
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "recovery_process_error",
                 backup_dir=self.backup_dir,
                 error=str(e),
                 action="recovery_failed",
                 message=f"Error during recovery process: {e!s}",
-                exc_info=True,
             )
             return False
 

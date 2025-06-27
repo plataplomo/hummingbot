@@ -18,8 +18,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawRecentPublicTrade,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

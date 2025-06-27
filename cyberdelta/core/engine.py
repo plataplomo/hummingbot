@@ -270,11 +270,11 @@ class Engine:
             await self._handle_strategy_signals(strategy, signals)
 
         except Exception as e:
-            logger.error(
-                f"Error processing data in strategy '{strategy.name}': {e}",
-                symbol=data.symbol,
+            logger.exception(
+                "strategy_data_processing_error",
                 strategy_name=strategy.name,
-                exc_info=True,
+                symbol=data.symbol,
+                error=str(e),
             )
 
     def _normalize_strategy_result(
@@ -296,13 +296,18 @@ class Engine:
             # Defensive: check signal type
             if not hasattr(signal, "symbol") or not hasattr(signal, "signal_type"):
                 logger.error(
-                    f"Invalid signal object returned by {strategy.name}: {signal}",
+                    "invalid_signal_object",
+                    strategy_name=strategy.name,
+                    signal=str(signal),
+                    message="Invalid signal object returned by strategy",
                 )
                 continue
             logger.info(
-                f"Strategy '{strategy.name}' generated signal: "
-                f"{getattr(signal, 'signal_type', 'UNKNOWN')} for "
-                f"{getattr(signal, 'symbol', 'UNKNOWN')}.",
+                "strategy_signal_generated",
+                strategy_name=strategy.name,
+                signal_type=getattr(signal, "signal_type", "UNKNOWN"),
+                symbol=getattr(signal, "symbol", "UNKNOWN"),
+                message="Strategy generated signal",
             )
             if self.signal_handler is not None:
                 await self.signal_handler(signal)
@@ -326,7 +331,10 @@ class Engine:
         if missing:
             # Use logger for errors
             logger.error(
-                f"DataFrame processing failed for {symbol}: Missing required columns: {missing}",
+                "dataframe_processing_failed",
+                symbol=symbol,
+                missing_columns=missing,
+                message="DataFrame processing failed: Missing required columns",
             )
             raise ValueError(f"DataFrame missing required columns: {missing}")
 
@@ -409,8 +417,11 @@ class Engine:
                 await self.process_market_data(candle)
             except (InvalidOperation, TypeError, ValueError) as e:
                 logger.error(
-                    f"Error converting DataFrame row {idx_typed} for {symbol} "
-                    f"to MarketData types: {e}",
+                    "dataframe_row_conversion_error",
+                    row_index=idx_typed,
+                    symbol=symbol,
+                    error=str(e),
+                    message="Error converting DataFrame row to MarketData types",
                     exc_info=False,  # Keep log concise for per-row errors
                 )
                 continue  # Skip this row if conversion fails
@@ -461,10 +472,11 @@ class Engine:
                     strategy.on_start()
                     enabled_count += 1
                 except Exception as e:
-                    logger.error(
-                        f"Error calling on_start for strategy '{strategy.name}': {e}. "
-                        f"Disabling strategy.",
-                        exc_info=True,
+                    logger.exception(
+                        "strategy_start_error",
+                        strategy_name=strategy.name,
+                        error=str(e),
+                        message="Error calling on_start for strategy, disabling strategy",
                     )
                     self.disable_strategy(strategy_name)  # Disable faulty strategy
 
@@ -508,9 +520,11 @@ class Engine:
                     strategy.on_stop()
                     stopped_count += 1
                 except Exception as e:
-                    logger.error(
-                        f"Error calling on_stop for strategy '{strategy.name}': {e}",
-                        exc_info=True,
+                    logger.exception(
+                        "strategy_stop_error",
+                        strategy_name=strategy.name,
+                        error=str(e),
+                        message="Error calling on_stop for strategy",
                     )
                 # Always disable after stopping, even if on_stop failed
                 self.disable_strategy(strategy_name)
@@ -519,8 +533,9 @@ class Engine:
         for strategy_name, strategy in self.strategies.items():
             if strategy.enabled:  # Should not happen if logic is correct, but good safety check
                 logger.warning(
-                    f"Strategy '{strategy_name}' was still marked as enabled during stop. "
-                    f"Forcibly disabling.",
+                    "strategy_force_disable",
+                    strategy_name=strategy_name,
+                    message="Strategy was still marked as enabled during stop. Forcibly disabling",
                 )
                 strategy.disable()
                 self.enabled_strategies.discard(strategy_name)

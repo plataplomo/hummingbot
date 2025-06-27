@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 import structlog.testing
 
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -26,7 +27,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
 
 

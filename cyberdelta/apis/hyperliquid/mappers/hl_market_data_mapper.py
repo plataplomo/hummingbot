@@ -23,6 +23,7 @@ All transformation methods follow the standard pattern:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
@@ -39,7 +40,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
     HyperliquidRawWsTradeEvent,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
@@ -171,8 +171,11 @@ class HyperliquidMarketDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidMarketDataMapper] Failed to transform asset context to ticker: {e}. "
-                f"Symbol: {raw_asset_ctx.name}",
+                "asset_context_to_ticker_transform_failed",
+                component="HyperliquidMarketDataMapper",
+                action="transform_asset_context_to_ticker",
+                symbol=raw_asset_ctx.name,
+                error=str(e),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}",
@@ -235,8 +238,11 @@ class HyperliquidMarketDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidMarketDataMapper] Failed to transform order book: {e}. "
-                f"Symbol: {raw_book.coin}",
+                "order_book_transform_failed",
+                component="HyperliquidMarketDataMapper",
+                action="transform_order_book",
+                symbol=str(raw_book.coin),
+                error=str(e),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
@@ -326,7 +332,11 @@ class HyperliquidMarketDataMapper:
             min_quantity_threshold = Decimal("0.000001")  # 1 micro unit minimum
             if price <= Decimal(0) or quantity <= min_quantity_threshold:
                 logger.warning(
-                    f"Invalid trade data: price={price}, quantity={quantity}. Skipping trade.",
+                    "invalid_trade_data_skipped",
+                    action="transform_public_trade",
+                    price=str(price),
+                    quantity=str(quantity),
+                    message="Skipping trade with invalid price or quantity",
                 )
                 return None
 
@@ -373,8 +383,12 @@ class HyperliquidMarketDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidMarketDataMapper] Failed to transform public trade: {e}. "
-                f"Symbol: {raw_trade.coin}, Hash: {raw_trade.hash}",
+                "public_trade_transform_failed",
+                component="HyperliquidMarketDataMapper",
+                action="transform_public_trade",
+                symbol=str(raw_trade.coin),
+                trade_hash=raw_trade.hash,
+                error=str(e),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}",
@@ -422,7 +436,10 @@ class HyperliquidMarketDataMapper:
 
             except ValueError:
                 logger.warning(
-                    f"Could not parse funding rate for {raw_asset_ctx.name}. Setting to None.",
+                    "funding_rate_parse_failed",
+                    action="transform_asset_context_to_funding_rate",
+                    symbol=str(raw_asset_ctx.name),
+                    message="Could not parse funding rate, setting to None",
                 )
 
             # Calculate next funding time (start of next hour)
@@ -468,7 +485,10 @@ class HyperliquidMarketDataMapper:
 
         except Exception as e:
             logger.error(
-                f"Error mapping raw asset context to FundingRate for {raw_asset_ctx.name}: {e}",
+                "asset_context_to_funding_rate_mapping_failed",
+                action="transform_asset_context_to_funding_rate",
+                symbol=str(raw_asset_ctx.name),
+                error=str(e),
             )
             return None
 
@@ -787,12 +807,18 @@ class HyperliquidMarketDataMapper:
                     trades.append(trade)
                 else:
                     logger.warning(
-                        f"Skipping trade transformation for {raw_trade.coin} - returned None",
+                        "trade_transformation_skipped",
+                        action="transform_raw_trades",
+                        symbol=str(raw_trade.coin),
+                        message="Trade transformation returned None",
                     )
             except Exception as e:
                 logger.error(
-                    f"Error transforming trade for {raw_trade.coin}: {e}. "
-                    f"Raw: {raw_trade.model_dump()}",
+                    "trade_transformation_failed",
+                    action="transform_raw_trades",
+                    symbol=str(raw_trade.coin),
+                    error=str(e),
+                    raw_data=raw_trade.model_dump(),
                 )
                 continue
 
@@ -838,7 +864,10 @@ class HyperliquidMarketDataMapper:
 
                 except Exception as e:
                     logger.warning(
-                        f"Failed to transform asset definition {asset_def.name} to Market: {e}",
+                        "asset_definition_to_market_transform_failed",
+                        action="transform_meta_and_asset_ctxs_to_markets",
+                        asset_name=asset_def.name,
+                        error=str(e),
                     )
                     continue
 

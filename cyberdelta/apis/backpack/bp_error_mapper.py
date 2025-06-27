@@ -21,16 +21,14 @@ by the `BackpackAPI` client when handling non-2xx HTTP responses or other error 
 """
 
 import re
+from http import HTTPStatus
 from typing import Any
 
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
-from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 logger = get_logger(__name__)
@@ -194,20 +192,20 @@ class BackpackErrorMapper(IErrorMapper):
 
         # If mapped_code_enum is still EXCHANGE_SPECIFIC but http_status suggests something else:
         if mapped_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
-            if effective_http_status == HTTPStatusCode.BAD_REQUEST.value:
+            if effective_http_status == HTTPStatus.BAD_REQUEST.value:
                 mapped_code_enum = APIErrorCode.INVALID_REQUEST
             elif effective_http_status in {
-                HTTPStatusCode.UNAUTHORIZED.value,
-                HTTPStatusCode.FORBIDDEN.value,
+                HTTPStatus.UNAUTHORIZED.value,
+                HTTPStatus.FORBIDDEN.value,
             }:
                 mapped_code_enum = APIErrorCode.AUTHENTICATION_FAILED
-            elif effective_http_status == HTTPStatusCode.NOT_FOUND.value:
+            elif effective_http_status == HTTPStatus.NOT_FOUND.value:
                 mapped_code_enum = APIErrorCode.ORDER_NOT_FOUND  # Or generic NOT_FOUND
-            elif effective_http_status == HTTPStatusCode.TOO_MANY_REQUESTS.value:
+            elif effective_http_status == HTTPStatus.TOO_MANY_REQUESTS.value:
                 mapped_code_enum = APIErrorCode.RATE_LIMITED
-            elif effective_http_status == HTTPStatusCode.INTERNAL_SERVER_ERROR.value:
+            elif effective_http_status == HTTPStatus.INTERNAL_SERVER_ERROR.value:
                 mapped_code_enum = APIErrorCode.SERVER_ERROR
-            elif effective_http_status == HTTPStatusCode.SERVICE_UNAVAILABLE.value:
+            elif effective_http_status == HTTPStatus.SERVICE_UNAVAILABLE.value:
                 mapped_code_enum = APIErrorCode.MAINTENANCE  # Or SERVICE_UNAVAILABLE
 
         return APIError(
@@ -252,7 +250,9 @@ class BackpackErrorMapper(IErrorMapper):
             pydantic_errors=errors_str,
             exception_str=exc_str,
             classification="EXCHANGE_SPECIFIC",
-            message="Failed to parse error_data as BackpackRawApiError, classified as EXCHANGE_SPECIFIC",
+            message=(
+                "Failed to parse error_data as BackpackRawApiError, classified as EXCHANGE_SPECIFIC"
+            ),
         )
 
     def _construct_effective_message(
@@ -349,13 +349,13 @@ class BackpackErrorMapper(IErrorMapper):
             return api_error_code_enum
 
         if status_code in {
-            HTTPStatusCode.UNAUTHORIZED.value,
-            HTTPStatusCode.FORBIDDEN.value,
+            HTTPStatus.UNAUTHORIZED.value,
+            HTTPStatus.FORBIDDEN.value,
         }:
             return APIErrorCode.AUTHENTICATION_FAILED
-        if status_code == HTTPStatusCode.NOT_FOUND.value:
+        if status_code == HTTPStatus.NOT_FOUND.value:
             return APIErrorCode.ORDER_NOT_FOUND
-        if status_code == HTTPStatusCode.TOO_MANY_REQUESTS.value:
+        if status_code == HTTPStatus.TOO_MANY_REQUESTS.value:
             return APIErrorCode.RATE_LIMITED
         return api_error_code_enum
 

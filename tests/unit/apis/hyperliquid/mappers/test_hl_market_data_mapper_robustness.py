@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -39,7 +40,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
 

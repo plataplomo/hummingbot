@@ -132,8 +132,7 @@ class TestBackpackPositionsPositive:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         try:
             positions = await bp_api.get_positions(symbol=symbol)
@@ -237,8 +236,7 @@ class TestBackpackPositionsPositive:
             AssertionError: If position validation fails.
             APIError: If API call fails or symbol is not found.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         symbol = DEFAULT_TEST_SYMBOL_PERP
         opened_position = False

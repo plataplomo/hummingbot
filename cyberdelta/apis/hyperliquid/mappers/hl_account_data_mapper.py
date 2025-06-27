@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
@@ -34,7 +35,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
     HyperliquidRawWsPositionUpdateEvent,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
@@ -130,8 +130,10 @@ class HyperliquidAccountDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
-                f"spot balances: {e}",
+                "clearinghouse_state_to_spot_balances_transform_failed",
+                component="HyperliquidAccountDataMapper",
+                action="transform_clearinghouse_state_to_spot_balances",
+                error=str(e),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
@@ -289,8 +291,10 @@ class HyperliquidAccountDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidAccountDataMapper] Failed to transform clearinghouse state to "
-                f"derivative positions: {e}",
+                "clearinghouse_state_to_derivative_positions_transform_failed",
+                component="HyperliquidAccountDataMapper",
+                action="transform_clearinghouse_state_to_derivative_positions",
+                error=str(e),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
@@ -366,7 +370,10 @@ class HyperliquidAccountDataMapper:
                 )
             except (ValueError, TypeError) as e:
                 logger.warning(
-                    f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}",
+                    "entry_price_parse_failed",
+                    symbol=symbol,
+                    entry_price_str=entry_price_str,
+                    error=str(e),
                 )
 
         return size, entry_price
@@ -856,7 +863,10 @@ class HyperliquidAccountDataMapper:
                     )
                 except (ValueError, TypeError) as e:
                     logger.warning(
-                        f"Failed to parse entry price for {symbol}: {entry_price_str}, error: {e}",
+                        "entry_price_parse_failed",
+                        symbol=symbol,
+                        entry_price_str=entry_price_str,
+                        error=str(e),
                     )
 
             # For non-zero positions, entry price must be valid and positive

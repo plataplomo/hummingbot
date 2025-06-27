@@ -25,8 +25,7 @@ import pytest
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger

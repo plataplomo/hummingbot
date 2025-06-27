@@ -32,7 +32,7 @@ class HyperliquidSerializationStrategy:
             return model.model_dump(
                 by_alias=True,  # Use camelCase aliases for funding history
                 exclude_none=True,  # Exclude None values
-                mode="python",  # Ensure python types
+                mode="json",  # Use JSON mode for proper serialization of custom types
             )
 
         # For Hyperliquid, we exclude None values to match SDK behavior
@@ -40,5 +40,5 @@ class HyperliquidSerializationStrategy:
         return model.model_dump(
             by_alias=False,  # Critical for Hyperliquid - use actual field names (a, b, p, etc.)
             exclude_none=True,  # Exclude None values to match SDK behavior
-            mode="python",  # Ensure python types
+            mode="json",  # Use JSON mode for proper serialization of custom types
         )

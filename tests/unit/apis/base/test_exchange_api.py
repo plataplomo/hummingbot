@@ -14,10 +14,8 @@ import structlog.testing
 from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,

@@ -5,10 +5,10 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
-from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

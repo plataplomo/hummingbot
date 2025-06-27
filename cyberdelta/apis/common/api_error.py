@@ -2,15 +2,12 @@
 
 from typing import Any
 
-# Import HTTPStatusCode for server error range constants
-from cyberdelta.core.models.enums import HTTPStatusCode
-
 from .api_error_codes import APIErrorCode
 from .api_error_response import APIErrorResponse
 
 
-# Server error range constants
-SERVER_ERROR_START = HTTPStatusCode.INTERNAL_SERVER_ERROR.value  # 500
+# Server error range constants (avoiding circular import with core.models.enums)
+SERVER_ERROR_START = 500  # Internal Server Error
 SERVER_ERROR_END = 600  # End of 5xx range (exclusive)
 
 

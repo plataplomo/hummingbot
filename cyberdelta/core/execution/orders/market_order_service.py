@@ -156,8 +156,9 @@ class MarketOrderService:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Failed to estimate slippage using SignalGenerator: {e}, "
-                    f"falling back to config default",
+                    "slippage_estimation_fallback",
+                    error=str(e),
+                    message="Failed to estimate slippage using SignalGenerator, falling back to config default",
                 )
 
         # Fallback to configured default
@@ -222,7 +223,12 @@ class MarketOrderService:
                     rounding=ROUND_DOWN,
                 ) * tick_size
                 logger.debug(
-                    f"Rounded price for {symbol} using tick_size {tick_size}: {price} -> {rounded}",
+                    "price_rounded_tick_size",
+                    symbol=symbol,
+                    tick_size=float(tick_size),
+                    original_price=float(price),
+                    rounded_price=float(rounded),
+                    message="Rounded price using tick_size",
                 )
                 return rounded
             logger.warning(
@@ -238,7 +244,10 @@ class MarketOrderService:
             raise
         except Exception as e:
             logger.error(
-                f"Failed to get market metadata for {symbol}: {e}, returning original price",
+                "market_metadata_fetch_failed_price",
+                symbol=symbol,
+                error=str(e),
+                message="Failed to get market metadata, returning original price",
             )
             return price
 
@@ -267,8 +276,12 @@ class MarketOrderService:
                     rounding=ROUND_DOWN,
                 ) * step_size
                 logger.debug(
-                    f"Rounded quantity for {symbol} using step_size {step_size}: "
-                    f"{quantity} -> {rounded}",
+                    "quantity_rounded_step_size",
+                    symbol=symbol,
+                    step_size=float(step_size),
+                    original_quantity=float(quantity),
+                    rounded_quantity=float(rounded),
+                    message="Rounded quantity using step_size",
                 )
                 return rounded
             logger.warning(
@@ -276,7 +289,7 @@ class MarketOrderService:
                 action="round_quantity",
                 symbol=symbol,
                 quantity=float(quantity),
-                message=f"No step size found for {symbol}, returning original quantity",
+                message="No step size found, returning original quantity",
             )
             return quantity
 
@@ -284,7 +297,10 @@ class MarketOrderService:
             raise
         except Exception as e:
             logger.error(
-                f"Failed to get market metadata for {symbol}: {e}, returning original quantity",
+                "market_metadata_fetch_failed_quantity",
+                symbol=symbol,
+                error=str(e),
+                message="Failed to get market metadata, returning original quantity",
             )
             return quantity
 

@@ -61,7 +61,10 @@ class BackpackRateLimitStrategy(SimpleTokenBucketStrategy):
             duration_seconds=round(duration_seconds, 2),
             exchange_name=exchange_name,
             action="trigger_temporary_pause",
-            message="BackpackRateLimitStrategy: Received exchange-advised retry_after, triggering temporary pause on limiter",
+            message=(
+                "BackpackRateLimitStrategy: Received exchange-advised retry_after, "
+                "triggering temporary pause on limiter"
+            ),
         )
 
         # Trigger a temporary "ban" on the limiter for the specified duration.

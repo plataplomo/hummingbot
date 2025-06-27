@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import time
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +23,6 @@ import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
-from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 # Configure logging
@@ -74,7 +74,7 @@ class BackpackDataCollector:
         try:
             logger.info(f"Fetching: {url} with params: {params}")
             async with self.session.get(url, params=params) as response:
-                if response.status == HTTPStatusCode.OK.value:
+                if response.status == HTTPStatus.OK.value:
                     data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return data
@@ -89,7 +89,7 @@ class BackpackDataCollector:
         try:
             logger.info(f"Fetching text: {url} with params: {params}")
             async with self.session.get(url, params=params) as response:
-                if response.status == HTTPStatusCode.OK.value:
+                if response.status == HTTPStatus.OK.value:
                     data: str = await response.text()
                     logger.info(f"Successfully fetched text from {url}")
                     return data

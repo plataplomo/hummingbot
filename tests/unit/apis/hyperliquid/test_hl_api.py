@@ -528,8 +528,7 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
         from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
         # Configure mock service to raise an error
@@ -649,8 +648,7 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
         from cyberdelta.apis.models.service_args_models import GetMarketArgs
 
         # Configure mock service to raise an error
@@ -713,4 +711,4 @@ class TestHyperliquidAPIMarketDataMethods:
         # Test that extra fields are forbidden
         with pytest.raises(ValidationError):
             # This should fail due to extra fields being forbidden
-            GetMarketsArgs(extra_field="not_allowed")
+            GetMarketsArgs(extra_field="not_allowed")  # type: ignore[call-arg]

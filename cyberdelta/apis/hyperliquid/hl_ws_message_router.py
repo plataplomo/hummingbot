@@ -17,7 +17,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.exchange_api import MessageHandler
+from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler, TransformationError
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
@@ -30,8 +30,6 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
-from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -185,7 +183,11 @@ class HyperliquidWsMessageRouter:
 
         if not channel:
             self.logger.debug(
-                f"[{self._exchange_name}] Unroutable WS message (no channel): {message}",
+                "unroutable_ws_message_no_channel",
+                action="route_message",
+                exchange=self._exchange_name,
+                message="[%s] Unroutable WS message (no channel): %s",
+                message_args=(self._exchange_name, message),
             )
             return
 
@@ -210,26 +212,46 @@ class HyperliquidWsMessageRouter:
 
         if raw_data_any is None:
             self.logger.warning(
-                f"[{self._exchange_name}] WS '{channel}' has no data. Msg: {message}",
+                "ws_channel_no_data",
+                action="route_message",
+                exchange=self._exchange_name,
+                channel=channel,
+                message="[%s] WS '%s' has no data. Msg: %s",
+                message_args=(self._exchange_name, channel, message),
             )
             return
 
         try:
             await self._process_channel_data(channel, raw_data_any, app_handler, message)
         except APIError as e:
-            self.logger.error(
-                f"[{self._exchange_name}] APIError in WS routing for {channel}: {e.message}",
-                exc_info=True,
+            self.logger.exception(
+                "api_error_in_ws_routing",
+                action="route_message",
+                exchange=self._exchange_name,
+                channel=channel,
+                error_message=e.message,
+                message="[%s] APIError in WS routing for %s: %s",
+                message_args=(self._exchange_name, channel, e.message),
             )
         except ValidationError as e_val:
-            self.logger.error(
-                f"[{self._exchange_name}] Unexpected Pydantic ValidationErr for {channel}: {e_val}",
-                exc_info=True,
+            self.logger.exception(
+                "unexpected_pydantic_validation_error",
+                action="route_message",
+                exchange=self._exchange_name,
+                channel=channel,
+                validation_error=str(e_val),
+                message="[%s] Unexpected Pydantic ValidationErr for %s: %s",
+                message_args=(self._exchange_name, channel, e_val),
             )
         except Exception as e_app:
-            self.logger.error(
-                f"[{self._exchange_name}] Error in app_handler for {channel}: {e_app}",
-                exc_info=True,
+            self.logger.exception(
+                "error_in_app_handler",
+                action="route_message",
+                exchange=self._exchange_name,
+                channel=channel,
+                error_details=str(e_app),
+                message="[%s] Error in app_handler for %s: %s",
+                message_args=(self._exchange_name, channel, e_app),
             )
 
     def _determine_topic_key(
@@ -264,8 +286,12 @@ class HyperliquidWsMessageRouter:
                 return f"{channel}:{coin_from_data_any}"
         else:
             self.logger.warning(
-                f"[{self._exchange_name}] Expected dict for 'l2Book' data to derive topic key, "
-                f"received other type. Msg: {message}",
+                "l2book_data_unexpected_type",
+                action="get_l2book_topic_key",
+                exchange=self._exchange_name,
+                data_type=type(raw_data_any).__name__,
+                message="[%s] Expected dict for 'l2Book' data to derive topic key, received other type. Msg: %s",  # noqa: E501
+                message_args=(self._exchange_name, message),
             )
         return channel
 
@@ -363,7 +389,12 @@ class HyperliquidWsMessageRouter:
             await app_handler(orderbook_dict, message)
         except TransformationError as e_transform:
             self.logger.error(
-                f"[{self._exchange_name}] Failed to transform l2Book data: {e_transform}",
+                "l2book_transformation_failed",
+                action="process_l2book_data",
+                exchange=self._exchange_name,
+                error_details=str(e_transform),
+                message="[%s] Failed to transform l2Book data: %s",
+                message_args=(self._exchange_name, e_transform),
             )
 
     async def _process_trades_data(
@@ -407,7 +438,12 @@ class HyperliquidWsMessageRouter:
                     await app_handler(trade_dict, message)
                 except TransformationError as e_transform:
                     self.logger.error(
-                        f"[{self._exchange_name}] Failed to transform trade data: {e_transform}",
+                        "trade_transformation_failed",
+                        action="process_trades_data",
+                        exchange=self._exchange_name,
+                        error_details=str(e_transform),
+                        message="[%s] Failed to transform trade data: %s",
+                        message_args=(self._exchange_name, e_transform),
                     )
 
     async def _process_user_events_data(
@@ -445,8 +481,12 @@ class HyperliquidWsMessageRouter:
 
         if not isinstance(event_type_any, str):
             self.logger.warning(
-                f"[{self._exchange_name}] userEvent item has no 'type' string: "
-                f"{event_item_dict}, skipping.",
+                "user_event_no_type_string",
+                action="process_single_user_event",
+                exchange=self._exchange_name,
+                event_item=event_item_dict,
+                message="[%s] userEvent item has no 'type' string: %s, skipping.",
+                message_args=(self._exchange_name, event_item_dict),
             )
             return
 
@@ -461,16 +501,31 @@ class HyperliquidWsMessageRouter:
                 await self._process_position_update_event(event_item_dict, app_handler, message)
             else:
                 self.logger.debug(
-                    f"[{self._exchange_name}] Unhandled userEvent type: "
-                    f"{event_type_str}. Passing raw item: {event_item_dict}",
+                    "unhandled_user_event_type",
+                    action="process_single_user_event",
+                    exchange=self._exchange_name,
+                    event_type=event_type_str,
+                    event_item=event_item_dict,
+                    message="[%s] Unhandled userEvent type: %s. Passing raw item: %s",
+                    message_args=(self._exchange_name, event_type_str, event_item_dict),
                 )
                 await app_handler(event_item_dict, message)
 
         except (APIError, ValidationError) as e_user_event_item:
             self.logger.error(
-                f"[{self._exchange_name}] Error processing userEvent item "
-                f"(type: {event_type_str}): {e_user_event_item}. "
-                f"Item: {event_item_dict}. Skipping item.",
+                "user_event_processing_error",
+                action="process_single_user_event",
+                exchange=self._exchange_name,
+                event_type=event_type_str,
+                error_details=str(e_user_event_item),
+                event_item=event_item_dict,
+                message="[%s] Error processing userEvent item (type: %s): %s. Item: %s. Skipping item.",  # noqa: E501
+                message_args=(
+                    self._exchange_name,
+                    event_type_str,
+                    e_user_event_item,
+                    event_item_dict,
+                ),
             )
 
     async def _process_fill_event(
@@ -492,7 +547,12 @@ class HyperliquidWsMessageRouter:
             await app_handler(trade_dict, message)
         except TransformationError as e_transform:
             self.logger.error(
-                f"[{self._exchange_name}] Failed to transform fill event: {e_transform}",
+                "fill_event_transformation_failed",
+                action="process_fill_event",
+                exchange=self._exchange_name,
+                error_details=str(e_transform),
+                message="[%s] Failed to transform fill event: %s",
+                message_args=(self._exchange_name, e_transform),
             )
 
     async def _process_order_event(
@@ -517,7 +577,12 @@ class HyperliquidWsMessageRouter:
             await app_handler(order_dict, message)
         except TransformationError as e_transform:
             self.logger.error(
-                f"[{self._exchange_name}] Failed to transform order event: {e_transform}",
+                "order_event_transformation_failed",
+                action="process_order_event",
+                exchange=self._exchange_name,
+                error_details=str(e_transform),
+                message="[%s] Failed to transform order event: %s",
+                message_args=(self._exchange_name, e_transform),
             )
 
     async def _process_position_update_event(
@@ -542,7 +607,12 @@ class HyperliquidWsMessageRouter:
             await app_handler(position_dict, message)
         except TransformationError as e_transform:
             self.logger.error(
-                f"[{self._exchange_name}] Failed to transform position event: {e_transform}",
+                "position_event_transformation_failed",
+                action="process_position_update_event",
+                exchange=self._exchange_name,
+                error_details=str(e_transform),
+                message="[%s] Failed to transform position event: %s",
+                message_args=(self._exchange_name, e_transform),
             )
 
     async def _process_allmids_data(
@@ -554,8 +624,13 @@ class HyperliquidWsMessageRouter:
         """Process allMids channel data."""
         if not isinstance(raw_data_any, dict):
             self.logger.warning(
-                f"[{self._exchange_name}] 'allMids' channel data is not a dict or is None. "
-                f"Data: {raw_data_any!r}. Skipping.",
+                "allmids_data_not_dict",
+                action="process_allmids_data",
+                exchange=self._exchange_name,
+                data_type=type(raw_data_any).__name__,
+                data_repr=repr(raw_data_any),
+                message="[%s] 'allMids' channel data is not a dict or is None. Data: %r. Skipping.",
+                message_args=(self._exchange_name, raw_data_any),
             )
             raise APIError(
                 "allMids data not dict or is None",
@@ -579,7 +654,13 @@ class HyperliquidWsMessageRouter:
     ) -> None:
         """Process control message data (pong, subscriptionResponse)."""
         self.logger.debug(
-            f"[{self._exchange_name}] Control message on '{channel}': {message}",
+            "control_message_processed",
+            action="process_control_message_data",
+            exchange=self._exchange_name,
+            channel=channel,
+            message_content=message,
+            message="[%s] Control message on '%s': %s",
+            message_args=(self._exchange_name, channel, message),
         )
         payload_for_handler = (
             cast("dict[str, Any]", raw_data_any) if isinstance(raw_data_any, dict) else {}
@@ -595,8 +676,13 @@ class HyperliquidWsMessageRouter:
     ) -> None:
         """Process data for unhandled channel types."""
         self.logger.debug(
-            f"[{self._exchange_name}] Unhandled channel '{channel}' by specific "
-            f"validation, passing raw data if dict. Msg: {message}",
+            "unhandled_channel_processed",
+            action="process_unhandled_channel_data",
+            exchange=self._exchange_name,
+            channel=channel,
+            message_content=message,
+            message="[%s] Unhandled channel '%s' by specific validation, passing raw data if dict. Msg: %s",  # noqa: E501
+            message_args=(self._exchange_name, channel, message),
         )
         payload_for_handler = (
             cast("dict[str, Any]", raw_data_any) if isinstance(raw_data_any, dict) else {}

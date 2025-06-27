@@ -176,7 +176,7 @@ def secure_transform[T: BaseModel](
         ) from e
     except Exception as e:
         # Catch any other unexpected errors
-        security_logger.error(
+        security_logger.exception(
             "security_unexpected_transformation_error",
             context=context,
             model_class=model_class.__name__,
@@ -188,7 +188,6 @@ def secure_transform[T: BaseModel](
                 f"SECURITY: Unexpected error in transformation - context={context}, "
                 f"error={type(e).__name__}: {e!s}"
             ),
-            exc_info=True,
         )
         raise TransformationError(
             f"Unexpected error during secure transformation: {type(e).__name__}",

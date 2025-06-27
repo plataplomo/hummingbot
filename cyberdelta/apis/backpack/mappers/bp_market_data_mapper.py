@@ -42,7 +42,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTradeEvent,
     BackpackRawRecentPublicTrade,
 )
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide

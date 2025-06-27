@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, NoReturn
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+
 # Mappers
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -44,8 +46,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 
 # Import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
-from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOpenOrdersArgs,
     GetOrderHistoryArgs,
@@ -148,8 +148,10 @@ class HyperliquidAccountService:
         """Fetch and validate the raw HyperliquidClearinghouseState."""
         if not self._wallet_address:
             logger.error(
-                f"[{self._exchange_name}] Wallet address not set. "
-                f"Cannot fetch clearinghouse state.",
+                "wallet_address_not_set",
+                action="fetch_clearinghouse_state",
+                exchange=self._exchange_name,
+                message="Wallet address not set. Cannot fetch clearinghouse state.",
             )
             raise APIError(
                 message="Wallet address is required to fetch clearinghouse state for Hyperliquid.",
@@ -163,8 +165,12 @@ class HyperliquidAccountService:
         payload_dict = payload_model.model_dump()
 
         logger.debug(
-            f"[{self._exchange_name}] Requesting user state for clearinghouse_state from "
-            f"{endpoint_path} with payload: {payload_dict}",
+            "requesting_user_state",
+            action="fetch_clearinghouse_state",
+                exchange=self._exchange_name,
+                endpoint=endpoint_path,
+                payload=payload_dict,
+                message="Requesting user state for clearinghouse_state from %s with payload: %s",
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -176,8 +182,12 @@ class HyperliquidAccountService:
                 is_signed=False,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw user state response for clearinghouse_state: "
-                f"{raw_data!r} (Status: {status_code})",
+                "raw_user_state_response",
+                action="fetch_clearinghouse_state",
+                exchange=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
+                message="Raw user state response for clearinghouse_state: %r (Status: %s,)",
             )
 
             # Handle both list and dict responses for clearinghouse state
@@ -226,8 +236,13 @@ class HyperliquidAccountService:
             raise
         except (ValidationError, ValueError) as e_val:  # Catch Pydantic/parsing errors
             logger.error(
-                f"Validation/map error for HL clearinghouse_state: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}",
+                "validation_map_error_clearinghouse_state",
+                action="fetch_clearinghouse_state",
+                exchange=self._exchange_name,
+                error=str(e_val),
+                raw_data=raw_data,
+                status_code=status_code,
+                message="Validation/map error for HL clearinghouse_state: %s. Raw: %r, Status: %s",
             )
             raise APIError(
                 message=f"Processing HL clearinghouse_state data failed: {e_val}",
@@ -240,10 +255,14 @@ class HyperliquidAccountService:
             raw_info_for_log = (
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
-            logger.error(
-                f"Unhandled error for HL clearinghouse_state: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}",
-                exc_info=True,
+            logger.exception(
+                "unhandled_error_clearinghouse_state",
+                action="fetch_clearinghouse_state",
+                exchange=self._exchange_name,
+                error=str(e_unhandled),
+                raw_info=raw_info_for_log,
+                status_code=status_code,
+                message="Unhandled error for HL clearinghouse_state: %s. %s, Status: %s" % (e_unhandled, raw_info_for_log, status_code),
             )
             raise APIError(
                 message=f"Unexpected error for HL clearinghouse_state: {e_unhandled}",
@@ -278,7 +297,7 @@ class HyperliquidAccountService:
                 action="map_balances",
                 exchange=self._exchange_name,
                 balances=internal_balances,
-                message=f"[{self._exchange_name}] Mapped internal balances: {internal_balances}",
+                message=f"Mapped internal balances: {internal_balances}",
             )
             return internal_balances
 
@@ -286,10 +305,12 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
-                exc_info=True,
+            logger.exception(
+                "transformation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_transform),
+                message="Failed to transform exchange data: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -299,10 +320,12 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
-                exc_info=True,
+            logger.exception(
+                "validation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_val),
+                message="Internal data validation failed: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -314,10 +337,12 @@ class HyperliquidAccountService:
         except (ValueError, TypeError) as e_service_logic:
             # Distinguish input validation from internal errors per ERROR_HANDLING.md
             # No input parameters to validate in get_balances, so wrap as internal error
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_service_logic),
+                message="Service internal logic error: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -325,10 +350,12 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_unexpected),
+                message="Unexpected service failure: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -367,19 +394,31 @@ class HyperliquidAccountService:
                 position = all_positions_dict.get(symbol)
                 if position:
                     logger.debug(
-                        f"[{self._exchange_name}] Filtered position for symbol "
-                        f"'{symbol}': {position}",
+                        "filtered_position_found",
+                        action="get_positions",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                position=position,
+                message="Filtered position for symbol '%s': %s",
                     )
                     return [position]
                 logger.debug(
-                    f"[{self._exchange_name}] No position found for symbol '{symbol}'. "
-                    f"Positions: {list(all_positions_dict.keys())}",
+                    "no_position_found",
+                    action="get_positions",
+                    exchange=self._exchange_name,
+                    symbol=symbol,
+                    available_positions=list(all_positions_dict.keys()),
+                    message=f"No position found for symbol '{symbol}'. Positions: {list(all_positions_dict.keys())}",
                 )
                 return []
 
             all_positions_list = list(all_positions_dict.values())
             logger.debug(
-                f"[{self._exchange_name}] Mapped all internal positions: {all_positions_list}",
+                "mapped_all_positions",
+                action="get_positions",
+                exchange=self._exchange_name,
+                positions_count=len(all_positions_list),
+                message=f"Mapped all internal positions: {all_positions_list}",
             )
             return all_positions_list
 
@@ -387,10 +426,12 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
-                exc_info=True,
+            logger.exception(
+                "transformation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_transform),
+                message="Failed to transform exchange data: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -400,10 +441,12 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
-                exc_info=True,
+            logger.exception(
+                "validation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_val),
+                message="Internal data validation failed: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -419,10 +462,12 @@ class HyperliquidAccountService:
                 # Re-raise input validation errors
                 raise
             # Wrap internal errors as APIError
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_service_logic),
+                message="Service internal logic error: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -430,10 +475,12 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_unexpected),
+                message="Unexpected service failure: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -464,7 +511,11 @@ class HyperliquidAccountService:
                 )
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal account summary: {internal_summary}",
+                "mapped_account_summary",
+                action="get_account_summary",
+                exchange=self._exchange_name,
+                summary=internal_summary,
+                message="Mapped internal account summary: %s" % (internal_summary),
             )
             return internal_summary
 
@@ -472,10 +523,12 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
-                exc_info=True,
+            logger.exception(
+                "transformation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_transform),
+                message="Failed to transform exchange data: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -485,10 +538,12 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
-                exc_info=True,
+            logger.exception(
+                "validation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_val),
+                message="Internal data validation failed: %s",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -498,10 +553,12 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_service_logic),
+                message="Service internal logic error: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -509,10 +566,12 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_unexpected),
+                message="Unexpected service failure: %s",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -605,8 +664,12 @@ class HyperliquidAccountService:
         payload_dict = payload_model.model_dump(by_alias=True, exclude_none=True)
 
         logger.debug(
-            f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
-            f"with payload: {payload_dict}",
+            "requesting_order_history",
+            action="fetch_order_history_data",
+                exchange=self._exchange_name,
+                endpoint=endpoint_path,
+                payload=payload_dict,
+                message="Requesting order history from %s with payload: %s",
         )
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -619,8 +682,12 @@ class HyperliquidAccountService:
         raw_response_content = str(raw_data) if raw_data is not None else None
 
         logger.debug(
-            f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
-            f"(Status: {status_code})",
+            "raw_order_history_response",
+            action="fetch_order_history_data",
+                exchange=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
+                message="Raw order history response: %r (Status: %s,)",
         )
 
         # Use centralized validation
@@ -682,8 +749,12 @@ class HyperliquidAccountService:
                     else str(raw_hist_order)
                 )
                 logger.warning(
-                    f"[{self._exchange_name}] Error mapping historical order item: "
-                    f"{e_map_item}. Raw: {raw_order_repr}",
+                    "error_mapping_historical_order",
+                    action="map_historical_orders_to_internal",
+                exchange=self._exchange_name,
+                error=str(e_map_item),
+                    raw_order=raw_order_repr,
+                    message="Error mapping historical order item: %s. Raw: %s",
                 )
 
         return internal_orders
@@ -692,14 +763,22 @@ class HyperliquidAccountService:
         """Filter orders by symbol if provided."""
         if not symbol:
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal order history: {len(orders)} orders",
+                "mapped_order_history",
+                action="filter_orders_by_symbol",
+                exchange=self._exchange_name,
+                order_count=len(orders),
+                message=f"Mapped internal order history: {len(orders)} orders",
             )
             return orders
 
         filtered_orders = [o for o in orders if o.symbol == symbol]
         logger.debug(
-            f"[{self._exchange_name}] Filtered order history for symbol '{symbol}': "
-            f"{len(filtered_orders)} orders",
+            "filtered_order_history",
+            action="filter_orders_by_symbol",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            filtered_count=len(filtered_orders),
+            message=f"Filtered order history for symbol '{symbol}': {len(filtered_orders)} orders",
         )
         return filtered_orders
 
@@ -711,9 +790,12 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle transformation errors consistently."""
-        logger.error(
-            f"[{self._exchange_name}] {method_name}: Failed to transform exchange data: {error}",
-            exc_info=True,
+        logger.exception(
+            "transformation_error_handler",
+            action=method_name,
+                exchange=self._exchange_name,
+                error=str(error),
+            message="Failed to transform exchange data: %s",
         )
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -731,9 +813,12 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle validation errors consistently."""
-        logger.error(
-            f"[{self._exchange_name}] {method_name}: Internal data validation failed: {error}",
-            exc_info=True,
+        logger.exception(
+            "validation_error_handler",
+            action=method_name,
+            exchange=self._exchange_name,
+            error=str(error),
+            message=f"Internal data validation failed: {error!s}",
         )
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -749,9 +834,12 @@ class HyperliquidAccountService:
         method_name: str,
     ) -> None:
         """Handle service logic errors consistently."""
-        logger.error(
-            f"[{self._exchange_name}] {method_name}: Service internal logic error: {error}",
-            exc_info=True,
+        logger.exception(
+            "service_logic_error_handler",
+            action=method_name,
+            exchange=self._exchange_name,
+            error=str(error),
+            message=f"Service internal logic error: {error!s}",
         )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
@@ -767,9 +855,12 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors consistently."""
-        logger.error(
-            f"[{self._exchange_name}] {method_name}: Unexpected service failure: {error}",
-            exc_info=True,
+        logger.exception(
+            "unexpected_error_handler",
+            action=method_name,
+            exchange=self._exchange_name,
+            error=str(error),
+            message=f"Unexpected service failure: {error!s}",
         )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
@@ -794,8 +885,12 @@ class HyperliquidAccountService:
         payload_dict = payload_model.model_dump()
 
         logger.debug(
-            f"[{self._exchange_name}] Requesting user fills from {endpoint_path} "
-            f"with payload: {payload_dict}",
+            "requesting_user_fills",
+            action="fetch_trade_history_data",
+                exchange=self._exchange_name,
+                endpoint=endpoint_path,
+                payload=payload_dict,
+                message="Requesting user fills from %s with payload: %s" % (endpoint_path, payload_dict),
         )
 
         raw_response_list, status_code, _ = await self._http_client_requester(
@@ -808,8 +903,12 @@ class HyperliquidAccountService:
         raw_response_content = str(raw_response_list) if raw_response_list is not None else None
 
         logger.debug(
-            f"[{self._exchange_name}] Raw user fills response: {raw_response_list!r} "
-            f"(Status: {status_code})",
+            "raw_user_fills_response",
+            action="fetch_trade_history_data",
+                exchange=self._exchange_name,
+                raw_response=raw_response_list,
+                status_code=status_code,
+                message="Raw user fills response: %r (Status: %s,)" % (raw_response_list, status_code),
         )
 
         if raw_response_list is None:
@@ -1062,7 +1161,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for transfer: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1075,7 +1173,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for transfer: {e_val}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1089,7 +1186,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for transfer: {e_service_logic}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1102,7 +1198,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
                 f"for transfer: {e_unexpected}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1146,7 +1241,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for withdraw: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1159,7 +1253,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for withdraw: {e_val}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1173,7 +1266,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error "
                 f"for withdraw: {e_service_logic}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1186,7 +1278,6 @@ class HyperliquidAccountService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure "
                 f"for withdraw: {e_unexpected}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,

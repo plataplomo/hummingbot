@@ -218,14 +218,13 @@ class StrategyManager:
                 f"Critical error updating historical data for {data.symbol} in {strategy_name}. "
                 f"Halting processing."
             )
-            logger.error(
+            logger.exception(
                 "critical_historical_data_error",
                 symbol=data.symbol,
                 strategy_name=strategy_name,
                 error=str(e),
                 action="historical_data_update_failure",
                 message=log_msg,
-                exc_info=True,
             )
             raise
 
@@ -251,13 +250,12 @@ class StrategyManager:
         try:
             generated_signals = await strategy.process_data(data)
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "strategy_data_processing_error",
                 strategy_name=strategy_name,
                 error=str(e),
                 action="data_processing_failure",
                 message=f"Error processing data in strategy '{strategy_name}'",
-                exc_info=True,
             )
             return
 
@@ -349,11 +347,10 @@ class StrategyManager:
             return True
 
         except Exception as risk_e:
-            logger.error(
+            logger.exception(
                 "Error during potential (currently bypassed) risk management step",
                 signal_id=signal.signal_id if signal else None,
                 error=str(risk_e),
-                exc_info=True,
             )
             return False
 
@@ -364,11 +361,10 @@ class StrategyManager:
             await self.signal_queue.add_signal(signal)  # Add await
             logger.debug("Signal added to queue", signal_id=signal.signal_id)
         except Exception as queue_e:  # Use different variable name
-            logger.error(
+            logger.exception(
                 "Signal queue failed to add signal",
                 signal_id=signal.signal_id,
                 error=str(queue_e),  # Use queue_e
-                exc_info=True,
             )
 
     async def on_market_data(self, market_data: Candle) -> None:
@@ -443,13 +439,12 @@ class StrategyManager:
                         message=f"Strategy '{name}' started.",
                     )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "strategy_start_error",
                         strategy_name=name,
                         error=str(e),
                         action="strategy_start_failure",
                         message=f"Error starting strategy '{name}'",
-                        exc_info=True,
                     )
 
     def stop_all(self) -> None:
@@ -477,13 +472,12 @@ class StrategyManager:
                             message=f"Strategy '{name}' disabled after stop.",
                         )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "strategy_stop_error",
                         strategy_name=name,
                         error=str(e),
                         action="strategy_stop_failure",
                         message=f"Error stopping strategy '{name}'",
-                        exc_info=True,
                     )
         self._tasks.clear()
 

@@ -24,8 +24,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackRawWsSubscriptionRequest,
     BackpackWsSignatureComponents,
 )
-from cyberdelta.apis.base.exchange_api import MessageHandler
-from cyberdelta.apis.models.api_error import APIError, TransformationError
+from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -328,7 +327,8 @@ class BackpackWsMessageRouter:
                     topic_str=topic_str,
                     base_topic=base_topic,
                     action="sending_raw_payload",
-                    message_text="No specific raw WS validator for topic, application handler will receive raw payload",
+                    message_text="No specific raw WS validator for topic, "
+                    "application handler will receive raw payload",
                 )
                 await app_handler(data_payload, message)
                 return
@@ -337,32 +337,29 @@ class BackpackWsMessageRouter:
             await app_handler(internal_model, message)
 
         except APIError as e:
-            self.logger.error(
+            self.logger.exception(
                 "backpack_api_error_validating_ws",
                 exchange_name=self._exchange_name,
                 topic_str=topic_str,
                 base_topic=base_topic,
                 error_message=e.message,
                 message_text="APIError validating WS payload for topic",
-                exc_info=True,
             )
         except TransformationError as e_transform:
-            self.logger.error(
+            self.logger.exception(
                 "backpack_transformation_error_ws",
                 exchange_name=self._exchange_name,
                 topic_str=topic_str,
                 base_topic=base_topic,
                 error=str(e_transform),
                 message_text="TransformationError transforming WS payload for topic",
-                exc_info=True,
             )
         except Exception as e_app:
-            self.logger.error(
+            self.logger.exception(
                 "backpack_application_handler_error",
                 exchange_name=self._exchange_name,
                 topic_str=topic_str,
                 base_topic=base_topic,
                 error=str(e_app),
                 message_text="Error in application handler for topic",
-                exc_info=True,
             )

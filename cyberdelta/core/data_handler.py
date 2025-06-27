@@ -146,7 +146,10 @@ class DataHandler:
                 )
             except (ValueError, TypeError) as e:
                 logger.warning(
-                    f"Error creating timedelta for {exchange_id} staleness: {e}. Using defaults.",
+                    "timedelta_creation_error",
+                    exchange_id=exchange_id,
+                    error=str(e),
+                    message="Error creating timedelta for staleness, using defaults",
                 )
                 self.staleness_thresholds[f"{exchange_id}_ticker"] = timedelta(
                     seconds=default_ticker_sec,
@@ -242,12 +245,15 @@ class DataHandler:
                     )
                 elif not client:
                     logger.error(
-                        f"Cannot start connection for {exchange_id}: API client not registered.",
+                        "api_client_not_registered",
+                        exchange_id=exchange_id,
+                        message="Cannot start connection: API client not registered",
                     )
                 else:  # Assuming client exists but lacks connect_websocket
                     logger.error(
-                        f"Cannot start connection for {exchange_id}: Client missing "
-                        f"connect_websocket/subscribe methods or other required attributes.",
+                        "client_missing_websocket_methods",
+                        exchange_id=exchange_id,
+                        message="Cannot start connection: Client missing websocket methods",
                     )
 
         if connect_tasks:
@@ -261,12 +267,17 @@ class DataHandler:
                     try:
                         exchange_id_for_error = list(exchanges_dict.keys())[i]
                         logger.error(
-                            f"Error starting connection for {exchange_id_for_error}: {result}",
+                            "connection_start_error",
+                            exchange_id=exchange_id_for_error,
+                            error=str(result),
+                            message="Error starting connection",
                         )
                     except IndexError:
                         logger.error(
-                            f"Error starting connection for an unknown exchange "
-                            f"(index {i}): {result}",
+                            "connection_start_error_unknown_exchange",
+                            index=i,
+                            error=str(result),
+                            message="Error starting connection for unknown exchange",
                         )
 
             logger.info("WebSocket connection attempts completed.")
@@ -709,7 +720,9 @@ class DataHandler:
         # This method is no longer needed since message handling is done through
         # the registered handlers in the subscribe calls
         logger.info(
-            f"[{exchange_id}] WebSocket message processing is handled through registered handlers.",
+            "websocket_message_processing",
+            exchange_id=exchange_id,
+            message="WebSocket message processing is handled through registered handlers",
         )
 
         # Keep the connection alive by monitoring the connection status
@@ -725,7 +738,11 @@ class DataHandler:
                 message=f"Message handler for {exchange_id} cancelled.",
             )
         except Exception as e:
-            logger.exception(f"Error in message handler for {exchange_id}: {e}")
+            logger.exception(
+                "message_handler_error",
+                exchange_id=exchange_id,
+                error=str(e),
+            )
         finally:
             logger.info(
                 "message_loop_stopped",
@@ -822,7 +839,10 @@ class DataHandler:
         """Update the order book data."""
         if exchange_id not in self.order_books or symbol not in self.order_books[exchange_id]:
             logger.warning(
-                f"Attempted to update order book for uninitialized {exchange_id}/{symbol}",
+                "order_book_update_uninitialized",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                message="Attempted to update order book for uninitialized exchange/symbol",
             )
             return
         self.order_books[exchange_id][symbol] = data
@@ -890,8 +910,10 @@ class DataHandler:
         # The body was incorrect. Commenting out the incorrect logic.
         # Actual fill update logic needs to be implemented.
         logger.warning(
-            f"DataHandler._update_user_fills for {exchange_id}/{symbol} "
-            f"called but not fully implemented.",
+            "user_fills_update_not_implemented",
+            exchange_id=exchange_id,
+            symbol=symbol,
+            message="DataHandler._update_user_fills called but not fully implemented",
         )
 
     # --- Observer Notification Methods ---
@@ -961,8 +983,11 @@ class DataHandler:
         # Check if data is stale
         if self._is_data_stale(exchange_id, symbol, "order_book"):
             logger.warning(
-                f"Order book data for {exchange_id} - {symbol} is stale. "
-                f"Last update: {self.last_update_time.get(exchange_id, {}).get(symbol)}",
+                "order_book_data_stale",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                last_update=self.last_update_time.get(exchange_id, {}).get(symbol),
+                message="Order book data is stale",
             )
             return None
         return order_book_obj
@@ -976,8 +1001,10 @@ class DataHandler:
         # Check if we have the symbol mapping
         if exchange_id not in self.funding_rates:
             logger.warning(
-                f"Exchange {exchange_id} not found in funding rates data. "
-                f"Available exchanges: {list(self.funding_rates.keys())}",
+                "exchange_not_found_in_funding_rates",
+                exchange_id=exchange_id,
+                available_exchanges=list(self.funding_rates.keys()),
+                message="Exchange not found in funding rates data",
             )
             return None
 
@@ -1016,8 +1043,11 @@ class DataHandler:
 
         if not funding_rate_obj:
             logger.warning(
-                f"No funding rate data for {exchange_id} - {symbol}. "
-                f"Available symbols: {list(self.funding_rates.get(exchange_id, {}).keys())}",
+                "no_funding_rate_data",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                available_symbols=list(self.funding_rates.get(exchange_id, {}).keys()),
+                message="No funding rate data for symbol",
             )
             return None
 
@@ -1027,7 +1057,11 @@ class DataHandler:
 
         if rate is None:
             logger.debug(
-                f"Incomplete funding data for {exchange_id}/{symbol}: rate={rate}",
+                "incomplete_funding_data",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                rate=rate,
+                message="Incomplete funding data",
             )
             return None
 
@@ -1263,7 +1297,11 @@ class DataHandler:
         try:
             client = self.api_clients.get(exchange_id)
             if not client:
-                logger.error(f"No API client found for {exchange_id}")
+                logger.error(
+                    "no_api_client_found",
+                    exchange_id=exchange_id,
+                    message="No API client found",
+                )
                 return
 
             # Use configured symbols if none specified
@@ -1271,11 +1309,20 @@ class DataHandler:
                 symbols = list(self.tickers.get(exchange_id, {}).keys())
 
             if not symbols:
-                logger.debug(f"No symbols to fetch funding for {exchange_id}")
+                logger.debug(
+                    "no_symbols_to_fetch_funding",
+                    exchange_id=exchange_id,
+                    message="No symbols to fetch funding for",
+                )
                 return
 
             # Fetch funding rates via REST API
-            logger.debug(f"Fetching funding rates for {exchange_id}: {symbols}")
+            logger.debug(
+                "fetching_funding_rates",
+                exchange_id=exchange_id,
+                symbols=symbols,
+                message="Fetching funding rates",
+            )
             rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=symbols))
 
             # Update cache with fresh data
@@ -1283,8 +1330,11 @@ class DataHandler:
                 if rate.symbol in symbols:
                     self._update_funding_rate(exchange_id, rate.symbol, rate, dt_real.now(UTC))
                     logger.debug(
-                        f"Updated funding rate for {exchange_id}:{rate.symbol} = "
-                        f"{rate.funding_rate}",
+                        "funding_rate_updated",
+                        exchange_id=exchange_id,
+                        symbol=rate.symbol,
+                        funding_rate=rate.funding_rate,
+                        message="Updated funding rate",
                     )
 
             logger.info(
@@ -1309,7 +1359,11 @@ class DataHandler:
         """Cancel all funding refresh tasks."""
         for exchange_id, task in self._funding_refresh_tasks.items():
             if not task.done():
-                logger.info(f"Cancelling funding refresh task for {exchange_id}")
+                logger.info(
+                    "cancelling_funding_refresh_task",
+                    exchange_id=exchange_id,
+                    message="Cancelling funding refresh task",
+                )
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
@@ -1352,7 +1406,10 @@ class DataHandler:
             )
         except Exception as e:
             logger.warning(
-                f"Unexpected error cancelling task-like object {type(task_like)}: {e}",
+                "unexpected_error_cancelling_task",
+                task_type=type(task_like).__name__,
+                error=str(e),
+                message="Unexpected error cancelling task-like object",
             )
 
     async def _close_websocket_connections(self) -> None:
@@ -1427,26 +1484,39 @@ class DataHandler:
             # Fallback to the absolute default if no type-specific default found
             threshold = self.default_staleness_threshold
             logger.debug(
-                f"No specific or general staleness threshold for {staleness_key} "
-                f"or {data_type.lower()}, using absolute default: {threshold.total_seconds()}s",
+                "using_default_staleness_threshold",
+                staleness_key=staleness_key,
+                data_type=data_type.lower(),
+                threshold_seconds=threshold.total_seconds(),
+                message="No specific staleness threshold, using absolute default",
             )
         else:
             logger.debug(
-                f"Using staleness threshold for {staleness_key}: {threshold.total_seconds()}s",
+                "using_staleness_threshold",
+                staleness_key=staleness_key,
+                threshold_seconds=threshold.total_seconds(),
+                message="Using staleness threshold",
             )
 
         last_update = self.last_update_time.get(exchange_id, {}).get(symbol)
         if last_update is None:
             logger.debug(
-                f"No last_update_time for {exchange_id}/{symbol}/{data_type}, "
-                f"considering NOT stale.",
+                "no_last_update_time",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                data_type=data_type,
+                message="No last_update_time, considering NOT stale",
             )
             return False  # No data yet, so not stale
 
         if last_update.tzinfo is None:
             last_update = last_update.replace(tzinfo=UTC)
             logger.warning(
-                f"Timestamp for {exchange_id}/{symbol}/{data_type} was naive, assumed UTC.",
+                "naive_timestamp_assumed_utc",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                data_type=data_type,
+                message="Timestamp was naive, assumed UTC",
             )
 
         current_time = self.clock(UTC)  # Use the injectable clock
@@ -1455,9 +1525,13 @@ class DataHandler:
         if is_stale_result:
             time_since_last_update = current_time - last_update  # Define time_since_last_update
             logger.warning(
-                f"[{exchange_id}] Data for '{staleness_key}' is stale. "
-                f"Last: {last_update.isoformat()}, Now: {current_time.isoformat()}, "
-                f"Diff: {time_since_last_update}, Threshold: {threshold}",
+                "data_is_stale",
+                exchange_id=exchange_id,
+                staleness_key=staleness_key,
+                last_update=last_update.isoformat(),
+                current_time=current_time.isoformat(),
+                time_diff=str(time_since_last_update),
+                threshold=str(threshold),
                 exchange=exchange_id,
                 key=staleness_key,
                 last_update_ts=last_update.isoformat(),
@@ -1508,8 +1582,9 @@ class DataHandler:
                 # it means the connection was established, and then _handle_messages either
                 # completed or was cancelled.
                 logger.info(
-                    f"[{exchange_id}] _connect_and_subscribe completed its current run "
-                    f"(stream might have ended or been cancelled).",
+                    "connect_and_subscribe_completed",
+                    exchange_id=exchange_id,
+                    message="_connect_and_subscribe completed its current run",
                 )
 
                 # Reset attempts if connection was successful at some point
@@ -1520,20 +1595,30 @@ class DataHandler:
 
             except ConnectionError as e:
                 logger.warning(
-                    f"[{exchange_id}] ConnectionError in maintenance loop: {e}. "
-                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}.",
+                    "websocket_connection_error",
+                    exchange_id=exchange_id,
+                    error=str(e),
+                    attempt=attempt + 1,
+                    max_attempts=max_attempts if max_attempts > 0 else "inf",
+                    message="ConnectionError in maintenance loop",
                 )
                 # This specific error type is usually retryable.
             except asyncio.CancelledError:
                 logger.info(
-                    f"[{exchange_id}] WebSocket maintenance task was cancelled. Exiting loop.",
+                    "websocket_maintenance_cancelled",
+                    exchange_id=exchange_id,
+                    message="WebSocket maintenance task was cancelled. Exiting loop",
                 )
                 break  # Exit the while True loop if the task itself is cancelled.
             except Exception as e:
                 # Catch any other unexpected exceptions from _connect_and_subscribe
                 logger.error(
-                    f"[{exchange_id}] Unexpected error in WebSocket maintenance: {e}. "
-                    f"Attempt {attempt + 1}/{max_attempts if max_attempts > 0 else 'inf'}.",
+                    "websocket_maintenance_unexpected_error",
+                    exchange_id=exchange_id,
+                    error=str(e),
+                    attempt=attempt + 1,
+                    max_attempts=max_attempts if max_attempts > 0 else "inf",
+                    message="Unexpected error in WebSocket maintenance",
                 )
 
             # Check if the DataHandler is still supposed to be running
@@ -1551,16 +1636,21 @@ class DataHandler:
             attempt += 1
             if max_attempts > 0 and attempt >= max_attempts:
                 logger.error(
-                    f"[{exchange_id}] Max reconnect attempts ({max_attempts}) reached "
-                    f"for initial connection. Stopping WebSocket maintenance for this exchange.",
+                    "max_reconnect_attempts_reached",
+                    exchange_id=exchange_id,
+                    max_attempts=max_attempts,
+                    message="Max reconnect attempts reached for initial connection",
                 )
                 break  # Exit while True loop
 
             # Exponential backoff for retries
             current_delay = min(current_delay * 2, max_reconnect_delay)
             logger.info(
-                f"[{exchange_id}] Retrying WebSocket connection in {current_delay:.2f}s... "
-                f"(Attempt {attempt + 1})",
+                "retrying_websocket_connection",
+                exchange_id=exchange_id,
+                delay_seconds=round(current_delay, 2),
+                attempt=attempt + 1,
+                message="Retrying WebSocket connection",
             )  # attempt is 0-indexed
             await asyncio.sleep(current_delay)
 

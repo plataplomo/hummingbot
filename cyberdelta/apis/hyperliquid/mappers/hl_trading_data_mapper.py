@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, TypedDict, TypeGuard
 
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
 )
@@ -30,7 +31,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawSimpleOpenOrder,
     HyperliquidRawTriggerInfo,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -137,8 +137,11 @@ class HyperliquidTradingDataMapper:
 
             if mapped_status == OrderStatus.UNKNOWN and hl_status.lower() not in status_map:
                 logger.warning(
-                    f"[HyperliquidTradingDataMapper] Unknown order status '{hl_status}', "
-                    f"mapping to UNKNOWN",
+                    "unknown_order_status_mapped_to_unknown",
+                    component="HyperliquidTradingDataMapper",
+                    action="map_status_to_internal",
+                    hl_status=hl_status,
+                    message="Mapping unknown order status to UNKNOWN",
                 )
 
             return mapped_status
@@ -212,8 +215,11 @@ class HyperliquidTradingDataMapper:
                 return HyperliquidTradingDataMapper._map_market_order_type(trigger)
 
             logger.warning(
-                f"[HyperliquidTradingDataMapper] Unknown orderType structure: {order_type}. "
-                "Defaulting to LIMIT.",
+                "unknown_order_type_structure_defaulting_to_limit",
+                component="HyperliquidTradingDataMapper",
+                action="map_type_to_internal",
+                order_type=str(order_type),
+                message="Unknown orderType structure, defaulting to LIMIT",
             )
             return OrderType.LIMIT
         except TransformationError:
@@ -260,8 +266,11 @@ class HyperliquidTradingDataMapper:
                     return TimeInForce.ALO
                 if tif_str:
                     logger.warning(
-                        f"[HyperliquidTradingDataMapper] Unknown TIF value '{tif_str}', "
-                        f"defaulting to GTC",
+                        "unknown_tif_value_defaulting_to_gtc",
+                        component="HyperliquidTradingDataMapper",
+                        action="map_time_in_force",
+                        tif_str=tif_str,
+                        message="Unknown TIF value, defaulting to GTC",
                     )
 
             return TimeInForce.GTC
@@ -384,8 +393,11 @@ class HyperliquidTradingDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidTradingDataMapper] Failed to transform order: {e}. "
-                f"Raw order: {raw_order.model_dump_json()}",
+                "order_transform_failed",
+                component="HyperliquidTradingDataMapper",
+                action="transform_raw_order_to_internal",
+                error=str(e),
+                raw_order=raw_order.model_dump_json(),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawOrder to Order: {e}",
@@ -484,8 +496,11 @@ class HyperliquidTradingDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidTradingDataMapper] Failed to transform simple order: {e}. "
-                f"Raw order: {raw_simple_order.model_dump_json()}",
+                "simple_order_transform_failed",
+                component="HyperliquidTradingDataMapper",
+                action="transform_raw_simple_open_order_to_internal",
+                error=str(e),
+                raw_order=raw_simple_order.model_dump_json(),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawSimpleOpenOrder to Order: {e}",
@@ -623,9 +638,11 @@ class HyperliquidTradingDataMapper:
                 # but no price data, we cannot determine a valid average_fill_price.
                 # Set quantity_filled to 0 to maintain model consistency.
                 logger.warning(
-                    f"Order {raw_order.oid}: quantity_filled={quantity_filled} "
-                    f"but no valid price available. Setting quantity_filled=0 to "
-                    f"maintain model consistency.",
+                    "order_quantity_filled_reset_due_to_missing_price",
+                    action="calculate_average_fill_price",
+                    order_id=str(raw_order.oid),
+                    quantity_filled=str(quantity_filled),
+                    message="Setting quantity_filled=0 due to missing price for consistency",
                 )
                 quantity_filled = Decimal(0)
 
@@ -719,8 +736,11 @@ class HyperliquidTradingDataMapper:
             raise
         except Exception as e:
             logger.error(
-                f"[HyperliquidTradingDataMapper] Failed to transform historical order: {e}. "
-                f"Raw order: {raw_historical_order.model_dump_json()}",
+                "historical_order_transform_failed",
+                component="HyperliquidTradingDataMapper",
+                action="transform_raw_historical_order_to_internal",
+                error=str(e),
+                raw_order=raw_historical_order.model_dump_json(),
             )
             raise TransformationError(
                 f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
@@ -879,9 +899,11 @@ class HyperliquidTradingDataMapper:
                 # but no price data, we cannot determine a valid average_fill_price.
                 # Set quantity_filled to 0 to maintain model consistency.
                 logger.warning(
-                    f"Order {raw_historical_order.oid}: quantity_filled={quantity_filled} "
-                    f"but no valid price available. Setting quantity_filled=0 to "
-                    f"maintain model consistency.",
+                    "historical_order_quantity_filled_reset_due_to_missing_price",
+                    action="calculate_historical_average_fill_price",
+                    order_id=str(raw_historical_order.oid),
+                    quantity_filled=str(quantity_filled),
+                    message="Setting quantity_filled=0 due to missing price for consistency",
                 )
                 quantity_filled = Decimal(0)
 

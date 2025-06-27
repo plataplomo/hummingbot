@@ -23,7 +23,7 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName

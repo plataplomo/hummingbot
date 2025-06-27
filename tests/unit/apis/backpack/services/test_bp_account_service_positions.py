@@ -16,8 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetPositionsParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide
 

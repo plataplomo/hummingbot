@@ -31,7 +31,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTicker,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate

@@ -20,6 +20,7 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.connectivity.connectivity_models import (
     MAX_CONTENT_TYPE_LENGTH,  # For testing invalid content type
     HttpClientConfig,
@@ -29,8 +30,6 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
 pytestmark = pytest.mark.timing

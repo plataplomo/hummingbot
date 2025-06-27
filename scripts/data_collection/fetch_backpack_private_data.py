@@ -19,12 +19,11 @@ import json
 import logging
 import os
 import sys
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 
 import aiohttp
-
-from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 # Add the project root to the Python path
@@ -149,7 +148,7 @@ class BackpackPrivateDataCollector:
                 headers=auth_components.headers,
                 timeout=timeout,
             ) as response:
-                if response.status == HTTPStatusCode.OK.value:
+                if response.status == HTTPStatus.OK.value:
                     response_data: dict[str, Any] = await response.json()
                     logger.info(f"Successfully fetched data from {url}")
                     return response_data

@@ -504,7 +504,7 @@ class PortfolioTracker:
                 return None
             return parsed
         except (ValidationError, TypeError, InvalidOperation) as e:
-            logger.error(
+            logger.exception(
                 "balance_parse_error",
                 exchange_id=exchange_id,
                 asset=asset,
@@ -512,7 +512,6 @@ class PortfolioTracker:
                 error=str(e),
                 action="returning_none",
                 message=f"Failed to parse balance for {asset} on {exchange_id}: {e}",
-                exc_info=True,
             )
             return None
 
@@ -537,8 +536,14 @@ class PortfolioTracker:
             return Decimal(str(value))  # Convert via string for precision
         except (InvalidOperation, ValueError, TypeError) as e:
             logger.error(
-                f"Failed to convert '{field_name}' value '{value}' "
-                f"(type: {type(value)}) to Decimal for {asset} on {exchange_id}: {e}",
+                "decimal_conversion_failed",
+                field_name=field_name,
+                value=value,
+                value_type=type(value).__name__,
+                asset=asset,
+                exchange_id=exchange_id,
+                error=str(e),
+                message="Failed to convert value to Decimal",
             )
             return None
 
@@ -571,8 +576,10 @@ class PortfolioTracker:
                     updated_positions[pos_key] = position_info
                 else:
                     logger.warning(
-                        f"Skipping DerivativePosition object without symbol on "
-                        f"{exchange_id}: {position_info}",
+                        "position_missing_symbol",
+                        exchange_id=exchange_id,
+                        position_info=str(position_info),
+                        message="Skipping DerivativePosition object without symbol",
                     )
 
             # This completely replaces the inner dict for the exchange_id
@@ -589,8 +596,10 @@ class PortfolioTracker:
             )
             self.last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
-                f"Successfully updated positions for {exchange_id}. "
-                f"Count: {len(updated_positions)}",
+                "positions_updated_successfully",
+                exchange_id=exchange_id,
+                position_count=len(updated_positions),
+                message="Successfully updated positions",
             )
             return True
         except Exception as e:
@@ -649,15 +658,20 @@ class PortfolioTracker:
                             order_instance.status = OrderStatus(order_instance.status)
                         except ValueError:
                             logger.warning(
-                                f"Invalid status string '{order_instance.status}' for "
-                                f"order {order_id}",
+                                "invalid_order_status",
+                                order_id=order_id,
+                                status=order_instance.status,
+                                message="Invalid status string for order",
                             )
                             order_instance.status = OrderStatus.UNKNOWN
                     updated_orders[str(order_id)] = order_instance
             self.orders[exchange_id] = updated_orders  # This replaces the inner dict
             self.last_update_time[exchange_id] = datetime.now(UTC)
             logger.debug(
-                f"Successfully updated open orders for {exchange_id}. Count: {len(updated_orders)}",
+                "orders_updated_successfully",
+                exchange_id=exchange_id,
+                order_count=len(updated_orders),
+                message="Successfully updated open orders",
             )
             return True
         except Exception as e:
@@ -717,12 +731,17 @@ class PortfolioTracker:
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error(
-                        f"Error during portfolio update task (index {i}): {result}",
+                        "portfolio_update_task_error",
+                        task_index=i,
+                        error=str(result),
+                        message="Error during portfolio update task",
                         exc_info=result,
                     )
                 elif result is False:
                     logger.warning(
-                        f"Portfolio update task (index {i}) indicated failure (returned False).",
+                        "portfolio_update_task_failed",
+                        task_index=i,
+                        message="Portfolio update task indicated failure",
                     )
         current_capital = await self.get_total_capital()
         self.high_watermark = max(self.high_watermark, current_capital)
@@ -758,8 +777,11 @@ class PortfolioTracker:
             OrderStatus.PARTIALLY_FILLED,
         } and order.quantity_filled > Decimal(0):
             logger.info(
-                f"Order {order_id_str} on {exchange_id} is {order.status}. "
-                f"Triggering trade processing (placeholder).",
+                "order_filled_trigger_trade",
+                order_id=order_id_str,
+                exchange_id=exchange_id,
+                status=order.status.value if hasattr(order.status, "value") else str(order.status),
+                message="Order filled, triggering trade processing",
             )
 
     def update_position(self, exchange_id: str, position: DerivativePosition) -> None:
@@ -812,8 +834,14 @@ class PortfolioTracker:
         base_symbol = self._get_base_symbol(exchange_id, trade)
 
         logger.info(
-            f"Processing trade on {exchange_id}: {trade.side} {trade.quantity} "
-            f"{base_symbol} (from {trade.symbol}) @ {trade.price}",
+            "trade_processing",
+            exchange_id=exchange_id,
+            side=trade.side.value if hasattr(trade.side, "value") else str(trade.side),
+            quantity=str(trade.quantity),
+            base_symbol=base_symbol,
+            original_symbol=trade.symbol,
+            price=str(trade.price),
+            message="Processing trade",
         )
 
         await self._update_position_from_trade(exchange_id, trade, base_symbol)
@@ -856,7 +884,9 @@ class PortfolioTracker:
             # but this should be fixed by ensuring proper initialization.
             base_symbol = trade.symbol.split("-")[0].split("/")[0]  # Basic fallback
             logger.warning(
-                f"SymbolMapper missing, using basic fallback for base symbol: {base_symbol}",
+                "symbol_mapper_missing_fallback",
+                base_symbol=base_symbol,
+                message="SymbolMapper missing, using basic fallback for base symbol",
             )
         else:
             base_symbol = (
@@ -911,7 +941,10 @@ class PortfolioTracker:
     ) -> None:
         """Open a new position."""
         logger.debug(
-            f"Opening new position for {base_symbol} on {exchange_id}",
+            "position_opening_new",
+            base_symbol=base_symbol,
+            exchange_id=exchange_id,
+            message="Opening new position",
         )
         new_pos = DerivativePosition(
             exchange=exchange_id,

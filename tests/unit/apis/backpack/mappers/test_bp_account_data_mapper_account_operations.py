@@ -25,7 +25,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionU
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus, OrderSide
 from cyberdelta.core.models.operations import (

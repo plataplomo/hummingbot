@@ -11,7 +11,8 @@ import aiohttp
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
 )
-from cyberdelta.apis.base.exchange_api import ExchangeAPI, MessageHandler
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
@@ -42,8 +43,6 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSu
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
@@ -380,7 +379,7 @@ class HyperliquidAPI(ExchangeAPI):
             raise
         except Exception as e:
             # Wrap other exceptions as authentication failures
-            logger.error(
+            logger.exception(
                 "hyperliquid_authentication_preparation_error",
                 exchange=self.exchange_name,
                 method=method,
@@ -388,11 +387,8 @@ class HyperliquidAPI(ExchangeAPI):
                 error_type=type(e).__name__,
                 error=str(e),
                 action="authentication_failed",
-                message=(
-                    f"[{self.exchange_name}] Unexpected error during authentication preparation "
-                    f"for {method} {path}: {e}"
-                ),
-                exc_info=True,
+                message="[%s] Unexpected error during authentication preparation for %s %s: %s",
+                message_args=(self.exchange_name, method, path, str(e)),
             )
             raise APIError(
                 f"Authentication preparation failed: {e}",

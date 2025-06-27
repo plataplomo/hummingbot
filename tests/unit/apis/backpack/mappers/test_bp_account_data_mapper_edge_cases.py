@@ -18,7 +18,7 @@ import pytest
 
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 
 
 pytestmark = pytest.mark.timing

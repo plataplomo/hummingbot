@@ -6,6 +6,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
@@ -16,8 +17,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

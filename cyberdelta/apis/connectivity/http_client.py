@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import urllib.parse
+from http import HTTPStatus
 from types import TracebackType
 from typing import Any
 
@@ -20,6 +21,7 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
+from cyberdelta.apis.common import APIError, APIErrorCode
 
 # Import the model and constants from the new location
 from cyberdelta.apis.connectivity.connectivity_models import (
@@ -27,10 +29,7 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     ProcessedResponseHeaders,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import HTTPStatusCode
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -251,7 +250,7 @@ class HttpClient:
             ) from ve
 
         # Check for 204 No Content BEFORE attempting to read body
-        if response.status == HTTPStatusCode.NO_CONTENT.value:
+        if response.status == HTTPStatus.NO_CONTENT.value:
             logger.debug(
                 "received_204_no_content",
                 action="parse_and_validate_response",
@@ -304,7 +303,7 @@ class HttpClient:
         )
 
         # Double check 204, though it should be caught above. response.text() might be called.
-        if response.status == HTTPStatusCode.NO_CONTENT.value:
+        if response.status == HTTPStatus.NO_CONTENT.value:
             return (
                 None,
                 response.status,
@@ -675,7 +674,7 @@ class HttpClient:
         CIMultiDictProxy[str],
     ]:
         """Handle the HTTP response."""
-        if HTTPStatusCode.OK.value <= response.status < HTTPStatusCode.MULTIPLE_CHOICES.value:
+        if HTTPStatus.OK.value <= response.status < HTTPStatus.MULTIPLE_CHOICES.value:
             try:
                 return await self._parse_and_validate_response(response, full_url)
             except HttpRequestFailedError as e_parse:

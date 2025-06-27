@@ -21,7 +21,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balanc
     indirect=True,
 )
 @pytest.mark.spot
-@pytest.mark.asyncio
 @pytest.mark.vcr
 def test_hl_spot_trades_not_supported_placeholder(
     hl_api_for_test_env: HyperliquidAPI,

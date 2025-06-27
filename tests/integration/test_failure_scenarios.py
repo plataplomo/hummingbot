@@ -9,8 +9,7 @@ from typing import cast
 import pytest
 
 # Import core components and models
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution

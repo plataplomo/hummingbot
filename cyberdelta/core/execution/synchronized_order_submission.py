@@ -16,7 +16,7 @@ from enum import Enum, auto
 from typing import Any, Protocol
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     GetTradeHistoryArgs,
@@ -328,14 +328,13 @@ class OrderVerifier:
             verification_error = "API client missing get_order method"
             return api_order, verification_success, verification_error
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "api_get_order_error",
                 action="verify_api_order",
                 message="Error calling get_order",
                 exchange=exchange,
                 order_id=order_id,
                 error=str(e),
-                exc_info=True,
             )
             verification_success = False
             verification_error = "API error fetching order"
@@ -590,14 +589,13 @@ class OrderVerifier:
             )
             verification_success = False
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "api_fetch_order_error",
                 action="fetch_api_order",
                 message="Error fetching order status/details from API",
                 order_id=order_id,
                 exchange=exchange,
                 error=repr(e),
-                exc_info=True,
             )
             error_msg = (
                 f"API error fetching order status/details for {order_id} from {exchange}: {e!r}"
@@ -1360,12 +1358,11 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"Execution failed: {e!r}"
-            logger.error(
+            logger.exception(
                 "execution_failed",
                 action="execute_sequential_with_verification",
                 message="Sequential execution failed with exception",
                 error=repr(e),
-                exc_info=True,
             )
 
         return result
@@ -1465,13 +1462,12 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"First order placement failed: {e!r}"
-            logger.error(
+            logger.exception(
                 "first_order_placement_failed",
                 action="place_and_verify_first_order",
                 message="First order placement failed",
                 exchange=first_exchange,
                 error=repr(e),
-                exc_info=True,
             )
 
         return result
@@ -1609,13 +1605,12 @@ class SynchronizedOrderSubmissionService:
         except Exception as e:
             result.status = ExecutionStatus.PARTIALLY_COMPLETED
             result.error = f"Second order placement failed: {e!r}"
-            logger.error(
+            logger.exception(
                 "second_order_placement_failed",
                 action="place_and_verify_second_order",
                 message="Second order placement failed",
                 exchange=second_exchange,
                 error=repr(e),
-                exc_info=True,
             )
 
         return result

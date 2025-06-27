@@ -12,8 +12,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,

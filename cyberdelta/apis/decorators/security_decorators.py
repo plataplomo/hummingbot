@@ -14,8 +14,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
 

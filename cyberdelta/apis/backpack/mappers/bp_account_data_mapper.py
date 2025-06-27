@@ -39,7 +39,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
@@ -643,12 +643,11 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
-            logger.error(
+            logger.exception(
                 "backpack_account_summary_transform_error",
                 mapper_class="BackpackAccountDataMapper",
                 error=str(e),
                 message="Error transforming raw account summary",
-                exc_info=True,
             )
             raise TransformationError(f"Error transforming raw account summary: {e}") from e
 
@@ -793,12 +792,11 @@ class BackpackAccountDataMapper:
             )
 
         except (ValidationError, TypeError, AttributeError, KeyError) as e:
-            logger.error(
+            logger.exception(
                 "backpack_collateral_data_transform_error",
                 mapper_class="BackpackAccountDataMapper",
                 error=str(e),
                 message="Error transforming collateral data",
-                exc_info=True,
             )
             raise TransformationError(f"Error transforming collateral data: {e}") from e
 

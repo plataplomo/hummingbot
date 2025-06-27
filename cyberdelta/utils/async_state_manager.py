@@ -109,13 +109,12 @@ class AsyncStateManager:
             return True
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_load_error",
                 action="loading_state",
                 message=f"Error loading state from {self.state_file}: {e}",
                 state_file=self.state_file,
                 error=str(e),
-                exc_info=True,
             )
             return await self._recover_from_backup()
 
@@ -167,13 +166,12 @@ class AsyncStateManager:
             return False
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_save_error",
                 action="saving_state",
                 message=f"Error saving state to {self.state_file}: {e}",
                 state_file=self.state_file,
                 error=str(e),
-                exc_info=True,
             )
             return False
 
@@ -216,12 +214,11 @@ class AsyncStateManager:
             return True
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "state_backup_error",
                 action="creating_backup",
                 message=f"Error creating state backup: {e}",
                 error=str(e),
-                exc_info=True,
             )
             return False
 
@@ -241,12 +238,11 @@ class AsyncStateManager:
                 )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "backup_rotation_error",
                 action="rotating_backups",
                 message=f"Error rotating backups: {e}",
                 error=str(e),
-                exc_info=True,
             )
 
     async def _get_sorted_backup_files(self) -> list[str]:
@@ -329,12 +325,11 @@ class AsyncStateManager:
             return False
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "recovery_process_error",
                 action="recovering_from_backup",
                 message=f"Error during recovery process: {e}",
                 error=str(e),
-                exc_info=True,
             )
             return False
 

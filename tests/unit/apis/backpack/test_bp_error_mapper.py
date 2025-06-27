@@ -29,7 +29,7 @@ import json
 import pytest
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIErrorCode
 
 
 @pytest.fixture

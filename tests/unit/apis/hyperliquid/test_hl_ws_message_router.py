@@ -11,13 +11,12 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.exchange_api import MessageHandler
+from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
-from cyberdelta.apis.models.api_error import APIError, TransformationError
 
 
 class TestHyperliquidWsMessageRouter:
@@ -193,7 +192,7 @@ class TestHyperliquidWsMessageRouter:
         router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for invalid topic."""
-        from cyberdelta.apis.models.api_error import APIError
+        from cyberdelta.apis.common import APIError
 
         with pytest.raises(APIError, match="Unsupported WebSocket topic"):
             router.construct_subscription_payload("invalid_topic", None)

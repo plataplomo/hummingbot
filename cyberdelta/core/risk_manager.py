@@ -295,7 +295,7 @@ class RiskManager:
             self._load_config()
 
         except (AttributeError, ValueError, TypeError) as e:
-            self.logger.error(
+            self.logger.exception(
                 "risk_manager_init_config_error",
                 component="RM_INIT",
                 error_type=type(e).__name__,
@@ -304,7 +304,6 @@ class RiskManager:
                 message=(
                     f"RM_INIT: Critical error during initial config parsing or _load_config: {e}"
                 ),
-                exc_info=True,
             )
             raise ConfigError(
                 (f"Invalid or missing configuration value during RiskManager initialization: {e}"),
@@ -365,14 +364,13 @@ class RiskManager:
             self.min_trade_size_usd_per_exchange = {}  # No per-exchange config yet
 
         except (AttributeError, ValueError, TypeError) as e:
-            self.logger.error(
+            self.logger.exception(
                 "risk_manager_load_config_error",
                 component="RM_INIT",
                 error_type=type(e).__name__,
                 error=str(e),
                 phase="load_config",
                 message=f"RM_INIT: Error loading configuration in _load_config: {e}",
-                exc_info=True,
             )
             raise ConfigError(f"Invalid or missing configuration value in RiskManager: {e}") from e
 
@@ -1125,7 +1123,7 @@ class RiskManager:
         try:
             metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "funding_validation_metrics_retrieval_error",
                 symbol=symbol,
                 exchange=exchange,
@@ -1134,7 +1132,6 @@ class RiskManager:
                 message=(
                     f"Error retrieving funding validation metrics for {symbol} on {exchange}: {e}"
                 ),
-                exc_info=True,
             )
             return None
 

@@ -897,5 +897,7 @@ class RawHlCoinName(UserString):
         Returns a core schema that validates string inputs as proper coin names
         with length and character restrictions for financial data security.
         """
-        # Use with_info_plain_validator_function as recommended by linter
-        return core_schema.with_info_plain_validator_function(cls._validate)
+        # Use with_info_plain_validator_function for validation and add JSON serialization
+        return core_schema.with_info_plain_validator_function(
+            cls._validate, serialization=core_schema.to_string_ser_schema()
+        )

@@ -81,8 +81,12 @@ class MarketOrder:
             raise MarketOrderError("Market orders are disabled in configuration")
 
         logger.info(
-            f"Executing market order: {side.value} {quantity} {symbol} "
-            f"(max_slippage: {max_slippage})",
+            "market_order_executing",
+            side=side.value,
+            quantity=quantity,
+            symbol=symbol,
+            max_slippage=max_slippage,
+            message="Executing market order",
         )
 
         try:
@@ -98,8 +102,13 @@ class MarketOrder:
             )
 
             logger.info(
-                f"Calculated aggressive price for {symbol}: {aggressive_price} "
-                f"(side: {side.value}, quantity: {quantity} -> {rounded_quantity})",
+                "aggressive_price_calculated",
+                symbol=symbol,
+                aggressive_price=aggressive_price,
+                side=side.value,
+                original_quantity=quantity,
+                rounded_quantity=rounded_quantity,
+                message="Calculated aggressive price",
             )
 
             # 4. Prepare IoC limit order
@@ -136,12 +145,11 @@ class MarketOrder:
                 f"Market order timed out after {self._config.order_timeout_seconds}s",
             ) from e
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "market_order_execution_failed",
                 action="execute",
                 error=str(e),
                 message=f"Market order execution failed: {e}",
-                exc_info=True,
             )
             raise
 
@@ -154,8 +162,12 @@ class MarketOrder:
         if order.status == OrderStatus.FILLED:
             fill_price = order.price or "unknown"
             logger.info(
-                f"Market order FILLED: {order.symbol} {order.side.value} "
-                f"{order.quantity_requested} @ {fill_price}",
+                "market_order_filled",
+                symbol=order.symbol,
+                side=order.side.value,
+                quantity_requested=order.quantity_requested,
+                fill_price=fill_price,
+                message="Market order FILLED",
             )
         elif order.status == OrderStatus.PARTIALLY_FILLED:
             filled = order.quantity_filled or Decimal(0)
@@ -163,13 +175,22 @@ class MarketOrder:
                 (filled / order.quantity_requested * 100) if order.quantity_requested > 0 else 0
             )
             logger.warning(
-                f"Market order PARTIALLY FILLED: {order.symbol} {order.side.value} "
-                f"{filled}/{order.quantity_requested} ({fill_rate:.1f}%)",
+                "market_order_partially_filled",
+                symbol=order.symbol,
+                side=order.side.value,
+                quantity_filled=filled,
+                quantity_requested=order.quantity_requested,
+                fill_rate_percent=round(fill_rate, 1),
+                message="Market order PARTIALLY FILLED",
             )
         else:
             logger.warning(
-                f"Market order NOT FILLED: {order.symbol} {order.side.value} "
-                f"{order.quantity_requested} - status: {order.status.value}",
+                "market_order_not_filled",
+                symbol=order.symbol,
+                side=order.side.value,
+                quantity_requested=order.quantity_requested,
+                status=order.status.value,
+                message="Market order NOT FILLED",
             )
 
     async def execute_market_order_with_retry(
@@ -206,8 +227,11 @@ class MarketOrder:
                 break
 
             logger.info(
-                f"Market order attempt {attempt + 1}/{max_retries + 1}: "
-                f"remaining quantity {remaining_quantity}",
+                "market_order_retry_attempt",
+                attempt=attempt + 1,
+                max_attempts=max_retries + 1,
+                remaining_quantity=remaining_quantity,
+                message="Market order retry attempt",
             )
 
             order = await self.execute_market_order(

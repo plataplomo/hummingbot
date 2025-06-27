@@ -16,6 +16,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
@@ -31,8 +33,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
-from cyberdelta.apis.models.api_error import APIError, TransformationError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     GetCandleSnapshotArgs,
     GetFundingRatesArgs,
@@ -163,8 +163,13 @@ class HyperliquidMarketDataService:
                 raw_response_content_str = str(raw_response_content)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw all_asset_contexts response: "
-                f"{raw_response_content!r}, Status: {status_code}, Headers: {headers}",
+                "raw_all_asset_contexts_response",
+                action="get_all_asset_contexts_raw",
+                exchange=self._exchange_name,
+                raw_response=raw_response_content,
+                status_code=status_code,
+                headers=headers,
+                message=f"Raw all_asset_contexts response: {raw_response_content!r}, Status: {status_code}, Headers: {headers}",
             )
 
             # Use centralized validation - metaAndAssetCtxs returns a list
@@ -187,10 +192,12 @@ class HyperliquidMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}",
-                exc_info=True,
+            logger.exception(
+                "transformation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_transform),
+                message=f"Failed to transform exchange data: {e_transform}",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -200,10 +207,12 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content_str,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}",
-                exc_info=True,
+            logger.exception(
+                "validation_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                error=str(e_val),
+                message=f"Internal data validation failed: {e_val}",
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -216,7 +225,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Service internal logic error: "
                 f"{e_service_logic}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -229,7 +237,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
                 f"{e_unexpected}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -287,8 +294,11 @@ class HyperliquidMarketDataService:
 
             # Symbol not found in the contexts
             logger.warning(
-                f"[{self._exchange_name}] Ticker data (asset context) not found "
-                f"for symbol '{symbol}' after fetching all asset contexts.",
+                "ticker_data_not_found",
+                action="get_ticker",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                message=f"Ticker data (asset context) not found for symbol '{symbol}' after fetching all asset contexts.",
             )
             return None  # Consistent with method signature if not found
 
@@ -299,7 +309,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for {symbol}: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -312,7 +321,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e_val}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -322,10 +330,13 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_service_logic),
+                message=f"Service internal logic error for {symbol}: {e_service_logic}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -333,10 +344,13 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_unexpected),
+                message=f"Unexpected service failure for {symbol}: {e_unexpected}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -501,7 +515,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for {symbol}: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -514,7 +527,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e_val}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -524,10 +536,13 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_service_logic),
+                message=f"Service internal logic error for {symbol}: {e_service_logic}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -535,10 +550,13 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_unexpected),
+                message=f"Unexpected service failure for {symbol}: {e_unexpected}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -694,7 +712,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for {symbol}: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -707,7 +724,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Internal data validation "
                 f"failed for {symbol}: {e_val}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -717,10 +733,13 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}",
-                exc_info=True,
+            logger.exception(
+                "service_logic_error",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_service_logic),
+                message=f"Service internal logic error for {symbol}: {e_service_logic}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -728,10 +747,13 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol}: {e_unexpected}",
-                exc_info=True,
+            logger.exception(
+                "unexpected_service_failure",
+                action=current_method,
+                exchange=self._exchange_name,
+                symbol=symbol,
+                error=str(e_unexpected),
+                message=f"Unexpected service failure for {symbol}: {e_unexpected}",
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1643,7 +1665,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
                 f"data for markets: {e_transform}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1656,7 +1677,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected error "
                 f"for markets: {e_unhandled}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1716,7 +1736,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected error "
                 f"for {symbol}: {e_unhandled}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1784,7 +1803,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Validation error: {e}. "
                 f"Status: {status_code}, Raw: {raw_response_content}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1797,7 +1815,6 @@ class HyperliquidMarketDataService:
             logger.error(
                 f"[{self._exchange_name}] {current_method}: Unexpected error: {e}. "
                 f"Status: {status_code}, Raw: {raw_response_content}",
-                exc_info=True,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,

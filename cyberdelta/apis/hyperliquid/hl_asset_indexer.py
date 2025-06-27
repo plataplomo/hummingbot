@@ -15,6 +15,7 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -22,8 +23,6 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -93,8 +92,11 @@ class HyperliquidAssetIndexResolver:
         """Validate the input symbol."""
         if not symbol:
             self.logger.error(
-                f"[{self._exchange_name_for_log}] Invalid symbol for asset index resolution: "
-                f"{symbol!r}",
+                "invalid_symbol_for_asset_index",
+                exchange=self._exchange_name_for_log,
+                symbol=symbol,
+                message="[%s] Invalid symbol for asset index resolution: %r",
+                message_args=[self._exchange_name_for_log, symbol],
             )
             raise APIError(
                 "Invalid symbol for asset index resolution.",
@@ -105,8 +107,16 @@ class HyperliquidAssetIndexResolver:
         """Get asset index from cache if available."""
         if symbol in self._asset_to_index_cache:
             self.logger.debug(
-                f"[{self._exchange_name_for_log}] Asset index for {symbol} found in cache: "
-                f"{self._asset_to_index_cache[symbol]}",
+                "asset_index_found_in_cache",
+                exchange=self._exchange_name_for_log,
+                symbol=symbol,
+                asset_index=self._asset_to_index_cache[symbol],
+                message="[%s] Asset index for %s found in cache: %s",
+                message_args=[
+                    self._exchange_name_for_log,
+                    symbol,
+                    self._asset_to_index_cache[symbol],
+                ],
             )
             return self._asset_to_index_cache[symbol]
         return None
@@ -114,8 +124,11 @@ class HyperliquidAssetIndexResolver:
     async def _fetch_and_populate_cache(self, symbol: str) -> None:
         """Fetch metadata from API and populate the cache."""
         self.logger.debug(
-            f"[{self._exchange_name_for_log}] Asset index for {symbol} not cached, "
-            f"fetching meta...",
+            "asset_index_not_cached_fetching_meta",
+            exchange=self._exchange_name_for_log,
+            symbol=symbol,
+            message="[%s] Asset index for %s not cached, fetching meta...",
+            message_args=[self._exchange_name_for_log, symbol],
         )
 
         raw_response_content, status_code = await self._make_api_request(symbol)
@@ -139,8 +152,12 @@ class HyperliquidAssetIndexResolver:
             return raw_response_content, status_code
         except APIError as e_api:
             self.logger.error(
-                f"[{self._exchange_name_for_log}] API Error fetching asset index for "
-                f"{symbol}: {e_api}",
+                "api_error_fetching_asset_index",
+                exchange=self._exchange_name_for_log,
+                symbol=symbol,
+                error=str(e_api),
+                message="[%s] API Error fetching asset index for %s: %s",
+                message_args=[self._exchange_name_for_log, symbol, str(e_api)],
             )
             raise APIError(
                 f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
@@ -149,10 +166,13 @@ class HyperliquidAssetIndexResolver:
                 http_status=e_api.http_status,
             ) from e_api
         except Exception as e_req:
-            self.logger.error(
-                f"[{self._exchange_name_for_log}] Unexpected error during API request for "
-                f"asset index {symbol}: {e_req}",
-                exc_info=True,
+            self.logger.exception(
+                "unexpected_error_api_request_asset_index",
+                exchange=self._exchange_name_for_log,
+                symbol=symbol,
+                error=str(e_req),
+                message="[%s] Unexpected error during API request for asset index %s: %s",
+                message_args=[self._exchange_name_for_log, symbol, str(e_req)],
             )
             raise APIError(
                 f"Unexpected error fetching asset index for symbol '{symbol}': {e_req}",
@@ -169,8 +189,10 @@ class HyperliquidAssetIndexResolver:
         """Process and validate the API response."""
         if raw_response_content is None:
             self.logger.error(
-                f"[{self._exchange_name_for_log}] Received None response from requester "
-                f"for metaAndAssetCtxs.",
+                "received_none_response_meta_and_asset_ctxs",
+                exchange=self._exchange_name_for_log,
+                message="[%s] Received None response from requester for metaAndAssetCtxs.",
+                message_args=[self._exchange_name_for_log],
             )
             raise APIError(
                 "No data received for market metadata.",
@@ -187,8 +209,12 @@ class HyperliquidAssetIndexResolver:
             return validated_response
         except ValidationError as e_val:
             self.logger.error(
-                f"[{self._exchange_name_for_log}] Failed to validate metaAndAssetCtxs: {e_val}. "
-                f"Raw: {raw_response_content!r}",
+                "failed_to_validate_meta_and_asset_ctxs",
+                exchange=self._exchange_name_for_log,
+                validation_error=str(e_val),
+                raw_response=raw_response_content,
+                message="[%s] Failed to validate metaAndAssetCtxs: %s. Raw: %r",
+                message_args=[self._exchange_name_for_log, str(e_val), raw_response_content],
             )
             raise APIError(
                 "Failed to parse market metadata for asset index mapping.",
@@ -200,10 +226,13 @@ class HyperliquidAssetIndexResolver:
             # Re-raise APIErrors from handler directly
             raise
         except Exception as e_parse:
-            self.logger.error(
-                f"[{self._exchange_name_for_log}] Unexpected error parsing metaAndAssetCtxs "
-                f"for {symbol}: {e_parse}",
-                exc_info=True,
+            self.logger.exception(
+                "unexpected_error_parsing_meta_and_asset_ctxs",
+                exchange=self._exchange_name_for_log,
+                symbol=symbol,
+                error=str(e_parse),
+                message="[%s] Unexpected error parsing metaAndAssetCtxs for %s: %s",
+                message_args=[self._exchange_name_for_log, symbol, str(e_parse)],
             )
             raise APIError(
                 f"Unexpected error parsing market metadata for {symbol}: {e_parse}",
@@ -219,8 +248,11 @@ class HyperliquidAssetIndexResolver:
             self._asset_to_index_cache[asset_def.name] = index
 
         self.logger.debug(
-            f"[{self._exchange_name_for_log}] Repopulated asset index cache with "
-            f"{len(self._asset_to_index_cache)} assets",
+            "repopulated_asset_index_cache",
+            exchange=self._exchange_name_for_log,
+            asset_count=len(self._asset_to_index_cache),
+            message="[%s] Repopulated asset index cache with %s assets",
+            message_args=[self._exchange_name_for_log, len(self._asset_to_index_cache)],
         )
 
     def _get_index_or_raise(self, symbol: str) -> int:
@@ -228,7 +260,11 @@ class HyperliquidAssetIndexResolver:
         if symbol in self._asset_to_index_cache:
             return self._asset_to_index_cache[symbol]
         self.logger.error(
-            f"[{self._exchange_name_for_log}] Asset index for {symbol} not found after fetch.",
+            "asset_index_not_found_after_fetch",
+            exchange=self._exchange_name_for_log,
+            symbol=symbol,
+            message="[%s] Asset index for %s not found after fetch.",
+            message_args=[self._exchange_name_for_log, symbol],
         )
         raise APIError(
             f"Asset index for symbol '{symbol}' not found.",

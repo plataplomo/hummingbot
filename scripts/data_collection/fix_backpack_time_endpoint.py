@@ -8,13 +8,13 @@ This script uses the CyberDeltaEngine configuration system to get the Backpack A
 import asyncio
 import json
 import logging
+from http import HTTPStatus
 from pathlib import Path
 
 import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
-from cyberdelta.core.models.enums import HTTPStatusCode
 
 
 # Configure logging
@@ -53,7 +53,7 @@ async def fetch_backpack_time() -> None:
         try:
             logger.info(f"Fetching: {url}")
             async with session.get(url) as response:
-                if response.status == HTTPStatusCode.OK.value:
+                if response.status == HTTPStatus.OK.value:
                     # Get the plain text response
                     text_response = await response.text()
                     logger.info(f"Received text response: {text_response}")

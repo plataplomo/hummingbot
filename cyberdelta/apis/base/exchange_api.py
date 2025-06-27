@@ -9,7 +9,7 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio
 import json
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine, Mapping
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
@@ -17,7 +17,6 @@ import aiohttp
 from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
 from cyberdelta.apis.base.payload_serialization_strategy import (
     DefaultSerializationStrategy,
     PayloadSerializationStrategy,
@@ -25,6 +24,7 @@ from cyberdelta.apis.base.payload_serialization_strategy import (
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
+from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     WebSocketManagerConfig,
@@ -34,8 +34,6 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpRequestFailedError,
 )
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
@@ -79,19 +77,13 @@ if TYPE_CHECKING:
 
 # Define what is explicitly exported by this module
 __all__ = [
-    "APIError",  # Export APIError
-    "APIErrorCode",  # Export APIErrorCode (already likely used but good practice)
     "ExchangeAPI",
-    "IErrorMapper",  # Export IErrorMapper
-    "MessageHandler",
 ]
 
 # Get logger instance for this module
 logger = get_logger(__name__)
 
-# Type alias for WebSocket message handlers
-# Handler receives data_payload (dict) and the full_message (dict)
-MessageHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]
+# MessageHandler is now imported from cyberdelta.apis.common
 
 
 class ExchangeAPI(ABC):

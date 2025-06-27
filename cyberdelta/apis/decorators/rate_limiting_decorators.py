@@ -10,8 +10,7 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import ParamSpec, TypeVar, cast
 
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.structlog_config import get_logger
 

@@ -26,13 +26,13 @@ from cyberdelta.config.structlog_config import get_logger
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
     HyperliquidRawTriggerInfo,
 )
-from cyberdelta.apis.models.api_error import TransformationError
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,

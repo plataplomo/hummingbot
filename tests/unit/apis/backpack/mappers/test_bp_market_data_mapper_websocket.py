@@ -22,7 +22,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTradeEvent
-from cyberdelta.apis.models.api_error import TransformationError
+from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName

@@ -11,9 +11,8 @@ import pytest
 from eth_account.signers.local import LocalAccount
 from pydantic import SecretStr
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
 # Sample valid credentials

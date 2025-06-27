@@ -73,8 +73,11 @@ class HyperliquidAPIComponentsFactory:
         # Log error if Hyperliquid receives wrong auth type
         if not isinstance(exchange_secrets, PrivateKeyAuthSecrets):
             logger.error(
-                f"Hyperliquid expects auth_type 'private_key' but received "
-                f"'{exchange_secrets.auth_type}'. EIP-712 authentication will not work.",
+                "hyperliquid_invalid_auth_type",
+                expected_auth_type="private_key",
+                received_auth_type=exchange_secrets.auth_type,
+                message="Hyperliquid expects auth_type 'private_key' but received '%s'. EIP-712 authentication will not work.",
+                message_args=(exchange_secrets.auth_type,),
             )
 
     def create_authenticator(self) -> HyperliquidEip712Authenticator | None:
@@ -89,9 +92,11 @@ class HyperliquidAPIComponentsFactory:
         # Check if we have the correct secrets type for Hyperliquid
         if not isinstance(self.exchange_secrets, PrivateKeyAuthSecrets):
             logger.error(
-                f"Cannot create Hyperliquid authenticator: expected auth_type 'private_key' "
-                f"but received '{self.exchange_secrets.auth_type}'. "
-                f"Signed operations will fail.",
+                "hyperliquid_authenticator_creation_failed",
+                expected_auth_type="private_key",
+                received_auth_type=self.exchange_secrets.auth_type,
+                message="Cannot create Hyperliquid authenticator: expected auth_type 'private_key' but received '%s'. Signed operations will fail.",
+                message_args=(self.exchange_secrets.auth_type,),
             )
             return None
 

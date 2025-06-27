@@ -84,12 +84,11 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
         )
 
     except Exception as e:
-        logger.error(
+        logger.exception(
             "portfolio_state_save_failed",
             action="save",
             error=str(e),
             message=f"Error saving portfolio state: {e}",
-            exc_info=True,
         )
         raise
 
@@ -195,12 +194,11 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
         )
         return False
     except Exception as e:
-        logger.error(
+        logger.exception(
             "portfolio_state_load_failed",
             action="load",
             error=str(e),
             message=f"Error loading portfolio state: {e}",
-            exc_info=True,
         )
         return False
 

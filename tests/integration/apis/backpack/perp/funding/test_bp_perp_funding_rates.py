@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.api_error import APIError
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 

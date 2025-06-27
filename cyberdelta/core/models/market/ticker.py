@@ -142,10 +142,9 @@ class Ticker(BaseModel):
                 return None
             except InvalidOperation:  # Catch only InvalidOperation for calculation issues
                 # Should not happen if inputs are finite Decimals, but defensive
-                logger.error(
+                logger.exception(
                     f"Error calculating mid-price for {self.symbol} "
                     f"from bid={self.bid}, ask={self.ask}",
-                    exc_info=True,
                 )
                 return None
         return None  # Return None if bid or ask is None or non-finite

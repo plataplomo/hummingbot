@@ -628,12 +628,11 @@ class PrioritySignalQueue:
                 )
             return True
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "queue_trim_error",
                 error=str(e),
                 action="queue_management_error",
                 message=f"Error during queue trimming: {e}",
-                exc_info=True,
             )
             return False
 

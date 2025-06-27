@@ -5,9 +5,8 @@ Tests the error mapping functionality for Hyperliquid API responses.
 
 import pytest
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 
 
 @pytest.fixture

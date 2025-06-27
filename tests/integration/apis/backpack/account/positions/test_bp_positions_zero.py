@@ -65,8 +65,7 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         try:
             positions = await bp_api_for_zero_balance_test.get_positions(
@@ -125,8 +124,7 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         try:
             # Try to get position for spot symbol
@@ -158,8 +156,7 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         positions = await bp_api_for_zero_balance_test.get_positions()
 
@@ -253,8 +250,7 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.models.api_error import APIError
-        from cyberdelta.apis.models.api_error_codes import APIErrorCode
+        from cyberdelta.apis.common import APIError, APIErrorCode
 
         try:
             # Try an invalid/delisted symbol

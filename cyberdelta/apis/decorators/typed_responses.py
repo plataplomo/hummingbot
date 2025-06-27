@@ -11,8 +11,7 @@ from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 

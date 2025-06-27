@@ -15,11 +15,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
-
 # Added import for ValidationError
 # Import Fill type
-from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI, MessageHandler
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,

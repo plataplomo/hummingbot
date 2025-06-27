@@ -11,8 +11,8 @@ import msgpack
 import pytest
 from pydantic import SecretStr
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator, address_to_bytes
-from cyberdelta.apis.models.api_error import APIError
 
 
 # Test constants

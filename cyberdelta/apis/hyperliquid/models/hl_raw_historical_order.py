@@ -11,6 +11,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
+from cyberdelta.apis.common import APIError, APIErrorCode
+
 # Assuming common_raw_types and other necessary components are accessible
 # For simplicity, copying relevant parts of HyperliquidRawOrder here
 # and modifying the status field.
@@ -26,8 +28,6 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawStrictBool,
     RawTimestampMsInt,
 )
-from cyberdelta.apis.models.api_error import APIError
-from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
@@ -287,7 +287,11 @@ class HyperliquidRawHistoricalOrdersResponse(
 
                 logger = get_logger(__name__)
                 logger.warning(
-                    f"Skipping non-dict item in historical orders list at index {i}: {item!r}",
+                    "skipping_non_dict_item_in_historical_orders",
+                    index=i,
+                    item=repr(item),
+                    message="Skipping non-dict item in historical orders list at index %s: %s",
+                    message_args=(i, repr(item)),
                 )
                 continue
 

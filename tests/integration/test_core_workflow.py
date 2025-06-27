@@ -16,10 +16,8 @@ import pytest
 from pytest import LogCaptureFixture
 from pytest_mock import MockerFixture  # Added MockerFixture
 
-from cyberdelta.apis.models.api_error import (  # Import APIError for test_failed_execution
+from cyberdelta.apis.common import (  # Import APIError for test_failed_execution  # Corrected import
     APIError,
-)
-from cyberdelta.apis.models.api_error_codes import (  # Corrected import
     APIErrorCode,
 )
 from cyberdelta.config import AppSettings  # Updated import
