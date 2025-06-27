@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 
 logger = structlog.get_logger(__name__)
+sampled_logger = SampledLogger(logger, sample_rate=0.1)
 
 # Type alias for the observer callback
 type MarketDataObserver = Callable[[Candle], Coroutine[Any, Any, None]]
@@ -36,6 +37,9 @@ type FundingRateObserver = Callable[[FundingRate], Coroutine[Any, Any, None]]
 
 # Price change detection constants
 PRICE_CHANGE_THRESHOLD = 0.001  # 0.1% threshold for significant price changes
+
+# Exchange-specific staleness defaults (in seconds)
+DEFAULT_STALENESS_SECONDS = 60
 
 
 class DataHandler:
@@ -1389,12 +1393,14 @@ class DataHandler:
         logger.debug("WebSocket tasks processed for cancellation and gathered.")
         self.ws_tasks.clear()
 
-    def _cancel_single_task(self, task_like: object) -> None:
+    def _cancel_single_task(self, task_like: asyncio.Task[Any]) -> None:
         """Cancel a single task-like object safely."""
-        if not (hasattr(task_like, "cancel") and callable(task_like.cancel)):
+        if not (hasattr(task_like, "cancel") and callable(getattr(task_like, "cancel", None))):
             return
 
         try:
+            # DEFENSIVE CHECK: Verify cancel method exists and is callable before calling
+            # Pyright=[reportAttributeAccessIssue] - We check hasattr above but need runtime safety
             task_like.cancel()
         except RuntimeError as e:  # More specific for Task.cancel errors
             logger.warning(

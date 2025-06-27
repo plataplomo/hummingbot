@@ -701,7 +701,7 @@ class RealTimeDashboard:
             use_threading: Whether to run the server in a separate thread
 
         """
-        logger.info(f"Starting dashboard server on http://{self.host}:{self.port}")
+        logger.info("Starting dashboard server on http://%s:%s", self.host, self.port)
         if use_threading:
             self.server_thread = threading.Thread(target=self._run_server, daemon=True)
             self.server_thread.start()

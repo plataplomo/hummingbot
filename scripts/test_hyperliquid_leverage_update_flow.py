@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """Integration test showing the complete Hyperliquid leverage update flow."""
 
-import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.services.hl_account_service import MAX_LEVERAGE_VALUE
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.config.structlog_config import get_logger
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def simulate_hyperliquid_leverage_update() -> None:
@@ -27,8 +25,8 @@ def simulate_hyperliquid_leverage_update() -> None:
     )
 
     logger.info("1. UpdateAccountSettingsArgs created:")
-    logger.info(f"   - leverage_limit: {args.leverage_limit}")
-    logger.info(f"   - auto_lend: {args.auto_lend} (will be ignored)")
+    logger.info("leverage_limit: Setting leverage limit", leverage_limit=args.leverage_limit)
+    logger.info("auto_lend: Setting auto-lend (will be ignored)", auto_lend=args.auto_lend)
     logger.info("")
 
     # Step 2: Validate leverage_limit is provided
@@ -41,10 +39,14 @@ def simulate_hyperliquid_leverage_update() -> None:
 
     # Step 3: Convert to integer and validate range
     leverage_int = int(args.leverage_limit)
-    logger.info(f"2. Convert leverage to int: {args.leverage_limit} -> {leverage_int}")
+    logger.info(
+        "leverage_conversion: Converting leverage to int",
+        from_value=args.leverage_limit,
+        to_value=leverage_int,
+    )
 
     if leverage_int < 1 or leverage_int > MAX_LEVERAGE_VALUE:
-        logger.error(f"   ERROR: Invalid leverage {leverage_int}")
+        logger.error("invalid_leverage: Invalid leverage value", leverage=leverage_int)
         raise APIError(
             message=(
                 f"Invalid leverage value: {leverage_int}. "
@@ -64,7 +66,12 @@ def simulate_hyperliquid_leverage_update() -> None:
     ]
 
     for pos in mock_positions:
-        logger.info(f"   - {pos['symbol']}: {pos['size']} contracts")
+        logger.info(
+            "position_info: Current position",
+            symbol=pos["symbol"],
+            size=pos["size"],
+            contracts="contracts",
+        )
     logger.info("")
 
     # Step 5: Update leverage for each position
@@ -73,18 +80,22 @@ def simulate_hyperliquid_leverage_update() -> None:
 
     for pos in mock_positions:
         # Simulate building request
-        logger.info(f"   Updating {pos['symbol']} (asset index {pos['asset_index']}):")
+        logger.info(
+            "updating_leverage: Updating leverage for position",
+            symbol=pos["symbol"],
+            asset_index=pos["asset_index"],
+        )
         logger.info("     - Request: POST /exchange")
         logger.info("     - Payload: {")
         logger.info("         'type': 'updateLeverage',")
         logger.info("         'action': {")
-        logger.info(f"           'asset': {pos['asset_index']},")
+        logger.info("request_asset: Asset index in request", asset=pos["asset_index"])
         logger.info("           'isCross': true,")
-        logger.info(f"           'leverage': {leverage_int}")
+        logger.info("request_leverage: Leverage value in request", leverage=leverage_int)
         logger.info("         }")
         logger.info("       }")
         logger.info("     - Requires EIP-712 signature")
-        logger.info(f"     ✓ Leverage updated to {leverage_int}x")
+        logger.info("leverage_updated: Leverage update complete", leverage=leverage_int, unit="x")
 
         asset_leverage_settings[pos["asset_index"]] = leverage_int
     logger.info("")
@@ -93,14 +104,20 @@ def simulate_hyperliquid_leverage_update() -> None:
     logger.info("5. Create AccountSettings response:")
     logger.info("   AccountSettings {")
     logger.info("     exchange: 'hyperliquid',")
-    logger.info(f"     timestamp: {datetime.now(UTC).isoformat()},")
-    logger.info(f"     leverage_limit: {args.leverage_limit},  // Default for new positions")
+    logger.info("response_timestamp: Response timestamp", timestamp=datetime.now(UTC).isoformat())
+    logger.info(
+        "response_leverage_limit: Default leverage for new positions",
+        leverage_limit=args.leverage_limit,
+    )
     logger.info("     auto_lend: null,  // Not supported")
     logger.info("     auto_borrow_settlements: null,  // Not supported")
     logger.info("     auto_realize_pnl: null,  // Not supported")
     logger.info("     auto_repay_borrows: null,  // Not supported")
     logger.info("     hl_details: {")
-    logger.info(f"       asset_leverage_settings: {asset_leverage_settings},")
+    logger.info(
+        "asset_leverage_settings: Asset-specific leverage settings",
+        settings=asset_leverage_settings,
+    )
     logger.info("       cross_margin_enabled: true")
     logger.info("     }")
     logger.info("   }")

@@ -13,7 +13,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import logging
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -23,11 +22,10 @@ import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.config.structlog_config import get_logger
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BackpackDataCollector:
@@ -55,15 +53,24 @@ class BackpackDataCollector:
 
             self.api_base_url = str(backpack_config.api_base_url_mainnet).rstrip("/")
             self.configured_symbols = backpack_config.symbols
-            logger.info(f"Using Backpack API base URL: {self.api_base_url}")
-            logger.info(f"Configured symbols: {self.configured_symbols}")
+            logger.info(
+                "backpack_api_configured: Using Backpack API base URL",
+                api_base_url=self.api_base_url,
+            )
+            logger.info(
+                "backpack_symbols_configured: Configured symbols",
+                symbols=self.configured_symbols,
+            )
 
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
+            logger.error("configuration_load_failed: Failed to load configuration", error=str(e))
             # Fallback to hardcoded values for data collection
             self.api_base_url = "https://api.backpack.exchange"
             self.configured_symbols = {"BTC": "BTC_USDC", "SOL": "SOL_USDC"}
-            logger.warning(f"Using fallback configuration: {self.api_base_url}")
+            logger.warning(
+                "fallback_configuration: Using fallback configuration",
+                api_base_url=self.api_base_url,
+            )
 
     async def _fetch_json(
         self,
@@ -72,31 +79,41 @@ class BackpackDataCollector:
     ) -> dict[str, Any] | None:
         """Fetch JSON data from a URL with error handling."""
         try:
-            logger.info(f"Fetching: {url} with params: {params}")
+            logger.info("fetching_json: Fetching JSON data", url=url, params=params)
             async with self.session.get(url, params=params) as response:
                 if response.status == HTTPStatus.OK.value:
                     data: dict[str, Any] = await response.json()
-                    logger.info(f"Successfully fetched data from {url}")
+                    logger.info("fetch_json_success: Successfully fetched data", url=url)
                     return data
-                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                logger.error(
+                    "fetch_json_http_error: HTTP error",
+                    status=response.status,
+                    url=url,
+                    response_text=await response.text(),
+                )
                 return None
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+            logger.error("fetch_json_error: Error fetching data", url=url, error=str(e))
             return None
 
     async def _fetch_text(self, url: str, params: dict[str, Any] | None = None) -> str | None:
         """Fetch text data from a URL with error handling."""
         try:
-            logger.info(f"Fetching text: {url} with params: {params}")
+            logger.info("fetching_text: Fetching text data", url=url, params=params)
             async with self.session.get(url, params=params) as response:
                 if response.status == HTTPStatus.OK.value:
                     data: str = await response.text()
-                    logger.info(f"Successfully fetched text from {url}")
+                    logger.info("fetch_text_success: Successfully fetched text", url=url)
                     return data
-                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                logger.error(
+                    "fetch_text_http_error: HTTP error",
+                    status=response.status,
+                    url=url,
+                    response_text=await response.text(),
+                )
                 return None
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+            logger.error("fetch_text_error: Error fetching text", url=url, error=str(e))
             return None
 
     def _save_json(self, data: dict[str, Any], filename: str) -> None:
@@ -105,18 +122,18 @@ class BackpackDataCollector:
         try:
             json_content = json.dumps(data, indent=2, ensure_ascii=False)
             filepath.write_text(json_content, encoding="utf-8")
-            logger.info(f"Saved fixture: {filepath}")
+            logger.info("fixture_saved: Saved JSON fixture", filepath=str(filepath))
         except Exception as e:
-            logger.error(f"Error saving {filepath}: {e}")
+            logger.error("save_json_error: Error saving JSON", filepath=str(filepath), error=str(e))
 
     def _save_text(self, data: str, filename: str) -> None:
         """Save text data to a file."""
         filepath = self.output_dir / filename
         try:
             filepath.write_text(data, encoding="utf-8")
-            logger.info(f"Saved fixture: {filepath}")
+            logger.info("fixture_saved: Saved text fixture", filepath=str(filepath))
         except Exception as e:
-            logger.error(f"Error saving {filepath}: {e}")
+            logger.error("save_text_error: Error saving text", filepath=str(filepath), error=str(e))
 
     # System endpoints
     async def fetch_ping(self) -> None:
@@ -367,7 +384,7 @@ class BackpackDataCollector:
         # Symbol-specific endpoints (Spot markets)
         logger.info("Fetching symbol-specific data...")
         for symbol in symbols:
-            logger.info(f"Collecting data for symbol: {symbol}")
+            logger.info("collecting_symbol_data: Collecting data for symbol", symbol=symbol)
 
             # Basic market data
             await self.fetch_market(symbol)
@@ -394,7 +411,7 @@ class BackpackDataCollector:
         logger.info("Fetching perpetual futures data...")
         perp_symbols = self.get_perp_symbols()
         for symbol in perp_symbols:
-            logger.info(f"Collecting perp data for: {symbol}")
+            logger.info("collecting_perp_data: Collecting perp data", symbol=symbol)
 
             # Basic market data for perp symbols
             await self.fetch_market(symbol)
@@ -449,7 +466,10 @@ async def main() -> None:
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
     except Exception as e:
-        logger.warning(f"Failed to initialize configuration: {e}. Using basic logging.")
+        logger.warning(
+            "configuration_init_failed: Failed to initialize configuration. Using basic logging.",
+            error=str(e),
+        )
 
     async with aiohttp.ClientSession() as session:
         collector = BackpackDataCollector(output_dir, session)
@@ -460,8 +480,8 @@ async def main() -> None:
         else:
             symbols = collector.get_default_symbols()
 
-        logger.info(f"Collecting data for symbols: {symbols}")
-        logger.info(f"Output directory: {output_dir}")
+        logger.info("data_collection_starting: Collecting data for symbols", symbols=symbols)
+        logger.info("output_directory: Output directory configured", output_dir=str(output_dir))
 
         await collector.collect_all_data(symbols)
 

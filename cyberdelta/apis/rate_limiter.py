@@ -62,7 +62,12 @@ class TokenBucketRateLimiterRuntime:
                     self.lock.release()
                     try:
                         logger.warning(
-                            f"IP ban active for rate limiter. Waiting {wait_time_for_ban:.2f}s.",
+                            "rate_limiter_ip_ban_waiting",
+                            wait_time_seconds=wait_time_for_ban,
+                            action="waiting_for_ip_ban_expiry",
+                            message=(
+                                f"IP ban active for rate limiter. Waiting {wait_time_for_ban:.2f}s."
+                            ),
                         )
                         await asyncio.sleep(wait_time_for_ban)
                         wait_time += wait_time_for_ban

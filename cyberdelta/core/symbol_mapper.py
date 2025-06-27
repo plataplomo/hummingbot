@@ -53,9 +53,10 @@ class SymbolMapper:
         self._validate_config()  # Perform post-load validation if needed
 
         logger.info(
-            f"SymbolMapper initialized. Loaded mappings for "
-            f"{len(self._exchange_to_internal)} exchanges. Found "
-            f"{len(self._all_internal_symbols)} unique internal symbols.",
+            "symbol_mapper_initialized",
+            exchanges_count=len(self._exchange_to_internal),
+            internal_symbols_count=len(self._all_internal_symbols),
+            message="SymbolMapper initialized with exchange mappings and internal symbols",
         )
 
     def _validate_config_structure(self, exchanges_config: dict[str, Any]) -> None:
@@ -79,8 +80,10 @@ class SymbolMapper:
         """Process symbol mappings for a single exchange."""
         if not isinstance(exchange_data_any, dict):
             logger.warning(
-                f"Skipping exchange '{exchange_id}': Expected a dictionary for exchange data, "
-                f"got {type(exchange_data_any)}.",
+                "skipping_exchange_invalid_data",
+                exchange_id=exchange_id,
+                data_type=type(exchange_data_any).__name__,
+                message="Skipping exchange: Expected a dictionary for exchange data",
             )
             return
 
@@ -88,14 +91,18 @@ class SymbolMapper:
 
         if "symbols" not in exchange_data:
             logger.warning(
-                f"Skipping exchange '{exchange_id}': Missing 'symbols' configuration.",
+                "skipping_exchange_missing_symbols",
+                exchange_id=exchange_id,
+                message="Skipping exchange: Missing 'symbols' configuration",
             )
             return
 
         symbol_map = exchange_data["symbols"]
         if not isinstance(symbol_map, dict):
             logger.warning(
-                f"Skipping exchange '{exchange_id}': 'symbols' must be a dictionary.",
+                "skipping_exchange_symbols_not_dict",
+                exchange_id=exchange_id,
+                message="Skipping exchange: 'symbols' must be a dictionary",
             )
             return
 
@@ -119,8 +126,11 @@ class SymbolMapper:
         # internal_symbol is guaranteed to be str since it's a dict key from config
         if not isinstance(exchange_symbol, str):
             logger.warning(
-                f"Invalid symbol map value for ex '{exchange_id}': "
-                f"Skip ({internal_symbol}: {exchange_symbol}). Value must be str.",
+                "invalid_symbol_map_value",
+                exchange_id=exchange_id,
+                internal_symbol=internal_symbol,
+                exchange_symbol=exchange_symbol,
+                message="Invalid symbol map value: Value must be str",
             )
             return
 
@@ -139,8 +149,10 @@ class SymbolMapper:
             self._internal_to_exchange[internal_symbol] = {}
         if exchange_id in self._internal_to_exchange[internal_symbol]:
             logger.warning(
-                f"Duplicate internal symbol '{internal_symbol}' definition "
-                f"for exchange '{exchange_id}'. Overwriting.",
+                "duplicate_internal_symbol",
+                internal_symbol=internal_symbol,
+                exchange_id=exchange_id,
+                message="Duplicate internal symbol definition for exchange. Overwriting.",
             )
         self._internal_to_exchange[internal_symbol][exchange_id] = exchange_symbol
 
@@ -153,9 +165,13 @@ class SymbolMapper:
         """Add mapping from exchange symbol to internal symbol."""
         if exchange_symbol in self._exchange_to_internal[exchange_id]:
             logger.warning(
-                f"Duplicate exchange symbol '{exchange_symbol}' mapped for "
-                f"exchange '{exchange_id}'. Overwriting mapping to internal "
-                f"'{internal_symbol}'.",
+                "duplicate_exchange_symbol",
+                exchange_symbol=exchange_symbol,
+                exchange_id=exchange_id,
+                internal_symbol=internal_symbol,
+                message=(
+                    "Duplicate exchange symbol mapped for exchange. Overwriting mapping to internal"
+                ),
             )
         self._exchange_to_internal[exchange_id][exchange_symbol] = internal_symbol
 

@@ -90,7 +90,11 @@ class DashboardIntegration:
 
         """
         self.strategies[strategy.name] = strategy
-        logger.info(f"Registered strategy {strategy.name} with dashboard")
+        logger.info(
+            "strategy_registered",
+            strategy_name=strategy.name,
+            message="Registered strategy with dashboard",
+        )
 
     def start_dashboard(
         self,
@@ -126,7 +130,7 @@ class DashboardIntegration:
         else:
             self.dashboard = result
 
-        logger.info(f"Started dashboard on port {port}")
+        logger.info("dashboard_started", port=port, message="Started dashboard on port")
 
     def stop_dashboard(self) -> None:
         """Stop the dashboard if it's running."""

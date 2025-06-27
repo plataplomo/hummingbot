@@ -1267,7 +1267,9 @@ class BackpackAccountDataMapper:
 
             # Backpack REST API for recent trades doesn't provide side
             logger.warning(
-                f"Cannot determine trade side for raw trade {raw.id} from REST API. Skipping.",
+                "trade_side_missing: Cannot determine trade side for raw trade from REST API",
+                trade_id=raw.id,
+                action="skipping",
             )
             return None
         except Exception as e:

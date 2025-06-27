@@ -16,7 +16,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import logging
 import os
 import sys
 from http import HTTPStatus
@@ -31,10 +30,10 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 os.chdir(project_root)  # Change to project root to ensure imports work
 
+from cyberdelta.config.structlog_config import get_logger  # noqa: E402
 
-# Configure logging before other imports
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 def lazy_import_authenticator() -> type:
@@ -100,12 +99,17 @@ class BackpackPrivateDataCollector:
                 private_key_b64_secret=backpack_secrets.api_secret,
             )
 
-            logger.info(f"Using Backpack API base URL: {self.api_base_url}")
-            logger.info(f"Configured symbols: {self.configured_symbols}")
-            logger.info("Backpack authenticator initialized successfully")
+            logger.info(
+                "api_base_url_configured: Using Backpack API base URL",
+                api_base_url=self.api_base_url,
+            )
+            logger.info("symbols_configured: Configured symbols", symbols=self.configured_symbols)
+            logger.info("authenticator_initialized: Backpack authenticator initialized")
 
         except Exception as e:
-            logger.error(f"Failed to load configuration or initialize authenticator: {e}")
+            logger.error(
+                "config_init_failed: Failed to load config or init authenticator", error=str(e)
+            )
             raise
 
     async def _fetch_authenticated_json(
@@ -128,7 +132,9 @@ class BackpackPrivateDataCollector:
 
             url = f"{self.api_base_url}{path}"
 
-            logger.info(f"Fetching: {method} {url} with params: {params}")
+            logger.info(
+                "fetching_endpoint: Fetching endpoint", method=method, url=url, params=params
+            )
 
             # Make the request with authentication headers
             # For POST/PUT methods, always send JSON data (even if empty) for proper content-type
@@ -150,13 +156,20 @@ class BackpackPrivateDataCollector:
             ) as response:
                 if response.status == HTTPStatus.OK.value:
                     response_data: dict[str, Any] = await response.json()
-                    logger.info(f"Successfully fetched data from {url}")
+                    logger.info("fetch_successful: Successfully fetched data", url=url)
                     return response_data
                 error_text = await response.text()
-                logger.error(f"HTTP {response.status} error for {url}: {error_text}")
+                logger.error(
+                    "http_error: HTTP error occurred",
+                    status=response.status,
+                    url=url,
+                    error=error_text,
+                )
                 return None
         except Exception as e:
-            logger.error(f"Error fetching {method} {path}: {e}")
+            logger.error(
+                "fetch_error: Error fetching endpoint", method=method, path=path, error=str(e)
+            )
             return None
 
     def _save_json(self, data: dict[str, Any], filename: str) -> None:
@@ -165,9 +178,9 @@ class BackpackPrivateDataCollector:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved fixture: {filepath}")
+            logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
         except Exception as e:
-            logger.error(f"Error saving {filepath}: {e}")
+            logger.error("save_error: Error saving file", filepath=str(filepath), error=str(e))
 
     # Account Management Endpoints
     async def fetch_account_info(self) -> None:
@@ -347,8 +360,9 @@ class BackpackPrivateDataCollector:
         # It returns all positions regardless of symbol parameter
         if symbol:
             logger.warning(
-                f"Position endpoint doesn't support symbol filtering. "
-                f"Fetching all positions instead of {symbol}",
+                "position_filter_unsupported: Position endpoint doesn't support symbol filtering",
+                requested_symbol=symbol,
+                action="fetching_all_positions",
             )
 
         data = await self._fetch_authenticated_json("GET", "/api/v1/position", params=None)
@@ -776,7 +790,9 @@ async def main() -> None:
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
     except Exception as e:
-        logger.warning(f"Failed to initialize configuration: {e}. Using basic logging.")
+        logger.warning(
+            "config_init_warning: Failed to init config. Using basic logging.", error=str(e)
+        )
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -788,13 +804,17 @@ async def main() -> None:
             else:
                 symbols = collector.get_default_symbols()
 
-            logger.info(f"Collecting private data for symbols: {symbols}")
-            logger.info(f"Output directory: {output_dir}")
+            logger.info(
+                "data_collection_started: Collecting private data for symbols", symbols=symbols
+            )
+            logger.info(
+                "output_directory_set: Output directory configured", output_dir=str(output_dir)
+            )
 
             await collector.collect_all_private_data(symbols)
 
         except Exception as e:
-            logger.error(f"Failed to initialize collector or collect data: {e}")
+            logger.error("Failed to initialize collector or collect data", error=str(e))
             raise
 
 

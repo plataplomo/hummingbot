@@ -63,12 +63,10 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             bucket_size=ip_bucket,
         )
         logger.info(
-            f"Hyperliquid IP weight limiter initialized: rate={ip_rate_rps:.2f} weights/sec, bucket={ip_bucket} weights",
-            extra={
-                "event": "hyperliquid_ip_weight_limiter_initialized",
-                "rate": ip_rate_rps,
-                "bucket_size": ip_bucket,
-            },
+            "hyperliquid_ip_weight_limiter_initialized",
+            rate=ip_rate_rps,
+            bucket_size=ip_bucket,
+            message="Hyperliquid IP weight limiter initialized",
         )
 
         # Address Action Count Limiter (Safety Net)
@@ -83,12 +81,10 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             bucket_size=aa_bucket,
         )
         logger.info(
-            f"Hyperliquid address action limiter initialized: rate={aa_rate_rps:.2f} actions/sec, bucket={aa_bucket} actions",
-            extra={
-                "event": "hyperliquid_address_action_limiter_initialized",
-                "rate": aa_rate_rps,
-                "bucket_size": aa_bucket,
-            },
+            "hyperliquid_address_action_limiter_initialized",
+            rate=aa_rate_rps,
+            bucket_size=aa_bucket,
+            message="Hyperliquid address action limiter initialized",
         )
 
     async def prepare_and_acquire(self, request_context: RateLimitRequestContext) -> None:
@@ -118,38 +114,32 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         )
 
         logger.debug(
-            f"Hyperliquid rate limit costs for {method} {endpoint}: ip_weight={ip_cost}, address_actions={address_action_cost}",
-            extra={
-                "event": "hyperliquid_rate_limit_costs_calculated",
-                "method": method,
-                "endpoint": endpoint,
-                "ip_cost": ip_cost,
-                "address_action_cost": address_action_cost,
-            },
+            "hyperliquid_rate_limit_costs_calculated",
+            method=method,
+            endpoint=endpoint,
+            ip_cost=ip_cost,
+            address_action_cost=address_action_cost,
+            message="Hyperliquid rate limit costs calculated",
         )
 
         # Acquire IP weight tokens if needed
         if ip_cost > 0:
             await self._ip_weight_limiter.acquire(tokens_to_consume=ip_cost)
             logger.debug(
-                f"Acquired {ip_cost} IP weight tokens",
-                extra={
-                    "event": "acquired_ip_weight_tokens",
-                    "action": "acquire_tokens",
-                    "ip_cost": ip_cost,
-                },
+                "acquired_ip_weight_tokens",
+                action="acquire_tokens",
+                ip_cost=ip_cost,
+                message="Acquired IP weight tokens",
             )
 
         # Acquire address action tokens if needed (only for /exchange)
         if address_action_cost > 0:
             await self._address_action_limiter.acquire(tokens_to_consume=address_action_cost)
             logger.debug(
-                f"Acquired {address_action_cost} address action tokens",
-                extra={
-                    "event": "acquired_address_action_tokens",
-                    "action": "acquire_tokens",
-                    "address_action_cost": address_action_cost,
-                },
+                "acquired_address_action_tokens",
+                action="acquire_tokens",
+                address_action_cost=address_action_cost,
+                message="Acquired address action tokens",
             )
 
         # Hyperliquid doesn't modify the payload for rate limiting
@@ -186,13 +176,10 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 
         """
         logger.info(
-            f"HyperliquidRateLimitStrategy: Received exchange-advised retry_after of {duration_seconds:.2f}s for {request_context.exchange_name}. "
-            "Applying as a temporary IP ban on the main pool.",
-            extra={
-                "event": "hyperliquid_exchange_retry_after_received",
-                "duration_seconds": duration_seconds,
-                "exchange_name": request_context.exchange_name,
-            },
+            "hyperliquid_exchange_retry_after_received",
+            duration_seconds=duration_seconds,
+            exchange_name=request_context.exchange_name,
+            message="Received exchange-advised retry_after, applying temporary IP ban",
         )
         await self.trigger_ip_ban_on_main_pool(duration_seconds)
         # If more granular control based on request_context (e.g., endpoint_group) is needed

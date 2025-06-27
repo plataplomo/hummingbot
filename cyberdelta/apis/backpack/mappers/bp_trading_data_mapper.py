@@ -351,14 +351,18 @@ class BackpackTradingDataMapper:
             if executed_quote is not None and executed_quote > 0:
                 return executed_quote / quantity_filled
             logger.warning(
-                f"Could not calculate average fill price for order {raw_order.id}: "
-                f"executed_quote={executed_quote}, quantity_filled={quantity_filled}",
+                "avg_fill_price_calc_failed: Could not calculate average fill price for order",
+                order_id=raw_order.id,
+                executed_quote=executed_quote,
+                quantity_filled=quantity_filled,
             )
 
         logger.warning(
-            f"No average fill price available for order {raw_order.id}: "
-            f"avgFillPrice={raw_order.avgFillPrice}, quantity_filled={quantity_filled}, "
-            f"executedQuoteQuantity={raw_order.executedQuoteQuantity}",
+            "avg_fill_price_unavailable: No average fill price available for order",
+            order_id=raw_order.id,
+            avg_fill_price=raw_order.avgFillPrice,
+            quantity_filled=quantity_filled,
+            executed_quote_quantity=raw_order.executedQuoteQuantity,
         )
         return None
 

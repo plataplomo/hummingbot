@@ -342,7 +342,10 @@ class HyperliquidErrorMapper(IErrorMapper):
                     "hyperliquid_ip_ban_pattern_detected",
                     http_status=403,
                     error_body=error_body,
-                    message="[HyperliquidErrorMapper] Detected IP ban pattern: HTTP 403 with rate limit message: %s",
+                    message=(
+                        "[HyperliquidErrorMapper] Detected IP ban pattern: "
+                        "HTTP 403 with rate limit message: %s"
+                    ),
                     message_args=(error_body,),
                 )
                 return APIError(

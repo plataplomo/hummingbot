@@ -329,11 +329,10 @@ class TestStructuredLogging:
         try:
             raise ValueError("Test exception")
         except ValueError:
-            logger.error(
+            logger.exception(
                 "exception_occurred",
                 action="handle_error",
                 error_type="ValueError",
-                exc_info=True,
             )
 
         assert len(cap.entries) == 1

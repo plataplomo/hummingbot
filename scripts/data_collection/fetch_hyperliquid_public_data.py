@@ -23,7 +23,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import logging
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -33,11 +32,10 @@ import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.config.structlog_config import get_logger
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HyperliquidRateLimiter:
@@ -110,8 +108,11 @@ class HyperliquidRateLimiter:
                 # Record the request
                 self.requests.append((time.time(), weight))
                 logger.debug(
-                    f"Rate limiter: acquired {weight} weight for {request_type}. "
-                    f"Current total: {current_weight + weight}/{self.total_weight_limit}",
+                    "rate_limiter_acquired: Acquired weight for request",
+                    weight=weight,
+                    request_type=request_type,
+                    current_total=current_weight + weight,
+                    total_limit=self.total_weight_limit,
                 )
                 break
             # Calculate wait time based on oldest request that will expire
@@ -121,7 +122,11 @@ class HyperliquidRateLimiter:
             else:
                 wait_time = 1.0
 
-            logger.info(f"Rate limit reached. Waiting {wait_time:.1f}s for {request_type}")
+            logger.info(
+                "rate_limit_reached: Waiting for rate limit window",
+                wait_time=round(wait_time, 1),
+                request_type=request_type,
+            )
             await asyncio.sleep(wait_time)
 
 
@@ -151,15 +156,27 @@ class HyperliquidDataCollector:
 
             self.api_base_url = str(hyperliquid_config.api_base_url_mainnet).rstrip("/")
             self.configured_symbols = hyperliquid_config.symbols
-            logger.info(f"Using Hyperliquid API base URL: {self.api_base_url}")
-            logger.info(f"Configured symbols: {self.configured_symbols}")
+            logger.info(
+                "hyperliquid_api_configured: Using API configuration",
+                api_base_url=self.api_base_url,
+            )
+            logger.info(
+                "configured_symbols: Loaded symbols from configuration",
+                symbols=self.configured_symbols,
+            )
 
         except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
+            logger.error(
+                "configuration_load_failed: Failed to load configuration",
+                error=str(e),
+            )
             # Fallback to hardcoded values for data collection
             self.api_base_url = "https://api.hyperliquid.xyz"
             self.configured_symbols = {"BTC": "BTC", "ETH": "ETH"}
-            logger.warning(f"Using fallback configuration: {self.api_base_url}")
+            logger.warning(
+                "using_fallback_config: Using fallback configuration",
+                api_base_url=self.api_base_url,
+            )
 
     async def _fetch_json(
         self,
@@ -172,16 +189,32 @@ class HyperliquidDataCollector:
         await self.rate_limiter.acquire(request_type)
 
         try:
-            logger.info(f"Fetching: {url} with payload: {payload}")
+            logger.info(
+                "fetching_data: Making API request",
+                url=url,
+                payload=payload,
+            )
             async with self.session.post(url, json=payload) as response:
                 if response.status == HTTPStatus.OK.value:
                     data: dict[str, Any] = await response.json()
-                    logger.info(f"Successfully fetched data from {url}")
+                    logger.info(
+                        "fetch_success: Successfully fetched data",
+                        url=url,
+                    )
                     return data
-                logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                logger.error(
+                    "http_error: HTTP error response",
+                    status=response.status,
+                    url=url,
+                    response_text=await response.text(),
+                )
                 return None
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+            logger.error(
+                "fetch_error: Error fetching data",
+                url=url,
+                error=str(e),
+            )
             return None
 
     def _save_json(self, data: dict[str, Any], filename: str) -> None:
@@ -190,9 +223,16 @@ class HyperliquidDataCollector:
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved fixture: {filepath}")
+            logger.info(
+                "fixture_saved: Saved JSON fixture",
+                filepath=str(filepath),
+            )
         except Exception as e:
-            logger.error(f"Error saving {filepath}: {e}")
+            logger.error(
+                "save_error: Error saving file",
+                filepath=str(filepath),
+                error=str(e),
+            )
 
     # Basic info endpoints (no authentication required)
     async def fetch_meta(self) -> None:
@@ -596,7 +636,10 @@ class HyperliquidDataCollector:
         # Coin-specific endpoints
         logger.info("Fetching coin-specific market data...")
         for coin in coins:
-            logger.info(f"Collecting market data for coin: {coin}")
+            logger.info(
+                "collecting_coin_data: Collecting market data for coin",
+                coin=coin,
+            )
 
             # Basic market data
             await self.fetch_l2_book(coin)
@@ -615,7 +658,10 @@ class HyperliquidDataCollector:
         logger.info("Fetching user-specific data with sample addresses...")
         sample_users = self.get_sample_users()
         for user in sample_users:
-            logger.info(f"Collecting user data for: {user[:10]}...")
+            logger.info(
+                "collecting_user_data: Collecting user data",
+                user_prefix=user[:10],
+            )
 
             # User state and trading data
             await self.fetch_user_open_orders(user)
@@ -649,7 +695,10 @@ class HyperliquidDataCollector:
         logger.info("Fetching vault data with sample addresses...")
         sample_vaults = self.get_sample_vault_addresses()
         for vault in sample_vaults:
-            logger.info(f"Collecting vault data for: {vault[:10]}...")
+            logger.info(
+                "collecting_vault_data: Collecting vault data",
+                vault_prefix=vault[:10],
+            )
             await self.fetch_vault_details(vault)
 
         logger.info("Comprehensive Hyperliquid public data collection completed!")
@@ -691,7 +740,10 @@ async def main() -> None:
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
     except Exception as e:
-        logger.warning(f"Failed to initialize configuration: {e}. Using basic logging.")
+        logger.warning(
+            "config_init_failed: Failed to initialize configuration, using basic logging",
+            error=str(e),
+        )
 
     async with aiohttp.ClientSession() as session:
         collector = HyperliquidDataCollector(output_dir, session)
@@ -702,8 +754,11 @@ async def main() -> None:
         else:
             coins = collector.get_default_coins()
 
-        logger.info(f"Collecting data for coins: {coins}")
-        logger.info(f"Output directory: {output_dir}")
+        logger.info(
+            "data_collection_starting: Starting data collection",
+            coins=coins,
+            output_dir=str(output_dir),
+        )
 
         await collector.collect_all_data(coins)
 

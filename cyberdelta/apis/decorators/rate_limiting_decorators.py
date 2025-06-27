@@ -93,14 +93,32 @@ class RetryOnFailure:
                         last_exception = e
                         if attempt < self.max_attempts - 1:
                             logger.warning(
-                                f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
-                                f"Retrying in {delay}s...",
+                                "retry_attempt_failed",
+                                attempt=attempt + 1,
+                                max_attempts=self.max_attempts,
+                                function_name=func.__name__,
+                                error=str(e),
+                                error_type=type(e).__name__,
+                                retry_delay=delay,
+                                message=(
+                                    f"Attempt {attempt + 1} failed for {func.__name__}: {e}. "
+                                    f"Retrying in {delay}s..."
+                                ),
                             )
                             await asyncio.sleep(delay)
                             delay = min(delay * self.exponential_base, self.max_delay)
                         else:
                             logger.error(
-                                f"All {self.max_attempts} attempts failed for {func.__name__}",
+                                "retry_all_attempts_failed",
+                                max_attempts=self.max_attempts,
+                                function_name=func.__name__,
+                                final_error=str(last_exception),
+                                error_type=(
+                                    type(last_exception).__name__ if last_exception else "Unknown"
+                                ),
+                                message=(
+                                    f"All {self.max_attempts} attempts failed for {func.__name__}"
+                                ),
                             )
 
                 if last_exception is not None:
@@ -173,8 +191,14 @@ class CircuitBreaker:
                         if self._failure_count >= self.failure_threshold:
                             self._state = "open"
                             logger.error(
-                                f"Circuit breaker opened for {func.__name__} after "
-                                f"{self._failure_count} failures",
+                                "circuit_breaker_opened",
+                                function_name=func.__name__,
+                                failure_count=self._failure_count,
+                                failure_threshold=self.failure_threshold,
+                                message=(
+                                    f"Circuit breaker opened for {func.__name__} after "
+                                    f"{self._failure_count} failures"
+                                ),
                             )
 
                         raise

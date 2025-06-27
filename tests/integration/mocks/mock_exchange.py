@@ -553,9 +553,17 @@ class MockExchangeAPI(ExchangeAPI):
                     message,
                 )  # MODIFIED: Ensure two arguments are passed
             except Exception as e:
-                logger.error(f"Error in WS handler for topic {topic}: {e}", exc_info=True)
+                logger.exception(
+                    "ws_handler_error: Error in WS handler for topic",
+                    topic=topic,
+                    error=str(e),
+                )
         else:
-            logger.warning(f"No handler for WS message topic/type: {topic}. Message: {message}")
+            logger.warning(
+                "no_ws_handler: No handler for WS message topic/type",
+                topic=topic,
+                message=message,
+            )
 
     async def subscribe(
         self,

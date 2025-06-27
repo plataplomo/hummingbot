@@ -15,12 +15,10 @@ from .ws_manager import WebSocketManager
 
 
 __all__ = [
-    # Configuration models
-    "HttpClientConfig",
-    "ProcessedResponseHeaders", 
-    "WebSocketManagerConfig",
-    # Core components
     "HttpClient",
+    "HttpClientConfig",
     "HttpRequestFailedError",
+    "ProcessedResponseHeaders",
     "WebSocketManager",
-] 
+    "WebSocketManagerConfig",
+]

@@ -19,15 +19,11 @@ from .simple_rate_limit_strategy import SimpleTokenBucketStrategy
 # Note: IErrorMapper is now in cyberdelta.apis.common to avoid circular imports
 
 __all__ = [
-    # Authentication interfaces
     "AuthenticatedRequestComponents",
-    "IAuthenticator",
-    # Core base class
-    "ExchangeAPI",
-    # Serialization strategies
     "DefaultSerializationStrategy",
+    "ExchangeAPI",
+    "IAuthenticator",
     "PayloadSerializationStrategy",
-    # Rate limiting
     "RateLimitRequestContext",
     "RateLimitStrategy",
     "SimpleTokenBucketStrategy",

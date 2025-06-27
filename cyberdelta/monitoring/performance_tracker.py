@@ -219,8 +219,12 @@ class PerformanceTracker:
                             return_value_to_track = pnl / initial_value
                     except (ValueError, TypeError):
                         logger.warning(
-                            f"Could not calculate initial value for return tracking "
-                            f"on trade {trade_id}",
+                            "return_tracking_calculation_failed",
+                            trade_id=trade_id,
+                            message=(
+                                f"Could not calculate initial value for return tracking "
+                                f"on trade {trade_id}"
+                            ),
                         )
                     # End always-executed block
 
@@ -687,7 +691,10 @@ class PerformanceTracker:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Could not pivot funding rate data (maybe duplicate entries?). Error: {e}",
+                    "funding_rate_pivot_failed",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message="Could not pivot funding rate data (maybe duplicate entries?)",
                 )
                 # Return the unpivoted DataFrame if pivot fails
                 return df.sort_index()
@@ -705,9 +712,16 @@ class PerformanceTracker:
         self.signals = self.persistence.load_signals() or []
         self.funding_rates = self.persistence.load_funding_rates() or []
         logger.info(
-            f"Loaded {len(self.returns)} strategies' returns, "
-            f"{len(self.trades)} trades, {len(self.signals)} signals, "
-            f"{len(self.funding_rates)} funding rates.",
+            "performance_data_loaded",
+            returns_count=len(self.returns),
+            trades_count=len(self.trades),
+            signals_count=len(self.signals),
+            funding_rates_count=len(self.funding_rates),
+            message=(
+                f"Loaded {len(self.returns)} strategies' returns, "
+                f"{len(self.trades)} trades, {len(self.signals)} signals, "
+                f"{len(self.funding_rates)} funding rates."
+            ),
         )
 
     # Remove original _save_* methods as they are replaced by calls to self.persistence

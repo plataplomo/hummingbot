@@ -967,9 +967,13 @@ class PortfolioTracker:
     ) -> None:
         """Modify an existing position based on trade."""
         logger.debug(
-            f"Modifying existing position for {base_symbol} on {exchange_id} "
-            f"from trade {trade.id}. Current size: {current_position.size}, "
-            f"side: {current_position.side}",
+            "modifying_existing_position",
+            base_symbol=base_symbol,
+            exchange_id=exchange_id,
+            trade_id=trade.id,
+            current_size=current_position.size,
+            current_side=current_position.side,
+            message="Modifying existing position from trade",
         )
 
         if current_position.side == trade.side:
@@ -1013,18 +1017,23 @@ class PortfolioTracker:
             current_position.size += trade.quantity
         else:
             logger.error(
-                f"Logical error in increasing position {base_symbol}. "
-                f"Current size {current_position.size}, "
-                f"side {current_position.side}. "
-                f"Trade qty {trade.quantity}, side {trade.side}",
+                "logical_error_increasing_position",
+                base_symbol=base_symbol,
+                current_size=current_position.size,
+                current_side=current_position.side,
+                trade_quantity=trade.quantity,
+                trade_side=trade.side,
+                message="Logical error in increasing position",
             )
             new_avg_price = trade.price  # Fallback
 
         current_position.entry_price = new_avg_price
         logger.debug(
-            f"Position for {base_symbol} increased. New size: "
-            f"{current_position.size}, "
-            f"New avg entry: {current_position.entry_price}",
+            "position_increased",
+            base_symbol=base_symbol,
+            new_size=current_position.size,
+            new_avg_entry=current_position.entry_price,
+            message="Position increased with new size and average entry price",
         )
 
     def _decrease_or_flip_position(
@@ -1035,7 +1044,10 @@ class PortfolioTracker:
     ) -> None:
         """Decrease or flip an existing position."""
         logger.debug(
-            f"Reducing or flipping position for {base_symbol}. Trade qty: {trade.quantity}",
+            "reducing_or_flipping_position",
+            base_symbol=base_symbol,
+            trade_quantity=trade.quantity,
+            message="Reducing or flipping position",
         )
 
         # Calculate PNL on the portion of the position affected by this trade
@@ -1067,9 +1079,12 @@ class PortfolioTracker:
                 current_position.realized_pnl or Decimal(0)
             ) + realized_pnl_for_this_trade
             logger.info(
-                f"Trade {trade.id} for {trade.symbol}: "
-                f"Realized PNL {realized_pnl_for_this_trade:.4f}. "
-                f"Position Realized PNL: {current_position.realized_pnl:.4f}",
+                "trade_realized_pnl_calculated",
+                trade_id=trade.id,
+                symbol=trade.symbol,
+                realized_pnl=realized_pnl_for_this_trade,
+                position_realized_pnl=current_position.realized_pnl,
+                message="Realized PNL calculated for trade",
             )
 
         return realized_pnl_for_this_trade
@@ -1110,13 +1125,15 @@ class PortfolioTracker:
 
         else:  # Flipping position (trade.quantity > abs(current_position.size))
             remaining_qty = trade.quantity - abs(current_position.size)
-            logger.debug(
-                f"Flipping position for {base_symbol}. "
-                f"Remaining qty after closing: {remaining_qty}",
-            )
             current_position.size = remaining_qty if trade.side == OrderSide.BUY else -remaining_qty
             current_position.side = trade.side
             current_position.entry_price = trade.price  # Entry price for the new portion
+            logger.debug(
+                "position_flipping",
+                base_symbol=base_symbol,
+                remaining_quantity=remaining_qty,
+                message="Flipping position after closing",
+            )
 
     def _update_balances_from_trade(self, exchange_id: str, trade: Trade) -> None:
         # Placeholder for balance update logic based on trade details
@@ -1229,19 +1246,31 @@ class PortfolioTracker:
                         asset_value = balance.total_quantity * price
                         total_value += asset_value
                         logger.debug(
-                            f"  [{exchange_id}] Spot Balance: {asset} {balance.total_quantity} "
-                            f"@ {price} {base_currency} = {asset_value} {base_currency}",
+                            "spot_balance_calculated",
+                            exchange_id=exchange_id,
+                            asset=asset,
+                            total_quantity=balance.total_quantity,
+                            price=price,
+                            base_currency=base_currency,
+                            asset_value=asset_value,
                         )
                     except (TypeError, InvalidOperation) as e:
                         logger.error(
-                            f"Error calculating value for spot balance {asset} "
-                            f"on {exchange_id}: {e}",
+                            "spot_balance_value_calculation_error",
+                            asset=asset,
+                            exchange_id=exchange_id,
+                            error=str(e),
                         )
                 else:
                     logger.warning(
-                        f"Could not determine price for spot asset {asset} "
-                        f"on {exchange_id} in {base_currency}. "
-                        f"Skipping in capital calculation.",
+                        "spot_asset_price_unavailable",
+                        asset=asset,
+                        exchange_id=exchange_id,
+                        base_currency=base_currency,
+                        message=(
+                            "Could not determine price for spot asset. "
+                            "Skipping in capital calculation."
+                        ),
                     )
 
         # 2. Calculate the equity value of all derivative positions
@@ -1311,20 +1340,33 @@ class PortfolioTracker:
                     position_value = abs(position.size) * mark_price
                     exchange_exposure += position_value
                     logger.debug(
-                        f"  [{exchange_id}] Position Exposure: {position.symbol} "
-                        f"size {position.size} @ mark {mark_price} {valuation_asset} = "
-                        f"{position_value} {valuation_asset}",
+                        "position_exposure_calculated",
+                        exchange_id=exchange_id,
+                        symbol=position.symbol,
+                        size=position.size,
+                        mark_price=mark_price,
+                        valuation_asset=valuation_asset,
+                        position_value=position_value,
                     )
                 except (TypeError, InvalidOperation) as e:
                     logger.error(
-                        f"Error calculating value for position {position_key} "
-                        f"({position.symbol}) on {exchange_id}: {e}",
+                        "position_value_calculation_error",
+                        position_key=position_key,
+                        symbol=position.symbol,
+                        exchange_id=exchange_id,
+                        error=str(e),
                     )
             else:
                 logger.warning(
-                    f"Could not determine mark price for position {position_key} "
-                    f"({position.symbol}) on {exchange_id} in {valuation_asset}. "
-                    f"Skipping in exposure calculation.",
+                    "position_mark_price_unavailable",
+                    position_key=position_key,
+                    symbol=position.symbol,
+                    exchange_id=exchange_id,
+                    valuation_asset=valuation_asset,
+                    message=(
+                        "Could not determine mark price for position. "
+                        "Skipping in exposure calculation."
+                    ),
                 )
 
         logger.info(
@@ -1406,8 +1448,10 @@ class PortfolioTracker:
         )
 
         logger.info(
-            f"Total PNL calculated: Realized={finite_realized} {base_currency}, "
-            f"Unrealized={finite_unrealized} {base_currency}",
+            "total_pnl_calculated",
+            realized_pnl=finite_realized,
+            unrealized_pnl=finite_unrealized,
+            base_currency=base_currency,
         )
         return finite_realized, finite_unrealized
 
@@ -1443,22 +1487,32 @@ class PortfolioTracker:
                         total_realized_pnl += converted_pnl
                     else:
                         logger.warning(
-                            f"Converted realized PNL for {position_key} "
-                            f"is not finite ({converted_pnl}). Skipping addition.",
+                            "converted_realized_pnl_not_finite",
+                            position_key=position_key,
+                            converted_pnl=converted_pnl,
+                            message="Converted realized PNL is not finite. Skipping addition.",
                         )
                 except (TypeError, InvalidOperation) as e:
                     logger.error(
-                        f"Error during realized PNL conversion/addition for {position_key}: {e}",
+                        "realized_pnl_conversion_error",
+                        position_key=position_key,
+                        error=str(e),
                     )
             else:
                 logger.warning(
-                    f"Cannot convert realized PNL for {position_key} on {exchange_id} "
-                    f"to {base_currency}. Realized PNL: {position.realized_pnl}, "
-                    f"Conversion Rate: {conversion_rate}.",
+                    "cannot_convert_realized_pnl",
+                    position_key=position_key,
+                    exchange_id=exchange_id,
+                    base_currency=base_currency,
+                    realized_pnl=position.realized_pnl,
+                    conversion_rate=conversion_rate,
                 )
         elif position.realized_pnl is not None:  # Log if it exists but isn't finite
             logger.warning(
-                f"Position {position_key} realized PNL is not finite: {position.realized_pnl}",
+                "position_realized_pnl_not_finite",
+                position_key=position_key,
+                realized_pnl=position.realized_pnl,
+                message="Position realized PNL is not finite",
             )
 
         return total_realized_pnl
@@ -1475,8 +1529,12 @@ class PortfolioTracker:
         # because a non-zero size *requires* a non-None entry_price (model validation)
         if position.size == Decimal(0) or position.entry_price is None:
             logger.debug(
-                f"Skipping unrealized PNL calc for {position_key} on {exchange_id} "
-                f"due to zero size or missing entry price.",
+                "skipping_unrealized_pnl_calc",
+                position_key=position_key,
+                exchange_id=exchange_id,
+                size=position.size,
+                entry_price=position.entry_price,
+                message="Skipping unrealized PNL calc due to zero size or missing entry price",
             )
             return None
 
@@ -1499,10 +1557,15 @@ class PortfolioTracker:
                 )
         else:
             logger.warning(
-                f"Skipping unrealized PNL calculation for {position_key} "
-                f"({position.symbol}) on {exchange_id} due to missing/invalid "
-                f"converted prices (MarkBase={mark_price_in_base}, "
-                f"EntryBase={entry_price_in_base}).",
+                "skipping_unrealized_pnl_invalid_prices",
+                position_key=position_key,
+                symbol=position.symbol,
+                exchange_id=exchange_id,
+                mark_price_base=mark_price_in_base,
+                entry_price_base=entry_price_in_base,
+                message=(
+                    "Skipping unrealized PNL calculation due to missing/invalid converted prices"
+                ),
             )
             return None
 
@@ -1530,8 +1593,12 @@ class PortfolioTracker:
         quote_currency = self._extract_quote_currency(position.symbol)
         if quote_currency is None:
             logger.warning(
-                f"Cannot determine quote currency for symbol {position.symbol}, "
-                f"cannot calculate unrealized PNL accurately.",
+                "cannot_determine_quote_currency",
+                symbol=position.symbol,
+                message=(
+                    "Cannot determine quote currency for symbol, "
+                    "cannot calculate unrealized PNL accurately"
+                ),
             )
             return mark_price_in_base, None
 
@@ -1578,9 +1645,11 @@ class PortfolioTracker:
         if quote_to_base_rate is not None:
             return entry_price_in_quote * quote_to_base_rate
         logger.warning(
-            f"Cannot convert entry price for {symbol} "
-            f"from {quote_currency} to {base_currency}. "
-            f"Skipping unrealized PNL.",
+            "cannot_convert_entry_price",
+            symbol=symbol,
+            quote_currency=quote_currency,
+            base_currency=base_currency,
+            message="Cannot convert entry price. Skipping unrealized PNL.",
         )
         return None
 
@@ -1609,15 +1678,23 @@ class PortfolioTracker:
             # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
             unrealized_pnl = position.size * (mark_price_in_base - entry_price_in_base)
             logger.debug(
-                f"  [{exchange_id}] Position PNL: {position.symbol} "
-                f"size {position.size}, entry_base {entry_price_in_base:.4f}, "
-                f"mark_base {mark_price_in_base:.4f} => Unrealized: "
-                f"{unrealized_pnl:.4f}",
+                "position_unrealized_pnl_calculated",
+                exchange_id=exchange_id,
+                symbol=position.symbol,
+                size=position.size,
+                entry_price_base=entry_price_in_base,
+                mark_price_base=mark_price_in_base,
+                unrealized_pnl=unrealized_pnl,
+                message="Position unrealized PNL calculated",
             )
             return unrealized_pnl
         except (TypeError, InvalidOperation) as e:
             logger.error(
-                f"Error calculating unrealized PNL for {position.symbol} on {exchange_id}: {e}",
+                "error_calculating_unrealized_pnl",
+                symbol=position.symbol,
+                exchange_id=exchange_id,
+                error=str(e),
+                message="Error calculating unrealized PNL",
             )
             return None
 
@@ -1639,16 +1716,19 @@ class PortfolioTracker:
 
         if not current_capital.is_finite() or current_capital <= Decimal("0.0"):
             logger.warning(
-                f"Current capital ({current_capital}) is not positive or finite. "
-                f"Cannot calculate drawdown.",
+                "current_capital_invalid",
+                current_capital=current_capital,
+                message="Current capital is not positive or finite. Cannot calculate drawdown.",
             )
             return Decimal("0.0")
 
         drawdown = (self.high_watermark - current_capital) / self.high_watermark
         result = max(Decimal("0.0"), drawdown)
         logger.debug(
-            f"Calculated Drawdown: HWM={self.high_watermark}, "
-            f"Capital={current_capital}, Drawdown={result}",
+            "drawdown_calculated",
+            high_watermark=self.high_watermark,
+            current_capital=current_capital,
+            drawdown=result,
         )
         return result
 
@@ -1785,11 +1865,18 @@ class PortfolioTracker:
                 )
             except ValidationError as e:
                 logger.error(
-                    f"Error validating SpotBalance for {asset_str} on {ex_id_str}: {e}",
+                    "spot_balance_validation_error",
+                    asset=asset_str,
+                    exchange_id=ex_id_str,
+                    error=str(e),
                 )
             except Exception as e:  # Catch other potential errors from str(k)
                 logger.warning(
-                    f"Type error processing balance {ex_id_str}/{asset_str} in from_dict: {e}",
+                    "balance_processing_error",
+                    exchange_id=ex_id_str,
+                    asset=asset_str,
+                    error=str(e),
+                    context="from_dict",
                 )
         else:  # bal_data_any is SpotBalance after type narrowing
             tracker.balances[ex_id_str][asset_str] = bal_data_any
@@ -1830,11 +1917,18 @@ class PortfolioTracker:
                 )
             except ValidationError as e:
                 logger.error(
-                    f"Error validating DerivativePosition for {sym_str} on {ex_id_str_pos}: {e}",
+                    "derivative_position_validation_error",
+                    symbol=sym_str,
+                    exchange_id=ex_id_str_pos,
+                    error=str(e),
                 )
             except Exception as e:  # Catch other potential errors from str(k)
                 logger.warning(
-                    f"Type error processing position {ex_id_str_pos}/{sym_str} in from_dict: {e}",
+                    "position_processing_error",
+                    exchange_id=ex_id_str_pos,
+                    symbol=sym_str,
+                    error=str(e),
+                    context="from_dict",
                 )
         else:  # pos_data_any is DerivativePosition after type narrowing
             tracker.positions[ex_id_str_pos][sym_str] = pos_data_any
@@ -1875,11 +1969,18 @@ class PortfolioTracker:
                 )
             except ValidationError as e:
                 logger.error(
-                    f"Error validating Order for {ord_id_str} on {ex_id_str_ord}: {e}",
+                    "order_validation_error",
+                    order_id=ord_id_str,
+                    exchange_id=ex_id_str_ord,
+                    error=str(e),
                 )
             except Exception as e:  # Catch other potential errors from str(k)
                 logger.warning(
-                    f"Type error processing order {ex_id_str_ord}/{ord_id_str} in from_dict: {e}",
+                    "order_processing_error",
+                    exchange_id=ex_id_str_ord,
+                    order_id=ord_id_str,
+                    error=str(e),
+                    context="from_dict",
                 )
         else:  # order_data_any is Order after type narrowing
             tracker.orders[ex_id_str_ord][ord_id_str] = order_data_any
@@ -1948,7 +2049,10 @@ class PortfolioTracker:
                     target_dict[ex_id_str] = parsed_ts
             else:
                 logger.warning(
-                    f"Received None for {field_name} for {ex_id_str}, skipping.",
+                    "timestamp_none_value",
+                    field_name=field_name,
+                    exchange_id=ex_id_str,
+                    message="Received None for timestamp field, skipping.",
                 )
         except Exception as e:
             logger.error(
@@ -2067,8 +2171,12 @@ class PortfolioTracker:
 
                 self.orders[exchange_id] = current_orders
                 self.logger.info(
-                    f"Parsed {len(items_to_process)} order items for {exchange_id}. "
-                    f"{new_count} new (as Order objects), {updated_count} updated (from dict).",
+                    "orders_parsed",
+                    exchange_id=exchange_id,
+                    total_items=len(items_to_process),
+                    new_count=new_count,
+                    updated_count=updated_count,
+                    message="Parsed order items for exchange",
                 )
 
         task = asyncio.create_task(_do_parse())
@@ -2091,7 +2199,9 @@ class PortfolioTracker:
                     items_to_process.append(cast("dict[str, Any]", item_val))
                 else:
                     self.logger.warning(
-                        f"Skipping unexpected value type in orders_data dict: {type(item_val)}",
+                        "unexpected_order_value_type",
+                        value_type=type(item_val).__name__,
+                        message="Skipping unexpected value type in orders_data dict",
                     )
         else:  # orders_data is list[Order]
             for item_in_list in orders_data:
@@ -2118,7 +2228,10 @@ class PortfolioTracker:
                 order_dict_data.get("client_order_id", "UnknownClientOrderID"),
             )
             self.logger.error(
-                f"Error validating Order for {client_id_for_log} on {exchange_id}: {e}",
+                "order_validation_error_dict",
+                client_order_id=client_id_for_log,
+                exchange_id=exchange_id,
+                error=str(e),
             )
             return False
 
@@ -2162,7 +2275,10 @@ class PortfolioTracker:
                 order.status = OrderStatus(order.status)
             except ValueError:
                 self.logger.warning(
-                    f"Invalid status string '{order.status}' for order {order.client_order_id}",
+                    "invalid_order_status",
+                    status=order.status,
+                    client_order_id=order.client_order_id,
+                    message="Invalid status string for order",
                 )
                 order.status = OrderStatus.UNKNOWN
 
@@ -2234,8 +2350,11 @@ class PortfolioTracker:
         # TODO: Revisit price override logic - assumes override is already in base_currency
         if price_override is not None:
             logger.debug(
-                f"[{exchange_id}] Using provided price override for {asset} "
-                f"in {base_currency}: {price_override}",
+                "price_override_used",
+                exchange_id=exchange_id,
+                asset=asset,
+                base_currency=base_currency,
+                price_override=price_override,
             )
             return price_override
 
@@ -2245,32 +2364,48 @@ class PortfolioTracker:
         client = self.api_clients.get(exchange_id)
         if not client:
             logger.warning(
-                f"[{exchange_id}] No API client to fetch price for {asset}->{base_currency}",
+                "no_api_client_for_price",
+                exchange_id=exchange_id,
+                asset=asset,
+                base_currency=base_currency,
+                message="No API client to fetch price",
             )
             return None
 
         # DEBUG LOGGING START
         logger.info(
-            f"_get_asset_price_in_base CALLED for {exchange_id}: asset='{asset}', "
-            f"base_currency='{base_currency}', price_override={price_override}",
+            "get_asset_price_in_base_called",
+            exchange_id=exchange_id,
+            asset=asset,
+            base_currency=base_currency,
+            price_override=price_override,
         )
         # DEBUG LOGGING END
 
         # 1. Direct match (e.g., BTC/USDC)
         symbol_direct = f"{asset.upper()}-{base_currency.upper()}"
         logger.debug(
-            f"[{exchange_id}] _get_asset_price_in_base: Attempting direct "
-            f"lookup for {symbol_direct}",
+            "get_asset_price_attempting_direct_lookup",
+            exchange_id=exchange_id,
+            symbol_direct=symbol_direct,
+            message="_get_asset_price_in_base: Attempting direct lookup",
         )
         ticker_direct = await client.get_ticker(symbol_direct)
         logger.debug(
-            f"[{exchange_id}] _get_asset_price_in_base: Received ticker_direct for "
-            f"{symbol_direct}: {ticker_direct} (Type: {type(ticker_direct)})",
+            "get_asset_price_received_ticker_direct",
+            exchange_id=exchange_id,
+            symbol_direct=symbol_direct,
+            ticker_direct=ticker_direct,
+            ticker_type=type(ticker_direct).__name__,
+            message="_get_asset_price_in_base: Received ticker_direct",
         )
         if ticker_direct:
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
-                f"for {symbol_direct}: {getattr(ticker_direct, 'price', 'N/A')}",
+                "get_asset_price_ticker_direct_price",
+                exchange_id=exchange_id,
+                symbol_direct=symbol_direct,
+                price=getattr(ticker_direct, "price", "N/A"),
+                message="_get_asset_price_in_base: ticker_direct.price",
             )
             # Debug logging for ticker price checks
             has_valid_price = (
@@ -2279,31 +2414,47 @@ class PortfolioTracker:
                 and ticker_direct.price > Decimal(0)
             )
             logger.debug(
-                f"[{exchange_id}] Ticker direct price check for {symbol_direct}: {has_valid_price}",
+                "ticker_direct_price_check",
+                exchange_id=exchange_id,
+                symbol_direct=symbol_direct,
+                has_valid_price=has_valid_price,
+                message="Ticker direct price check",
             )
 
         if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal(0):
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_direct.price "
-                f"for {symbol_direct}: {ticker_direct.price}",
+                "get_asset_price_ticker_direct_final_price",
+                exchange_id=exchange_id,
+                symbol_direct=symbol_direct,
+                price=ticker_direct.price,
+                message="_get_asset_price_in_base: ticker_direct.price final",
             )
             return ticker_direct.price
 
         # Try inverse pair: BASE-ASSET (e.g., USDC-BTC)
         symbol_inverse = f"{base_currency}-{asset}"
         logger.debug(
-            f"[{exchange_id}] _get_asset_price_in_base: Attempting inverse "
-            f"lookup for {symbol_inverse}",
+            "get_asset_price_attempting_inverse_lookup",
+            exchange_id=exchange_id,
+            symbol_inverse=symbol_inverse,
+            message="_get_asset_price_in_base: Attempting inverse lookup",
         )
         ticker_inverse = await client.get_ticker(symbol_inverse)
         logger.debug(
-            f"[{exchange_id}] _get_asset_price_in_base: Received ticker_inverse for "
-            f"{symbol_inverse}: {ticker_inverse} (Type: {type(ticker_inverse)})",
+            "get_asset_price_received_ticker_inverse",
+            exchange_id=exchange_id,
+            symbol_inverse=symbol_inverse,
+            ticker_inverse=ticker_inverse,
+            ticker_type=type(ticker_inverse).__name__,
+            message="_get_asset_price_in_base: Received ticker_inverse",
         )
         if ticker_inverse:
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price "
-                f"for {symbol_inverse}: {getattr(ticker_inverse, 'price', 'N/A')}",
+                "get_asset_price_ticker_inverse_price",
+                exchange_id=exchange_id,
+                symbol_inverse=symbol_inverse,
+                price=getattr(ticker_inverse, "price", "N/A"),
+                message="_get_asset_price_in_base: ticker_inverse.price",
             )
             # Debug logging for inverse ticker price checks
             has_valid_inverse_price = (
@@ -2312,8 +2463,11 @@ class PortfolioTracker:
                 and ticker_inverse.price > Decimal(0)
             )
             logger.debug(
-                f"[{exchange_id}] Ticker inverse price check for {symbol_inverse}: "
-                f"{has_valid_inverse_price}",
+                "ticker_inverse_price_check",
+                exchange_id=exchange_id,
+                symbol_inverse=symbol_inverse,
+                has_valid_inverse_price=has_valid_inverse_price,
+                message="Ticker inverse price check",
             )
 
         if (
@@ -2323,15 +2477,22 @@ class PortfolioTracker:
         ):
             price = Decimal("1.0") / ticker_inverse.price
             logger.debug(
-                f"[{exchange_id}] _get_asset_price_in_base: ticker_inverse.price "
-                f"for {symbol_inverse}: {ticker_inverse.price}, calculated: {price}",
+                "get_asset_price_ticker_inverse_calculated",
+                exchange_id=exchange_id,
+                symbol_inverse=symbol_inverse,
+                inverse_price=ticker_inverse.price,
+                calculated_price=price,
+                message="_get_asset_price_in_base: ticker_inverse calculated price",
             )
             return price
 
         # TODO: Implement simple triangulation if needed
         logger.warning(
-            f"[{exchange_id}] Price conversion failed for {asset} to "
-            f"{base_currency}. Returning None.",
+            "price_conversion_failed",
+            exchange_id=exchange_id,
+            asset=asset,
+            base_currency=base_currency,
+            message="Price conversion failed. Returning None.",
         )
         return None
 
@@ -2386,8 +2547,11 @@ class PortfolioTracker:
                     )
                 except InvalidOperation:
                     logger.error(
-                        f"Invalid decimal value for initial balance of {asset} "
-                        f"on {exchange_id}: {quantity_str}",
+                        "invalid_decimal_initial_balance",
+                        asset=asset,
+                        exchange_id=exchange_id,
+                        quantity_str=quantity_str,
+                        message="Invalid decimal value for initial balance",
                     )
         # Initialize positions
         for pos_dict in self.pt_config.initial_positions:
@@ -2395,8 +2559,12 @@ class PortfolioTracker:
                 pos = DerivativePosition(**pos_dict)
                 self.positions[pos.exchange][pos.symbol] = pos
                 logger.info(
-                    f"Initialized position: {pos.symbol} on {pos.exchange}, "
-                    f"Side: {pos.side}, Size: {pos.size}",
+                    "position_initialized",
+                    symbol=pos.symbol,
+                    exchange=pos.exchange,
+                    side=pos.side,
+                    size=pos.size,
+                    message="Initialized position",
                 )
             except (ValidationError, TypeError) as e:
                 logger.error(
@@ -2453,16 +2621,24 @@ class PortfolioTracker:
 
         # ADDED DETAILED LOGGING (NOW AS WARNING)
         self.logger.warning(
-            f"PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG: id(self)={id(self)}, "
-            f"id(self.api_clients)={id(self.api_clients)}, "
-            f"self.api_clients={self.api_clients}, "
-            f"exchange_id='{exchange_id}', normalized_exchange_id='{normalized_exchange_id}'",
+            "pt_get_all_deriv_pos_critical_debug",
+            self_id=id(self),
+            api_clients_id=id(self.api_clients),
+            api_clients=self.api_clients,
+            exchange_id=exchange_id,
+            normalized_exchange_id=normalized_exchange_id,
+            message="PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG",
         )
 
         if normalized_exchange_id not in self.api_clients:
             self.logger.warning(
-                f"PT_GET_ALL_DERIV_POS: Attempted to get positions for unknown or unregistered "
-                f"exchange: '{exchange_id}' (normalized: '{normalized_exchange_id}').",
+                "pt_get_all_deriv_pos_unknown_exchange",
+                exchange_id=exchange_id,
+                normalized_exchange_id=normalized_exchange_id,
+                message=(
+                    "PT_GET_ALL_DERIV_POS: Attempted to get positions "
+                    "for unknown or unregistered exchange"
+                ),
             )
             return None
 

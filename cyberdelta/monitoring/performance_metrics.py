@@ -238,12 +238,11 @@ class PerformanceMetricsCalculator:
                 metrics["profit_factor"] = Decimal("0.0")
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "performance_metrics_calculation_error",
                 action="calculate_metrics",
                 error=str(e),
                 message=f"Error calculating performance metrics: {e}",
-                exc_info=True,
             )
             # Optionally return partial metrics or re-raise
 

@@ -217,7 +217,13 @@ class TraceLevelLogger:
     def trace(self, event: str, **kwargs: object) -> None:
         """Log at TRACE level (below DEBUG)."""
         # Use debug with special marker since structlog doesn't support custom levels
-        self._logger.debug(f"[TRACE] {event}", **kwargs)
+        self._logger.debug(
+            "trace_level_log",
+            trace_event=event,
+            level="TRACE",
+            message=f"[TRACE] {event}",
+            **kwargs,
+        )
 
     def bind(self, **kwargs: object) -> TraceLevelLogger:
         """Bind context to logger."""

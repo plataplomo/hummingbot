@@ -78,8 +78,14 @@ class TypedApiMethod[T: BaseModel]:
             # Status code validation
             if self.validate_status_code and status_code not in self.expected_status_codes:
                 logger.warning(
-                    f"Unexpected status code {status_code} for {context}, "
-                    f"expected one of {self.expected_status_codes}",
+                    "api_status_code_validation_failed",
+                    status_code=status_code,
+                    context=context,
+                    expected_status_codes=self.expected_status_codes,
+                    message=(
+                        f"Unexpected status code {status_code} for {context}, "
+                        f"expected one of {self.expected_status_codes}"
+                    ),
                 )
 
             # Handle None responses
@@ -104,8 +110,12 @@ class TypedApiMethod[T: BaseModel]:
                 )
             # No type specified - log warning but return raw data for backwards compatibility
             logger.warning(
-                f"No type specified for {context}. Consider using response_model or list_of "
-                "for type safety. Returning raw data.",
+                "api_response_type_unspecified",
+                context=context,
+                message=(
+                    f"No type specified for {context}. Consider using response_model or list_of "
+                    "for type safety. Returning raw data."
+                ),
             )
             return raw_data  # type: ignore[return-value]
 
@@ -239,8 +249,14 @@ def typed_api_method(
                 valid_codes = expected_status_codes or {200, 201}
                 if status_code not in valid_codes:
                     logger.warning(
-                        f"Unexpected status code {status_code} for {context}, "
-                        f"expected one of {valid_codes}",
+                        "api_status_code_validation_failed",
+                        status_code=status_code,
+                        context=context,
+                        expected_status_codes=valid_codes,
+                        message=(
+                            f"Unexpected status code {status_code} for {context}, "
+                            f"expected one of {valid_codes}"
+                        ),
                     )
 
             # Handle None responses
@@ -260,8 +276,12 @@ def typed_api_method(
                 return _validate_object_response(raw_data, response_model, context, status_code)
             # No type specified - log warning but return raw data for backwards compatibility
             logger.warning(
-                f"No type specified for {context}. Consider using response_model or list_of "
-                "for type safety. Returning raw data.",
+                "api_response_type_unspecified",
+                context=context,
+                message=(
+                    f"No type specified for {context}. Consider using response_model or list_of "
+                    "for type safety. Returning raw data."
+                ),
             )
             return raw_data  # type: ignore[return-value]
 

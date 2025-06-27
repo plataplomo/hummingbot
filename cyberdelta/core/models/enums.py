@@ -344,42 +344,9 @@ class InternalWithdrawalStatus(Enum):
     UNKNOWN = "UNKNOWN"  # Status cannot be determined.
 
 
-# --------------------
-# HTTP Status Code Enums
-# --------------------
-
-
-class HTTPStatusCode(Enum):
-    """Enum representing HTTP status codes used throughout the system.
-
-    Provides standardized HTTP status codes for API responses and error handling.
-    Values are the integer HTTP status codes as defined in RFC standards.
-    """
-
-    # Success codes (2xx)
-    OK = 200
-    NO_CONTENT = 204
-
-    # Redirection codes (3xx)
-    MULTIPLE_CHOICES = 300
-
-    # Client error codes (4xx)
-    BAD_REQUEST = 400
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
-    NOT_FOUND = 404
-    TOO_MANY_REQUESTS = 429
-
-    # Server error codes (5xx)
-    INTERNAL_SERVER_ERROR = 500
-    SERVICE_UNAVAILABLE = 503
-
-
-# Define __all__ for explicit public export
 __all__ = [
     "Blockchain",
     "CancelOrderResultStatus",
-    "HTTPStatusCode",
     # New Operation Status Enums
     "InternalTransferStatus",
     "InternalWithdrawalStatus",

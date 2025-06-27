@@ -2,17 +2,15 @@
 """Test script to check Backpack autolending status and its effect on balances."""
 
 import asyncio
-import logging
 from pathlib import Path
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.structlog_config import get_logger
 
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_autolend_status(api: BackpackAPI) -> bool | None:
@@ -35,8 +33,10 @@ async def display_spot_balances(api: BackpackAPI) -> None:
     for symbol, balance in spot_balances.items():
         if balance.total_quantity > 0 or symbol in {"USDC", "SOL"}:
             logger.info(
-                f"   {symbol}: total={balance.total_quantity}, "
-                f"available={balance.available_quantity}",
+                "spot_balance: Balance for symbol",
+                symbol=symbol,
+                total=balance.total_quantity,
+                available=balance.available_quantity,
             )
 
 

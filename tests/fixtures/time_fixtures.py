@@ -13,7 +13,7 @@ Fixtures:
 from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, _patch, patch
 
 import pytest
 
@@ -81,7 +81,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         module_path: str,
         fixed_time: datetime | None = None,
         side_effect: Callable[[], datetime] | None = None,
-    ) -> Any:
+    ) -> _patch[Any]:
         """Create a time mock for the specified module.
 
         Args:

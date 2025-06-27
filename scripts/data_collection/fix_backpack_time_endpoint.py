@@ -7,7 +7,6 @@ This script uses the CyberDeltaEngine configuration system to get the Backpack A
 
 import asyncio
 import json
-import logging
 from http import HTTPStatus
 from pathlib import Path
 
@@ -15,11 +14,10 @@ import aiohttp
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.config.structlog_config import get_logger
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def fetch_backpack_time() -> None:
@@ -39,24 +37,30 @@ async def fetch_backpack_time() -> None:
             raise ValueError("Backpack exchange is disabled in configuration")
 
         api_base_url = str(backpack_config.api_base_url_mainnet).rstrip("/")
-        logger.info(f"Using Backpack API base URL from config: {api_base_url}")
+        logger.info(
+            "config_api_url: Using Backpack API base URL from config",
+            api_base_url=api_base_url,
+        )
 
     except Exception as e:
-        logger.error(f"Failed to load configuration: {e}")
+        logger.error("config_load_failed: Failed to load configuration", error=str(e))
         # Fallback to hardcoded value
         api_base_url = "https://api.backpack.exchange"
-        logger.warning(f"Using fallback API URL: {api_base_url}")
+        logger.warning("fallback_api_url: Using fallback API URL", api_base_url=api_base_url)
 
     url = f"{api_base_url}/api/v1/time"
 
     async with aiohttp.ClientSession() as session:
         try:
-            logger.info(f"Fetching: {url}")
+            logger.info("fetch_request: Fetching endpoint", url=url)
             async with session.get(url) as response:
                 if response.status == HTTPStatus.OK.value:
                     # Get the plain text response
                     text_response = await response.text()
-                    logger.info(f"Received text response: {text_response}")
+                    logger.info(
+                        "response_received: Received text response",
+                        text_response=text_response,
+                    )
 
                     # Convert to JSON format
                     try:
@@ -71,11 +75,16 @@ async def fetch_backpack_time() -> None:
                     filepath = output_dir / "bp_time.json"
                     with open(filepath, "w", encoding="utf-8") as f:
                         json.dump(json_data, f, indent=2)
-                    logger.info(f"Saved fixture: {filepath}")
+                    logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
                 else:
-                    logger.error(f"HTTP {response.status} error for {url}: {await response.text()}")
+                    logger.error(
+                        "http_error: HTTP error for URL",
+                        status=response.status,
+                        url=url,
+                        response_text=await response.text(),
+                    )
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+            logger.error("fetch_error: Error fetching URL", url=url, error=str(e))
 
 
 if __name__ == "__main__":

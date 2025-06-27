@@ -171,8 +171,11 @@ class BackpackMarketDataService:
             params = self._request_builder.build_get_ticker_params(symbol=symbol)
             endpoint_path = "/api/v1/ticker"
             logger.debug(
-                f"[{self._exchange_name}] Requesting ticker for {symbol} from {endpoint_path} "
-                f"with params: {params}",
+                "ticker_request: Requesting ticker from endpoint",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                endpoint_path=endpoint_path,
+                params=params,
             )
 
             response_tuple = await self._http_client_requester(
@@ -189,8 +192,12 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw ticker response for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})",
+                "ticker_response: Received raw ticker response",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                raw_data=raw_data,
+                status_code=status_code,
+                headers=headers,
             )
 
             validated_data = ensure_dict_response(raw_data, f"ticker ({symbol})", status_code)
@@ -206,7 +213,10 @@ class BackpackMarketDataService:
                 symbol_override=symbol,
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal ticker for {symbol}: {internal_ticker}",
+                "ticker_mapped: Mapped ticker to internal model",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                internal_ticker=internal_ticker,
             )
             return internal_ticker
 
@@ -215,8 +225,12 @@ class BackpackMarketDataService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}")
+                "transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -226,8 +240,12 @@ class BackpackMarketDataService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}")
+                "validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -237,8 +255,12 @@ class BackpackMarketDataService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}")
+                "logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -248,8 +270,12 @@ class BackpackMarketDataService:
             ) from e_service_logic
         except Exception as e_unhandled:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected error "
-                f"for {symbol}: {e_unhandled}")
+                "unexpected_error: Unexpected error occurred",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_unhandled),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error occurred.",
@@ -277,7 +303,8 @@ class BackpackMarketDataService:
             # Or, the OpenAPI spec might list all tickers directly under /markets.
             # For now, this is not implemented as the builder/handler methods are missing.
             logger.warning(
-                f"[{self._exchange_name}] get_all_tickers is not implemented yet for Backpack.",
+                "get_all_tickers_not_implemented: Method not implemented for Backpack",
+                exchange=self._exchange_name,
             )
             raise NotImplementedError(
                 "get_all_tickers is not implemented for BackpackMarketDataService",
@@ -288,8 +315,11 @@ class BackpackMarketDataService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for get_all_tickers: {e_transform}")
+                "all_tickers_transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -299,8 +329,11 @@ class BackpackMarketDataService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for get_all_tickers: {e_val}")
+                "all_tickers_validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -310,8 +343,11 @@ class BackpackMarketDataService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for get_all_tickers: {e_service_logic}")
+                "all_tickers_logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -321,8 +357,11 @@ class BackpackMarketDataService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for get_all_tickers: {e_unexpected}")
+                "all_tickers_unexpected_error: Unexpected service failure",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
@@ -352,8 +391,12 @@ class BackpackMarketDataService:
             params = self._request_builder.build_get_order_book_params(symbol=symbol, limit=limit)
             endpoint_path = "/api/v1/depth"
             logger.debug(
-                f"[{self._exchange_name}] Requesting order book for {symbol} (limit: {limit}) "
-                f"from {endpoint_path} with params: {params}",
+                "order_book_request: Requesting order book from endpoint",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                limit=limit,
+                endpoint_path=endpoint_path,
+                params=params,
             )
 
             response_tuple = await self._http_client_requester(
@@ -370,8 +413,12 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw order_book for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})",
+                "order_book_response: Received raw order book response",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                raw_data=raw_data,
+                status_code=status_code,
+                headers=headers,
             )
 
             validated_data = ensure_dict_response(raw_data, f"order book ({symbol})", status_code)
@@ -389,7 +436,10 @@ class BackpackMarketDataService:
                 raw_order_book_model,
             )
             logger.debug(
-                f"[{self._exchange_name}] Mapped order_book for {symbol}: {internal_order_book}",
+                "order_book_mapped: Mapped order book to internal model",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                internal_order_book=internal_order_book,
             )
             return internal_order_book
 
@@ -398,8 +448,12 @@ class BackpackMarketDataService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}")
+                "transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -409,8 +463,12 @@ class BackpackMarketDataService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}")
+                "validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -420,8 +478,12 @@ class BackpackMarketDataService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}")
+                "logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -431,8 +493,12 @@ class BackpackMarketDataService:
             ) from e_service_logic
         except Exception as e_unhandled:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected error "
-                f"for {symbol}: {e_unhandled}")
+                "unexpected_error: Unexpected error occurred",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_unhandled),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error occurred.",
@@ -465,8 +531,12 @@ class BackpackMarketDataService:
         )
         endpoint_path = "/api/v1/trades"
         logger.debug(
-            f"[{self._exchange_name}] Requesting recent trades for {symbol} (limit: {limit}) "
-            f"from {endpoint_path} with params: {params}",
+            "recent_trades_request: Requesting recent trades from endpoint",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            limit=limit,
+            endpoint_path=endpoint_path,
+            params=params,
         )
 
         response_tuple = await self._http_client_requester(
@@ -480,8 +550,12 @@ class BackpackMarketDataService:
         raw_data_list, status_code, headers = response_tuple
 
         logger.debug(
-            f"[{self._exchange_name}] Raw recent_trades for {symbol}: {raw_data_list!r} "
-            f"(Status: {status_code}, Headers: {headers})",
+            "recent_trades_response: Received raw recent trades response",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            raw_data_list=raw_data_list,
+            status_code=status_code,
+            headers=headers,
         )
 
         validated_data = ensure_list_response(
@@ -520,19 +594,17 @@ class BackpackMarketDataService:
                     else repr(raw_model)
                 )
                 logger.warning(
-                    "trade_mapping_error",
+                    "trade_mapping_error: Skipping trade due to mapping error",
                     action="map_trade",
                     error=str(e_map_item),
                     raw_data=raw_data_str,
-                    message=f"Skipping trade map error: {e_map_item}. Raw: {raw_data_str}",
                 )
         logger.debug(
-            "mapped_recent_trades",
+            "mapped_recent_trades: Mapped recent trades to internal models",
             action="map_trades",
             exchange=self._exchange_name,
             symbol=symbol,
             trades=internal_trades,
-            message=f"[{self._exchange_name}] Mapped recent_trades for {symbol}: {internal_trades}",
         )
         return internal_trades
 
@@ -549,8 +621,12 @@ class BackpackMarketDataService:
             raise
         if isinstance(e, TransformationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e}")
+                "recent_trades_transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -560,8 +636,12 @@ class BackpackMarketDataService:
             ) from e
         if isinstance(e, ValidationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e}")
+                "recent_trades_validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -571,8 +651,12 @@ class BackpackMarketDataService:
             ) from e
         if isinstance(e, ValueError | TypeError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e}")
+                "recent_trades_logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -581,7 +665,12 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: Unexpected error for {symbol}: {e}")
+            "recent_trades_unexpected_error: Unexpected error occurred",
+            exchange=self._exchange_name,
+            method=current_method,
+            symbol=symbol,
+            error=str(e),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected error occurred.",
@@ -648,8 +737,11 @@ class BackpackMarketDataService:
         endpoint_path = "/api/v1/fundingRates"
 
         logger.debug(
-            f"[{self._exchange_name}] Requesting funding rate for {symbol} from "
-            f"{endpoint_path} with params: {params}",
+            "funding_rate_request: Requesting funding rate from endpoint",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            endpoint_path=endpoint_path,
+            params=params,
         )
 
         response_tuple = await self._http_client_requester(
@@ -663,8 +755,12 @@ class BackpackMarketDataService:
         raw_data, status_code, headers = response_tuple
 
         logger.debug(
-            f"[{self._exchange_name}] Raw funding_rate for {symbol}: {raw_data!r} "
-            f"(Status: {status_code}, Headers: {headers})",
+            "funding_rate_response: Received raw funding rate response",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            raw_data=raw_data,
+            status_code=status_code,
+            headers=headers,
         )
 
         validated_data = ensure_list_response(raw_data, f"funding rate ({symbol})", status_code)
@@ -694,7 +790,10 @@ class BackpackMarketDataService:
             symbol=symbol,
         )
         logger.debug(
-            f"[{self._exchange_name}] Mapped funding_rate for {symbol}: {internal_funding_rate}",
+            "funding_rate_mapped: Mapped funding rate to internal model",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            internal_funding_rate=internal_funding_rate,
         )
         return internal_funding_rate
 
@@ -703,7 +802,12 @@ class BackpackMarketDataService:
         if isinstance(error, TransformationError | ValidationError | ValueError | TypeError):
             error_type = type(error).__name__
             logger.exception(
-                f"[{self._exchange_name}] get_funding_rate: {error_type} for {symbol}: {error}")
+                "funding_rate_error: Error processing funding rate",
+                exchange=self._exchange_name,
+                error_type=error_type,
+                symbol=symbol,
+                error=str(error),
+            )
             is_response_error = isinstance(error, TransformationError | ValidationError)
             error_code = (
                 APIErrorCode.INVALID_RESPONSE.value
@@ -716,7 +820,11 @@ class BackpackMarketDataService:
                 original_exception=error,
             ) from error
         logger.exception(
-            f"[{self._exchange_name}] get_funding_rate: Unexpected error for {symbol}: {error}")
+            "funding_rate_unexpected_error: Unexpected error in funding rate processing",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            error=str(error),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected service failure.",
@@ -742,8 +850,10 @@ class BackpackMarketDataService:
                 rates.append(current_rate)
             except APIError as e:
                 logger.error(
-                    f"[{self._exchange_name}] Failed to fetch current funding rate for "
-                    f"{symbol_item} within get_funding_rates service method: {e.message}",
+                    "funding_rates_fetch_error: Failed to fetch funding rate for symbol",
+                    exchange=self._exchange_name,
+                    symbol=symbol_item,
+                    error_message=e.message,
                 )
                 raise APIError(
                     message=f"Failed to get funding rate for {symbol_item}: {e.message}",
@@ -766,7 +876,11 @@ class BackpackMarketDataService:
             raise
         if isinstance(e, TransformationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange data: {e}")
+                "funding_rates_transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -776,7 +890,11 @@ class BackpackMarketDataService:
             ) from e
         if isinstance(e, ValidationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation failed: {e}")
+                "funding_rates_validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -786,7 +904,11 @@ class BackpackMarketDataService:
             ) from e
         if isinstance(e, ValueError | TypeError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: {e}")
+                "funding_rates_logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -795,7 +917,11 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure: {e}")
+            "funding_rates_unexpected_error: Unexpected service failure",
+            exchange=self._exchange_name,
+            method=current_method,
+            error=str(e),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected service failure.",
@@ -925,8 +1051,9 @@ class BackpackMarketDataService:
         if args.start_time is not None:
             if args.start_time.tzinfo is None:
                 logger.warning(
-                    f"[{self._exchange_name}] start_time for get_historical_funding_rates "
-                    f"is naive. Assuming UTC.",
+                    "naive_start_time: start_time for historical funding rates is naive",
+                    exchange=self._exchange_name,
+                    assumption="UTC",
                 )
             start_time_ms = int(args.start_time.timestamp())
             if start_time_ms <= 0:
@@ -936,8 +1063,8 @@ class BackpackMarketDataService:
         if args.end_time is not None:
             if args.end_time.tzinfo is None:
                 logger.warning(
-                    f"[{self._exchange_name}] end_time for get_historical_funding_rates "
-                    f"is naive. Assuming UTC.",
+                    "naive_end_time: end_time for historical funding rates is naive, assuming UTC",
+                    exchange=self._exchange_name,
                 )
             end_time_ms = int(args.end_time.timestamp())
             if end_time_ms <= 0:
@@ -962,8 +1089,11 @@ class BackpackMarketDataService:
         )
         endpoint_path = "/api/v1/funding/history"
         logger.debug(
-            f"[{self._exchange_name}] Requesting historical funding rates for {args.symbol} "
-            f"from {endpoint_path} with params: {params}",
+            "historical_funding_rates_request: Requesting historical funding rates from endpoint",
+            exchange=self._exchange_name,
+            symbol=args.symbol,
+            endpoint_path=endpoint_path,
+            params=params,
         )
 
         response_tuple = await self._http_client_requester(
@@ -995,8 +1125,12 @@ class BackpackMarketDataService:
             str(raw_data)
 
         logger.debug(
-            f"[{self._exchange_name}] Raw historical funding rates for {symbol}: "
-            f"{raw_data!r} (Status: {status_code}, Headers: {headers})",
+            "historical_funding_rates_response: Received raw historical funding rates response",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            raw_data=raw_data,
+            status_code=status_code,
+            headers=headers,
         )
 
         validated_data = ensure_list_response(
@@ -1032,13 +1166,18 @@ class BackpackMarketDataService:
                 internal_funding_rates.append(transformed_rate)
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
-                    f"[{self._exchange_name}] Skipping mapping for historical funding rate "
-                    f"item for {symbol}: {e_map_item}. Item: {raw_rate!r}",
+                    "funding_rate_mapping_error: Skipping historical funding rate mapping",
+                    exchange=self._exchange_name,
+                    symbol=symbol,
+                    error=str(e_map_item),
+                    raw_rate=repr(raw_rate),
                 )
 
         logger.debug(
-            f"[{self._exchange_name}] Mapped {len(internal_funding_rates)} internal "
-            f"historical funding rates for {symbol}",
+            "historical_funding_rates_mapped: Mapped historical funding rates to internal models",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            count=len(internal_funding_rates),
         )
         return internal_funding_rates
 
@@ -1054,8 +1193,13 @@ class BackpackMarketDataService:
     ) -> APIError:
         """Create a standardized APIError for funding rates operations."""
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: {message} for {symbol}: "
-            f"{original_exception}")
+            "funding_rates_api_error: Creating API error for funding rates operation",
+            exchange=self._exchange_name,
+            method=current_method,
+            symbol=symbol,
+            message=message,
+            error=str(original_exception),
+        )
         return APIError(
             code=error_code.value,
             message=message,
@@ -1168,8 +1312,12 @@ class BackpackMarketDataService:
         )
         endpoint_path = "/api/v1/klines"
         logger.debug(
-            f"[{self._exchange_name}] Requesting klines for {args.symbol}@{args.timeframe} "
-            f"from {endpoint_path} with params: {params}",
+            "klines_request: Requesting klines from endpoint",
+            exchange=self._exchange_name,
+            symbol=args.symbol,
+            timeframe=args.timeframe,
+            endpoint_path=endpoint_path,
+            params=params,
         )
 
         response_tuple = await self._http_client_requester(
@@ -1203,8 +1351,13 @@ class BackpackMarketDataService:
             str(raw_data_list)
 
         logger.debug(
-            f"[{self._exchange_name}] Raw klines for {symbol}@{timeframe}: "
-            f"{raw_data_list!r} (Status: {status_code}, Headers: {headers})",
+            "klines_response: Received raw klines response",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            timeframe=timeframe,
+            raw_data_list=raw_data_list,
+            status_code=status_code,
+            headers=headers,
         )
 
         validated_data = ensure_list_response(
@@ -1243,12 +1396,18 @@ class BackpackMarketDataService:
                 internal_candles.append(candle)
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
-                    f"Skipping kline map error for {symbol}@{timeframe}: "
-                    f"{e_map_item}. Item: {raw_kline_model!r}",
+                    "kline_mapping_error: Skipping kline due to mapping error",
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    error=str(e_map_item),
+                    raw_kline_model=repr(raw_kline_model),
                 )
         logger.debug(
-            f"[{self._exchange_name}] Mapped {len(internal_candles)} candles for "
-            f"{symbol}@{timeframe}",
+            "klines_mapped: Mapped klines to internal candle models",
+            exchange=self._exchange_name,
+            symbol=symbol,
+            timeframe=timeframe,
+            count=len(internal_candles),
         )
         return internal_candles
 
@@ -1283,8 +1442,11 @@ class BackpackMarketDataService:
             params = self._request_builder.build_get_market_params(symbol=symbol)
             endpoint_path = "/api/v1/market"
             logger.debug(
-                f"[{self._exchange_name}] Requesting market metadata for {symbol} from "
-                f"{endpoint_path} with params: {params}",
+                "market_request: Requesting market metadata from endpoint",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                endpoint_path=endpoint_path,
+                params=params,
             )
 
             response_tuple = await self._http_client_requester(
@@ -1301,8 +1463,12 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw market response for {symbol}: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})",
+                "market_response: Received raw market response",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                raw_data=raw_data,
+                status_code=status_code,
+                headers=headers,
             )
 
             validated_data = ensure_dict_response(raw_data, f"market ({symbol})", status_code)
@@ -1318,7 +1484,10 @@ class BackpackMarketDataService:
             # Transform raw model to internal domain model using mapper
             internal_market = self._mapper.transform_raw_market_to_internal(raw_market_model)
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal market for {symbol}: {internal_market}",
+                "market_mapped: Mapped market to internal model",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                internal_market=internal_market,
             )
             return internal_market
 
@@ -1327,8 +1496,12 @@ class BackpackMarketDataService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol}: {e_transform}")
+                "transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1338,8 +1511,12 @@ class BackpackMarketDataService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol}: {e_val}")
+                "validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1349,8 +1526,12 @@ class BackpackMarketDataService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol}: {e_service_logic}")
+                "logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1360,8 +1541,12 @@ class BackpackMarketDataService:
             ) from e_service_logic
         except Exception as e_unhandled:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected error "
-                f"for {symbol}: {e_unhandled}")
+                "unexpected_error: Unexpected error occurred",
+                exchange=self._exchange_name,
+                method=current_method,
+                symbol=symbol,
+                error=str(e_unhandled),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error occurred.",
@@ -1396,8 +1581,10 @@ class BackpackMarketDataService:
             params = self._request_builder.build_get_markets_params()
             endpoint_path = "/api/v1/markets"
             logger.debug(
-                f"[{self._exchange_name}] Requesting markets metadata from {endpoint_path} "
-                f"with params: {params}",
+                "markets_request: Requesting markets metadata from endpoint",
+                exchange=self._exchange_name,
+                endpoint_path=endpoint_path,
+                params=params,
             )
 
             response_tuple = await self._http_client_requester(
@@ -1414,8 +1601,11 @@ class BackpackMarketDataService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw markets response: {raw_data!r} "
-                f"(Status: {status_code}, Headers: {headers})",
+                "markets_response: Received raw markets response",
+                exchange=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
+                headers=headers,
             )
 
             validated_data = ensure_list_response(raw_data, "markets data", status_code)
@@ -1435,14 +1625,17 @@ class BackpackMarketDataService:
                     markets_list.append(internal_market)
                 except Exception as e:
                     logger.warning(
-                        f"[{self._exchange_name}] Failed to transform market "
-                        f"{raw_market_model.symbol}: {e}",
+                        "market_transform_warning: Failed to transform market",
+                        exchange=self._exchange_name,
+                        symbol=raw_market_model.symbol,
+                        error=str(e),
                     )
                     continue
 
             logger.debug(
-                f"[{self._exchange_name}] Transformed {len(markets_list)} markets "
-                f"to internal models",
+                "markets_transformed: Transformed markets to internal models",
+                exchange=self._exchange_name,
+                count=len(markets_list),
             )
             return markets_list
 
@@ -1451,8 +1644,11 @@ class BackpackMarketDataService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for markets: {e_transform}")
+                "markets_transform_error: Failed to transform exchange data",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1462,8 +1658,11 @@ class BackpackMarketDataService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for markets: {e_val}")
+                "markets_validation_error: Internal data validation failed",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1473,8 +1672,11 @@ class BackpackMarketDataService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for markets: {e_service_logic}")
+                "markets_logic_error: Service internal logic error",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1484,8 +1686,11 @@ class BackpackMarketDataService:
             ) from e_service_logic
         except Exception as e_unhandled:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected error "
-                f"for markets: {e_unhandled}")
+                "markets_unexpected_error: Unexpected error occurred",
+                exchange=self._exchange_name,
+                method=current_method,
+                error=str(e_unhandled),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected error occurred.",
@@ -1506,8 +1711,13 @@ class BackpackMarketDataService:
     ) -> APIError:
         """Create a standardized APIError for market data operations."""
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: {message} for {symbol}: "
-            f"{original_exception}")
+            "market_data_api_error: Creating API error for market data operation",
+            exchange=self._exchange_name,
+            method=current_method,
+            symbol=symbol,
+            message=message,
+            error=str(original_exception),
+        )
         return APIError(
             code=error_code.value,
             message=message,

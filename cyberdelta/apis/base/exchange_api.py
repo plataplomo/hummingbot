@@ -150,8 +150,14 @@ class ExchangeAPI(ABC):
         )
 
         logger.info(
-            f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
-            f"WS: {self.ws_endpoint}",
+            "exchange_api_initialized",
+            exchange_name=self.exchange_name,
+            rest_endpoint=self.rest_endpoint,
+            ws_endpoint=self.ws_endpoint,
+            message=(
+                f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
+                f"WS: {self.ws_endpoint}"
+            ),
         )
 
     def _setup_event_loop(
@@ -166,9 +172,14 @@ class ExchangeAPI(ABC):
             return asyncio.get_running_loop()
         except RuntimeError:
             logger.warning(
-                f"[{self.exchange_name}] ExchangeAPI initialized without a running "
-                f"event loop and no loop provided. "
-                f"Creating a new event loop. This might not be intended.",
+                "exchange_api_no_event_loop",
+                exchange_name=self.exchange_name,
+                action="creating_new_event_loop",
+                message=(
+                    f"[{self.exchange_name}] ExchangeAPI initialized without a running "
+                    f"event loop and no loop provided. "
+                    f"Creating a new event loop. This might not be intended."
+                ),
             )
             new_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(new_loop)
@@ -187,8 +198,12 @@ class ExchangeAPI(ABC):
             return self._create_default_rate_limiter(exchange_config)
 
         logger.warning(
-            f"[{self.exchange_name}] No rate limit strategy provided and no "
-            f"rate_limit_per_minute in exchange config. Rate limiting may not work.",
+            "exchange_api_no_rate_limit",
+            exchange_name=self.exchange_name,
+            message=(
+                f"[{self.exchange_name}] No rate limit strategy provided and no "
+                f"rate_limit_per_minute in exchange config. Rate limiting may not work."
+            ),
         )
         return None
 
@@ -303,8 +318,12 @@ class ExchangeAPI(ABC):
 
         if not ws_endpoint:
             logger.warning(
-                f"[{self.exchange_name}] Missing WebSocket URL in config. "
-                f"WebSocket functionality will be disabled.",
+                "exchange_api_no_websocket_url",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] Missing WebSocket URL in config. "
+                    f"WebSocket functionality will be disabled."
+                ),
             )
             return None
 
@@ -364,8 +383,13 @@ class ExchangeAPI(ABC):
                 bucket_size=ws_bucket_size,
             )
             logger.info(
-                f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
-                f"rate={ws_rate_per_second:.2f} msg/sec",
+                "exchange_api_ws_limiter_created",
+                exchange_name=self.exchange_name,
+                rate_per_second=ws_rate_per_second,
+                message=(
+                    f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
+                    f"rate={ws_rate_per_second:.2f} msg/sec"
+                ),
             )
             return limiter
         return None
@@ -519,9 +543,16 @@ class ExchangeAPI(ABC):
     ) -> APIError:
         """Handle HTTP request failed errors."""
         logger.warning(
-            f"[{self.exchange_name}] HTTP request failed for "
-            f"{request_url}: Status={e_http_failed.http_status}, "
-            f"Body='{e_http_failed.exchange_message}'",
+            "exchange_api_http_request_failed",
+            exchange_name=self.exchange_name,
+            request_url=request_url,
+            http_status=e_http_failed.http_status,
+            exchange_message=e_http_failed.exchange_message,
+            message=(
+                f"[{self.exchange_name}] HTTP request failed for "
+                f"{request_url}: Status={e_http_failed.http_status}, "
+                f"Body='{e_http_failed.exchange_message}'"
+            ),
         )
 
         # Parse error data if available
@@ -546,8 +577,16 @@ class ExchangeAPI(ABC):
     def _handle_client_error(self, e_client: Exception, method: str, request_url: str) -> APIError:
         """Handle client errors (timeout, connection issues)."""
         logger.error(
-            f"[{self.exchange_name}] Unrecoverable client error for {method} "
-            f"{request_url}: {e_client}",
+            "exchange_api_client_error",
+            exchange_name=self.exchange_name,
+            method=method,
+            request_url=request_url,
+            error=str(e_client),
+            error_type=type(e_client).__name__,
+            message=(
+                f"[{self.exchange_name}] Unrecoverable client error for {method} "
+                f"{request_url}: {e_client}"
+            ),
         )
         return self.error_mapper.map_exchange_error(
             status_code=503,  # Service Unavailable
@@ -565,8 +604,16 @@ class ExchangeAPI(ABC):
     ) -> APIError:
         """Handle unexpected errors."""
         logger.exception(
-            f"[{self.exchange_name}] Unhandled exception during request {method} "
-            f"{request_url}: {e_unhandled}",
+            "exchange_api_unhandled_exception",
+            exchange_name=self.exchange_name,
+            method=method,
+            request_url=request_url,
+            error=str(e_unhandled),
+            error_type=type(e_unhandled).__name__,
+            message=(
+                f"[{self.exchange_name}] Unhandled exception during request {method} "
+                f"{request_url}: {e_unhandled}"
+            ),
         )
         return self.error_mapper.map_exchange_error(
             status_code=500,  # Internal Server Error
@@ -610,8 +657,12 @@ class ExchangeAPI(ABC):
         if not self.error_mapper:
             # This should not happen if __init__ forces error_mapper
             logger.error(
-                f"[{self.exchange_name}] Error mapper not configured. "
-                f"Falling back to generic error.",
+                "exchange_api_no_error_mapper",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] Error mapper not configured. "
+                    f"Falling back to generic error."
+                ),
             )
             return APIError(
                 message=f"Exchange error (mapper not configured): {error_body}",
@@ -647,7 +698,11 @@ class ExchangeAPI(ABC):
             )
         else:
             logger.info(
-                f"HTTP client for {self.exchange_name} was not initialized or already closed.",
+                "exchange_api_http_client_not_initialized",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"HTTP client for {self.exchange_name} was not initialized or already closed."
+                ),
             )
 
         if self._ws_manager:
@@ -660,8 +715,12 @@ class ExchangeAPI(ABC):
             )
         else:
             logger.info(
-                f"WebSocket manager for {self.exchange_name} was not initialized "
-                f"or already closed.",
+                "exchange_api_ws_manager_not_initialized",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"WebSocket manager for {self.exchange_name} was not initialized "
+                    f"or already closed."
+                ),
             )
 
         logger.info(
@@ -694,18 +753,34 @@ class ExchangeAPI(ABC):
                 )
             except (ValueError, APIError) as e:
                 logger.warning(
-                    f"[{self.exchange_name}] Could not construct/send subscription payload "
-                    f"for topic '{topic}': {e}. Not subscribing to this topic.",
+                    "subscription_construction_failed",
+                    exchange_name=self.exchange_name,
+                    topic=topic,
+                    error=str(e),
+                    message=(
+                        f"[{self.exchange_name}] Could not construct/send subscription payload "
+                        f"for topic '{topic}': {e}. Not subscribing to this topic."
+                    ),
                 )
         elif self._ws_manager:
             logger.warning(
-                f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} "
-                f"will be attempted upon connection.",
+                "websocket_not_connected_for_subscription",
+                exchange_name=self.exchange_name,
+                topic=topic,
+                message=(
+                    f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} "
+                    f"will be attempted upon connection."
+                ),
             )
         else:
             logger.error(
-                f"[{self.exchange_name}] WebSocket manager not initialized. "
-                f"Cannot subscribe to {topic}.",
+                "websocket_manager_not_initialized",
+                exchange_name=self.exchange_name,
+                topic=topic,
+                message=(
+                    f"[{self.exchange_name}] WebSocket manager not initialized. "
+                    f"Cannot subscribe to {topic}."
+                ),
             )
 
     @abstractmethod
@@ -723,7 +798,11 @@ class ExchangeAPI(ABC):
     async def _on_ws_connected(self) -> None:
         """Callback executed by WebSocketManager after a successful connection."""
         logger.info(
-            f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics.",
+            "websocket_connected_resubscribing",
+            exchange_name=self.exchange_name,
+            message=(
+                f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics."
+            ),
         )
         await self._resubscribe()
 
@@ -739,7 +818,12 @@ class ExchangeAPI(ABC):
             return
 
         logger.info(
-            f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}",
+            "resubscribing_to_topics",
+            exchange_name=self.exchange_name,
+            topics=list(self._ws_handlers.keys()),
+            message=(
+                f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
+            ),
         )
         if self._ws_manager and self.is_connected:
             for topic, _handler in self._ws_handlers.copy().items():
@@ -748,23 +832,44 @@ class ExchangeAPI(ABC):
                     success = await self._ws_manager.send_json(subscription_payload)
                     if success:
                         logger.info(
-                            f"[{self.exchange_name}] Successfully re-sent subscription "
-                            f"for {topic}.",
+                            "resubscription_successful",
+                            exchange_name=self.exchange_name,
+                            topic=topic,
+                            message=(
+                                f"[{self.exchange_name}] Successfully re-sent subscription "
+                                f"for {topic}."
+                            ),
                         )
                     else:
                         logger.warning(
-                            f"[{self.exchange_name}] Failed to re-send subscription for {topic}.",
+                            "resubscription_failed",
+                            exchange_name=self.exchange_name,
+                            topic=topic,
+                            message=(
+                                f"[{self.exchange_name}] Failed to re-send subscription "
+                                f"for {topic}."
+                            ),
                         )
                 except (ValueError, APIError) as e:
                     logger.warning(
-                        f"[{self.exchange_name}] Could not construct/send resubscription "
-                        f"payload for topic '{topic}': {e}. Skipping this topic.",
+                        "resubscription_construction_failed",
+                        exchange_name=self.exchange_name,
+                        topic=topic,
+                        error=str(e),
+                        message=(
+                            f"[{self.exchange_name}] Could not construct/send resubscription "
+                            f"payload for topic '{topic}': {e}. Skipping this topic."
+                        ),
                     )
                 await asyncio.sleep(0.1)
         else:
             logger.warning(
-                f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected "
-                f"or manager not available.",
+                "cannot_resubscribe",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected "
+                    f"or manager not available."
+                ),
             )
 
     @abstractmethod
@@ -1061,8 +1166,12 @@ class ExchangeAPI(ABC):
         """Establishes a WebSocket connection with the exchange."""
         if not self._ws_manager:
             logger.error(
-                f"[{self.exchange_name}] WebSocket manager not initialized. "
-                f"Cannot connect WebSocket.",
+                "websocket_manager_not_initialized_for_connect",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] WebSocket manager not initialized. "
+                    f"Cannot connect WebSocket."
+                ),
             )
             raise APIError(
                 message=f"[{self.exchange_name}] WebSocket not configured or enabled.",
@@ -1091,8 +1200,12 @@ class ExchangeAPI(ABC):
             await self._ws_manager.close()
         else:
             logger.info(
-                f"[{self.exchange_name}] WebSocket manager not active or not initialized. "
-                f"No WebSocket to close.",
+                "websocket_manager_not_active_for_close",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] WebSocket manager not active or not initialized. "
+                    f"No WebSocket to close."
+                ),
             )
 
     async def ping_websocket(self) -> None:
@@ -1101,13 +1214,21 @@ class ExchangeAPI(ABC):
             # Custom ping logic would go here if needed, e.g., sending a specific JSON message
             # For now, log that standard ping is handled by WebSocketManager
             logger.debug(
-                f"[{self.exchange_name}] Standard WebSocket ping is handled by WebSocketManager "
-                f"if configured. Call this for custom pings.",
+                "websocket_ping_handled_by_manager",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] Standard WebSocket ping is handled by "
+                    f"WebSocketManager if configured. Call this for custom pings."
+                ),
             )
         else:
             logger.warning(
-                f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected "
-                f"or manager not available.",
+                "cannot_send_custom_ping",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected "
+                    f"or manager not available."
+                ),
             )
 
     # --- Helper Methods --- #

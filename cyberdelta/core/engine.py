@@ -350,9 +350,14 @@ class Engine:
             # Cast to ensure proper typing for pandas operations
             # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
             idx_typed = cast("int", idx)
+            # DEFENSIVE CHECK: Handle pandas Series dynamic typing
+            # Pyright=[reportUnknownVariableType] - pandas Series typing is inherently dynamic
             row_typed = row
 
             # Extract timestamp and convert to datetime
+            # DEFENSIVE CHECK: Handle pandas Series.get dynamic return type
+            # Pyright=[reportUnknownMemberType, reportUnknownArgumentType] - pandas Series.get has
+            # complex overloads
             timestamp_raw: Any = row_typed.get("timestamp")
             if timestamp_raw is None:
                 logger.warning(
@@ -367,7 +372,9 @@ class Engine:
             # Convert timestamp to datetime
             try:
                 # Use pandas to_datetime for robust conversion
-                # Note: pd.to_datetime has complex overloads, cast result for clarity
+                # DEFENSIVE CHECK: Handle pandas to_datetime complex overloads
+                # Pyright=[reportUnknownMemberType, reportUnknownArgumentType] - pd.to_datetime has
+                # many overloads
                 pd_timestamp_result = cast("pd.Timestamp", pd.to_datetime(timestamp_raw, utc=True))
                 # Convert to standard datetime if it's a pandas Timestamp
                 if hasattr(pd_timestamp_result, "to_pydatetime"):
@@ -390,7 +397,8 @@ class Engine:
             row_dict: dict[str, Any] | None = None
             try:
                 # Cast the to_dict result to ensure proper typing
-                # Note: pandas to_dict has complex overloads, cast for clarity
+                # DEFENSIVE CHECK: Handle pandas Series.to_dict complex overloads
+                # Pyright=[reportUnknownMemberType] - pandas Series.to_dict has complex overloads
                 row_dict_result = cast("dict[str, Any]", row_typed.to_dict())
                 row_dict = row_dict_result
 

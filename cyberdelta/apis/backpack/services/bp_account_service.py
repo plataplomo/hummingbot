@@ -122,8 +122,10 @@ class BackpackAccountService:
         endpoint_path = "/api/v1/capital"
         params = self._request_builder.build_get_balances_params()
         logger.debug(
-            f"[{self._exchange_name}] Requesting raw balances dict from {endpoint_path} "
-            f"with params: {params}",
+            "requesting_raw_balances: Requesting raw balances dict from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            params=params,
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -138,8 +140,10 @@ class BackpackAccountService:
                 request_weight=1,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw balances dict response: {raw_data!r} "
-                f"(Status: {status_code})",
+                "raw_balances_response: Raw balances dict response received",
+                exchange_name=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
             )
             # Use centralized validation
             validated_data = ensure_dict_response(raw_data, "balances", status_code)
@@ -148,8 +152,10 @@ class BackpackAccountService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for raw balances dict: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}",
+                "validation_error_balances: Validation/map error for raw balances dict",
+                error=str(e_val),
+                raw_data=raw_data,
+                status_code=status_code,
             )
             raise APIError(
                 message=f"Processing raw balances dict data failed: {e_val}",
@@ -163,8 +169,11 @@ class BackpackAccountService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.exception(
-                f"Unhandled error for raw balances dict: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}")
+                "unhandled_error_balances: Unhandled error for raw balances dict",
+                error=str(e_unhandled),
+                raw_info=raw_info_for_log,
+                status_code=status_code,
+            )
             raise APIError(
                 message=f"Unexpected error for raw balances dict: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
@@ -182,8 +191,11 @@ class BackpackAccountService:
         endpoint_path = "/api/v1/position"
         params = self._request_builder.build_get_positions_params(symbol)
         logger.debug(
-            f"[{self._exchange_name}] Requesting raw positions from {endpoint_path} "
-            f"for symbol '{symbol or 'all'}' with params: {params}",
+            "requesting_raw_positions: Requesting raw positions from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            symbol=symbol or "all",
+            params=params,
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -197,8 +209,11 @@ class BackpackAccountService:
                 request_weight=1,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw positions response for '{symbol or 'all'}: "
-                f"{raw_data!r} (Status: {status_code})",
+                "raw_positions_response: Raw positions response received",
+                exchange_name=self._exchange_name,
+                symbol=symbol or "all",
+                raw_data=raw_data,
+                status_code=status_code,
             )
             # Use centralized validation - positions can be dict or list
             # The response_handler.handle_get_positions_response now correctly handles
@@ -229,15 +244,19 @@ class BackpackAccountService:
             # or account may have no positions, return empty list
             if e.http_status == HTTPStatus.NOT_FOUND.value:
                 logger.info(
-                    f"[{self._exchange_name}] Positions endpoint returned 404, "
-                    f"returning empty positions list for symbol '{symbol or 'all'}'",
+                    "positions_endpoint_not_found: Positions 404, returning empty list",
+                    exchange_name=self._exchange_name,
+                    symbol=symbol or "all",
                 )
                 return []
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for raw positions ('{symbol or 'all'}'): {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}",
+                "validation_error_positions: Validation/map error for raw positions",
+                symbol=symbol or "all",
+                error=str(e_val),
+                raw_data=raw_data,
+                status_code=status_code,
             )
             raise APIError(
                 message=f"Processing raw positions data failed: {e_val}",
@@ -251,8 +270,12 @@ class BackpackAccountService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.exception(
-                f"Unhandled error for raw positions ('{symbol or 'all'}'): {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}")
+                "unhandled_error_positions: Unhandled error for raw positions",
+                symbol=symbol or "all",
+                error=str(e_unhandled),
+                raw_info=raw_info_for_log,
+                status_code=status_code,
+            )
             raise APIError(
                 message=f"Unexpected error for raw positions: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
@@ -266,8 +289,10 @@ class BackpackAccountService:
         endpoint_path = "/api/v1/account"
         params = self._request_builder.build_get_account_info_params()
         logger.debug(
-            f"[{self._exchange_name}] Requesting raw account summary from {endpoint_path} "
-            f"with params: {params}",
+            "requesting_raw_account_summary: Requesting raw account summary from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            params=params,
         )
         raw_data: ParsedJsonResponse | None = None
         status_code: int = 0
@@ -281,8 +306,10 @@ class BackpackAccountService:
                 request_weight=1,
             )
             logger.debug(
-                f"[{self._exchange_name}] Raw account summary response: {raw_data!r} "
-                f"(Status: {status_code})",
+                "raw_account_summary_response: Raw account summary response received",
+                exchange_name=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
             )
             # Use centralized validation
             validated_data = ensure_dict_response(raw_data, "account summary", status_code)
@@ -294,8 +321,10 @@ class BackpackAccountService:
             raise
         except (ValidationError, ValueError) as e_val:
             logger.error(
-                f"Validation/map error for raw account summary: {e_val}. "
-                f"Raw: {raw_data!r}, Status: {status_code}",
+                "validation_error_account_summary: Validation/map error for raw account summary",
+                error=str(e_val),
+                raw_data=raw_data,
+                status_code=status_code,
             )
             raise APIError(
                 message=f"Processing raw account summary data failed: {e_val}",
@@ -309,8 +338,11 @@ class BackpackAccountService:
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
             logger.exception(
-                f"Unhandled error for raw account summary: {e_unhandled}. "
-                f"{raw_info_for_log}, Status: {status_code}")
+                "unhandled_error_account_summary: Unhandled error for raw account summary",
+                error=str(e_unhandled),
+                raw_info=raw_info_for_log,
+                status_code=status_code,
+            )
             raise APIError(
                 message=f"Unexpected error for raw account summary: {e_unhandled}",
                 code=APIErrorCode.UNKNOWN.value,
@@ -359,8 +391,11 @@ class BackpackAccountService:
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping balance mapping for asset "
-                        f"'{asset_symbol}' due to error: {e_map_item}. Raw: {raw_balance_model!r}",
+                        "skipping_balance_mapping: Skipping balance mapping for asset due to error",
+                        exchange_name=self._exchange_name,
+                        asset_symbol=asset_symbol,
+                        error=str(e_map_item),
+                        raw_balance_model=raw_balance_model,
                     )
 
             # Check if auto-lending is potentially active (all spot balances are zero)
@@ -370,8 +405,8 @@ class BackpackAccountService:
 
             if all_spot_balances_zero and len(internal_balances) > 0:
                 logger.info(
-                    f"[{self._exchange_name}] All spot balances are zero, checking collateral "
-                    "endpoint for auto-lending scenario.",
+                    "checking_collateral_for_auto_lending: All balances zero, checking collateral",
+                    exchange_name=self._exchange_name,
                 )
 
                 try:
@@ -385,19 +420,21 @@ class BackpackAccountService:
                     )
 
                     logger.debug(
-                        f"[{self._exchange_name}] Enhanced balances with collateral data for "
-                        f"auto-lending scenario.",
+                        "enhanced_balances_with_collateral: Enhanced balances with collateral data",
+                        exchange_name=self._exchange_name,
                     )
                 except APIError as e_collateral:
                     # If collateral endpoint fails, log but continue with spot balances
                     logger.warning(
-                        f"[{self._exchange_name}] Failed to fetch collateral data for balance "
-                        f"enhancement: {e_collateral}. Continuing with spot balances only.",
+                        "collateral_fetch_failed: Failed to fetch collateral, continuing with spot",
+                        exchange_name=self._exchange_name,
+                        error=str(e_collateral),
                     )
 
             logger.debug(
-                f"[{self._exchange_name}] Successfully mapped {len(internal_balances)} "
-                f"spot balances.",
+                "balances_mapped_successfully: Successfully mapped spot balances",
+                exchange_name=self._exchange_name,
+                balance_count=len(internal_balances),
             )
             return internal_balances
 
@@ -406,8 +443,11 @@ class BackpackAccountService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data: {e_transform}")
+                "transform_failed: Failed to transform exchange data",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -417,8 +457,11 @@ class BackpackAccountService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}")
+                "validation_failed: Internal data validation failed",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -428,8 +471,11 @@ class BackpackAccountService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}")
+                "service_logic_error: Service internal logic error",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -437,8 +483,11 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure: "
-                f"{e_unexpected}")
+                "unexpected_service_failure: Unexpected service failure",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
@@ -594,8 +643,9 @@ class BackpackAccountService:
         try:
             # Core operational logic
             logger.info(
-                f"[{self._exchange_name}] Getting derivative positions for symbol "
-                f"'{symbol or 'all'}'.",
+                "getting_derivative_positions: Getting derivative positions",
+                exchange_name=self._exchange_name,
+                symbol=symbol or "all",
             )
             raw_positions_list = await self._get_raw_positions_list(symbol)
             internal_positions: list[DerivativePosition] = []
@@ -606,19 +656,20 @@ class BackpackAccountService:
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping position mapping for raw position "
-                        f"'{
-                            (
-                                raw_position_model.symbol
-                                if hasattr(raw_position_model, 'symbol')
-                                else 'UnknownSymbol'
-                            )
-                        }' "
-                        f"due to error: {e_map_item}. Raw: {raw_position_model!r}",
+                        "skipping_position_mapping: Skipping position mapping due to error",
+                        exchange_name=self._exchange_name,
+                        symbol=(
+                            raw_position_model.symbol
+                            if hasattr(raw_position_model, "symbol")
+                            else "UnknownSymbol"
+                        ),
+                        error=str(e_map_item),
+                        raw_position_model=raw_position_model,
                     )
             logger.debug(
-                f"[{self._exchange_name}] Successfully mapped {len(internal_positions)} "
-                f"derivative positions.",
+                "positions_mapped_successfully: Successfully mapped derivative positions",
+                exchange_name=self._exchange_name,
+                position_count=len(internal_positions),
             )
             return internal_positions
 
@@ -627,8 +678,12 @@ class BackpackAccountService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for {symbol or 'all'}: {e_transform}")
+                "transform_failed: Failed to transform exchange data for positions",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                symbol=symbol or "all",
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -638,8 +693,12 @@ class BackpackAccountService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for {symbol or 'all'}: {e_val}")
+                "validation_failed: Internal data validation failed for positions",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                symbol=symbol or "all",
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -657,8 +716,12 @@ class BackpackAccountService:
                 raise
             # This is from service internal logic - wrap as APIError
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for {symbol or 'all'}: {e_service_logic}")
+                "service_logic_error: Service internal logic error for positions",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                symbol=symbol or "all",
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -668,8 +731,12 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for {symbol or 'all'}: {e_unexpected}")
+                "unexpected_service_failure: Unexpected service failure for positions",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                symbol=symbol or "all",
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
@@ -708,7 +775,9 @@ class BackpackAccountService:
             )
 
         logger.debug(
-            f"[{self._exchange_name}] Getting account summary for subaccount_id={subaccount_id}",
+            "getting_account_summary: Getting account summary",
+            exchange_name=self._exchange_name,
+            subaccount_id=subaccount_id,
         )
 
         try:
@@ -716,15 +785,16 @@ class BackpackAccountService:
             enhanced_summary = await self._get_enhanced_account_info(subaccount_id)
             if enhanced_summary is not None:
                 logger.debug(
-                    f"[{self._exchange_name}] Enhanced account summary retrieved with "
-                    f"equity={enhanced_summary.total_equity}",
+                    "enhanced_account_summary_retrieved: Enhanced account summary retrieved",
+                    exchange_name=self._exchange_name,
+                    total_equity=enhanced_summary.total_equity,
                 )
                 return enhanced_summary
 
             # Fallback to basic implementation
             logger.info(
-                f"[{self._exchange_name}] Collateral endpoint unavailable, "
-                "using basic account summary implementation",
+                "using_basic_account_summary: Collateral endpoint unavailable, using basic summary",
+                exchange_name=self._exchange_name,
             )
             return await self._get_basic_account_info(subaccount_id)
 
@@ -732,7 +802,11 @@ class BackpackAccountService:
             raise
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service logic error: {e_service_logic}")
+                "service_logic_error: Service logic error",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_REQUEST.value,
                 message="Invalid request parameters.",
@@ -741,8 +815,11 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: "
-                f"Unexpected service failure: {e_unexpected}")
+                "unexpected_service_failure: Unexpected service failure",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
@@ -793,7 +870,8 @@ class BackpackAccountService:
             )
 
             logger.debug(
-                f"[{self._exchange_name}] Enhanced account summary created with collateral data.",
+                "enhanced_account_summary_created: Enhanced account summary created",
+                exchange_name=self._exchange_name,
             )
             return internal_summary
 
@@ -804,16 +882,22 @@ class BackpackAccountService:
                 e.code == APIErrorCode.INVALID_RESPONSE.value and "collateral" in e.message
             ):
                 logger.debug(
-                    f"[{self._exchange_name}] Collateral endpoint not available or invalid data "
-                    f"(status: {e.http_status}, code: {e.code}), subaccount_id={subaccount_id}",
+                    "collateral_endpoint_unavailable: Collateral endpoint not available or invalid",
+                    exchange_name=self._exchange_name,
+                    http_status=e.http_status,
+                    error_code=e.code,
+                    subaccount_id=subaccount_id,
                 )
                 return None
             # Re-raise other API errors
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform enhanced "
-                f"data: {e_transform}")
+                "transform_failed: Failed to transform enhanced data",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform enhanced collateral data.",
@@ -823,8 +907,11 @@ class BackpackAccountService:
             ) from e_transform
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected enhanced account failure: "
-                f"{e_unexpected}")
+                "unexpected_enhanced_account_failure: Unexpected enhanced account failure",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected enhanced account service failure.",
@@ -851,13 +938,14 @@ class BackpackAccountService:
         try:
             if subaccount_id is not None:
                 logger.warning(
-                    f"[{self._exchange_name}] Subaccount filtering not supported in basic "
-                    f"implementation, ignoring subaccount_id={subaccount_id}",
+                    "subaccount_filtering_not_supported: Subaccount filtering not supported",
+                    exchange_name=self._exchange_name,
+                    subaccount_id=subaccount_id,
                 )
 
             logger.debug(
-                f"[{self._exchange_name}] Fetching basic account info "
-                f"(settings, balances, positions).",
+                "fetching_basic_account_info: Fetching basic account info",
+                exchange_name=self._exchange_name,
             )
 
             # Original implementation: fetch components sequentially
@@ -886,8 +974,11 @@ class BackpackAccountService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform basic "
-                f"data: {e_transform}")
+                "transform_failed: Failed to transform basic data",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform basic account data.",
@@ -897,8 +988,11 @@ class BackpackAccountService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed: {e_val}")
+                "validation_failed: Internal data validation failed",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -908,8 +1002,11 @@ class BackpackAccountService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error: "
-                f"{e_service_logic}")
+                "service_logic_error: Service internal logic error",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -917,8 +1014,11 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected basic account failure: "
-                f"{e_unexpected}")
+                "unexpected_basic_account_failure: Unexpected basic account failure",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected basic account service failure.",
@@ -977,7 +1077,11 @@ class BackpackAccountService:
 
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to fetch collateral data: {e}")
+                "collateral_fetch_failed: Failed to fetch collateral data",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise
 
     # --- Private Internal Limits Methods (INTERNAL USE ONLY) ---
@@ -1047,8 +1151,11 @@ class BackpackAccountService:
 
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: "
-                f"Failed to fetch max borrow quantity: {e}")
+                "max_borrow_fetch_failed: Failed to fetch max borrow quantity",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise
 
     async def _get_exchange_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
@@ -1117,8 +1224,11 @@ class BackpackAccountService:
 
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: "
-                f"Failed to fetch max order quantity: {e}")
+                "max_order_fetch_failed: Failed to fetch max order quantity",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise
 
     async def _get_exchange_max_withdrawal_quantity(
@@ -1188,8 +1298,11 @@ class BackpackAccountService:
 
         except Exception as e:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: "
-                f"Failed to fetch max withdrawal quantity: {e}")
+                "max_withdrawal_fetch_failed: Failed to fetch max withdrawal quantity",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise
 
     def _validate_account_types(self, args: TransferArgs, current_method: str) -> None:
@@ -1217,8 +1330,10 @@ class BackpackAccountService:
             client_transfer_id=args.client_transfer_id,
         )
         logger.debug(
-            f"[{self._exchange_name}] Requesting transfer from {endpoint_path} "
-            f"with payload: {payload}",
+            "requesting_transfer: Requesting transfer from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            payload=payload,
         )
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -1231,7 +1346,10 @@ class BackpackAccountService:
         )
 
         logger.debug(
-            f"[{self._exchange_name}] Raw transfer response: {raw_data!r} (Status: {status_code})",
+            "raw_transfer_response: Raw transfer response received",
+            exchange_name=self._exchange_name,
+            raw_data=raw_data,
+            status_code=status_code,
         )
 
         # Use centralized validation
@@ -1278,8 +1396,9 @@ class BackpackAccountService:
             message=f"[{self._exchange_name}] Mapped internal transfer: {internal_transfer}",
         )
         logger.debug(
-            f"[{self._exchange_name}] Transfer successful. "
-            f"Response: {internal_transfer.model_dump_json(exclude_none=True)}",
+            "transfer_successful: Transfer successful",
+            exchange_name=self._exchange_name,
+            response=internal_transfer.model_dump_json(exclude_none=True),
         )
         return internal_transfer
 
@@ -1295,8 +1414,11 @@ class BackpackAccountService:
             raise
         if isinstance(e, TransformationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for transfer: {e}")
+                "transform_failed: Failed to transform exchange data for transfer",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1306,8 +1428,11 @@ class BackpackAccountService:
             ) from e
         if isinstance(e, ValidationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for transfer: {e}")
+                "validation_failed: Internal data validation failed for transfer",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1322,8 +1447,11 @@ class BackpackAccountService:
             ):
                 raise
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for transfer: {e}")
+                "service_logic_error: Service internal logic error for transfer",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1332,8 +1460,11 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for transfer: {e}")
+            "unexpected_service_failure: Unexpected service failure for transfer",
+            exchange_name=self._exchange_name,
+            method=current_method,
+            error=str(e),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected service failure.",
@@ -1415,8 +1546,10 @@ class BackpackAccountService:
             two_factor_token=args.two_factor_token,
         )
         logger.debug(
-            f"[{self._exchange_name}] Requesting withdrawal from {endpoint_path} "
-            f"with payload: {payload}",
+            "requesting_withdrawal: Requesting withdrawal from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            payload=payload,
         )
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -1429,8 +1562,10 @@ class BackpackAccountService:
         )
 
         logger.debug(
-            f"[{self._exchange_name}] Raw withdrawal response: {raw_data!r} "
-            f"(Status: {status_code})",
+            "raw_withdrawal_response: Raw withdrawal response received",
+            exchange_name=self._exchange_name,
+            raw_data=raw_data,
+            status_code=status_code,
         )
 
         # Use centralized validation
@@ -1459,7 +1594,9 @@ class BackpackAccountService:
             tag=args.tag,
         )
         logger.debug(
-            f"[{self._exchange_name}] Mapped internal withdrawal: {internal_withdrawal}",
+            "withdrawal_mapped: Mapped internal withdrawal",
+            exchange_name=self._exchange_name,
+            internal_withdrawal=internal_withdrawal,
         )
         return internal_withdrawal
 
@@ -1475,8 +1612,11 @@ class BackpackAccountService:
             raise
         if isinstance(e, TransformationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for withdrawal: {e}")
+                "transform_failed: Failed to transform exchange data for withdrawal",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1486,8 +1626,11 @@ class BackpackAccountService:
             ) from e
         if isinstance(e, ValidationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for withdrawal: {e}")
+                "validation_failed: Internal data validation failed for withdrawal",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1500,8 +1643,11 @@ class BackpackAccountService:
             if current_method in error_msg and "network" in error_msg:
                 raise
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for withdrawal: {e}")
+                "service_logic_error: Service internal logic error for withdrawal",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1510,8 +1656,11 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for withdrawal: {e}")
+            "unexpected_service_failure: Unexpected service failure for withdrawal",
+            exchange_name=self._exchange_name,
+            method=current_method,
+            error=str(e),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected service failure.",
@@ -1570,8 +1719,10 @@ class BackpackAccountService:
                 client_order_id=args.client_order_id,
             )
             logger.debug(
-                f"[{self._exchange_name}] Requesting order history from {endpoint_path} "
-                f"with params: {params}",
+                "requesting_order_history: Requesting order history from endpoint",
+                exchange_name=self._exchange_name,
+                endpoint_path=endpoint_path,
+                params=params,
             )
 
             raw_data, status_code, _ = await self._http_client_requester(
@@ -1587,8 +1738,10 @@ class BackpackAccountService:
                 raw_response_content = str(raw_data)
 
             logger.debug(
-                f"[{self._exchange_name}] Raw order history response: {raw_data!r} "
-                f"(Status: {status_code})",
+                "raw_order_history_response: Raw order history response received",
+                exchange_name=self._exchange_name,
+                raw_data=raw_data,
+                status_code=status_code,
             )
             # Use centralized validation
             validated_data = ensure_list_response(raw_data, "order history", status_code)
@@ -1610,15 +1763,17 @@ class BackpackAccountService:
                     )
                 except (ValidationError, ValueError) as e_map_item:
                     logger.warning(
-                        f"[{self._exchange_name}] Skipping order history mapping for "
-                        f"order '{raw_order_model.clientId or raw_order_model.id}' "
-                        f"due to error: {e_map_item}. Raw: "
-                        f"{raw_order_model.model_dump_json(exclude_none=True)}",
+                        "skipping_order_history_mapping: Skipping order mapping due to error",
+                        exchange_name=self._exchange_name,
+                        order_id=raw_order_model.clientId or raw_order_model.id,
+                        error=str(e_map_item),
+                        raw_order=raw_order_model.model_dump_json(exclude_none=True),
                     )
 
             logger.debug(
-                f"[{self._exchange_name}] Mapped internal order history: "
-                f"{len(internal_orders)} orders",
+                "order_history_mapped: Mapped internal order history",
+                exchange_name=self._exchange_name,
+                order_count=len(internal_orders),
             )
             return internal_orders
 
@@ -1627,8 +1782,11 @@ class BackpackAccountService:
             raise
         except TransformationError as e_transform:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for order history: {e_transform}")
+                "transform_failed: Failed to transform exchange data for order history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_transform),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1638,8 +1796,11 @@ class BackpackAccountService:
             ) from e_transform
         except ValidationError as e_val:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for order history: {e_val}")
+                "validation_failed: Internal data validation failed for order history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_val),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1651,8 +1812,11 @@ class BackpackAccountService:
             # Since input parameter validation is now handled by Pydantic model,
             # any ValueError/TypeError here is from service internal logic - wrap as APIError
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for order history: {e_service_logic}")
+                "service_logic_error: Service internal logic error for order history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_service_logic),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1662,8 +1826,11 @@ class BackpackAccountService:
             ) from e_service_logic
         except Exception as e_unexpected:
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-                f"for order history: {e_unexpected}")
+                "unexpected_service_failure: Unexpected service failure for order history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e_unexpected),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Unexpected service failure.",
@@ -1687,8 +1854,10 @@ class BackpackAccountService:
             from_id=None,  # Not in service signature
         )
         logger.debug(
-            f"[{self._exchange_name}] Requesting trade history from {endpoint_path} "
-            f"with params: {params}",
+            "requesting_trade_history: Requesting trade history from endpoint",
+            exchange_name=self._exchange_name,
+            endpoint_path=endpoint_path,
+            params=params,
         )
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -1701,8 +1870,10 @@ class BackpackAccountService:
         )
 
         logger.debug(
-            f"[{self._exchange_name}] Raw trade history response: {raw_data!r} "
-            f"(Status: {status_code})",
+            "raw_trade_history_response: Raw trade history response received",
+            exchange_name=self._exchange_name,
+            raw_data=raw_data,
+            status_code=status_code,
         )
 
         # Use centralized validation
@@ -1735,14 +1906,17 @@ class BackpackAccountService:
                     internal_trades.append(trade)
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
-                    f"[{self._exchange_name}] Skipping fill mapping for order "
-                    f"'{raw_fill_model.order_id}' due to error: {e_map_item}. Raw: "
-                    f"{raw_fill_model.model_dump_json(exclude_none=True)}",
+                    "skipping_fill_mapping: Skipping fill mapping due to error",
+                    exchange_name=self._exchange_name,
+                    order_id=raw_fill_model.order_id,
+                    error=str(e_map_item),
+                    raw_fill=raw_fill_model.model_dump_json(exclude_none=True),
                 )
 
         logger.debug(
-            f"[{self._exchange_name}] Mapped internal trades from fills: "
-            f"{len(internal_trades)} trades",
+            "trades_mapped_from_fills: Mapped internal trades from fills",
+            exchange_name=self._exchange_name,
+            trade_count=len(internal_trades),
         )
         return internal_trades
 
@@ -1758,8 +1932,11 @@ class BackpackAccountService:
             raise
         if isinstance(e, TransformationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Failed to transform exchange "
-                f"data for trade history: {e}")
+                "transform_failed: Failed to transform exchange data for trade history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
@@ -1769,8 +1946,11 @@ class BackpackAccountService:
             ) from e
         if isinstance(e, ValidationError):
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Internal data validation "
-                f"failed for trade history: {e}")
+                "validation_failed: Internal data validation failed for trade history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
@@ -1783,8 +1963,11 @@ class BackpackAccountService:
             if current_method in error_msg and "limit" in error_msg:
                 raise
             logger.exception(
-                f"[{self._exchange_name}] {current_method}: Service internal logic error "
-                f"for trade history: {e}")
+                "service_logic_error: Service internal logic error for trade history",
+                exchange_name=self._exchange_name,
+                method=current_method,
+                error=str(e),
+            )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
@@ -1793,8 +1976,11 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         logger.exception(
-            f"[{self._exchange_name}] {current_method}: Unexpected service failure "
-            f"for trade history: {e}")
+            "unexpected_service_failure: Unexpected service failure for trade history",
+            exchange_name=self._exchange_name,
+            method=current_method,
+            error=str(e),
+        )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
             message="Unexpected service failure.",
@@ -1852,7 +2038,9 @@ class BackpackAccountService:
         current_method = frame.f_code.co_name if frame is not None else "update_account_settings"
 
         logger.debug(
-            f"[{self.__class__.__name__}::{current_method}] Starting account settings update",
+            "starting_account_settings_update: Starting account settings update",
+            class_name=self.__class__.__name__,
+            method=current_method,
         )
 
         try:
@@ -1867,8 +2055,10 @@ class BackpackAccountService:
 
             endpoint_path = "/api/v1/account"
             logger.debug(
-                f"[{self._exchange_name}] Updating account settings at {endpoint_path} "
-                f"with payload: {payload}",
+                "updating_account_settings: Updating account settings at endpoint",
+                exchange_name=self._exchange_name,
+                endpoint_path=endpoint_path,
+                payload=payload,
             )
 
             # Execute PATCH request
@@ -1880,8 +2070,10 @@ class BackpackAccountService:
             )
 
             logger.debug(
-                f"[{self.__class__.__name__}::{current_method}] "
-                f"Account settings updated successfully (status: {status_code})",
+                "account_settings_updated: Account settings updated successfully",
+                class_name=self.__class__.__name__,
+                method=current_method,
+                status_code=status_code,
             )
 
             # Transform updated settings to internal model
@@ -1892,8 +2084,10 @@ class BackpackAccountService:
 
         except Exception as e:
             logger.error(
-                f"[{self.__class__.__name__}::{current_method}] "
-                f"Failed to update account settings: {e}",
+                "account_settings_update_failed: Failed to update account settings",
+                class_name=self.__class__.__name__,
+                method=current_method,
+                error=str(e),
             )
             if isinstance(e, APIError):
                 raise

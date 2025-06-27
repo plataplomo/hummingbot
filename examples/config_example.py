@@ -24,7 +24,6 @@ The configuration system supports:
 """
 
 import argparse
-import logging
 import shutil
 import sys
 import time
@@ -34,11 +33,10 @@ from typing import cast
 from cyberdelta.config import get_app_settings, get_secrets_config
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
+from cyberdelta.config.structlog_config import get_logger, setup_structlog
 
 
-# Configure logging for the example
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Get project root assuming the script is run from the project root
 # or adjust relative path accordingly.
@@ -68,7 +66,7 @@ def _log_dict(d: dict[str, object], indent: int = 0) -> None:
             logger.info(prefix)
             _log_dict(cast("dict[str, object]", value), indent + 1)
         else:
-            logger.info(f"{prefix} {value}")
+            logger.info("config_value_display", message="%s %s", message_args=(prefix, value))
 
 
 def create_example_files() -> None:
@@ -87,29 +85,63 @@ def create_example_files() -> None:
     # Copy example files
     if EXAMPLE_CONFIG_BASE_SOURCE.exists():
         shutil.copy(EXAMPLE_CONFIG_BASE_SOURCE, project_config_base_dest)
-        logger.info(f"Copied example base config to: {project_config_base_dest}")
+        logger.info(
+            "file_copy_success",
+            message="Copied example base config to: %s",
+            message_args=(project_config_base_dest,),
+        )
     else:
-        logger.error(f"Source file not found: {EXAMPLE_CONFIG_BASE_SOURCE}")
+        logger.error(
+            "file_not_found",
+            message="Source file not found: %s",
+            message_args=(EXAMPLE_CONFIG_BASE_SOURCE,),
+        )
 
     if EXAMPLE_CONFIG_CYBERDELTA_SOURCE.exists():
         shutil.copy(EXAMPLE_CONFIG_CYBERDELTA_SOURCE, user_config_cyberdelta_dest)
-        logger.info(f"Copied example CyberDelta config to: {user_config_cyberdelta_dest}")
+        logger.info(
+            "file_copy_success",
+            message="Copied example CyberDelta config to: %s",
+            message_args=(user_config_cyberdelta_dest,),
+        )
     else:
-        logger.error(f"Source file not found: {EXAMPLE_CONFIG_CYBERDELTA_SOURCE}")
+        logger.error(
+            "file_not_found",
+            message="Source file not found: %s",
+            message_args=(EXAMPLE_CONFIG_CYBERDELTA_SOURCE,),
+        )
 
     if EXAMPLE_SECRETS_SOURCE.exists():
         shutil.copy(EXAMPLE_SECRETS_SOURCE, user_secrets_dest)
-        logger.info(f"Copied example secrets to: {user_secrets_dest}")
+        logger.info(
+            "file_copy_success",
+            message="Copied example secrets to: %s",
+            message_args=(user_secrets_dest,),
+        )
     else:
-        logger.error(f"Source file not found: {EXAMPLE_SECRETS_SOURCE}")
+        logger.error(
+            "file_not_found",
+            message="Source file not found: %s",
+            message_args=(EXAMPLE_SECRETS_SOURCE,),
+        )
 
     logger.info("")
     logger.info("Instructions:")
-    logger.info(f"1. Review and edit the base configuration: {project_config_base_dest}")
     logger.info(
-        f"2. Create/edit your user-specific CyberDelta config: {user_config_cyberdelta_dest}",
+        "config_instruction",
+        message="1. Review and edit the base configuration: %s",
+        message_args=(project_config_base_dest,),
     )
-    logger.info(f"3. IMPORTANT: Edit your secrets file with your API keys: {user_secrets_dest}")
+    logger.info(
+        "config_instruction",
+        message="2. Create/edit your user-specific CyberDelta config: %s",
+        message_args=(user_config_cyberdelta_dest,),
+    )
+    logger.info(
+        "config_instruction",
+        message="3. IMPORTANT: Edit your secrets file with your API keys: %s",
+        message_args=(user_secrets_dest,),
+    )
     logger.warning("   NEVER commit your secrets.yaml file to version control.")
 
 
@@ -144,12 +176,20 @@ def _parse_arguments() -> argparse.Namespace:
 def _validate_config_files(config_path: Path, secrets_path: Path) -> None:
     """Validate that configuration files exist."""
     if not config_path.exists():
-        logger.error(f"Configuration file not found at {config_path}")
+        logger.error(
+            "config_file_not_found",
+            message="Configuration file not found at %s",
+            message_args=(config_path,),
+        )
         logger.info("Consider running with --create-example first.")
         sys.exit(1)
 
     if not secrets_path.exists():
-        logger.error(f"Secrets file not found at {secrets_path}")
+        logger.error(
+            "secrets_file_not_found",
+            message="Secrets file not found at %s",
+            message_args=(secrets_path,),
+        )
         logger.info("Consider running with --create-example first.")
         sys.exit(1)
 
@@ -161,7 +201,11 @@ def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
         app_settings = get_app_settings()
         logger.info("Configuration loaded successfully.")
     except Exception as e:
-        logger.error(f"Failed to load configuration: {e}")
+        logger.error(
+            "config_load_failed",
+            message="Failed to load configuration: %s",
+            message_args=(e,),
+        )
         sys.exit(1)
 
     logger.info("Loading secrets...")
@@ -169,7 +213,11 @@ def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
         secrets_config = get_secrets_config()
         logger.info("Secrets loaded successfully.")
     except Exception as e:
-        logger.error(f"Failed to load secrets: {e}")
+        logger.error(
+            "secrets_load_failed",
+            message="Failed to load secrets: %s",
+            message_args=(e,),
+        )
         sys.exit(1)
 
     return app_settings, secrets_config
@@ -178,8 +226,16 @@ def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
 def _display_basic_info(app_settings: AppSettings) -> None:
     """Display basic configuration information."""
     logger.info("\n=== Configuration Information (from AppSettings) ===")
-    logger.info(f"Safe Mode: {app_settings.general.safe_mode}")
-    logger.info(f"Log Level: {app_settings.general.log_level}")
+    logger.info(
+        "config_display",
+        message="Safe Mode: %s",
+        message_args=(app_settings.general.safe_mode,),
+    )
+    logger.info(
+        "config_display",
+        message="Log Level: %s",
+        message_args=(app_settings.general.log_level,),
+    )
 
 
 def _display_exchange_info(app_settings: AppSettings) -> None:
@@ -189,12 +245,24 @@ def _display_exchange_info(app_settings: AppSettings) -> None:
     if exchanges:
         for name, exchange_config in exchanges.items():
             status = "Enabled" if exchange_config.enabled else "Disabled"
-            logger.info(f"  - {name}: {status}")
-            logger.info(f"    API Base URL: {exchange_config.api_base_url_mainnet}")
-            logger.info(f"    WebSocket URL: {exchange_config.ws_url_mainnet}")
-            logger.info(f"    Rate Limit: {exchange_config.rate_limit_per_minute} per minute")
+            logger.info("exchange_status", message="  - %s: %s", message_args=(name, status))
+            logger.info(
+                "exchange_config",
+                message="    API Base URL: %s",
+                message_args=(exchange_config.api_base_url_mainnet,),
+            )
+            logger.info(
+                "exchange_config",
+                message="    WebSocket URL: %s",
+                message_args=(exchange_config.ws_url_mainnet,),
+            )
+            logger.info(
+                "exchange_config",
+                message="    Rate Limit: %s per minute",
+                message_args=(exchange_config.rate_limit_per_minute,),
+            )
     else:
-        logger.info("No exchange configurations found.")
+        logger.info("exchange_config_empty", message="No exchange configurations found.")
 
 
 def _display_strategy_info(app_settings: AppSettings) -> None:
@@ -204,17 +272,49 @@ def _display_strategy_info(app_settings: AppSettings) -> None:
     if strategies:
         strategy_config = strategies.hl_perp_bp_spot
         status = "Enabled" if strategy_config.enabled else "Disabled"
-        logger.info(f"  - HyperLiquid-Backpack Funding Arbitrage: {status}")
-        logger.info(f"    Symbol Long: {strategy_config.symbol_long}")
-        logger.info(f"    Symbol Short: {strategy_config.symbol_short}")
-        logger.info(f"    Long Exchange: {strategy_config.long_exchange}")
-        logger.info(f"    Short Exchange: {strategy_config.short_exchange}")
+        logger.info(
+            "strategy_status",
+            message="  - HyperLiquid-Backpack Funding Arbitrage: %s",
+            message_args=(status,),
+        )
+        logger.info(
+            "strategy_config",
+            message="    Symbol Long: %s",
+            message_args=(strategy_config.symbol_long,),
+        )
+        logger.info(
+            "strategy_config",
+            message="    Symbol Short: %s",
+            message_args=(strategy_config.symbol_short,),
+        )
+        logger.info(
+            "strategy_config",
+            message="    Long Exchange: %s",
+            message_args=(strategy_config.long_exchange,),
+        )
+        logger.info(
+            "strategy_config",
+            message="    Short Exchange: %s",
+            message_args=(strategy_config.short_exchange,),
+        )
         logger.info("    Parameters:")
-        logger.info(f"      Funding Threshold: {strategy_config.params.funding_threshold}")
-        logger.info(f"      Max Price Spread: {strategy_config.params.max_price_spread_pct}")
-        logger.info(f"      Min Profit USD: {strategy_config.params.min_profit_usd}")
+        logger.info(
+            "strategy_param",
+            message="      Funding Threshold: %s",
+            message_args=(strategy_config.params.funding_threshold,),
+        )
+        logger.info(
+            "strategy_param",
+            message="      Max Price Spread: %s",
+            message_args=(strategy_config.params.max_price_spread_pct,),
+        )
+        logger.info(
+            "strategy_param",
+            message="      Min Profit USD: %s",
+            message_args=(strategy_config.params.min_profit_usd,),
+        )
     else:
-        logger.info("No strategy configurations found.")
+        logger.info("strategy_config_empty", message="No strategy configurations found.")
 
 
 def _display_risk_info(app_settings: AppSettings) -> None:
@@ -223,23 +323,50 @@ def _display_risk_info(app_settings: AppSettings) -> None:
     risk_config = app_settings.risk
     if risk_config:
         global_risk = risk_config.global_risk
-        logger.info(f"  Max Position USD: {global_risk.max_position_usd}")
-        logger.info(f"  Max Total Exposure USD: {global_risk.max_total_exposure_usd}")
+        logger.info(
+            "risk_config",
+            message="  Max Position USD: %s",
+            message_args=(global_risk.max_position_usd,),
+        )
+        logger.info(
+            "risk_config",
+            message="  Max Total Exposure USD: %s",
+            message_args=(global_risk.max_total_exposure_usd,),
+        )
 
     logger.info("\n=== Circuit Breakers ===")
     circuit_breakers = app_settings.safety_systems.circuit_breakers
     if circuit_breakers:
-        logger.info(f"  Enabled: {circuit_breakers.enabled}")
         logger.info(
-            f"  Global Consecutive Failures: {circuit_breakers.global_consecutive_failures}",
+            "circuit_breaker_config",
+            message="  Enabled: %s",
+            message_args=(circuit_breakers.enabled,),
         )
-        logger.info(f"  Global Reset Timeout: {circuit_breakers.global_reset_timeout_sec}s")
         logger.info(
-            f"  Exchange Consecutive Failures: {circuit_breakers.exchange_consecutive_failures}",
+            "circuit_breaker_config",
+            message="  Global Consecutive Failures: %s",
+            message_args=(circuit_breakers.global_consecutive_failures,),
         )
-        logger.info(f"  Exchange Reset Timeout: {circuit_breakers.exchange_reset_timeout_sec}s")
+        logger.info(
+            "circuit_breaker_config",
+            message="  Global Reset Timeout: %ss",
+            message_args=(circuit_breakers.global_reset_timeout_sec,),
+        )
+        logger.info(
+            "circuit_breaker_config",
+            message="  Exchange Consecutive Failures: %s",
+            message_args=(circuit_breakers.exchange_consecutive_failures,),
+        )
+        logger.info(
+            "circuit_breaker_config",
+            message="  Exchange Reset Timeout: %ss",
+            message_args=(circuit_breakers.exchange_reset_timeout_sec,),
+        )
     else:
-        logger.info("No circuit breaker configurations found.")
+        logger.info(
+            "circuit_breaker_config_empty",
+            message="No circuit breaker configurations found.",
+        )
 
 
 def _display_exchange_credential_status(exchange_name: str, exchange_secrets: object) -> None:
@@ -254,7 +381,11 @@ def _display_exchange_credential_status(exchange_name: str, exchange_secrets: ob
                 if len(api_key_str) >= API_KEY_DISPLAY_SUFFIX_LENGTH
                 else "****"
             )
-            logger.info(f"    API Key: Set (ending with ...{masked_key})")
+            logger.info(
+                "credential_status",
+                message="    API Key: Set (ending with ...%s)",
+                message_args=(masked_key,),
+            )
         else:
             logger.info("    API Key: Set (complex structure)")
     else:
@@ -285,7 +416,7 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
         return
 
     for exchange_name in exchanges:
-        logger.info(f"  - {exchange_name}")
+        logger.info("exchange_credential_check", message="  - %s", message_args=(exchange_name,))
         if exchange_name in secrets_config.exchanges:
             exchange_secrets = secrets_config.exchanges[exchange_name]
             _display_exchange_credential_status(exchange_name, exchange_secrets)
@@ -310,6 +441,25 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
 
 def main() -> None:
     """Main function to demonstrate configuration loading."""
+    # Initialize structlog for consistent logging
+    try:
+        app_settings = get_app_settings()
+        setup_structlog(app_settings)
+    except Exception:
+        # Fallback to basic setup if config loading fails
+        import structlog
+
+        # Use a minimal fallback logging setup for examples
+        structlog.configure(
+            processors=[
+                structlog.stdlib.add_log_level,
+                structlog.dev.ConsoleRenderer(colors=True),
+            ],
+            wrapper_class=structlog.stdlib.BoundLogger,
+            logger_factory=structlog.stdlib.LoggerFactory(),
+            cache_logger_on_first_use=True,
+        )
+
     args = _parse_arguments()
 
     if args.create_example:
@@ -343,8 +493,8 @@ def main() -> None:
 def run_benchmark(config_main_path: Path, secrets_main_path: Path) -> None:
     """Runs a benchmark of the configuration system."""
     logger.info("\n=== Benchmarking Configuration Loading ===")
-    logger.info(f"Using config: {config_main_path}")
-    logger.info(f"Using secrets: {secrets_main_path}")
+    logger.info("benchmark_setup", message="Using config: %s", message_args=(config_main_path,))
+    logger.info("benchmark_setup", message="Using secrets: %s", message_args=(secrets_main_path,))
 
     num_iterations = 100
     start_time = time.perf_counter()
@@ -360,7 +510,11 @@ def run_benchmark(config_main_path: Path, secrets_main_path: Path) -> None:
     end_time = time.perf_counter()
     total_time = end_time - start_time
     avg_time_ms = (total_time / num_iterations) * 1000
-    logger.info(f"Average time per iteration: {avg_time_ms:.4f} ms ({num_iterations} iterations)")
+    logger.info(
+        "benchmark_result",
+        message="Average time per iteration: %.4f ms (%s iterations)",
+        message_args=(avg_time_ms, num_iterations),
+    )
 
     logger.info("\nBenchmark Notes:")
     logger.info("- Times include object instantiation and file I/O.")

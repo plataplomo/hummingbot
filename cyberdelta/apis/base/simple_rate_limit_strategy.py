@@ -68,9 +68,15 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
 
             logger = get_logger(__name__)
             logger.info(
-                f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
-                f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
-                f"Triggering temporary pause on its limiter.",
+                "rate_limit_retry_after_received",
+                strategy="SimpleTokenBucketStrategy",
+                exchange_name=request_context.exchange_name,
+                duration_seconds=duration_seconds,
+                message=(
+                    f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
+                    f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
+                    f"Triggering temporary pause on its limiter."
+                ),
             )
             await self.limiter.trigger_ip_ban(duration_seconds)
         else:

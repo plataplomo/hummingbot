@@ -158,7 +158,10 @@ class MarketOrderService:
                 logger.warning(
                     "slippage_estimation_fallback",
                     error=str(e),
-                    message="Failed to estimate slippage using SignalGenerator, falling back to config default",
+                    message=(
+                        "Failed to estimate slippage using SignalGenerator, "
+                        "falling back to config default"
+                    ),
                 )
 
         # Fallback to configured default

@@ -129,7 +129,10 @@ class HttpClient:
             self._session = None
             self._external_session = False
             logger.info(
-                f"[{self.exchange_name}] HttpClient initialized for endpoint: {self.rest_endpoint}",
+                "http_client_initialized",
+                exchange_name=self.exchange_name,
+                rest_endpoint=self.rest_endpoint,
+                message="HttpClient initialized for endpoint",
             )
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -151,8 +154,13 @@ class HttpClient:
             # If external session is not usable, or we are managing internally
             if self._session is None or self._session.closed:
                 logger.info(
-                    f"[{self.exchange_name}] Creating new internal aiohttp ClientSession "
-                    f"(external_session={self._external_session}).",
+                    "http_client_creating_session",
+                    exchange_name=self.exchange_name,
+                    external_session=self._external_session,
+                    message=(
+                        f"[{self.exchange_name}] Creating new internal aiohttp ClientSession "
+                        f"(external_session={self._external_session})."
+                    ),
                 )
                 # Create optimized connector for better connection pooling
                 connector = aiohttp.TCPConnector(

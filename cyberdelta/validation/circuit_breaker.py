@@ -941,8 +941,14 @@ class CircuitBreakerSystem:
                     )
                     return False, reason
                 logger.info(
-                    f"Exchange breaker '{breaker.name}' for {exchange} recovered "
-                    f"and is now CLOSED.",
+                    "exchange_breaker_recovered",
+                    breaker_name=breaker.name,
+                    exchange=exchange,
+                    state="CLOSED",
+                    message=(
+                        f"Exchange breaker '{breaker.name}' for {exchange} "
+                        f"recovered and is now CLOSED"
+                    ),
                 )
 
         return True, None
@@ -970,7 +976,11 @@ class CircuitBreakerSystem:
             # Check if global breaker tripped
             if not global_breaker.allow_operation():
                 logger.critical(
-                    f"Global API Error circuit breaker tripped: {global_breaker.trip_reason}",
+                    "global_api_error_breaker_tripped",
+                    trip_reason=global_breaker.trip_reason,
+                    message=(
+                        f"Global API Error circuit breaker tripped: {global_breaker.trip_reason}"
+                    ),
                 )
 
         # Record with exchange-specific breaker
@@ -982,14 +992,28 @@ class CircuitBreakerSystem:
                 # Check if exchange-specific breaker tripped
                 if not exchange_breaker.allow_operation():
                     logger.critical(
-                        f"Exchange-specific API Error circuit breaker "
-                        f"'{exchange_breaker.name}' tripped: "
-                        f"{exchange_breaker.trip_reason}",
+                        "exchange_api_error_breaker_tripped",
+                        breaker_name=exchange_breaker.name,
+                        exchange=exchange,
+                        trip_reason=exchange_breaker.trip_reason,
+                        message=(
+                            f"Exchange-specific API Error circuit breaker "
+                            f"'{exchange_breaker.name}' tripped: "
+                            f"{exchange_breaker.trip_reason}"
+                        ),
                     )
             else:
                 logger.warning(
-                    f"Retrieved breaker for '{exchange}/api_errors' is not an APIErrorBreaker. "
-                    f"Type: {type(exchange_breaker)}. Cannot record API error.",
+                    "invalid_breaker_type_for_api_error",
+                    exchange=exchange,
+                    breaker_path=f"{exchange}/api_errors",
+                    actual_type=str(type(exchange_breaker)),
+                    expected_type="APIErrorBreaker",
+                    message=(
+                        f"Retrieved breaker for '{exchange}/api_errors' is not an "
+                        f"APIErrorBreaker. Type: {type(exchange_breaker)}. "
+                        f"Cannot record API error."
+                    ),
                 )
 
     def record_api_success(self, exchange: str, context: str = "") -> None:
@@ -1017,8 +1041,14 @@ class CircuitBreakerSystem:
                     ):
                         breaker.state = BreakerState.HALF_OPEN
                         logger.info(
-                            f"API success recorded: {exchange_breaker_name} transitioning to "
-                            f"HALF_OPEN state",
+                            "api_breaker_transitioning_to_half_open",
+                            breaker_name=exchange_breaker_name,
+                            from_state="OPEN",
+                            to_state="HALF_OPEN",
+                            message=(
+                                f"API success recorded: {exchange_breaker_name} "
+                                f"transitioning to HALF_OPEN state"
+                            ),
                         )
 
                 # If breaker is in HALF_OPEN, test recovery
@@ -1026,29 +1056,49 @@ class CircuitBreakerSystem:
                     recovery_success = breaker.test_recovery()
                     if recovery_success:
                         logger.info(
-                            f"API success confirmed recovery: {exchange_breaker_name} reset "
-                            f"to CLOSED state",
+                            "api_breaker_recovery_confirmed",
+                            breaker_name=exchange_breaker_name,
+                            new_state="CLOSED",
+                            message=(
+                                f"API success confirmed recovery: {exchange_breaker_name} "
+                                f"reset to CLOSED state"
+                            ),
                         )
                     else:
                         # Correctly formatted multi-line f-string
                         logger.info(
-                            f"Exchange breaker {exchange_breaker_name} remains in HALF_OPEN after "
-                            f"successful check.",
+                            "api_breaker_remains_half_open",
+                            breaker_name=exchange_breaker_name,
+                            state="HALF_OPEN",
+                            message=(
+                                f"Exchange breaker {exchange_breaker_name} remains in "
+                                f"HALF_OPEN after successful check."
+                            ),
                         )
                         # Keep state HALF_OPEN, reset success count
                         # Commenting out potentially incorrect line
                 else:
                     # Correctly formatted multi-line f-string
                     logger.info(
-                        f"API success not sufficient for recovery: "
-                        f"{exchange_breaker_name} remains in OPEN state",
+                        "api_success_not_sufficient_for_recovery",
+                        breaker_name=exchange_breaker_name,
+                        state="OPEN",
+                        message=(
+                            f"API success not sufficient for recovery: "
+                            f"{exchange_breaker_name} remains in OPEN state"
+                        ),
                     )
             else:
                 # Not OPEN or HALF_OPEN, success doesn't change state
                 # Corrected escaping for apostrophe
                 logger.debug(
-                    f"API success recorded for {exchange} (breaker state {breaker.state.name}), "
-                    f"no state change.",
+                    "api_success_recorded_no_state_change",
+                    exchange=exchange,
+                    breaker_state=breaker.state.name,
+                    message=(
+                        f"API success recorded for {exchange} "
+                        f"(breaker state {breaker.state.name}), no state change."
+                    ),
                 )
 
         # Also update global API breaker if present
@@ -1060,19 +1110,34 @@ class CircuitBreakerSystem:
                 recovery_success = global_breaker.test_recovery()
                 if recovery_success:
                     logger.info(
-                        "API success confirmed recovery: global_api_errors reset to CLOSED state",
+                        "global_api_breaker_recovery_confirmed",
+                        breaker_name="global_api_errors",
+                        new_state="CLOSED",
+                        message=(
+                            "API success confirmed recovery: global_api_errors "
+                            "reset to CLOSED state"
+                        ),
                     )
                 else:
                     # Correctly formatted multi-line f-string
                     logger.info(
-                        f"API success not sufficient for recovery: "
-                        f"global_api_errors remains in {global_breaker.state.name} state",
+                        "global_api_success_not_sufficient",
+                        breaker_name="global_api_errors",
+                        state=global_breaker.state.name,
+                        message=(
+                            f"API success not sufficient for recovery: "
+                            f"global_api_errors remains in {global_breaker.state.name} state"
+                        ),
                     )
             else:
                 # Not OPEN or HALF_OPEN, success doesn't change state
                 logger.debug(
-                    f"API success recorded for global breaker (state {global_breaker.state.name}), "
-                    f"no state change.",
+                    "global_api_success_no_state_change",
+                    breaker_state=global_breaker.state.name,
+                    message=(
+                        f"API success recorded for global breaker "
+                        f"(state {global_breaker.state.name}), no state change."
+                    ),
                 )
 
     def record_critical_failure(self, exchange: str, error_message: str) -> None:
@@ -1097,8 +1162,12 @@ class CircuitBreakerSystem:
             exchange_api_breaker_item.trip(f"Critical failure: {error_message}")
         elif exchange_api_breaker_item:
             logger.warning(
-                f"Critical failure on {exchange}, but api_errors breaker is a dict, "
-                f"not tripping individual symbol breakers here.",
+                "critical_failure_api_breaker_is_dict",
+                exchange=exchange,
+                message=(
+                    f"Critical failure on {exchange}, but api_errors breaker is a dict, "
+                    f"not tripping individual symbol breakers here."
+                ),
             )
 
         # Also trip the global API breaker to ensure all operations are affected
@@ -1184,8 +1253,14 @@ class CircuitBreakerSystem:
             if isinstance(breaker, APIErrorBreaker):
                 breaker.errors.clear()  # Corrected: use .errors attribute
             logger.info(
-                f"Breaker '{name}' reset. "
-                f"Previous state: {was_open}, New state: {breaker.state.name}",
+                "breaker_reset",
+                breaker_name=name,
+                was_open=was_open,
+                new_state=breaker.state.name,
+                message=(
+                    f"Breaker '{name}' reset. Previous state: {was_open}, "
+                    f"New state: {breaker.state.name}"
+                ),
             )
             # Log if it was previously open and now closed
             if was_open and breaker.state == BreakerState.CLOSED:
@@ -1195,7 +1270,7 @@ class CircuitBreakerSystem:
                     previous_state="OPEN",
                     new_state="CLOSED",
                     action="state_transition",
-                    message=f"Breaker '{name}' successfully transitioned from OPEN to CLOSED.",
+                    message=(f"Breaker '{name}' successfully transitioned from OPEN to CLOSED."),
                 )
             return True
         logger.warning(
@@ -1236,8 +1311,14 @@ class CircuitBreakerSystem:
                 if isinstance(breaker_or_symbol_map_item, APIErrorBreaker):
                     breaker_or_symbol_map_item.errors.clear()
                 logger.info(
-                    f"Exchange breaker '{breaker_or_symbol_map_item.name}' reset. "
-                    f"Was open: {was_open}, New state: {breaker_or_symbol_map_item.state.name}",
+                    "exchange_breaker_reset",
+                    breaker_name=breaker_or_symbol_map_item.name,
+                    was_open=was_open,
+                    new_state=breaker_or_symbol_map_item.state.name,
+                    message=(
+                        f"Exchange breaker '{breaker_or_symbol_map_item.name}' reset. "
+                        f"Was open: {was_open}, New state: {breaker_or_symbol_map_item.state.name}"
+                    ),
                 )
                 reset_count += 1
             else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
@@ -1249,9 +1330,17 @@ class CircuitBreakerSystem:
                     if isinstance(specific_breaker_item, APIErrorBreaker):
                         specific_breaker_item.errors.clear()
                     logger.info(
-                        f"Symbol-specific breaker '{specific_breaker_item.name}' for exchange "
-                        f"'{exchange}', symbol '{symbol_key}' reset. "
-                        f"Was open: {was_open}, New state: {specific_breaker_item.state.name}",
+                        "symbol_specific_breaker_reset",
+                        breaker_name=specific_breaker_item.name,
+                        exchange=exchange,
+                        symbol=symbol_key,
+                        was_open=was_open,
+                        new_state=specific_breaker_item.state.name,
+                        message=(
+                            f"Symbol-specific breaker '{specific_breaker_item.name}' "
+                            f"for exchange '{exchange}', symbol '{symbol_key}' reset. "
+                            f"Was open: {was_open}, New state: {specific_breaker_item.state.name}"
+                        ),
                     )
                     reset_count += 1
 
@@ -1265,8 +1354,12 @@ class CircuitBreakerSystem:
             )
         else:
             logger.info(
-                f"No breakers were actively reset for exchange '{exchange}' "
-                f"(they might have been already closed or map was empty).",
+                "no_breakers_reset_for_exchange",
+                exchange=exchange,
+                message=(
+                    f"No breakers were actively reset for exchange '{exchange}' "
+                    f"(they might have been already closed or map was empty)."
+                ),
             )
         return reset_count
 
@@ -1288,7 +1381,12 @@ class CircuitBreakerSystem:
 
             if not breaker:  # Ensure breaker exists
                 logger.warning(
-                    f"No breaker found for critical system: {system_name}. Cannot update status.",
+                    "no_breaker_for_critical_system",
+                    system_name=system_name,
+                    message=(
+                        f"No breaker found for critical system: {system_name}. "
+                        f"Cannot update status."
+                    ),
                 )
                 continue
 
@@ -1296,16 +1394,26 @@ class CircuitBreakerSystem:
                 if breaker.state != BreakerState.OPEN:
                     breaker.trip(f"Critical system '{system_name}' reported as unhealthy.")
                     logger.critical(
-                        f"Critical system breaker '{breaker_name}' tripped due to "
-                        f"{system_name} unhealthiness.",
+                        "critical_system_breaker_tripped",
+                        breaker_name=breaker_name,
+                        system_name=system_name,
+                        message=(
+                            f"Critical system breaker '{breaker_name}' tripped due to "
+                            f"{system_name} unhealthiness."
+                        ),
                     )
             elif breaker.state in {BreakerState.OPEN, BreakerState.HALF_OPEN}:
                 # If the system is reported healthy and breaker was open/half-open,
                 # attempt reset.
                 # For critical systems, we might reset more assertively if health is confirmed.
                 logger.info(
-                    f"Critical system '{system_name}' reported as healthy. "
-                    f"Resetting breaker '{breaker_name}'.",
+                    "critical_system_healthy_resetting_breaker",
+                    system_name=system_name,
+                    breaker_name=breaker_name,
+                    message=(
+                        f"Critical system '{system_name}' reported as healthy. "
+                        f"Resetting breaker '{breaker_name}'."
+                    ),
                 )
                 breaker.reset()
                 # For APIErrorBreaker types, ensure internal error counts are also cleared
@@ -1328,9 +1436,15 @@ class CircuitBreakerSystem:
 
             reset_count += 1
             logger.info(
-                f"Breaker '{breaker.name}' reset. "
-                f"Previous state: {current_state_before_reset.name}, "
-                f"New state: {breaker.state.name}",
+                "breaker_reset_all",
+                breaker_name=breaker.name,
+                previous_state=current_state_before_reset.name,
+                new_state=breaker.state.name,
+                message=(
+                    f"Breaker '{breaker.name}' reset. "
+                    f"Previous state: {current_state_before_reset.name}, "
+                    f"New state: {breaker.state.name}"
+                ),
             )
         if reset_count > 0:
             logger.info(

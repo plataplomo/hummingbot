@@ -15,7 +15,8 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum, auto
 from typing import Any
 
-from cyberdelta.apis.base.exchange_api import APIError, APIErrorCode, ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetOrderArgs, PlaceOrderArgs
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -412,7 +413,9 @@ class ExecutionHandler:
                 execution_id=execution.id,
                 error=str(e),
                 default_exchange=failed_exchange_str,
-                message="Could not determine failing exchange for APIError, defaulting to long exchange",
+                message=(
+                    "Could not determine failing exchange for APIError, defaulting to long exchange"
+                ),
             )
 
         if self.circuit_breaker_system is not None:
@@ -874,7 +877,9 @@ class ExecutionHandler:
             logger.warning(
                 "execution_unexpected_order_status",
                 execution_id=execution.id,
-                order_status=order.status.value if hasattr(order.status, "value") else str(order.status),
+                order_status=order.status.value
+                if hasattr(order.status, "value")
+                else str(order.status),
                 order_id=order.exchange_order_id or order.client_order_id,
                 exchange_id=exchange_id,
                 action="validate_filled_order",
@@ -1059,7 +1064,10 @@ class ExecutionHandler:
             execution_id=execution.id,
             order_id=order.exchange_order_id or order.client_order_id,
             action="create_synthetic_trade",
-            message="Order is FILLED with aggregate data but no individual trades, creating synthetic trade",
+            message=(
+                "Order is FILLED with aggregate data but no individual trades, "
+                "creating synthetic trade"
+            ),
         )
         try:
             # Ensure average_fill_price and quantity_filled are not None before use,
@@ -1169,7 +1177,9 @@ class ExecutionHandler:
                         "execution_order_status_retrieved",
                         execution_id=execution.id,
                         order_id=order_id,
-                        status=order_status.status.value if hasattr(order_status.status, "value") else str(order_status.status),
+                        status=order_status.status.value
+                        if hasattr(order_status.status, "value")
+                        else str(order_status.status),
                         action="get_order_status",
                         message="Got order status successfully",
                     )
@@ -1467,7 +1477,9 @@ class ExecutionHandler:
                             exchange_id=exchange_id,
                             symbol=symbol,
                             action="compensate_position",
-                            message="Could not determine limit price for compensation, missing bid/ask",
+                            message=(
+                                "Could not determine limit price for compensation, missing bid/ask"
+                            ),
                         )
                 else:
                     logger.warning(
@@ -1530,7 +1542,9 @@ class ExecutionHandler:
                 "execution_compensation_order_not_filled",
                 execution_id=execution.id,
                 order_id=compensation_order.exchange_order_id,
-                status=compensation_order.status.value if hasattr(compensation_order.status, "value") else str(compensation_order.status),
+                status=compensation_order.status.value
+                if hasattr(compensation_order.status, "value")
+                else str(compensation_order.status),
                 action="compensate_position",
                 message="Compensation order not immediately filled, monitoring needed",
             )
@@ -1618,7 +1632,9 @@ class ExecutionHandler:
                     "execution_order_state_mismatch_filled",
                     order_id=order_id,
                     expected_status="FILLED",
-                    actual_status=order.status.value if hasattr(order.status, "value") else str(order.status),
+                    actual_status=order.status.value
+                    if hasattr(order.status, "value")
+                    else str(order.status),
                     quantity_filled=str(order.quantity_filled),
                     quantity_requested=str(order.quantity_requested),
                     action="verify_order_state",
@@ -1665,7 +1681,9 @@ class ExecutionHandler:
                 order_id=order_id,
                 expected_status=expected_status.name,
                 action="verify_order_state",
-                message="Treating failed status fetch as verification success for CANCELED/REJECTED",
+                message=(
+                    "Treating failed status fetch as verification success for CANCELED/REJECTED"
+                ),
             )
             return True
         return False
@@ -1791,7 +1809,9 @@ class ExecutionHandler:
                         "execution_order_terminal_state",
                         execution_id=execution.id,
                         order_id=order_id,
-                        status=order.status.value if hasattr(order.status, "value") else str(order.status),
+                        status=order.status.value
+                        if hasattr(order.status, "value")
+                        else str(order.status),
                         action="monitor_order_status",
                         message="Order reached terminal state",
                     )
@@ -1983,7 +2003,9 @@ class ExecutionHandler:
                     execution_id=execution.id,
                     exchange_id=exchange_id,
                     exchange_order_id=order_result.exchange_order_id,
-                    status=order_result.status.value if hasattr(order_result.status, "value") else str(order_result.status),
+                    status=order_result.status.value
+                    if hasattr(order_result.status, "value")
+                    else str(order_result.status),
                     action="place_order_with_retry",
                     message="Order placed successfully",
                 )

@@ -485,12 +485,11 @@ class WebSocketManager:
                     message="on_connected_callback executed successfully.",
                 )
             except Exception as cb_exc:
-                self._logger.error(
+                self._logger.exception(
                     "connection_callback_error",
                     action="execute_connection_callback",
                     error_details=str(cb_exc),
                     message=f"Error during on_connected_callback: {cb_exc}",
-                    exc_info=True,
                 )
 
     def _reset_connection_state(self) -> None:
@@ -534,8 +533,10 @@ class WebSocketManager:
 
         if not self._ws_connection:
             self._logger.error(
-                f"[{self._exchange_name} _listen] Listener started without a valid "
-                f"WebSocket connection.",
+                "listener_started_without_connection",
+                action="listen",
+                exchange=self._exchange_name,
+                message="Listener started without a valid WebSocket connection",
             )
             return
 
@@ -592,8 +593,12 @@ class WebSocketManager:
         # Only log state changes to reduce spam
         if cancelled_state != self._last_cancelled_state:
             self._logger.debug(
-                f"[{self._exchange_name} _listen::{task_name_listen_loop}] "
-                f"WebSocket listen state changed: cancelled={cancelled_state}",
+                "websocket_listen_state_changed",
+                action="should_continue_listening",
+                exchange=self._exchange_name,
+                task_name=task_name_listen_loop,
+                cancelled_state=cancelled_state,
+                message="WebSocket listen state changed",
             )
             self._last_cancelled_state = cancelled_state
 
@@ -620,8 +625,13 @@ class WebSocketManager:
         # Only log message type changes to reduce spam
         if msg.type != self._last_msg_type:
             self._logger.debug(
-                f"[{self._exchange_name} _listen::{task_name}] "
-                f"WebSocket message type changed: {self._last_msg_type} -> {msg.type}",
+                "websocket_message_type_changed",
+                action="handle_websocket_message",
+                exchange=self._exchange_name,
+                task_name=task_name,
+                previous_type=self._last_msg_type,
+                new_type=msg.type,
+                message="WebSocket message type changed",
             )
             self._last_msg_type = msg.type
 
@@ -662,8 +672,10 @@ class WebSocketManager:
     def _handle_binary_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle BINARY type WebSocket messages."""
         self._logger.debug(
-            f"Received binary WebSocket message (length: {len(msg.data)}). "
-            "Handler for binary not implemented.",
+            "binary_websocket_message_received",
+            action="handle_binary_message",
+            message_length=len(msg.data),
+            message="Received binary WebSocket message. Handler not implemented.",
         )
 
     def _handle_error_message(self) -> None:
@@ -672,15 +684,21 @@ class WebSocketManager:
             self._ws_connection.exception() if self._ws_connection is not None else "Unknown"
         )
         self._logger.error(
-            f"WebSocket connection error: {exception_info!r}",
+            "websocket_connection_error",
+            action="handle_error_message",
+            exception_info=repr(exception_info),
+            message=f"WebSocket connection error: {exception_info!r}",
         )
 
     async def _handle_close_message(self, task_name: str, iteration: int) -> None:
         """Handle CLOSED/CLOSING type WebSocket messages."""
         self._logger.info(
-            f"[{self._exchange_name} _listen::{task_name}] "
-            f"Received WSMsgType.CLOSED/CLOSING. "
-            f"Iteration {iteration}. Terminating listener loop.",
+            "websocket_close_message_received",
+            action="handle_close_message",
+            exchange=self._exchange_name,
+            task_name=task_name,
+            iteration=iteration,
+            message="Received WSMsgType.CLOSED/CLOSING. Terminating listener loop.",
         )
 
     async def _handle_cancelled_listener(self) -> None:
@@ -692,19 +710,19 @@ class WebSocketManager:
         # Check if this is a graceful shutdown (should_reconnect=False) or unexpected cancellation
         if not self._should_reconnect:
             self._logger.info(
-                f"[{self._exchange_name} _listen::{task_name_cancelled}] "
-                f"Listener task cancelled during graceful shutdown.",
+                "listener_task_graceful_shutdown",
                 action="graceful_shutdown",
                 exchange=self._exchange_name,
                 task_name=task_name_cancelled,
+                message="Listener task cancelled during graceful shutdown.",
             )
         else:
             self._logger.error(
-                f"[{self._exchange_name} _listen::{task_name_cancelled}] "
-                f"Listener task unexpectedly CANCELLED. Re-raising CancelledError.",
+                "listener_task_unexpected_cancellation",
                 action="unexpected_cancellation",
                 exchange=self._exchange_name,
                 task_name=task_name_cancelled,
+                message="Listener task unexpectedly CANCELLED. Re-raising CancelledError.",
             )
 
     async def _handle_listener_exception(
@@ -738,10 +756,13 @@ class WebSocketManager:
         final_is_cancelled_state = (current_task and current_task.cancelled()) or was_cancelled
 
         self._logger.info(
-            f"[{self._exchange_name} _listen] Finally block. "
-            f"Task: {current_task.get_name() if current_task else 'None'}, "
-            f"Cancelled state: {final_is_cancelled_state}, "
-            f"Should Reconnect: {self._should_reconnect}",
+            "listener_finally_block",
+            action="cleanup_listener",
+            exchange=self._exchange_name,
+            task=current_task.get_name() if current_task else "None",
+            cancelled_state=final_is_cancelled_state,
+            should_reconnect=self._should_reconnect,
+            message="Listener finally block cleanup",
         )
 
         if current_task:  # pragma: no cover
@@ -778,7 +799,10 @@ class WebSocketManager:
                     )
                 else:
                     self._logger.debug(
-                        "Reconnection task was not created (already connecting)",
+                        "reconnection_task_not_created",
+                        action="schedule_reconnection_if_needed",
+                        reason="already_connecting",
+                        message="Reconnection task was not created (already connecting)",
                     )
             except RuntimeError as e:
                 if "no running event loop" in str(e):
@@ -805,8 +829,11 @@ class WebSocketManager:
 
         if not self._ping_interval or self._ping_interval <= 0:
             self._logger.info(
-                f"[{self._exchange_name} _keep_alive] "
-                f"Ping interval zero/negative, task will not run.",
+                "keep_alive_disabled_no_ping_interval",
+                action="keep_alive",
+                exchange=self._exchange_name,
+                ping_interval=self._ping_interval,
+                message="Ping interval zero/negative, task will not run.",
             )
             return
 
@@ -820,7 +847,9 @@ class WebSocketManager:
             while self.is_connected and self._should_reconnect:
                 if not self._ws_connection or self._ws_connection.closed:
                     self._logger.warning(
-                        "Keep-alive: WebSocket connection is not available or closed.",
+                        "keep_alive_connection_unavailable",
+                        action="keep_alive",
+                        message="Keep-alive: WebSocket connection is not available or closed.",
                     )
                     break
 
@@ -873,13 +902,12 @@ class WebSocketManager:
                 message=f"[{self._exchange_name} _keep_alive] Task cancelled.",
             )
         except Exception as e:
-            self._logger.error(
+            self._logger.exception(
                 "keep_alive_unexpected_error",
                 action="keep_alive",
                 exchange=self._exchange_name,
                 error_details=str(e),
                 message=f"[{self._exchange_name} _keep_alive] Unexpected error in loop: {e}",
-                exc_info=True,
             )
             self._is_connected = False
             if self._should_reconnect:
@@ -995,13 +1023,12 @@ class WebSocketManager:
             self._ws_connection = None
             return False
         except Exception as e:
-            self._logger.error(
+            self._logger.exception(
                 "send_json_serialize_send_error",
                 action="send_json",
                 exchange=self._exchange_name,
                 error_details=str(e),
                 message=f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
-                exc_info=True,
             )
             return False
 
@@ -1092,29 +1119,50 @@ class WebSocketManager:
         """Wait for a task to be cancelled with timeout handling."""
         try:
             self._logger.debug(
-                f"Awaiting {task_type} task: {task_name}, cancelled state: {task.cancelled()}",
+                "awaiting_task_cancellation",
+                action="await_task_cancellation",
+                task_type=task_type,
+                task_name=task_name,
+                cancelled_state=task.cancelled(),
+                message="Awaiting task cancellation",
             )
             await asyncio.wait_for(task, timeout=5.0)
             self._logger.debug(
-                f"{task_type.title()} task {task_name} awaited. "
-                f"Done: {task.done()}, "
-                f"Cancelled: {task.cancelled()}",
+                "task_await_completed",
+                action="await_task_cancellation",
+                task_type=task_type,
+                task_name=task_name,
+                task_done=task.done(),
+                task_cancelled=task.cancelled(),
+                message=f"{task_type.title()} task awaited",
             )
         except asyncio.CancelledError:
             self._logger.debug(
-                f"{task_type.title()} task {task_name} successfully cancelled and awaited.",
+                "task_successfully_cancelled",
+                action="await_task_cancellation",
+                task_type=task_type,
+                task_name=task_name,
+                message=f"{task_type.title()} task {task_name} successfully cancelled and awaited.",
             )
         except TimeoutError:
             self._logger.error(
-                f"Timeout (5s) waiting for {task_type} task {task_name} "
-                f"to complete during close! Task state: "
-                f"Done={task.done()}, "
-                f"Cancelled={task.cancelled()}",
+                "task_cancellation_timeout",
+                action="await_task_cancellation",
+                task_type=task_type,
+                task_name=task_name,
+                task_done=task.done(),
+                task_cancelled=task.cancelled(),
+                timeout_seconds=5.0,
+                message=f"Timeout (5s) waiting for {task_type} task to complete during close!",
             )
         except Exception as e:
-            self._logger.warning(
-                f"Error awaiting cancelled {task_type} task {task_name}: {e}",
-                exc_info=True,
+            self._logger.exception(
+                "task_cancellation_error",
+                action="await_task_cancellation",
+                task_type=task_type,
+                task_name=task_name,
+                error_details=str(e),
+                message=f"Error awaiting cancelled {task_type} task {task_name}: {e}",
             )
 
     async def _close_websocket_connection(
@@ -1176,13 +1224,12 @@ class WebSocketManager:
             )
             return True
         except Exception as e:
-            self._logger.error(
+            self._logger.exception(
                 "websocket_connection_close_error",
                 action="close_active_websocket",
                 connection_id=id(ws_conn),
                 error_details=str(e),
                 message=f"Error during explicit close of WS connection {id(ws_conn)}: {e}",
-                exc_info=True,
             )
             return False
 

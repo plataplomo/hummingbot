@@ -434,25 +434,36 @@ class RiskManager:
 
         if volatility <= ZERO:
             self.logger.warning(
-                f"Calculated/fallback volatility for {opportunity.symbol} "
-                f"is zero or negative ({volatility}). Using min_volatility: "
-                f"{self.min_volatility} if positive, else cannot size.",
+                "volatility_zero_or_negative",
+                symbol=opportunity.symbol,
+                volatility=volatility,
+                min_volatility=self.min_volatility,
+                message=(
+                    "Calculated/fallback volatility is zero or negative. "
+                    "Using min_volatility if positive, else cannot size."
+                ),
             )
             volatility = (
                 self.min_volatility
             )  # Try min_volatility again if initial conversion was bad
             if volatility <= ZERO:
                 self.logger.error(
-                    f"min_volatility for {opportunity.symbol} is also zero or negative "
-                    f"({self.min_volatility}). Cannot calculate Kelly size.",
+                    "min_volatility_also_invalid",
+                    symbol=opportunity.symbol,
+                    min_volatility=self.min_volatility,
+                    message="min_volatility is also zero or negative. Cannot calculate Kelly size.",
                 )
                 return ZERO
 
         if expected_return <= ZERO:  # Redundant check, but safe
             self.logger.info(
-                f"Kelly fraction calculation: Expected return for {opportunity.symbol} "
-                f"is not positive "
-                f"({expected_return:.8f}). Resulting size will be zero.",
+                "kelly_expected_return_not_positive",
+                symbol=opportunity.symbol,
+                expected_return=expected_return,
+                message=(
+                    "Kelly fraction calculation: Expected return is not positive. "
+                    "Resulting size will be zero."
+                ),
             )
             return ZERO
 
@@ -462,8 +473,11 @@ class RiskManager:
             kelly_fraction_raw = expected_return / (volatility**2)
         except InvalidOperation:
             self.logger.error(
-                f"Invalid operation during Kelly calculation for {opportunity.symbol} "
-                f"(ER: {expected_return}, Vol: {volatility}). Defaulting to zero size.",
+                "invalid_operation_kelly_calculation",
+                symbol=opportunity.symbol,
+                expected_return=expected_return,
+                volatility=volatility,
+                message="Invalid operation during Kelly calculation. Defaulting to zero size.",
             )
             return ZERO
 
@@ -1342,23 +1356,29 @@ class RiskManager:
             size = size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
             if size <= ZERO:  # Check if size became zero or negative
                 self.logger.info(
-                    f"Size reduced to zero or less after validation factor for "
-                    f"{opportunity.symbol} (simple path). Rejecting.\n",
+                    "size_reduced_to_zero_simple_path",
+                    symbol=opportunity.symbol,
+                    size=size,
+                    message=(
+                        "Size reduced to zero or less after validation factor "
+                        "(simple path). Rejecting."
+                    ),
                 )
                 return None
             self.logger.debug(
-                (
-                    f"Size after validation factor for {opportunity.symbol} "
-                    f"(simple path): ${size:.2f}"
-                ),
+                "size_after_validation_factor_simple_path",
+                symbol=opportunity.symbol,
+                size=size,
+                message="Size after validation factor (simple path)",
             )
 
         if size <= self.min_trade_size_usd:
             self.logger.info(
-                (
-                    f"SOS: Calculated size ${size:.2f} for {opportunity.symbol} "
-                    f"is <= min_trade_size_usd ${self.min_trade_size_usd:.2f}. Rejecting.\n"
-                ),
+                "sos_size_below_minimum",
+                symbol=opportunity.symbol,
+                calculated_size=size,
+                min_trade_size_usd=self.min_trade_size_usd,
+                message="SOS: Calculated size is <= min_trade_size_usd. Rejecting.",
             )
             return None
 
@@ -1366,8 +1386,11 @@ class RiskManager:
         is_valid, reason = await self._check_portfolio_constraints(size, opportunity)
         if not is_valid:
             self.logger.info(
-                f"SOS: Opportunity {opportunity.symbol} with size ${size:.2f} "
-                f"rejected due to portfolio constraints: {reason}",
+                "sos_opportunity_rejected_constraints",
+                symbol=opportunity.symbol,
+                size=size,
+                reason=reason,
+                message="SOS: Opportunity rejected due to portfolio constraints",
             )
             return None
 
@@ -1644,8 +1667,10 @@ class RiskManager:
         )
         if not is_valid:
             self.logger.info(
-                f"Kelly sized opportunity {opportunity.symbol} rejected due to "
-                f"portfolio constraints: {reason}",
+                "kelly_opportunity_rejected_constraints",
+                symbol=opportunity.symbol,
+                reason=reason,
+                message="Kelly sized opportunity rejected due to portfolio constraints",
             )
             return None
 
@@ -1661,8 +1686,10 @@ class RiskManager:
         """Apply validation factor to calculated size."""
         if validation_factor < ONE:  # Apply reduction only if factor < 1
             self.logger.info(
-                f"Applying validation factor {validation_factor:.3f} to size for "
-                f"{symbol} (kelly path).",
+                "applying_validation_factor_kelly_path",
+                validation_factor=validation_factor,
+                symbol=symbol,
+                message="Applying validation factor to size (kelly path)",
             )
             calculated_size_usd *= validation_factor
             calculated_size_usd = calculated_size_usd.quantize(
@@ -1671,12 +1698,18 @@ class RiskManager:
             )
             if calculated_size_usd <= self.min_trade_size_usd:
                 self.logger.info(
-                    f"Kelly size reduced below min size after validation factor for "
-                    f"{symbol}. Rejecting.",
+                    "kelly_size_below_min_after_validation",
+                    symbol=symbol,
+                    calculated_size_usd=calculated_size_usd,
+                    min_trade_size_usd=self.min_trade_size_usd,
+                    message="Kelly size reduced below min size after validation factor. Rejecting.",
                 )
                 return None
             self.logger.debug(
-                f"Kelly size after validation factor for {symbol}: ${calculated_size_usd:.2f}",
+                "kelly_size_after_validation_factor",
+                symbol=symbol,
+                calculated_size_usd=calculated_size_usd,
+                message="Kelly size after validation factor",
             )
         return calculated_size_usd
 
@@ -1711,9 +1744,10 @@ class RiskManager:
     ) -> SizedOpportunity | None:
         """Log the final result and return it."""
         logger.debug(
-            f"[RM_SIZE_OPP_DEBUG] After _apply_portfolio_level_controls, "
-            f"final_sized_opportunity is: {final_sized_opportunity}, "
-            f"type: {type(final_sized_opportunity)}",
+            "rm_size_opp_debug_after_controls",
+            final_sized_opportunity=final_sized_opportunity,
+            result_type=type(final_sized_opportunity).__name__,
+            message="After _apply_portfolio_level_controls debug info",
         )
 
         if final_sized_opportunity:
@@ -1840,8 +1874,10 @@ class RiskManager:
 
         if current_drawdown >= self.max_drawdown_limit_ratio:
             self.logger.warning(
-                f"Drawdown check failed: Current {current_drawdown:.2%} >= Limit "
-                f"{self.max_drawdown_limit_ratio:.2%}",
+                "drawdown_check_failed",
+                current_drawdown=current_drawdown,
+                max_drawdown_limit_ratio=self.max_drawdown_limit_ratio,
+                message="Drawdown check failed: Current drawdown >= limit",
             )
             return False
         return True
@@ -1878,7 +1914,11 @@ class RiskManager:
                         total_exposure += position_value
                     except (InvalidOperation, TypeError, AttributeError) as e:
                         logger.error(
-                            f"Error calculating exposure for {symbol} on {exchange_id}: {e}",
+                            "error_calculating_exposure",
+                            symbol=symbol,
+                            exchange_id=exchange_id,
+                            error=str(e),
+                            message="Error calculating exposure",
                         )
         return total_exposure if found_position else ZERO  # Return 0 if no position found
 
@@ -1903,8 +1943,11 @@ class RiskManager:
                         total_exposure += position_value
                     except (InvalidOperation, TypeError, AttributeError) as e:
                         logger.error(
-                            f"Error calculating exposure for {position.symbol} on "
-                            f"{exchange_id}: {e}",
+                            "error_calculating_position_exposure",
+                            symbol=position.symbol,
+                            exchange_id=exchange_id,
+                            error=str(e),
+                            message="Error calculating exposure for position",
                         )
         return total_exposure
 
@@ -2095,7 +2138,9 @@ class RiskManager:
         if "drawdown_metrics" in data:
             self.current_drawdown_metrics = data["drawdown_metrics"]
             self.logger.debug(
-                f"RiskManager updated with drawdown metrics: {data['drawdown_metrics']}",
+                "risk_manager_updated_drawdown_metrics",
+                drawdown_metrics=data["drawdown_metrics"],
+                message="RiskManager updated with drawdown metrics",
             )
         # Potentially update volatility estimates, correlations, etc.
 
@@ -2121,8 +2166,9 @@ class RiskManager:
         # total_capital can be None in edge cases, handle gracefully
         if total_capital <= ZERO:
             logger.warning(
-                f"Cannot calculate max exposure limit: Total capital is {total_capital} "
-                f"(zero or negative).",
+                "cannot_calculate_max_exposure_limit",
+                total_capital=total_capital,
+                message="Cannot calculate max exposure limit: Total capital is zero or negative",
             )
             return False
 
@@ -2131,9 +2177,13 @@ class RiskManager:
 
         if potential_new_total_exposure > max_allowed_exposure:
             logger.warning(
-                f"Trade ({opportunity.symbol}, size_usd {proposed_size_usd}) exceeds max portfolio "
-                f"exposure. Current: {current_total_exposure}, Proposed New: "
-                f"{potential_new_total_exposure}, Limit: {max_allowed_exposure}",
+                "trade_exceeds_max_portfolio_exposure",
+                symbol=opportunity.symbol,
+                proposed_size_usd=proposed_size_usd,
+                current_total_exposure=current_total_exposure,
+                potential_new_total_exposure=potential_new_total_exposure,
+                max_allowed_exposure=max_allowed_exposure,
+                message="Trade exceeds max portfolio exposure",
             )
             return False
         return True
@@ -2267,27 +2317,35 @@ class RiskManager:
 
         # Log values for debugging this critical check
         self.logger.debug(
-            f"RM_CONSTRAINTS MinTradeCheck: Opp={opportunity.symbol}, "
-            f"CurrentSizeUSD={current_size_usd:.8f}, MinForExchange={min_for_exchange:.8f}, "
-            f"Exchange={opportunity.long_exchange}",
+            "rm_constraints_min_trade_check",
+            opportunity_symbol=opportunity.symbol,
+            current_size_usd=float(current_size_usd),
+            min_for_exchange=float(min_for_exchange),
+            exchange=opportunity.long_exchange,
         )
 
         # Explicitly reject 0 or negative size first
         if current_size_usd <= ZERO:  # ZERO is Decimal("0")
             self.logger.info(
-                f"RM_CONSTRAINTS: Opp {opportunity.symbol} "
-                f"({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
-                f"Calculated initial size USD {current_size_usd:.4f} is zero or negative.",
+                "rm_constraints_zero_or_negative_size",
+                symbol=opportunity.symbol,
+                long_exchange=opportunity.long_exchange,
+                short_exchange=opportunity.short_exchange,
+                current_size_usd=float(current_size_usd),
+                message="Calculated initial size USD is zero or negative",
             )
             return None
 
         # If positive, check if it's below the minimum required trade size
         if current_size_usd < min_for_exchange:
             self.logger.info(
-                f"RM_CONSTRAINTS: Opp {opportunity.symbol} "
-                f"({opportunity.long_exchange} -> {opportunity.short_exchange}) rejected: "
-                f"Calculated initial size USD {current_size_usd:.4f} is less than "
-                f"min trade size USD {min_for_exchange:.4f} for {opportunity.long_exchange}.",
+                "rm_constraints_below_min_trade_size",
+                symbol=opportunity.symbol,
+                long_exchange=opportunity.long_exchange,
+                short_exchange=opportunity.short_exchange,
+                current_size_usd=float(current_size_usd),
+                min_trade_size_usd=float(min_for_exchange),
+                message="Calculated initial size USD is less than min trade size",
             )
             return None
         # === END MODIFIED SECTION ===
@@ -2328,10 +2386,15 @@ class RiskManager:
         )
         if final_size_usd > ZERO and final_size_usd < min_trade_size_usd_for_constraints:
             self.logger.warning(
-                f"RM_VALIDATE_CAP: Calculated size {final_size_usd:.4f} for {opportunity.symbol} "
-                f"was positive but below min_trade_size {min_trade_size_usd_for_constraints:.4f}. "
-                f"This should have been rejected earlier. Review _apply_risk_constraints. "
-                f"Returning None for safety.",
+                "rm_validate_cap_below_min_size",
+                final_size_usd=float(final_size_usd),
+                symbol=opportunity.symbol,
+                min_trade_size=float(min_trade_size_usd_for_constraints),
+                message=(
+                    "Calculated size was positive but below min_trade_size. "
+                    "This should have been rejected earlier. Review _apply_risk_constraints. "
+                    "Returning None for safety."
+                ),
             )
             return None
         # === END MODIFIED SECTION for _validate_and_cap_final_size ===

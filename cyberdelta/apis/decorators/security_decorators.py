@@ -103,8 +103,14 @@ class SecureTransform[T: BaseModel]:
         # Security monitoring
         if self.enable_monitoring:
             logger.info(
-                f"SECURITY: Secure transformation attempt: "
-                f"{method_context} from {exchange_context}",
+                "security_transformation_attempt",
+                method_context=method_context,
+                exchange_context=exchange_context,
+                target_model=self.target_model.__name__,
+                message=(
+                    f"SECURITY: Secure transformation attempt: "
+                    f"{method_context} from {exchange_context}"
+                ),
             )
 
         try:
@@ -133,8 +139,16 @@ class SecureTransform[T: BaseModel]:
         except ValidationError as e:
             # Maintain existing error pattern
             logger.error(
-                f"SECURITY ALERT: Validation failed in {method_context} "
-                f"from {exchange_context}: {e}",
+                "security_validation_failed",
+                method_context=method_context,
+                exchange_context=exchange_context,
+                target_model=self.target_model.__name__,
+                error=str(e),
+                error_type=type(e).__name__,
+                message=(
+                    f"SECURITY ALERT: Validation failed in {method_context} "
+                    f"from {exchange_context}: {e}"
+                ),
             )
             raise TransformationError(
                 f"Security validation failed for {self.target_model.__name__}: {e}",

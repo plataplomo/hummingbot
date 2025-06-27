@@ -65,7 +65,9 @@ def setup_logging(app_settings: AppSettings) -> None:
                 os.makedirs(log_dir)
             except Exception as e:
                 root_logger.warning(
-                    f"log_directory_creation_failed: Failed to create log directory {log_dir}: {e}",
+                    "log_directory_creation_failed: Failed to create log directory %s: %s",
+                    log_dir,
+                    e,
                 )
 
         try:
@@ -79,7 +81,9 @@ def setup_logging(app_settings: AppSettings) -> None:
             )
         except Exception as e:
             root_logger.warning(
-                f"log_file_creation_failed: Failed to create log file {log_file_path_str}: {e}",
+                "log_file_creation_failed: Failed to create log file %s: %s",
+                log_file_path_str,
+                e,
             )
 
     # Apply module-specific log levels if specified
@@ -95,11 +99,15 @@ def setup_logging(app_settings: AppSettings) -> None:
                 module_logger = logging.getLogger(module_name_str)
                 module_logger.setLevel(module_level)
                 root_logger.info(
-                    f"module_log_level_set: Set {module_name_str} log level to {level_literal}",
+                    "module_log_level_set: Set %s log level to %s",
+                    module_name_str,
+                    level_literal,
                 )
             except Exception as e:
                 root_logger.warning(
-                    f"module_log_level_failed: Failed to set log level for {module_name_str}: {e}",
+                    "module_log_level_failed: Failed to set log level for %s: %s",
+                    module_name_str,
+                    e,
                 )
 
     # Log the configured log level

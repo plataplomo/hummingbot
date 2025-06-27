@@ -53,7 +53,15 @@ def ensure_dict_response(
 
     if not isinstance(response, dict):
         logger.error(
-            f"SECURITY: Type mismatch for {context} - expected dict, got {type(response).__name__}",
+            "response_validation_type_mismatch_dict",
+            context=context,
+            expected_type="dict",
+            actual_type=type(response).__name__,
+            security_alert=True,
+            message=(
+                f"SECURITY: Type mismatch for {context} - expected dict, "
+                f"got {type(response).__name__}"
+            ),
         )
         raise APIError(
             message=(
@@ -97,7 +105,15 @@ def ensure_list_response(
 
     if not isinstance(response, list):
         logger.error(
-            f"SECURITY: Type mismatch for {context} - expected list, got {type(response).__name__}",
+            "response_validation_type_mismatch_list",
+            context=context,
+            expected_type="list",
+            actual_type=type(response).__name__,
+            security_alert=True,
+            message=(
+                f"SECURITY: Type mismatch for {context} - expected list, "
+                f"got {type(response).__name__}"
+            ),
         )
         raise APIError(
             message=(
@@ -165,7 +181,15 @@ def ensure_string_response(
 
     if not isinstance(response, str):
         logger.error(
-            f"SECURITY: Type mismatch for {context} - expected str, got {type(response).__name__}",
+            "response_validation_type_mismatch_str",
+            context=context,
+            expected_type="str",
+            actual_type=type(response).__name__,
+            security_alert=True,
+            message=(
+                f"SECURITY: Type mismatch for {context} - expected str, "
+                f"got {type(response).__name__}"
+            ),
         )
         raise APIError(
             message=(

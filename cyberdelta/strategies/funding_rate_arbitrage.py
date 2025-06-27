@@ -176,15 +176,27 @@ class FundingRateArbitrageStrategy(Strategy):
                 if attempt < max_retries - 1:
                     wait_time = (2**attempt) * 0.5  # 0.5s, 1s, 2s
                     logger.debug(
-                        f"Retrying funding rate fetch for {exchange_id}:{symbol} "
-                        f"(attempt {attempt + 1}/{max_retries}) after {wait_time}s",
+                        "funding_rate_fetch_retry",
+                        exchange_id=exchange_id,
+                        symbol=symbol,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        wait_time=wait_time,
+                        message=(
+                            f"Retrying funding rate fetch for {exchange_id}:{symbol} "
+                            f"(attempt {attempt + 1}/{max_retries}) after {wait_time}s"
+                        ),
                     )
                     await asyncio.sleep(wait_time)
 
             except Exception as e:
-                logger.error(
-                    f"Error fetching funding rate for {exchange_id}:{symbol}: {e}",
-                    exc_info=True,
+                logger.exception(
+                    "funding_rate_fetch_error",
+                    exchange_id=exchange_id,
+                    symbol=symbol,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message=f"Error fetching funding rate for {exchange_id}:{symbol}: {e}",
                 )
 
         return None
@@ -223,9 +235,15 @@ class FundingRateArbitrageStrategy(Strategy):
             current_hour_start = now.replace(minute=0, second=0, microsecond=0)
             if current_rate.timestamp < current_hour_start:
                 logger.debug(
-                    f"Fetching funding rate as we're {minutes_past_hour} minutes "
-                    f"past the hour and cached data is from before "
-                    f"{current_hour_start}",
+                    "funding_rate_fetch_needed_stale_data",
+                    minutes_past_hour=minutes_past_hour,
+                    current_hour_start=current_hour_start,
+                    cached_timestamp=current_rate.timestamp,
+                    message=(
+                        f"Fetching funding rate as we're {minutes_past_hour} minutes "
+                        f"past the hour and cached data is from before "
+                        f"{current_hour_start}"
+                    ),
                 )
                 return True
 
@@ -619,7 +637,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 return Decimal("0.01")
             return variance.sqrt()
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "variance_sqrt_calculation_error",
                 strategy=self.name,
                 symbol=symbol,
@@ -628,7 +646,6 @@ class FundingRateArbitrageStrategy(Strategy):
                 default_volatility=0.01,
                 action="using_default_volatility",
                 message=f"Error calculating sqrt of variance {variance} for {symbol}: {e}",
-                exc_info=True,
             )
             return Decimal("0.01")
 
@@ -669,7 +686,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 return base_slippage
             slippage_scaling = size_ratio.sqrt()
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "size_ratio_sqrt_calculation_error",
                 strategy=self.name,
                 symbol=symbol,
@@ -680,7 +697,6 @@ class FundingRateArbitrageStrategy(Strategy):
                 base_slippage=float(base_slippage),
                 action="using_base_slippage",
                 message=f"Error calculating sqrt of size_ratio for {symbol} slippage: {e}",
-                exc_info=True,
             )
             return base_slippage
         return base_slippage * slippage_scaling

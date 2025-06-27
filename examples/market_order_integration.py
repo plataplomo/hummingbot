@@ -5,7 +5,6 @@ integrating it with CyberDeltaEngine's trading system.
 """
 
 import asyncio
-import logging
 from decimal import Decimal
 from typing import Any
 
@@ -14,6 +13,7 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
     MarketOrder,
@@ -23,6 +23,9 @@ from cyberdelta.core.execution.orders import (
 )
 from cyberdelta.core.execution.orders.market_order_metrics import MarketOrderMetrics
 from cyberdelta.core.models import Order, OrderSide
+
+
+logger = get_logger(__name__)
 
 
 class ExchangeAgnosticMarketOrderExecutor:
@@ -263,7 +266,11 @@ async def main() -> None:
         # Hyperliquid order executed successfully
     except Exception as e:
         # Hyperliquid order failed
-        logging.warning(f"Hyperliquid order failed: {e}")
+        logger.warning(
+            "hyperliquid_order_failed",
+            message="Hyperliquid order failed: %s",
+            message_args=(e,),
+        )
 
     # Example 2: Execute a market order on Backpack
     try:
@@ -276,7 +283,11 @@ async def main() -> None:
         # Backpack order executed successfully
     except Exception as e:
         # Backpack order failed
-        logging.warning(f"Backpack order failed: {e}")
+        logger.warning(
+            "backpack_order_failed",
+            message="Backpack order failed: %s",
+            message_args=(e,),
+        )
 
     # Example 3: Cross-exchange arbitrage
     try:
@@ -289,7 +300,7 @@ async def main() -> None:
         # Arbitrage executed successfully
     except Exception as e:
         # Arbitrage failed
-        logging.warning(f"Arbitrage failed: {e}")
+        logger.warning("arbitrage_failed", message="Arbitrage failed: %s", message_args=(e,))
 
     # Show statistics
     for exchange in executor.exchanges:

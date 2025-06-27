@@ -55,7 +55,13 @@ class SampledLogger:
         self.counter += 1
         if secrets.randbelow(10000) < int(self.sample_rate * 10000):
             kwargs["sample_count"] = self.counter
-            self.logger.debug(f"[SAMPLE] {event}", **kwargs)
+            self.logger.debug(
+                "sampled_debug_message",
+                original_event=event,
+                sample_count=self.counter,
+                message="[SAMPLE] Sampled debug message",
+                **{k: v for k, v in kwargs.items() if k != "sample_count"},
+            )
 
 
 class ErrorSuppressor:
@@ -231,7 +237,7 @@ class MessageStatsAggregator:
             events_per_second=round(total_events / window_duration, 2),
             top_events=top_events,
             unique_event_types=len(self.stats),
-            message=f"Message stats (last {int(window_duration)}s): {total_events} total events",
+            message="Message stats summary for time window",
         )
 
         # Reset for next window

@@ -68,7 +68,7 @@ async def _close_api_connections(app_state: dict[str, Any]) -> None:
     logger.info("Closing API connections...")
     tasks: list[asyncio.Task[None]] = []
     for api_name, api in app_state.get("api_clients", {}).items():
-        logger.debug(f"Adding close task for {api_name} API.")
+        logger.debug("api_close_task_added: Adding close task for API", api_name=api_name)
         tasks.append(asyncio.create_task(api.close(), name=f"close_{api_name}"))
 
     # Wait for API close tasks
@@ -77,7 +77,10 @@ async def _close_api_connections(app_state: dict[str, Any]) -> None:
         pending: set[asyncio.Task[None]]
         _, pending = await asyncio.wait(tasks, timeout=10.0)
         if pending:
-            logger.warning(f"{len(pending)} API close tasks timed out or failed.")
+            logger.warning(
+                "api_close_timeout: API close tasks timed out or failed",
+                pending_count=len(pending),
+            )
             for task in pending:
                 task.cancel()
                 # Try to await the cancelled task to clean up properly
@@ -95,7 +98,7 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
             await app_state["portfolio_tracker"].save_state()
             logger.info("Portfolio state saved successfully")
         except Exception as e:
-            logger.error(f"Error saving portfolio state: {e}", exc_info=True)
+            logger.exception("portfolio_save_error: Error saving portfolio state", error=str(e))
 
     # Save general application state using AsyncStateManager
     if "state_manager" in app_state:
@@ -132,7 +135,7 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
             else:
                 logger.error("Failed to save general application state")
         except Exception as e:
-            logger.error(f"Error saving general state: {e}", exc_info=True)
+            logger.exception("general_state_save_error: Error saving general state", error=str(e))
 
 
 async def shutdown(app_state: dict[str, Any]) -> None:
@@ -192,10 +195,10 @@ def _load_configuration(args: argparse.Namespace) -> AppSettings:
         )
         return config
     except (ConfigurationError, RuntimeError) as e:
-        logger.error("Configuration error", error=str(e), exc_info=True)
+        logger.exception("configuration_error: Configuration error", error=str(e))
         sys.exit(1)
     except Exception as e:
-        logger.error("Unexpected error loading configuration", error=str(e), exc_info=True)
+        logger.exception("config_load_error: Unexpected error loading configuration", error=str(e))
         sys.exit(1)
 
 
@@ -290,7 +293,10 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         return app_state
 
     except Exception as e:
-        logger.error("Fatal error during component initialization", error=str(e), exc_info=True)
+        logger.exception(
+            "component_init_error: Fatal error during component initialization",
+            error=str(e),
+        )
         sys.exit(1)
 
 
@@ -315,18 +321,27 @@ async def _initialize_api_clients(
 
             # Get exchange-specific secrets
             if exchange_name not in secrets_config.exchanges:
-                logger.error(f"No secrets found for exchange: {exchange_name}")
+                logger.error(
+                    "exchange_secrets_missing: No secrets found for exchange",
+                    exchange_name=exchange_name,
+                )
                 continue
 
             exchange_secrets = secrets_config.exchanges[exchange_name]
 
-            logger.debug(f"Attempting to initialize API for {exchange_name}...")
+            logger.debug(
+                "api_initialization_attempt: Attempting to initialize API",
+                exchange_name=exchange_name,
+            )
             if exchange_name == ExchangeName.HYPERLIQUID:
                 client = HyperliquidAPI(exchange_config, exchange_secrets)
             elif exchange_name == ExchangeName.BACKPACK:
                 client = BackpackAPI(exchange_config, exchange_secrets)
             else:
-                logger.warning(f"Unsupported exchange: {exchange_name}")
+                logger.warning(
+                    "unsupported_exchange: Unsupported exchange",
+                    exchange_name=exchange_name,
+                )
                 continue
             await client.connect_websocket()  # CORRECTED: Call connect_websocket()
             api_clients[exchange_name] = client
@@ -346,10 +361,9 @@ async def _initialize_api_clients(
         return api_clients
 
     except Exception as e:
-        logger.error(
-            "Fatal error during API client initialization or connection",
+        logger.exception(
+            "api_client_init_error: Fatal error during API client initialization or connection",
             error=str(e),
-            exc_info=True,
         )
         # Attempt graceful shutdown of already connected clients
         await shutdown(app_state)
@@ -384,7 +398,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
                     strategy_type="hl_perp_bp_spot",
                     symbol=strategy.symbol,
                     action="strategy_initialization_complete",
-                    message=f"Successfully created {strategy.name} via factory",
+                    message="Successfully created strategy via factory",
                 )
             except StrategyCreationError as e:
                 logger.error(
@@ -392,7 +406,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
                     strategy_type="hl_perp_bp_spot",
                     error=str(e),
                     action="strategy_initialization_error",
-                    message=f"Failed to create HL Perp BP Spot strategy: {e}",
+                    message="Failed to create HL Perp BP Spot strategy",
                 )
                 raise
         else:
@@ -403,12 +417,15 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
             count=len(strategies),
             enabled_strategies=[s.name for s in strategies],
             action="all_strategies_initialized",
-            message=f"Successfully initialized {len(strategies)} strategies via factory",
+            message="Successfully initialized strategies via factory",
         )
         return strategies
 
     except Exception as e:
-        logger.error("Fatal error during strategy initialization", error=str(e), exc_info=True)
+        logger.exception(
+            "strategy_init_error: Fatal error during strategy initialization",
+            error=str(e),
+        )
         raise
 
 
@@ -507,11 +524,14 @@ async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
     """Clean up background tasks."""
     # Wait for component tasks launched by main to finish
     if main_tasks:
-        logger.info(f"Waiting for {len(main_tasks)} main component tasks to complete...")
+        logger.info(
+            "waiting_for_tasks: Waiting for main component tasks to complete",
+            task_count=len(main_tasks),
+        )
         _, pending = await asyncio.wait(main_tasks, timeout=15.0)
         if pending:
             logger.info(
-                f"Cancelling {len(pending)} main tasks that did not finish within timeout...",
+                "cancelling_pending_tasks: Cancelling main tasks that timed out",
                 action="task_cleanup",
                 pending_count=len(pending),
                 timeout_seconds=15.0,
@@ -558,10 +578,16 @@ async def _handle_shutdown_and_cleanup(
     current_task = asyncio.current_task()
     all_tasks = [t for t in asyncio.all_tasks() if t != current_task and not t.done()]
     if all_tasks:
-        logger.debug(f"Waiting for {len(all_tasks)} remaining tasks...")
+        logger.debug(
+            "waiting_for_remaining_tasks: Waiting for remaining tasks",
+            task_count=len(all_tasks),
+        )
         _, pending = await asyncio.wait(all_tasks, timeout=1.0)
         if pending:
-            logger.debug(f"{len(pending)} tasks still pending after final wait")
+            logger.debug(
+                "tasks_still_pending: Tasks still pending after final wait",
+                pending_count=len(pending),
+            )
             for task in pending:
                 task.cancel()
 

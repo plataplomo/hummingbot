@@ -76,7 +76,10 @@ class HyperliquidAPIComponentsFactory:
                 "hyperliquid_invalid_auth_type",
                 expected_auth_type="private_key",
                 received_auth_type=exchange_secrets.auth_type,
-                message="Hyperliquid expects auth_type 'private_key' but received '%s'. EIP-712 authentication will not work.",
+                message=(
+                    "Hyperliquid expects auth_type 'private_key' but received '%s'. "
+                    "EIP-712 authentication will not work."
+                ),
                 message_args=(exchange_secrets.auth_type,),
             )
 
@@ -95,7 +98,10 @@ class HyperliquidAPIComponentsFactory:
                 "hyperliquid_authenticator_creation_failed",
                 expected_auth_type="private_key",
                 received_auth_type=self.exchange_secrets.auth_type,
-                message="Cannot create Hyperliquid authenticator: expected auth_type 'private_key' but received '%s'. Signed operations will fail.",
+                message=(
+                    "Cannot create Hyperliquid authenticator: expected auth_type "
+                    "'private_key' but received '%s'. Signed operations will fail."
+                ),
                 message_args=(self.exchange_secrets.auth_type,),
             )
             return None

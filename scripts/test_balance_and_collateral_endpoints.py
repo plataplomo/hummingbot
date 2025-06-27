@@ -2,18 +2,16 @@
 """Final test script for Backpack API integration."""
 
 import asyncio
-import logging
 from pathlib import Path
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
 
 
-# Set up logging instead of using print
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
@@ -24,15 +22,17 @@ async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
     spot_balances: dict[str, SpotBalance] = {}
     try:
         spot_balances = await api.get_balances()
-        logger.info(f"   Keys: {list(spot_balances.keys())}")
-        logger.info(f"   Number of balances: {len(spot_balances)}")
+        logger.info("spot_balance_keys: Available balance symbols", keys=list(spot_balances.keys()))
+        logger.info("spot_balance_count: Number of balances", count=len(spot_balances))
     except Exception as e:
-        logger.error(f"   Error getting balances: {e}")
+        logger.error("balance_fetch_error: Error getting balances", error=str(e))
 
     if "USDC" in spot_balances:
         usdc = spot_balances["USDC"]
         logger.info(
-            f"   USDC Spot: available=${usdc.available_quantity}, total=${usdc.total_quantity}",
+            "usdc_spot_balance: USDC spot balance details",
+            available=usdc.available_quantity,
+            total=usdc.total_quantity,
         )
     else:
         logger.info("   USDC: NOT FOUND in spot")
@@ -60,10 +60,10 @@ def display_summary(spot_balances: dict[str, SpotBalance]) -> None:
     logger.info("3. SUMMARY:")
     spot_usdc = spot_balances.get("USDC")
     if spot_usdc and spot_usdc.available_quantity > 0:
-        logger.info(f"   ✅ USDC found in SPOT: ${spot_usdc.available_quantity}")
+        logger.info("usdc_found_spot: USDC found in SPOT", amount=spot_usdc.available_quantity)
     else:
         spot_amt = spot_usdc.available_quantity if spot_usdc else "None"
-        logger.info(f"   ❌ USDC in SPOT: ${spot_amt}")
+        logger.info("usdc_not_found_spot: USDC not found in SPOT", amount=spot_amt)
         logger.info("   🔍 Check collateral endpoint results above for your $1 USDC")
 
 

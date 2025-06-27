@@ -2,22 +2,20 @@
 """Test script to verify Hyperliquid asset index resolution is working properly."""
 
 import asyncio
-import logging
 from unittest.mock import AsyncMock, MagicMock
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 # Test constants for expected asset indices in mock data
 EXPECTED_SOL_INDEX = 5  # SOL is at index 5 in the mock universe array
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def test_asset_index_resolution() -> None:
@@ -130,7 +128,7 @@ async def test_asset_index_resolution() -> None:
     # Test 1: Fetch asset index for BTC (should be 0)
     logger.info("Test 1: Fetching asset index for BTC")
     btc_index = await indexer.get_asset_index("BTC")
-    logger.info(f"  BTC index: {btc_index}")
+    logger.info("btc_index: BTC asset index", btc_index=btc_index)
     if btc_index != 0:
         raise AssertionError(f"Expected BTC index to be 0, got {btc_index}")
     logger.info("  ✓ BTC index is correct\n")
@@ -138,7 +136,7 @@ async def test_asset_index_resolution() -> None:
     # Test 2: Fetch asset index for ETH (should be 1)
     logger.info("Test 2: Fetching asset index for ETH (from cache)")
     eth_index = await indexer.get_asset_index("ETH")
-    logger.info(f"  ETH index: {eth_index}")
+    logger.info("eth_index: ETH asset index", eth_index=eth_index)
     if eth_index != 1:
         raise AssertionError(f"Expected ETH index to be 1, got {eth_index}")
     logger.info("  ✓ ETH index is correct\n")
@@ -146,14 +144,14 @@ async def test_asset_index_resolution() -> None:
     # Test 3: Fetch asset index for SOL (should be 5)
     logger.info("Test 3: Fetching asset index for SOL (from cache)")
     sol_index = await indexer.get_asset_index("SOL")
-    logger.info(f"  SOL index: {sol_index}")
+    logger.info("sol_index: SOL asset index", sol_index=sol_index)
     if sol_index != EXPECTED_SOL_INDEX:
         raise AssertionError(f"Expected SOL index to be {EXPECTED_SOL_INDEX}, got {sol_index}")
     logger.info("  ✓ SOL index is correct\n")
 
     # Test 4: Verify caching works (API should only be called once)
     logger.info("Test 4: Verifying caching behavior")
-    logger.info(f"  API was called {mock_requester.call_count} time(s)")
+    logger.info("api_call_count: API call count verification", call_count=mock_requester.call_count)
     if mock_requester.call_count != 1:
         raise AssertionError("API should only be called once due to caching")
     logger.info("  ✓ Caching is working correctly\n")
@@ -165,7 +163,7 @@ async def test_asset_index_resolution() -> None:
         logger.error("  ✗ Should have raised an error for invalid symbol")
         raise AssertionError("Should have raised APIError for invalid symbol")
     except APIError as e:
-        logger.info(f"  ✓ Correctly raised APIError: {e.message}\n")
+        logger.info("api_error_raised: Correctly raised APIError", error_message=e.message)
 
     # Test 6: Verify known assets are in cache
     logger.info("Test 6: Verifying known assets are cached:")
@@ -173,7 +171,7 @@ async def test_asset_index_resolution() -> None:
     known_assets = [("BTC", 0), ("ETH", 1), ("SOL", EXPECTED_SOL_INDEX)]
     for symbol, expected_index in known_assets:
         index = await indexer.get_asset_index(symbol)
-        logger.info(f"  {symbol}: {index}")
+        logger.info("asset_index_cached: Cached asset index", symbol=symbol, index=index)
         if index != expected_index:
             raise AssertionError(f"Expected {symbol} to have index {expected_index}, got {index}")
     logger.info("  ✓ All known assets verified")

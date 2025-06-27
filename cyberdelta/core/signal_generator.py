@@ -430,8 +430,14 @@ class SignalGenerator:
             return max(Decimal("1e-8"), std_dev_decimal)  # Ensure non-zero return
         except (InvalidOperation, TypeError, ValueError) as e:
             logger.warning(
-                f"Decimal calculation failed for {exchange}/{internal_symbol}: {e}. "
-                f"Falling back to numpy (with potential precision loss).",
+                "decimal_calculation_failed_funding_volatility",
+                exchange=exchange,
+                internal_symbol=internal_symbol,
+                error=str(e),
+                message=(
+                    "Decimal calculation failed. Falling back to numpy "
+                    "(with potential precision loss)."
+                ),
             )
             try:
                 # Convert Decimal list to list of floats for numpy
@@ -442,8 +448,11 @@ class SignalGenerator:
                 return max(Decimal("1e-8"), std_dev_decimal)
             except Exception as e2:
                 logger.error(
-                    f"Error calculating funding rate volatility for "
-                    f"{exchange}/{internal_symbol}: {e2}",
+                    "error_calculating_funding_rate_volatility",
+                    exchange=exchange,
+                    internal_symbol=internal_symbol,
+                    error=str(e2),
+                    message="Error calculating funding rate volatility",
                 )
                 return Decimal("0.0001")  # Default on calculation error
 
@@ -487,8 +496,13 @@ class SignalGenerator:
         except (InvalidOperation, TypeError, ValueError) as e:
             # Fallback to numpy if Decimal calculation fails
             logger.warning(
-                f"Decimal calculation failed for basis volatility {symbol}: {e}. "
-                f"Falling back to numpy (with potential precision loss).",
+                "decimal_calculation_failed_basis_volatility",
+                symbol=symbol,
+                error=str(e),
+                message=(
+                    "Decimal calculation failed for basis volatility. "
+                    "Falling back to numpy (with potential precision loss)."
+                ),
             )
             try:
                 basis_float = [
@@ -572,8 +586,9 @@ class SignalGenerator:
             return []
 
         logger.debug(
-            f"SG_GEN_OPPS: Checking for opportunities across internal symbols: "
-            f"{all_internal_symbols}",
+            "sg_gen_opps_checking_symbols",
+            all_internal_symbols=all_internal_symbols,
+            message="SG_GEN_OPPS: Checking for opportunities across internal symbols",
         )
 
         # --- Main Loop to Generate Opportunities ---
@@ -582,8 +597,11 @@ class SignalGenerator:
             relevant_exchanges = list(funding_data.get(internal_symbol, {}).keys())
             if not relevant_exchanges or len(relevant_exchanges) < MIN_EXCHANGES_FOR_BASIS:
                 logger.debug(
-                    f"SG_GEN_OPPS: Not enough exchange data for {internal_symbol} "
-                    f"to find arbitrage. Need >= 2, Got: {len(relevant_exchanges)}",
+                    "sg_gen_opps_insufficient_exchange_data",
+                    internal_symbol=internal_symbol,
+                    relevant_exchanges_count=len(relevant_exchanges),
+                    min_required=MIN_EXCHANGES_FOR_BASIS,
+                    message="SG_GEN_OPPS: Not enough exchange data to find arbitrage",
                 )
                 continue  # Need at least two exchanges for an arbitrage
 
@@ -597,9 +615,13 @@ class SignalGenerator:
                 )
                 if not exchange_specific_symbol:
                     logger.warning(
-                        f"SG_GEN_OPPS: Could not map internal symbol {internal_symbol} "
-                        f"to an exchange-specific symbol for {exchange_id}. "
-                        f"Skipping ticker fetch for this pair.",
+                        "sg_gen_opps_symbol_mapping_failed",
+                        internal_symbol=internal_symbol,
+                        exchange_id=exchange_id,
+                        message=(
+                            "SG_GEN_OPPS: Could not map internal symbol to "
+                            "exchange-specific symbol. Skipping ticker fetch."
+                        ),
                     )
                     current_tickers[exchange_id] = None  # Store None if mapping fails
                     continue
@@ -607,9 +629,11 @@ class SignalGenerator:
                 ticker = self.data_handler.get_latest_ticker(exchange_id, exchange_specific_symbol)
                 if ticker is None:
                     logger.debug(
-                        f"SG_TICKER_FETCH_FAIL: No ticker available from DataHandler "
-                        f"for {exchange_id} / {exchange_specific_symbol} "
-                        f"(internal: {internal_symbol}).",
+                        "sg_ticker_fetch_fail",
+                        exchange_id=exchange_id,
+                        exchange_specific_symbol=exchange_specific_symbol,
+                        internal_symbol=internal_symbol,
+                        message="SG_TICKER_FETCH_FAIL: No ticker available from DataHandler",
                     )
                 current_tickers[exchange_id] = ticker
 
@@ -621,9 +645,13 @@ class SignalGenerator:
                 ticker is not None for ticker in current_tickers.values()
             ):  # Check if all are None for relevant exchanges
                 logger.debug(
-                    f"SG_GEN_OPPS: No valid tickers found via DataHandler for internal "
-                    f"symbol {internal_symbol} across relevant exchanges {relevant_exchanges}, "
-                    f"skipping opportunity check for this symbol.",
+                    "sg_gen_opps_no_valid_tickers",
+                    internal_symbol=internal_symbol,
+                    relevant_exchanges=relevant_exchanges,
+                    message=(
+                        "SG_GEN_OPPS: No valid tickers found via DataHandler, "
+                        "skipping opportunity check"
+                    ),
                 )
                 continue
 
@@ -634,7 +662,9 @@ class SignalGenerator:
 
             if not current_funding_on_exchanges_nullable:
                 logger.debug(
-                    f"SG_GEN_OPPS: No funding data entries at all for {internal_symbol}, skipping.",
+                    "sg_gen_opps_no_funding_data",
+                    internal_symbol=internal_symbol,
+                    message="SG_GEN_OPPS: No funding data entries at all, skipping",
                 )
                 continue
 
@@ -648,9 +678,14 @@ class SignalGenerator:
             # Ensure we still have enough data points after filtering Nones
             if len(current_funding_on_exchanges) < MIN_EXCHANGES_FOR_BASIS:
                 logger.debug(
-                    f"SG_GEN_OPPS: Not enough valid (non-None) funding rate data for "
-                    f"{internal_symbol} to find arbitrage. Need >= 2, "
-                    f"Got: {len(current_funding_on_exchanges)} after filtering Nones.",
+                    "sg_gen_opps_insufficient_valid_funding_data",
+                    internal_symbol=internal_symbol,
+                    valid_funding_count=len(current_funding_on_exchanges),
+                    min_required=MIN_EXCHANGES_FOR_BASIS,
+                    message=(
+                        "SG_GEN_OPPS: Not enough valid (non-None) funding rate data "
+                        "to find arbitrage after filtering Nones"
+                    ),
                 )
                 continue
 
@@ -743,14 +778,24 @@ class SignalGenerator:
         rate_b = funding_b.funding_rate
 
         logger.debug(
-            f"NFD_CHECK_PAIR: {symbol} - {exchange_a} (Rate: {rate_a}) "
-            f"vs {exchange_b} (Rate: {rate_b})",
+            "nfd_check_pair",
+            symbol=symbol,
+            exchange_a=exchange_a,
+            exchange_b=exchange_b,
+            rate_a=rate_a,
+            rate_b=rate_b,
+            message="NFD_CHECK_PAIR: Comparing exchange pair rates",
         )
 
         if rate_a is None or rate_b is None:
             logger.debug(
-                f"NFD_SKIP_PAIR: {symbol} - Missing rate for {exchange_a} "
-                f"or {exchange_b}. Skipping.",
+                "nfd_skip_pair_missing_rate",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                exchange_b=exchange_b,
+                rate_a=rate_a,
+                rate_b=rate_b,
+                message="NFD_SKIP_PAIR: Missing rate for one or both exchanges. Skipping.",
             )
             return None
 
@@ -760,9 +805,16 @@ class SignalGenerator:
         # Check if the differential exceeds our threshold
         if abs(funding_differential) < self.min_funding_differential:
             logger.debug(
-                f"NFD_SKIP_THRESHOLD: {symbol} - Pair {exchange_a}/{exchange_b}. "
-                f"NFD {funding_differential:.8f} abs({abs(funding_differential):.8f}) "
-                f"< Min Diff {self.min_funding_differential:.8f}. Skipping.",
+                "nfd_skip_threshold",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                exchange_b=exchange_b,
+                funding_differential=funding_differential,
+                abs_funding_differential=abs(funding_differential),
+                min_funding_differential=self.min_funding_differential,
+                message=(
+                    "NFD_SKIP_THRESHOLD: Funding differential below minimum threshold. Skipping."
+                ),
             )
             return None
 
@@ -812,8 +864,13 @@ class SignalGenerator:
 
         if ticker_a is None or ticker_b is None:
             logger.debug(
-                f"NFD_SKIP_TICKER: {symbol} - Missing ticker for {exchange_a} "
-                f"or {exchange_b}. Skipping.",
+                "nfd_skip_ticker_missing",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                exchange_b=exchange_b,
+                ticker_a=ticker_a,
+                ticker_b=ticker_b,
+                message="NFD_SKIP_TICKER: Missing ticker for one or both exchanges. Skipping.",
             )
             return None
 
@@ -825,17 +882,26 @@ class SignalGenerator:
             or ticker_b.bid is None
         ):
             logger.debug(
-                f"NFD_SKIP_BID_ASK: {symbol} - Missing bid/ask for {symbol} on "
-                f"{exchange_a} (A:{ticker_a.ask}, B:{ticker_a.bid}) or "
-                f"{exchange_b} (A:{ticker_b.ask}, B:{ticker_b.bid}). Skipping.",
+                "nfd_skip_bid_ask",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                ticker_a_ask=ticker_a.ask,
+                ticker_a_bid=ticker_a.bid,
+                exchange_b=exchange_b,
+                ticker_b_ask=ticker_b.ask,
+                ticker_b_bid=ticker_b.bid,
+                message="Missing bid/ask prices",
             )
             return None
 
         # Validate mid prices
         if ticker_a.price is None or ticker_b.price is None:
             logger.debug(
-                f"NFD_SKIP_MID_PRICE: {symbol} - Missing .price (mid) for "
-                f"{exchange_a} or {exchange_b}. Skipping.",
+                "nfd_skip_mid_price",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                exchange_b=exchange_b,
+                message="Missing mid prices",
             )
             return None
 
@@ -874,11 +940,15 @@ class SignalGenerator:
 
         if expected_profit < self.min_profit_threshold:
             logger.debug(
-                f"NFD_SKIP_PROFIT: {symbol} - Pair {exchange_a}/{exchange_b}. "
-                f"ExpProfit {expected_profit:.4f} < MinProfit "
-                f"{self.min_profit_threshold:.4f}. "
-                f"ValueDiff: {net_funding_value_differential:.4f}, "
-                f"Slippage: {total_slippage:.4f}. Skipping.",
+                "nfd_skip_profit",
+                symbol=symbol,
+                exchange_a=exchange_a,
+                exchange_b=exchange_b,
+                expected_profit=float(expected_profit),
+                min_profit_threshold=float(self.min_profit_threshold),
+                net_funding_value_differential=float(net_funding_value_differential),
+                total_slippage=float(total_slippage),
+                message="Expected profit below threshold",
             )
             return None
 
@@ -945,12 +1015,16 @@ class SignalGenerator:
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
         logger.debug(
-            f"NFD_OPP_DEBUG: Symbol={symbol}, Case 1 (Long B, Short A) "
-            f"before ArbitrageOpportunity creation. "
-            f"LongEx: {exchange_b}, ShortEx: {exchange_a}, "
-            f"LongPx: {current_long_price}, ShortPx: {current_short_price}, "
-            f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, "
-            f"NFD: {opportunity_nfd_calculated}",
+            "nfd_opp_debug_case1",
+            symbol=symbol,
+            long_exchange=exchange_b,
+            short_exchange=exchange_a,
+            long_price=float(current_long_price),
+            short_price=float(current_short_price),
+            long_rate=float(actual_long_rate),
+            short_rate=float(actual_short_rate),
+            nfd=float(opportunity_nfd_calculated),
+            message="Case 1 (Long B, Short A) before ArbitrageOpportunity creation",
         )
 
         opportunity = ArbitrageOpportunity(
@@ -967,9 +1041,13 @@ class SignalGenerator:
         )
 
         logger.info(
-            f"NFD_OPP_CREATED: {symbol} - Long {exchange_b} @ {actual_long_rate:.8f}, "
-            f"Short {exchange_a} @ {actual_short_rate:.8f}, "
-            f"NFD: {opportunity_nfd_calculated:.8f}",
+            "nfd_opp_created",
+            symbol=symbol,
+            long_exchange=exchange_b,
+            long_rate=float(actual_long_rate),
+            short_exchange=exchange_a,
+            short_rate=float(actual_short_rate),
+            nfd=float(opportunity_nfd_calculated),
         )
 
         return opportunity
@@ -999,12 +1077,16 @@ class SignalGenerator:
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
         logger.debug(
-            f"NFD_OPP_DEBUG: Symbol={symbol}, Case 2 (Long A, Short B) "
-            f"before ArbitrageOpportunity creation. "
-            f"LongEx: {exchange_a}, ShortEx: {exchange_b}, "
-            f"LongPx: {current_long_price}, ShortPx: {current_short_price}, "
-            f"LongRate: {actual_long_rate}, ShortRate: {actual_short_rate}, "
-            f"NFD: {opportunity_nfd_calculated}",
+            "nfd_opp_debug_case2",
+            symbol=symbol,
+            long_exchange=exchange_a,
+            short_exchange=exchange_b,
+            long_price=float(current_long_price),
+            short_price=float(current_short_price),
+            long_rate=float(actual_long_rate),
+            short_rate=float(actual_short_rate),
+            nfd=float(opportunity_nfd_calculated),
+            message="Case 2 (Long A, Short B) before ArbitrageOpportunity creation",
         )
 
         opportunity = ArbitrageOpportunity(
@@ -1021,9 +1103,13 @@ class SignalGenerator:
         )
 
         logger.info(
-            f"NFD_OPP_CREATED: {symbol} - Long {exchange_a} @ {actual_long_rate:.8f}, "
-            f"Short {exchange_b} @ {actual_short_rate:.8f}, "
-            f"NFD: {opportunity_nfd_calculated:.8f}",
+            "nfd_opp_created",
+            symbol=symbol,
+            long_exchange=exchange_a,
+            long_rate=float(actual_long_rate),
+            short_exchange=exchange_b,
+            short_rate=float(actual_short_rate),
+            nfd=float(opportunity_nfd_calculated),
         )
 
         return opportunity

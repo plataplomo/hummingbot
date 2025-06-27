@@ -153,7 +153,9 @@ class BackpackMarketDataMapper:
                     trades_count = int(raw_ticker.trades)
                 except (ValueError, TypeError):
                     logger.warning(
-                        f"Failed to parse trades count '{raw_ticker.trades}' for {symbol}",
+                        "trades_count_parse_failed: Failed to parse trades count for symbol",
+                        raw_trades_count=raw_ticker.trades,
+                        symbol=symbol,
                     )
 
             # Generate timestamp since API doesn't provide it
