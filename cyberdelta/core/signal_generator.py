@@ -28,6 +28,10 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
+# Signal generation constants
+MIN_EXCHANGES_FOR_BASIS = 2  # Minimum exchanges needed for basis calculation
+MIN_DATA_POINTS_FOR_VOLATILITY = 2  # Minimum data points needed for volatility calculation
+
 logger = get_logger(__name__)  # <--- Use configured logger
 
 # Set precision for Decimal
@@ -293,7 +297,7 @@ class SignalGenerator:
         )
 
         # Compute basis if enough valid tickers were found
-        if len(valid_exchanges_for_symbol) >= 2:
+        if len(valid_exchanges_for_symbol) >= MIN_EXCHANGES_FOR_BASIS:
             self._compute_and_store_basis(
                 internal_symbol,
                 valid_exchanges_for_symbol,
@@ -400,7 +404,7 @@ class SignalGenerator:
             return Decimal("0.0001")  # Default funding volatility
 
         history_deque = self.historical_funding_rates[exchange][internal_symbol]
-        if len(history_deque) < 2:
+        if len(history_deque) < MIN_DATA_POINTS_FOR_VOLATILITY:
             # Need at least 2 points to calculate volatility
             return Decimal("0.0001")  # Default volatility
 
@@ -456,7 +460,7 @@ class SignalGenerator:
             return Decimal("0.01")  # Default basis volatility
 
         history_deque = self.historical_basis[symbol]
-        if len(history_deque) < 2:
+        if len(history_deque) < MIN_DATA_POINTS_FOR_VOLATILITY:
             # logger.debug(
             #    f"Returning default."
             return Decimal("0.01")  # Default volatility
@@ -576,7 +580,7 @@ class SignalGenerator:
         for internal_symbol in all_internal_symbols:
             # For each internal symbol, gather necessary data across all relevant exchanges
             relevant_exchanges = list(funding_data.get(internal_symbol, {}).keys())
-            if not relevant_exchanges or len(relevant_exchanges) < 2:
+            if not relevant_exchanges or len(relevant_exchanges) < MIN_EXCHANGES_FOR_BASIS:
                 logger.debug(
                     f"SG_GEN_OPPS: Not enough exchange data for {internal_symbol} "
                     f"to find arbitrage. Need >= 2, Got: {len(relevant_exchanges)}",
@@ -642,7 +646,7 @@ class SignalGenerator:
             }
 
             # Ensure we still have enough data points after filtering Nones
-            if len(current_funding_on_exchanges) < 2:
+            if len(current_funding_on_exchanges) < MIN_EXCHANGES_FOR_BASIS:
                 logger.debug(
                     f"SG_GEN_OPPS: Not enough valid (non-None) funding rate data for "
                     f"{internal_symbol} to find arbitrage. Need >= 2, "

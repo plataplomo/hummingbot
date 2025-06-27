@@ -53,6 +53,10 @@ from cyberdelta.utils.typing import is_dict_str_any
 
 logger = get_logger(__name__)
 
+# Cryptographic constants
+PRIVATE_KEY_HEX_LENGTH = 64  # Length of private key in hex characters
+SIGNATURE_HEX_LENGTH = 66  # Length of signature components (0x + 64 hex chars)
+
 
 class SignatureObject(Protocol):
     """Protocol for signature objects from eth_account signing."""
@@ -240,7 +244,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def _validate_private_key_format(self, processed_pk_str: str) -> None:
         """Validate that private key is a 64-character hex string."""
         if not (
-            len(processed_pk_str) == 64 and all(c in string.hexdigits for c in processed_pk_str)
+            len(processed_pk_str) == PRIVATE_KEY_HEX_LENGTH
+            and all(c in string.hexdigits for c in processed_pk_str)
         ):
             raise ValueError(
                 "Hyperliquid private_key must be a 64-character hex string "
@@ -263,7 +268,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
     def _validate_passphrase_word_count(self, phrase_str: str) -> None:
         """Validate that passphrase has correct word count."""
         num_words = len(phrase_str.split())
-        if num_words not in (12, 24):
+        if num_words not in {12, 24}:
             raise ValueError(
                 f"Hyperliquid passphrase must consist of 12 or 24 words, got {num_words} words.",
             )
@@ -654,15 +659,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             s_hex: str = to_hex(signed_message_obj.s)
 
             # Pad to 64 hex characters if needed (0x + 64 chars = 66 total)
-            if len(r_hex) < 66:
+            if len(r_hex) < SIGNATURE_HEX_LENGTH:
                 r_hex = "0x" + r_hex[2:].zfill(64)
-            if len(s_hex) < 66:
+            if len(s_hex) < SIGNATURE_HEX_LENGTH:
                 s_hex = "0x" + s_hex[2:].zfill(64)
 
             # Validate hex format
-            if not r_hex.startswith("0x") or len(r_hex) != 66:
+            if not r_hex.startswith("0x") or len(r_hex) != SIGNATURE_HEX_LENGTH:
                 raise ValueError(f"Invalid r component format: {r_hex}")
-            if not s_hex.startswith("0x") or len(s_hex) != 66:
+            if not s_hex.startswith("0x") or len(s_hex) != SIGNATURE_HEX_LENGTH:
                 raise ValueError(f"Invalid s component format: {s_hex}")
 
             signature_dict = {

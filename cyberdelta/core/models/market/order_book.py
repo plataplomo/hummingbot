@@ -23,6 +23,10 @@ from pydantic_core.core_schema import ValidationInfo
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
+# Order book structure constants
+LEVEL_PAIR_LENGTH = 2  # Expected length for price/quantity pairs in order book levels
+
+
 class OrderBook(BaseModel):
     """Represents an immutable, validated snapshot of the L2 order book for a specific symbol.
 
@@ -202,7 +206,7 @@ class OrderBook(BaseModel):
         # DEFENSIVE CHECK: Runtime length check.
         # After type guard check, we know level_raw is a Sequence
         level_len = len(level_raw)
-        if level_len != 2:
+        if level_len != LEVEL_PAIR_LENGTH:
             raise ValueError(
                 f"Level item in {field_name} at index {index} must have length 2, "
                 f"got length {level_len}",

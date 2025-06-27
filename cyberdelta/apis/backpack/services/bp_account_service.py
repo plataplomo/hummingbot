@@ -27,6 +27,7 @@ from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollate
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
+from cyberdelta.apis.http_status_codes import HTTP_NOT_FOUND
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -66,6 +67,9 @@ HttpClientRequesterSig = Callable[
     ...,
     Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
 ]
+
+# Validation constants
+UINT16_MAX_VALUE = 65535  # Maximum value for 16-bit unsigned integer
 
 
 class BackpackAccountService:
@@ -226,7 +230,7 @@ class BackpackAccountService:
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
             # or account may have no positions, return empty list
-            if e.http_status == 404:
+            if e.http_status == HTTP_NOT_FOUND:
                 logger.info(
                     f"[{self._exchange_name}] Positions endpoint returned 404, "
                     f"returning empty positions list for symbol '{symbol or 'all'}'",
@@ -719,7 +723,7 @@ class BackpackAccountService:
         current_method = frame.f_code.co_name if frame is not None else "get_account_summary"
 
         # Validate subaccount_id if provided (OpenAPI spec: uint16)
-        if subaccount_id is not None and (subaccount_id < 0 or subaccount_id > 65535):
+        if subaccount_id is not None and (subaccount_id < 0 or subaccount_id > UINT16_MAX_VALUE):
             raise APIError(
                 code=APIErrorCode.INVALID_REQUEST.value,
                 message=f"Invalid subaccount_id: {subaccount_id}. Must be uint16 (0-65535).",
@@ -823,7 +827,7 @@ class BackpackAccountService:
         except APIError as e:
             # If collateral endpoint not available (404) or returns invalid data,
             # return None for fallback
-            if e.http_status == 404 or (
+            if e.http_status == HTTP_NOT_FOUND or (
                 e.code == APIErrorCode.INVALID_RESPONSE.value and "collateral" in e.message
             ):
                 logger.debug(

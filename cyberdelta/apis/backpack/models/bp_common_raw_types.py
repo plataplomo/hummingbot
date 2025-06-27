@@ -20,6 +20,11 @@ from cyberdelta.utils.parsing import (
 )
 
 
+# Timestamp validation constants
+UNIX_EPOCH_YEAR = 1970
+TIMESTAMP_MAX_YEAR_CONSERVATIVE = 2070  # Conservative range for funding rates
+TIMESTAMP_MAX_YEAR_EXTENDED = 2300  # Extended range for general timestamps
+
 # --- Known Enum Sets for Backpack ---
 BP_ORDER_SIDES = {"Bid", "Ask"}
 """Set of allowed Backpack order sides."""
@@ -310,10 +315,10 @@ def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, valu
     Raises:
         ValueError: If the timestamp year is outside the valid range (1970-2070).
     """
-    if dt_object.year < 1970 or dt_object.year > 2070:
+    if dt_object.year < UNIX_EPOCH_YEAR or dt_object.year > TIMESTAMP_MAX_YEAR_CONSERVATIVE:
         raise ValueError(
             f"Field {field_name}: Timestamp '{value}' results in an implausible year "
-            f"({dt_object.year}) for funding rate context (expected 1970-2070).",
+            f"({dt_object.year}) for funding rate context (expected {UNIX_EPOCH_YEAR}-{TIMESTAMP_MAX_YEAR_CONSERVATIVE}).",
         )
 
 
@@ -431,7 +436,7 @@ def _validate_year_range(dt_object: datetime, field_name: str, value: object) ->
     Raises:
         ValueError: If the timestamp year is outside the range (1970-2300).
     """
-    if dt_object.year < 1970 or dt_object.year > 2300:
+    if dt_object.year < UNIX_EPOCH_YEAR or dt_object.year > TIMESTAMP_MAX_YEAR_EXTENDED:
         raise ValueError(
             f"Field {field_name}: Timestamp '{value}' results in an implausible year "
             f"({dt_object.year}) for this context.",
@@ -587,7 +592,7 @@ def _validate_optional_non_empty_string_max_len(
     field_name = info.field_name or f"optional_raw_non_empty_string_max{max_length}_field"
 
     # Special handling for clientId field: Backpack API can return integers
-    if field_name == "clientId" or field_name == "client_id":
+    if field_name in {"clientId", "client_id"}:
         if isinstance(v, int):
             # Convert integer to string for clientId
             v = str(v)
@@ -597,7 +602,7 @@ def _validate_optional_non_empty_string_max_len(
         raise ValueError(f"{field_name}: raw value must be a string")
 
     if not v.strip():  # Check for empty or whitespace-only string
-        if field_name == "clientId" or field_name == "client_id":
+        if field_name in {"clientId", "client_id"}:
             raise ValueError(
                 "Value error, clientId cannot be an empty or whitespace-only string if provided.",
             )

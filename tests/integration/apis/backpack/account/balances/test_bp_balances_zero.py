@@ -341,7 +341,7 @@ class TestBackpackBalancesZero:
 
             # If balances are zero, equity should also be zero (or very close)
             if total_usd_value == Decimal(0) and account_summary.total_position_notional == Decimal(
-                0
+                0,
             ):
                 # Account with no USD balances and no positions should have zero equity
                 assert account_summary.total_equity <= Decimal("0.01"), (

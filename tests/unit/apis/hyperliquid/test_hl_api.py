@@ -713,4 +713,4 @@ class TestHyperliquidAPIMarketDataMethods:
         # Test that extra fields are forbidden
         with pytest.raises(ValidationError):
             # This should fail due to extra fields being forbidden
-            GetMarketsArgs(**{"extra_field": "not_allowed"})
+            GetMarketsArgs(extra_field="not_allowed")

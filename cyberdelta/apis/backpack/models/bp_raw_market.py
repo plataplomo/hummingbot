@@ -38,6 +38,10 @@ from pydantic import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import is_sequence_of_any
 
+
+# Market data structure constants
+PAIR_ELEMENT_COUNT = 2  # Expected number of elements in price/quantity pairs
+
 from .bp_common_raw_types import (
     RawBpDepthPriceString,
     RawBpDepthQuantityString,
@@ -273,7 +277,7 @@ class BackpackRawDepthUpdateEvent(BaseModel):
 
             level_item_seq = cast("Sequence[object]", level_item_raw_obj)
 
-            if len(level_item_seq) != 2:
+            if len(level_item_seq) != PAIR_ELEMENT_COUNT:
                 raise ValueError("length 2")
 
             level_item_as_tuple = tuple(level_item_seq)

@@ -126,7 +126,7 @@ class Market(BaseModel):
         field_name = info.field_name if info.field_name is not None else "unknown_field"
 
         # tick_size and step_size are required, others are optional
-        allow_none = field_name not in ("tick_size", "step_size")
+        allow_none = field_name not in {"tick_size", "step_size"}
 
         parsed_decimal = parse_decimal_value(v, allow_none=allow_none, field_name=field_name)
 

@@ -22,6 +22,9 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
 
+# Type validation constants
+UNION_PAIR_COUNT = 2  # Expected count for Union[T, None] (Optional[T]) type arguments
+
 
 class TypedResponseError(Exception):
     """Typed response validation error."""
@@ -463,7 +466,7 @@ def auto_typed(
 
     if origin is Union:
         # Handle Optional[T] → Union[T, None]
-        if len(args) == 2 and type(None) in args:
+        if len(args) == UNION_PAIR_COUNT and type(None) in args:
             # Optional type
             model_type = next(arg for arg in args if arg is not type(None))
             model_origin = get_origin(model_type)

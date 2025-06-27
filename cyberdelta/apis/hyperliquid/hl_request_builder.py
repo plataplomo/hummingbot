@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+
+# Precision and batch size constants
+PRECISION_TOLERANCE = 1e-12  # Tolerance for floating point precision checks
+MAX_BATCH_SIZE = 50  # Maximum number of orders/cancellations per batch request
+
 from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
@@ -123,7 +128,7 @@ class HyperliquidRequestBuilder:
 
         # Check for rounding errors
         precision_loss = abs(float(rounded) - x)
-        if precision_loss >= 1e-12:
+        if precision_loss >= PRECISION_TOLERANCE:
             raise ValueError(
                 f"Wire format conversion causes precision loss for {value}. "
                 f"Loss: {precision_loss:.2e}",
@@ -144,7 +149,7 @@ class HyperliquidRequestBuilder:
 
             # Ensure at least one decimal place for Hyperliquid API compatibility
             if "." not in result:
-                result = result + ".0"
+                result += ".0"
 
             # Final validation - ensure result is parseable
             _ = Decimal(result)
@@ -399,7 +404,7 @@ class HyperliquidRequestBuilder:
             order_type_model = HyperliquidRawOrderType(
                 limit=HyperliquidRawLimitOrderTypeDetails(tif="Ioc"),
             )
-        elif args.order_type in (OrderType.STOP_MARKET, OrderType.STOP_LIMIT):
+        elif args.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}:
             # Construct trigger information for stop orders
             if args.stop_price is None:
                 raise ValueError(f"Stop orders require stop_price, got None for {args.order_type}")
@@ -638,9 +643,9 @@ class HyperliquidRequestBuilder:
         if not orders_with_indices:
             raise ValueError("Cannot create batch order payload with empty order list")
 
-        if len(orders_with_indices) > 50:  # Conservative batch size limit
+        if len(orders_with_indices) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
-                f"Batch size {len(orders_with_indices)} exceeds maximum of 50 orders. "
+                f"Batch size {len(orders_with_indices)} exceeds maximum of {MAX_BATCH_SIZE} orders. "
                 "Consider splitting into smaller batches.",
             )
 
@@ -683,9 +688,9 @@ class HyperliquidRequestBuilder:
         if not cancel_items:
             raise ValueError("Cannot create batch cancel payload with empty cancel list")
 
-        if len(cancel_items) > 50:  # Conservative batch size limit
+        if len(cancel_items) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
-                f"Batch size {len(cancel_items)} exceeds maximum of 50 cancellations. "
+                f"Batch size {len(cancel_items)} exceeds maximum of {MAX_BATCH_SIZE} cancellations. "
                 "Consider splitting into smaller batches.",
             )
 

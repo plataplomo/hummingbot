@@ -27,6 +27,11 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     ProcessedResponseHeaders,
 )
+from cyberdelta.apis.http_status_codes import (
+    HTTP_MULTIPLE_CHOICES,
+    HTTP_NO_CONTENT,
+    HTTP_OK,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
@@ -250,7 +255,7 @@ class HttpClient:
             ) from ve
 
         # Check for 204 No Content BEFORE attempting to read body
-        if response.status == 204:
+        if response.status == HTTP_NO_CONTENT:
             logger.debug(
                 "received_204_no_content",
                 action="parse_and_validate_response",
@@ -303,7 +308,7 @@ class HttpClient:
         )
 
         # Double check 204, though it should be caught above. response.text() might be called.
-        if response.status == 204:
+        if response.status == HTTP_NO_CONTENT:
             return (
                 None,
                 response.status,
@@ -674,7 +679,7 @@ class HttpClient:
         CIMultiDictProxy[str],
     ]:
         """Handle the HTTP response."""
-        if 200 <= response.status < 300:
+        if HTTP_OK <= response.status < HTTP_MULTIPLE_CHOICES:
             try:
                 return await self._parse_and_validate_response(response, full_url)
             except HttpRequestFailedError as e_parse:
@@ -742,7 +747,7 @@ class HttpClient:
             response_body=error_body_text,
         )
 
-        if response.status in [400, 401, 403, 404, 405, 406, 415]:
+        if response.status in {400, 401, 403, 404, 405, 406, 415}:
             logger.warning(
                 "non_retryable_client_error",
                 action="handle_error_response",
@@ -763,13 +768,13 @@ class HttpClient:
             return True
         return bool(
             hasattr(error, "http_status")
-            and error.http_status in [400, 401, 403, 404, 405, 406, 415]
+            and error.http_status in {400, 401, 403, 404, 405, 406, 415},
         )
 
     def _should_skip_retry_delay(self, exception: Exception) -> bool:
         """Determine if retry delay should be skipped for certain exceptions."""
         if isinstance(exception, HttpRequestFailedError):
-            return exception.http_status in [400, 401, 403, 404, 405, 406, 415]
+            return exception.http_status in {400, 401, 403, 404, 405, 406, 415}
         return False
 
     async def _apply_retry_delay(self, current_attempt: int, full_url: str) -> None:

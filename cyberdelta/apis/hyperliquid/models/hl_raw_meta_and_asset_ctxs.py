@@ -51,6 +51,10 @@ from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
+# Response structure constants
+META_AND_ASSET_CTXS_RESPONSE_LENGTH = 2  # Expected length of MetaAndAssetCtxs response
+
+
 class HyperliquidRawAssetDefinition(BaseModel):
     """Strict boundary model for a single asset/market definition from Hyperliquid.
 
@@ -176,7 +180,7 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
 
         # obj is now properly typed as list[Any] due to TypeGuard
-        if len(obj) != 2:
+        if len(obj) != META_AND_ASSET_CTXS_RESPONSE_LENGTH:
             raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
 
         return obj

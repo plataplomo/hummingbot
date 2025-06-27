@@ -34,6 +34,11 @@ from cyberdelta.utils.parsing import (
 )
 
 
+# Cryptographic and address length constants
+ETHEREUM_ADDRESS_LENGTH = 42  # Length of Ethereum address (0x + 40 hex chars)
+SIGNATURE_HEX_LENGTH = 66  # Length of signature components (0x + 64 hex chars)
+HASH_HEX_LENGTH = 34  # Length of hash values (0x + 32 hex chars)
+
 # --- Wrapper Validator Functions ---
 
 
@@ -133,7 +138,7 @@ def _wrap_validate_strict_eth_address_str(
     )  # Max length check is okay here
     if not s.startswith("0x"):
         raise ValueError(f"{field_name}: Must start with '0x'.")
-    if len(s) != 42:
+    if len(s) != ETHEREUM_ADDRESS_LENGTH:
         raise ValueError(f"{field_name}: Must be exactly 42 characters long.")
     try:
         int(s, 16)  # Check if it's a valid hex string
@@ -160,7 +165,7 @@ def _wrap_validate_tx_hash_str(
         raise ValueError(f"{field_name}: Must start with '0x'. Value: '{s}'")
 
     # Step 3: Check for exact length 66
-    if len(s) != 66:
+    if len(s) != SIGNATURE_HEX_LENGTH:
         raise ValueError(
             f"{field_name}: Must be exactly 66 characters long. "
             f"Actual length: {len(s)}. Value: '{s}'",
@@ -673,7 +678,7 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
         raise ValueError(f"{field_name}: Must start with '0x' prefix")
 
     # Check exact length: 0x + 32 hex chars = 34 total
-    if len(v) != 34:
+    if len(v) != HASH_HEX_LENGTH:
         raise ValueError(
             f"{field_name}: Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}",
         )

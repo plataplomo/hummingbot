@@ -396,10 +396,10 @@ class MarketOrderTestHelpers:
                 f"filled={historical_order.quantity_filled}",
             )
 
-            order_matches = (
-                historical_order.exchange_order_id == order_id
-                or historical_order.client_order_id == order_id
-            )
+            order_matches = order_id in {
+                historical_order.exchange_order_id,
+                historical_order.client_order_id,
+            }
 
             if order_matches:
                 if historical_order.quantity_filled and historical_order.quantity_filled > 0:

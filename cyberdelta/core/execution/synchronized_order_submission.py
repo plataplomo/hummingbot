@@ -1089,10 +1089,10 @@ class SynchronizedOrderSubmissionService:
             )
 
         # Post-execution verification if execution was successful
-        if execution_result.status in (
+        if execution_result.status in {
             ExecutionStatus.COMPLETED,
             ExecutionStatus.PARTIALLY_COMPLETED,
-        ):
+        }:
             post_verify_result = await self.verify_post_execution(
                 execution_context,
                 opportunity,

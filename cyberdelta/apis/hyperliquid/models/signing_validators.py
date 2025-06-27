@@ -14,6 +14,10 @@ from pydantic_core.core_schema import SerializationInfo
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
+# Address validation constants
+ETHEREUM_ADDRESS_LENGTH = 42  # Length of Ethereum address (0x + 40 hex chars)
+
+
 def normalize_ethereum_address(address: str) -> str:
     """Normalize an Ethereum address to lowercase for consistent signing.
 
@@ -23,7 +27,7 @@ def normalize_ethereum_address(address: str) -> str:
     Returns:
         Lowercase Ethereum address
     """
-    if len(address) == 42 and address.lower().startswith("0x"):
+    if len(address) == ETHEREUM_ADDRESS_LENGTH and address.lower().startswith("0x"):
         return address.lower()
     return address
 

@@ -140,12 +140,12 @@ class OrderManager:
 
         # Status transitions
         previous_status = order.status
-        if order.status not in [
+        if order.status not in {
             OrderStatus.CANCELED,
             OrderStatus.REJECTED,
             OrderStatus.EXPIRED,
             OrderStatus.FAILED,
-        ]:
+        }:
             if abs(order.quantity_filled - order.quantity_requested) < tolerance:
                 order.status = OrderStatus.FILLED
                 logger.info(

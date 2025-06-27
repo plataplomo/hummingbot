@@ -78,6 +78,10 @@ from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
+# Batch processing constraints
+MAX_BATCH_SIZE = 50  # Maximum number of orders/cancellations per batch
+MIN_ORDERBOOK_LEVELS = 2  # Minimum number of levels expected in orderbook
+
 logger = get_logger(__name__)
 
 
@@ -649,9 +653,9 @@ class HyperliquidTradingService:
 
     def _validate_batch_orders(self, orders: list[PlaceOrderArgs], current_method: str) -> None:
         """Validate batch-specific constraints."""
-        if len(orders) > 50:
+        if len(orders) > MAX_BATCH_SIZE:
             raise ValueError(
-                f"[{current_method}] Batch size {len(orders)} exceeds maximum of 50 orders. "
+                f"[{current_method}] Batch size {len(orders)} exceeds maximum of {MAX_BATCH_SIZE} orders. "
                 "Consider splitting into smaller batches.",
             )
 
@@ -693,7 +697,7 @@ class HyperliquidTradingService:
                 effective_tif = TimeInForce.ALO
 
             # Map time in force to Hyperliquid format for limit/stop orders
-            if order_args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            if order_args.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT}:
                 tif_str = self._map_time_in_force_to_hyperliquid(effective_tif)
                 tif_mapping[order_args.symbol] = tif_str
 
@@ -774,14 +778,14 @@ class HyperliquidTradingService:
             )
 
         # Validate price for limit orders
-        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and args.price is None:
+        if args.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and args.price is None:
             raise ValueError(
                 f"[{current_method}] Price is required for {args.order_type.value} orders",
             )
 
         # Validate stop price for stop orders
         if (
-            args.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]
+            args.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
             and args.stop_price is None
         ):
             raise ValueError(
@@ -945,7 +949,7 @@ class HyperliquidTradingService:
         status_lower = status_raw.lower()
 
         # Handle success statuses
-        if status_lower in ["success", "ok", "accepted"]:
+        if status_lower in {"success", "ok", "accepted"}:
             return {"success": status_raw}
 
         # Handle canceled status
@@ -1685,9 +1689,9 @@ class HyperliquidTradingService:
                 raise ValueError(f"[{current_method}] Cannot cancel empty batch of orders")
             raise ValueError(f"[{current_method}] Cannot cancel empty order list")
 
-        if len(cancel_args) > 1 and len(cancel_args) > 50:
+        if len(cancel_args) > 1 and len(cancel_args) > MAX_BATCH_SIZE:
             raise ValueError(
-                f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of 50 "
+                f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of {MAX_BATCH_SIZE} "
                 "cancellations. Consider splitting into smaller batches.",
             )
 
@@ -2409,7 +2413,7 @@ class HyperliquidTradingService:
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []
 
-        if raw_book.levels and len(raw_book.levels) >= 2:
+        if raw_book.levels and len(raw_book.levels) >= MIN_ORDERBOOK_LEVELS:
             # Hyperliquid format: levels[0] = bids, levels[1] = asks
             for bid_level in raw_book.levels[0]:
                 price = parse_decimal_value(bid_level.px)

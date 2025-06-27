@@ -36,6 +36,12 @@ from cyberdelta.core.strategy import Strategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
+# Strategy timing and safety constants
+FUNDING_RATE_GRACE_PERIOD_MINUTES = 5  # Grace period after funding rate hour
+MAX_CONSECUTIVE_FAILURES = 10  # Maximum failures before critical alert
+MIN_DATA_POINTS_FOR_BASIS = 2  # Minimum data points for basis calculation
+
+
 # Set precision for Decimal
 getcontext().prec = 28
 
@@ -212,7 +218,7 @@ class FundingRateArbitrageStrategy(Strategy):
         # Also fetch if we're within 5 minutes after the hour
         # and data is from before the hour
         minutes_past_hour = now.minute
-        if minutes_past_hour <= 5:
+        if minutes_past_hour <= FUNDING_RATE_GRACE_PERIOD_MINUTES:
             # Check if the cached data is from before this hour
             current_hour_start = now.replace(minute=0, second=0, microsecond=0)
             if current_rate.timestamp < current_hour_start:
@@ -251,7 +257,7 @@ class FundingRateArbitrageStrategy(Strategy):
         )
 
         # Trigger alert if too many consecutive failures
-        if self._consecutive_failures >= 10:
+        if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
             logger.critical(
                 "funding_rate_critical_failure",
                 strategy=self.name,
@@ -587,7 +593,10 @@ class FundingRateArbitrageStrategy(Strategy):
             Basis volatility as standard deviation
 
         """
-        if symbol not in self.historical_basis or len(self.historical_basis[symbol]) < 2:
+        if (
+            symbol not in self.historical_basis
+            or len(self.historical_basis[symbol]) < MIN_DATA_POINTS_FOR_BASIS
+        ):
             return Decimal("0.01")
         basis_values = [Decimal(str(b)) for _, b in self.historical_basis[symbol]]
         mean = sum(basis_values) / Decimal(len(basis_values))

@@ -143,11 +143,11 @@ class BackpackWsMessageRouter:
         # Handle different message formats
         if not topic_str:
             raw_event_type = message.get("type")
-            if isinstance(raw_event_type, str) and raw_event_type in [
+            if isinstance(raw_event_type, str) and raw_event_type in {
                 "fills",
                 "orders",
                 "positionUpdate",
-            ]:
+            }:
                 topic_str = raw_event_type
 
         return topic_str, data_payload

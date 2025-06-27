@@ -10,6 +10,11 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
 
+# Timestamp scale detection thresholds
+NANOSECONDS_THRESHOLD = 2e17  # Threshold for nanosecond timestamps
+MICROSECONDS_THRESHOLD = 2e14  # Threshold for microsecond timestamps
+MILLISECONDS_THRESHOLD = 2e11  # Threshold for millisecond timestamps
+
 # Note: Removed logger import to avoid circular import with config.structlog_config
 
 
@@ -93,11 +98,15 @@ def _determine_timestamp_scale(value: float) -> float:
         Timestamp converted to seconds
     """
     # Determine scale: ns, us, ms, or s
-    if value > 2e17:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
+    if value > NANOSECONDS_THRESHOLD:  # Heuristic: likely nanoseconds (e.g., current date ~1.7e18)
         return value / 1e9
-    if value > 2e14:  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
+    if (
+        value > MICROSECONDS_THRESHOLD
+    ):  # Heuristic: likely microseconds (e.g., current date ~1.7e15)
         return value / 1e6
-    if value > 2e11:  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
+    if (
+        value > MILLISECONDS_THRESHOLD
+    ):  # Heuristic: likely milliseconds (e.g., current date ~1.7e12)
         return value / 1e3
     # Heuristic: likely seconds (e.g., current date ~1.7e9)
     return float(value)

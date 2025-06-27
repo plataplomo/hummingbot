@@ -104,9 +104,9 @@ class BackpackAccountDataMapper:
 
         """
         side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in ("buy", "bid"):
+        if side_lower in {"buy", "bid"}:
             return OrderSide.BUY
-        if side_lower in ("sell", "ask"):
+        if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
@@ -121,15 +121,15 @@ class BackpackAccountDataMapper:
         status_lower = bp_status.lower() if bp_status else ""
         if status_lower == "new":
             return OrderStatus.NEW
-        if status_lower in ("open", "pending"):
+        if status_lower in {"open", "pending"}:
             return OrderStatus.OPEN
-        if status_lower in ("filled", "executed"):
+        if status_lower in {"filled", "executed"}:
             return OrderStatus.FILLED
-        if status_lower in ("cancelled", "canceled"):
+        if status_lower in {"cancelled", "canceled"}:
             return OrderStatus.CANCELED
-        if status_lower in ("partially_filled", "partiallyfilled", "partial"):
+        if status_lower in {"partially_filled", "partiallyfilled", "partial"}:
             return OrderStatus.PARTIALLY_FILLED
-        if status_lower in ("rejected", "failed"):
+        if status_lower in {"rejected", "failed"}:
             return OrderStatus.REJECTED
         if status_lower == "expired":
             return OrderStatus.EXPIRED
@@ -150,17 +150,17 @@ class BackpackAccountDataMapper:
             OrderType enum value corresponding to the Backpack type.
         """
         type_lower = bp_type.lower() if bp_type else ""
-        if type_lower in ("limit", "limit_order"):
+        if type_lower in {"limit", "limit_order"}:
             return OrderType.LIMIT
-        if type_lower in ("market", "market_order"):
+        if type_lower in {"market", "market_order"}:
             return OrderType.MARKET
-        if type_lower in ("stop", "stop_loss", "stoploss", "stop_market"):
+        if type_lower in {"stop", "stop_loss", "stoploss", "stop_market"}:
             return OrderType.STOP_MARKET
-        if type_lower in ("take_profit", "takeprofit", "take_profit_market"):
+        if type_lower in {"take_profit", "takeprofit", "take_profit_market"}:
             return OrderType.TAKE_PROFIT_MARKET
-        if type_lower in ("stop_limit", "stop_loss_limit"):
+        if type_lower in {"stop_limit", "stop_loss_limit"}:
             return OrderType.STOP_LIMIT
-        if type_lower in ("take_profit_limit", "takeprofit_limit"):
+        if type_lower in {"take_profit_limit", "takeprofit_limit"}:
             return OrderType.TAKE_PROFIT_LIMIT
         logger.warning(
             "bp_account_mapper_unknown_order_type",
@@ -206,11 +206,11 @@ class BackpackAccountDataMapper:
         if trigger_by is None:
             return None
         trigger_lower = trigger_by.lower()
-        if trigger_lower in ("mark", "mark_price"):
+        if trigger_lower in {"mark", "mark_price"}:
             return TriggerType.MARK_PRICE
-        if trigger_lower in ("last", "last_price"):
+        if trigger_lower in {"last", "last_price"}:
             return TriggerType.LAST_PRICE
-        if trigger_lower in ("index", "index_price"):
+        if trigger_lower in {"index", "index_price"}:
             return TriggerType.INDEX_PRICE
         logger.warning(
             "bp_account_mapper_unknown_trigger_by",
@@ -231,13 +231,13 @@ class BackpackAccountDataMapper:
         if raw_status is None:
             return InternalTransferStatus.UNKNOWN
         status_lower = raw_status.lower()
-        if status_lower in ("success", "completed", "processed"):
+        if status_lower in {"success", "completed", "processed"}:
             return InternalTransferStatus.COMPLETED
-        if status_lower in ("pending", "processing"):
+        if status_lower in {"pending", "processing"}:
             return InternalTransferStatus.PENDING
-        if status_lower in ("failed", "failure", "rejected"):
+        if status_lower in {"failed", "failure", "rejected"}:
             return InternalTransferStatus.FAILED
-        if status_lower in ("cancelled", "canceled"):
+        if status_lower in {"cancelled", "canceled"}:
             return InternalTransferStatus.REJECTED  # Map canceled to REJECTED
         logger.warning(
             "bp_account_mapper_unknown_transfer_status",
@@ -570,7 +570,7 @@ class BackpackAccountDataMapper:
                 starmap(
                     BackpackAccountDataMapper.transform_raw_balance_to_internal,
                     spot_balances_raw.items(),
-                )
+                ),
             )
             internal_derivative_positions = [
                 BackpackAccountDataMapper.transform_raw_position_to_internal(pos_raw)
@@ -584,7 +584,7 @@ class BackpackAccountDataMapper:
             calculated_assets_value_spot = Decimal("0.0")
 
             for sb in internal_spot_balances:
-                if sb.asset.upper() in ["USD", "USDC", "USDT"]:
+                if sb.asset.upper() in {"USD", "USDC", "USDT"}:
                     calculated_total_equity += sb.total_quantity
                     calculated_available_equity += sb.available_quantity
                     calculated_assets_value_spot += sb.total_quantity
@@ -938,11 +938,11 @@ class BackpackAccountDataMapper:
             internal_status = InternalWithdrawalStatus.UNKNOWN
             if raw_status:
                 status_upper = raw_status.upper()
-                if status_upper in ["COMPLETED", "SUCCESS", "PROCESSED", "CONFIRMED"]:
+                if status_upper in {"COMPLETED", "SUCCESS", "PROCESSED", "CONFIRMED"}:
                     internal_status = InternalWithdrawalStatus.COMPLETED
                 elif status_upper == "PENDING":
                     internal_status = InternalWithdrawalStatus.PENDING
-                elif status_upper in ["FAILED", "FAILURE", "REJECTED"]:
+                elif status_upper in {"FAILED", "FAILURE", "REJECTED"}:
                     internal_status = InternalWithdrawalStatus.FAILED
                 elif status_upper == "CANCELLED":
                     internal_status = InternalWithdrawalStatus.CANCELED

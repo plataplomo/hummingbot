@@ -1589,10 +1589,10 @@ class TestHyperliquidMarketDataService:
                 await hyperliquid_market_data_service.get_ticker(symbol)
 
             # Service should wrap unexpected exceptions in APIError
-            assert (
-                exc_info.value.code == APIErrorCode.UNKNOWN.value
-                or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-            )
+            assert exc_info.value.code in {
+                APIErrorCode.UNKNOWN.value,
+                APIErrorCode.EXCHANGE_SPECIFIC.value,
+            }
             assert isinstance(exc_info.value.original_exception, RuntimeError)
 
     @pytest.mark.asyncio
@@ -1638,10 +1638,10 @@ class TestHyperliquidMarketDataService:
             await hyperliquid_market_data_service.get_recent_trades(symbol)
 
         # Verify the service properly wraps the TypeError
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
+        assert exc_info.value.code in {
+            APIErrorCode.UNKNOWN.value,
+            APIErrorCode.EXCHANGE_SPECIFIC.value,
+        }
         assert isinstance(exc_info.value.original_exception, TypeError)
 
     # IV. REQUEST BUILDER FAILURE SCENARIOS
@@ -1665,10 +1665,10 @@ class TestHyperliquidMarketDataService:
             await hyperliquid_market_data_service.get_order_book(symbol)
 
         # Service should wrap request builder failures
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
+        assert exc_info.value.code in {
+            APIErrorCode.UNKNOWN.value,
+            APIErrorCode.EXCHANGE_SPECIFIC.value,
+        }
         assert isinstance(exc_info.value.original_exception, ValueError)
         # HTTP client should not be called if request building fails
         mock_http_client_requester.assert_not_called()
@@ -1701,10 +1701,10 @@ class TestHyperliquidMarketDataService:
                 ),
             )
 
-        assert (
-            exc_info.value.code == APIErrorCode.UNKNOWN.value
-            or exc_info.value.code == APIErrorCode.EXCHANGE_SPECIFIC.value
-        )
+        assert exc_info.value.code in {
+            APIErrorCode.UNKNOWN.value,
+            APIErrorCode.EXCHANGE_SPECIFIC.value,
+        }
         assert isinstance(exc_info.value.original_exception, KeyError)
         mock_http_client_requester.assert_not_called()
 

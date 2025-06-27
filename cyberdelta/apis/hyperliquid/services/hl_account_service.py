@@ -76,6 +76,9 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supp
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
+# Trading constraints constants
+MAX_LEVERAGE_VALUE = 100  # Maximum allowed leverage value
+
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 
@@ -1280,9 +1283,9 @@ class HyperliquidAccountService:
         try:
             # Convert Decimal to int for leverage
             leverage_int = int(args.leverage_limit)
-            if leverage_int < 1 or leverage_int > 100:
+            if leverage_int < 1 or leverage_int > MAX_LEVERAGE_VALUE:
                 raise APIError(
-                    message=f"Invalid leverage value: {leverage_int}. Must be between 1 and 100.",
+                    message=f"Invalid leverage value: {leverage_int}. Must be between 1 and {MAX_LEVERAGE_VALUE}.",
                     code=APIErrorCode.INVALID_REQUEST.value,
                 )
 

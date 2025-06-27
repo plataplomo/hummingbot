@@ -26,6 +26,10 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
 )
 
 
+# Portfolio data structure constants
+PORTFOLIO_PAIR_COUNT = 2  # Expected count for portfolio data pairs
+
+
 class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, RawFiniteDecimalStr]]):
     """Raw boundary model for a single point in account value or PnL history.
 
@@ -53,7 +57,7 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
             v_dict = cast("dict[int, int | str]", v)
 
             if 0 in v_dict and 1 in v_dict:
-                if len(v_dict) == 2:  # Ensure only keys 0 and 1 are present
+                if len(v_dict) == PORTFOLIO_PAIR_COUNT:  # Ensure only keys 0 and 1 are present
                     return [v_dict[0], v_dict[1]]
                 # Handles cases like {0: val0, 1: val1, 2: val2}
                 raise ValueError(
@@ -66,7 +70,7 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
             )
         if isinstance(v, list | tuple):
             v_sequence = cast("list[object] | tuple[object, ...]", v)
-            if len(v_sequence) != 2:
+            if len(v_sequence) != PORTFOLIO_PAIR_COUNT:
                 raise ValueError(
                     f"Field '{field_name}': Expected 2-element list/tuple, "
                     f"got length {len(v_sequence)}.",
@@ -125,7 +129,7 @@ class HyperliquidRawPortfolioTupleItem(
 
         v_casted = cast("list[object] | tuple[object, ...]", v)
 
-        if len(v_casted) != 2:
+        if len(v_casted) != PORTFOLIO_PAIR_COUNT:
             raise ValueError(
                 f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted)}.",
             )

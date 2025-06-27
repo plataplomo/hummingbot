@@ -197,7 +197,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                     else:
                         stringified_params[k] = str(v_val)
                 return urllib.parse.urlencode(sorted(stringified_params.items()))
-        elif method.upper() in ["POST", "PUT", "DELETE"] and data:
+        elif method.upper() in {"POST", "PUT", "DELETE"} and data:
             # CRITICAL DISCOVERY: Backpack might expect ALL parameters (including POST body data)
             # to be sent as query parameters for signature generation, with empty POST body
             # This would explain why the working cassette shows "body: null"
@@ -290,7 +290,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             final_headers.update(headers)
         final_headers.update(auth_headers)
 
-        if method.upper() in ["POST", "PUT", "DELETE"] and data:
+        if method.upper() in {"POST", "PUT", "DELETE"} and data:
             has_content_type = any(key.lower() == "content-type" for key in final_headers)
             if not has_content_type:
                 final_headers["Content-Type"] = "application/json; charset=utf-8"

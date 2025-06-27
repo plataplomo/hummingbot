@@ -27,6 +27,10 @@ from .bp_common_raw_types import (
 )
 
 
+# Backpack kline data structure constant
+BACKPACK_KLINE_FIELDS_COUNT = 12  # Expected number of fields in kline data
+
+
 class BackpackRawKline(BaseModel):
     """Strict boundary Pydantic model for a kline (candlestick) object from Backpack API.
 
@@ -84,12 +88,14 @@ class BackpackRawKline(BaseModel):
             ValueError: If data doesn't have exactly 12 elements.
             RuntimeError: If model definition has incorrect number of fields.
         """
-        if len(data) != 12:
+        if len(data) != BACKPACK_KLINE_FIELDS_COUNT:
             # Match test message for test_invalid_structure_list_length
-            raise ValueError(f"Expected 12 elements in kline data list/tuple, got {len(data)}")
+            raise ValueError(
+                f"Expected {BACKPACK_KLINE_FIELDS_COUNT} elements in kline data list/tuple, got {len(data)}"
+            )
 
         field_names: list[str] = list(cls.model_fields.keys())
-        if len(field_names) != 12:
+        if len(field_names) != BACKPACK_KLINE_FIELDS_COUNT:
             raise RuntimeError(
                 "BackpackRawKline model definition has an incorrect number of fields "
                 "(should be 12).",

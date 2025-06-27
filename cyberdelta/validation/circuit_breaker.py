@@ -14,6 +14,9 @@ from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 
 
+# Circuit breaker constants
+MIN_PRICE_HISTORY_FOR_VOLATILITY = 2  # Minimum price history needed for volatility calculation
+
 logger = get_logger(__name__)
 
 
@@ -297,7 +300,7 @@ class VolatilityBreaker(CircuitBreaker):
             self.add_price(current_price)
 
         # Need at least 2 prices to calculate volatility
-        if len(self.price_history) < 2:
+        if len(self.price_history) < MIN_PRICE_HISTORY_FOR_VOLATILITY:
             return
 
         # Calculate volatility as standard deviation / mean
@@ -321,7 +324,7 @@ class VolatilityBreaker(CircuitBreaker):
             True if volatility is now below threshold, False otherwise
 
         """
-        if len(self.price_history) < 2:
+        if len(self.price_history) < MIN_PRICE_HISTORY_FOR_VOLATILITY:
             return False
 
         mean = sum(self.price_history) / len(self.price_history)
@@ -1296,7 +1299,7 @@ class CircuitBreakerSystem:
                         f"Critical system breaker '{breaker_name}' tripped due to "
                         f"{system_name} unhealthiness.",
                     )
-            elif breaker.state == BreakerState.OPEN or breaker.state == BreakerState.HALF_OPEN:
+            elif breaker.state in {BreakerState.OPEN, BreakerState.HALF_OPEN}:
                 # If the system is reported healthy and breaker was open/half-open,
                 # attempt reset.
                 # For critical systems, we might reset more assertively if health is confirmed.

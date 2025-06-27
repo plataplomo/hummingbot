@@ -33,7 +33,7 @@ class TimeMockingAnalyzer(ast.NodeVisitor):
         if node.module:
             if node.module == "unittest.mock":
                 for alias in node.names:
-                    if alias.name in ["patch", "MagicMock", "Mock"]:
+                    if alias.name in {"patch", "MagicMock", "Mock"}:
                         self.imports.add(f"{node.module}.{alias.name}")
             elif node.module == "tests.fixtures.time_fixtures":
                 for alias in node.names:

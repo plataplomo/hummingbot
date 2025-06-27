@@ -132,7 +132,7 @@ class BackpackPrivateDataCollector:
             # For POST/PUT methods, always send JSON data (even if empty) for proper content-type
             json_data = (
                 auth_components.data
-                if method.upper() in ["POST", "PUT"]
+                if method.upper() in {"POST", "PUT"}
                 else (auth_components.data or None)
             )
 

@@ -99,11 +99,11 @@ class APIError(Exception):
         if isinstance(code_val, int):
             return (
                 code_val
-                in (
+                in {
                     109,  # RATE_LIMITED
                     1,  # TIMEOUT
                     0,  # CONNECTION_ERROR
-                )
+                }
                 or (code_val == 4 and self.http_status and 500 <= self.http_status < 600)
                 or code_val == 2  # NETWORK_ISSUE
             )

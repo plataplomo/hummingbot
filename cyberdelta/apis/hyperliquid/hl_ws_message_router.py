@@ -35,6 +35,11 @@ from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 
 
+# WebSocket subscription parsing constants
+MIN_PARTS_FOR_COIN_SUBSCRIPTION = 2  # Minimum parts needed for coin-based subscriptions
+MIN_PARTS_FOR_CANDLE_SUBSCRIPTION = 3  # Minimum parts needed for candle subscriptions
+
+
 class HyperliquidWsMessageRouter:
     """Routes and processes WebSocket messages for Hyperliquid exchange.
 
@@ -107,10 +112,10 @@ class HyperliquidWsMessageRouter:
         )
 
         try:
-            if sub_type == "l2Book" and len(parts) >= 2:
+            if sub_type == "l2Book" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
                 coin = parts[1]
                 inner_payload = HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin=coin)
-            elif sub_type == "trades" and len(parts) >= 2:
+            elif sub_type == "trades" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
                 coin = parts[1]
                 inner_payload = HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=coin)
             elif sub_type == "userEvents":
@@ -123,7 +128,7 @@ class HyperliquidWsMessageRouter:
                     type="userEvents",
                     user=wallet_address,
                 )
-            elif sub_type == "candle" and len(parts) >= 3:
+            elif sub_type == "candle" and len(parts) >= MIN_PARTS_FOR_CANDLE_SUBSCRIPTION:
                 coin = parts[1]
                 interval = parts[2]
                 inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
@@ -184,7 +189,7 @@ class HyperliquidWsMessageRouter:
             )
             return
 
-        if channel in ["pong", "subscriptionResponse"]:
+        if channel in {"pong", "subscriptionResponse"}:
             # Control messages are routine - use trace level to reduce spam
             self.logger.trace(
                 "control_message_received",
@@ -327,7 +332,7 @@ class HyperliquidWsMessageRouter:
             await self._process_user_events_data(raw_data_any, app_handler, message)
         elif channel == "allMids":
             await self._process_allmids_data(raw_data_any, app_handler, message)
-        elif channel in ["pong", "subscriptionResponse"]:
+        elif channel in {"pong", "subscriptionResponse"}:
             await self._process_control_message_data(raw_data_any, app_handler, message, channel)
         else:
             await self._process_unhandled_channel_data(raw_data_any, app_handler, message, channel)

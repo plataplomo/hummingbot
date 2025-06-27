@@ -402,7 +402,9 @@ class FundingRateValidator:
 
         # Sort by timestamp (newest first) and apply limit
         sorted_payments = sorted(
-            filtered_payments, key=operator.itemgetter("timestamp"), reverse=True
+            filtered_payments,
+            key=operator.itemgetter("timestamp"),
+            reverse=True,
         )
         return sorted_payments[:limit]
 

@@ -1469,7 +1469,7 @@ class ExecutionHandler:
                     f"Filled: {order.quantity_filled}, Requested: {order.quantity_requested}",
                 )
                 return False
-            if expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
+            if expected_status in {OrderStatus.CANCELED, OrderStatus.REJECTED}:
                 # For CANCELED/REJECTED, just check the status
                 if order.status == expected_status:
                     return True
@@ -1495,7 +1495,7 @@ class ExecutionHandler:
             message=f"Failed to get status for order {order_id} during verification.",
         )
         # If we expected CANCELLED/REJECTED and couldn't find it, maybe treat as success?
-        if expected_status in [OrderStatus.CANCELED, OrderStatus.REJECTED]:
+        if expected_status in {OrderStatus.CANCELED, OrderStatus.REJECTED}:
             logger.info(
                 f"Treating failed status fetch for {order_id} as verification success "
                 f"since expected state was {expected_status.name}.",
@@ -1604,12 +1604,12 @@ class ExecutionHandler:
                     action="monitor_order_status",
                     message=f"Execution {execution.id}: Order {order_id} Status: {order.status}",
                 )
-                if order.status in (
+                if order.status in {
                     OrderStatus.FILLED,
                     OrderStatus.CANCELED,
                     OrderStatus.REJECTED,
                     OrderStatus.EXPIRED,
-                ):
+                }:
                     logger.info(
                         f"Execution {execution.id}: Order {order_id} reached terminal "
                         f"state: {order.status}",

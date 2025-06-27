@@ -88,10 +88,10 @@ class PlaceOrderArgs(BaseModel):
     @model_validator(mode="after")
     def check_parameter_dependencies(self) -> "PlaceOrderArgs":
         """Validate inter-parameter dependencies."""
-        if self.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT] and self.price is None:
+        if self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and self.price is None:
             raise ValueError(f"A positive price is required for {self.order_type.value} orders.")
         if (
-            self.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]
+            self.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
             and self.stop_price is None
         ):
             raise ValueError(
@@ -565,7 +565,7 @@ class GetOrderArgs(BaseModel):
             return None  # For optional fields
 
         # Max length for order_id can be quite long for some exchanges (e.g. UUIDs)
-        max_len = 128 if field_name == "order_id" or field_name == "client_order_id" else 64
+        max_len = 128 if field_name in {"order_id", "client_order_id"} else 64
         return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
 
     @model_validator(mode="after")

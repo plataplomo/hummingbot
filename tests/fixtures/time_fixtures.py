@@ -52,7 +52,7 @@ def frozen_time(freezer: FreezerProtocol) -> Generator[FreezerProtocol]:
     """
     # Start at a deterministic time for consistency
     freezer.move_to("2024-01-01 00:00:00+00:00")
-    yield freezer
+    return freezer
 
 
 @pytest.fixture
@@ -114,7 +114,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         mock_datetime.utcnow = MagicMock(return_value=now.replace(tzinfo=None))
         return patch(module_path, mock_datetime)
 
-    yield create_time_mock
+    return create_time_mock
 
 
 @pytest.fixture
@@ -182,7 +182,7 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
         target_time = datetime(year, month, day, hour, minute, second, tzinfo=ZoneInfo(timezone))
         freezer.move_to(target_time)
 
-    yield set_market_time
+    return set_market_time
 
 
 @pytest.fixture
@@ -229,4 +229,4 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
         # Move to new time
         freezer.move_to(current + total_advance)
 
-    yield advance_time
+    return advance_time

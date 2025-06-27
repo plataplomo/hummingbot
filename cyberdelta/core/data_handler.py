@@ -34,6 +34,9 @@ type OrderBookObserver = Callable[[OrderBook], Coroutine[Any, Any, None]]
 type FundingRateObserver = Callable[[FundingRate], Coroutine[Any, Any, None]]
 # Add other observer types as needed
 
+# Price change detection constants
+PRICE_CHANGE_THRESHOLD = 0.001  # 0.1% threshold for significant price changes
+
 
 class DataHandler:
     """Handles data collection and distribution from multiple exchanges.
@@ -676,7 +679,7 @@ class DataHandler:
             # Handle different types of user events
             event_type = data_payload.get("type") or full_message.get("type")
 
-            if event_type == "fill" or event_type == "trade":
+            if event_type in {"fill", "trade"}:
                 # Handle trade fills
                 symbol = data_payload.get("symbol")
                 if symbol:
@@ -785,7 +788,7 @@ class DataHandler:
         # Only log significant price changes (0.1% threshold)
         if old_price and new_price and old_price != 0:
             price_change_pct = abs(new_price - old_price) / old_price
-            if price_change_pct > 0.001:  # 0.1% threshold
+            if price_change_pct > PRICE_CHANGE_THRESHOLD:  # 0.1% threshold
                 logger.debug(
                     "ticker_updated",
                     exchange_id=exchange_id,
@@ -1072,7 +1075,7 @@ class DataHandler:
         # Skip 'self' and 'return' to find the data parameter
         data_param_name = None
         for param_name in param_names:
-            if param_name not in ("self", "return"):
+            if param_name not in {"self", "return"}:
                 data_param_name = param_name
                 break
 
@@ -1186,7 +1189,7 @@ class DataHandler:
     def _register_observer_fallback(self, observer: Callable[..., Any], reason: str) -> None:
         """Register observer as market data observer when type cannot be determined."""
         # Default to market data observer for known methods
-        if observer.__name__ in ["process_market_data", "on_market_data"]:
+        if observer.__name__ in {"process_market_data", "on_market_data"}:
             self._market_data_observers.append(observer)
             logger.info(
                 "market_data_observer_registered",

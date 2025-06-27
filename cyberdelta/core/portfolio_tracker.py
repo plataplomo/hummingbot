@@ -753,10 +753,10 @@ class PortfolioTracker:
         # Handle order state transitions
         # In particular, we want to detect when an order reaches FILLED or PARTIALLY_FILLED
         # and generate a corresponding trade for the position tracker
-        if order.status in [
+        if order.status in {
             OrderStatus.FILLED,
             OrderStatus.PARTIALLY_FILLED,
-        ] and order.quantity_filled > Decimal(0):
+        } and order.quantity_filled > Decimal(0):
             logger.info(
                 f"Order {order_id_str} on {exchange_id} is {order.status}. "
                 f"Triggering trade processing (placeholder).",
@@ -1972,11 +1972,11 @@ class PortfolioTracker:
                     active.add(pos.symbol)
         for orders in self.orders.values():
             for order in orders.values():
-                if order.status in [
+                if order.status in {
                     OrderStatus.NEW,
                     OrderStatus.OPEN,
                     OrderStatus.PARTIALLY_FILLED,
-                ]:
+                }:
                     active.add(order.symbol)
         self.active_symbols = active
 

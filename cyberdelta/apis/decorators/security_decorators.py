@@ -20,6 +20,9 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
+# Security validation constants
+MAX_STRING_LENGTH_SECURITY = 1000  # Maximum allowed string length for security checks
+
 logger = get_logger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
@@ -289,7 +292,7 @@ def _check_oversized_data(data: dict[str, Any], max_field_count: int) -> list[st
         anomalies.append(f"oversized_structure_{len(data)}_fields")
 
     for field, value in data.items():
-        if isinstance(value, str) and len(value) > 1000:
+        if isinstance(value, str) and len(value) > MAX_STRING_LENGTH_SECURITY:
             anomalies.append(f"oversized_string_in_{field}")
 
     return anomalies

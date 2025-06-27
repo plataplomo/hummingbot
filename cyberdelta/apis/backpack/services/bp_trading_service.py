@@ -20,6 +20,7 @@ from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.http_status_codes import HTTP_NOT_FOUND
 from cyberdelta.apis.models.api_error import APIError, TransformationError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -181,7 +182,7 @@ class BackpackTradingService:
             )
 
         # Validate time in force for limit orders
-        if args.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+        if args.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT}:
             supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
             if args.time_in_force not in supported_tif:
                 supported_values = [tif.value for tif in supported_tif]
@@ -270,10 +271,10 @@ class BackpackTradingService:
 
         # Preserve original order type intent for take profit orders
         # Backpack represents take profit orders the same as stop orders in API responses
-        if original_order_type in [
+        if original_order_type in {
             OrderType.TAKE_PROFIT_MARKET,
             OrderType.TAKE_PROFIT_LIMIT,
-        ] and internal_order.order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
+        } and internal_order.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}:
             internal_order.order_type = original_order_type
 
         return internal_order
@@ -710,7 +711,7 @@ class BackpackTradingService:
         symbol: str | None,
     ) -> Order | None:
         """Process the get order API response."""
-        if status_code == 404:  # Order not found
+        if status_code == HTTP_NOT_FOUND:  # Order not found
             logger.info(
                 f"[{self._exchange_name}] Order {identifier} ({symbol}) not found.",
             )

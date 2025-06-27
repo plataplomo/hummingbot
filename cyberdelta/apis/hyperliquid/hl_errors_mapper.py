@@ -17,6 +17,12 @@ import re
 from typing import Any
 
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
+from cyberdelta.apis.http_status_codes import (
+    HTTP_FORBIDDEN,
+    HTTP_SERVICE_UNAVAILABLE,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_UNAUTHORIZED,
+)
 from cyberdelta.apis.hyperliquid.hl_api_error import (
     HYPERLIQUID_ERROR_STRINGS,
     HyperliquidAPIErrorCategory,
@@ -28,6 +34,9 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 logger = get_logger(__name__)
+
+# Rate limiting constants
+RATE_LIMIT_BUFFER_SECONDS = 0.5  # Buffer time added to rate limit delays
 
 
 class HyperliquidErrorMapper(IErrorMapper):
@@ -245,10 +254,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         api_error_code_enum = HyperliquidErrorMapper._map_category_to_api_error_code(category)
 
         exchange_specific_code: str | None = None
-        if (
-            category != HyperliquidAPIErrorCategory.UNKNOWN
-            and category != HyperliquidAPIErrorCategory.ERROR
-        ):
+        if category not in {HyperliquidAPIErrorCategory.UNKNOWN, HyperliquidAPIErrorCategory.ERROR}:
             exchange_specific_code = category.name
 
         # Check for specific address-based rate limit messages that indicate
@@ -258,7 +264,7 @@ class HyperliquidErrorMapper(IErrorMapper):
             msg_lower = error_message.lower()
             # Look for specific patterns that indicate the 10-second fallback
             if "one request every 10 seconds" in msg_lower:
-                retry_after = 10.5  # Add small buffer
+                retry_after = 10 + RATE_LIMIT_BUFFER_SECONDS  # Add small buffer
             elif "one request every" in msg_lower:
                 # Try to extract the number of seconds from the message
                 import re
@@ -337,7 +343,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Check for Hyperliquid IP ban pattern (403 + rate limit message)."""
-        if status_code == 403:
+        if status_code == HTTP_FORBIDDEN:
             error_category = self._categorize_hyperliquid_error(error_body or "")
             if error_category == HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED:
                 logger.warning(
@@ -361,7 +367,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Handle critical HTTP status codes with direct mapping."""
-        if status_code == 503:
+        if status_code == HTTP_SERVICE_UNAVAILABLE:
             return APIError(
                 message=error_body or "Service Unavailable (503)",
                 code=APIErrorCode.SERVICE_UNAVAILABLE.value,
@@ -370,7 +376,7 @@ class HyperliquidErrorMapper(IErrorMapper):
                 original_exception=original_exception,
             )
 
-        if status_code == 429:
+        if status_code == HTTP_TOO_MANY_REQUESTS:
             return APIError(
                 message=error_body or "Rate limit exceeded (429)",
                 code=APIErrorCode.RATE_LIMITED.value,
@@ -379,10 +385,10 @@ class HyperliquidErrorMapper(IErrorMapper):
                 original_exception=original_exception,
             )
 
-        if status_code == 401:
+        if status_code == HTTP_UNAUTHORIZED:
             return self._handle_authentication_error(status_code, error_body, original_exception)
 
-        if status_code == 403:
+        if status_code == HTTP_FORBIDDEN:
             # Non-rate-limit 403, treat as authentication failure
             message = error_body or "Forbidden"
             return APIError(
@@ -496,10 +502,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
     def _get_exchange_specific_code(self, category: HyperliquidAPIErrorCategory) -> str | None:
         """Get exchange-specific code based on category."""
-        if (
-            category != HyperliquidAPIErrorCategory.UNKNOWN
-            and category != HyperliquidAPIErrorCategory.ERROR
-        ):
+        if category not in {HyperliquidAPIErrorCategory.UNKNOWN, HyperliquidAPIErrorCategory.ERROR}:
             return category.name
         return None
 
@@ -514,7 +517,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         msg_lower = extracted_message.lower()
         if "one request every 10 seconds" in msg_lower:
-            return 10.5  # Add small buffer
+            return 10 + RATE_LIMIT_BUFFER_SECONDS  # Add small buffer
         if "one request every" in msg_lower:
             match = re.search(r"one request every (\d+) seconds", msg_lower)
             if match:

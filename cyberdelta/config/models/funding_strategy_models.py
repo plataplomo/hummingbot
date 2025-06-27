@@ -12,6 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from cyberdelta.config.models.config_types import ConfigDecimal, NonEmptyConfigString
 
 
+# Strategy timing constraints
+MAX_CHECK_INTERVAL_SECONDS = 3600  # Maximum allowed check interval (1 hour)
+
+
 class StrategyParamsHLPerpBPSpot(BaseModel):
     """Parameters for HyperLiquid Perpetual vs Backpack Spot strategy."""
 
@@ -49,8 +53,10 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
         """Validate check interval is within reasonable bounds."""
         if v < 1:
             raise ValueError("check_interval must be at least 1 second")
-        if v > 3600:  # 1 hour
-            raise ValueError(f"check_interval {v} is too long (max 3600 seconds)")
+        if v > MAX_CHECK_INTERVAL_SECONDS:
+            raise ValueError(
+                f"check_interval {v} is too long (max {MAX_CHECK_INTERVAL_SECONDS} seconds)"
+            )
         return v
 
     @field_validator("perp_exchange", "spot_exchange")

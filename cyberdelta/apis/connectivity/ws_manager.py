@@ -635,7 +635,7 @@ class WebSocketManager:
         elif msg.type == aiohttp.WSMsgType.ERROR:
             self._handle_error_message()
             raise ConnectionError("WebSocket error received")
-        elif msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
+        elif msg.type in {aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING}:
             await self._handle_close_message(task_name, iteration)
             raise ConnectionError("WebSocket closed")
 

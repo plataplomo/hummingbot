@@ -582,7 +582,7 @@ class HyperliquidMarketDataMapper:
                 )
                 volume = parse_decimal_value(raw_snapshot.v[i], allow_none=False, field_name="v")
 
-                if None in (open_price, high_price, low_price, close_price, volume):
+                if None in {open_price, high_price, low_price, close_price, volume}:
                     logger.warning(
                         "invalid_candle_data",
                         action="parse_candle",

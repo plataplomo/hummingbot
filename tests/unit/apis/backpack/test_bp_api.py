@@ -967,7 +967,6 @@ class TestBackpackAPIWebSocketOperations:
         # Create a mock handler
         async def mock_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            pass
 
         # Test subscription (this tests the public interface)
         # The actual WebSocket manager is mocked, so this tests orchestration

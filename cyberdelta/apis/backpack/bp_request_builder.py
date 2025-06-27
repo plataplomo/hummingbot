@@ -214,7 +214,7 @@ class BackpackRequestBuilder:
 
         # Map time in force (only for limit orders, service validates this)
         api_time_in_force = None
-        if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+        if order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT}:
             api_time_in_force = {
                 TimeInForce.GTC: "GTC",
                 TimeInForce.IOC: "IOC",
@@ -248,7 +248,7 @@ class BackpackRequestBuilder:
         """Add basic order fields to request data."""
         # For stop limit and take profit limit orders, Backpack API requires
         # NOT to specify quantity, only triggerQuantity
-        if order_type not in [OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+        if order_type not in {OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT}:
             request_data["quantity"] = str(quantity)
         if price is not None:
             request_data["price"] = str(price)

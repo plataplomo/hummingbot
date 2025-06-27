@@ -76,7 +76,7 @@ class SecurityValidationAggregator:
                     sorted(self.contexts.items(), key=operator.itemgetter(1), reverse=True)[:5],
                 ),
                 top_models=dict(
-                    sorted(self.models.items(), key=operator.itemgetter(1), reverse=True)[:5]
+                    sorted(self.models.items(), key=operator.itemgetter(1), reverse=True)[:5],
                 ),
                 top_exchanges=dict(
                     sorted(self.exchanges.items(), key=operator.itemgetter(1), reverse=True)[:3],

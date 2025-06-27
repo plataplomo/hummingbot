@@ -16,6 +16,9 @@ from cyberdelta.utils.typing import ParsedJsonResponse
 logger = get_logger(__name__)
 T = TypeVar("T")
 
+# Response validation constants
+MAX_RESPONSE_SIZE_BYTES = 1_000_000  # Maximum response size (1MB) to prevent DoS
+
 
 def ensure_dict_response(
     response: ParsedJsonResponse | None,
@@ -174,7 +177,7 @@ def ensure_string_response(
         )
 
     # Check for suspiciously large strings (potential DoS)
-    if len(response) > 1_000_000:  # 1MB limit
+    if len(response) > MAX_RESPONSE_SIZE_BYTES:  # 1MB limit
         logger.warning(
             "response_validation_large_string",
             action="validate_string_response",

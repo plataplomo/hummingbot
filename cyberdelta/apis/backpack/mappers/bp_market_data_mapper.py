@@ -81,9 +81,9 @@ class BackpackMarketDataMapper:
 
         """
         side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in ("buy", "bid"):
+        if side_lower in {"buy", "bid"}:
             return OrderSide.BUY
-        if side_lower in ("sell", "ask"):
+        if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
 
         raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")

@@ -131,7 +131,8 @@ def _add_imports_and_cleanup(migrator: TimePatchMigrator, new_content: str) -> s
     new_lines: list[str] = []
     for line in lines:
         if "from unittest.mock import patch" in line and not re.search(
-            r'@patch\s*\((?!".*datetime|"time\.time")', "\n".join(lines)
+            r'@patch\s*\((?!".*datetime|"time\.time")',
+            "\n".join(lines),
         ):
             continue  # Skip this import
         new_lines.append(line)

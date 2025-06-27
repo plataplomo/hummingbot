@@ -167,7 +167,7 @@ class TestOrderVerifier:
             # Simulate fetching the sample_filled_order if ids match
             # This part of the mock might need to be more sophisticated if tests
             # rely on different orders being returned.
-            if order_id_param == "test-order-1" or order_id_param == "exchange-order-id-1":
+            if order_id_param in {"test-order-1", "exchange-order-id-1"}:
                 # For test_verify_order_placement, it uses "test-order-1"
                 # For test_verify_order_execution, it uses "exchange-order-id-1"
                 return sample_filled_order

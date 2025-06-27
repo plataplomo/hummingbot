@@ -27,6 +27,15 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.error_mapper_interface import IErrorMapper
+from cyberdelta.apis.http_status_codes import (
+    HTTP_BAD_REQUEST,
+    HTTP_FORBIDDEN,
+    HTTP_INTERNAL_SERVER_ERROR,
+    HTTP_NOT_FOUND,
+    HTTP_SERVICE_UNAVAILABLE,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_UNAUTHORIZED,
+)
 from cyberdelta.apis.models.api_error import APIError
 from cyberdelta.apis.models.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
@@ -187,17 +196,17 @@ class BackpackErrorMapper(IErrorMapper):
 
         # If mapped_code_enum is still EXCHANGE_SPECIFIC but http_status suggests something else:
         if mapped_code_enum == APIErrorCode.EXCHANGE_SPECIFIC:
-            if effective_http_status == 400:
+            if effective_http_status == HTTP_BAD_REQUEST:
                 mapped_code_enum = APIErrorCode.INVALID_REQUEST
-            elif effective_http_status == 401 or effective_http_status == 403:
+            elif effective_http_status in {HTTP_UNAUTHORIZED, HTTP_FORBIDDEN}:
                 mapped_code_enum = APIErrorCode.AUTHENTICATION_FAILED
-            elif effective_http_status == 404:
+            elif effective_http_status == HTTP_NOT_FOUND:
                 mapped_code_enum = APIErrorCode.ORDER_NOT_FOUND  # Or generic NOT_FOUND
-            elif effective_http_status == 429:
+            elif effective_http_status == HTTP_TOO_MANY_REQUESTS:
                 mapped_code_enum = APIErrorCode.RATE_LIMITED
-            elif effective_http_status == 500:
+            elif effective_http_status == HTTP_INTERNAL_SERVER_ERROR:
                 mapped_code_enum = APIErrorCode.SERVER_ERROR
-            elif effective_http_status == 503:
+            elif effective_http_status == HTTP_SERVICE_UNAVAILABLE:
                 mapped_code_enum = APIErrorCode.MAINTENANCE  # Or SERVICE_UNAVAILABLE
 
         return APIError(
@@ -334,11 +343,11 @@ class BackpackErrorMapper(IErrorMapper):
         if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
             return api_error_code_enum
 
-        if status_code == 401 or status_code == 403:
+        if status_code in {HTTP_UNAUTHORIZED, HTTP_FORBIDDEN}:
             return APIErrorCode.AUTHENTICATION_FAILED
-        if status_code == 404:
+        if status_code == HTTP_NOT_FOUND:
             return APIErrorCode.ORDER_NOT_FOUND
-        if status_code == 429:
+        if status_code == HTTP_TOO_MANY_REQUESTS:
             return APIErrorCode.RATE_LIMITED
         return api_error_code_enum
 

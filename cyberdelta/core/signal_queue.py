@@ -30,6 +30,10 @@ if TYPE_CHECKING:
 # Setup logging
 logger = get_logger(__name__)
 
+# Symbol parsing constants
+HYPERLIQUID_SYMBOL_PARTS = 3  # Expected parts in Hyperliquid symbol format (BASE-QUOTE-TYPE)
+BACKPACK_SYMBOL_PARTS = 2  # Expected parts in Backpack symbol format (BASE_QUOTE or BASE:QUOTE)
+
 
 class PrioritySignalQueue:
     """Priority queue for trade signals with expiration handling.
@@ -902,7 +906,7 @@ class PrioritySignalQueue:
         if "-PERP" not in symbol:
             return None
         parts = symbol.split("-")
-        if len(parts) == 3 and parts[0]:
+        if len(parts) == HYPERLIQUID_SYMBOL_PARTS and parts[0]:
             return parts[0].lower()
         return "hyperliquid"  # Default assumption for perp contracts
 
@@ -911,7 +915,7 @@ class PrioritySignalQueue:
         if "-" not in symbol:
             return None
         parts = symbol.split("-", 1)
-        if len(parts) == 2 and parts[0]:
+        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[0]:
             return parts[0].lower()
         return None
 
@@ -920,7 +924,7 @@ class PrioritySignalQueue:
         if "_" not in symbol:
             return None
         parts = symbol.split("_")
-        if len(parts) == 2 and parts[1]:
+        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[1]:
             return parts[1].lower()
         return "backpack"  # Example assumption
 
@@ -929,7 +933,7 @@ class PrioritySignalQueue:
         if ":" not in symbol:
             return None
         parts = symbol.split(":")
-        if len(parts) == 2 and parts[1]:
+        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[1]:
             return parts[1].lower()
         return None
 

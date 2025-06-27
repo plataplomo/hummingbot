@@ -182,10 +182,10 @@ class TestRiskManagerDependencyFailures:
                 ) -> tuple[bool, str | None]:
                     """Return execution status based on circuit breaker scope."""
                     if scope_to_trip == "global":
-                        if (
-                            scope == sample_opportunity.long_exchange
-                            or scope == sample_opportunity.short_exchange
-                        ):
+                        if scope in {
+                            sample_opportunity.long_exchange,
+                            sample_opportunity.short_exchange,
+                        }:
                             return (False, f"Global CB Tripped (simulated for {scope})")
                     elif (
                         scope == sample_opportunity.long_exchange

@@ -207,7 +207,7 @@ class PerformanceDataPersistence:
 
         if data_type == "returns":
             return self._post_process_returns_data(loaded_data)
-        if data_type in ["trades", "signals", "funding_rates"]:
+        if data_type in {"trades", "signals", "funding_rates"}:
             return self._post_process_list_data(loaded_data)
         # Unknown data type, return as-is
         return loaded_data

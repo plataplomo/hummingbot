@@ -160,11 +160,9 @@ def _setup_ping_pong_behavior(mock_conn: AsyncMock, ping_pong_passthrough: bool)
 
         async def mock_ping() -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            pass
 
         async def mock_pong() -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            pass
 
         mock_conn.ping = AsyncMock(side_effect=mock_ping)
         mock_conn.pong = AsyncMock(side_effect=mock_pong)
