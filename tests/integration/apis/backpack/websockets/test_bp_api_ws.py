@@ -106,7 +106,6 @@ class TestBackpackAPIWebSocketBasicOperations:
             logger.info(
                 "websocket_message_received",
                 message=message,
-                event="Received WebSocket message"
             )
 
         # Test subscription with real symbol
@@ -115,7 +114,7 @@ class TestBackpackAPIWebSocketBasicOperations:
             logger.info(
                 "websocket_subscription_success",
                 topic=topics[0],
-                message=f"✓ Successfully subscribed to {topics[0]}"
+                message=f"✓ Successfully subscribed to {topics[0]}",
             )
         except Exception as e:
             pytest.fail(
@@ -148,7 +147,6 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "handler1_message_received",
                 message=message,
                 handler="Handler1",
-                event="Handler1 received message"
             )
 
         async def handler2(message: dict[str, Any], full_message: dict[str, Any]) -> None:
@@ -157,7 +155,6 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "handler2_message_received",
                 message=message,
                 handler="Handler2",
-                event="Handler2 received message"
             )
 
         symbol1, symbol2 = available_symbols[0], available_symbols[1]
@@ -171,7 +168,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "multiple_subscriptions_success",
                 topic1=topic1,
                 topic2=topic2,
-                message=f"✓ Successfully subscribed to {topic1} and {topic2}"
+                message=f"✓ Successfully subscribed to {topic1} and {topic2}",
             )
         except Exception as e:
             pytest.fail(
@@ -200,7 +197,6 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "status_handler_message_received",
                 message=message,
                 handler="status_handler",
-                event="Status handler received message"
             )
 
         # Test connection status consistency
@@ -223,7 +219,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "connection_status_validation_passed",
                 initial_status=initial_status,
                 after_subscription_status=after_subscription_status,
-                message=f"✓ Connection status validation passed: {initial_status} -> {after_subscription_status}"
+                message="Connection status validation passed",
             )
 
         except Exception as e:
@@ -265,7 +261,6 @@ class TestBackpackAPIWebSocketLifecycle:
                 "lifecycle_handler_message_received",
                 message=message,
                 handler="lifecycle_handler",
-                event="Lifecycle handler received message"
             )
 
         # Test subscription
@@ -274,7 +269,7 @@ class TestBackpackAPIWebSocketLifecycle:
             logger.info(
                 "subscription_lifecycle_success",
                 topic=topics[0],
-                message=f"✓ Subscription successful for {topics[0]}"
+                message=f"✓ Subscription successful for {topics[0]}",
             )
         except Exception as e:
             pytest.fail(
@@ -292,7 +287,6 @@ class TestBackpackAPIWebSocketLifecycle:
                 "replacement_handler_message_received",
                 message=message,
                 handler="replacement_handler",
-                event="Replacement handler received message"
             )
 
         try:
@@ -300,7 +294,7 @@ class TestBackpackAPIWebSocketLifecycle:
             logger.info(
                 "handler_replacement_success",
                 topic=topics[0],
-                message=f"✓ Handler replacement successful for {topics[0]}"
+                message=f"✓ Handler replacement successful for {topics[0]}",
             )
         except Exception as e:
             pytest.fail(
@@ -333,7 +327,6 @@ class TestBackpackAPIWebSocketLifecycle:
                 "concurrent_handler_message_received",
                 message=message,
                 handler="concurrent_handler",
-                event="Concurrent handler received message"
             )
 
         # Create subscription tasks for multiple symbols
@@ -349,7 +342,7 @@ class TestBackpackAPIWebSocketLifecycle:
             logger.info(
                 "concurrent_subscriptions_success",
                 symbol_count=len(subscription_tasks),
-                message=f"✓ Concurrent subscriptions successful for {len(subscription_tasks)} symbols"
+                message="Concurrent subscriptions successful",
             )
         except Exception as e:
             pytest.fail(
@@ -383,7 +376,6 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "error_handler_message_received",
                 message=message,
                 handler="error_handler",
-                event="Error handler received message"
             )
 
         invalid_topics = [
@@ -408,7 +400,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 logger.info(
                     "invalid_topic_handling_completed",
                     invalid_topic=invalid_topic,
-                    message=f"✓ Invalid topic handling completed for: {invalid_topic}"
+                    message=f"✓ Invalid topic handling completed for: {invalid_topic}",
                 )
 
             except Exception as e:
@@ -425,7 +417,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                         "api_rejected_invalid_topic",
                         invalid_topic=invalid_topic,
                         error=str(e),
-                        message=f"✓ API correctly rejected invalid topic {invalid_topic}: {e}"
+                        message=f"✓ API correctly rejected invalid topic {invalid_topic}: {e}",
                     )
 
     @pytest.mark.vcr
@@ -452,7 +444,7 @@ class TestBackpackAPIWebSocketEdgeCases:
             logger.info(
                 "websocket_connection_attempt_completed",
                 connection_state=connection_state,
-                message=f"✓ WebSocket connection attempt completed, state: {connection_state}"
+                message=f"✓ WebSocket connection attempt completed, state: {connection_state}",
             )
 
         except Exception as e:
@@ -483,7 +475,6 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "sequence_handler_message_received",
                 message=message,
                 handler="sequence_handler",
-                event="Sequence handler received message"
             )
 
         try:
@@ -500,7 +491,7 @@ class TestBackpackAPIWebSocketEdgeCases:
             logger.info(
                 "subscription_connection_sequence_completed",
                 final_state=final_state,
-                message=f"✓ Subscription -> connection sequence completed, final state: {final_state}"
+                message="Subscription -> connection sequence completed",
             )
 
         except Exception as e:
@@ -529,7 +520,6 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "rapid_handler_message_received",
                 message=message,
                 handler="rapid_handler",
-                event="Rapid handler received message"
             )
 
         topic = f"trades.{test_symbol}"
@@ -549,7 +539,7 @@ class TestBackpackAPIWebSocketEdgeCases:
             logger.info(
                 "rapid_subscription_operations_completed",
                 operation_count=rapid_subscription_count,
-                message=f"✓ Rapid subscription operations completed: {rapid_subscription_count} operations"
+                message="Rapid subscription operations completed",
             )
 
         except Exception as e:

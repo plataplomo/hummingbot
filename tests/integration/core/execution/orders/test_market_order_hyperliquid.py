@@ -74,7 +74,12 @@ class TestHyperliquidMarketOrderIntegration:
             symbol,
             OrderSide.BUY,
         )
-        logger.info(f"Using minimal test quantity: {test_quantity} for {symbol}")
+        logger.info(
+            "test_quantity_calculated",
+            symbol=symbol,
+            test_quantity=test_quantity,
+            message=f"Using minimal test quantity: {test_quantity} for {symbol}",
+        )
 
         # Create market order executor
         service = MarketOrderService(exchange_api=hyperliquid_api, config=market_order_config)
@@ -132,7 +137,11 @@ class TestHyperliquidMarketOrderIntegration:
             _test_order_data["hyperliquid_buy_quantity"] = filled_order.quantity_filled
 
             logger.info(
-                f"Successfully placed and verified market buy order: "
+                "market_buy_order_success",
+                exchange_order_id=filled_order.exchange_order_id,
+                quantity_filled=filled_order.quantity_filled,
+                symbol=symbol,
+                message=f"Successfully placed and verified market buy order: "
                 f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
             )
 
@@ -196,7 +205,13 @@ class TestHyperliquidMarketOrderIntegration:
         # Use the historical quantity for selling
         sell_quantity = historical_quantity
         logger.info(
-            f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}",
+            "previous_buy_order_found",
+            buy_order_id=buy_order_id,
+            sell_quantity=sell_quantity,
+            symbol=symbol,
+            message=(
+                f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}"
+            ),
         )
 
         # Create market order executor
@@ -265,7 +280,11 @@ class TestHyperliquidMarketOrderIntegration:
             )
 
             logger.info(
-                f"Successfully placed and verified market sell order: "
+                "market_sell_order_success",
+                exchange_order_id=filled_order.exchange_order_id,
+                quantity_filled=filled_order.quantity_filled,
+                symbol=symbol,
+                message=f"Successfully placed and verified market sell order: "
                 f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
             )
 
@@ -318,7 +337,11 @@ class TestHyperliquidMarketOrderIntegration:
             excessive_quantity = total_ask_quantity + market.step_size
 
             logger.info(
-                f"Testing insufficient liquidity with quantity {excessive_quantity} "
+                "testing_insufficient_liquidity",
+                symbol=symbol,
+                excessive_quantity=excessive_quantity,
+                total_ask_quantity=total_ask_quantity,
+                message=f"Testing insufficient liquidity with quantity {excessive_quantity} "
                 f"(available: {total_ask_quantity})",
             )
 
@@ -343,7 +366,12 @@ class TestHyperliquidMarketOrderIntegration:
             assert symbol in str(error), f"Error should mention symbol {symbol}"
             assert "liquidity" in str(error).lower(), "Error should mention liquidity"
 
-            logger.info(f"Correctly caught insufficient liquidity error: {error}")
+            logger.info(
+                "insufficient_liquidity_error_caught",
+                symbol=symbol,
+                error=str(error),
+                message=f"Correctly caught insufficient liquidity error: {error}",
+            )
 
         except InsufficientLiquidityError:
             # Expected - test passes
@@ -417,7 +445,10 @@ class TestHyperliquidMarketOrderIntegration:
 
             # If it didn't fail, that's okay - market might have tight spreads
             logger.info(
-                "Market order succeeded despite tight slippage - market spreads must be very tight",
+                "market_order_tight_slippage_success",
+                symbol=symbol,
+                tight_slippage=tight_slippage,
+                message="Market order succeeded despite tight slippage - market spreads very tight",
             )
 
         except PriceDeviationError as e:
@@ -426,7 +457,13 @@ class TestHyperliquidMarketOrderIntegration:
             assert "slippage" in str(e).lower() or "deviation" in str(e).lower(), (
                 "Error should mention slippage or deviation"
             )
-            logger.info(f"Correctly caught price deviation error: {e}")
+            logger.info(
+                "price_deviation_error_caught",
+                symbol=symbol,
+                error=str(e),
+                tight_slippage=tight_slippage,
+                message=f"Correctly caught price deviation error: {e}",
+            )
 
         except Exception as e:
             # Other errors indicate a problem
@@ -500,7 +537,14 @@ class TestHyperliquidMarketOrderIntegration:
 
             if filled_order.average_fill_price:
                 logger.info(
-                    f"Market order metrics - "
+                    "market_order_metrics_tracked",
+                    symbol=symbol,
+                    side="BUY",
+                    requested_quantity=test_quantity,
+                    filled_quantity=filled_order.quantity_filled,
+                    average_fill_price=filled_order.average_fill_price,
+                    execution_time_seconds=round(execution_time, 2),
+                    message=f"Market order metrics - "
                     f"Symbol: {symbol}, "
                     f"Side: BUY, "
                     f"Requested: {test_quantity}, "

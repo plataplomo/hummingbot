@@ -195,7 +195,7 @@ class TestBackpackPerpPositionsZero:
                 logger.info(
                     "invalid_symbol_empty_list",
                     symbol=symbol,
-                    message="Invalid symbol returned empty list (graceful handling)"
+                    message="Invalid symbol returned empty list (graceful handling)",
                 )
 
             except APIError as e:
@@ -214,7 +214,7 @@ class TestBackpackPerpPositionsZero:
                     "invalid_symbol_rejected",
                     symbol=symbol,
                     error_code=e.code,
-                    message="✓ Invalid symbol properly rejected with error"
+                    message="✓ Invalid symbol properly rejected with error",
                 )
 
             except ValueError as e:
@@ -223,7 +223,7 @@ class TestBackpackPerpPositionsZero:
                 logger.info(
                     "empty_symbol_value_error",
                     error_message=str(e),
-                    message="✓ Empty symbol properly rejected with ValueError"
+                    message="✓ Empty symbol properly rejected with ValueError",
                 )
 
             except Exception as e:
@@ -285,7 +285,7 @@ class TestBackpackPerpPositionsZero:
         logger.info(
             "data_consistency_verified",
             calls_count=calls_count,
-            message="✓ Data consistency verified across calls"
+            message="✓ Data consistency verified across calls",
         )
 
     @pytest.mark.vcr
@@ -314,7 +314,7 @@ class TestBackpackPerpPositionsZero:
                         logger.info(
                             "concurrent_rate_limit",
                             request_number=i + 1,
-                            message="Concurrent request hit rate limit (expected)"
+                            message="Concurrent request hit rate limit (expected)",
                         )
                     else:
                         pytest.fail(f"Unexpected error in concurrent request {i + 1}: {result}")
@@ -338,7 +338,7 @@ class TestBackpackPerpPositionsZero:
                 "concurrent_requests_succeeded",
                 successful_count=len(successful_results),
                 total_count=concurrent_count,
-                message="✓ Concurrent requests succeeded"
+                message="✓ Concurrent requests succeeded",
             )
 
         except Exception as e:
@@ -365,7 +365,7 @@ class TestBackpackPerpPositionsZero:
             logger.info(
                 "none_symbol_test_result",
                 error_message=str(e),
-                message="None symbol test resulted in error"
+                message="None symbol test resulted in error",
             )
 
         # Test timestamp consistency if positions exist
@@ -407,7 +407,7 @@ class TestBackpackPerpPositionsZero:
         logger.info(
             "response_time_measured",
             response_time_seconds=round(response_time, 3),
-            message="✓ Response time measured"
+            message="✓ Response time measured",
         )
 
     def _validate_position_structure(self, position: DerivativePosition, index: int) -> None:
@@ -501,7 +501,7 @@ class TestBackpackPerpPositionsZero:
             "position_validation_passed",
             position_index=index,
             symbol=position.symbol,
-            message="✓ Position structure validation passed"
+            message="✓ Position structure validation passed",
         )
 
     def _validate_backpack_position_details(
@@ -565,5 +565,5 @@ class TestBackpackPerpPositionsZero:
         logger.debug(
             "backpack_details_validation_passed",
             position_index=index,
-            message="✓ Position Backpack details validation passed"
+            message="✓ Position Backpack details validation passed",
         )

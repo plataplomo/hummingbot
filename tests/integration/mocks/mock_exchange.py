@@ -251,7 +251,7 @@ class MockExchangeAPI(ExchangeAPI):
             maker_fee=float(self.maker_fee),
             taker_fee=float(self.taker_fee),
             fee_asset=self.fee_asset,
-            message="Initialized MockExchangeAPI"
+            message="Initialized MockExchangeAPI",
         )
 
     # --- Test Control Methods ADDED ---
@@ -281,8 +281,6 @@ class MockExchangeAPI(ExchangeAPI):
         if balance.exchange != self.exchange_name:
             logger.warning(
                 "balance_exchange_mismatch",
-                balance_exchange=balance.exchange,
-                mock_exchange=self.exchange_name,
                 balance_exchange=balance.exchange,
                 mock_exchange=self.exchange_name,
                 message="Attempted to set balance for different exchange on mock. Ignoring.",

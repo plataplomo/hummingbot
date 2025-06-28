@@ -15,6 +15,20 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
+from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
+from cyberdelta.apis.backpack.mappers import (
+    BackpackAccountDataMapper,
+    BackpackMarketDataMapper,
+    BackpackTradingDataMapper,
+)
+from cyberdelta.apis.backpack.services import (
+    BackpackAccountService,
+    BackpackMarketDataService,
+    BackpackTradingService,
+)
 from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
@@ -55,8 +69,6 @@ def mock_bp_authenticator() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackEd25519Authenticator instance.
     """
-    from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
-
     mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
     mock_auth.prepare_request = AsyncMock()
     return mock_auth
@@ -69,8 +81,6 @@ def mock_bp_error_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackErrorMapper instance.
     """
-    from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
-
     return MagicMock(spec=BackpackErrorMapper)
 
 
@@ -81,8 +91,6 @@ def mock_bp_request_builder() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackRequestBuilder instance.
     """
-    from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-
     return MagicMock(spec=BackpackRequestBuilder)
 
 
@@ -93,8 +101,6 @@ def mock_bp_response_handler() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackResponseHandler instance.
     """
-    from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
-
     return MagicMock(spec=BackpackResponseHandler)
 
 
@@ -105,8 +111,6 @@ def mock_bp_account_data_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackAccountDataMapper instance.
     """
-    from cyberdelta.apis.backpack.mappers import BackpackAccountDataMapper
-
     return MagicMock(spec=BackpackAccountDataMapper)
 
 
@@ -117,8 +121,6 @@ def mock_bp_market_data_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackMarketDataMapper instance.
     """
-    from cyberdelta.apis.backpack.mappers import BackpackMarketDataMapper
-
     return MagicMock(spec=BackpackMarketDataMapper)
 
 
@@ -129,8 +131,6 @@ def mock_bp_trading_data_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackTradingDataMapper instance.
     """
-    from cyberdelta.apis.backpack.mappers import BackpackTradingDataMapper
-
     return MagicMock(spec=BackpackTradingDataMapper)
 
 
@@ -141,8 +141,6 @@ def mock_bp_account_service() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackAccountService instance.
     """
-    from cyberdelta.apis.backpack.services import BackpackAccountService
-
     mock_service = MagicMock(spec=BackpackAccountService)
     # Add common async methods
     mock_service.get_balances = AsyncMock()
@@ -160,8 +158,6 @@ def mock_bp_market_data_service() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackMarketDataService instance.
     """
-    from cyberdelta.apis.backpack.services import BackpackMarketDataService
-
     mock_service = MagicMock(spec=BackpackMarketDataService)
     mock_service.get_ticker = AsyncMock()
     mock_service.get_order_book = AsyncMock()
@@ -178,8 +174,6 @@ def mock_bp_trading_service() -> MagicMock:
     Returns:
         MagicMock: Mock BackpackTradingService instance.
     """
-    from cyberdelta.apis.backpack.services import BackpackTradingService
-
     mock_service = MagicMock(spec=BackpackTradingService)
     mock_service.place_order = AsyncMock()
     mock_service.cancel_order = AsyncMock()

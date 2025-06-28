@@ -264,7 +264,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 10
 
-
         mock_params = BackpackRawGetOrderHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_order_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, MagicMock())
@@ -531,7 +530,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
         mock_http_client_requester.return_value = (None, 200, {})
@@ -556,7 +554,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_raw_response = [{"invalid": "trade"}]
 
@@ -564,7 +561,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         # Create a ValidationError by trying to validate invalid data
         try:
-
             BackpackRawPublicTrade.model_validate({"invalid": "data"})
         except ValidationError as e:
             mock_response_handler.handle_get_fills_response.side_effect = e
@@ -587,7 +583,6 @@ class TestBackpackAccountServiceHistoryOperations:
     ) -> None:
         """Test get_trade_history when unexpected exception occurs."""
         symbol = "SOL_USDC"
-
 
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol)
         mock_raw_response = [{"id": "order_123"}]
@@ -634,7 +629,6 @@ class TestBackpackAccountServiceHistoryOperations:
             available_quantity=Decimal("100.0"),
         )
 
-
         mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = (
             {"USDC": {"available": "100.0", "total": "100.0"}},
@@ -662,7 +656,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test constructor creates default mapper when none provided by testing behavior."""
-
         service = BackpackAccountService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,

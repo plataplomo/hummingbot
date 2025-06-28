@@ -323,17 +323,17 @@ class TestBackpackBalancesPositive:
             logger.debug(
                 "non_stablecoin_assets_detected",
                 assets=non_stablecoin_assets,
-                message="Non-stablecoin assets held detected"
+                message="Non-stablecoin assets held detected",
             )
             logger.debug(
                 "account_total_equity",
                 total_equity=account_summary.total_equity,
-                message="Account total equity value"
+                message="Account total equity value",
             )
             logger.debug(
                 "stablecoin_balance_total",
                 stablecoin_balance=total_stablecoin_balance,
-                message="Total stablecoin balance across assets"
+                message="Total stablecoin balance across assets",
             )
 
         # 5. Validate individual balance constraints

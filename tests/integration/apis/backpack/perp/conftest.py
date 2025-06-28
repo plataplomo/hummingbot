@@ -7,6 +7,8 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 
 
 @pytest.fixture
@@ -22,13 +24,8 @@ async def bp_perp_test_config(
         dict[str, list[str] | list[Decimal] | Decimal | int]: Test configuration
             containing market constraints and test parameters.
     """
-    # Import here to avoid circular imports
-    from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
-
     # Get available perp markets dynamically
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         markets = await bp_api_for_test_env.get_markets(args=GetMarketsArgs())
         perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol.upper()][:3]
 

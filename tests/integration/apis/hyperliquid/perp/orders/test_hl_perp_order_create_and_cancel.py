@@ -91,7 +91,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
 
         # Select a random symbol (first available for deterministic VCR)
         symbol = available_symbols[0]
-        logger.info(f"Selected symbol for test: {symbol}")
+        logger.info(
+            "test_symbol_selected",
+            symbol=symbol,
+            selection_method="first_available",
+            message="Selected symbol for test",
+        )
 
         try:
             # Get dynamic test parameters for safe order placement
@@ -115,8 +120,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             )
 
             logger.info(
-                f"Order parameters - Symbol: {symbol}, Price: {test_price}, "
-                f"Quantity: {test_quantity}, Market Price: {market_price}",
+                "order_parameters_debug",
+                symbol=symbol,
+                test_price=str(test_price),
+                test_quantity=str(test_quantity),
+                market_price=str(market_price),
+                message="Order parameters for limit order placement",
             )
 
             # Define order parameters using dynamic values
@@ -173,7 +182,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 f"Price mismatch: requested {test_price}, got {placed_order.price}"
             )
 
-            logger.info(f"Successfully placed order: {placed_order.exchange_order_id}")
+            logger.info(
+                "order_placed_successfully",
+                exchange_order_id=placed_order.exchange_order_id,
+                symbol=symbol,
+                message="Successfully placed order",
+            )
 
         except Exception as e:
             pytest.fail(f"Failed to place limit order for {symbol}: {e}")
@@ -193,7 +207,11 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         # Get existing open orders
         try:
             open_orders = await hl_api_for_test_env.get_open_orders()
-            logger.info(f"Found {len(open_orders)} open orders")
+            logger.info(
+                "open_orders_found",
+                count=len(open_orders),
+                message="Found open orders for cancellation test",
+            )
 
             if not open_orders:
                 # No existing orders, create one to cancel
@@ -238,7 +256,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 )
 
                 placed_order = await hl_api_for_test_env.place_order(place_args)
-                logger.info(f"Created order to cancel: {placed_order.exchange_order_id}")
+                logger.info(
+                    "order_created_for_cancellation",
+                    exchange_order_id=placed_order.exchange_order_id,
+                    symbol=symbol,
+                    message="Created order to cancel",
+                )
                 order_to_cancel = placed_order
             else:
                 # Use the most recent open order
@@ -249,8 +272,10 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                     order_to_cancel = open_orders[-1]  # Last order in list
 
                 logger.info(
-                    f"Using existing order {order_to_cancel.exchange_order_id} "
-                    f"for symbol {order_to_cancel.symbol} to test cancellation",
+                    "existing_order_selected_for_cancellation",
+                    exchange_order_id=order_to_cancel.exchange_order_id,
+                    symbol=order_to_cancel.symbol,
+                    message="Using existing order for cancellation test",
                 )
 
         except Exception as e:
@@ -261,7 +286,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
         symbol = order_to_cancel.symbol
 
         assert order_id is not None, "Order ID should not be None"
-        logger.info(f"Attempting to cancel order: {order_id} for symbol: {symbol}")
+        logger.info(
+            "attempting_order_cancellation",
+            order_id=order_id,
+            symbol=symbol,
+            message="Attempting to cancel order",
+        )
 
         try:
             # Brief wait to ensure order is processed
@@ -293,7 +323,12 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 "Cancel result should contain correct order ID"
             )
             assert cancel_result.symbol == symbol, "Cancel result should contain correct symbol"
-            logger.info(f"Successfully cancelled order: {order_id}")
+            logger.info(
+                "order_cancelled_successfully",
+                order_id=order_id,
+                symbol=symbol,
+                message="Successfully cancelled order",
+            )
 
             # Brief wait for exchange to process cancellation
             await asyncio.sleep(2)

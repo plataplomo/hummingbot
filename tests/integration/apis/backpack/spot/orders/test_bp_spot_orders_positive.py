@@ -142,8 +142,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             order_id=placed_order.exchange_order_id,
             status=str(placed_order.status),
             quantity_filled=(
-                float(placed_order.quantity_filled) 
-                if placed_order.quantity_filled else None
+                float(placed_order.quantity_filled) if placed_order.quantity_filled else None
             ),
             message=(
                 f"✓ Market order executed: {placed_order.exchange_order_id}, "
@@ -368,8 +367,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     "take_profit_market_order_cleaned",
                     order_id=placed_order.exchange_order_id,
                     message=(
-                        f"✓ Take profit market order cleaned up: "
-                        f"{placed_order.exchange_order_id}"
+                        f"✓ Take profit market order cleaned up: {placed_order.exchange_order_id}"
                     ),
                 )
             except Exception as e:
@@ -451,8 +449,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     "take_profit_limit_order_cleaned",
                     order_id=placed_order.exchange_order_id,
                     message=(
-                        f"✓ Take profit limit order cleaned up: "
-                        f"{placed_order.exchange_order_id}"
+                        f"✓ Take profit limit order cleaned up: {placed_order.exchange_order_id}"
                     ),
                 )
             except Exception as e:
@@ -1043,7 +1040,6 @@ class TestBackpackSpotOrdersPositiveBalance:
             "multi_symbol_order_management_completed",
             symbols_tested=len(test_symbols),
             message=(
-                f"✓ Multi-symbol order management completed: "
-                f"{len(test_symbols)} symbols tested"
+                f"✓ Multi-symbol order management completed: {len(test_symbols)} symbols tested"
             ),
         )

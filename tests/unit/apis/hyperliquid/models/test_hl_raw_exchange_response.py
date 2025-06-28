@@ -391,5 +391,8 @@ def test_hl_response_data_statuses_validation(
         # Check that *some* error occurred. More specific message checks can be added.
         assert exc_info is not None
         logger.debug(
-            f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}",
+            "hl_response_data_statuses_validation_failure",
+            input_data=str(statuses_list),
+            error=str(exc_info.value),
+            message=f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}",
         )

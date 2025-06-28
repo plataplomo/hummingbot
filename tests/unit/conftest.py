@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
-from pydantic import AnyUrl, HttpUrl
+from pydantic import AnyUrl, HttpUrl, SecretStr
 from web3.auto import w3  # Import w3
 
 from cyberdelta.config import AppSettings
@@ -596,8 +596,6 @@ def active_bp_secrets() -> ApiKeyAuthSecrets:
     Returns:
         ApiKeyAuthSecrets instance with test credentials for Backpack.
     """
-    from pydantic import SecretStr
-
     return ApiKeyAuthSecrets(
         auth_type="api_key",
         api_key=SecretStr("test_active_api_key"),

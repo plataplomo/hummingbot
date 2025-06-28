@@ -124,7 +124,12 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             """Handler for real symbol subscription messages."""
             await asyncio.sleep(0)  # Satisfy RUF029
             received_messages.append(message)
-            logger.info(f"Real symbol handler received: {message}")
+            logger.info(
+                "websocket_message_received",
+                message_data=message,
+                handler_type="real_symbol",
+                message="Real symbol handler received message",
+            )
 
         try:
             # Test subscription with real symbol
@@ -136,7 +141,11 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 f"Connection state should be boolean, got {type(connection_state)}"
             )
 
-            logger.info(f"✓ Real symbol subscription successful: {topic}")
+            logger.info(
+                "real_symbol_subscription_success",
+                topic=topic,
+                message="Real symbol subscription successful",
+            )
 
         except Exception as e:
             pytest.fail(
@@ -174,7 +183,12 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 if stream_type not in stream_results:
                     stream_results[stream_type] = []
                 stream_results[stream_type].append(message)
-                logger.info(f"{stream_type} stream handler: {message}")
+                logger.info(
+                    "websocket_stream_message_received",
+                    stream_type=stream_type,
+                    message_data=message,
+                    message="Stream handler received message",
+                )
 
             return handler
 
@@ -208,7 +222,9 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Multiple real stream types successful: {len(stream_subscriptions)} streams",
+                "multiple_stream_types_success",
+                stream_count=len(stream_subscriptions),
+                message="Multiple real stream types successful",
             )
 
         except Exception as e:
@@ -235,7 +251,11 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             full_message: dict[str, Any],
         ) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Consistency handler: {message}")
+            logger.info(
+                "websocket_consistency_handler",
+                message_data=message,
+                message="Consistency handler received message",
+            )
 
         # Track state consistency across operations
         state_tracking: list[tuple[str, Any]] = []
@@ -261,7 +281,11 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                     f"State at {stage} should be boolean, got {type(state)}"
                 )
 
-            logger.info(f"✓ Real subscription state consistency validated: {state_tracking}")
+            logger.info(
+                "real_subscription_state_consistency_validated",
+                state_tracking=state_tracking,
+                message="Real subscription state consistency validated",
+            )
 
         except Exception as e:
             pytest.fail(
@@ -303,8 +327,9 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ All helper subscription methods successful with real symbols: "
-                f"{[symbol1, symbol2, symbol3]}",
+                "helper_subscription_methods_success",
+                symbols=[symbol1, symbol2, symbol3],
+                message="All helper subscription methods successful with real symbols",
             )
 
         except Exception as e:
@@ -329,7 +354,11 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
         async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Lifecycle handler: {message}")
+            logger.info(
+                "websocket_lifecycle_handler",
+                message_data=message,
+                message="Lifecycle handler received message",
+            )
 
         try:
             # Test subscription before connection
@@ -349,8 +378,10 @@ class TestBackpackAPIRealWebSocketSubscriptions:
             )
 
             logger.info(
-                f"✓ Real WebSocket lifecycle completed: "
-                f"sub={subscription_state}, conn={connection_state}",
+                "real_websocket_lifecycle_completed",
+                subscription_state=subscription_state,
+                connection_state=connection_state,
+                message="Real WebSocket lifecycle completed",
             )
 
         except Exception as e:
@@ -390,7 +421,11 @@ class TestBackpackAPIConcurrentRealSubscriptions:
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Concurrent real handler: {message}")
+            logger.info(
+                "websocket_concurrent_handler",
+                message_data=message,
+                message="Concurrent real handler received message",
+            )
 
         # Create concurrent subscription tasks with real symbols
         subscription_tasks: list[tuple[str, Any]] = []
@@ -415,7 +450,9 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             )
 
             logger.info(
-                f"✓ Concurrent real subscriptions successful: {len(subscription_tasks)} operations",
+                "concurrent_real_subscriptions_success",
+                operation_count=len(subscription_tasks),
+                message="Concurrent real subscriptions successful",
             )
 
         except Exception as e:
@@ -438,7 +475,11 @@ class TestBackpackAPIConcurrentRealSubscriptions:
 
         async def mixed_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Mixed market handler: {message}")
+            logger.info(
+                "websocket_mixed_market_handler",
+                message_data=message,
+                message="Mixed market handler received message",
+            )
 
         subscription_count = 0
 
@@ -467,7 +508,9 @@ class TestBackpackAPIConcurrentRealSubscriptions:
             )
 
             logger.info(
-                f"✓ Mixed market real subscriptions successful: {subscription_count} subscriptions",
+                "mixed_market_real_subscriptions_success",
+                subscription_count=subscription_count,
+                message="Mixed market real subscriptions successful",
             )
 
         except Exception as e:
@@ -500,7 +543,11 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
         async def error_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Error test handler: {message}")
+            logger.info(
+                "websocket_error_test_handler",
+                message_data=message,
+                message="Error test handler received message",
+            )
 
         # Test scenarios mixing real and invalid
         test_scenarios = [
@@ -522,11 +569,19 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
                 if should_succeed:
                     successful_count += 1
-                    logger.info(f"✓ Expected successful real subscription: {topic}")
+                    logger.info(
+                        "expected_successful_real_subscription",
+                        topic=topic,
+                        message="Expected successful real subscription",
+                    )
                 else:
                     # If subscription succeeded despite being invalid,
                     # that might be exchange tolerance
-                    logger.info(f"✓ Exchange accepted invalid topic (tolerance): {topic}")
+                    logger.info(
+                        "exchange_accepted_invalid_topic",
+                        topic=topic,
+                        message="Exchange accepted invalid topic (tolerance)",
+                    )
 
                 # Always validate connection state
                 state = bp_api_for_test_env.is_connected
@@ -544,7 +599,12 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                 else:
                     # Invalid scenarios may fail appropriately
                     error_count += 1
-                    logger.info(f"✓ Invalid subscription correctly rejected: {topic} - {e}")
+                    logger.info(
+                        "invalid_subscription_correctly_rejected",
+                        topic=topic,
+                        error=str(e),
+                        message="Invalid subscription correctly rejected",
+                    )
 
         # Ensure at least one successful subscription with real data
         if successful_count == 0:
@@ -554,8 +614,10 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
             )
 
         logger.info(
-            f"✓ Real subscription error handling completed: "
-            f"{successful_count} successful, {error_count} errors",
+            "real_subscription_error_handling_completed",
+            successful_count=successful_count,
+            error_count=error_count,
+            message="Real subscription error handling completed",
         )
 
     @pytest.mark.vcr
@@ -573,7 +635,11 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
 
         async def resilience_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Resilience handler: {message}")
+            logger.info(
+                "websocket_resilience_handler",
+                message_data=message,
+                message="Resilience handler received message",
+            )
 
         operation_count = 0
         max_operations = 10
@@ -604,7 +670,9 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                 )
 
             logger.info(
-                f"✓ Subscription resilience with real data confirmed: {operation_count} operations",
+                "subscription_resilience_with_real_data_confirmed",
+                operation_count=operation_count,
+                message="Subscription resilience with real data confirmed",
             )
 
         except Exception as e:

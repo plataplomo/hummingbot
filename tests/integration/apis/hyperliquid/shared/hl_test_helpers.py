@@ -77,7 +77,12 @@ class HyperliquidTestHelpers:
                         if len(available_symbols) >= limit:
                             break
                 except Exception as e:
-                    logger.debug(f"Symbol {symbol} unavailable: {e}")
+                    logger.debug(
+                        "symbol_unavailable",
+                        symbol=symbol,
+                        error=str(e),
+                        message="Symbol unavailable",
+                    )
                     continue  # Skip unavailable symbols
 
             if not available_symbols:
@@ -216,7 +221,6 @@ class HyperliquidTestHelpers:
 
             # Try to get historical funding rates to determine actual bounds
 
-
             # Get last 7 days of funding data to establish bounds
             end_time = datetime.now(UTC)
             start_time = end_time - timedelta(days=7)
@@ -255,7 +259,11 @@ class HyperliquidTestHelpers:
                         }
 
             except Exception as e:
-                logger.debug(f"Could not get historical funding rates for bounds: {e}")
+                logger.debug(
+                    "funding_rate_bounds_fallback",
+                    error=str(e),
+                    message=f"Could not get historical funding rates for bounds: {e}",
+                )
 
             # If no historical data available, fail rather than use hardcoded values
             raise RuntimeError(
@@ -342,20 +350,42 @@ class HyperliquidTestHelpers:
 
         # Log calculation information for debugging
         logger.info(
-            f"Price calculation for {symbol}: market={market_price}, "
+            "test_price_calculation_start",
+            symbol=symbol,
+            market_price=market_price,
+            tolerance_percent=tolerance_percent,
+            side=side.value,
+            message=f"Price calculation for {symbol}: market={market_price}, "
             f"tolerance={tolerance_percent}%, side={side.value}",
         )
         operator = "-" if side == OrderSide.BUY else "+"
         logger.info(
-            f"Step 1 - test_price calculation: {market_price} * "
+            "test_price_step1_calculation",
+            market_price=market_price,
+            operator=operator,
+            tolerance_percent=tolerance_percent,
+            tolerance_decimal=tolerance_percent / 100,
+            test_price=test_price,
+            message=f"Step 1 - test_price calculation: {market_price} * "
             f"(1 {operator} {tolerance_percent / 100}) = {test_price}",
         )
         logger.info(
-            f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
+            "test_price_step2_tick_alignment",
+            test_price=test_price,
+            tick_size=tick_size,
+            ticks_decimal=ticks_decimal,
+            rounded_ticks=rounded_ticks,
+            message=f"Step 2 - tick alignment: test_price={test_price}, tick_size={tick_size}, "
             f"ticks_decimal={ticks_decimal}, rounded_ticks={rounded_ticks}",
         )
         logger.info(
-            f"Step 3 - final calculation: {rounded_ticks} * {tick_size} = {final_price}, "
+            "test_price_step3_final_calculation",
+            rounded_ticks=rounded_ticks,
+            tick_size=tick_size,
+            final_price=final_price,
+            tick_decimal_places=tick_decimal_places,
+            quantized_price=quantized_price,
+            message=f"Step 3 - final calculation: {rounded_ticks} * {tick_size} = {final_price}, "
             f"quantized to {tick_decimal_places} places = {quantized_price}",
         )
 
@@ -371,7 +401,12 @@ class HyperliquidTestHelpers:
             quantized_price = quantized_price.quantize(price_precision, rounding=ROUND_HALF_UP)
 
             logger.warning(
-                f"Price alignment corrected for {symbol}: was {final_price}, now {quantized_price}",
+                "price_alignment_corrected",
+                symbol=symbol,
+                previous_price=final_price,
+                corrected_price=quantized_price,
+                message=f"Price alignment corrected for {symbol}: was {final_price}, "
+                f"now {quantized_price}",
             )
 
         return quantized_price
@@ -489,8 +524,15 @@ class HyperliquidTestHelpers:
                 )
 
             logger.info(
-                f"Calculated minimal order size for {symbol}: qty={final_quantity}, "
-                f"price={price}, notional=${final_notional}, min_required=${MIN_NOTIONAL_USD}",
+                "minimal_order_size_calculated",
+                symbol=symbol,
+                quantity=final_quantity,
+                price=price,
+                notional_value=final_notional,
+                min_required_notional=MIN_NOTIONAL_USD,
+                message=f"Calculated minimal order size for {symbol}: qty={final_quantity}, "
+                f"price={price}, notional=${final_notional}, "
+                f"min_required=${MIN_NOTIONAL_USD}",
             )
 
             return final_quantity
@@ -540,7 +582,11 @@ class HyperliquidTestHelpers:
             final_quantity = max(final_quantity, min_quantity)
 
             logger.info(
-                f"Calculated minimal order size for zero balance test {symbol}: "
+                "minimal_order_size_zero_balance_calculated",
+                symbol=symbol,
+                quantity=final_quantity,
+                order_type="exchange_minimum",
+                message=f"Calculated minimal order size for zero balance test {symbol}: "
                 f"qty={final_quantity} (exchange minimum)",
             )
 
@@ -646,7 +692,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If order cancellation verification fails or times out.
         """
-
         start_time = time.time()
         attempt = 0
 
@@ -686,7 +731,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If order placement verification fails or times out.
         """
-
         start_time = time.time()
         attempt = 0
 
@@ -722,7 +766,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If condition is not met within timeout.
         """
-
         start_time = time.time()
         attempt = 0
 
@@ -985,7 +1028,6 @@ def generate_test_cloid() -> str:
         >>> assert cloid.startswith("0x")
         >>> assert len(cloid) == 34  # 0x + 32 hex chars
     """
-
     # Generate 16 random bytes (128 bits)
     random_bytes = secrets.token_bytes(16)
     # Convert to hex and add 0x prefix

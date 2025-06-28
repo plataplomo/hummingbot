@@ -115,7 +115,7 @@ class TestBackpackAPIWebSocketIntegration:
                 "websocket_message_received",
                 message=message,
                 handler_type="integration",
-                log_message=f"Integration handler received: {message}"
+                log_message=f"Integration handler received: {message}",
             )
 
         try:
@@ -131,7 +131,7 @@ class TestBackpackAPIWebSocketIntegration:
             logger.info(
                 "websocket_integration_success",
                 topic=topic,
-                log_message=f"✓ WebSocket integration successful for real symbol: {topic}"
+                log_message=f"✓ WebSocket integration successful for real symbol: {topic}",
             )
 
         except Exception as e:
@@ -169,7 +169,7 @@ class TestBackpackAPIWebSocketIntegration:
                 "websocket_message_received",
                 message=message,
                 handler_type="multi_subscription",
-                log_message=f"Multi-subscription handler: {message}"
+                log_message=f"Multi-subscription handler: {message}",
             )
 
         try:
@@ -186,7 +186,8 @@ class TestBackpackAPIWebSocketIntegration:
             logger.info(
                 "websocket_multiple_subscriptions_success",
                 subscription_count=len(topics[:2]),
-                log_message=f"✓ Multiple WebSocket subscriptions successful: {len(topics[:2])} subscriptions"
+                status="successful",
+                message="Multiple WebSocket subscriptions successful",
             )
 
         except Exception as e:
@@ -215,7 +216,7 @@ class TestBackpackAPIWebSocketIntegration:
                 "websocket_message_received",
                 message=message,
                 handler_type="lifecycle",
-                log_message=f"Lifecycle handler: {message}"
+                log_message=f"Lifecycle handler: {message}",
             )
 
         try:
@@ -239,7 +240,8 @@ class TestBackpackAPIWebSocketIntegration:
                 "websocket_lifecycle_integration_complete",
                 subscription_state=subscription_state,
                 connection_state=connection_state,
-                log_message=f"✓ WebSocket lifecycle integration completed: sub={subscription_state}, conn={connection_state}"
+                status="completed",
+                message="WebSocket lifecycle integration completed",
             )
 
         except Exception as e:
@@ -281,9 +283,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message_data=message,
                 handler_type="concurrent",
-                log_message=f"Concurrent integration handler: {message}"
+                message="Concurrent integration handler received message",
             )
 
         # Create concurrent subscription tasks
@@ -306,7 +308,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             logger.info(
                 "websocket_concurrent_integration_success",
                 operation_count=len(subscription_tasks),
-                log_message=f"✓ Concurrent WebSocket integration successful: {len(subscription_tasks)} operations"
+                status="successful",
+                message="Concurrent WebSocket integration successful",
             )
 
         except Exception as e:
@@ -335,9 +338,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message_data=message,
                 handler_type="error_integration",
-                log_message=f"Error integration handler: {message}"
+                message="Error integration handler received message",
             )
 
         # Test scenarios with real integration
@@ -360,7 +363,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                         "websocket_subscription_success",
                         topic=topic,
                         expected=True,
-                        log_message=f"✓ Expected successful integration: {topic}"
+                        status="successful",
+                        message="Expected successful integration",
                     )
                 else:
                     # If subscription succeeded despite being invalid,
@@ -369,7 +373,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                         "websocket_subscription_tolerance",
                         topic=topic,
                         tolerance=True,
-                        log_message=f"✓ Exchange accepted invalid topic (tolerance): {topic}"
+                        status="accepted",
+                        message="Exchange accepted invalid topic (tolerance)",
                     )
 
                 # Always validate connection state
@@ -392,7 +397,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                         "websocket_subscription_rejected",
                         topic=topic,
                         error=str(e),
-                        log_message=f"✓ Invalid subscription correctly rejected: {topic} - {e}"
+                        status="rejected",
+                        message="Edge case topic correctly rejected",
                     )
 
         # Ensure at least one successful subscription
@@ -406,7 +412,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             "websocket_error_handling_complete",
             successful_count=successful_count,
             error_count=error_count,
-            log_message=f"✓ Integration error handling completed: {successful_count} successful, {error_count} errors"
+            status="completed",
+            message="Integration error handling completed",
         )
 
     @pytest.mark.vcr
@@ -427,7 +434,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 "websocket_message_received",
                 message=message,
                 handler_type="state_consistency",
-                log_message=f"State consistency handler: {message}"
+                log_message=f"State consistency handler: {message}",
             )
 
         # Track state changes throughout operations
@@ -465,7 +472,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             logger.info(
                 "websocket_state_consistency_maintained",
                 state_history=state_history,
-                log_message=f"✓ WebSocket state consistency maintained throughout integration: {state_history}"
+                status="maintained",
+                message="WebSocket state consistency maintained throughout integration",
             )
 
         except Exception as e:
@@ -491,9 +499,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message_data=message,
                 handler_type="rapid",
-                log_message=f"Rapid integration handler: {message}"
+                message="Rapid integration handler received message",
             )
 
         topic = f"trades.{test_symbol}"
@@ -525,7 +533,8 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
             logger.info(
                 "websocket_rapid_operations_success",
                 operation_count=operation_count,
-                log_message=f"✓ Rapid WebSocket operations integration successful: {operation_count} operations"
+                status="successful",
+                message="Rapid WebSocket operations integration successful",
             )
 
         except Exception as e:
@@ -557,9 +566,9 @@ class TestBackpackAPIWebSocketEdgeCases:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message_data=message,
                 handler_type="edge_case",
-                log_message=f"Edge case handler: {message}"
+                message="Edge case handler received message",
             )
 
         # Test edge case topics
@@ -586,7 +595,8 @@ class TestBackpackAPIWebSocketEdgeCases:
                 logger.info(
                     "websocket_edge_case_handled",
                     topic=topic,
-                    log_message=f"✓ Edge case topic handled: '{topic}'"
+                    status="handled",
+                    message="Edge case topic handled",
                 )
 
             except Exception as e:
@@ -602,7 +612,8 @@ class TestBackpackAPIWebSocketEdgeCases:
                         "websocket_edge_case_rejected",
                         topic=topic,
                         error=str(e),
-                        log_message=f"✓ Edge case topic correctly rejected: '{topic}' - {e}"
+                        status="rejected",
+                        message="Edge case topic correctly rejected",
                     )
 
         # Ensure all edge cases were handled appropriately
@@ -613,7 +624,8 @@ class TestBackpackAPIWebSocketEdgeCases:
         logger.info(
             "websocket_edge_cases_complete",
             handled_cases=handled_cases,
-            log_message=f"✓ Topic validation edge cases completed: {handled_cases} cases handled"
+            status="completed",
+            message="Topic validation edge cases completed",
         )
 
     @pytest.mark.vcr
@@ -633,9 +645,9 @@ class TestBackpackAPIWebSocketEdgeCases:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message_data=message,
                 handler_type="resilience",
-                log_message=f"Resilience handler: {message}"
+                message="Resilience handler received message",
             )
 
         operation_count = 0
@@ -668,7 +680,8 @@ class TestBackpackAPIWebSocketEdgeCases:
             logger.info(
                 "websocket_resilience_confirmed",
                 operation_count=operation_count,
-                log_message=f"✓ WebSocket integration resilience confirmed: {operation_count} operations"
+                status="confirmed",
+                message="WebSocket integration resilience confirmed",
             )
 
         except Exception as e:

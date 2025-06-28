@@ -194,7 +194,12 @@ class TestExecutionHandler:
         def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
             """Process trade and log the call for testing portfolio tracker integration."""
             logger.debug(
-                f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}",
+                "mock_portfolio_tracker_process_trade_called",
+                exchange_id=exchange_id,
+                trade_repr=repr(trade),
+                message=(
+                    f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}"
+                ),
             )
             process_trade_call_tracker.append((exchange_id, trade))
 

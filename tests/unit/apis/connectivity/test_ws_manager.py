@@ -715,13 +715,14 @@ class TestWebSocketManagerTaskManagement:
                 initial_connect_task = manager.connect()
                 assert initial_connect_task is not None
                 test_case_logger.info(
-                    f"Initial connect task created: {initial_connect_task.get_name()}",
+                    "Initial connect task created: %s",
+                    initial_connect_task.get_name(),
                 )
                 await initial_connect_task
                 test_case_logger.info(
-                    f"Initial connect task awaited. State: "
-                    f"done={initial_connect_task.done()}, "
-                    f"cancelled={initial_connect_task.cancelled()}",
+                    "Initial connect task awaited. State: done=%s, cancelled=%s",
+                    initial_connect_task.done(),
+                    initial_connect_task.cancelled(),
                 )
                 await asyncio.sleep(0.05)
                 test_case_logger.info("Slept 0.05s after initial connect.")
@@ -760,7 +761,12 @@ class TestWebSocketManagerTaskManagement:
             )
             logger.debug("\n--- Captured logs for listen_reconnect_test ---")
             for record in caplog.records:
-                logger.debug(f"{record.levelname}: {record.name}: {record.getMessage()}")
+                logger.debug(
+                    "captured_log_record",
+                    level=record.levelname,
+                    name=record.name,
+                    message=record.getMessage(),
+                )
             logger.debug("--- End captured logs ---")
             await manager.close()
 
@@ -869,7 +875,8 @@ def _create_dynamic_ws_connect_side_effect(
         nonlocal connect_attempt_count
         connect_attempt_count += 1
         test_case_logger.info(
-            f"[dynamic_ws_connect_side_effect] Called. Attempt: {connect_attempt_count}",
+            "[dynamic_ws_connect_side_effect] Called. Attempt: %s",
+            connect_attempt_count,
         )
         if connect_attempt_count == 1:
             test_case_logger.info(
@@ -881,8 +888,8 @@ def _create_dynamic_ws_connect_side_effect(
             )
 
         test_case_logger.info(
-            f"[dynamic_ws_connect_side_effect] Attempt {connect_attempt_count}: "
-            f"Returning second_connection_mock.",
+            "[dynamic_ws_connect_side_effect] Attempt %s: Returning second_connection_mock.",
+            connect_attempt_count,
         )
         return second_connection_mock
 
@@ -904,7 +911,7 @@ def _setup_listen_test_manager(
     test_config = default_ws_manager_config.model_copy(
         update={"max_reconnect_attempts": 2, "reconnect_delay": 0.01},
     )
-    test_case_logger.info(f"Creating WebSocketManager with config: {test_config}")
+    test_case_logger.info("Creating WebSocketManager with config: %s", test_config)
     manager = WebSocketManager(
         exchange_name="listen_reconnect_test",
         message_handler=mock_user_message_handler,
@@ -1019,7 +1026,8 @@ async def _handle_restarted_listen_task(
             await asyncio.gather(restarted_listen_task, return_exceptions=True)
         except Exception as e_wait:
             test_case_logger.error(
-                f"[TEST] Error awaiting restarted_listen_task: {e_wait!r}",
+                "[TEST] Error awaiting restarted_listen_task: %r",
+                e_wait,
             )
 
     await asyncio.sleep(0.1)

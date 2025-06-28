@@ -815,7 +815,7 @@ async def test_happy_path_full_cycle(
         short_exchange=sized_opportunity.opportunity.short_exchange,
         short_size=float(sized_opportunity.short_size),
         short_symbol=symbol_hl,
-        message="Executing arbitrage opportunity"
+        message="Executing arbitrage opportunity",
     )
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
         sized_opportunity,
@@ -857,7 +857,7 @@ async def test_happy_path_full_cycle(
         ),
     )
     logger.debug(
-        "final_bp_balance", 
+        "final_bp_balance",
         total_quantity=float(bp_balance.total_quantity),
         available_quantity=float(bp_balance.available_quantity),
         message=(
@@ -1046,7 +1046,7 @@ def _setup_bp_mock_behaviors(
         logger.debug(
             "mock_bp_place_order_call",
             call_number=call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             message="MOCK BP place_order call",
         )
 
@@ -1145,7 +1145,7 @@ def _setup_hl_partial_fill_behaviors(
         logger.debug(
             "mock_hl_place_order_called",
             call_count=hl_call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             message="MOCK HL place_order call",
         )
 
@@ -1320,7 +1320,7 @@ async def test_partial_fill(
                     "test_funding_prep_mapping_failed_1",
                     exchange_id=ex_id_key,
                     exchange_symbol=ex_specific_sym,
-                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol. Skipping.",
+                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol",
                 )
                 continue
 
@@ -1626,7 +1626,7 @@ def _setup_bp_compensation_mock_behaviors(
         logger.debug(
             "mock_bp_place_order_compensation_called",
             call_count=call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             message="MOCK BP place_order called",
         )
 
@@ -1639,7 +1639,7 @@ def _setup_bp_compensation_mock_behaviors(
         logger.error(
             "mock_bp_place_order_unexpected_call",
             call_count=call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             message="MOCK BP place_order: Unexpected call",
         )
         raise MockAPIError(
@@ -1741,7 +1741,7 @@ def _setup_hl_compensation_mock_behaviors(
         logger.debug(
             "mock_hl_place_order_compensation_called",
             call_count=call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             target_qty=str(target_qty),
             message="MOCK HL place_order called",
         )
@@ -1752,7 +1752,7 @@ def _setup_hl_compensation_mock_behaviors(
         logger.error(
             "mock_hl_place_order_unexpected_call",
             call_count=call_counts["place"],
-            side=side.value if side else None,
+            side=side.value if isinstance(side, OrderSide) else str(side),
             message="MOCK HL place_order: Unexpected call",
         )
         raise MockAPIError(
@@ -1813,7 +1813,7 @@ def _prepare_funding_data(
                     "test_funding_prep_mapping_failed_2",
                     exchange_id=ex_id_key,
                     exchange_symbol=ex_specific_sym,
-                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol. Skipping.",
+                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol",
                 )
                 continue
             sg_funding_data[internal_sym][ex_id_key] = rate_data_obj

@@ -357,7 +357,11 @@ class TestErrorHandlingAndExceptions:
                 trading_data_mapper.transform_raw_order_to_internal(problematic_order)
             except Exception as e:
                 # We expect this to fail, we're testing logging
-                logger.debug(f"Expected exception during robustness test: {e}")
+                logger.debug(
+                    "expected_exception_during_robustness_test",
+                    error=str(e),
+                    message=f"Expected exception during robustness test: {e}",
+                )
 
         # Check that warning was logged in structured logs
         warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]

@@ -225,8 +225,10 @@ def test_margin_summary_immutability(base_margin_summary_data: dict[str, Any]) -
         summary.exchange = "new_exchange"
         if summary.exchange != original_exchange:
             logger.warning(
-                f"Immutability Test Warning: object.__setattr__ modified frozen field 'exchange' "
-                f"on MarginAccountSummary instance. Value changed to: {summary.exchange}.",
+                "immutability_test_warning",
+                original_exchange=original_exchange,
+                new_exchange=summary.exchange,
+                message="Immutability Test Warning: object.__setattr__ modified frozen field",
             )
     except Exception as e:
         pytest.fail(f"object.__setattr__ raised unexpected exception on frozen model: {e}")

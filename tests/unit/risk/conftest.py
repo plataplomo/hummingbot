@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from pytest import fixture
 
+from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import (
     CircuitBreakerSystemProtocol,
@@ -20,6 +21,7 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
 
 @fixture
@@ -195,8 +197,6 @@ def mock_funding_validator() -> MagicMock:
     Returns:
         MagicMock: Mock funding rate validator with high-confidence symbol metrics.
     """
-    from cyberdelta.validation.funding_rate_validator import FundingRateValidator
-
     fv = MagicMock(spec=FundingRateValidator)
 
     # Always return high-confidence metrics for any call
@@ -223,9 +223,6 @@ def mock_data_handler() -> MagicMock:
     Returns:
         MagicMock: Mock data handler with market data retrieval methods.
     """
-    # Import locally
-    from cyberdelta.core.data_handler import DataHandler
-
     dh = MagicMock(spec=DataHandler)
     # Setup default return values if needed for specific tests
     dh.get_recent_volatility.return_value = 0.02  # Example default

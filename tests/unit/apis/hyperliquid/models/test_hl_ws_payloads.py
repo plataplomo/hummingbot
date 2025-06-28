@@ -128,5 +128,5 @@ class TestHyperliquidWsPayloads:
         """Test that models are frozen (immutable)."""
         payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
         with pytest.raises(ValidationError) as exc_info:
-            payload.type = "trades"
+            payload.type = "allMids"  # Test immutability - even reassigning same value should fail
         assert "Instance is frozen" in str(exc_info.value)

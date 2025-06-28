@@ -222,7 +222,11 @@ class TestOrderVerifier:
 
         result_dict = await verifier.verify_order_placement(exchange_id, order_id, expected_details)
 
-        logger.info(f"Verification result: {result_dict}")
+        logger.info(
+            "verification_result",
+            result=result_dict,
+            message=f"Verification result: {result_dict}",
+        )
 
         assert result_dict["success"] is True
         assert result_dict.get("error") is None

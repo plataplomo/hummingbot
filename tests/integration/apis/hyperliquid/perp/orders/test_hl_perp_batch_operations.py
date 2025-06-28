@@ -72,7 +72,11 @@ class TestHyperliquidBatchOperations:
 
         # Select first available symbol for deterministic VCR playback
         symbol = available_symbols[0]
-        logger.info(f"Selected symbol for batch test: {symbol}")
+        logger.info(
+            "symbol_selected_for_batch_test",
+            symbol=symbol,
+            message="Selected symbol for batch test",
+        )
 
         # Get dynamic test parameters for safe order placement
         # Note: market_price is retrieved within get_safe_test_price when needed
@@ -120,7 +124,12 @@ class TestHyperliquidBatchOperations:
         elapsed_time = time.time() - start_time
 
         # Log performance results
-        logger.info(f"✅ Batch placed {len(placed_orders)} orders in {elapsed_time:.3f} seconds")
+        logger.info(
+            "batch_orders_placed_success",
+            orders_count=len(placed_orders),
+            elapsed_time=elapsed_time,
+            message="Batch placed orders successfully",
+        )
 
         # Validate results
         assert len(placed_orders) == 6, f"Expected 6 orders, got {len(placed_orders)}"
@@ -138,7 +147,13 @@ class TestHyperliquidBatchOperations:
             assert order.status in [OrderStatus.OPEN, OrderStatus.NEW]
             # Client order ID is optional - no need to assert
 
-            logger.info(f"  Order {i + 1}: ID={order.exchange_order_id}, Status={order.status}")
+            logger.info(
+                "order_placement_details",
+                order_number=i + 1,
+                order_id=order.exchange_order_id,
+                status=order.status,
+                message="Order placement details",
+            )
 
         # Clean up: Cancel all placed orders
         cancel_args = [
@@ -152,7 +167,12 @@ class TestHyperliquidBatchOperations:
             successful_cancels = sum(
                 1 for r in cancel_results if r.status == CancelOrderResultStatus.SUCCESS
             )
-            logger.info(f"🧹 Cleaned up: {successful_cancels}/{len(cancel_args)} orders canceled")
+            logger.info(
+                "batch_cleanup_completed",
+                successful_cancels=successful_cancels,
+                total_cancels=len(cancel_args),
+                message="Batch cleanup completed",
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -178,7 +198,11 @@ class TestHyperliquidBatchOperations:
 
         # Select first available symbol for deterministic VCR playback
         symbol = available_symbols[0]
-        logger.info(f"Selected symbol for cancel test: {symbol}")
+        logger.info(
+            "symbol_selected_for_cancel_test",
+            symbol=symbol,
+            message="Selected symbol for cancel test",
+        )
 
         # Get dynamic test parameters
         test_quantity = await get_minimal_test_quantity(hl_api_for_test_env, symbol, OrderSide.BUY)
@@ -212,7 +236,11 @@ class TestHyperliquidBatchOperations:
         placed_orders = await hl_api_for_test_env.place_batch_orders(orders)
         assert len(placed_orders) == 4
 
-        logger.info(f"📝 Placed {len(placed_orders)} orders for cancellation test")
+        logger.info(
+            "orders_placed_for_cancellation_test",
+            orders_count=len(placed_orders),
+            message="Placed orders for cancellation test",
+        )
 
         # Prepare cancellation arguments
         cancel_args: list[CancelOrderArgs] = []
@@ -230,7 +258,12 @@ class TestHyperliquidBatchOperations:
         cancel_results = await hl_api_for_test_env.cancel_batch_orders(cancel_args)
         cancel_time = time.time() - cancel_start
 
-        logger.info(f"🗑️ Batch canceled {len(cancel_results)} orders in {cancel_time:.3f}s")
+        logger.info(
+            "batch_cancellation_completed",
+            orders_count=len(cancel_results),
+            cancel_time=cancel_time,
+            message="Batch cancellation completed",
+        )
 
         # Validate cancellation results
         assert len(cancel_results) == len(cancel_args)
@@ -243,9 +276,18 @@ class TestHyperliquidBatchOperations:
 
             if result.status == CancelOrderResultStatus.SUCCESS:
                 successful_cancels += 1
-                logger.info(f"  ✅ Canceled order {result.order_id}")
+                logger.info(
+                    "order_cancellation_success",
+                    order_id=result.order_id,
+                    message="Order canceled successfully",
+                )
             else:
-                logger.warning(f"  ❌ Failed to cancel order {result.order_id}: {result.message}")
+                logger.warning(
+                    "order_cancellation_failed",
+                    order_id=result.order_id,
+                    error_message=result.message,
+                    message="Failed to cancel order",
+                )
 
         # Should have successfully canceled most/all orders
         assert successful_cancels >= len(cancel_results) // 2, "Expected at least 50% success rate"
@@ -344,7 +386,12 @@ class TestHyperliquidBatchOperations:
         # Use first two available symbols
         symbol1 = available_symbols[0]
         symbol2 = available_symbols[1]
-        logger.info(f"Selected symbols for mixed test: {symbol1}, {symbol2}")
+        logger.info(
+            "symbols_selected_for_mixed_test",
+            symbol1=symbol1,
+            symbol2=symbol2,
+            message="Selected symbols for mixed test",
+        )
 
         # Get test parameters for each symbol using proper helpers
         test_price1 = await get_safe_test_price(
@@ -423,7 +470,11 @@ class TestHyperliquidBatchOperations:
         if cancel_args:
             await hl_api_for_test_env.cancel_batch_orders(cancel_args)
 
-        logger.info(f"✅ Successfully tested mixed symbol batch: {len(placed_orders)} orders")
+        logger.info(
+            "mixed_symbol_batch_test_success",
+            orders_count=len(placed_orders),
+            message="Successfully tested mixed symbol batch",
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -451,7 +502,11 @@ class TestHyperliquidBatchOperations:
             )
 
         symbol = available_symbols[0]
-        logger.info(f"Selected symbol for partial failure test: {symbol}")
+        logger.info(
+            "symbol_selected_for_partial_failure_test",
+            symbol=symbol,
+            message="Selected symbol for partial failure test",
+        )
 
         # Get test parameters
         test_quantity = await get_minimal_test_quantity(hl_api_for_test_env, symbol, OrderSide.BUY)
@@ -514,7 +569,11 @@ class TestHyperliquidBatchOperations:
             # Execute batch placement
             placed_orders = await hl_api_for_test_env.place_batch_orders(orders)
 
-            logger.info(f"📋 Partial failure test: {len(placed_orders)} orders processed")
+            logger.info(
+                "partial_failure_test_orders_processed",
+                orders_count=len(placed_orders),
+                message="Partial failure test orders processed",
+            )
 
             # At least some orders should be processed (even if some fail)
             assert len(placed_orders) >= 0, "Should handle partial failures gracefully"
@@ -527,7 +586,11 @@ class TestHyperliquidBatchOperations:
                 assert order.side == OrderSide.BUY
                 assert order.order_type == OrderType.LIMIT
                 assert order.status in [OrderStatus.OPEN, OrderStatus.NEW]
-                logger.info(f"  ✅ Valid order: ID={order.exchange_order_id}")
+                logger.info(
+                    "valid_order_in_partial_failure_test",
+                    order_id=order.exchange_order_id,
+                    message="Valid order in partial failure test",
+                )
 
             # Clean up successful orders
             if valid_orders:
@@ -538,11 +601,19 @@ class TestHyperliquidBatchOperations:
                 ]
                 if cancel_args:
                     await hl_api_for_test_env.cancel_batch_orders(cancel_args)
-                    logger.info(f"🧹 Cleaned up {len(cancel_args)} successful orders")
+                    logger.info(
+                        "partial_failure_test_cleanup",
+                        orders_count=len(cancel_args),
+                        message="Cleaned up successful orders from partial failure test",
+                    )
 
         except APIError as e:
             # If the entire batch fails, that's also a valid test outcome
-            logger.info(f"📋 Batch operation failed as expected: {e}")
+            logger.info(
+                "batch_operation_failed_as_expected",
+                error=str(e),
+                message="Batch operation failed as expected",
+            )
             # Ensure we get meaningful error information
             assert len(str(e)) > 0, "Error should have meaningful message"
             assert hasattr(e, "error_code"), "APIError should have error_code attribute"
@@ -610,13 +681,21 @@ class TestHyperliquidBatchOperations:
         try:
             placed_orders = await hl_api_for_test_env.place_batch_orders(invalid_orders)
             # If it doesn't raise an exception, validate the response handles errors properly
-            logger.info(f"Invalid symbol test: {len(placed_orders)} orders processed")
+            logger.info(
+                "invalid_symbol_test_orders_processed",
+                orders_count=len(placed_orders),
+                message="Invalid symbol test orders processed",
+            )
             # Should return empty list or orders with error status
             assert isinstance(placed_orders, list), "Should return list even for invalid orders"
 
         except APIError as e:
             # Expected outcome - should get meaningful error
-            logger.info(f"Invalid symbol correctly rejected: {e}")
+            logger.info(
+                "invalid_symbol_correctly_rejected",
+                error=str(e),
+                message="Invalid symbol correctly rejected",
+            )
             assert len(str(e)) > 0, "Error should have meaningful message"
 
         # Test 3: Invalid cancel operations
@@ -641,9 +720,18 @@ class TestHyperliquidBatchOperations:
             assert result.order_id == "99999999999", "Should preserve order ID"
             assert result.symbol == cancel_test_symbol, "Should preserve symbol"
             # Result should indicate failure
-            logger.info(f"Invalid cancel result: success={result.success}, status={result.status}")
+            logger.info(
+                "invalid_cancel_result",
+                success=result.success,
+                status=result.status,
+                message="Invalid cancel result",
+            )
 
         except APIError as e:
             # Also acceptable - API might reject invalid cancellations
-            logger.info(f"Invalid cancel correctly rejected: {e}")
+            logger.info(
+                "invalid_cancel_correctly_rejected",
+                error=str(e),
+                message="Invalid cancel correctly rejected",
+            )
             assert len(str(e)) > 0, "Error should have meaningful message"

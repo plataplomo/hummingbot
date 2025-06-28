@@ -117,7 +117,12 @@ class TestFailureScenarios:
             ),
             method_name="place_order",
         )
-        logger.info(f"Configured {target_exchange} mock to fail place_order with: {error_message}")
+        logger.info(
+            "mock_configured_to_fail",
+            target_exchange=target_exchange,
+            error_message=error_message,
+            message="Configured mock to fail place_order",
+        )
 
         # Create a sized opportunity (details don't matter much as it should fail)
         sized_opportunity = SizedOpportunity(
@@ -141,18 +146,30 @@ class TestFailureScenarios:
         breaker_name = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
         breaker_state = api_breaker.state.name if not isinstance(api_breaker, dict) else "unknown"
         logger.info(
-            f"Breaker '{breaker_name}' threshold: {max_failures_to_trip}. "
-            f"Current state: {breaker_state}",
+            "circuit_breaker_status",
+            breaker_name=breaker_name,
+            threshold=max_failures_to_trip,
+            current_state=breaker_state,
+            message="Circuit breaker status",
         )
         execution_results: list[TradeExecution] = []
         for i in range(max_failures_to_trip + 1):  # Now max_failures_to_trip is int
-            logger.info(f"Execution attempt {i + 1}/{max_failures_to_trip + 1}")
+            logger.info(
+                "execution_attempt",
+                attempt_number=i + 1,
+                total_attempts=max_failures_to_trip + 1,
+                message="Execution attempt",
+            )
             result = await execution_handler.execute_opportunity(sized_opportunity)
             execution_results.append(result)
             # Small delay to allow CB state updates if needed (though sync should be fast here)
             await asyncio.sleep(0.1)
             if not isinstance(breaker, dict) and breaker.state == BreakerState.OPEN:
-                logger.info(f"Breaker tripped after {i + 1} attempts.")
+                logger.info(
+                    "circuit_breaker_tripped",
+                    attempts=i + 1,
+                    message="Circuit breaker tripped",
+                )
                 break
         else:  # This else belongs to the for loop
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
@@ -165,10 +182,16 @@ class TestFailureScenarios:
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
         breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
         logger.info(
-            f"Breaker {breaker_name_for_log} is confirmed OPEN. Attempting one more execution...",
+            "circuit_breaker_confirmed_open",
+            breaker_name=breaker_name_for_log,
+            message="Circuit breaker is confirmed OPEN. Attempting one more execution",
         )
         rejected_result = await execution_handler.execute_opportunity(sized_opportunity)
-        logger.info(f"Result of execution attempt while OPEN: {rejected_result.status.name}")
+        logger.info(
+            "execution_result_while_breaker_open",
+            status=rejected_result.status.name,
+            message="Result of execution attempt while breaker OPEN",
+        )
 
         # 4. Verify Rejection
         assert rejected_result.status == ExecutionStatus.REJECTED, (
@@ -234,8 +257,9 @@ class TestFailureScenarios:
 
         # Correctly formatted multi-line f-string
         logger.info(
-            f"Attempting execution on the other exchange ({other_exchange}) "
-            f"to ensure it's unaffected...",
+            "attempting_execution_other_exchange",
+            other_exchange=other_exchange,
+            message="Attempting execution on the other exchange to ensure it's unaffected",
         )
         # Ensure the other exchange's breaker is CLOSED before attempting
         other_breaker = circuit_breaker_system.get_exchange_breaker(
@@ -250,7 +274,11 @@ class TestFailureScenarios:
         )
 
         other_result = await execution_handler.execute_opportunity(other_sized_opportunity)
-        logger.info(f"Result of execution attempt on other exchange: {other_result.status.name}")
+        logger.info(
+            "execution_result_other_exchange",
+            status=other_result.status.name,
+            message="Result of execution attempt on other exchange",
+        )
 
         # We expect the other exchange's leg to succeed, but the overall might still fail
         # if the target_exchange's breaker blocks *its* leg during execution.
@@ -270,8 +298,13 @@ class TestFailureScenarios:
             # If it failed for a reason other than circuit breaker (like insufficient balance),
             # that's actually fine - it shows the other exchange's circuit breaker didn't trip
             logger.info(
-                f"Execution on {other_exchange} failed with: {other_result.error_message}. "
-                f"This is expected if it's not due to circuit breaker.",
+                "execution_failed_other_exchange",
+                other_exchange=other_exchange,
+                error_message=other_result.error_message,
+                message=(
+                    "Execution on other exchange failed. "
+                    "This is expected if it's not due to circuit breaker"
+                ),
             )
         elif other_result.status == ExecutionStatus.REJECTED:
             # Add None check before 'in'
@@ -309,7 +342,11 @@ class TestFailureScenarios:
         circuit_breaker_system.reset_breaker(f"exchange:{target_exchange}:{target_breaker_type}")
         circuit_breaker_system.reset_breaker(f"exchange:{other_exchange}:{target_breaker_type}")
         circuit_breaker_system.reset_breaker("global/api_error")  # Use correct breaker name format
-        logger.info("Test cb_trips_on_repeated_api_errors finished.")
+        logger.info(
+            "test_complete",
+            test_name="cb_trips_on_repeated_api_errors",
+            message="Test cb_trips_on_repeated_api_errors finished",
+        )
 
     @pytest.mark.asyncio
     async def test_cb_trips_on_volatility(self) -> None:

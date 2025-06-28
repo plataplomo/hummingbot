@@ -195,8 +195,7 @@ class TestBackpackSpotBalancesZero:
             "concurrent_requests_consistent",
             successful_count=len(successful_results),
             message=(
-                f"✓ Concurrent balance requests consistent: "
-                f"{len(successful_results)} successful"
+                f"✓ Concurrent balance requests consistent: {len(successful_results)} successful"
             ),
         )
 

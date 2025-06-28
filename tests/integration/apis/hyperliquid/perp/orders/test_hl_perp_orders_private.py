@@ -641,7 +641,11 @@ class TestHyperliquidPerpOrdersPrivate:
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
                     except Exception as cleanup_error:
-                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                        logger.debug(
+                            "cleanup_cancellation_failed",
+                            error=str(cleanup_error),
+                            message="Cleanup cancellation failed (expected)",
+                        )
 
             # Check if this is expected behavior (insufficient orders)
             if len(placed_orders) < 2:
@@ -717,7 +721,11 @@ class TestHyperliquidPerpOrdersPrivate:
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
                     except Exception as cleanup_error:
-                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                        logger.debug(
+                            "cleanup_cancellation_failed",
+                            error=str(cleanup_error),
+                            message="Cleanup cancellation failed (expected)",
+                        )
 
             pytest.fail(f"cancel_all_orders without filter test failed: {e}")
 
@@ -740,7 +748,11 @@ class TestHyperliquidPerpOrdersPrivate:
         try:
             await hl_api_for_test_env.cancel_all_orders()
         except Exception as cleanup_error:
-            logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+            logger.debug(
+                "cleanup_cancellation_failed",
+                error=str(cleanup_error),
+                message="Cleanup cancellation failed (expected)",
+            )
 
         # Now test cancel_all_orders with no open orders
         cancel_result = await hl_api_for_test_env.cancel_all_orders(symbol=test_symbol)
@@ -917,7 +929,11 @@ class TestHyperliquidPerpOrdersPrivate:
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
                     except Exception as cleanup_error:
-                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                        logger.debug(
+                            "cleanup_cancellation_failed",
+                            error=str(cleanup_error),
+                            message="Cleanup cancellation failed (expected)",
+                        )
 
             # Some errors might be expected in error handling test
             if "authentication" in str(e).lower() or "permission" in str(e).lower():
@@ -1028,6 +1044,10 @@ class TestHyperliquidPerpOrdersPrivate:
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
                     except Exception as cleanup_error:
-                        logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                        logger.debug(
+                            "cleanup_cancellation_failed",
+                            error=str(cleanup_error),
+                            message="Cleanup cancellation failed (expected)",
+                        )
 
             pytest.fail(f"Comprehensive cancel_all_orders test failed: {e}")

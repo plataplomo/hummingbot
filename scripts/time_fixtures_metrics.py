@@ -251,7 +251,6 @@ def main() -> None:
 
         sys.stdout.write(f"Metrics written to {args.output}\n")
     else:
-
         sys.stdout.write(output + "\n")
 
 

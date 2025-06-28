@@ -77,7 +77,7 @@ class TestBackpackMarketOrderIntegration:
             "market_order_test_quantity_selected",
             test_quantity=test_quantity,
             symbol=symbol,
-            message=f"Using minimal test quantity: {test_quantity} for {symbol}"
+            message=f"Using minimal test quantity: {test_quantity} for {symbol}",
         )
 
         # Create market order executor
@@ -111,7 +111,10 @@ class TestBackpackMarketOrderIntegration:
             logger.info(
                 "market_order_placed_pending_confirmation",
                 order_id=order.exchange_order_id,
-                message=f"Market order placed: {order.exchange_order_id}. Polling order history for confirmation..."
+                message=(
+                    f"Market order placed: {order.exchange_order_id}. "
+                    "Polling order history for confirmation..."
+                ),
             )
 
             # Verify order appears in history (polls every 2 seconds for up to 40 seconds)
@@ -147,7 +150,10 @@ class TestBackpackMarketOrderIntegration:
                 "market_buy_order_success",
                 order_id=filled_order.exchange_order_id,
                 quantity_filled=filled_order.quantity_filled,
-                message=f"Successfully placed and verified market buy order: {filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                message=(
+                    f"Successfully placed and verified market buy order: "
+                    f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                ),
             )
 
         except Exception as e:
@@ -213,7 +219,9 @@ class TestBackpackMarketOrderIntegration:
             "previous_buy_order_found",
             buy_order_id=buy_order_id,
             filled_quantity=sell_quantity,
-            message=f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}"
+            message=(
+                f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}"
+            ),
         )
 
         # Create market order executor
@@ -246,7 +254,10 @@ class TestBackpackMarketOrderIntegration:
             logger.info(
                 "market_sell_order_placed_pending_history",
                 order_id=order.exchange_order_id,
-                message=f"Market sell order placed: {order.exchange_order_id}. Waiting for order to appear in history..."
+                message=(
+                    f"Market sell order placed: {order.exchange_order_id}. "
+                    "Waiting for order to appear in history..."
+                ),
             )
 
             # Verify order appears in history (polls automatically)
@@ -301,7 +312,10 @@ class TestBackpackMarketOrderIntegration:
                 "market_sell_order_success",
                 order_id=filled_order.exchange_order_id,
                 quantity_filled=filled_order.quantity_filled,
-                message=f"Successfully placed and verified market sell order: {filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                message=(
+                    f"Successfully placed and verified market sell order: "
+                    f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
+                ),
             )
 
             # Clean up test data
@@ -339,9 +353,7 @@ class TestBackpackMarketOrderIntegration:
                 logger.debug("No PERP markets found in markets endpoint response")
         except Exception as e:
             logger.debug(
-                "markets_list_error",
-                error=str(e),
-                message=f"Error getting markets list: {e}"
+                "markets_list_error", error=str(e), message=f"Error getting markets list: {e}"
             )
 
         # Based on order history data, these PERP symbols are known to exist on Backpack
@@ -356,7 +368,7 @@ class TestBackpackMarketOrderIntegration:
                     logger.info(
                         "perp_market_found",
                         symbol=symbol,
-                        message=f"Found PERP market {symbol} via direct market query"
+                        message=f"Found PERP market {symbol} via direct market query",
                     )
                     return symbol
             except Exception as e:
@@ -364,7 +376,7 @@ class TestBackpackMarketOrderIntegration:
                     "perp_symbol_not_accessible",
                     symbol=symbol,
                     error=str(e),
-                    message=f"PERP symbol {symbol} not accessible: {e}"
+                    message=f"PERP symbol {symbol} not accessible: {e}",
                 )
                 continue
 
@@ -397,7 +409,7 @@ class TestBackpackMarketOrderIntegration:
             logger.info(
                 "testing_perpetual_market",
                 perp_symbol=perp_symbol,
-                message=f"Testing perpetual market: {perp_symbol}"
+                message=f"Testing perpetual market: {perp_symbol}",
             )
 
             # Get minimal test quantity
@@ -426,7 +438,7 @@ class TestBackpackMarketOrderIntegration:
             logger.info(
                 "perp_buy_order_placed",
                 order_id=buy_order.exchange_order_id,
-                message=f"Perp buy order placed: {buy_order.exchange_order_id}"
+                message=f"Perp buy order placed: {buy_order.exchange_order_id}",
             )
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
                 backpack_api,
@@ -463,7 +475,7 @@ class TestBackpackMarketOrderIntegration:
             logger.info(
                 "perp_sell_order_placed",
                 order_id=sell_order.exchange_order_id,
-                message=f"Perp sell order placed: {sell_order.exchange_order_id}"
+                message=f"Perp sell order placed: {sell_order.exchange_order_id}",
             )
 
             # Verify sell order appears in history
@@ -486,7 +498,11 @@ class TestBackpackMarketOrderIntegration:
                 f"Sell order {sell_order.exchange_order_id} not filled"
             )
 
-            logger.info(f"Successfully tested perpetual market orders on {perp_symbol}")
+            logger.info(
+                "perpetual_market_test_success",
+                perp_symbol=perp_symbol,
+                message=f"Successfully tested perpetual market orders on {perp_symbol}",
+            )
 
         except Exception as e:
             pytest.fail(
@@ -537,8 +553,13 @@ class TestBackpackMarketOrderIntegration:
             excessive_quantity = total_ask_quantity + market.step_size
 
             logger.info(
-                f"Testing insufficient liquidity with quantity {excessive_quantity} "
-                f"(available: {total_ask_quantity})",
+                "testing_insufficient_liquidity",
+                excessive_quantity=excessive_quantity,
+                available_quantity=total_ask_quantity,
+                message=(
+                    f"Testing insufficient liquidity with quantity {excessive_quantity} "
+                    f"(available: {total_ask_quantity})"
+                ),
             )
 
             # Create market order executor
@@ -562,7 +583,11 @@ class TestBackpackMarketOrderIntegration:
             assert symbol in str(error), f"Error should mention symbol {symbol}"
             assert "liquidity" in str(error).lower(), "Error should mention liquidity"
 
-            logger.info(f"Correctly caught insufficient liquidity error: {error}")
+            logger.info(
+                "insufficient_liquidity_error_caught",
+                error=str(error),
+                message=f"Correctly caught insufficient liquidity error: {error}",
+            )
 
         except InsufficientLiquidityError:
             # Expected - test passes
@@ -644,7 +669,11 @@ class TestBackpackMarketOrderIntegration:
 
             # If it didn't fail, that's okay - market might have tight spreads
             logger.info(
-                "Market order succeeded despite tight slippage - market spreads must be very tight",
+                "market_order_succeeded_tight_slippage",
+                message=(
+                    "Market order succeeded despite tight slippage - "
+                    "market spreads must be very tight"
+                ),
             )
 
         except PriceDeviationError as e:
@@ -653,7 +682,11 @@ class TestBackpackMarketOrderIntegration:
             assert "slippage" in str(e).lower() or "deviation" in str(e).lower(), (
                 "Error should mention slippage or deviation"
             )
-            logger.info(f"Correctly caught price deviation error: {e}")
+            logger.info(
+                "price_deviation_error_caught",
+                error=str(e),
+                message=f"Correctly caught price deviation error: {e}",
+            )
 
         except Exception as e:
             # Other errors indicate a problem
@@ -683,7 +716,12 @@ class TestBackpackMarketOrderIntegration:
         )
 
         # Verify order appears in history
-        logger.info(f"{market_type} order placed: {order.exchange_order_id}")
+        logger.info(
+            "market_order_placed",
+            market_type=market_type,
+            order_id=order.exchange_order_id,
+            message=f"{market_type} order placed: {order.exchange_order_id}",
+        )
         found = await MarketOrderTestHelpers.verify_order_in_history(
             backpack_api,
             order,
@@ -698,7 +736,12 @@ class TestBackpackMarketOrderIntegration:
         )
 
         if filled_quantity and filled_quantity > 0:
-            logger.info(f"Successfully executed {market_type.lower()} market order for {symbol}")
+            logger.info(
+                "market_order_execution_success",
+                market_type=market_type.lower(),
+                symbol=symbol,
+                message=f"Successfully executed {market_type.lower()} market order for {symbol}",
+            )
             opposite_side = OrderSide.SELL if side == OrderSide.BUY else OrderSide.BUY
             return (symbol, opposite_side, filled_quantity)
 
@@ -789,9 +832,17 @@ class TestBackpackMarketOrderIntegration:
                 )
                 if not found_cleanup:
                     logger.warning(
-                        f"Cleanup order {cleanup_order.exchange_order_id} not found in history",
+                        "cleanup_order_not_found_in_history",
+                        cleanup_order_id=cleanup_order.exchange_order_id,
+                        message=(
+                            f"Cleanup order {cleanup_order.exchange_order_id} not found in history"
+                        ),
                     )
-                logger.info(f"Cleaned up position for {symbol}")
+                logger.info(
+                    "position_cleanup_success",
+                    symbol=symbol,
+                    message=f"Cleaned up position for {symbol}",
+                )
             except Exception as e:
                 pytest.fail(
                     f"Failed to clean up {symbol} position: {e}. "
@@ -847,7 +898,11 @@ class TestBackpackMarketOrderIntegration:
                     f"Failed perp market order: {e}. Cross-market execution must work reliably.",
                 )
             else:
-                logger.info(f"No perpetual markets available: {e}")
+                logger.info(
+                    "no_perpetual_markets_available",
+                    error=str(e),
+                    message=f"No perpetual markets available: {e}",
+                )
 
         # Clean up positions
         await self._cleanup_positions(market_order, backpack_api, executed_orders)

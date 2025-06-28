@@ -529,7 +529,13 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
             try:
                 BackpackRawFill.model_validate(data)
             except ValidationError as e:
-                logger.debug(f"Field: {field}, Value: {value!r}, Error: {e}")
+                logger.debug(
+                    "backpack_raw_fill_validation_error",
+                    field=field,
+                    value=repr(value),
+                    error=str(e),
+                    message=f"Field: {field}, Value: {value!r}, Error: {e}",
+                )
                 # Simple assertion that *an* error occurred is sufficient here
                 raise  # Re-raise the expected ValidationError
 

@@ -141,8 +141,12 @@ class TestHyperliquidPerpOrdersComprehensive:
                 end_time = time.time()
 
                 logger.info(
-                    f"Order {i + 1}/6 placed in {end_time - start_time:.3f}s - "
-                    f"ID: {placed_order.exchange_order_id}",
+                    "order_placed_with_timing",
+                    order_number=i + 1,
+                    total_orders=6,
+                    duration_seconds=round(end_time - start_time, 3),
+                    exchange_order_id=placed_order.exchange_order_id,
+                    message="Order placed successfully with timing",
                 )
 
                 placed_orders.append(placed_order)
@@ -558,7 +562,10 @@ class TestHyperliquidPerpOrdersComprehensive:
                     await api.cancel_order(cancel_args)
                 except Exception as cleanup_error:
                     logger.warning(
-                        f"Failed to cleanup order {order.exchange_order_id}: {cleanup_error}",
+                        "order_cleanup_failed",
+                        exchange_order_id=order.exchange_order_id,
+                        error=str(cleanup_error),
+                        message="Failed to cleanup order during test failure",
                     )
 
         # Wait for cleanup to complete using public API
@@ -566,7 +573,11 @@ class TestHyperliquidPerpOrdersComprehensive:
             # Get remaining orders after cleanup attempts
             await asyncio.sleep(2)  # Brief wait for cleanup to process
         except Exception as cleanup_error:
-            logger.warning(f"Failed to complete cleanup wait: {cleanup_error}")
+            logger.warning(
+                "cleanup_wait_failed",
+                error=str(cleanup_error),
+                message="Failed to complete cleanup wait",
+            )
 
     async def _verify_order_cancellation_using_public_api(
         self,

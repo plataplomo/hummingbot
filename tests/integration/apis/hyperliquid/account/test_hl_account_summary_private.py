@@ -148,15 +148,26 @@ class TestHyperliquidAccountSummaryPrivate:
 
         # Log for debugging
         logger.info(
-            f"BTC Market price: {current_price}, Safe limit price: {safe_limit_price} "
-            f"(30% below market), Order qty: {order_qty}",
+            "btc_market_price_debug",
+            current_price=str(current_price),
+            safe_limit_price=str(safe_limit_price),
+            order_qty=str(order_qty),
+            price_discount_pct=30,
+            message="BTC Market price and safe limit price for order placement",
         )
         logger.info(
-            f"Market constraints - tick_size: {market_info.tick_size}, "
-            f"step_size: {market_info.step_size}, min_quantity: {market_info.min_quantity}",
+            "market_constraints_debug",
+            tick_size=str(market_info.tick_size),
+            step_size=str(market_info.step_size),
+            min_quantity=str(market_info.min_quantity),
+            message="Market constraints for order validation",
         )
         logger.info(
-            f"Price validation - price % tick_size = {safe_limit_price % market_info.tick_size}",
+            "price_validation_debug",
+            price_mod_tick_size=str(safe_limit_price % market_info.tick_size),
+            safe_limit_price=str(safe_limit_price),
+            tick_size=str(market_info.tick_size),
+            message="Price validation against tick size",
         )
 
         # Define order parameters that should impact account metrics (but still testnet-safe)

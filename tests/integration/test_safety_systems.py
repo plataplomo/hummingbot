@@ -122,7 +122,11 @@ async def test_circuit_breaker_global_halts_execution(
     trip_reason = "Test global trip"
     global_breaker = circuit_breaker_system.get_breaker(global_breaker_name)
     assert global_breaker is not None, f"Global breaker '{global_breaker_name}' not found."
-    logger.info(f"Tripping global breaker: {global_breaker_name}")
+    logger.info(
+        "global_circuit_breaker_tripped",
+        breaker_name=global_breaker_name,
+        message="Tripping global breaker",
+    )
     global_breaker.trip(trip_reason)
 
     # Verify the global state is OPEN via can_execute
@@ -150,8 +154,10 @@ async def test_circuit_breaker_global_halts_execution(
     # 4. Verify Rejection (Restored Assertions)
     assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
-        f"Received execution result: Status={execution_result.status}, "
-        f"Error='{execution_result.error_message}'",
+        "execution_result_received",
+        status=execution_result.status,
+        error_message=execution_result.error_message,
+        message="Received execution result from global circuit breaker test",
     )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
@@ -235,7 +241,11 @@ async def test_circuit_breaker_exchange_halts_execution(
     )
     exchange_breaker = circuit_breaker_system.get_exchange_breaker(target_exchange, breaker_type)
     assert exchange_breaker is not None, f"Exchange breaker '{exchange_breaker_name}' not found."
-    logger.info(f"Tripping exchange breaker: {exchange_breaker_name}")
+    logger.info(
+        "exchange_circuit_breaker_tripped",
+        breaker_name=exchange_breaker_name,
+        message="Tripping exchange breaker",
+    )
     if not isinstance(exchange_breaker, dict):
         exchange_breaker.trip(trip_reason)
 
@@ -251,7 +261,11 @@ async def test_circuit_breaker_exchange_halts_execution(
     # This is expected behavior to prevent execution involving the failed exchange
 
     # 3. Attempt Execution involving the tripped exchange via execute_opportunity
-    logger.info(f"Attempting execution with {target_exchange} breaker tripped...")
+    logger.info(
+        "attempting_execution_with_breaker_tripped",
+        target_exchange=target_exchange,
+        message="Attempting execution with exchange breaker tripped",
+    )
     # Wrap basic_opportunity in a SizedOpportunity
     sized_opportunity_for_test = SizedOpportunity(
         opportunity=basic_opportunity,
@@ -269,8 +283,10 @@ async def test_circuit_breaker_exchange_halts_execution(
     # 4. Verify Rejection (Restored Assertions)
     assert isinstance(execution_result, TradeExecution), "Expected a TradeExecution result object"
     logger.info(
-        f"Received execution result: Status={execution_result.status}, "
-        f"Error='{execution_result.error_message}'",
+        "execution_result_received",
+        status=execution_result.status,
+        error_message=execution_result.error_message,
+        message="Received execution result from exchange circuit breaker test",
     )
 
     assert execution_result.status == ExecutionStatus.REJECTED, (
@@ -477,7 +493,14 @@ def _check_bp_discrepancies(discrepancies: list[Any]) -> None:
     for disc in discrepancies:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
         if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
-            logger.error(f"Found unexpected BTC-PERP size discrepancy on backpack: {disc.detail}")
+            logger.error(
+                "unexpected_discrepancy_found",
+                exchange="backpack",
+                symbol="BTC-PERP",
+                discrepancy_type="size",
+                detail=disc.detail,
+                message="Found unexpected BTC-PERP size discrepancy on backpack",
+            )
             raise AssertionError(
                 f"Found unexpected BTC-PERP size discrepancy for backpack. "
                 f"Details: {discrepancies}",
@@ -515,7 +538,11 @@ async def test_position_reconciler_detects_discrepancy(
     _check_bp_discrepancies(discrepancies_bp)
 
     # Log all found discrepancies for debugging if tests fail
-    logger.info(f"Full initial reconciliation results: {results}")
+    logger.info(
+        "reconciliation_results",
+        results=results,
+        message="Full initial reconciliation results",
+    )
 
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
     mock_bp_api.reset()  # Clear position from mock API
@@ -530,7 +557,11 @@ async def test_position_reconciler_detects_discrepancy(
     # === ADDED State Check Logging ===
     logger.info("--- Reverse Scenario State Check ---")
     bp_positions_after_reset = await mock_bp_api.get_positions()
-    logger.info(f"Mock BP positions after reset: {bp_positions_after_reset}")
+    logger.info(
+        "mock_bp_positions_after_reset",
+        positions=bp_positions_after_reset,
+        message="Mock BP positions after reset",
+    )
     # Get all positions and filter by the target exchange
     all_local_positions = real_portfolio_tracker.get_all_positions()
     local_positions_after_update = {}
@@ -539,7 +570,11 @@ async def test_position_reconciler_detects_discrepancy(
         _, pos = pos_item  # Unpack tuple (key, position)
         if pos.exchange == exchange_id and pos.symbol == symbol:
             local_positions_after_update[pos.symbol] = pos
-    logger.info(f"Local positions after update: {local_positions_after_update}")
+    logger.info(
+        "local_positions_after_update",
+        positions=local_positions_after_update,
+        message="Local positions after update",
+    )
     logger.info("--- End Reverse Scenario State Check ---")
     # === END State Check Logging ===
 
@@ -581,14 +616,25 @@ async def test_position_reconciler_detects_discrepancy(
         assert isinstance(disc, HistoricalDiscrepancyRecord)
         if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
             found_unexpected_btc_discrepancy_bp = True
-            logger.error(f"Found unexpected BTC-PERP size discrepancy on backpack: {disc.detail}")
+            logger.error(
+                "unexpected_discrepancy_found",
+                exchange="backpack",
+                symbol="BTC-PERP",
+                discrepancy_type="size",
+                detail=disc.detail,
+                message="Found unexpected BTC-PERP size discrepancy on backpack",
+            )
             break
     assert not found_unexpected_btc_discrepancy_bp, (
         "Found unexpected BTC-PERP size discrepancy for backpack"
     )
 
     # Log all found discrepancies for debugging if tests fail
-    logger.info(f"Full reconciliation results: {discrepancies_reverse_result}")
+    logger.info(
+        "reconciliation_results",
+        results=discrepancies_reverse_result,
+        message="Full reconciliation results",
+    )
 
     logger.info("Position reconciler discrepancy detection test passed.")
 
@@ -1051,26 +1097,38 @@ async def test_max_total_exposure_constraint_prevents_trade(
     basic_opportunity.basis_volatility = 0.01
 
     logger.info(
-        f"Test: RM Configs: max_total_exposure_usd={risk_manager.max_total_exposure_usd}, "
-        f"max_position_size={risk_manager.max_position_size}, "
-        f"kelly_fraction={risk_manager.kelly_fraction_config}, "
-        f"max_single_position_exposure_ratio={risk_manager.max_single_position_exposure_ratio}",
+        "risk_manager_configs",
+        max_total_exposure_usd=risk_manager.max_total_exposure_usd,
+        max_position_size=risk_manager.max_position_size,
+        kelly_fraction=risk_manager.kelly_fraction_config,
+        max_single_position_exposure_ratio=risk_manager.max_single_position_exposure_ratio,
+        message="Risk manager configurations",
     )
     logger.info(
-        f"Test: PT mock total_capital: "
-        f"{risk_manager.portfolio_tracker.get_total_capital.return_value}, "
-        f"PT mock total_exposure: "
-        f"{risk_manager.portfolio_tracker.get_total_exposure_usd.return_value}",
+        "portfolio_tracker_mock_values",
+        total_capital=risk_manager.portfolio_tracker.get_total_capital.return_value,
+        total_exposure=risk_manager.portfolio_tracker.get_total_exposure_usd.return_value,
+        message="Portfolio tracker mock values",
     )
     logger.info(
-        f"Test: Sizing opportunity "
-        f"(volatility={basic_opportunity.basis_volatility}): {basic_opportunity}",
+        "sizing_opportunity",
+        volatility=basic_opportunity.basis_volatility,
+        opportunity=basic_opportunity,
+        message="Sizing opportunity",
     )
 
     sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
 
-    logger.info(f"Test: Sized opportunity result: {sized_opportunity}")
-    logger.info(f"Test: Caplog contents: {caplog.text}")
+    logger.info(
+        "sized_opportunity_result",
+        result=sized_opportunity,
+        message="Sized opportunity result",
+    )
+    logger.info(
+        "caplog_contents",
+        contents=caplog.text,
+        message="Caplog contents",
+    )
 
     assert sized_opportunity is None
     assert (
@@ -1120,15 +1178,29 @@ async def test_min_trade_size_constraint_prevents_trade(
     # So, 120 USD > 100 USD limit. Should be rejected.
 
     logger.info(
-        f"Test: RM Config max_total_exposure_usd: {risk_manager.max_total_exposure_usd}, "
-        f"PT mock total_capital: {risk_manager.portfolio_tracker.get_total_capital.return_value}",
+        "risk_manager_config",
+        max_total_exposure_usd=risk_manager.max_total_exposure_usd,
+        total_capital=risk_manager.portfolio_tracker.get_total_capital.return_value,
+        message="Risk manager config and portfolio tracker mock values",
     )
-    logger.info(f"Test: Sizing opportunity: {basic_opportunity}")
+    logger.info(
+        "sizing_opportunity",
+        opportunity=basic_opportunity,
+        message="Sizing opportunity",
+    )
 
     sized_opportunity = await risk_manager.size_opportunity(basic_opportunity)
 
-    logger.info(f"Test: Sized opportunity result: {sized_opportunity}")
-    logger.info(f"Test: Caplog contents: {caplog.text}")
+    logger.info(
+        "sized_opportunity_result",
+        result=sized_opportunity,
+        message="Sized opportunity result",
+    )
+    logger.info(
+        "caplog_contents",
+        contents=caplog.text,
+        message="Caplog contents",
+    )
 
     assert sized_opportunity is None
     assert (

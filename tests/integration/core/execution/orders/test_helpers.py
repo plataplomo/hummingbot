@@ -189,7 +189,7 @@ class MarketOrderTestHelpers:
                     "using_hyperliquid_minimal_order_size",
                     symbol=symbol,
                     minimal_quantity=str(minimal_quantity),
-                    message="Using Hyperliquid minimal order size (meets $10 minimum notional requirement)",
+                    message="Using Hyperliquid minimal order size (meets $10 minimum notional)",
                 )
 
                 return minimal_quantity
@@ -390,14 +390,24 @@ class MarketOrderTestHelpers:
 
             except Exception as e:
                 elapsed = int(time.time() - loop_start_time)
-                logger.debug(f"Error checking order history after {elapsed}s: {e}")
+                logger.debug(
+                    "error_checking_order_history",
+                    elapsed_seconds=elapsed,
+                    error=str(e),
+                    message=f"Error checking order history after {elapsed}s",
+                )
 
             # Wait before next attempt
             await asyncio.sleep(poll_interval)
 
         logger.warning(
-            f"verify_order_in_history timed out after {max_wait_seconds}s "
-            f"for order {order.exchange_order_id}",
+            "verify_order_in_history_timeout",
+            max_wait_seconds=max_wait_seconds,
+            order_id=order.exchange_order_id,
+            message=(
+                f"verify_order_in_history timed out after {max_wait_seconds}s "
+                f"for order {order.exchange_order_id}"
+            ),
         )
         return False
 
@@ -417,14 +427,24 @@ class MarketOrderTestHelpers:
         if not orders:
             return None
 
-        logger.debug(f"Retrieved {len(orders)} orders from history")
+        logger.debug(
+            "retrieved_orders_from_history",
+            orders_count=len(orders),
+            message=f"Retrieved {len(orders)} orders from history",
+        )
 
         for historical_order in orders:
             # Log order details for debugging
             logger.debug(
-                f"Checking order: exchange_id={historical_order.exchange_order_id}, "
-                f"client_id={historical_order.client_order_id}, "
-                f"filled={historical_order.quantity_filled}",
+                "checking_order_details",
+                exchange_id=historical_order.exchange_order_id,
+                client_id=historical_order.client_order_id,
+                filled=(
+                    str(historical_order.quantity_filled)
+                    if historical_order.quantity_filled
+                    else None
+                ),
+                message="Checking order details",
             )
 
             order_matches = order_id in {
@@ -435,8 +455,13 @@ class MarketOrderTestHelpers:
             if order_matches:
                 if historical_order.quantity_filled and historical_order.quantity_filled > 0:
                     logger.info(
-                        f"Found order {order_id} with filled quantity: "
-                        f"{historical_order.quantity_filled}",
+                        "order_found_with_filled_quantity",
+                        order_id=order_id,
+                        filled_quantity=str(historical_order.quantity_filled),
+                        message=(
+                            f"Found order {order_id} with filled quantity: "
+                            f"{historical_order.quantity_filled}"
+                        ),
                     )
                     return historical_order.quantity_filled
                 logger.debug(

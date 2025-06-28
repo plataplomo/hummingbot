@@ -81,7 +81,6 @@ from cyberdelta.config import AppSettings
 from cyberdelta.config.models.config_models import PortfolioTrackerConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import SpotBalance, Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import (
@@ -313,8 +312,6 @@ def data_handler(
     Returns:
         DataHandler: Data handler instance with mocked dependencies.
     """
-
-
     api_clients: dict[str, ExchangeAPI] = cast(
         "dict[str, ExchangeAPI]",
         {
@@ -372,7 +369,6 @@ def risk_manager(
     Returns:
         object: RiskManager instance with mocked dependencies.
     """
-
     mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
     mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
     mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
@@ -407,7 +403,6 @@ def execution_handler(
     Returns:
         ExecutionHandler: Execution handler with registered mock API clients.
     """
-
     # Convert AppSettings exchanges config to dict format that SymbolMapper expects
     # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
     config_data_for_mapper_eh: dict[str, Any] = {
@@ -436,7 +431,6 @@ def funding_rate_validator() -> FundingRateValidatorProtocol:
     Returns:
         FundingRateValidatorProtocol: Mock funding rate validator.
     """
-
     mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
     return cast("FundingRateValidatorProtocol", mock_validator)
