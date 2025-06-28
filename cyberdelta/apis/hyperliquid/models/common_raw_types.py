@@ -581,33 +581,31 @@ Used specifically where tests mandate this length (e.g., user fill cloid).
 """
 
 
-# Helper function for RawOptionalNonEmptyString1024HL
-def _validate_optional_non_empty_str1024(v: object, info: ValidationInfo) -> str | None:
+# Define the new type
+def _str_only_validator(v: object) -> object:
+    """Type-specific validator that only handles str|None, letting unions try other types."""
     if v is None:
         return None
+    # Let Pydantic's union mechanism handle non-string types by not validating them here
     if not isinstance(v, str):
-        # DEFENSIVE CHECK: BeforeValidator input `v` can be non-str/non-None
-        # despite `Annotated[str | None,...]`. Mypy=None Ruff=[RUF009?]
-        field_name = info.field_name or "optional_non_empty_str1024_field_hl"
-        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        return v  # Return as-is to let other union members be tried
 
-    field_name = info.field_name or "optional_non_empty_str1024_field_hl"
+    # Now we know v is a string, do string-specific validation
     if not v.strip():
-        raise ValueError(f"{field_name}: String cannot be empty or whitespace.")
+        raise ValueError("String cannot be empty or whitespace.")
     max_len = 1024
     if len(v) > max_len:
-        raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
+        raise ValueError(f"String value too long (max {max_len} chars)")
     try:
         v.encode("utf-8", "strict")
     except UnicodeEncodeError as e:
-        raise ValueError(f"{field_name}: Invalid UTF-8 sequence: {e}") from e
+        raise ValueError(f"Invalid UTF-8 sequence: {e}") from e
     return v
 
 
-# Define the new type
 RawOptionalNonEmptyString1024HL = Annotated[
     str | None,
-    BeforeValidator(_validate_optional_non_empty_str1024),
+    BeforeValidator(_str_only_validator),
 ]
 """
 Optional string, max 1024 chars. If present, must be non-empty.
@@ -840,19 +838,26 @@ RawLeverageTypeString = Annotated[
 KNOWN_EXCHANGE_STATUS_STRINGS = {"canceled", "modified", "success"}
 
 # Define a specific type for these known strings
+
+
+def _status_str_only_validator(v: object) -> object:
+    """Type-specific validator that only handles str, letting unions try other types."""
+    # Let Pydantic's union mechanism handle non-string types by not validating them here
+    if not isinstance(v, str):
+        return v  # Return as-is to let other union members be tried
+
+    # Now we know v is a string, do string-specific validation
+    return validate_enum_field(
+        v,
+        allowed=KNOWN_EXCHANGE_STATUS_STRINGS,
+        field_name="status_string_hl",
+        max_length=32,  # Match RawDefaultString max_length used before
+    )
+
+
 RawStatusStringHL = Annotated[
     str,
-    WrapValidator(
-        lambda v, h, i: validate_enum_field(
-            v,
-            allowed=KNOWN_EXCHANGE_STATUS_STRINGS,
-            field_name=(i.field_name or "status_string_hl"),
-            max_length=32,  # Match RawDefaultString max_length used before
-        ),
-        # We don't call handler `h` here because validate_enum_field already returns
-        # the validated string `s`. If we wrapped RawDefaultString first,
-        # we would call h(validated_enum_string).
-    ),
+    BeforeValidator(_status_str_only_validator),
 ]
 """A raw string representing a known exchange status (e.g., canceled, modified)."""
 

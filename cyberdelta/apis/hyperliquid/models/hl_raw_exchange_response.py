@@ -30,6 +30,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    Tag,
 )
 
 # Import specific common types
@@ -103,7 +104,10 @@ class HyperliquidRawExchangeStatusObject(BaseModel):
 class HyperliquidRawExchangeResponseDataInner(BaseModel):
     """Raw model for the inner 'data' object containing statuses."""
 
-    statuses: list[RawStatusStringHL | HyperliquidRawExchangeStatusObject] = Field(...)
+    statuses: list[
+        Annotated[HyperliquidRawExchangeStatusObject, Tag("object")]
+        | Annotated[RawStatusStringHL, Tag("string")]
+    ] = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -111,7 +115,10 @@ class HyperliquidRawExchangeResponseData(BaseModel):
     """Raw model for the 'data' part of an exchange action response."""
 
     type: RawDefaultString = Field(..., description="Type of response data", max_length=32)
-    statuses: list[RawStatusStringHL | HyperliquidRawExchangeStatusObject] = Field(...)
+    statuses: list[
+        Annotated[HyperliquidRawExchangeStatusObject, Tag("object")]
+        | Annotated[RawStatusStringHL, Tag("string")]
+    ] = Field(...)
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
@@ -134,9 +141,9 @@ class HyperliquidRawExchangeResponse(BaseModel):
     ] = Field(...)
     data: HyperliquidRawExchangeResponseData | None = Field(None)
     response: (
-        RawOptionalNonEmptyString1024HL
+        HyperliquidRawExchangeResponseNested
         | HyperliquidRawExchangeResponseData
-        | HyperliquidRawExchangeResponseNested
+        | RawOptionalNonEmptyString1024HL
         | None
     ) = Field(
         None,
