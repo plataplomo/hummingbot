@@ -82,8 +82,8 @@ class PerformanceDataPersistence:
                 message=f"Saved {data_type} data to {filepath}",
             )
 
-        except Exception as e:
-            logger.error(
+        except (OSError, TypeError, ValueError) as e:
+            logger.exception(
                 "data_save_failed",
                 action="save",
                 data_type=data_type,
@@ -128,10 +128,9 @@ class PerformanceDataPersistence:
                 filepath=str(filepath),
                 message=f"Loaded {data_type} data from {filepath}",
             )
-            return processed_data
 
-        except Exception as e:
-            logger.error(
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception(
                 "data_load_failed",
                 action="load",
                 data_type=data_type,
@@ -140,6 +139,8 @@ class PerformanceDataPersistence:
                 message=f"Failed to load {data_type} data from {filepath}: {e}",
             )
             return None
+        else:
+            return processed_data
 
     def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
         """Make data JSON serializable by converting datetime objects to ISO strings.
@@ -335,8 +336,8 @@ class PerformanceDataPersistence:
                         # DEFENSIVE CHECK: Type conversion for loaded data.
                         all_returns[strategy_name] = loaded_data  # type: ignore[assignment]
 
-        except Exception as e:
-            logger.error(
+        except OSError as e:
+            logger.exception(
                 "returns_load_failed",
                 action="load_all",
                 error=str(e),

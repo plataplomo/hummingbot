@@ -15,6 +15,7 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.apis.backpack import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders import (
@@ -157,7 +158,7 @@ class TestBackpackMarketOrderIntegration:
                 ),
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to execute market buy order for {symbol}: {e}. "
                 "Market order execution is a critical operation that must work reliably.",
@@ -324,7 +325,7 @@ class TestBackpackMarketOrderIntegration:
             _test_order_data["backpack_buy_order_id"] = None
             _test_order_data["backpack_buy_quantity"] = None
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to execute market sell order for {symbol}: {e}. "
                 "Market order execution is a critical operation that must work reliably.",
@@ -351,7 +352,7 @@ class TestBackpackMarketOrderIntegration:
                     return btc_perp.symbol if btc_perp else perp_markets[0].symbol
 
                 logger.debug("No PERP markets found in markets endpoint response")
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             logger.debug(
                 "markets_list_error", error=str(e), message=f"Error getting markets list: {e}"
             )
@@ -371,7 +372,7 @@ class TestBackpackMarketOrderIntegration:
                         message=f"Found PERP market {symbol} via direct market query",
                     )
                     return symbol
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 logger.debug(
                     "perp_symbol_not_accessible",
                     symbol=symbol,
@@ -505,7 +506,7 @@ class TestBackpackMarketOrderIntegration:
                 message=f"Successfully tested perpetual market orders on {perp_symbol}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to test perpetual market orders: {e}. "
                 "Market order functionality must work across all market types.",
@@ -593,7 +594,7 @@ class TestBackpackMarketOrderIntegration:
         except InsufficientLiquidityError:
             # Expected - test passes
             pass
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # If we get API errors about insufficient funds, the test setup is invalid
             if "INSUFFICIENT_FUNDS" in str(e) or "Insufficient funds" in str(e):
                 pytest.fail(
@@ -689,7 +690,7 @@ class TestBackpackMarketOrderIntegration:
                 message=f"Correctly caught price deviation error: {e}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Other errors indicate a problem
             pytest.fail(
                 f"Unexpected error type {type(e).__name__}: {e}. "
@@ -842,7 +843,7 @@ class TestBackpackMarketOrderIntegration:
                     symbol=symbol,
                     message=f"Cleaned up position for {symbol}",
                 )
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 pytest.fail(
                     f"Failed to clean up {symbol} position: {e}. "
                     "Position cleanup is critical and must succeed.",
@@ -880,7 +881,7 @@ class TestBackpackMarketOrderIntegration:
             spot_result = await self._test_spot_market(market_order, backpack_api)
             if spot_result:
                 executed_orders.append(spot_result)
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed spot market order: {e}. Cross-market execution must work reliably.",
             )
@@ -890,7 +891,7 @@ class TestBackpackMarketOrderIntegration:
             perp_result = await self._test_perp_market(market_order, backpack_api)
             if perp_result:
                 executed_orders.append(perp_result)
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Only skip if no perp markets available
             if "PERP" not in str(e) and "perpetual" not in str(e).lower():
                 pytest.fail(
@@ -928,7 +929,7 @@ class TestBackpackMarketOrderIntegration:
         # After test cleanup
         try:
             await MarketOrderTestHelpers.cleanup_test_positions(backpack_api, "BTC_USDC")
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Cleanup errors should not be silenced for real failures
             pytest.fail(
                 f"Error during test cleanup: {e}. "

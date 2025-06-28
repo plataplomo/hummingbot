@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -294,12 +295,13 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
         manager = SecretsManager(str(test_secrets_zero_balance_file_path))
         if manager.secrets_data is None:
             raise RuntimeError("SecretsManager loaded but secrets_data is None.")
-        return manager.secrets_data
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         pytest.fail(
             f"Failed to load zero balance test SecretsConfig from "
             f"{test_secrets_zero_balance_file_path}: {e}",
         )
+    else:
+        return manager.secrets_data
 
 
 @pytest.fixture(scope="session")
@@ -321,12 +323,13 @@ def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path
         manager = SecretsManager(str(test_secrets_large_balance_file_path))
         if manager.secrets_data is None:
             raise RuntimeError("SecretsManager loaded but secrets_data is None.")
-        return manager.secrets_data
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         pytest.fail(
             f"Failed to load large balance test SecretsConfig from "
             f"{test_secrets_large_balance_file_path}: {e}",
         )
+    else:
+        return manager.secrets_data
 
 
 @pytest.fixture(scope="session")

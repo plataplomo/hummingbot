@@ -70,14 +70,14 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
 
         """
         if not isinstance(v, list):
-            raise ValueError("Expected a list of delegations")
+            raise TypeError("Expected a list of delegations")
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise ValueError(
+                raise TypeError(
                     f"Item {item_idx}: Expected dict delegation, got {type(item_obj).__name__}",
                 )
 
@@ -155,14 +155,14 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
 
         """
         if not isinstance(v, list):
-            raise ValueError("Expected a list of history items")
+            raise TypeError("Expected a list of history items")
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise ValueError(
+                raise TypeError(
                     f"Item {item_idx}: Expected dict history item, got {type(item_obj).__name__}",
                 )
 
@@ -209,14 +209,14 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
 
         """
         if not isinstance(v, list):
-            raise ValueError("Expected a list of reward items")
+            raise TypeError("Expected a list of reward items")
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise ValueError(
+                raise TypeError(
                     f"Item {item_idx}: Expected dict reward item, got {type(item_obj).__name__}",
                 )
 

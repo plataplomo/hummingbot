@@ -397,9 +397,10 @@ def test_app_settings(test_config_file_path: Path) -> AppSettings:
         manager = ConfigManager(str(test_config_file_path))
         if manager.settings is None:  # Should be caught by ConfigManager raising ConfigurationError
             raise ConfigurationError("ConfigManager loaded but settings are None.")
-        return manager.settings
     except ConfigurationError as e:
         pytest.fail(f"Failed to load test AppSettings from {test_config_file_path}: {e}")
+    else:
+        return manager.settings
     # Add a default return to satisfy linters, though pytest.fail should exit
     # This path should ideally not be reached if pytest.fail works as expected.
     raise RuntimeError("test_app_settings fixture failed unexpectedly.")
@@ -427,9 +428,10 @@ def test_secrets_config(test_secrets_file_path: Path) -> SecretsConfig:
             manager.secrets_data is None
         ):  # Should be caught by SecretsManager raising ConfigurationError
             raise ConfigurationError("SecretsManager loaded but secrets_data is None.")
-        return manager.secrets_data
     except ConfigurationError as e:
         pytest.fail(f"Failed to load test SecretsConfig from {test_secrets_file_path}: {e}")
+    else:
+        return manager.secrets_data
     # Add a default return to satisfy linters
     raise RuntimeError("test_secrets_config fixture failed unexpectedly.")
 

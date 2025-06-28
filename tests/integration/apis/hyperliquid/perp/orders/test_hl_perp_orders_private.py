@@ -481,7 +481,7 @@ class TestHyperliquidPerpOrdersPrivate:
             else:
                 # This is a real error that should fail the test
                 pytest.fail(f"Precision edge case test failed unexpectedly: {e.message}")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             # Unexpected system error
             pytest.fail(f"Unexpected error in precision edge case test: {e}")
 
@@ -539,7 +539,7 @@ class TestHyperliquidPerpOrdersPrivate:
 
             assert cancel_result.success is True, "Order cancellation should succeed"
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # If cancellation fails, this is a critical error for test cleanup
             pytest.fail(f"Order lifecycle test failed during cancellation: {e}")
 
@@ -627,7 +627,7 @@ class TestHyperliquidPerpOrdersPrivate:
                     f"Cancel result should match symbol filter: {result.symbol}"
                 )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Clean up any placed orders on failure
             for order in placed_orders:
                 if order.exchange_order_id:
@@ -637,7 +637,7 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception as cleanup_error:
+                    except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                         logger.debug(
                             "cleanup_cancellation_failed",
                             error=str(cleanup_error),
@@ -707,7 +707,7 @@ class TestHyperliquidPerpOrdersPrivate:
                 )
                 assert result.success, "Cancel should succeed"
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Clean up any placed orders on failure
             for order in placed_orders:
                 if order.exchange_order_id:
@@ -717,7 +717,7 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception as cleanup_error:
+                    except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                         logger.debug(
                             "cleanup_cancellation_failed",
                             error=str(cleanup_error),
@@ -744,7 +744,7 @@ class TestHyperliquidPerpOrdersPrivate:
         # First ensure no orders are open by cancelling any existing ones
         try:
             await hl_api_for_test_env.cancel_all_orders()
-        except Exception as cleanup_error:
+        except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
             logger.debug(
                 "cleanup_cancellation_failed",
                 error=str(cleanup_error),
@@ -915,7 +915,7 @@ class TestHyperliquidPerpOrdersPrivate:
             # Validate result structure
             assert isinstance(cancel_result, list), "cancel_all_orders should return list"
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Clean up any placed orders
             for order in placed_orders:
                 if order.exchange_order_id:
@@ -925,7 +925,7 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception as cleanup_error:
+                    except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                         logger.debug(
                             "cleanup_cancellation_failed",
                             error=str(cleanup_error),
@@ -1030,7 +1030,7 @@ class TestHyperliquidPerpOrdersPrivate:
             else:
                 pytest.skip("No orders were successfully placed for comprehensive test")
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Clean up any remaining orders
             for order in placed_orders:
                 if order.exchange_order_id:
@@ -1040,7 +1040,7 @@ class TestHyperliquidPerpOrdersPrivate:
                             symbol=test_symbol,
                         )
                         await hl_api_for_test_env.cancel_order(cancel_args)
-                    except Exception as cleanup_error:
+                    except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                         logger.debug(
                             "cleanup_cancellation_failed",
                             error=str(cleanup_error),

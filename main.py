@@ -192,13 +192,14 @@ def _load_configuration(args: argparse.Namespace) -> AppSettings:
             "Configuration loaded successfully",
             source=args.config or "Default",
         )
-        return config
     except (ConfigurationError, RuntimeError) as e:
         logger.exception("configuration_error: Configuration error", error=str(e))
         sys.exit(1)
     except Exception as e:
         logger.exception("config_load_error: Unexpected error loading configuration", error=str(e))
         sys.exit(1)
+    else:
+        return config
 
 
 def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
@@ -289,7 +290,6 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         app_state["strategy_manager"] = strategy_manager
 
         logger.info("Core components initialized.")
-        return app_state
 
     except Exception as e:
         logger.exception(
@@ -297,6 +297,8 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
             error=str(e),
         )
         sys.exit(1)
+    else:
+        return app_state
 
 
 async def _initialize_api_clients(
@@ -357,7 +359,6 @@ async def _initialize_api_clients(
             logger.error("No enabled API clients found. Exiting.")
             sys.exit(1)
         logger.info("API clients initialized and registered.")
-        return api_clients
 
     except Exception as e:
         logger.exception(
@@ -367,6 +368,8 @@ async def _initialize_api_clients(
         # Attempt graceful shutdown of already connected clients
         await shutdown(app_state)
         sys.exit(1)
+    else:
+        return api_clients
 
 
 def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> list[Strategy]:
@@ -400,7 +403,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
                     message="Successfully created strategy via factory",
                 )
             except StrategyCreationError as e:
-                logger.error(
+                logger.exception(
                     "strategy_creation_failed",
                     strategy_type="hl_perp_bp_spot",
                     error=str(e),
@@ -418,7 +421,6 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
             action="all_strategies_initialized",
             message="Successfully initialized strategies via factory",
         )
-        return strategies
 
     except Exception as e:
         logger.exception(
@@ -426,6 +428,8 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
             error=str(e),
         )
         raise
+    else:
+        return strategies
 
 
 def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
@@ -541,12 +545,11 @@ async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
                     await task
                 except asyncio.CancelledError:
                     logger.debug("Task cancelled successfully", task_name=task.get_name())
-                except Exception as task_exc:
-                    logger.error(
+                except (RuntimeError, OSError, ValueError, AttributeError) as task_exc:
+                    logger.exception(
                         "Error during forced cancellation of task",
                         task_name=task.get_name(),
                         error=str(task_exc),
-                        exc_info=False,
                     )
 
 
@@ -614,7 +617,7 @@ async def main() -> None:
     # Initialize strategies
     try:
         strategies = _initialize_strategies(config, app_state)
-    except Exception:
+    except (StrategyCreationError, ValueError, ImportError, AttributeError, RuntimeError):
         await shutdown(app_state)
         sys.exit(1)
 
@@ -638,7 +641,7 @@ async def main() -> None:
     except asyncio.CancelledError:
         logger.info("Main task cancelled, initiating shutdown.")
         # Shutdown is handled in the finally block
-    except Exception as e:
+    except (RuntimeError, OSError, ConnectionError, ValueError, AttributeError, KeyError) as e:
         logger.critical("CRITICAL UNHANDLED ERROR in main execution", error=str(e), exc_info=True)
         # Trigger emergency shutdown
         if not cancellation_token.is_set():
@@ -668,7 +671,7 @@ if __name__ == "__main__":
         logger.info("KeyboardInterrupt received, exiting.")
         # Shutdown is handled within main's finally block
         sys.exit(0)
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError, AttributeError, ImportError) as e:
         # Catch any final unexpected errors
         logger.critical("Unhandled exception at top level", error=str(e), exc_info=True)
         sys.exit(1)

@@ -90,11 +90,9 @@ class StrategyFactory:
                 message=f"Created {name} strategy for {symbol} via factory",
             )
 
-            return strategy
-
         except Exception as e:
             error_msg = f"Failed to create HL Perp BP Spot strategy '{name}': {e}"
-            logger.error(
+            logger.exception(
                 "strategy_creation_failed",
                 strategy_name=name,
                 strategy_type="hl_perp_bp_spot",
@@ -104,6 +102,8 @@ class StrategyFactory:
                 message=error_msg,
             )
             raise StrategyCreationError(error_msg) from e
+        else:
+            return strategy
 
     def create_strategy(
         self,
@@ -187,8 +187,8 @@ class StrategyFactory:
                 # Configuration is already validated by Pydantic during config loading
                 config = self.config.strategies.hl_perp_bp_spot
                 return config.enabled
-            return False
-        except Exception as e:
+            result = False
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
             logger.warning(
                 "strategy_config_validation_failed",
                 strategy_type=strategy_type,
@@ -197,3 +197,5 @@ class StrategyFactory:
                 message=f"Strategy config validation failed for {strategy_type}: {e}",
             )
             return False
+        else:
+            return result

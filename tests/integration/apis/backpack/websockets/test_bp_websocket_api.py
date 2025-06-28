@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
@@ -53,7 +54,7 @@ async def get_available_trading_symbols(api: BackpackAPI, limit: int = 3) -> lis
 
         return spot_symbols[:limit]
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket integration tests require real market data and "
@@ -135,7 +136,7 @@ class TestBackpackAPIWebSocketIntegration:
                 log_message=f"✓ WebSocket integration successful for real symbol: {topic}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket integration failed for real symbol {test_symbol}: {e}. "
                 "WebSocket integration is critical for real-time trading data.",
@@ -191,7 +192,7 @@ class TestBackpackAPIWebSocketIntegration:
                 message="Multiple WebSocket subscriptions successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Multiple WebSocket subscriptions failed: {e}. "
                 "Multi-subscription integration is critical for comprehensive trading data.",
@@ -245,7 +246,7 @@ class TestBackpackAPIWebSocketIntegration:
                 message="WebSocket lifecycle integration completed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket lifecycle integration failed: {e}. "
                 "Connection lifecycle is critical for trading system reliability.",
@@ -313,7 +314,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 message="Concurrent WebSocket integration successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Concurrent WebSocket integration failed: {e}. "
                 "Concurrent operations are critical for high-frequency trading systems.",
@@ -384,7 +385,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                     f"Connection state should be boolean after {topic}, got {type(state)}"
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 if should_succeed:
                     # Valid scenarios must not fail
                     pytest.fail(
@@ -477,7 +478,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 message="WebSocket state consistency maintained throughout integration",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket state consistency integration failed: {e}. "
                 "State consistency is critical for reliable trading operations.",
@@ -534,7 +535,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 message="Rapid WebSocket operations integration successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Rapid WebSocket operations integration failed: {e}. "
                 "High-frequency operations are critical for trading system performance.",
@@ -596,7 +597,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                     message="Edge case topic handled",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # Edge case failures are acceptable, but should be proper exceptions
                 if "connection" in str(e).lower() or "network" in str(e).lower():
                     pytest.fail(
@@ -681,7 +682,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 message="WebSocket integration resilience confirmed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket integration resilience failed after {operation_count} operations: {e}. "
                 "System resilience is critical for trading platform stability.",

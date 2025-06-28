@@ -49,7 +49,7 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
                 f"{file_path}: Test uses timing operations but missing @pytest.mark.timing marker",
             )
 
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         issues.append(f"{file_path}: Error reading file: {e!s}")
 
     return len(issues) == 0, issues

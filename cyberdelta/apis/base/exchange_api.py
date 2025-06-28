@@ -463,7 +463,6 @@ class ExchangeAPI(ABC):
             )
 
             self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
-            return response_content, status_code, response_headers_dict
 
         except HttpRequestFailedError as e_http_failed:
             raise self._handle_http_request_error(e_http_failed, request_url) from e_http_failed
@@ -473,6 +472,8 @@ class ExchangeAPI(ABC):
             raise
         except Exception as e_unhandled:
             raise self._handle_unhandled_error(e_unhandled, method, request_url) from e_unhandled
+        else:
+            return response_content, status_code, response_headers_dict
 
     def _prepare_request_data(
         self,
@@ -1183,7 +1184,7 @@ class ExchangeAPI(ABC):
             if connect_task:  # ADDED: Check if task is not None
                 await connect_task
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "exchange_api_websocket_connect_error",
                 action="connect_websocket",
                 message="Failed to connect WebSocket",

@@ -285,7 +285,6 @@ class HyperliquidMarketDataMapper:
                 if price is not None and size is not None:
                     levels.append((price, size))
 
-            return levels
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
@@ -296,6 +295,8 @@ class HyperliquidMarketDataMapper:
                 source_value=level_index,
                 original_exception=e,
             ) from e
+        else:
+            return levels
 
     @staticmethod
     def transform_raw_public_trade_to_internal(
@@ -581,76 +582,163 @@ class HyperliquidMarketDataMapper:
 
             # Iterate through parallel lists
             for i in range(len(raw_snapshot.t)):
-                # Parse OHLCV data from parallel lists
-                open_price = parse_decimal_value(
-                    raw_snapshot.o[i],
-                    allow_none=False,
-                    field_name="o",
+                candle = HyperliquidMarketDataMapper._parse_single_candle(
+                    raw_snapshot, i, symbol, interval
                 )
-                high_price = parse_decimal_value(
-                    raw_snapshot.h[i],
-                    allow_none=False,
-                    field_name="h",
-                )
-                low_price = parse_decimal_value(raw_snapshot.l[i], allow_none=False, field_name="l")
-                close_price = parse_decimal_value(
-                    raw_snapshot.c[i],
-                    allow_none=False,
-                    field_name="c",
-                )
-                volume = parse_decimal_value(raw_snapshot.v[i], allow_none=False, field_name="v")
-
-                if None in {open_price, high_price, low_price, close_price, volume}:
-                    logger.warning(
-                        "invalid_candle_data",
-                        action="parse_candle",
-                        index=i,
-                        message=f"Skipping candle at index {i} with invalid OHLCV data",
-                    )
-                    continue
-
-                # Parse timestamp (convert from milliseconds)
-                timestamp = datetime.fromtimestamp(raw_snapshot.t[i] / 1000, tz=UTC)
-
-                # Defensive checks since we already validated for None values above
-                if open_price is None:
-                    raise ValueError("Open price unexpectedly None after validation")
-                if high_price is None:
-                    raise ValueError("High price unexpectedly None after validation")
-                if low_price is None:
-                    raise ValueError("Low price unexpectedly None after validation")
-                if close_price is None:
-                    raise ValueError("Close price unexpectedly None after validation")
-                if volume is None:
-                    raise ValueError("Volume unexpectedly None after validation")
-
-                # SECURITY FIX: Use secure_transform instead of direct instantiation
-                candle_data = {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "open_time": timestamp.isoformat(),
-                    "open": str(open_price),
-                    "high": str(high_price),
-                    "low": str(low_price),
-                    "close": str(close_price),
-                    "volume": str(volume),
-                }
-
-                candle = secure_transform(
-                    data=candle_data,
-                    model_class=Candle,
-                    context="hyperliquid_candle_transform",
-                    source_exchange="hyperliquid",
-                )
-
-                candles.append(candle)
-
-            return candles
+                if candle:
+                    candles.append(candle)
 
         except Exception as e:
             raise TransformationError(
                 f"Failed to transform HyperliquidRawCandleSnapshot to Candle list: {e}",
             ) from e
+        else:
+            return candles
+
+    @staticmethod
+    def _parse_single_candle(
+        raw_snapshot: HyperliquidRawCandleSnapshot,
+        index: int,
+        symbol: str,
+        interval: str,
+    ) -> Candle | None:
+        """Parse a single candle from the raw snapshot at the given index.
+
+        Returns None if the candle data is invalid and should be skipped.
+        """
+        # Parse OHLCV data from parallel lists
+        ohlcv_prices = HyperliquidMarketDataMapper._parse_ohlcv_prices(raw_snapshot, index)
+        if not ohlcv_prices:
+            return None
+
+        open_price, high_price, low_price, close_price, volume = ohlcv_prices
+
+        # Parse timestamp (convert from milliseconds)
+        timestamp = datetime.fromtimestamp(raw_snapshot.t[index] / 1000, tz=UTC)
+
+        # Validate all prices are non-None
+        HyperliquidMarketDataMapper._validate_candle_prices(
+            open_price, high_price, low_price, close_price, volume
+        )
+
+        # Create and return candle
+        return HyperliquidMarketDataMapper._create_candle_from_data(
+            symbol, interval, timestamp, open_price, high_price, low_price, close_price, volume
+        )
+
+    @staticmethod
+    def _parse_ohlcv_prices(
+        raw_snapshot: HyperliquidRawCandleSnapshot,
+        index: int,
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal] | None:
+        """Parse OHLCV prices from raw snapshot at given index.
+
+        Returns None if any price is invalid.
+        """
+        try:
+            open_price = parse_decimal_value(
+                raw_snapshot.o[index],
+                allow_none=False,
+                field_name="o",
+            )
+            high_price = parse_decimal_value(
+                raw_snapshot.h[index],
+                allow_none=False,
+                field_name="h",
+            )
+            low_price = parse_decimal_value(raw_snapshot.l[index], allow_none=False, field_name="l")
+            close_price = parse_decimal_value(
+                raw_snapshot.c[index],
+                allow_none=False,
+                field_name="c",
+            )
+            volume = parse_decimal_value(raw_snapshot.v[index], allow_none=False, field_name="v")
+        except (ValueError, TypeError, IndexError):
+            logger.warning(
+                "invalid_candle_data",
+                action="parse_candle",
+                index=index,
+                message=f"Skipping candle at index {index} with invalid OHLCV data",
+            )
+            return None
+
+        if None in {open_price, high_price, low_price, close_price, volume}:
+            logger.warning(
+                "invalid_candle_data",
+                action="parse_candle",
+                index=index,
+                message=f"Skipping candle at index {index} with invalid OHLCV data",
+            )
+            return None
+
+        # Ensure all values are non-None (type narrowing)
+        if (
+            open_price is not None
+            and high_price is not None
+            and low_price is not None
+            and close_price is not None
+            and volume is not None
+        ):
+            return open_price, high_price, low_price, close_price, volume
+
+        # Should not reach here given the checks above
+        logger.warning(
+            "invalid_candle_data",
+            action="parse_candle",
+            index=index,
+            message=f"Skipping candle at index {index} - None values after parsing",
+        )
+        return None
+
+    @staticmethod
+    def _validate_candle_prices(
+        open_price: Decimal | None,
+        high_price: Decimal | None,
+        low_price: Decimal | None,
+        close_price: Decimal | None,
+        volume: Decimal | None,
+    ) -> None:
+        """Validate that all candle prices are non-None after parsing."""
+        if open_price is None:
+            raise ValueError("Open price unexpectedly None after validation")
+        if high_price is None:
+            raise ValueError("High price unexpectedly None after validation")
+        if low_price is None:
+            raise ValueError("Low price unexpectedly None after validation")
+        if close_price is None:
+            raise ValueError("Close price unexpectedly None after validation")
+        if volume is None:
+            raise ValueError("Volume unexpectedly None after validation")
+
+    @staticmethod
+    def _create_candle_from_data(
+        symbol: str,
+        interval: str,
+        timestamp: datetime,
+        open_price: Decimal,
+        high_price: Decimal,
+        low_price: Decimal,
+        close_price: Decimal,
+        volume: Decimal,
+    ) -> Candle:
+        """Create a Candle object from the provided data."""
+        candle_data = {
+            "symbol": symbol,
+            "interval": interval,
+            "open_time": timestamp.isoformat(),
+            "open": str(open_price),
+            "high": str(high_price),
+            "low": str(low_price),
+            "close": str(close_price),
+            "volume": str(volume),
+        }
+
+        return secure_transform(
+            data=candle_data,
+            model_class=Candle,
+            context="hyperliquid_candle_transform",
+            source_exchange="hyperliquid",
+        )
 
     @staticmethod
     def transform_ws_trade_event_to_internal(raw: HyperliquidRawWsTradeEvent) -> Trade:
@@ -860,7 +948,7 @@ class HyperliquidMarketDataMapper:
                     )
                     markets.append(market)
 
-                except Exception as e:
+                except (TransformationError, ValueError, TypeError, AttributeError) as e:
                     logger.warning(
                         "asset_definition_to_market_transform_failed",
                         action="transform_meta_and_asset_ctxs_to_markets",
@@ -868,8 +956,6 @@ class HyperliquidMarketDataMapper:
                         error=str(e),
                     )
                     continue
-
-            return markets
 
         except Exception as e:
             logger.exception(
@@ -879,6 +965,8 @@ class HyperliquidMarketDataMapper:
                 message=f"Failed to transform meta and asset contexts to markets: {e}",
             )
             raise TransformationError(f"Failed to transform meta and asset contexts: {e}") from e
+        else:
+            return markets
 
     @staticmethod
     def _create_market_from_asset_definition(

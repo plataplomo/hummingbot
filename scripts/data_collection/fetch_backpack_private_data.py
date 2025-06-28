@@ -92,8 +92,8 @@ class BackpackPrivateDataCollector:
             logger.info("symbols_configured: Configured symbols", symbols=self.configured_symbols)
             logger.info("authenticator_initialized: Backpack authenticator initialized")
 
-        except Exception as e:
-            logger.error(
+        except (ValueError, ImportError, AttributeError, KeyError) as e:
+            logger.exception(
                 "config_init_failed: Failed to load config or init authenticator", error=str(e)
             )
             raise
@@ -152,8 +152,8 @@ class BackpackPrivateDataCollector:
                     error=error_text,
                 )
                 return None
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError, ValueError) as e:
+            logger.exception(
                 "fetch_error: Error fetching endpoint", method=method, path=path, error=str(e)
             )
             return None
@@ -165,8 +165,8 @@ class BackpackPrivateDataCollector:
             with filepath.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
-        except Exception as e:
-            logger.error("save_error: Error saving file", filepath=str(filepath), error=str(e))
+        except (OSError, UnicodeEncodeError, PermissionError) as e:
+            logger.exception("save_error: Error saving file", filepath=str(filepath), error=str(e))
 
     # Account Management Endpoints
     async def fetch_account_info(self) -> None:
@@ -775,7 +775,7 @@ async def main() -> None:
         app_settings = get_app_settings()
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
-    except Exception as e:
+    except (ImportError, AttributeError, ValueError, KeyError, OSError) as e:
         logger.warning(
             "config_init_warning: Failed to init config. Using basic logging.", error=str(e)
         )
@@ -799,8 +799,16 @@ async def main() -> None:
 
             await collector.collect_all_private_data(symbols)
 
-        except Exception as e:
-            logger.error("Failed to initialize collector or collect data", error=str(e))
+        except (
+            ValueError,
+            ImportError,
+            AttributeError,
+            KeyError,
+            OSError,
+            ConnectionError,
+            RuntimeError,
+        ) as e:
+            logger.exception("Failed to initialize collector or collect data", error=str(e))
             raise
 
 

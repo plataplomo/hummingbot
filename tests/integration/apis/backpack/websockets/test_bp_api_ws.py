@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 
@@ -50,7 +51,7 @@ async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
 
         return spot_symbols[:3]  # Return first 3 for testing
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket tests require real market data and cannot use hardcoded symbols.",
@@ -116,7 +117,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 topic=topics[0],
                 message=f"✓ Successfully subscribed to {topics[0]}",
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket subscription failed for real symbol {test_symbol}: {e}. "
                 "WebSocket operations are critical and must work reliably.",
@@ -170,7 +171,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 topic2=topic2,
                 message=f"✓ Successfully subscribed to {topic1} and {topic2}",
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Multiple WebSocket subscriptions failed: {e}. "
                 "Multi-symbol WebSocket operations are critical for trading.",
@@ -222,7 +223,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 message="Connection status validation passed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket connection status validation failed: {e}. "
                 "Connection state tracking is critical for trading operations.",
@@ -271,7 +272,7 @@ class TestBackpackAPIWebSocketLifecycle:
                 topic=topics[0],
                 message=f"✓ Subscription successful for {topics[0]}",
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Subscription lifecycle failed for {test_symbol}: {e}. "
                 "WebSocket subscription is a critical trading operation.",
@@ -296,7 +297,7 @@ class TestBackpackAPIWebSocketLifecycle:
                 topic=topics[0],
                 message=f"✓ Handler replacement successful for {topics[0]}",
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Handler replacement failed for {test_symbol}: {e}. "
                 "WebSocket handler management is critical for real-time data.",
@@ -344,7 +345,7 @@ class TestBackpackAPIWebSocketLifecycle:
                 symbol_count=len(subscription_tasks),
                 message="Concurrent subscriptions successful",
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Concurrent WebSocket subscriptions failed: {e}. "
                 "Concurrent operations are critical for multi-asset trading.",
@@ -403,7 +404,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                     message=f"✓ Invalid topic handling completed for: {invalid_topic}",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # If an exception is raised, it should be a proper API error
                 # Don't hide it with graceful handling
                 if "connection" in str(e).lower() or "network" in str(e).lower():
@@ -447,7 +448,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 message=f"✓ WebSocket connection attempt completed, state: {connection_state}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Connection failures should fail the test
             pytest.fail(
                 f"WebSocket connection establishment failed: {e}. "
@@ -494,7 +495,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 message="Subscription -> connection sequence completed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Subscription-connection sequence failed: {e}. "
                 "Sequential WebSocket operations are critical for trading setup.",
@@ -542,7 +543,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 message="Rapid subscription operations completed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Rapid subscription operations failed: {e}. "
                 "High-frequency WebSocket operations are critical for trading systems.",

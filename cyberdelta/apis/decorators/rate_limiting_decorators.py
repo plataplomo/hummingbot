@@ -108,7 +108,7 @@ class RetryOnFailure:
                             await asyncio.sleep(delay)
                             delay = min(delay * self.exponential_base, self.max_delay)
                         else:
-                            logger.error(
+                            logger.exception(
                                 "retry_all_attempts_failed",
                                 max_attempts=self.max_attempts,
                                 function_name=func.__name__,
@@ -181,8 +181,6 @@ class CircuitBreaker:
                             self._state = "closed"
                             self._failure_count = 0
 
-                    return result
-
                 except self.expected_exception:
                     async with self._lock:
                         self._failure_count += 1
@@ -190,7 +188,7 @@ class CircuitBreaker:
 
                         if self._failure_count >= self.failure_threshold:
                             self._state = "open"
-                            logger.error(
+                            logger.exception(
                                 "circuit_breaker_opened",
                                 function_name=func.__name__,
                                 failure_count=self._failure_count,
@@ -202,6 +200,8 @@ class CircuitBreaker:
                             )
 
                         raise
+                else:
+                    return result
 
             return cast("Callable[P, T]", async_wrapper)
         raise TypeError("CircuitBreaker decorator can only be applied to async functions")

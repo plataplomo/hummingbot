@@ -202,7 +202,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                 f"All orders should have unique IDs, got duplicates: {order_ids}"
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Clean up any placed orders on failure
             await self._cleanup_orders_on_failure(hl_api_for_test_env, placed_orders)
             pytest.fail(f"Failed to place 6 buy limit orders: {e}")
@@ -261,7 +261,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                 pytest.skip(f"Order {order_id} already cancelled or not found: {e}")
             else:
                 pytest.fail(f"Unexpected API error during order cancellation: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             pytest.fail(f"System error during order cancellation: {e}")
 
     @pytest.mark.vcr
@@ -340,7 +340,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                 cancellation_results["successful"],
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Error during simultaneous order cancellation: {e}")
 
     @pytest.mark.vcr
@@ -433,7 +433,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                 pytest.skip(f"No orders available to cancel: {e}")
             else:
                 pytest.fail(f"API error during cancel_all_orders: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             pytest.fail(f"System error during cancel_all_orders: {e}")
 
     # Helper Methods
@@ -560,7 +560,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                         symbol=order.symbol,
                     )
                     await api.cancel_order(cancel_args)
-                except Exception as cleanup_error:
+                except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                     logger.warning(
                         "order_cleanup_failed",
                         exchange_order_id=order.exchange_order_id,
@@ -572,7 +572,7 @@ class TestHyperliquidPerpOrdersComprehensive:
         try:
             # Get remaining orders after cleanup attempts
             await asyncio.sleep(2)  # Brief wait for cleanup to process
-        except Exception as cleanup_error:
+        except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
             logger.warning(
                 "cleanup_wait_failed",
                 error=str(cleanup_error),
@@ -613,7 +613,7 @@ class TestHyperliquidPerpOrdersComprehensive:
 
                 await asyncio.sleep(interval)
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # If we can't check order status, that's a system error
                 pytest.fail(f"Failed to verify order cancellation using public API: {e}")
 
@@ -666,7 +666,7 @@ class TestHyperliquidPerpOrdersComprehensive:
 
                 await asyncio.sleep(interval)
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # If we can't check order status, that's a system error
                 pytest.fail(f"Failed to verify all orders cancelled using public API: {e}")
 

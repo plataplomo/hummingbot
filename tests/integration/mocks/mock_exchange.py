@@ -614,7 +614,7 @@ class MockExchangeAPI(ExchangeAPI):
                     data_payload,
                     message,
                 )  # MODIFIED: Ensure two arguments are passed
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 logger.exception(
                     "ws_handler_error: Error in WS handler for topic",
                     topic=topic,
@@ -1084,8 +1084,7 @@ class MockExchangeAPI(ExchangeAPI):
                 order_symbol: str | None = getattr(order, "symbol", None)
                 if symbol is None or order_symbol == symbol:
                     orders_to_return.append(order)
-            return orders_to_return
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "get_open_orders_error",
                 error=str(e),
@@ -1093,6 +1092,8 @@ class MockExchangeAPI(ExchangeAPI):
                 message="Error in mock get_open_orders",
             )
             return []
+        else:
+            return orders_to_return
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Return all mock open orders, optionally filtered by symbol."""
@@ -1105,8 +1106,7 @@ class MockExchangeAPI(ExchangeAPI):
                 order_symbol: str | None = getattr(order, "symbol", None)
                 if args.symbol is None or order_symbol == args.symbol:
                     orders_to_return.append(order)
-            return orders_to_return
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "get_all_open_orders_error",
                 error=str(e),
@@ -1114,6 +1114,8 @@ class MockExchangeAPI(ExchangeAPI):
                 message="Error in mock get_all_open_orders",
             )
             return []
+        else:
+            return orders_to_return
 
     # --- Placeholder for balance and position update --- #
     def _update_balance_and_position(self, trade: Trade) -> None:
@@ -1401,9 +1403,9 @@ class MockExchangeAPI(ExchangeAPI):
                 # Place each order individually
                 order = await self.place_order(order_args)
                 results.append(order)
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # In batch operations, we continue even if some orders fail
-                logger.error(
+                logger.exception(
                     "batch_order_placement_failed",
                     exchange_name=self.exchange_name,
                     error=str(e),
@@ -1461,9 +1463,9 @@ class MockExchangeAPI(ExchangeAPI):
                 # Cancel each order individually
                 cancel_result = await self.cancel_order(cancel_arg)
                 results.append(cancel_result)
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # In batch operations, we continue even if some cancellations fail
-                logger.error(
+                logger.exception(
                     "batch_order_cancellation_failed",
                     exchange_name=self.exchange_name,
                     error=str(e),

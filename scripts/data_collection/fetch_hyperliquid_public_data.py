@@ -164,8 +164,8 @@ class HyperliquidDataCollector:
                 symbols=self.configured_symbols,
             )
 
-        except Exception as e:
-            logger.error(
+        except (ValueError, ImportError, AttributeError, KeyError) as e:
+            logger.exception(
                 "configuration_load_failed: Failed to load configuration",
                 error=str(e),
             )
@@ -208,8 +208,8 @@ class HyperliquidDataCollector:
                     response_text=await response.text(),
                 )
                 return None
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError, ValueError) as e:
+            logger.exception(
                 "fetch_error: Error fetching data",
                 url=url,
                 error=str(e),
@@ -226,8 +226,8 @@ class HyperliquidDataCollector:
                 "fixture_saved: Saved JSON fixture",
                 filepath=str(filepath),
             )
-        except Exception as e:
-            logger.error(
+        except (OSError, UnicodeEncodeError, PermissionError) as e:
+            logger.exception(
                 "save_error: Error saving file",
                 filepath=str(filepath),
                 error=str(e),
@@ -738,7 +738,7 @@ async def main() -> None:
         app_settings = get_app_settings()
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
-    except Exception as e:
+    except (ImportError, AttributeError, ValueError, KeyError, OSError) as e:
         logger.warning(
             "config_init_failed: Failed to initialize configuration, using basic logging",
             error=str(e),

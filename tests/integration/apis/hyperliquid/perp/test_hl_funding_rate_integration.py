@@ -440,7 +440,7 @@ async def test_hl_funding_rate_precision_and_calculations(
                         exchange_precision = Decimal(1) / (Decimal(10) ** decimal_places)
                         quantized_rate = funding_rate.funding_rate.quantize(exchange_precision)
                         assert isinstance(quantized_rate, Decimal), "Quantization should work"
-                except Exception as e:
+                except (APIError, ValueError, TypeError, KeyError) as e:
                     pytest.fail(f"Funding rate precision handling failed: {e}")
             else:
                 pytest.fail("Funding rate is None - precision test requires valid rates")

@@ -11,6 +11,11 @@ from typing import Any, cast
 
 import requests
 
+from cyberdelta.config.structlog_config import get_logger
+
+
+logger = get_logger(__name__)
+
 
 # Configuration
 WALLET_ADDRESS = "0x02Cd79f858bEF99588Cc2E650f2A4Fbf2baE8CB5"
@@ -39,8 +44,9 @@ def fetch_historical_orders(wallet_address: str) -> dict[str, Any]:
             "orders": data,
         }
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
         # Error fetching data
+        logger.exception("request_error: Failed to fetch historical orders", error=str(e))
         raise
 
 

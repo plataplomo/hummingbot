@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs
 from cyberdelta.config.structlog_config import get_logger
@@ -143,7 +144,7 @@ class TestHyperliquidMarketOrderIntegration:
                 f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to execute market buy order for {symbol}: {e}. "
                 "Market order execution is a critical operation that must work reliably.",
@@ -288,7 +289,7 @@ class TestHyperliquidMarketOrderIntegration:
             _test_order_data["hyperliquid_buy_order_id"] = None
             _test_order_data["hyperliquid_buy_quantity"] = None
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to execute market sell order for {symbol}: {e}. "
                 "Market order execution is a critical operation that must work reliably.",
@@ -372,7 +373,7 @@ class TestHyperliquidMarketOrderIntegration:
         except InsufficientLiquidityError:
             # Expected - test passes
             pass
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Expected InsufficientLiquidityError but got {type(e).__name__}: {e}")
 
     @pytest.mark.parametrize(
@@ -461,7 +462,7 @@ class TestHyperliquidMarketOrderIntegration:
                 message=f"Correctly caught price deviation error: {e}",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Other errors indicate a problem
             pytest.fail(
                 f"Unexpected error type {type(e).__name__}: {e}. "
@@ -564,13 +565,13 @@ class TestHyperliquidMarketOrderIntegration:
                     timeout_seconds=30,
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 pytest.fail(
                     f"Failed to clean up position: {e}. "
                     "Position cleanup is critical and must succeed.",
                 )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Failed to execute market order for metrics test: {e}. "
                 "Market order execution and metrics tracking must work reliably.",
@@ -584,7 +585,7 @@ class TestHyperliquidMarketOrderIntegration:
         # After test cleanup
         try:
             await MarketOrderTestHelpers.cleanup_test_positions(hyperliquid_api, "BTC")
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Cleanup errors should not be silenced
             pytest.fail(
                 f"Error during test cleanup: {e}. "

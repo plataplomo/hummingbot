@@ -121,14 +121,14 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
         """
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
-            raise ValueError(f"{field_name}: Expected list, got {type(v).__name__}")
+            raise TypeError(f"{field_name}: Expected list, got {type(v).__name__}")
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise ValueError(
+                raise TypeError(
                     f"{field_name}[{item_idx}]: Expected dict item, got {type(item_obj).__name__}",
                 )
             item_dict = cast("dict[str, object]", item_obj)

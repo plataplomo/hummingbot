@@ -317,7 +317,7 @@ class OrderVerifier:
                 ),
             )
         except AttributeError:
-            logger.error(
+            logger.exception(
                 "api_method_missing",
                 action="verify_api_order",
                 message="API client missing get_order method",
@@ -576,7 +576,7 @@ class OrderVerifier:
                 verification_details["api_order_status"] = "NOT_FOUND_ON_API"
 
         except AttributeError as e:
-            logger.error(
+            logger.exception(
                 "api_method_missing_fetch",
                 action="fetch_api_order",
                 message="API client is missing a required order fetch method",
@@ -738,7 +738,7 @@ class OrderVerifier:
                 )
                 verification_details["recent_fills_error"] = str(e)
                 verification_details["recent_fills_count"] = 0
-            except Exception as e:
+            except (AttributeError, RuntimeError, ValueError) as e:
                 logger.warning(
                     "fills_fetch_error",
                     action="fetch_recent_fills",
@@ -1671,7 +1671,7 @@ class SynchronizedOrderSubmissionService:
             quantity_dec = Decimal(str(quantity_val)) if quantity_val is not None else None
             price_dec = Decimal(str(price_val)) if price_val is not None else None
         except (InvalidOperation, TypeError) as e:
-            logger.error(
+            logger.exception(
                 "decimal_conversion_error",
                 action="prepare_order",
                 message="Error converting quantity/price to Decimal",

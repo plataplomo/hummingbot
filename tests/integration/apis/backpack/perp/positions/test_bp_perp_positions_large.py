@@ -12,6 +12,7 @@ from typing import Any, TypedDict
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     GetMaxOrderQuantityArgs,
     PlaceOrderArgs,
@@ -100,7 +101,7 @@ class TestBackpackPerpLargePositions:
                             poll_interval=0.5,  # Less frequent polling to reduce API load
                             message=f"Position {position.symbol} was not closed",
                         )
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, KeyError) as e:
                         # Log and ignore errors when closing positions in cleanup
                         logger.warning(
                             "failed_to_close_position",
@@ -109,7 +110,7 @@ class TestBackpackPerpLargePositions:
                             message="Failed to close position in cleanup",
                         )
                         continue
-        except Exception:
+        except (APIError, ValueError, TypeError, KeyError):
             # Ignore errors in position cleanup
             return
 
@@ -518,7 +519,7 @@ class TestBackpackPerpLargePositions:
                         await bp_api_for_large_balance_test.place_order(place_args)
                         # Position update handled by proper polling
                         positions_created.append(symbol)
-                except Exception:
+                except (APIError, ValueError, TypeError, KeyError):
                     # No more margin available - expected
                     break
 

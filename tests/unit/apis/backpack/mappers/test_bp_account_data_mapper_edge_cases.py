@@ -11,7 +11,7 @@ Tests boundary conditions, unicode handling, and extreme value scenarios includi
 - Error recovery scenarios
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from unittest.mock import patch
 
 import pytest
@@ -295,7 +295,7 @@ class TestEdgeCasesAndRobustness:
                 """Return Decimal conversion for testing edge case parsing behavior."""
                 try:
                     return Decimal(str(value)) if value else None
-                except Exception:
+                except (ValueError, TypeError, InvalidOperation):
                     return None
 
             mock_parse.side_effect = side_effect

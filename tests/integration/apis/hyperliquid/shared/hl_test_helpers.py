@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
 from typing import Any
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
     GetHistoricalFundingRatesArgs,
@@ -75,7 +76,7 @@ class HyperliquidTestHelpers:
                         available_symbols.append(symbol)
                         if len(available_symbols) >= limit:
                             break
-                except Exception as e:
+                except (APIError, ValueError, TypeError, KeyError) as e:
                     logger.debug(
                         "symbol_unavailable",
                         symbol=symbol,
@@ -90,13 +91,13 @@ class HyperliquidTestHelpers:
                     "Hyperliquid tests require real trading symbols.",
                 )
 
-            return available_symbols
-
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to fetch perpetual symbols from exchange: {e}. "
                 "Hyperliquid tests require real market data and cannot use hardcoded symbols.",
             ) from e
+        else:
+            return available_symbols
 
     # Market Data Utilities
 
@@ -141,7 +142,7 @@ class HyperliquidTestHelpers:
                 "min_quantity": market.min_quantity,
                 "max_quantity": market.max_quantity or market.min_quantity * Decimal(1000000),
             }
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to get market constraints for {symbol}: {e}. "
                 "Trading tests must have access to real market data to ensure safety.",
@@ -181,7 +182,7 @@ class HyperliquidTestHelpers:
                 "Trading tests require real market data and cannot use hardcoded fallback values.",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to get market price for {symbol}: {e}. "
                 "Trading tests require real market data and cannot use fallback values.",
@@ -256,7 +257,7 @@ class HyperliquidTestHelpers:
                             "typical_range": max_observed - min_observed,
                         }
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 logger.debug(
                     "funding_rate_bounds_fallback",
                     error=str(e),
@@ -270,7 +271,7 @@ class HyperliquidTestHelpers:
                 "Funding rate tests require real exchange data and cannot use hardcoded bounds.",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to get funding rate bounds for {symbol}: {e}. "
                 "Funding rate tests require real exchange constraints.",
@@ -533,13 +534,13 @@ class HyperliquidTestHelpers:
                 f"min_required=${MIN_NOTIONAL_USD}",
             )
 
-            return final_quantity
-
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to calculate minimal order size for {symbol} at price {price}: {e}. "
                 "Cannot determine safe order size without valid exchange constraints.",
             ) from e
+        else:
+            return final_quantity
 
     @staticmethod
     async def get_minimal_order_size_for_zero_balance(
@@ -588,13 +589,13 @@ class HyperliquidTestHelpers:
                 f"qty={final_quantity} (exchange minimum)",
             )
 
-            return final_quantity
-
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to calculate minimal order size for zero balance test {symbol}: {e}. "
                 "Cannot determine exchange minimum constraints.",
             ) from e
+        else:
+            return final_quantity
 
     @staticmethod
     async def validate_order_constraints(
@@ -638,7 +639,7 @@ class HyperliquidTestHelpers:
             tick_size = constraints["tick_size"]
             return price % tick_size == Decimal(0)
 
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             return False
 
     # Account State Detection
@@ -672,7 +673,7 @@ class HyperliquidTestHelpers:
                 "margin_used": getattr(account_summary, "margin_used", Decimal(0)),
             }
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Don't hide account access failures
             raise RuntimeError(
                 f"Failed to detect account state: {e}. "
@@ -717,7 +718,7 @@ class HyperliquidTestHelpers:
                             interval = 2.0  # 2s for remaining attempts (slower polling)
 
                         await asyncio.sleep(interval)
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, KeyError) as e:
                         raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
         except TimeoutError:
             raise RuntimeError(
@@ -755,7 +756,7 @@ class HyperliquidTestHelpers:
                             interval = 2.0  # Slower polling
 
                         await asyncio.sleep(interval)
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, KeyError) as e:
                         raise RuntimeError(f"Failed to verify order placement: {e}") from e
         except TimeoutError:
             raise RuntimeError(
@@ -798,7 +799,7 @@ class HyperliquidTestHelpers:
                             interval = 2.0
 
                         await asyncio.sleep(interval)
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, KeyError) as e:
                         raise RuntimeError(f"Failed to check condition: {e}") from e
         except TimeoutError:
             raise RuntimeError(f"{message} (timeout after {timeout_seconds} seconds)") from None
@@ -825,7 +826,7 @@ class HyperliquidTestHelpers:
                 "max_leverage": getattr(account_summary, "max_leverage", Decimal(20)),
             }
 
-        except Exception:
+        except (APIError, ValueError, TypeError, KeyError):
             return HyperliquidTestHelpers._get_fallback_margin_params()
 
     @staticmethod
@@ -885,7 +886,7 @@ class HyperliquidTestHelpers:
                 "leverage_used": max_leverage,
             }
 
-        except Exception:
+        except (APIError, ValueError, TypeError, KeyError):
             return {"max_quantity": Decimal(0), "max_notional": Decimal(0)}
 
     # Test Cleanup Utilities
@@ -908,7 +909,7 @@ class HyperliquidTestHelpers:
             # Verify cancellation completed instead of fixed sleep
             await HyperliquidTestHelpers.wait_for_order_cancellation(api, symbol)
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Order cleanup failures are critical in trading tests
             raise RuntimeError(
                 f"Failed to cleanup test orders for {symbol}: {e}. "
@@ -941,7 +942,7 @@ class HyperliquidTestHelpers:
                     # For now, just document that manual cleanup may be needed
                     pass
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Position cleanup failures are critical in trading tests
             raise RuntimeError(
                 f"Failed to cleanup test positions for {symbol}: {e}. "

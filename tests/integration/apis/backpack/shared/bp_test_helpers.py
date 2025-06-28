@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
@@ -63,7 +64,7 @@ async def wait_for_condition(
 
                     if result:
                         return
-                except Exception:
+                except (APIError, ValueError, TypeError, KeyError, AttributeError):
                     # Continue polling on transient errors
                     logger.debug("Transient error during polling, continuing...")
 
@@ -167,13 +168,13 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
                 "Cannot run integration tests without available markets.",
             )
 
-        return symbols
-
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get available {market_type} symbols from exchange: {e}. "
             "Integration tests must have access to real exchange data.",
         ) from e
+    else:
+        return symbols
 
 
 async def get_test_symbol(api: BackpackAPI, market_type: str = "spot", index: int = 0) -> str:
@@ -309,7 +310,7 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
             },
         }
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get exchange symbol mapping: {e}. "
             "Tests require access to exchange symbol information.",
@@ -387,7 +388,7 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
             "This test requires real market data and cannot use default values.",
         )
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get tick size for {symbol}: {e}. "
@@ -421,7 +422,7 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
             "This test requires real market data and cannot use default values.",
         )
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get step size for {symbol}: {e}. "
@@ -465,14 +466,14 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         if market.max_price is not None:
             constraints["max_price"] = market.max_price
 
-        return constraints
-
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get market constraints for {symbol}: {e}. "
             "This test requires real market data and cannot use default values.",
         ) from e
+    else:
+        return constraints
 
 
 # =============================================================================
@@ -564,7 +565,7 @@ async def get_dynamic_test_price(
         quantized_price = test_price.quantize(tick_size)
         return quantized_price.normalize()
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK PRICES - This is a trading engine!
         # If we can't get real market data, the test should fail
         raise RuntimeError(
@@ -617,7 +618,7 @@ async def get_minimal_order_size_for_zero_balance_test(
         quantized_quantity = min_quantity.quantize(step_size)
         return quantized_quantity.normalize()
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to calculate minimal order size for zero balance test {symbol}: {e}. "
@@ -773,7 +774,7 @@ async def get_minimal_order_size(
         quantized_quantity = test_quantity.quantize(step_size)
         return quantized_quantity.normalize()
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         error_msg = str(e).lower()
 
@@ -847,18 +848,18 @@ async def validate_order_constraints(
         if "max_price" in constraints:
             price_range_valid = price_range_valid and price <= constraints["max_price"]
 
+    except (APIError, ValueError, TypeError, KeyError) as e:
+        raise RuntimeError(
+            f"Failed to validate order constraints for {symbol}: {e}. "
+            "Order constraint validation is critical for trading tests.",
+        ) from e
+    else:
         return {
             "price_valid": price_valid,
             "quantity_valid": quantity_valid,
             "size_valid": size_valid,
             "price_range_valid": price_range_valid,
         }
-
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to validate order constraints for {symbol}: {e}. "
-            "Order constraint validation is critical for trading tests.",
-        ) from e
 
 
 # =============================================================================
@@ -1114,7 +1115,7 @@ async def detect_account_auto_lending(api: BackpackAPI) -> bool:
             for balance in spot_balances.values()
         )
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to detect auto-lending status: {e}. "
             "Auto-lending detection is required for accurate balance calculations.",
@@ -1175,18 +1176,89 @@ async def get_actual_balances_with_lending(api: BackpackAPI) -> dict[str, dict[s
                         "true_total": total_qty,
                     }
 
-        return result
-
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get balances with lending: {e}. "
             "Balance retrieval is a critical operation for trading tests.",
         ) from e
+    else:
+        return result
 
 
 # =============================================================================
 # Margin and Account Helpers
 # =============================================================================
+
+
+def _parse_margin_factor(raw_value: str, factor_type: str) -> Decimal:
+    """Parse a margin factor from raw string value.
+
+    Args:
+        raw_value: Raw string value from the exchange
+        factor_type: Type of factor (for error messages)
+
+    Returns:
+        Parsed Decimal value
+
+    Raises:
+        ValueError: If the value cannot be parsed
+    """
+    try:
+        return Decimal(raw_value)
+    except (ValueError, TypeError, AttributeError) as e:
+        raise ValueError(
+            f"Failed to parse {factor_type} factor '{raw_value}': {e}. "
+            "Margin factors must be valid decimal values.",
+        ) from e
+
+
+def _extract_margin_factors(account_summary: MarginAccountSummary) -> dict[str, Decimal | None]:
+    """Extract margin factors from account summary.
+
+    Args:
+        account_summary: Account summary with bp_details
+
+    Returns:
+        Dict with margin factors
+    """
+    params: dict[str, Decimal | None] = {
+        "margin_fraction": None,
+        "initial_margin_factor": None,
+        "maintenance_margin_factor": None,
+    }
+
+    if account_summary.bp_details:
+        params["margin_fraction"] = account_summary.bp_details.margin_fraction
+
+        if account_summary.bp_details.imf_raw:
+            params["initial_margin_factor"] = _parse_margin_factor(
+                account_summary.bp_details.imf_raw, "initial margin"
+            )
+
+        if account_summary.bp_details.mmf_raw:
+            params["maintenance_margin_factor"] = _parse_margin_factor(
+                account_summary.bp_details.mmf_raw, "maintenance margin"
+            )
+
+    return params
+
+
+async def _check_account_activity(api: BackpackAPI) -> dict[str, Decimal]:
+    """Check if account has positions or open orders.
+
+    Args:
+        api: Backpack API instance
+
+    Returns:
+        Dict with activity flags as Decimal values
+    """
+    positions = await api.get_positions()
+    open_orders = await api.get_open_orders()
+
+    return {
+        "has_positions": Decimal(1) if len(positions) > 0 else Decimal(0),
+        "has_open_orders": Decimal(1) if len(open_orders) > 0 else Decimal(0),
+    }
 
 
 async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal | None]:
@@ -1211,81 +1283,20 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         # Get account summary which includes margin info
         account_summary = await api.get_account_summary()
 
-        params: dict[str, Decimal | bool | None] = {
-            "margin_fraction": None,
-            "initial_margin_factor": None,
-            "maintenance_margin_factor": None,
-            "has_positions": False,
-            "has_open_orders": False,
-        }
+        # Extract margin factors
+        result = _extract_margin_factors(account_summary)
 
-        if account_summary.bp_details:
-            params["margin_fraction"] = account_summary.bp_details.margin_fraction
+        # Check account activity
+        activity = await _check_account_activity(api)
+        result.update(activity)
 
-            # Parse IMF/MMF from raw strings if available
-            if account_summary.bp_details.imf_raw:
-                try:
-                    params["initial_margin_factor"] = Decimal(account_summary.bp_details.imf_raw)
-                except (ValueError, TypeError, AttributeError) as e:
-                    raise ValueError(
-                        f"Failed to parse initial margin factor "
-                        f"'{account_summary.bp_details.imf_raw}': {e}. "
-                        "Margin factors must be valid decimal values.",
-                    ) from e
-
-            if account_summary.bp_details.mmf_raw:
-                try:
-                    params["maintenance_margin_factor"] = Decimal(
-                        account_summary.bp_details.mmf_raw,
-                    )
-                except (ValueError, TypeError, AttributeError) as e:
-                    raise ValueError(
-                        f"Failed to parse maintenance margin factor "
-                        f"'{account_summary.bp_details.mmf_raw}': {e}. "
-                        "Margin factors must be valid decimal values.",
-                    ) from e
-
-        # Check for positions
-        positions = await api.get_positions()
-        params["has_positions"] = len(positions) > 0
-
-        # Check for open orders
-        open_orders = await api.get_open_orders()
-        params["has_open_orders"] = len(open_orders) > 0
-
-        # Convert to proper return type
-        result: dict[str, Decimal | None] = {}
-
-        # Add Decimal values
-        mf = params.get("margin_fraction")
-        if isinstance(mf, Decimal):
-            result["margin_fraction"] = mf
-        else:
-            result["margin_fraction"] = None
-
-        imf = params.get("initial_margin_factor")
-        if isinstance(imf, Decimal):
-            result["initial_margin_factor"] = imf
-        else:
-            result["initial_margin_factor"] = None
-
-        mmf = params.get("maintenance_margin_factor")
-        if isinstance(mmf, Decimal):
-            result["maintenance_margin_factor"] = mmf
-        else:
-            result["maintenance_margin_factor"] = None
-
-        # Convert booleans to Decimal for consistency with return type
-        result["has_positions"] = Decimal(1) if params.get("has_positions") else Decimal(0)
-        result["has_open_orders"] = Decimal(1) if params.get("has_open_orders") else Decimal(0)
-
-        return result
-
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get margin parameters: {e}. "
             "Margin parameter retrieval is critical for risk management tests.",
         ) from e
+    else:
+        return result
 
 
 def validate_margin_consistency(
@@ -1431,7 +1442,7 @@ async def get_unreasonably_large_price(
         large_price = current_price * multiplier
         tick_size = await get_symbol_tick_size(api, symbol)
         return large_price.quantize(tick_size).normalize()
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get unreasonably large price for {symbol}: {e}. "
@@ -1463,7 +1474,7 @@ async def get_unreasonably_large_quantity(
         large_quantity = max(min_quantity * multiplier, Decimal(1000))
         step_size = constraints["step_size"]
         return large_quantity.quantize(step_size).normalize()
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
             f"Failed to get unreasonably large quantity for {symbol}: {e}. "

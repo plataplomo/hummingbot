@@ -61,8 +61,10 @@ class BackpackDataCollector:
                 symbols=self.configured_symbols,
             )
 
-        except Exception as e:
-            logger.error("configuration_load_failed: Failed to load configuration", error=str(e))
+        except (ValueError, ImportError, AttributeError, KeyError) as e:
+            logger.exception(
+                "configuration_load_failed: Failed to load configuration", error=str(e)
+            )
             # Fallback to hardcoded values for data collection
             self.api_base_url = "https://api.backpack.exchange"
             self.configured_symbols = {"BTC": "BTC_USDC", "SOL": "SOL_USDC"}
@@ -91,8 +93,8 @@ class BackpackDataCollector:
                     response_text=await response.text(),
                 )
                 return None
-        except Exception as e:
-            logger.error("fetch_json_error: Error fetching data", url=url, error=str(e))
+        except (OSError, ConnectionError, TimeoutError, ValueError) as e:
+            logger.exception("fetch_json_error: Error fetching data", url=url, error=str(e))
             return None
 
     async def _fetch_text(self, url: str, params: dict[str, Any] | None = None) -> str | None:
@@ -111,8 +113,8 @@ class BackpackDataCollector:
                     response_text=await response.text(),
                 )
                 return None
-        except Exception as e:
-            logger.error("fetch_text_error: Error fetching text", url=url, error=str(e))
+        except (OSError, ConnectionError, TimeoutError, ValueError) as e:
+            logger.exception("fetch_text_error: Error fetching text", url=url, error=str(e))
             return None
 
     def _save_json(self, data: dict[str, Any], filename: str) -> None:
@@ -122,8 +124,10 @@ class BackpackDataCollector:
             json_content = json.dumps(data, indent=2, ensure_ascii=False)
             filepath.write_text(json_content, encoding="utf-8")
             logger.info("fixture_saved: Saved JSON fixture", filepath=str(filepath))
-        except Exception as e:
-            logger.error("save_json_error: Error saving JSON", filepath=str(filepath), error=str(e))
+        except (OSError, UnicodeEncodeError, PermissionError) as e:
+            logger.exception(
+                "save_json_error: Error saving JSON", filepath=str(filepath), error=str(e)
+            )
 
     def _save_text(self, data: str, filename: str) -> None:
         """Save text data to a file."""
@@ -131,8 +135,10 @@ class BackpackDataCollector:
         try:
             filepath.write_text(data, encoding="utf-8")
             logger.info("fixture_saved: Saved text fixture", filepath=str(filepath))
-        except Exception as e:
-            logger.error("save_text_error: Error saving text", filepath=str(filepath), error=str(e))
+        except (OSError, UnicodeEncodeError, PermissionError) as e:
+            logger.exception(
+                "save_text_error: Error saving text", filepath=str(filepath), error=str(e)
+            )
 
     # System endpoints
     async def fetch_ping(self) -> None:
@@ -464,7 +470,7 @@ async def main() -> None:
         app_settings = get_app_settings()
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")
-    except Exception as e:
+    except (ImportError, AttributeError, ValueError, KeyError, OSError) as e:
         logger.warning(
             "configuration_init_failed: Failed to initialize configuration. Using basic logging.",
             error=str(e),

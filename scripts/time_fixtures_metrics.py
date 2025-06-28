@@ -84,7 +84,7 @@ def analyze_test_file(file_path: Path) -> dict[str, Any]:
                 else ("needs_migration" if uses_old_mocking else "no_mocking")
             ),
         }
-    except Exception as e:
+    except (OSError, UnicodeDecodeError, SyntaxError) as e:
         return {"path": str(file_path), "error": str(e)}
 
 

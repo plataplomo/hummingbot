@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
@@ -126,6 +127,6 @@ async def test_hl_get_perp_market_data_eth_1h_success(
                     f"ETH historical price {candle.close} outside reasonable range "
                     f"[{min_reasonable}, {max_reasonable}] vs current {current_price}"
                 )
-            except Exception:
+            except (APIError, ValueError, TypeError, KeyError):
                 # If we can't get current price, just validate positive
                 assert candle.close > Decimal(0), f"ETH price should be positive: {candle.close}"

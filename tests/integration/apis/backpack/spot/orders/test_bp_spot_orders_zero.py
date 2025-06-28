@@ -255,7 +255,7 @@ class TestBackpackOrdersZeroBalance:
                     ),
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # Some malformed symbols might fail at Pydantic validation level
                 logger.info(
                     "malformed_symbol_validation_error",
@@ -651,7 +651,7 @@ class TestBackpackOrdersZeroBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-                except Exception as cleanup_error:
+                except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                     logger.debug(
                         "cleanup_cancellation_failed",
                         error=str(cleanup_error),
@@ -793,7 +793,7 @@ class TestBackpackOrdersZeroBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
-                except Exception as cleanup_error:
+                except (APIError, ValueError, TypeError, KeyError) as cleanup_error:
                     logger.debug(
                         "cleanup_cancellation_failed",
                         error=str(cleanup_error),
@@ -1324,7 +1324,7 @@ class TestBackpackOrdersZeroBalance:
                         ),
                     )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # Multi-symbol tests should work even with zero balance
                 pytest.fail(
                     f"Failed to test zero balance behavior for symbol {symbol}: {e}. "
@@ -1527,7 +1527,7 @@ class TestBackpackOrdersZeroBalance:
                         ),
                     )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 pytest.fail(
                     f"Edge case '{test_case['name']}' failed unexpectedly: {e}. "
                     "API validation testing is critical for trading safety.",
@@ -1637,7 +1637,7 @@ class TestBackpackOrdersZeroBalance:
         except TimeoutError:
             logger.info("✓ Network timeout occurred - acceptable behavior")
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             if "timeout" in str(e).lower():
                 logger.info(
                     "timeout_error_handled",

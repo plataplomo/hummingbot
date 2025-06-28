@@ -41,8 +41,8 @@ async def fetch_backpack_time() -> None:
             api_base_url=api_base_url,
         )
 
-    except Exception as e:
-        logger.error("config_load_failed: Failed to load configuration", error=str(e))
+    except (ValueError, ImportError, AttributeError, KeyError) as e:
+        logger.exception("config_load_failed: Failed to load configuration", error=str(e))
         # Fallback to hardcoded value
         api_base_url = "https://api.backpack.exchange"
         logger.warning("fallback_api_url: Using fallback API URL", api_base_url=api_base_url)
@@ -88,8 +88,8 @@ async def fetch_backpack_time() -> None:
                         url=url,
                         response_text=await response.text(),
                     )
-        except Exception as e:
-            logger.error("fetch_error: Error fetching URL", url=url, error=str(e))
+        except (OSError, ConnectionError, TimeoutError, ValueError) as e:
+            logger.exception("fetch_error: Error fetching URL", url=url, error=str(e))
 
 
 if __name__ == "__main__":

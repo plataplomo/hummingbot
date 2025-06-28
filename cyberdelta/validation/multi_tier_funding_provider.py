@@ -298,9 +298,7 @@ class MultiTierFundingProvider:
                     f"{exchange}:{symbol} with confidence {confidence_score:.2f}"
                 ),
             )
-            return integrated_data.rate, confidence_score
-
-        except Exception as e:
+        except (FundingRateSourceError, ValueError, TypeError, KeyError) as e:
             logger.warning(
                 "funding_rate_error",
                 error=str(e),
@@ -324,9 +322,8 @@ class MultiTierFundingProvider:
                         f"Using fallback funding rate {fallback_rate:.6f} for {exchange}:{symbol}"
                     ),
                 )
-                return fallback_rate, fallback_confidence
             except Exception as fallback_error:
-                logger.error(
+                logger.exception(
                     "all_funding_sources_failed",
                     exchange=exchange,
                     symbol=symbol,
@@ -340,6 +337,10 @@ class MultiTierFundingProvider:
                 raise FundingRateSourceError(
                     f"No funding rate data available for {exchange}:{symbol}",
                 ) from fallback_error
+            else:
+                return fallback_rate, fallback_confidence
+        else:
+            return integrated_data.rate, confidence_score
 
     async def _get_primary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
         """Get funding rate from primary source.
@@ -387,7 +388,7 @@ class MultiTierFundingProvider:
                 raw_data=raw_data,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.warning(
                 "primary_source_failed",
                 exchange=exchange,
@@ -443,7 +444,7 @@ class MultiTierFundingProvider:
                 raw_data=raw_data,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.warning(
                 "secondary_source_failed",
                 exchange=exchange,
@@ -499,7 +500,7 @@ class MultiTierFundingProvider:
                 raw_data=raw_data,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.warning(
                 "tertiary_source_failed",
                 exchange=exchange,
@@ -582,8 +583,8 @@ class MultiTierFundingProvider:
 
             return adjusted_rate, float(adjusted_confidence)
 
-        except Exception as e:
-            logger.error(
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            logger.exception(
                 "fallback_source_failed",
                 exchange=exchange,
                 symbol=symbol,
@@ -788,7 +789,7 @@ class MultiTierFundingProvider:
 
             return float(accuracy_score)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.warning(
                 "historical_accuracy_error",
                 exchange=exchange,

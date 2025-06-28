@@ -165,7 +165,7 @@ def migrate_file(file_path: Path, dry_run: bool = False) -> tuple[bool, str]:
 
         return True, f"✅ {file_path} - migrated {len(migrator.patches_found)} patches"
 
-    except Exception as e:
+    except (OSError, UnicodeDecodeError, UnicodeEncodeError, SyntaxError) as e:
         return False, f"❌ {file_path} - error: {e!s}"
 
 

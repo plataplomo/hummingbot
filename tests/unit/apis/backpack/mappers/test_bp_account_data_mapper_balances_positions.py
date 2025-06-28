@@ -11,7 +11,7 @@ Tests balance and position transformation methods with various scenarios includi
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from unittest.mock import patch
 
 import pytest
@@ -464,7 +464,7 @@ class TestPositionTransformation:
                 # For other fields, return a valid decimal if possible
                 try:
                     return Decimal(str(value)) if value else None
-                except Exception:
+                except (ValueError, TypeError, InvalidOperation):
                     return None
 
             mock_parse.side_effect = side_effect
@@ -575,7 +575,7 @@ class TestPositionTransformation:
                 if not field_name:  # When field_name is empty string, parse normally
                     try:
                         return Decimal(str(value)) if value else None
-                    except Exception:
+                    except (ValueError, TypeError, InvalidOperation):
                         return None
                 # For raw.mark_price and raw.est_liquidation_price calls
                 if "mark_price" in str(value) or "est_liquidation_price" in str(value):
@@ -583,7 +583,7 @@ class TestPositionTransformation:
                 # For other fields, try to parse normally
                 try:
                     return Decimal(str(value)) if value else None
-                except Exception:
+                except (ValueError, TypeError, InvalidOperation):
                     return None
 
             mock_parse.side_effect = side_effect

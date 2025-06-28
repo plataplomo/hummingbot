@@ -197,7 +197,7 @@ class HyperliquidTradingService:
             APIError instance with appropriate error details.
         """
         if isinstance(error, TransformationError):
-            logger.exception(
+            logger.error(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -213,7 +213,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             )
         if isinstance(error, ValidationError):
-            logger.exception(
+            logger.error(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -234,7 +234,7 @@ class HyperliquidTradingService:
             if current_method in error_msg:
                 # Re-raise input validation errors
                 raise error
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -249,7 +249,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
-        logger.exception(
+        logger.error(
             "unexpected_service_failure",
             action=current_method,
             exchange=self._exchange_name,
@@ -378,7 +378,6 @@ class HyperliquidTradingService:
                     status_code=status_code,
                 )
             )
-            return validated_response.items
         except APIError as e:
             logger.exception(
                 "hl_trading_service_get_open_orders_api_error",
@@ -398,6 +397,8 @@ class HyperliquidTradingService:
             )
             error_msg_unexpected = f"Unexpected error fetching open orders raw: {e}"
             raise APIError(error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
+        else:
+            return validated_response.items
 
     async def _get_order_status_raw(
         self,
@@ -461,7 +462,6 @@ class HyperliquidTradingService:
                     status=historical_order_response.status,
                     statusTimestamp=historical_order_response.status_timestamp,
                 )
-            return None
 
         except APIError as e:
             # Check if this is a validation error that indicates "unknownOid" response
@@ -495,6 +495,8 @@ class HyperliquidTradingService:
             )
             error_msg_unexpected = f"Unexpected error fetching order status raw: {e}"
             raise APIError(error_msg_unexpected, APIErrorCode.UNKNOWN.value) from e
+        else:
+            return None
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Retrieve a specific order by ID for a given symbol.
@@ -1302,7 +1304,7 @@ class HyperliquidTradingService:
         # Process available statuses
         for i, status in enumerate(response_data.statuses):
             if i >= len(original_orders):
-                logger.exception(
+                logger.error(
                     "hl_trading_service_batch_unexpected_status",
                     action="process_batch_order_statuses",
                     message="Unexpected extra status in batch response",
@@ -1562,7 +1564,6 @@ class HyperliquidTradingService:
                 message="[%s] Retrieved %s open orders (symbol filter: %s)",
                 message_args=(self._exchange_name, len(internal_orders), symbol),
             )
-            return internal_orders
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -1574,6 +1575,8 @@ class HyperliquidTradingService:
                 status_code,
                 raw_response_content,
             )
+        else:
+            return internal_orders
 
     def _process_raw_orders_to_internal(
         self,
@@ -1617,7 +1620,7 @@ class HyperliquidTradingService:
     ) -> list[Order]:
         """Handle errors during get_open_orders processing."""
         if isinstance(error, TransformationError):
-            logger.exception(
+            logger.error(
                 "transform_exchange_data_error",
                 message="[%s] %s: Failed to transform exchange data: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1630,7 +1633,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from error
         if isinstance(error, ValidationError):
-            logger.exception(
+            logger.error(
                 "internal_validation_error",
                 message="[%s] %s: Internal data validation failed: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1650,7 +1653,7 @@ class HyperliquidTradingService:
             ):
                 # Re-raise input validation errors
                 raise
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 message="[%s] %s: Service internal logic error: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1660,7 +1663,7 @@ class HyperliquidTradingService:
                 message="Service internal logic error.",
                 original_exception=error,
             ) from error
-        logger.exception(
+        logger.error(
             "unexpected_service_failure",
             message="[%s] %s: Unexpected service failure: %s",
             message_args=(self._exchange_name, current_method, error),
@@ -1738,7 +1741,9 @@ class HyperliquidTradingService:
         """Validate cancel args list."""
         if not cancel_args:
             if len(cancel_args) == 0 and "batch" in current_method:
-                error_msg_empty_cancel_batch = f"[{current_method}] Cannot cancel empty batch of orders"
+                error_msg_empty_cancel_batch = (
+                    f"[{current_method}] Cannot cancel empty batch of orders"
+                )
                 raise ValueError(error_msg_empty_cancel_batch)
             error_msg_empty_cancel_list = f"[{current_method}] Cannot cancel empty order list"
             raise ValueError(error_msg_empty_cancel_list)
@@ -1969,7 +1974,7 @@ class HyperliquidTradingService:
                 )
 
             # If we reach here, something unexpected happened
-            logger.exception(
+            logger.error(
                 "hl_trading_service_cancel_unexpected_response",
                 action="process_cancel_order_response",
                 message="Unexpected response structure for cancel order",
@@ -2112,7 +2117,7 @@ class HyperliquidTradingService:
             # valid_orders contains only orders with non-None exchange_order_id
             if order.exchange_order_id is None:
                 # This should never happen due to filtering above, but handle gracefully
-                logger.exception(
+                logger.error(
                     "unexpected_none_exchange_order_id",
                     message="[%s] Unexpected None exchange_order_id in valid_orders",
                     message_args=(self._exchange_name,),
@@ -2277,7 +2282,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to invalid order ID format.
         """
-        logger.exception(
+        logger.error(
             "invalid_order_id_format",
             message="[%s] Invalid order_id format '%s' for cancellation.",
             message_args=(self._exchange_name, order_id_to_cancel_str),
@@ -2303,7 +2308,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to API error.
         """
-        logger.exception(
+        logger.error(
             "api_error_cancel_order",
             message="[%s] APIError cancelling order %s for %s: %s",
             message_args=(
@@ -2338,7 +2343,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to unexpected error.
         """
-        logger.exception(
+        logger.error(
             "unexpected_error_cancel_order",
             message="[%s] Unexpected error cancelling order %s for %s: %s",
             message_args=(
@@ -2484,8 +2489,10 @@ class HyperliquidTradingService:
             # Re-raise APIErrors that may already have proper error codes
             raise
         except (OSError, ConnectionError, TimeoutError) as e:
-            # Handle any other unexpected errors  
-            error_msg_unexpected_orderbook = f"Unexpected error fetching order book for {symbol}: {e!s}"
+            # Handle any other unexpected errors
+            error_msg_unexpected_orderbook = (
+                f"Unexpected error fetching order book for {symbol}: {e!s}"
+            )
             raise APIError(
                 message=error_msg_unexpected_orderbook,
                 code=APIErrorCode.UNKNOWN.value,

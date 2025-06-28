@@ -967,8 +967,6 @@ class PositionReconciliationSystem:
                     f"Has Discrepancies: {current_exchange_results.get('has_discrepancies')}"
                 ),
             )
-            return current_exchange_results
-
         except Exception as e:
             self.logger.exception(
                 "prs_reconcile_exchange_error",
@@ -1001,6 +999,8 @@ class PositionReconciliationSystem:
             error_result_for_exchange["discrepancies"].append(exchange_error_historical_record)
             # self.latest_results should be updated by the caller (check_positions)
             return error_result_for_exchange
+        else:
+            return current_exchange_results
 
     async def _fetch_api_positions(self, api_clients: dict[str, ExchangeAPI]) -> dict[str, Any]:
         """Fetch positions from all API clients concurrently."""

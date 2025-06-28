@@ -1272,9 +1272,11 @@ class BackpackAccountDataMapper:
                 trade_id=raw.id,
                 action="skipping",
             )
-            return None
+
         except Exception as e:
             raise TransformationError(f"Failed to transform raw trade to internal: {e}") from e
+        else:
+            return None
 
     @staticmethod
     def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:

@@ -74,7 +74,7 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
         issues.extend(_check_datetime_patches(file_path, content, lines))
         issues.extend(_check_time_patches(file_path, content, lines))
 
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         issues.append(f"{file_path}: Error reading file: {e!s}")
 
     return len(issues) == 0, issues

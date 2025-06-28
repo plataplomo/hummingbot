@@ -27,6 +27,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetOrderHistoryArgs,
@@ -238,7 +239,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                         order_id=order.exchange_order_id,
                         message="Order cleaned up successfully",
                     )
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
@@ -364,7 +365,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                         order_id=order.exchange_order_id,
                         message="Order cleaned up successfully",
                     )
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
@@ -488,7 +489,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                         order_id=order.exchange_order_id,
                         message="Order cleaned up successfully",
                     )
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
@@ -617,7 +618,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                         order_id=order.exchange_order_id,
                         message="Order cleaned up successfully",
                     )
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
                         f"Failed to cancel {order_name} order {order.exchange_order_id}: {e}. "
@@ -724,14 +725,14 @@ class TestBackpackPerpOrdersPositiveBalance:
                         )
                         await bp_api_for_test_env.cancel_order(cancel_args)
                         logger.info("✓ Perp stop loss order cancelled")
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError) as e:
                         pytest.fail(
                             f"Failed to cancel stop loss order "
                             f"{stop_order.exchange_order_id}: {e}. "
                             "Order cancellation is critical and must work reliably.",
                         )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError) as e:
                 # Stop loss placement failures are business logic - some are expected
                 if (
                     "position" in str(e).lower()
@@ -951,7 +952,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     message="Conditional order placed successfully",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError) as e:
                 # FAIL FAST - Any order placement failure is a real problem
                 pytest.fail(
                     f"Failed to place {order_name} conditional order: {e}. "
@@ -979,7 +980,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
                     cleanup_success += 1
-                except Exception as e:
+                except (APIError, ValueError, TypeError) as e:
                     # Cancellation failures are critical - if we can place orders,
                     # we must be able to cancel them
                     pytest.fail(
@@ -1023,7 +1024,7 @@ class TestBackpackPerpOrdersPositiveBalance:
             assert placed_order.quantity_requested == min_size, (
                 "Quantity should match requested minimum"
             )
-        except Exception as e:
+        except (APIError, ValueError, TypeError) as e:
             # If this fails, there's a real problem with our test setup or market constraints
             pytest.fail(
                 f"Failed to place minimum size perp order for {symbol}: {e}. "
@@ -1140,7 +1141,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                 "Market order should be filled or partially filled"
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError) as e:
             # Market orders should work if we have margin - this is a real failure
             pytest.fail(
                 f"Failed to place perp market order for {symbol}: {e}. "
@@ -1215,7 +1216,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                     CancelOrderArgs(symbol=symbol, order_id=sell_order.exchange_order_id),
                 )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError) as e:
             # Concurrent order placement failures indicate real system problems
             pytest.fail(
                 f"Concurrent order placement failed: {e}. "
@@ -1274,7 +1275,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                 order = await bp_api_for_test_env.place_order(place_args)
                 assert isinstance(order, Order), "Should place order despite funding rate"
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError) as e:
             # Funding rate order placement failures indicate real system problems
             pytest.fail(
                 f"Order placement with funding rate awareness failed: {e}. "
@@ -1351,7 +1352,7 @@ class TestBackpackPerpOrdersPositiveBalance:
                 message="Order placed successfully with margin calculations",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError) as e:
             error_msg = str(e).lower()
             # Check if this is a margin-related business error (expected)
             if any(

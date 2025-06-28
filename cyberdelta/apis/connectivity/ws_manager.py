@@ -178,7 +178,6 @@ class WebSocketManager:
                 connection_coroutine,
                 name=f"{self._exchange_name}_ws_establish_conn",
             )
-            return self._connection_task
         except RuntimeError as e:
             if "no running event loop" in str(e):
                 self._logger.debug(
@@ -195,7 +194,7 @@ class WebSocketManager:
                 return None
             raise
         except Exception as e:
-            self._logger.error(
+            self._logger.exception(
                 "connection_task_creation_failed",
                 action="connect",
                 error_details=str(e),
@@ -205,6 +204,8 @@ class WebSocketManager:
             if connection_coroutine:
                 connection_coroutine.close()
             return None
+        else:
+            return self._connection_task
 
     async def _establish_connection(self) -> None:
         """Establishes and maintains the WebSocket connection.
@@ -321,10 +322,8 @@ class WebSocketManager:
             await self._setup_connection_tasks()
             await self._execute_connection_callback()
 
-            return True
-
         except asyncio.CancelledError:
-            self._logger.error(
+            self._logger.exception(
                 "connection_attempt_cancelled",
                 action="attempt_single_connection",
                 message="Connection attempt cancelled.",
@@ -359,6 +358,8 @@ class WebSocketManager:
             )
             self._reset_connection_state()
             return False
+        else:
+            return True
 
     async def _establish_websocket_connection(self) -> None:
         """Establish the actual WebSocket connection."""
@@ -571,7 +572,7 @@ class WebSocketManager:
             was_cancelled_flag = True
             await self._handle_cancelled_listener()
             raise
-        except Exception as e:
+        except (ConnectionError, OSError, TimeoutError) as e:
             await self._handle_listener_exception(e, original_connection)
         finally:
             await self._cleanup_listener(original_connection, was_cancelled_flag)
@@ -1002,7 +1003,6 @@ class WebSocketManager:
                 ),
             )
             await self._ws_connection.send_json(payload_to_send)
-            return True
         except asyncio.CancelledError:
             self._logger.warning(
                 "send_json_operation_cancelled",
@@ -1011,7 +1011,7 @@ class WebSocketManager:
             )
             return False
         except ConnectionResetError:
-            self._logger.error(
+            self._logger.exception(
                 "connection_reset_during_send_json",
                 action="send_json",
                 ws_url=self._ws_url,
@@ -1032,6 +1032,8 @@ class WebSocketManager:
                 message=f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
             )
             return False
+        else:
+            return True
 
     async def close(self) -> None:
         """Gracefully closes the WebSocket connection and cleans up resources."""
@@ -1075,7 +1077,7 @@ class WebSocketManager:
                     action="cancel_connection_task",
                     message="Connection task successfully cancelled during close.",
                 )
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 self._logger.warning(
                     "connection_task_cancellation_error",
                     action="cancel_connection_task",
@@ -1146,7 +1148,7 @@ class WebSocketManager:
                 message=f"{task_type.title()} task {task_name} successfully cancelled and awaited.",
             )
         except TimeoutError:
-            self._logger.error(
+            self._logger.exception(
                 "task_cancellation_timeout",
                 action="await_task_cancellation",
                 task_type=task_type,
@@ -1223,7 +1225,6 @@ class WebSocketManager:
                     f"WS connection to {self._ws_url} (id: {id(ws_conn)}) closed by explicit call."
                 ),
             )
-            return True
         except Exception as e:
             self._logger.exception(
                 "websocket_connection_close_error",
@@ -1233,6 +1234,8 @@ class WebSocketManager:
                 message=f"Error during explicit close of WS connection {id(ws_conn)}: {e}",
             )
             return False
+        else:
+            return True
 
     async def _close_session(self) -> None:
         """Close the aiohttp session if it was created internally."""

@@ -189,7 +189,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 message="Successfully placed order",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Failed to place limit order for {symbol}: {e}")
 
     @pytest.mark.vcr
@@ -278,7 +278,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                     message="Using existing order for cancellation test",
                 )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Failed to get open orders or create order: {e}")
 
         # Now cancel the selected order
@@ -352,5 +352,5 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 pytest.skip(f"Order {order_id} is not in cancellable state: {e}")
             else:
                 pytest.fail(f"Unexpected API error during order cancellation: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             pytest.fail(f"System error during order cancellation: {e}")

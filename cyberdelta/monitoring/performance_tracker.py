@@ -689,7 +689,7 @@ class PerformanceTracker:
                     columns="symbol",
                     values="funding_rate",
                 )
-            except Exception as e:
+            except (ValueError, KeyError) as e:
                 logger.warning(
                     "funding_rate_pivot_failed",
                     error=str(e),

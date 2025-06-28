@@ -356,7 +356,7 @@ class TestErrorHandlingAndExceptions:
         with structlog.testing.capture_logs() as captured_logs:
             try:
                 trading_data_mapper.transform_raw_order_to_internal(problematic_order)
-            except Exception as e:
+            except (TransformationError, ValueError, TypeError, AttributeError) as e:
                 # We expect this to fail, we're testing logging
                 logger.debug(
                     "expected_exception_during_robustness_test",

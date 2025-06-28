@@ -851,7 +851,6 @@ class BackpackTradingService:
                     f"{self._exchange_name}.",
                     code=APIErrorCode.ORDER_NOT_FOUND.value,
                 )
-            return order
 
         except APIError:
             # Re-raise APIErrors from get_order method or self-raised
@@ -920,6 +919,8 @@ class BackpackTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return order
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
         """Cancel all orders, optionally filtered by symbol."""

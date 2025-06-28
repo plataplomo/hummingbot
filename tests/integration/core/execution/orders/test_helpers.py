@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.common import APIError
 
 # Exchange-specific imports
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -151,7 +152,7 @@ class MarketOrderTestHelpers:
 
             raise RuntimeError(f"Unknown exchange: {exchange_name}")
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to get test symbol from {exchange_name}: {e}. "
                 "Market order tests require dynamic symbol discovery from exchange.",
@@ -224,13 +225,13 @@ class MarketOrderTestHelpers:
                 message="Using exchange minimum quantity",
             )
 
-            return minimal_quantity
-
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Failed to get minimal test quantity for {symbol}: {e}. "
                 "Market order tests require real market data.",
             ) from e
+        else:
+            return minimal_quantity
 
     @staticmethod
     async def wait_for_order_fill(
@@ -281,7 +282,7 @@ class MarketOrderTestHelpers:
                                 await asyncio.sleep(0.5)
                                 continue
 
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, KeyError) as e:
                         logger.debug(
                             "error_checking_order_status",
                             error=str(e),
@@ -386,7 +387,7 @@ class MarketOrderTestHelpers:
                             )
                             return True
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 elapsed = int(time.time() - loop_start_time)
                 logger.debug(
                     "error_checking_order_history",
@@ -523,7 +524,7 @@ class MarketOrderTestHelpers:
                 message="No matching trades found for order",
             )
 
-        except Exception as trade_error:
+        except (APIError, ValueError, TypeError, KeyError) as trade_error:
             # Trades endpoint may not be available for all market types (e.g., PERP markets)
             logger.debug(
                 "trade_history_access_failed",
@@ -609,8 +610,8 @@ class MarketOrderTestHelpers:
                         message="Order not found in history after retries",
                     )
 
-            except Exception as e:
-                logger.error(
+            except (APIError, ValueError, TypeError, KeyError) as e:
+                logger.exception(
                     "error_getting_filled_quantity",
                     attempt=attempt + 1,
                     error=str(e),
@@ -648,7 +649,7 @@ class MarketOrderTestHelpers:
                                 order_id=order.exchange_order_id,
                                 message="Cancelled open order",
                             )
-                        except Exception as e:
+                        except (APIError, ValueError, TypeError, KeyError) as e:
                             raise RuntimeError(
                                 f"Failed to cancel order {order.exchange_order_id}: {e}. "
                                 "Order cancellation is critical for test cleanup.",
@@ -657,7 +658,7 @@ class MarketOrderTestHelpers:
             # Note: We don't close positions as that might affect other tests
             # or real trading strategies running on the same account
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             raise RuntimeError(
                 f"Critical error during test cleanup: {e}. "
                 "Test cleanup must succeed to prevent interference.",

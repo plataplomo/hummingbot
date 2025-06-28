@@ -189,7 +189,7 @@ class TestHyperliquidBalancesZeroComprehensive:
                     else:
                         raise  # Re-raise non-rate-limit errors
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # If we can't trigger rate limiting in testnet, skip the test
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
 

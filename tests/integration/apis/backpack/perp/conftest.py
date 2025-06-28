@@ -7,6 +7,7 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 
@@ -49,6 +50,6 @@ async def bp_perp_test_config(
             "max_leverage": int(max_leverage),
         }
 
-    except Exception:
+    except (APIError, ValueError, KeyError) as e:
         # If dynamic fetching fails, skip tests that depend on this fixture
-        pytest.skip("Unable to fetch real market constraints for perp test configuration")
+        pytest.skip(f"Unable to fetch real market constraints for perp test configuration: {e}")

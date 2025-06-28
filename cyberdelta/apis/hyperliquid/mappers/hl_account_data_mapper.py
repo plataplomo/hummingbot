@@ -124,8 +124,6 @@ class HyperliquidAccountDataMapper:
             # Check for other spot assets in asset positions
             HyperliquidAccountDataMapper._process_other_spot_assets(raw_state, spot_balances)
 
-            return spot_balances
-
         except TransformationError:
             # Re-raise TransformationError as-is
             raise
@@ -140,6 +138,8 @@ class HyperliquidAccountDataMapper:
                 f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
                 source_data={"has_margin_summary": hasattr(raw_state, "margin_summary")},
             ) from e
+        else:
+            return spot_balances
 
     @staticmethod
     def _process_usdc_balance(
@@ -285,8 +285,6 @@ class HyperliquidAccountDataMapper:
                         positions,
                     )
 
-            return positions
-
         except TransformationError:
             # Re-raise TransformationError as-is
             raise
@@ -301,6 +299,8 @@ class HyperliquidAccountDataMapper:
                 f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
                 source_data={"has_asset_positions": hasattr(raw_state, "asset_positions")},
             ) from e
+        else:
+            return positions
 
     @staticmethod
     def _process_single_derivative_position(

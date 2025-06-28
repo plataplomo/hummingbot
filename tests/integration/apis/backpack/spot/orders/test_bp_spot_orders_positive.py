@@ -25,6 +25,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     PlaceOrderArgs,
@@ -215,7 +216,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     order_id=placed_order.exchange_order_id,
                     message=f"✓ Stop market order cleaned up: {placed_order.exchange_order_id}",
                 )
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel stop order {placed_order.exchange_order_id}: {e}. "
@@ -293,7 +294,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     order_id=placed_order.exchange_order_id,
                     message=f"✓ Stop limit order cleaned up: {placed_order.exchange_order_id}",
                 )
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel stop limit order {placed_order.exchange_order_id}: {e}. "
@@ -370,7 +371,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         f"✓ Take profit market order cleaned up: {placed_order.exchange_order_id}"
                     ),
                 )
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel take profit order {placed_order.exchange_order_id}: {e}. "
@@ -452,7 +453,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         f"✓ Take profit limit order cleaned up: {placed_order.exchange_order_id}"
                     ),
                 )
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
                     f"Failed to cancel take profit limit order "
@@ -548,14 +549,14 @@ class TestBackpackSpotOrdersPositiveBalance:
                         )
                         await bp_api_for_test_env.cancel_order(cancel_args)
                         logger.info("✓ Stop loss order cancelled")
-                    except Exception as e:
+                    except (APIError, ValueError) as e:
                         # Stop loss cancellation should work if the order was placed
                         pytest.fail(
                             f"Failed to cancel stop loss order: {e}. "
                             "If we can place an order, we should be able to cancel it.",
                         )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Stop loss placement may fail if we don't have a position
                 if "position" in str(e).lower() or "balance" in str(e).lower():
                     logger.info(
@@ -679,7 +680,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     ),
                 )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Order type tests should work with adequate balance
                 pytest.fail(
                     f"Order type {test_case['order_type'].value} test failed: {e}. "
@@ -698,7 +699,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel order {order.exchange_order_id}: {e}. "
@@ -797,7 +798,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     ),
                 )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Precision tests should work with valid market constraints
                 pytest.fail(
                     f"Precision test '{test_case['name']}' failed: {e}. "
@@ -813,7 +814,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel precision test order: {e}. "
@@ -888,7 +889,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     ),
                 )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Large orders may fail due to balance/limits - validate the error type
                 if (
                     "balance" in str(e).lower()
@@ -916,7 +917,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel large order: {e}. "
@@ -989,7 +990,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     message=f"✓ Order placed for {symbol}: {placed_order.exchange_order_id}",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Multi-symbol order placement should work
                 pytest.fail(
                     f"Failed to place order for {symbol}: {e}. "
@@ -1013,7 +1014,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                     message=f"✓ All {len(placed_orders)} orders found in open orders query",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError) as e:
                 # Open orders query should work
                 pytest.fail(
                     f"Failed to validate open orders: {e}. "
@@ -1029,7 +1030,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                         symbol=order.symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                except Exception as e:
+                except (APIError, ValueError) as e:
                     # Order cancellation should work
                     pytest.fail(
                         f"Failed to cancel order for {order.symbol}: {e}. "

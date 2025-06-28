@@ -201,7 +201,7 @@ def _wrap_validate_raw_int(
         val_int = v
     else:
         # Align error message with test_hl_raw_user_fills.py
-        raise ValueError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+        raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
 
     if not allow_negative and val_int < 0:
         # Check if the field name suggests it's a timestamp to use the specific message
@@ -233,7 +233,7 @@ def _wrap_validate_strict_bool(
         # Align message with test_hl_raw_user_fills.py for string input to boolean field
         if type_name == "str":
             raise ValueError(f"{field_name}: Must be a boolean, got str.")
-        raise ValueError(f"{field_name}: Expected a boolean value (True/False), got {type_name}.")
+        raise TypeError(f"{field_name}: Expected a boolean value (True/False), got {type_name}.")
     return handler(v)
 
 
@@ -556,7 +556,7 @@ def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str 
         # DEFENSIVE CHECK: BeforeValidator input `v` can be non-str/non-None
         # despite `Annotated[str | None,...]`. Mypy=None Ruff=[RUF009?]
         field_name = info.field_name or "optional_non_empty_str128_field_hl"
-        raise ValueError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
 
     field_name = info.field_name or "optional_non_empty_str128_field_hl"
     if not v.strip():
@@ -589,7 +589,7 @@ def _validate_optional_non_empty_str1024(v: object, info: ValidationInfo) -> str
         # DEFENSIVE CHECK: BeforeValidator input `v` can be non-str/non-None
         # despite `Annotated[str | None,...]`. Mypy=None Ruff=[RUF009?]
         field_name = info.field_name or "optional_non_empty_str1024_field_hl"
-        raise ValueError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
 
     field_name = info.field_name or "optional_non_empty_str1024_field_hl"
     if not v.strip():
@@ -623,7 +623,7 @@ def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
     field_name_for_error = "s"
 
     if not isinstance(v, str):
-        raise ValueError(f"{field_name_for_error}: Expected string, got {type(v).__name__}")
+        raise TypeError(f"{field_name_for_error}: Expected string, got {type(v).__name__}")
 
     if not v.strip():
         # Test expects "s: String cannot be empty or whitespace"
@@ -669,7 +669,7 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
 
     if not isinstance(v, str):
         field_name = info.field_name or "cloid"
-        raise ValueError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
 
     field_name = info.field_name or "cloid"
 
@@ -860,7 +860,7 @@ RawStatusStringHL = Annotated[
 def _validate_timestamp_ms(value: str | float) -> int:
     """Validate if the value is an integer and a plausible millisecond timestamp."""
     if not isinstance(value, int):
-        raise ValueError(f"Timestamp must be an integer, got {type(value).__name__}")
+        raise TypeError(f"Timestamp must be an integer, got {type(value).__name__}")
 
     if value <= 0:
         raise ValueError("Millisecond timestamp must be positive for Hyperliquid funding history.")

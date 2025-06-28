@@ -99,7 +99,7 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
         """Ensure the root input is a list of dictionaries for user fills."""
         field_name = info.field_name or "user_fills_list"
         if not isinstance(v, list):
-            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
         # CAST 1: For type checker, v is already confirmed list by runtime check
         list_of_objects = cast("list[object]", v)
@@ -108,7 +108,7 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
-                raise ValueError(
+                raise TypeError(
                     f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
                     f"got {item_type}.",
                 )

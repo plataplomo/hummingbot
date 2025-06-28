@@ -185,11 +185,20 @@ class ExchangeAgnosticMarketOrderExecutor:
                 execution_time_ms=execution_time_ms,
             )
 
-            return order
-
-        except (InsufficientLiquidityError, PriceDeviationError):
-            # Market order failed, re-raise the exception
+        except (InsufficientLiquidityError, PriceDeviationError) as e:
+            # Market order failed, log and re-raise the exception
+            logger.warning(
+                "market_order_execution_failed",
+                symbol=symbol,
+                side=side,
+                quantity=str(quantity),
+                exchange=exchange_name,
+                error=str(e),
+                message="Market order execution failed due to liquidity or price deviation",
+            )
             raise
+        else:
+            return order
 
     async def execute_cross_exchange_arbitrage(
         self,
@@ -264,7 +273,13 @@ async def main() -> None:
             quantity=Decimal("0.01"),
         )
         # Hyperliquid order executed successfully
-    except Exception as e:
+    except (
+        InsufficientLiquidityError,
+        PriceDeviationError,
+        ConnectionError,
+        ValueError,
+        OSError,
+    ) as e:
         # Hyperliquid order failed
         logger.warning(
             "hyperliquid_order_failed",
@@ -281,7 +296,13 @@ async def main() -> None:
             quantity=Decimal("0.01"),
         )
         # Backpack order executed successfully
-    except Exception as e:
+    except (
+        InsufficientLiquidityError,
+        PriceDeviationError,
+        ConnectionError,
+        ValueError,
+        OSError,
+    ) as e:
         # Backpack order failed
         logger.warning(
             "backpack_order_failed",
@@ -298,7 +319,13 @@ async def main() -> None:
             quantity=Decimal("0.1"),
         )
         # Arbitrage executed successfully
-    except Exception as e:
+    except (
+        InsufficientLiquidityError,
+        PriceDeviationError,
+        ConnectionError,
+        ValueError,
+        OSError,
+    ) as e:
         # Arbitrage failed
         logger.warning("arbitrage_failed", message="Arbitrage failed: %s", message_args=(e,))
 

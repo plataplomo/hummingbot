@@ -116,8 +116,8 @@ async def create_test_perp_position(
             return order.exchange_order_id, min_quantity
         raise ValueError("Order placed but no order ID returned")
 
-    except Exception as e:
-        logger.error(
+    except (APIError, ValueError, TypeError, KeyError) as e:
+        logger.exception(
             "failed_to_create_test_position",
             error=str(e),
             message="Failed to create test position",
@@ -232,7 +232,7 @@ class TestBackpackPerpPositionsPrivate:
                 positions = await bp_api_for_test_env.get_positions()
                 assert isinstance(positions, list)
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # Position creation is critical for position tests
                 pytest.fail(
                     f"Failed to create test position: {e}. "
@@ -338,7 +338,7 @@ class TestBackpackPerpPositionsPrivate:
                 await create_test_perp_position(bp_api_for_test_env)
                 logger.info("Created test position for PnL testing")
                 positions = await bp_api_for_test_env.get_positions()
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # PnL calculation is critical for trading
                 pytest.fail(
                     f"Failed to test PnL calculation: {e}. "
@@ -383,7 +383,7 @@ class TestBackpackPerpPositionsPrivate:
                 await create_test_perp_position(bp_api_for_test_env)
                 logger.info("Created test position for margin testing")
                 positions = await bp_api_for_test_env.get_positions()
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 # Margin calculation is critical for trading
                 pytest.fail(
                     f"Failed to test margin calculation: {e}. "

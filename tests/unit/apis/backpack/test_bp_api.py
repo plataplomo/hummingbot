@@ -969,7 +969,7 @@ class TestBackpackAPIWebSocketOperations:
             await api.subscribe("depth:SOL_USDC", mock_handler)
             # If no exception, the subscription interface works
             assert True
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             # If there's an exception, it should be from the mocked dependencies
             # not from the API interface itself
             pytest.fail(f"Subscription failed: {e}")

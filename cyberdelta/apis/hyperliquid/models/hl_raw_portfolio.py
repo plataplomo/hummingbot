@@ -123,7 +123,7 @@ class HyperliquidRawPortfolioTupleItem(
         """
         field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, list | tuple):
-            raise ValueError(
+            raise TypeError(
                 f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}.",
             )
 
@@ -139,7 +139,7 @@ class HyperliquidRawPortfolioTupleItem(
 
         if not isinstance(element_1_value, dict):
             actual_type_name = type(element_1_value).__name__
-            raise ValueError(
+            raise TypeError(
                 f"Field '{field_name}', element 1: Expected data object to be a dictionary, "
                 f"got {actual_type_name}.",
             )
@@ -168,6 +168,6 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
         """
         field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):
-            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
         return cast("list[object]", v)

@@ -161,7 +161,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
                 pytest.fail(
                     f"Expected 'auth' or 'invalid' in error message, got: {api_error.message}"
                 )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Unexpected exception type: {type(e).__name__}: {e}")
         finally:
             await bad_api.close()
@@ -324,7 +324,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
                     else:
                         raise  # Re-raise non-rate-limit errors
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # If we can't trigger rate limiting, skip the test
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
 

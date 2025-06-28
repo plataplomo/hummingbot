@@ -100,7 +100,7 @@ def analyze_file(file_path: Path) -> dict[str, Any]:
             "has_timing_marker": has_timing_marker,
             "needs_migration": bool(analyzer.patterns_found) and not analyzer.has_frozen_time,
         }
-    except Exception as e:
+    except (OSError, UnicodeDecodeError, SyntaxError) as e:
         return {"error": str(e)}
 
 

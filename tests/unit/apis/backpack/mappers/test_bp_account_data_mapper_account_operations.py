@@ -12,7 +12,7 @@ Tests all public transformation methods with various scenarios including:
 """
 
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal, cast
 from unittest.mock import patch
 
@@ -597,7 +597,7 @@ class TestWithdrawalTransformation:
                 # For other parsing calls, return a valid decimal
                 try:
                     return Decimal(str(value)) if value else None
-                except Exception:
+                except (ValueError, TypeError, InvalidOperation):
                     return None
 
             mock_parse.side_effect = side_effect

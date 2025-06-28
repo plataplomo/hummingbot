@@ -96,10 +96,11 @@ def add_timing_marker(file_path: Path) -> tuple[bool, str]:
             # Write back
             file_path.write_text("\n".join(lines))
             return True, f"✅ {file_path} - added timing marker"
-        return False, f"❌ {file_path} - could not find insertion point"
 
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         return False, f"❌ {file_path} - error: {e!s}"
+    else:
+        return False, f"❌ {file_path} - could not find insertion point"
 
 
 def main() -> int:

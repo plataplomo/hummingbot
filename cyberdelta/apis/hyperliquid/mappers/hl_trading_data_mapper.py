@@ -144,7 +144,6 @@ class HyperliquidTradingDataMapper:
                     message="Mapping unknown order status to UNKNOWN",
                 )
 
-            return mapped_status
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
@@ -162,6 +161,8 @@ class HyperliquidTradingDataMapper:
                 source_value=hl_status,
                 original_exception=e,
             ) from e
+        else:
+            return mapped_status
 
     @staticmethod
     def _get_trigger_type(trigger: HyperliquidRawTriggerInfo | None) -> str | None:
@@ -221,7 +222,6 @@ class HyperliquidTradingDataMapper:
                 order_type=str(order_type),
                 message="Unknown orderType structure, defaulting to LIMIT",
             )
-            return OrderType.LIMIT
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
@@ -238,6 +238,8 @@ class HyperliquidTradingDataMapper:
                 source_value=str(order_type),
                 original_exception=e,
             ) from e
+        else:
+            return OrderType.LIMIT
 
     @staticmethod
     def _map_time_in_force(order_type: dict[str, Any]) -> TimeInForce:
@@ -273,7 +275,6 @@ class HyperliquidTradingDataMapper:
                         message="Unknown TIF value, defaulting to GTC",
                     )
 
-            return TimeInForce.GTC
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
@@ -285,6 +286,8 @@ class HyperliquidTradingDataMapper:
                 error=str(e),
             )
             # Default to GTC on error rather than raising per business logic
+            return TimeInForce.GTC
+        else:
             return TimeInForce.GTC
 
     @staticmethod
@@ -342,7 +345,6 @@ class HyperliquidTradingDataMapper:
             if price is not None and price == Decimal(0):
                 price = None
 
-            return quantity_requested, quantity_filled, price
         except TransformationError:
             raise
         except Exception as e:
@@ -356,6 +358,8 @@ class HyperliquidTradingDataMapper:
                 f"Failed to parse order quantities and price: {e}",
                 source_data={"sz": raw_order.sz, "remaining_sz": raw_order.remaining_sz},
             ) from e
+        else:
+            return quantity_requested, quantity_filled, price
 
     @staticmethod
     def transform_raw_order_to_internal(
@@ -575,7 +579,6 @@ class HyperliquidTradingDataMapper:
             if updated_at is None:
                 updated_at = created_at
 
-            return created_at, updated_at
         except TransformationError:
             raise
         except Exception as e:
@@ -592,6 +595,8 @@ class HyperliquidTradingDataMapper:
                     "status_timestamp": raw_order.status_timestamp,
                 },
             ) from e
+        else:
+            return created_at, updated_at
 
     @staticmethod
     def _parse_trigger_info(

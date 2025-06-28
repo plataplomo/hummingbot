@@ -95,7 +95,7 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
         """
         if not isinstance(v, dict):
             field_name = info.field_name or "all_mids_response"
-            raise ValueError(
+            raise TypeError(
                 f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}.",
             )
         return cast("dict[str, object]", v)

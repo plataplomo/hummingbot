@@ -218,7 +218,6 @@ class BackpackMarketDataService:
                 symbol=symbol,
                 internal_ticker=internal_ticker,
             )
-            return internal_ticker
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -283,6 +282,8 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unhandled
+        else:
+            return internal_ticker
 
     async def get_all_tickers(self) -> dict[str, Ticker]:
         """Retrieves tickers for all available markets."""
@@ -441,7 +442,6 @@ class BackpackMarketDataService:
                 symbol=symbol,
                 internal_order_book=internal_order_book,
             )
-            return internal_order_book
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -506,6 +506,8 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unhandled
+        else:
+            return internal_order_book
 
     def _validate_recent_trades_params(
         self,
@@ -620,7 +622,7 @@ class BackpackMarketDataService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "recent_trades_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -635,7 +637,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "recent_trades_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -650,7 +652,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValueError | TypeError):
-            logger.exception(
+            logger.error(
                 "recent_trades_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -664,7 +666,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "recent_trades_unexpected_error: Unexpected error occurred",
             exchange=self._exchange_name,
             method=current_method,
@@ -801,7 +803,7 @@ class BackpackMarketDataService:
         """Handle funding rate errors."""
         if isinstance(error, TransformationError | ValidationError | ValueError | TypeError):
             error_type = type(error).__name__
-            logger.exception(
+            logger.error(
                 "funding_rate_error: Error processing funding rate",
                 exchange=self._exchange_name,
                 error_type=error_type,
@@ -819,7 +821,7 @@ class BackpackMarketDataService:
                 message=f"Failed to process funding rate data: {error_type}",
                 original_exception=error,
             ) from error
-        logger.exception(
+        logger.error(
             "funding_rate_unexpected_error: Unexpected error in funding rate processing",
             exchange=self._exchange_name,
             symbol=symbol,
@@ -875,7 +877,7 @@ class BackpackMarketDataService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "funding_rates_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -889,7 +891,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "funding_rates_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -903,7 +905,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValueError | TypeError):
-            logger.exception(
+            logger.error(
                 "funding_rates_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -916,7 +918,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "funding_rates_unexpected_error: Unexpected service failure",
             exchange=self._exchange_name,
             method=current_method,
@@ -1192,7 +1194,7 @@ class BackpackMarketDataService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for funding rates operations."""
-        logger.exception(
+        logger.error(
             "funding_rates_api_error: Creating API error for funding rates operation",
             exchange=self._exchange_name,
             method=current_method,
@@ -1489,7 +1491,6 @@ class BackpackMarketDataService:
                 symbol=symbol,
                 internal_market=internal_market,
             )
-            return internal_market
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -1554,6 +1555,8 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unhandled
+        else:
+            return internal_market
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
         """Retrieve market metadata for all available markets.
@@ -1637,7 +1640,6 @@ class BackpackMarketDataService:
                 exchange=self._exchange_name,
                 count=len(markets_list),
             )
-            return markets_list
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -1698,6 +1700,8 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unhandled
+        else:
+            return markets_list
 
     def _create_market_data_api_error(
         self,
@@ -1710,7 +1714,7 @@ class BackpackMarketDataService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for market data operations."""
-        logger.exception(
+        logger.error(
             "market_data_api_error: Creating API error for market data operation",
             exchange=self._exchange_name,
             method=current_method,

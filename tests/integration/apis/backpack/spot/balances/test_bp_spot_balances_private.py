@@ -132,7 +132,7 @@ class TestBackpackSpotBalancesPrivate:
                     else:
                         raise
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.skip(f"Could not test rate limiting in current environment: {e}")
 
     @pytest.mark.vcr

@@ -31,7 +31,7 @@ from typing import cast
 
 import structlog
 
-from cyberdelta.config import get_app_settings, get_secrets_config
+from cyberdelta.config import ConfigurationError, get_app_settings, get_secrets_config
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 from cyberdelta.config.structlog_config import get_logger, setup_structlog
@@ -201,8 +201,8 @@ def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
     try:
         app_settings = get_app_settings()
         logger.info("Configuration loaded successfully.")
-    except Exception as e:
-        logger.error(
+    except (ConfigurationError, ValueError, ImportError, OSError) as e:
+        logger.exception(
             "config_load_failed",
             message="Failed to load configuration: %s",
             message_args=(e,),
@@ -213,8 +213,8 @@ def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
     try:
         secrets_config = get_secrets_config()
         logger.info("Secrets loaded successfully.")
-    except Exception as e:
-        logger.error(
+    except (ConfigurationError, ValueError, ImportError, OSError) as e:
+        logger.exception(
             "secrets_load_failed",
             message="Failed to load secrets: %s",
             message_args=(e,),
@@ -446,7 +446,7 @@ def main() -> None:
     try:
         app_settings = get_app_settings()
         setup_structlog(app_settings)
-    except Exception:
+    except (ConfigurationError, ValueError, ImportError, OSError):
         # Fallback to basic setup if config loading fails
 
         # Use a minimal fallback logging setup for examples

@@ -471,7 +471,7 @@ async def _establish_connection_and_verify(
     assert connection_establishment_task is not None
     try:
         await connection_establishment_task
-    except Exception as e:
+    except (asyncio.CancelledError, ConnectionError, ValueError) as e:
         pytest.fail(
             f"_establish_connection call via connect() failed during test setup: {e}",
         )
@@ -1023,11 +1023,8 @@ async def _handle_restarted_listen_task(
             )
             restarted_listen_task.cancel()
             await asyncio.gather(restarted_listen_task, return_exceptions=True)
-        except Exception as e_wait:
-            test_case_logger.error(
-                "[TEST] Error awaiting restarted_listen_task: %r",
-                e_wait,
-            )
+        except asyncio.CancelledError:
+            test_case_logger.exception("[TEST] Error awaiting restarted_listen_task")
 
     await asyncio.sleep(0.1)
     test_case_logger.info(

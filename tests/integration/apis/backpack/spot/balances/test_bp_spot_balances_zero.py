@@ -122,7 +122,7 @@ class TestBackpackSpotBalancesZero:
             else:
                 logger.info("✓ No rate limiting encountered in this test run")
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.skip(f"Rate limiting test unstable in current environment: {e}")
 
     @pytest.mark.vcr
@@ -304,7 +304,7 @@ class TestBackpackSpotBalancesZero:
                     message=f"Request {i + 1}: {len(balances)} assets processed",
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 logger.info(
                     "request_failed",
                     request_number=i + 1,

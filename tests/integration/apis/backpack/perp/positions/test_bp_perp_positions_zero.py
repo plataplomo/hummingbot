@@ -223,7 +223,7 @@ class TestBackpackPerpPositionsZero:
                     message="✓ Empty symbol properly rejected with ValueError",
                 )
 
-            except Exception as e:
+            except (TypeError, KeyError) as e:
                 pytest.fail(
                     f"Unexpected exception type for invalid symbol {symbol}: "
                     f"{type(e).__name__}: {e}",
@@ -334,7 +334,7 @@ class TestBackpackPerpPositionsZero:
                 message="✓ Concurrent requests succeeded",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Unexpected error in concurrent test: {e}")
 
     @pytest.mark.vcr
@@ -354,7 +354,7 @@ class TestBackpackPerpPositionsZero:
             assert isinstance(positions_all, list), "get_positions() should return list"
             assert len(positions_none) == len(positions_all), "None symbol should equal no symbol"
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             logger.info(
                 "none_symbol_test_result",
                 error_message=str(e),

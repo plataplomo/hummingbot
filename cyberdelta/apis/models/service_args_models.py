@@ -299,7 +299,7 @@ class GetOrderHistoryArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):  # Allow int, or str/float that can be int
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint
@@ -347,7 +347,7 @@ class GetMarketDataArgs(BaseModel):
         """Parse limit field as positive integer."""
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint
@@ -363,16 +363,17 @@ class GetMarketDataArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
         try:
             int_val = int(v)
             if int_val < 0:
                 field_name = str(info.field_name)
                 raise ValueError(f"Field '{field_name}' must be non-negative, got {int_val}.")
-            return int_val
         except ValueError as e:
             field_name = str(info.field_name)
             raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+        else:
+            return int_val
 
     @model_validator(mode="after")
     def check_time_range(self) -> "GetMarketDataArgs":
@@ -504,7 +505,7 @@ class GetTradeHistoryArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' must be an integer or convertible.")
+            raise TypeError(f"Field '{field_name}' must be an integer or convertible.")
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint.
@@ -641,7 +642,7 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         if v is None:
             return None
         if not isinstance(v, int | str | float):
-            raise ValueError(f"Field '{info.field_name!s}' must be an integer or convertible.")
+            raise TypeError(f"Field '{info.field_name!s}' must be an integer or convertible.")
         try:
             return int(v)
         except ValueError as e:

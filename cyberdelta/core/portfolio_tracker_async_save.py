@@ -179,10 +179,9 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
                 f"Timestamp: {state_data.get('timestamp', 'unknown')}"
             ),
         )
-        return True
 
     except json.JSONDecodeError as e:
-        logger.error(
+        logger.exception(
             "state_file_decode_failed",
             action="load",
             file_path=state_file_path,
@@ -198,6 +197,8 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
             message=f"Error loading portfolio state: {e}",
         )
         return False
+    else:
+        return True
 
 
 async def _async_write_file(file_path: str, content: str) -> None:

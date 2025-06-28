@@ -219,7 +219,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
         field_name = info.field_name or "open_orders_list"
 
         if not isinstance(v, list):
-            raise ValueError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
 
         # CAST 1: For type checker, v is already confirmed list by runtime check above
         list_of_objects = cast("list[object]", v)
@@ -228,7 +228,7 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
-                raise ValueError(
+                raise TypeError(
                     f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
                     f"got {item_type}.",
                 )
@@ -294,7 +294,7 @@ class HyperliquidRawOrderSpec(BaseModel):
         if value is None:
             return None
         if not isinstance(value, dict):
-            raise ValueError("trigger details must be a dictionary if provided.")
+            raise TypeError("trigger details must be a dictionary if provided.")
 
         if not value:
             raise ValueError("trigger details dictionary cannot be empty if provided.")

@@ -357,7 +357,6 @@ class HttpClient:
                     message=f"Raw JSON response_text in HttpClient: {response_text}",
                 )
                 parsed_json: ParsedJsonResponse = json.loads(response_text)
-                return parsed_json, response.status, processed_headers, raw_response_headers
             except json.JSONDecodeError as je:
                 logger.warning(
                     "json_decode_failed",
@@ -382,6 +381,8 @@ class HttpClient:
                     response_body=response_text,
                     api_error_code=APIErrorCode.INVALID_RESPONSE,
                 ) from je
+            else:
+                return parsed_json, response.status, processed_headers, raw_response_headers
         else:  # Not JSON, return raw text
             # response_text is guaranteed to be non-None and non-empty at this point
             return response_text, response.status, processed_headers, raw_response_headers
@@ -545,7 +546,7 @@ class HttpClient:
                 # Update json_payload with authenticated data
                 json_payload = auth_components.data
             except APIError as e:
-                logger.error(
+                logger.exception(
                     "authentication_preparation_failed",
                     action="setup_request_headers_and_auth",
                     exchange=self.exchange_name,
@@ -733,7 +734,7 @@ class HttpClient:
                 error_body_preview=error_body_text[:200],
                 message=f"[{self.exchange_name}] Error body: {error_body_text[:200]}",
             )
-        except Exception as e_text:
+        except (aiohttp.ClientError, UnicodeDecodeError, Exception) as e_text:
             logger.warning(
                 "could_not_read_error_response_body",
                 action="handle_error_response",

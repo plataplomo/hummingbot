@@ -147,7 +147,7 @@ class HyperliquidAccountService:
     async def _get_raw_clearinghouse_state(self) -> HyperliquidRawClearinghouseState:
         """Fetch and validate the raw HyperliquidClearinghouseState."""
         if not self._wallet_address:
-            logger.exception(
+            logger.error(
                 "wallet_address_not_set",
                 action="fetch_clearinghouse_state",
                 exchange=self._exchange_name,
@@ -300,7 +300,6 @@ class HyperliquidAccountService:
                 balances=internal_balances,
                 message=f"Mapped internal balances: {internal_balances}",
             )
-            return internal_balances
 
         except APIError:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
@@ -365,6 +364,8 @@ class HyperliquidAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return internal_balances
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
         """Retrieve derivative positions, optionally filtered by symbol."""
@@ -384,113 +385,160 @@ class HyperliquidAccountService:
         try:
             # Core operational logic
             raw_clearinghouse_state = await self._get_raw_clearinghouse_state()
-            # Assuming mapper returns Dict[str, DerivativePosition] where key is symbol
             all_positions_dict = (
                 self._account_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                     raw_clearinghouse_state,
                 )
             )
 
-            if symbol:
-                position = all_positions_dict.get(symbol)
-                if position:
-                    logger.debug(
-                        "filtered_position_found",
-                        action="get_positions",
-                        exchange=self._exchange_name,
-                        symbol=symbol,
-                        position=position,
-                        message="Filtered position for symbol '%s': %s",
-                    )
-                    return [position]
-                logger.debug(
-                    "no_position_found",
-                    action="get_positions",
-                    exchange=self._exchange_name,
-                    symbol=symbol,
-                    available_positions=list(all_positions_dict.keys()),
-                    message=("No position found for symbol '%s'. Positions: %s"),
-                    message_args=(symbol, list(all_positions_dict.keys())),
-                )
-                return []
-
-            all_positions_list = list(all_positions_dict.values())
-            logger.debug(
-                "mapped_all_positions",
-                action="get_positions",
-                exchange=self._exchange_name,
-                positions_count=len(all_positions_list),
-                message=f"Mapped all internal positions: {all_positions_list}",
-            )
-            return all_positions_list
+            return self._filter_positions_by_symbol(all_positions_dict, symbol)
 
         except APIError:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
-                "transformation_error",
-                action=current_method,
-                exchange=self._exchange_name,
-                error=str(e_transform),
-                message="Failed to transform exchange data: %s",
+            self._handle_positions_transformation_error(
+                e_transform, current_method, status_code, raw_response_content
             )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
-                "validation_error",
-                action=current_method,
-                exchange=self._exchange_name,
-                error=str(e_val),
-                message="Internal data validation failed: %s",
+            self._handle_positions_validation_error(
+                e_val, current_method, status_code, raw_response_content
             )
-            raise APIError(
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                message="Internal data validation failed.",
-                original_exception=e_val,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            # Distinguish input validation from internal errors per ERROR_HANDLING.md
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and "symbol" in error_msg:
-                # Re-raise input validation errors
-                raise
-            # Wrap internal errors as APIError
-            logger.exception(
-                "service_logic_error",
-                action=current_method,
-                exchange=self._exchange_name,
-                error=str(e_service_logic),
-                message="Service internal logic error: %s",
+            self._handle_positions_service_logic_error(e_service_logic, current_method)
+        except (AttributeError, KeyError, IndexError) as e_unexpected:
+            self._handle_positions_unexpected_error(
+                e_unexpected, current_method, status_code, raw_response_content
             )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.exception(
-                "unexpected_service_failure",
-                action=current_method,
+
+    def _filter_positions_by_symbol(
+        self, all_positions_dict: dict[str, DerivativePosition], symbol: str | None
+    ) -> list[DerivativePosition]:
+        """Filter positions by symbol or return all positions."""
+        if symbol:
+            position = all_positions_dict.get(symbol)
+            if position:
+                logger.debug(
+                    "filtered_position_found",
+                    action="get_positions",
+                    exchange=self._exchange_name,
+                    symbol=symbol,
+                    position=position,
+                    message="Filtered position for symbol '%s': %s",
+                )
+                return [position]
+            logger.debug(
+                "no_position_found",
+                action="get_positions",
                 exchange=self._exchange_name,
-                error=str(e_unexpected),
-                message="Unexpected service failure: %s",
+                symbol=symbol,
+                available_positions=list(all_positions_dict.keys()),
+                message=("No position found for symbol '%s'. Positions: %s"),
+                message_args=(symbol, list(all_positions_dict.keys())),
             )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected
+            return []
+
+        all_positions_list = list(all_positions_dict.values())
+        logger.debug(
+            "mapped_all_positions",
+            action="get_positions",
+            exchange=self._exchange_name,
+            positions_count=len(all_positions_list),
+            message=f"Mapped all internal positions: {all_positions_list}",
+        )
+        return all_positions_list
+
+    def _handle_positions_transformation_error(
+        self,
+        e_transform: TransformationError,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> NoReturn:
+        """Handle transformation errors for positions."""
+        logger.error(
+            "transformation_error",
+            action=current_method,
+            exchange=self._exchange_name,
+            error=str(e_transform),
+            message="Failed to transform exchange data: %s",
+        )
+        raise APIError(
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            message="Failed to process/transform exchange data.",
+            original_exception=e_transform,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e_transform
+
+    def _handle_positions_validation_error(
+        self,
+        e_val: ValidationError,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> NoReturn:
+        """Handle validation errors for positions."""
+        logger.error(
+            "validation_error",
+            action=current_method,
+            exchange=self._exchange_name,
+            error=str(e_val),
+            message="Internal data validation failed: %s",
+        )
+        raise APIError(
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            message="Internal data validation failed.",
+            original_exception=e_val,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e_val
+
+    def _handle_positions_service_logic_error(
+        self, e_service_logic: ValueError | TypeError, current_method: str
+    ) -> NoReturn:
+        """Handle service logic errors for positions."""
+        # Distinguish input validation from internal errors per ERROR_HANDLING.md
+        error_msg = str(e_service_logic)
+        if current_method in error_msg and "symbol" in error_msg:
+            # Re-raise input validation errors
+            raise
+        # Wrap internal errors as APIError
+        logger.error(
+            "service_logic_error",
+            action=current_method,
+            exchange=self._exchange_name,
+            error=str(e_service_logic),
+            message="Service internal logic error: %s",
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Service internal logic error.",
+            original_exception=e_service_logic,
+        ) from e_service_logic
+
+    def _handle_positions_unexpected_error(
+        self,
+        e_unexpected: Exception,
+        current_method: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> NoReturn:
+        """Handle unexpected errors for positions."""
+        logger.error(
+            "unexpected_service_failure",
+            action=current_method,
+            exchange=self._exchange_name,
+            error=str(e_unexpected),
+            message="Unexpected service failure: %s",
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e_unexpected,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e_unexpected
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Retrieve general account information or summary from the clearinghouse state."""
@@ -520,7 +568,6 @@ class HyperliquidAccountService:
                 message="Mapped internal account summary: %s",
                 message_args=(internal_summary,),
             )
-            return internal_summary
 
         except APIError:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
@@ -583,6 +630,8 @@ class HyperliquidAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return internal_summary
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieve historical order data using the 'historicalOrders' endpoint."""
@@ -629,7 +678,14 @@ class HyperliquidAccountService:
             )
         except (ValueError, TypeError) as e_service_logic:
             self._handle_service_logic_error(e_service_logic, "get_order_history")
-        except Exception as e_unexpected:
+        except (
+            OSError,
+            RuntimeError,
+            AttributeError,
+            KeyError,
+            IndexError,
+            ConnectionError,
+        ) as e_unexpected:
             self._handle_unexpected_error(
                 e_unexpected,
                 "get_order_history",
@@ -793,7 +849,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle transformation errors consistently."""
-        logger.exception(
+        logger.error(
             "transformation_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -816,7 +872,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle validation errors consistently."""
-        logger.exception(
+        logger.error(
             "validation_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -837,7 +893,7 @@ class HyperliquidAccountService:
         method_name: str,
     ) -> None:
         """Handle service logic errors consistently."""
-        logger.exception(
+        logger.error(
             "service_logic_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -858,7 +914,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors consistently."""
-        logger.exception(
+        logger.error(
             "unexpected_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -1327,7 +1383,6 @@ class HyperliquidAccountService:
                 message="[%s] Mapped %d internal open orders.",
                 message_args=(self._exchange_name, len(internal_orders)),
             )
-            return internal_orders
 
         except APIError:
             raise
@@ -1357,6 +1412,8 @@ class HyperliquidAccountService:
                 raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
+        else:
+            return internal_orders
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
         """Update account settings such as leverage limits.
@@ -1462,7 +1519,7 @@ class HyperliquidAccountService:
                             ),
                         )
 
-                    except Exception as e:
+                    except (APIError, ValueError, TypeError, AttributeError, KeyError) as e:
                         logger.warning(
                             "leverage_update_failed",
                             message="[%s] Failed to update leverage for %s: %s",

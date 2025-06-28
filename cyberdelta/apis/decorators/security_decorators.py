@@ -134,11 +134,9 @@ class SecureTransform[T: BaseModel]:
                     context=method_context,
                 )
 
-            return validated_model
-
         except ValidationError as e:
             # Maintain existing error pattern
-            logger.error(
+            logger.exception(
                 "security_validation_failed",
                 method_context=method_context,
                 exchange_context=exchange_context,
@@ -153,6 +151,8 @@ class SecureTransform[T: BaseModel]:
             raise TransformationError(
                 f"Security validation failed for {self.target_model.__name__}: {e}",
             ) from e
+        else:
+            return validated_model
 
 
 def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]) -> None:
@@ -162,7 +162,7 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
             try:
                 raw_value = data[field]
                 if not isinstance(raw_value, str | int | float | Decimal):
-                    raise ValueError(f"Field {field} must be numeric, got {type(raw_value)}")
+                    raise TypeError(f"Field {field} must be numeric, got {type(raw_value)}")
                 value = parse_decimal_value(raw_value, allow_none=False, field_name=field)
                 if value is not None and value < 0:
                     raise ValueError(f"Financial field {field} cannot be negative: {value}")

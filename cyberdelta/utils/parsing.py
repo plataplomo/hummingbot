@@ -225,7 +225,7 @@ def validate_str_field(
     """
     prefix = f"{field_name}: " if field_name else ""
     if not isinstance(value, str):
-        raise ValueError(f"{prefix}Expected string, got {type(value).__name__}")
+        raise TypeError(f"{prefix}Expected string, got {type(value).__name__}")
     if not allow_empty and not value.strip():
         raise ValueError(f"Field {field_name}: String cannot be empty")
     if max_length is not None and len(value) > max_length:

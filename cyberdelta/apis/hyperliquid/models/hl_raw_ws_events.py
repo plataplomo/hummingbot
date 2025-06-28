@@ -244,7 +244,7 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, object]:
         """Ensure data is a non-empty dictionary."""
         if not isinstance(v, dict):
-            raise ValueError("data: Must be a dictionary")
+            raise TypeError("data: Must be a dictionary")
         if not v:  # Test expects empty dict to fail
             raise ValueError("data: Dictionary cannot be empty")
         return cast("dict[str, object]", v)

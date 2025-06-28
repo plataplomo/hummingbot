@@ -166,7 +166,7 @@ class TestHyperliquidWebSocketIntegration:
                 f"from REST price {rest_ticker.price}: {price_difference}"
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"WebSocket market data integration failed: {e}")
 
     @pytest.mark.asyncio
@@ -337,7 +337,7 @@ class TestHyperliquidWebSocketIntegration:
                 "WebSocket order price must exactly match REST API order"
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(f"WebSocket trading events integration failed: {e}")
 
     @pytest.mark.asyncio
@@ -412,7 +412,7 @@ class TestHyperliquidWebSocketIntegration:
                     "All financial timestamps must be timezone-aware.",
                 )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             # Expected - naive timestamps should cause problems
             logger.info(
                 "naive_timestamp_rejected",
@@ -495,7 +495,7 @@ class TestHyperliquidWebSocketIntegration:
             )
             return True
 
-        except Exception as e:
+        except (APIError, TypeError, KeyError) as e:
             pytest.fail(f"Unexpected error in message parsing: {e}")
 
     async def _test_subscription_failure_handling(self) -> bool:
@@ -529,7 +529,7 @@ class TestHyperliquidWebSocketIntegration:
                 return True
             pytest.fail(f"Unexpected subscription error: {e}")
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             pytest.fail(f"Subscription failure handling failed: {e}")
 
     @pytest.mark.asyncio
@@ -594,7 +594,7 @@ class TestHyperliquidWebSocketIntegration:
                 assert isinstance(ticker.price, Decimal)
                 assert ticker.symbol == test_symbol
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 pytest.fail(f"WebSocket message processing failed: {e}")
 
             end_time = datetime.now(UTC)

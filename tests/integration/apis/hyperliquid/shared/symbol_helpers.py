@@ -6,6 +6,7 @@ rather than using hardcoded symbol lists that violate security rules.
 
 from typing import Any
 
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
@@ -47,13 +48,13 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
                 "Cannot run integration tests without available markets.",
             )
 
-        return symbols
-
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get available {market_type} symbols from exchange: {e}. "
             "Integration tests must have access to real exchange data.",
         ) from e
+    else:
+        return symbols
 
 
 async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index: int = 0) -> str:
@@ -162,7 +163,7 @@ async def get_exchange_symbol_mapping(api: HyperliquidAPI) -> dict[str, Any]:
             },
         }
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to get exchange symbol mapping: {e}. "
             "Tests require access to exchange symbol information.",

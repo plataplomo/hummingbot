@@ -113,6 +113,7 @@ class AverageFillPriceError(ValueError):
         """Initialize AverageFillPriceError."""
         super().__init__("average_fill_price cannot be None for synthetic trade")
 
+
 # NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier,
 # 'quantity_requested' for order size, 'quantity_filled' for filled size, and
 # 'average_fill_price' for fill price. There is no 'id', 'quantity',
@@ -329,7 +330,7 @@ class ExecutionHandler:
         if not can_long:
             raise LongExchangeCircuitBreakerError(
                 opportunity.opportunity.long_exchange,
-                long_reason,
+                long_reason or "Circuit breaker tripped for long exchange",
             )
 
         can_short, short_reason = self.circuit_breaker_system.can_execute(
@@ -338,7 +339,7 @@ class ExecutionHandler:
         if not can_short:
             raise ShortExchangeCircuitBreakerError(
                 opportunity.opportunity.short_exchange,
-                short_reason,
+                short_reason or "Circuit breaker tripped for short exchange",
             )
 
     async def _setup_execution_prerequisites(
@@ -1986,6 +1987,83 @@ class ExecutionHandler:
         # Determine retry based on error type and context
         return is_retryable and e.is_retryable
 
+    def _create_place_order_args(
+        self,
+        symbol: str,
+        side: OrderSide,
+        order_type: OrderType,
+        quantity: Decimal,
+        time_in_force: TimeInForce,
+        price: Decimal | None,
+        client_order_id: str,
+        reduce_only: bool,
+        post_only: bool,
+    ) -> PlaceOrderArgs:
+        """Create PlaceOrderArgs object for the API call."""
+        return PlaceOrderArgs(
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            quantity=quantity,
+            time_in_force=time_in_force,
+            price=price,
+            client_order_id=client_order_id,
+            reduce_only=reduce_only,
+            post_only=post_only,
+        )
+
+    def _log_order_placement_attempt(
+        self,
+        execution_id: str,
+        context: str,
+        attempt: int,
+        side: OrderSide,
+        quantity: Decimal,
+        symbol: str,
+        exchange_id: str,
+        client_order_id: str,
+    ) -> None:
+        """Log order placement attempt."""
+        logger.info(
+            "execution_order_placement_attempt",
+            execution_id=execution_id,
+            context=context,
+            attempt=attempt,
+            side=side.name,
+            quantity=f"{quantity:.8f}",
+            symbol=symbol,
+            exchange_id=exchange_id,
+            client_order_id=client_order_id,
+            action="place_order_with_retry",
+            message="Attempting order placement",
+        )
+
+    def _handle_order_placement_success(
+        self,
+        execution_id: str,
+        exchange_id: str,
+        order_result: Order,
+        context: str,
+    ) -> None:
+        """Handle successful order placement."""
+        logger.info(
+            "execution_order_placed_successfully",
+            execution_id=execution_id,
+            exchange_id=exchange_id,
+            exchange_order_id=order_result.exchange_order_id,
+            status=order_result.status.value
+            if hasattr(order_result.status, "value")
+            else str(order_result.status),
+            action="place_order_with_retry",
+            message="Order placed successfully",
+        )
+        # Record success with circuit breaker if configured
+        if self.circuit_breaker_system:
+            self.circuit_breaker_system.record_api_success(
+                exchange_id,
+                context=f"Order {order_result.exchange_order_id} placed",
+            )
+
     async def _place_order_with_retry(
         self,
         execution: TradeExecution,
@@ -2038,51 +2116,34 @@ class ExecutionHandler:
 
         for attempt in range(self.max_retries):
             try:
-                logger.info(
-                    "execution_order_placement_attempt",
-                    execution_id=execution.id,
-                    context=context,
-                    attempt=attempt + 1,
-                    side=side.name,
-                    quantity=f"{quantity:.8f}",
-                    symbol=symbol,
-                    exchange_id=exchange_id,
-                    client_order_id=client_order_id,
-                    action="place_order_with_retry",
-                    message="Attempting order placement",
+                self._log_order_placement_attempt(
+                    execution.id,
+                    context,
+                    attempt + 1,
+                    side,
+                    quantity,
+                    symbol,
+                    exchange_id,
+                    client_order_id,
                 )
 
                 # Create PlaceOrderArgs object for the API call
-                place_order_args = PlaceOrderArgs(
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    quantity=quantity,
-                    time_in_force=time_in_force,
-                    price=price,
-                    client_order_id=client_order_id,
-                    reduce_only=reduce_only,
-                    post_only=post_only,
+                place_order_args = self._create_place_order_args(
+                    symbol,
+                    side,
+                    order_type,
+                    quantity,
+                    time_in_force,
+                    price,
+                    client_order_id,
+                    reduce_only,
+                    post_only,
                 )
 
                 order_result = await client.place_order(place_order_args)
-                logger.info(
-                    "execution_order_placed_successfully",
-                    execution_id=execution.id,
-                    exchange_id=exchange_id,
-                    exchange_order_id=order_result.exchange_order_id,
-                    status=order_result.status.value
-                    if hasattr(order_result.status, "value")
-                    else str(order_result.status),
-                    action="place_order_with_retry",
-                    message="Order placed successfully",
+                self._handle_order_placement_success(
+                    execution.id, exchange_id, order_result, context
                 )
-                # Record success with circuit breaker if configured
-                if self.circuit_breaker_system:
-                    self.circuit_breaker_system.record_api_success(
-                        exchange_id,
-                        context=f"Order {order_result.exchange_order_id} placed",
-                    )
             except APIError as e:
                 last_api_error_for_reraise = e  # Store the API error
                 should_retry = await self._handle_api_error(e, exchange_id, context)

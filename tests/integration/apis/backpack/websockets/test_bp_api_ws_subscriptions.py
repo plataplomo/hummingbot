@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 
@@ -55,7 +56,7 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
             "perp": perp_symbols[:2] if perp_symbols else [],  # First 2 perp symbols if available
         }
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket subscription tests require real market data and "
@@ -142,7 +143,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="Successfully subscribed to dynamic symbol",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Dynamic symbol subscription failed for {test_symbol}: {e}. "
                 "WebSocket subscriptions are critical for real-time trading data.",
@@ -214,7 +215,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="Successfully subscribed to different stream types",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Multiple stream type subscriptions failed: {e}. "
                 "Multi-stream WebSocket functionality is critical for comprehensive trading data.",
@@ -276,7 +277,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="State consistency validated",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Subscription state consistency test failed: {e}. "
                 "State consistency is critical for reliable WebSocket operations.",
@@ -320,7 +321,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="All helper subscription methods successful with real symbols",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Helper subscription methods failed with real symbols: {e}. "
                 "Helper methods are critical for simplified WebSocket integration.",
@@ -379,7 +380,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="Concurrent subscriptions successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Concurrent subscriptions failed: {e}. "
                 "Concurrent WebSocket operations are critical for high-frequency trading.",
@@ -432,7 +433,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 message="Connection lifecycle completed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"WebSocket connection lifecycle failed: {e}. "
                 "Connection lifecycle management is critical for trading system reliability.",
@@ -500,7 +501,7 @@ class TestBackpackAPIAdvancedSubscriptions:
                 message="Mixed market subscriptions successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Mixed market type subscriptions failed: {e}. "
                 "Multi-market WebSocket functionality is critical for comprehensive trading.",
@@ -565,7 +566,7 @@ class TestBackpackAPIAdvancedSubscriptions:
                     f"Connection state should be boolean after {topic}, got {type(state)}"
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 if should_succeed:
                     # Valid scenarios should not fail
                     pytest.fail(

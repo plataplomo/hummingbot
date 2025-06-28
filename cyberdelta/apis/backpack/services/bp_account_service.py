@@ -370,6 +370,7 @@ class BackpackAccountService:
         # Initialize context for error handling
         status_code: int = 0
         raw_response_content: str | None = None
+        internal_balances: dict[str, SpotBalance] = {}
 
         try:
             # Core operational logic
@@ -379,124 +380,151 @@ class BackpackAccountService:
                 exchange=self._exchange_name,
                 message=f"[{self._exchange_name}] Getting account balances.",
             )
-            raw_balances_payload = await self._get_raw_balances_dict()
-            internal_balances: dict[str, SpotBalance] = {}
 
-            # Transform basic spot balances
-            for asset_symbol, raw_balance_model in raw_balances_payload.items():
-                try:
-                    internal_balances[asset_symbol] = (
-                        self._mapper.transform_raw_balance_to_internal(
-                            asset_symbol,
-                            raw_balance_model,
-                        )
-                    )
-                except (ValidationError, ValueError) as e_map_item:
-                    logger.warning(
-                        "skipping_balance_mapping: Skipping balance mapping for asset due to error",
-                        exchange_name=self._exchange_name,
-                        asset_symbol=asset_symbol,
-                        error=str(e_map_item),
-                        raw_balance_model=raw_balance_model,
-                    )
+            # Transform raw balances to internal format
+            internal_balances = await self._transform_raw_balances()
 
-            # Check if auto-lending is potentially active (all spot balances are zero)
-            all_spot_balances_zero = all(
-                balance.total_quantity == Decimal(0) for balance in internal_balances.values()
-            )
-
-            if all_spot_balances_zero and len(internal_balances) > 0:
-                logger.info(
-                    "checking_collateral_for_auto_lending: All balances zero, checking collateral",
-                    exchange_name=self._exchange_name,
-                )
-
-                try:
-                    # Fetch collateral data to get the complete picture
-                    raw_collateral = await self._get_raw_collateral_response()
-
-                    # Enhance balances with collateral information
-                    internal_balances = await self._enhance_balances_with_collateral(
-                        spot_balances=internal_balances,
-                        collateral_response=raw_collateral,
-                    )
-
-                    logger.debug(
-                        "enhanced_balances_with_collateral: Enhanced balances with collateral data",
-                        exchange_name=self._exchange_name,
-                    )
-                except APIError as e_collateral:
-                    # If collateral endpoint fails, log but continue with spot balances
-                    logger.warning(
-                        "collateral_fetch_failed: Failed to fetch collateral, continuing with spot",
-                        exchange_name=self._exchange_name,
-                        error=str(e_collateral),
-                    )
+            # Handle auto-lending scenario if all balances are zero
+            internal_balances = await self._handle_auto_lending_scenario(internal_balances)
 
             logger.debug(
                 "balances_mapped_successfully: Successfully mapped spot balances",
                 exchange_name=self._exchange_name,
                 balance_count=len(internal_balances),
             )
-            return internal_balances
 
         except APIError:
             # Re-raise APIErrors from _get_raw_balances_dict, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
-            logger.exception(
+        except (TransformationError, ValidationError, ValueError, TypeError, Exception) as e:
+            self._handle_balance_exception(e, current_method, status_code, raw_response_content)
+
+        return internal_balances
+
+    async def _transform_raw_balances(self) -> dict[str, SpotBalance]:
+        """Transform raw balances payload to internal SpotBalance models."""
+        raw_balances_payload = await self._get_raw_balances_dict()
+        internal_balances: dict[str, SpotBalance] = {}
+
+        # Transform basic spot balances
+        for asset_symbol, raw_balance_model in raw_balances_payload.items():
+            try:
+                internal_balances[asset_symbol] = self._mapper.transform_raw_balance_to_internal(
+                    asset_symbol,
+                    raw_balance_model,
+                )
+            except (ValidationError, ValueError) as e_map_item:
+                logger.warning(
+                    "skipping_balance_mapping: Skipping balance mapping for asset due to error",
+                    exchange_name=self._exchange_name,
+                    asset_symbol=asset_symbol,
+                    error=str(e_map_item),
+                    raw_balance_model=raw_balance_model,
+                )
+
+        return internal_balances
+
+    async def _handle_auto_lending_scenario(
+        self, internal_balances: dict[str, SpotBalance]
+    ) -> dict[str, SpotBalance]:
+        """Check and handle auto-lending scenario where all spot balances are zero."""
+        # Check if auto-lending is potentially active (all spot balances are zero)
+        all_spot_balances_zero = all(
+            balance.total_quantity == Decimal(0) for balance in internal_balances.values()
+        )
+
+        if all_spot_balances_zero and len(internal_balances) > 0:
+            logger.info(
+                "checking_collateral_for_auto_lending: All balances zero, checking collateral",
+                exchange_name=self._exchange_name,
+            )
+
+            try:
+                # Fetch collateral data to get the complete picture
+                raw_collateral = await self._get_raw_collateral_response()
+
+                # Enhance balances with collateral information
+                internal_balances = await self._enhance_balances_with_collateral(
+                    spot_balances=internal_balances,
+                    collateral_response=raw_collateral,
+                )
+
+                logger.debug(
+                    "enhanced_balances_with_collateral: Enhanced balances with collateral data",
+                    exchange_name=self._exchange_name,
+                )
+            except APIError as e_collateral:
+                # If collateral endpoint fails, log but continue with spot balances
+                logger.warning(
+                    "collateral_fetch_failed: Failed to fetch collateral, continuing with spot",
+                    exchange_name=self._exchange_name,
+                    error=str(e_collateral),
+                )
+
+        return internal_balances
+
+    def _handle_balance_exception(
+        self,
+        e: Exception,
+        method_name: str,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle exceptions for balance-related operations."""
+        if isinstance(e, TransformationError):
+            logger.error(
                 "transform_failed: Failed to transform exchange data",
                 exchange_name=self._exchange_name,
-                method=current_method,
-                error=str(e_transform),
+                method=method_name,
+                error=str(e),
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
-            logger.exception(
+            ) from e
+        if isinstance(e, ValidationError):
+            logger.error(
                 "validation_failed: Internal data validation failed",
                 exchange_name=self._exchange_name,
-                method=current_method,
-                error=str(e_val),
+                method=method_name,
+                error=str(e),
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            ) from e
+        if isinstance(e, (ValueError, TypeError)):
+            logger.error(
                 "service_logic_error: Service internal logic error",
                 exchange_name=self._exchange_name,
-                method=current_method,
-                error=str(e_service_logic),
+                method=method_name,
+                error=str(e),
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
                 message="Service internal logic error.",
-                original_exception=e_service_logic,
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.exception(
-                "unexpected_service_failure: Unexpected service failure",
-                exchange_name=self._exchange_name,
-                method=current_method,
-                error=str(e_unexpected),
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected
+                original_exception=e,
+            ) from e
+        # Default case for any other exception
+        logger.error(
+            "unexpected_service_failure: Unexpected service failure",
+            exchange_name=self._exchange_name,
+            method=method_name,
+            error=str(e),
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def _enhance_balances_with_collateral(
         self,
@@ -624,14 +652,12 @@ class BackpackAccountService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_positions"
 
-        if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
-            )
+        self._validate_position_symbol(symbol, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
         raw_response_content: str | None = None
+        internal_positions: list[DerivativePosition] = []
 
         try:
             # Core operational logic
@@ -640,103 +666,148 @@ class BackpackAccountService:
                 exchange_name=self._exchange_name,
                 symbol=symbol or "all",
             )
-            raw_positions_list = await self._get_raw_positions_list(symbol)
-            internal_positions: list[DerivativePosition] = []
-            for raw_position_model in raw_positions_list:
-                try:
-                    internal_positions.append(
-                        self._mapper.transform_raw_position_to_internal(raw_position_model),
-                    )
-                except (ValidationError, ValueError) as e_map_item:
-                    logger.warning(
-                        "skipping_position_mapping: Skipping position mapping due to error",
-                        exchange_name=self._exchange_name,
-                        symbol=(
-                            raw_position_model.symbol
-                            if hasattr(raw_position_model, "symbol")
-                            else "UnknownSymbol"
-                        ),
-                        error=str(e_map_item),
-                        raw_position_model=raw_position_model,
-                    )
+
+            # Transform raw positions to internal format
+            internal_positions = await self._transform_raw_positions(symbol)
+
             logger.debug(
                 "positions_mapped_successfully: Successfully mapped derivative positions",
                 exchange_name=self._exchange_name,
                 position_count=len(internal_positions),
             )
-            return internal_positions
 
         except APIError:
             # Re-raise APIErrors from _get_raw_positions_list, ResponseHandler, etc.
             raise
-        except TransformationError as e_transform:
-            logger.exception(
+        except (ValueError, TypeError) as e:
+            # Check if this is from our own input parameter validation
+            self._handle_position_value_error(
+                e, current_method, symbol, status_code, raw_response_content
+            )
+        except (TransformationError, ValidationError, Exception) as e:
+            self._handle_position_exception(
+                e, current_method, symbol, status_code, raw_response_content
+            )
+
+        return internal_positions
+
+    def _validate_position_symbol(self, symbol: str | None, method_name: str) -> None:
+        """Validate the symbol parameter for position queries."""
+        if symbol is not None and not symbol:
+            raise ValueError(
+                f"[{method_name}] 'symbol' must be a non-empty string when provided.",
+            )
+
+    async def _transform_raw_positions(self, symbol: str | None) -> list[DerivativePosition]:
+        """Transform raw positions list to internal DerivativePosition models."""
+        raw_positions_list = await self._get_raw_positions_list(symbol)
+        internal_positions: list[DerivativePosition] = []
+
+        for raw_position_model in raw_positions_list:
+            try:
+                internal_positions.append(
+                    self._mapper.transform_raw_position_to_internal(raw_position_model),
+                )
+            except (ValidationError, ValueError) as e_map_item:
+                logger.warning(
+                    "skipping_position_mapping: Skipping position mapping due to error",
+                    exchange_name=self._exchange_name,
+                    symbol=(
+                        raw_position_model.symbol
+                        if hasattr(raw_position_model, "symbol")
+                        else "UnknownSymbol"
+                    ),
+                    error=str(e_map_item),
+                    raw_position_model=raw_position_model,
+                )
+
+        return internal_positions
+
+    def _handle_position_value_error(
+        self,
+        e: ValueError | TypeError,
+        method_name: str,
+        symbol: str | None,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle ValueError/TypeError for position operations."""
+        # Input parameter validation errors should propagate as ValueError
+        # Service logic errors should be wrapped as APIError
+        error_msg = str(e)
+        if method_name in error_msg and "symbol" in error_msg:
+            # This is likely from our input parameter validation - re-raise as is
+            raise
+        # This is from service internal logic - wrap as APIError
+        logger.error(
+            "service_logic_error: Service internal logic error for positions",
+            exchange_name=self._exchange_name,
+            method=method_name,
+            symbol=symbol or "all",
+            error=str(e),
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Service internal logic error.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
+
+    def _handle_position_exception(
+        self,
+        e: Exception,
+        method_name: str,
+        symbol: str | None,
+        status_code: int,
+        raw_response_content: str | None,
+    ) -> None:
+        """Handle exceptions for position-related operations."""
+        if isinstance(e, TransformationError):
+            logger.error(
                 "transform_failed: Failed to transform exchange data for positions",
                 exchange_name=self._exchange_name,
-                method=current_method,
+                method=method_name,
                 symbol=symbol or "all",
-                error=str(e_transform),
+                error=str(e),
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Failed to process/transform exchange data.",
-                original_exception=e_transform,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_transform
-        except ValidationError as e_val:
-            logger.exception(
+            ) from e
+        if isinstance(e, ValidationError):
+            logger.error(
                 "validation_failed: Internal data validation failed for positions",
                 exchange_name=self._exchange_name,
-                method=current_method,
+                method=method_name,
                 symbol=symbol or "all",
-                error=str(e_val),
+                error=str(e),
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 message="Internal data validation failed.",
-                original_exception=e_val,
+                original_exception=e,
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
-            ) from e_val
-        except (ValueError, TypeError) as e_service_logic:
-            # Check if this is from our own input parameter validation
-            # Input parameter validation errors should propagate as ValueError
-            # Service logic errors should be wrapped as APIError
-            error_msg = str(e_service_logic)
-            if current_method in error_msg and "symbol" in error_msg:
-                # This is likely from our input parameter validation - re-raise as is
-                raise
-            # This is from service internal logic - wrap as APIError
-            logger.exception(
-                "service_logic_error: Service internal logic error for positions",
-                exchange_name=self._exchange_name,
-                method=current_method,
-                symbol=symbol or "all",
-                error=str(e_service_logic),
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Service internal logic error.",
-                original_exception=e_service_logic,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.exception(
-                "unexpected_service_failure: Unexpected service failure for positions",
-                exchange_name=self._exchange_name,
-                method=current_method,
-                symbol=symbol or "all",
-                error=str(e_unexpected),
-            )
-            raise APIError(
-                code=APIErrorCode.UNKNOWN.value,
-                message="Unexpected service failure.",
-                original_exception=e_unexpected,
-                http_status=status_code if status_code != 0 else None,
-                exchange_message=raw_response_content,
-            ) from e_unexpected
+            ) from e
+        # Default case for any other exception
+        logger.error(
+            "unexpected_service_failure: Unexpected service failure for positions",
+            exchange_name=self._exchange_name,
+            method=method_name,
+            symbol=symbol or "all",
+            error=str(e),
+        )
+        raise APIError(
+            code=APIErrorCode.UNKNOWN.value,
+            message="Unexpected service failure.",
+            original_exception=e,
+            http_status=status_code if status_code != 0 else None,
+            exchange_message=raw_response_content,
+        ) from e
 
     async def get_account_summary(self, subaccount_id: int | None = None) -> MarginAccountSummary:
         """Get comprehensive account margin summary.
@@ -866,7 +937,6 @@ class BackpackAccountService:
                 "enhanced_account_summary_created: Enhanced account summary created",
                 exchange_name=self._exchange_name,
             )
-            return internal_summary
 
         except APIError as e:
             # If collateral endpoint not available (404) or returns invalid data,
@@ -912,6 +982,8 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return internal_summary
 
     async def _get_basic_account_info(
         self,
@@ -960,7 +1032,6 @@ class BackpackAccountService:
                 summary_type="basic",
                 message=f"[{self._exchange_name}] Basic account summary created successfully.",
             )
-            return internal_summary
 
         except APIError:
             # Re-raise APIErrors from _get_raw_* methods, ResponseHandler, etc.
@@ -1019,6 +1090,8 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return internal_summary
 
     async def _get_raw_collateral_response(
         self,
@@ -1140,8 +1213,6 @@ class BackpackAccountService:
                     message="Missing max_borrow_quantity in response",
                 )
 
-            return max_quantity
-
         except Exception as e:
             logger.exception(
                 "max_borrow_fetch_failed: Failed to fetch max borrow quantity",
@@ -1150,6 +1221,8 @@ class BackpackAccountService:
                 error=str(e),
             )
             raise
+        else:
+            return max_quantity
 
     async def _get_exchange_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
         """PRIVATE: Fetches max order quantity from the exchange for validation.
@@ -1213,8 +1286,6 @@ class BackpackAccountService:
                     message="Missing max_order_quantity in response",
                 )
 
-            return max_quantity
-
         except Exception as e:
             logger.exception(
                 "max_order_fetch_failed: Failed to fetch max order quantity",
@@ -1223,6 +1294,8 @@ class BackpackAccountService:
                 error=str(e),
             )
             raise
+        else:
+            return max_quantity
 
     async def _get_exchange_max_withdrawal_quantity(
         self,
@@ -1287,8 +1360,6 @@ class BackpackAccountService:
                     message="Missing max_withdrawal_quantity in response",
                 )
 
-            return max_quantity
-
         except Exception as e:
             logger.exception(
                 "max_withdrawal_fetch_failed: Failed to fetch max withdrawal quantity",
@@ -1297,6 +1368,8 @@ class BackpackAccountService:
                 error=str(e),
             )
             raise
+        else:
+            return max_quantity
 
     def _validate_account_types(self, args: TransferArgs, current_method: str) -> None:
         """Validate account types for transfer."""
@@ -1768,7 +1841,6 @@ class BackpackAccountService:
                 exchange_name=self._exchange_name,
                 order_count=len(internal_orders),
             )
-            return internal_orders
 
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
@@ -1831,6 +1903,8 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return internal_orders
 
     async def _execute_trade_history_request(
         self,

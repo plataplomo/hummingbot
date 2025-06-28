@@ -147,15 +147,13 @@ def secure_transform[T: BaseModel](
         # Check if we should log a summary
         _validation_aggregator.maybe_log_summary()
 
-        return result
-
     except ValidationError as e:
         # Record failure for aggregation
         _validation_aggregator.record_failure()
         _validation_aggregator.maybe_log_summary()
 
         # Critical security event - potential attack attempt (keep detailed error logging)
-        security_logger.error(
+        security_logger.exception(
             "security_validation_failed",
             context=context,
             model_class=model_class.__name__,
@@ -192,6 +190,8 @@ def secure_transform[T: BaseModel](
         raise TransformationError(
             f"Unexpected error during secure transformation: {type(e).__name__}",
         ) from e
+    else:
+        return result
 
 
 def secure_transform_with_audit[T: BaseModel](
@@ -261,13 +261,11 @@ def secure_transform_with_audit[T: BaseModel](
             ),
         )
 
-        return result
-
     except TransformationError as e:
         # Log failed transformation for audit
         end_time = datetime.now(UTC)
         duration_ms = (end_time - start_time).total_seconds() * 1000
-        audit_logger.error(
+        audit_logger.exception(
             "audit_transformation_failed",
             timestamp=end_time.isoformat(),
             context=context,
@@ -279,6 +277,8 @@ def secure_transform_with_audit[T: BaseModel](
             message=f"AUDIT: Transformation failed - context={context}, error={e!s}",
         )
         raise
+    else:
+        return result
 
 
 def validate_financial_constraints(

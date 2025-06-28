@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
@@ -56,7 +57,7 @@ async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
             "perp": perp_symbols[:2] if perp_symbols else [],  # First 2 perp symbols if available
         }
 
-    except Exception as e:
+    except (APIError, ValueError, TypeError, KeyError) as e:
         raise RuntimeError(
             f"Failed to fetch trading symbols from exchange: {e}. "
             "WebSocket subscription tests require real market data and "
@@ -148,7 +149,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 message="Real symbol subscription successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Real symbol subscription failed for {test_symbol}: {e}. "
                 "WebSocket subscriptions with real symbols are critical for trading data.",
@@ -228,7 +229,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 message="Multiple real stream types successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Multiple real stream type subscriptions failed: {e}. "
                 "Multi-stream functionality is critical for comprehensive trading data.",
@@ -288,7 +289,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 message="Real subscription state consistency validated",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Real subscription state consistency failed: {e}. "
                 "State consistency is critical for reliable WebSocket operations with real data.",
@@ -333,7 +334,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 message="All helper subscription methods successful with real symbols",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Helper subscription methods failed with real symbols: {e}. "
                 "Helper methods are critical for simplified WebSocket integration.",
@@ -385,7 +386,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 message="Real WebSocket lifecycle completed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Real WebSocket connection lifecycle failed: {e}. "
                 "Connection lifecycle with real symbols is critical for "
@@ -456,7 +457,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
                 message="Concurrent real subscriptions successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Concurrent real subscriptions failed: {e}. "
                 "Concurrent operations with real data are critical for high-frequency trading.",
@@ -514,7 +515,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
                 message="Mixed market real subscriptions successful",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Mixed market real subscriptions failed: {e}. "
                 "Multi-market functionality with real data is critical for comprehensive trading.",
@@ -590,7 +591,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                     f"Connection state should be boolean after {topic}, got {type(state)}"
                 )
 
-            except Exception as e:
+            except (APIError, ValueError, TypeError, KeyError) as e:
                 if should_succeed:
                     # Valid real scenarios must not fail
                     pytest.fail(
@@ -672,7 +673,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
                 message="Subscription resilience with real data confirmed",
             )
 
-        except Exception as e:
+        except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
                 f"Subscription resilience failed after {operation_count} operations: {e}. "
                 "System resilience with real data is critical for trading platform stability.",

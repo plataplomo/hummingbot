@@ -208,7 +208,7 @@ class TestBackpackPositionsPositive:
                     )
 
                     await bp_api.place_order(close_args)
-        except Exception as cleanup_error:
+        except (APIError, ValueError, TypeError) as cleanup_error:
             pytest.fail(
                 f"Failed to clean up position for {symbol}: {cleanup_error}. "
                 "Position cleanup is critical to prevent test contamination.",

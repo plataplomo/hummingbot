@@ -297,12 +297,13 @@ def test_secrets_large_balance_config(test_secrets_large_balance_file_path: Path
         manager = SecretsManager(str(test_secrets_large_balance_file_path))
         if manager.secrets_data is None:
             raise RuntimeError("SecretsManager loaded but secrets_data is None.")
-        return manager.secrets_data
-    except Exception as e:
+    except RuntimeError as e:
         pytest.fail(
             f"Failed to load large balance test SecretsConfig from "
             f"{test_secrets_large_balance_file_path}: {e}",
         )
+    else:
+        return manager.secrets_data
 
 
 @pytest.fixture(scope="session")
@@ -371,12 +372,13 @@ def test_secrets_zero_balance_config(test_secrets_zero_balance_file_path: Path) 
         manager = SecretsManager(str(test_secrets_zero_balance_file_path))
         if manager.secrets_data is None:
             raise RuntimeError("SecretsManager loaded but secrets_data is None.")
-        return manager.secrets_data
-    except Exception as e:
+    except RuntimeError as e:
         pytest.fail(
             f"Failed to load zero balance test SecretsConfig from "
             f"{test_secrets_zero_balance_file_path}: {e}",
         )
+    else:
+        return manager.secrets_data
 
 
 @pytest.fixture(scope="session")

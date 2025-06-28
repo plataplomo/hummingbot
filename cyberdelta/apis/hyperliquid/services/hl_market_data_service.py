@@ -192,8 +192,6 @@ class HyperliquidMarketDataService:
                     headers=headers,
                 )
             )
-            return validated_response
-
         except APIError:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
@@ -253,6 +251,8 @@ class HyperliquidMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content_str,
             ) from e_unexpected
+        else:
+            return validated_response
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
         """Retrieve the latest ticker/context information for a specific symbol.
@@ -311,8 +311,6 @@ class HyperliquidMarketDataService:
                     "after fetching all asset contexts."
                 ),
             )
-            return None  # Consistent with method signature if not found
-
         except APIError:
             # Re-raise APIErrors from get_all_asset_contexts_raw, ResponseHandler, etc.
             raise
@@ -372,6 +370,8 @@ class HyperliquidMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        else:
+            return None  # Consistent with method signature if not found
 
     def _validate_symbol(self, symbol: str, current_method: str) -> None:
         """Validate symbol parameter.
@@ -652,8 +652,6 @@ class HyperliquidMarketDataService:
                 message="[%s] Mapped %s recent_trades for %s",
                 message_args=(self._exchange_name, len(internal_trades), symbol),
             )
-            return internal_trades
-
         except APIError:
             raise
         except TransformationError as e_transform:
@@ -683,6 +681,8 @@ class HyperliquidMarketDataService:
                 raw_response_content,
             )
             raise  # DEFENSIVE CHECK: Ensure function returns on all paths. Mypy=[return] Ruff=[]
+        else:
+            return internal_trades
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
         """Retrieve the current funding rate information for a specific perpetual contract symbol.
@@ -715,31 +715,7 @@ class HyperliquidMarketDataService:
 
         try:
             # Core operational logic
-            all_contexts_response = await self.get_all_asset_contexts_raw()
-            if (
-                all_contexts_response
-                and all_contexts_response.asset_ctxs
-                and all_contexts_response.meta
-            ):
-                # Match asset contexts with universe names by index
-                # The asset contexts are in the same order as the universe
-                universe = all_contexts_response.meta.universe
-                for i, asset_def in enumerate(universe):
-                    if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
-                        asset_ctx = all_contexts_response.asset_ctxs[i]
-                        # Create a copy with the name field populated for the mapper
-                        asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
-                        return self._mapper.transform_raw_asset_ctx_to_funding_rate(
-                            asset_ctx_with_name,
-                        )
-
-            logger.warning(
-                "funding_rate_data_not_found",
-                message="[%s] Funding rate data (from asset context) not found for symbol '%s'.",
-                message_args=(self._exchange_name, symbol),
-            )
-            return None
-
+            return await self._get_funding_rate_from_contexts(symbol)
         except APIError:
             # Re-raise APIErrors from get_all_asset_contexts_raw, ResponseHandler, etc.
             raise
@@ -799,6 +775,33 @@ class HyperliquidMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+
+    async def _get_funding_rate_from_contexts(self, symbol: str) -> FundingRate | None:
+        """Get funding rate for symbol from asset contexts."""
+        all_contexts_response = await self.get_all_asset_contexts_raw()
+        if (
+            all_contexts_response
+            and all_contexts_response.asset_ctxs
+            and all_contexts_response.meta
+        ):
+            # Match asset contexts with universe names by index
+            # The asset contexts are in the same order as the universe
+            universe = all_contexts_response.meta.universe
+            for i, asset_def in enumerate(universe):
+                if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
+                    asset_ctx = all_contexts_response.asset_ctxs[i]
+                    # Create a copy with the name field populated for the mapper
+                    asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
+                    return self._mapper.transform_raw_asset_ctx_to_funding_rate(
+                        asset_ctx_with_name,
+                    )
+
+        logger.warning(
+            "funding_rate_data_not_found",
+            message="[%s] Funding rate data (from asset context) not found for symbol '%s'.",
+            message_args=(self._exchange_name, symbol),
+        )
+        return None
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Retrieve current funding rates for specified symbols, or all if None.
@@ -1039,7 +1042,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle transformation errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "historical_funding_rates_transform_error",
             message="[%s] [%s] TransformationError: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1068,7 +1071,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle validation errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "historical_funding_rates_validation_error",
             message="[%s] [%s] ValidationError: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1095,7 +1098,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle service logic errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "service_logic_error",
             message="[%s] [%s] Service logic error: %s",
             message_args=(self._exchange_name, current_method, error),
@@ -1114,7 +1117,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle unexpected errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "unexpected_error",
             message="[%s] [%s] Unexpected error: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1299,15 +1302,14 @@ class HyperliquidMarketDataService:
         )
 
         if raw_response_content_parsed is None:
-            logger.exception(
+            logger.error(
                 "candles_no_content_received",
                 message="[%s] No content received for candles %s, status: %s.",
                 message_args=(self._exchange_name, symbol, status_code),
             )
             # Consider raising APIError or returning empty list based on desired strictness
             error_msg = (
-                f"No data received for market data (candles) for {symbol}, "
-                f"status: {status_code}"
+                f"No data received for market data (candles) for {symbol}, status: {status_code}"
             )
             raise APIError(
                 message=error_msg,
@@ -1337,7 +1339,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle transformation errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_transform_error",
             message="[%s] %s: Failed to transform exchange data for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1359,7 +1361,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle validation errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_validation_error",
             message="[%s] %s: Internal data validation failed for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1379,7 +1381,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle service logic errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_service_logic_error",
             message="[%s] %s: Service internal logic error for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1399,7 +1401,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle unexpected errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_unexpected_error",
             message="[%s] %s: Unexpected service failure for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1481,7 +1483,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_transform_error",
             message="[%s] get_funding_rates: Failed to transform exchange data: %s",
             message_args=(self._exchange_name, error),
@@ -1501,7 +1503,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_validation_error",
             message="[%s] get_funding_rates: Internal data validation failed: %s",
             message_args=(self._exchange_name, error),
@@ -1516,7 +1518,7 @@ class HyperliquidMarketDataService:
 
     def _handle_funding_rates_service_logic_error(self, error: ValueError | TypeError) -> None:
         """Handle service logic errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_service_logic_error",
             message="[%s] get_funding_rates: Service internal logic error: %s",
             message_args=(self._exchange_name, error),
@@ -1534,7 +1536,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_unexpected_error",
             message="[%s] get_funding_rates: Unexpected service failure: %s",
             message_args=(self._exchange_name, error),
@@ -1587,7 +1589,7 @@ class HyperliquidMarketDataService:
                 f"No content received from HTTP client for recentTrades for {symbol}. "
                 f"Status: {status_code}"
             )
-            logger.exception(
+            logger.error(
                 "trade_history_empty_response",
                 action="get_trade_history",
                 exchange=self._exchange_name,
@@ -1646,7 +1648,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_transform_error",
             message="[%s] get_recent_trades: Failed to transform exchange data for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1667,7 +1669,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_validation_error",
             message="[%s] get_recent_trades: Internal data validation failed for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1686,7 +1688,7 @@ class HyperliquidMarketDataService:
         symbol: str,
     ) -> None:
         """Handle service logic errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_service_logic_error",
             message="[%s] get_recent_trades: Service internal logic error for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1705,7 +1707,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_unexpected_error",
             message="[%s] get_recent_trades: Unexpected service failure for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1750,8 +1752,6 @@ class HyperliquidMarketDataService:
                 message_args=(self._exchange_name, len(markets)),
             )
 
-            return markets
-
         except APIError:
             # Re-raise APIErrors from get_all_asset_contexts_raw or mapper
             raise
@@ -1781,6 +1781,8 @@ class HyperliquidMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content_str,
             ) from e_unhandled
+        else:
+            return markets
 
     async def get_market(self, args: GetMarketArgs) -> Market:
         """Retrieve market metadata for a specific symbol.

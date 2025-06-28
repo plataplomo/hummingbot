@@ -23,8 +23,8 @@ async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
         spot_balances = await api.get_balances()
         logger.info("spot_balance_keys: Available balance symbols", keys=list(spot_balances.keys()))
         logger.info("spot_balance_count: Number of balances", count=len(spot_balances))
-    except Exception as e:
-        logger.error("balance_fetch_error: Error getting balances", error=str(e))
+    except (OSError, ConnectionError, TimeoutError, ValueError, AttributeError, KeyError) as e:
+        logger.exception("balance_fetch_error: Error getting balances", error=str(e))
 
     if "USDC" in spot_balances:
         usdc = spot_balances["USDC"]

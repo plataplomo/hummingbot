@@ -231,8 +231,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     f"Hyperliquid private_key is not cryptographically valid: {e}"
                 )
                 raise ValueError(crypto_validation_error_msg) from e
-            
-            return account_obj
 
         except ValueError as e:
             self.logger.exception(
@@ -242,6 +240,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             )
             invalid_private_key_msg = f"Invalid private key: {e}"
             raise ValueError(invalid_private_key_msg) from e
+        else:
+            return account_obj
 
     def _process_private_key_string(self, private_key_str: str) -> str:
         """Process private key string by removing 0x prefix if present."""
@@ -574,13 +574,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 )
                 # Check if 'c' field is present and its value
                 if "c" in order:
+                    c_value = order["c"]
+                    c_type_name = type(c_value).__name__
                     self.logger.debug(
                         "c_field_value_logged",
-                        c_value=order["c"],
-                        c_type=type(order["c"]),
-                        message=("[HL_AUTH] Field 'c' value: {} (type: {})").format(
-                            order["c"], type(order["c"])
-                        ),
+                        c_value=c_value,
+                        c_type=c_type_name,
+                        message=f"[HL_AUTH] Field 'c' value: {c_value} (type: {c_type_name})",
                     )
                 else:
                     self.logger.debug(
@@ -688,7 +688,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             or not hasattr(signed_message_obj, "s")
             or not hasattr(signed_message_obj, "v")
         ):
-            invalid_signature_components_msg = "Invalid signature object: missing r, s, or v components"
+            invalid_signature_components_msg = (
+                "Invalid signature object: missing r, s, or v components"
+            )
             raise APIError(
                 invalid_signature_components_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -738,7 +740,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 message=f"[HL_AUTH] Signing account: {self._account.address}",
             )
 
-            return signature_dict
         except Exception as e:
             self.logger.exception(
                 "signature_formatting_failed",
@@ -752,6 +753,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
+        else:
+            return signature_dict
 
     async def _prepare_exchange_request(
         self,
@@ -836,7 +839,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     f"Hyperliquid Exchange Agent message: {e}"
                 ),
             )
-            sign_eip712_agent_failed_msg = f"Failed to sign EIP-712 Agent request for /exchange: {e}"
+            sign_eip712_agent_failed_msg = (
+                f"Failed to sign EIP-712 Agent request for /exchange: {e}"
+            )
             raise APIError(
                 sign_eip712_agent_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
@@ -898,7 +903,6 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         f"signing address {self._account.address}"
                     ),
                 )
-            return signed_msg
         except Exception as e:
             self.logger.exception(
                 "eip712_message_signing_failed",
@@ -912,6 +916,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
+        else:
+            return signed_msg
 
     def _construct_http_body(
         self,
@@ -965,7 +971,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
-        
+
         return final_http_body
 
     def _prepare_request_headers(self, headers: Mapping[str, Any] | None) -> dict[str, str]:
@@ -1007,5 +1013,5 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
-        
+
         return final_headers
